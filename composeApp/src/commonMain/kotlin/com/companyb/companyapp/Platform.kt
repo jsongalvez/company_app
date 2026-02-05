@@ -1,4 +1,4 @@
-package com.company_b.company_app
+package com.companyb.companyapp
 
 interface Platform {
     val name: String

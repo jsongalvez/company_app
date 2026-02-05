@@ -1,4 +1,4 @@
-package com.company_b.company_app
+package com.companyb.companyapp
 
 class Greeting {
     private val platform = getPlatform()

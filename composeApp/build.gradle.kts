@@ -1,4 +1,3 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -47,7 +46,7 @@ kotlin {
 }
 
 android {
-    namespace = "com.company_b.company_app"
+    namespace = "com.companyb.companyapp"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
