@@ -305,6 +305,9 @@ exceptions:
       - 'RuntimeException'
       - 'Throwable'
 
+formatting:
+    active: false
+
 naming:
   active: true
   BooleanPropertyNaming:
