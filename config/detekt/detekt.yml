@@ -364,6 +364,9 @@ naming:
       - 'macosX64'
       - 'mingwX64'
       - 'linuxX64'
+    excludes:
+      - '**/Platform.android.kt'
+      - '**/Platform.ios.kt'
   MemberNameEqualsClassName:
     active: true
     ignoreOverridden: true
