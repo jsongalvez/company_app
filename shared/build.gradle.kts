@@ -17,3 +17,11 @@ kotlin {
         }
     }
 }
+
+android {
+    namespace = "com.companyb.companyapp.shared"
+    compileSdk =
+        libs.versions.android.compileSdk
+            .get()
+            .toInt()
+}
