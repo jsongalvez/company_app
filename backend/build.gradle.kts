@@ -17,4 +17,7 @@ dependencies {
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
+
+    // Authentication
+    implementation(libs.jwt)
 }
