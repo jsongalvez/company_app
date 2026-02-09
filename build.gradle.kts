@@ -7,13 +7,13 @@ plugins {
     alias(libs.plugins.composeCompiler) apply false
     alias(libs.plugins.kotlinMultiplatform) apply false
 
-    id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
-    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    alias(libs.plugins.ktlint)
+    alias(libs.plugins.detekt)
 }
 
 subprojects {
-    apply(plugin = "org.jlleitschuh.gradle.ktlint")
-    apply(plugin = "io.gitlab.arturbosch.detekt")
+    apply(plugin = rootProject.libs.plugins.ktlint.get().pluginId)
+    apply(plugin = rootProject.libs.plugins.detekt.get().pluginId)
 
     ktlint {
         version.set("1.8.0")
