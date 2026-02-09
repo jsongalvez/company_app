@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 dependencies {
@@ -13,4 +14,7 @@ dependencies {
     implementation(libs.flyway)
     implementation(libs.flyway.postgresql)
     implementation(libs.hikaricp)
+
+    // Serialization
+    implementation(libs.kotlinx.serialization.json)
 }
