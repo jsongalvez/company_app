@@ -20,4 +20,8 @@ dependencies {
 
     // Authentication
     implementation(libs.jwt)
+
+    // Logging
+    implementation(libs.kotlin.logging)
+    implementation(libs.logback.classic)
 }
