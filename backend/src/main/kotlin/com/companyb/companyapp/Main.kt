@@ -10,13 +10,13 @@ private val logger = KotlinLogging.logger {}
 val dotenv = dotenv()
 
 fun initializeJavalin() {
-    logger.info { "[Server] [Startup] Application starting" }
+    logger.info { "[INITIALIZE-JAVALIN] Starting application" }
 
     Javalin
         .create {}
         .start(dotenv["APP_PORT"].toInt())
 
-    logger.info { "[Server] [Ready] Application started" }
+    logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
 
 fun initializeHikariCP() {
