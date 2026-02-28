@@ -24,4 +24,7 @@ dependencies {
     // Logging
     implementation(libs.kotlin.logging)
     implementation(libs.logback.classic)
+
+    // Environment
+    implementation(libs.dotenv)
 }
