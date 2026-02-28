@@ -3,7 +3,10 @@ package com.companyb.companyapp.database
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.cdimascio.dotenv.dotenv
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.flywaydb.core.Flyway
 
+private val logger = KotlinLogging.logger {}
 val dotenv = dotenv()
 
 object DatabaseConfig {
@@ -18,5 +21,15 @@ object DatabaseConfig {
                 maximumPoolSize = 3
             }
         HikariDataSource(config)
+    }
+
+    fun runMigrations() {
+        logger.info { "[RUN-MIGRATIONS] Starting flyway configuration" }
+        Flyway
+            .configure()
+            .dataSource(dataSource)
+            .load()
+            .migrate()
+        logger.info { "[RUN-MIGRATIONS] Flyway configuration done" }
     }
 }

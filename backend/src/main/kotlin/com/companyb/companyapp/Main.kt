@@ -25,7 +25,14 @@ fun initializeHikariCP() {
     logger.info { "[INITIALIZE-HIKARI-CP] HikariCP connection enabled" }
 }
 
+fun initializeFlyway() {
+    logger.info { "[INITIALIZE-FLYWAY] Starting Flyway initialization" }
+    DatabaseConfig.runMigrations()
+    logger.info { "[INITIALIZE-FLYWAY] Flyway initialization done" }
+}
+
 fun main() {
     initializeHikariCP()
+    initializeFlyway()
     initializeJavalin()
 }
