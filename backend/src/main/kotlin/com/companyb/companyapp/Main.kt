@@ -1,17 +1,20 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.database.DatabaseConfig
+import io.github.cdimascio.dotenv.dotenv
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 
 private val logger = KotlinLogging.logger {}
+
+val dotenv = dotenv()
 
 fun initializeJavalin() {
     logger.info { "[Server] [Startup] Application starting" }
 
     Javalin
         .create {}
-        .start(7070)
+        .start(dotenv["APP_PORT"].toInt())
 
     logger.info { "[Server] [Ready] Application started" }
 }
