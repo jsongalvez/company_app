@@ -1,33 +1,22 @@
-# Company App – Architecture & Design Specification
+# Company App — Architecture & Design Specification
 
-## 1. Purpose of This Document
+## 1. Purpose
 
-This document summarizes **all architectural decisions and constraints agreed so far**. It acts as a **living reference** you can point to in future discussions so guidance stays consistent as the system evolves.
+Living reference for all architectural decisions. When confused, refer here. When things change, update here.
 
-Target audience:
-- You (junior engineer, primary builder)
-- Me (mentor / reviewer)
-
-This document is intentionally **descriptive, not prescriptive**. It explains *what* was chosen and *why*, without implementing anything for you.
+**Audience:** You (builder) + me (mentor/reviewer).
 
 ---
 
-## 2. Problem Statement (Business Context)
+## 2. Problem Statement
 
-The application is an **internal company app** used by employees to:
-
+Internal company app for employees to:
 - Log in
-- Enter business values/data
+- Enter business data
 - View a shared dashboard of aggregated data
 
-Platforms:
-- Android
-- iOS
-
-Constraints:
-- Small team
-- Low cost (free tools, free hosting tiers)
-- Maintainability and clarity prioritized over speed
+**Platforms:** Android + iOS
+**Constraints:** Small team, free tools/hosting, clarity over speed.
 
 ---
 
@@ -43,110 +32,64 @@ Kotlin Backend (Javalin)
 PostgreSQL Database
 ```
 
-Key principle:
-> **Single language (Kotlin) across mobile, shared logic, and backend** to reduce complexity.
+> **Single language (Kotlin) across mobile, shared logic, and backend.**
 
 ---
 
-## 4. Technology Stack (Final Decisions)
+## 4. Technology Stack
 
-### Mobile
-- **Kotlin Multiplatform** with **Compose Multiplatform** wizard structure
-- `composeApp` module: Android app + UI-related shared code (ViewModels, Compose UI)
-- `shared` module: Pure business logic shared with backend (DTOs, domain models, validation)
-- `iosApp` module: Xcode project consuming the shared framework
+| Layer | Technology |
+|-------|-----------|
+| Mobile UI | Kotlin Multiplatform + Compose Multiplatform |
+| Backend | Kotlin (JVM), Javalin, HikariCP, Exposed (DSL), kotlin-logging |
+| Database | PostgreSQL, Flyway |
+| Infrastructure | Docker, Docker Compose |
+| Tooling | IntelliJ CE, Bruno/Postman, DBeaver |
+| Quality | Detekt, Ktlint, SonarLint |
 
-### Backend
-- Kotlin (JVM)
-- Javalin (HTTP server)
-- HikariCP (DB connection pool)
-- kotlin-logging
-
-### Database
-- PostgreSQL
-- Flyway for schema migrations
-
-### Infrastructure
-- Docker
-- Docker Compose (local dev)
-
-### Tooling
-- IntelliJ Community Edition
-- Postman / Bruno for API testing
-- DBeaver Community for database inspection
-
-### Quality
-- Detekt (static analysis)
-- Ktlint (formatting)
-- SonarLint (IDE-level feedback)
+**Non-goals:** No Node/Express, no Spring Boot, no paid tooling, no web dashboard.
 
 ---
 
-## 5. Explicit Non-Goals / Exclusions
-
-- No Node.js / Express backend
-- No Spring Boot
-- No paid IDEs or hosting
-- No frontend web dashboard (mobile only, for now)
-
----
-
-## 6. Repository Structure
+## 5. Repository Structure
 
 ```
 company-app/
-├── .gradle/
-├── .idea/
-├── .kotlin/
-├── build/
-│
 ├── composeApp/                    # KMP mobile (keep wizard-generated structure)
-│   ├── src/
-│   │   ├── androidMain/           # Android entry point, Android-specific UI
-│   │   ├── commonMain/            # UI-related shared code (ViewModels, Compose UI)
-│   │   ├── commonTest/
-│   │   └── iosMain/               # iOS-specific expect/actual
-│   └── build.gradle.kts
+│   └── src/
+│       ├── androidMain/           # Android entry point, Android-specific UI
+│       ├── commonMain/            # ViewModels, Compose UI (shared Android+iOS)
+│       └── iosMain/               # iOS expect/actual
 │
 ├── iosApp/                        # iOS entry point (keep wizard-generated)
 │   └── iosApp.xcodeproj
 │
-├── shared/                        # Shared between mobile + backend
-│   ├── src/
-│   │   ├── commonMain/            # Pure business logic (DTOs, domain, validation)
-│   │   │   └── kotlin/com/company/
-│   │   │       ├── dto/
-│   │   │       ├── domain/
-│   │   │       └── validation/
-│   │   └── commonTest/
-│   └── build.gradle.kts
+├── shared/                        # Shared: mobile + backend
+│   └── src/commonMain/kotlin/com/companyb/companyapp/
+│       ├── dto/
+│       ├── domain/
+│       └── validation/
 │
-├── backend/                       # Javalin backend (separate module)
-│   ├── src/
-│   │   └── main/kotlin/com/company/backend/
-│   │       ├── api/routes/        # HTTP endpoints
-│   │       ├── service/           # Business logic
-│   │       ├── repository/        # Database access
-│   │       ├── database/          # Connection config, Flyway
-│   │       ├── auth/              # JWT handling
-│   │       ├── config/            # App configuration
-│   │       └── Main.kt
-│   └── build.gradle.kts
+├── backend/                       # Javalin backend (JVM-only module)
+│   └── src/main/kotlin/com/companyb/companyapp/
+│       ├── api/routes/            # HTTP endpoints
+│       ├── service/               # Business logic
+│       ├── repository/            # Database access
+│       │   └── model/             # DB table definitions + domain models (AppUserTable, AppUser)
+│       ├── database/              # HikariCP + Flyway config
+│       ├── auth/                  # JWT handling
+│       ├── config/
+│       └── Main.kt
+│   └── src/main/resources/
+│       └── db/migration/          # Flyway SQL files (V1__, V2__, ...)
 │
-├── migrations/                    # Flyway SQL files
-│   ├── V1__create_users.sql
-│   └── V2__create_entries.sql
-│
-├── docker/                        # Docker configs
-│   ├── docker-compose.yml
-│   └── postgres/
-│
-├── docs/                          # Documentation
-│   └── architecture.md (this spec)
-│
-├── gradle/
-├── settings.gradle.kts            # Must include :shared and :backend
-└── build.gradle.kts
+├── docker/
+│   └── docker-compose.yml
+├── config/detekt/detekt.yml
+├── .editorconfig
+├── .env                           # Local only — never commit
+├── .env.example                   # Committed template
+└── settings.gradle.kts            # Includes :composeApp, :shared, :backend
 ```
 
 ### Module Dependencies
@@ -154,255 +97,178 @@ company-app/
 ```
 composeApp ──depends on──> shared
 backend ─────depends on──> shared
-iosApp ──────imports─────> shared (as framework)
+iosApp ──────imports────> shared (as KMP framework)
 ```
 
 ### Key Principles
 
-1. **`composeApp` keeps wizard structure** – Don't rename or restructure what was generated
-2. **`shared` is for pure logic** – No UI code, no HTTP server code, no SQL
-3. **`backend` depends only on `shared`** – Never depends on `composeApp` or `iosApp`
-4. **`iosApp` imports `shared`** – Through the KMP framework embedding mechanism
-
-### Gradle Configuration
-
-Update `settings.gradle.kts`:
-
-```kotlin
-include(":composeApp")
-include(":shared")
-include(":backend")
-```
+1. `composeApp` keeps wizard structure — don't rename or restructure
+2. `shared` is pure logic — no UI, no HTTP, no SQL
+3. `backend` depends only on `shared` — never on `composeApp` or `iosApp`
+4. `iosApp` imports `shared` via KMP framework embedding
 
 ---
 
-## 7. Backend Layering Rules
+## 6. Module Plugin Decisions
 
-### Backend Location
-The `backend/` directory is a **separate module** at project root. It depends only on `shared`, never on mobile modules.
+| Module | Plugin | Why |
+|--------|--------|-----|
+| `shared` | `kotlinMultiplatform` | Targets JVM (backend) + Android + iOS |
+| `backend` | `kotlin("jvm")` | JVM-only; uses Javalin, JDBC — no need for multiplatform |
+| `composeApp` | `kotlinMultiplatform` | Targets Android + iOS with Compose |
+| `iosApp` | N/A (Xcode) | Swift/SwiftUI wrapper |
 
-### 7.1 Routes (`backend/api/routes`)
+> Use `kotlinMultiplatform` only when a module targets multiple platforms. Single-platform = simpler config.
 
-Responsibilities:
-- Define HTTP endpoints
-- Parse requests
-- Perform authentication checks
-- Call services
-- Return responses
-
-Constraints:
-- No business logic
-- No SQL
+**Current `shared` targets:** `jvm()`, `androidTarget()`, `iosArm64()`
 
 ---
 
-### 7.2 Services (`backend/service`)
+## 7. Backend Layering
 
-Responsibilities:
-- Business rules
-- Validation
-- Permission checks
-- Transaction boundaries
-- Trigger audit logging
+### Routes (`api/routes`)
+- Define endpoints, parse requests, auth checks, call services, return responses
+- ❌ No business logic, no SQL
 
-Constraints:
-- No HTTP concerns
-- No raw SQL
+### Services (`service`)
+- Business rules, validation, permission checks, transaction boundaries, audit logging
+- ❌ No HTTP concerns, no raw SQL
 
----
+### Repositories (`repository`)
+- DB queries, map rows to domain models
+- ❌ No business logic, no HTTP
 
-### 7.3 Repositories (`backend/repository`)
-
-Responsibilities:
-- Database queries
-- Mapping rows to domain models
-
-Constraints:
-- No business logic
-- No HTTP logic
-
----
-
-### 7.4 Database (`backend/database`)
-
-Responsibilities:
-- HikariCP configuration
-- Flyway initialization
-- Connection management
+### Database (`database`)
+- HikariCP config, Flyway init, connection management
 
 ---
 
 ## 8. Database Migrations
 
-### Purpose
-
-Database migrations track **schema changes over time** in a safe, repeatable way.
-
-They prevent:
-- Environment drift
-- Manual DB edits
-- Production inconsistencies
-
----
-
-### Structure
+Flyway SQL files live at `backend/src/main/resources/db/migration/`:
 
 ```
-migrations/
- ├── V1__create_users.sql
- ├── V2__create_entries.sql
- └── V3__create_audit_log.sql
+V1__Create_User_Table.sql
+V2__...
 ```
 
----
-
-## 9. Audit Logging (Business History)
-
-### Definition
-
-An **audit log** is a database table that records **important business events**, not technical logs.
-
-Examples:
-- User login
-- Entry creation
-- Entry update
-- Entry deletion
+Flyway runs automatically on startup via `DatabaseConfig.runMigrations()`.
 
 ---
 
-### Audit Log Is NOT
+## 9. Audit Logging
 
-- Application logs
-- Debug output
-- Stack traces
+Records **business events** (not app logs) in the database.
 
----
+**Events:** login, entry created/updated/deleted
 
-### Minimal Audit Log Table (Initial)
+**Minimal table fields:** `user_id`, `action`, `timestamp`
+**Optional later:** `entity_type`, `entity_id`, `old_value`/`new_value` (JSON)
 
-Fields:
-- user_id
-- action
-- timestamp
+**Rule:** Audit logging happens in the **service layer only** — never in routes or repositories.
 
-Optional later expansion:
-- entity_type
-- entity_id
-- old_value / new_value (JSON)
+### Logging vs Auditing
 
----
-
-### Where Audit Logging Happens
-
-- **Service layer only**
-- Never in routes
-- Never in repositories
+| | Logging | Auditing |
+|--|---------|----------|
+| Nature | Technical | Business |
+| Storage | Text/console | Database |
+| Purpose | Debugging | Accountability |
+| Lifespan | Temporary | Permanent |
 
 ---
 
 ## 10. Authentication & Authorization
 
-### Authentication
+- **Auth:** JWT — issued on login, attached to subsequent requests
+- **AuthZ:** Role-based — `ADMIN`, `MANAGER`, `EMPLOYEE`, `VIEWER`
 
-- JWT-based authentication
-- Token issued on login
-- Token attached to API requests
+### Password Handling
 
----
+- Passwords are transmitted as plaintext over HTTPS (safe in transit via TLS)
+- Server hashes using **bcrypt** (60-char output) before storing — never store plaintext
+- Login comparison: `bcrypt.verify(plaintext, storedHash)` — never decrypt
+- DB column: `password_hash CHAR(60)`
 
-### Authorization
+### Network Security
 
-- Role-based access control
+> **Decision (Mar 2026):** Deployment target is unknown — office environment, possibly public mall wifi or shared network. Assume worst-case (untrusted network).
 
-Example roles:
-- ADMIN
-- MANAGER
-- EMPLOYEE
-- VIEWER
+- **HTTPS is required before any real user data is handled** — without it, login credentials are visible to anyone on the same network
+- During development on localhost, HTTP is acceptable (traffic never leaves the device)
+- Before production: configure Javalin with TLS (self-signed cert for LAN, Let's Encrypt if internet-facing)
+- Reject plain HTTP requests in production
 
----
+### OWASP Considerations
 
-## 11. Kotlin Multiplatform Sharing Strategy
-
-### Module: `shared` (Root-level)
-
-**Shared between:** Mobile (Android/iOS) + Backend
-
-Contents:
-- DTOs (API request/response classes)
-- Domain models (business entities)
-- Validation rules
-- Serialization logic
-
-### Module: `composeApp` (Wizard-generated)
-
-**Shared between:** Android + iOS only
-
-Contents:
-- ViewModels
-- Compose UI components
-- Platform-specific UI abstractions
-- Client-side repositories (caching, offline logic)
-
-### NOT Shared Anywhere
-
-- HTTP server code (stays in `backend`)
-- SQL / repositories (stays in `backend`)
-- UI implementation details (stays in `composeApp/androidMain` and `iosApp`)
+- **A02 Cryptographic Failures** — bcrypt for passwords, strong random JWT secret (never commit to git)
+- **A07 Auth Failures** — return identical error for wrong username vs wrong password (prevent username enumeration), expire tokens (24hr JWT), rate-limit login attempts (Phase 4)
 
 ---
 
-## 12. Logging vs Auditing (Important Distinction)
+## 11. Environment Configuration
 
-| Logging | Auditing |
-|-------|--------|
-| Technical | Business |
-| Text-based | Database |
-| Debugging | Accountability |
-| Temporary | Permanent |
+Secrets are loaded from `.env` using `dotenv-kotlin`. Never commit `.env` — use `.env.example` as the template.
+
+Required vars:
+```
+POSTGRES_DB=
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+APP_PORT=
+JWT_SECRET=       # Long random string — never commit, losing it invalidates all sessions
+```
 
 ---
 
-## 13. Development Phases (Learning-Oriented)
+## 12. Developer Setup
 
-### Phase 1 – Backend Core
-- Javalin setup
+```bash
+# Start Postgres
+docker compose -f docker/docker-compose.yml up -d
+
+# Stop and wipe volumes
+docker compose -f docker/docker-compose.yml down -v
+
+# Lint
+./gradlew ktlintCheck
+./gradlew ktlintFormat
+```
+
+**One-time IDE setup:**
+- Install Ktlint + Detekt plugins
+- Detekt config: Settings → Tools → detekt → add `config/detekt/detekt.yml`
+
+---
+
+## 13. Development Phases
+
+### Phase 1 — Backend Core ✅ In Progress
+- Javalin + HikariCP + Flyway wired up
 - Postgres via Docker
-- Flyway migrations
-- Authentication
+- JWT auth
 
-### Phase 2 – Business Features
-- Entry submission
+### Phase 2 — Business Features
+- Entry submission endpoints
 - Dashboard aggregation APIs
+- DTOs in `shared/src/commonMain`
 
-### Phase 3 – Mobile Apps
-- **Android**: Run `composeApp` configuration in Android Studio
-- **iOS**: Open `iosApp/iosApp.xcodeproj` in Xcode or use Android Studio's iOS run configuration
-- Implement login screen in `composeApp/src/androidMain` and SwiftUI in `iosApp/`
-- Share ViewModels in `composeApp/src/commonMain`
+### Phase 3 — Mobile
+- Login screen in `composeApp/src/androidMain`
+- SwiftUI in `iosApp/`
+- Shared ViewModels in `composeApp/src/commonMain`
 
-### Phase 4 – Enhancements
+### Phase 4 — Enhancements
 - Realtime updates (SSE or WebSockets)
-- Audit visibility
+- Audit visibility UI
 - CI/CD
 
 ---
 
 ## 14. Guiding Principles
 
-- Prefer clarity over cleverness
-- Keep layers thin and explicit
+- Clarity over cleverness
+- Thin, explicit layers
 - One responsibility per module
 - Build the smallest thing that works
 - Learn by doing, not by optimizing early
-
----
-
-## 15. How This Document Is Used
-
-- You code against it
-- When confused, refer back here
-- When asking questions, reference section numbers
-- When requirements change, update this document
-
-This is the **source of truth** for architectural intent.
