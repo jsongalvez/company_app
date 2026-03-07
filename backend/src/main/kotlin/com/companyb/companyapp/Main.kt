@@ -31,8 +31,15 @@ fun initializeFlyway() {
     logger.info { "[INITIALIZE-FLYWAY] Flyway initialization done" }
 }
 
+fun initializeExposed() {
+    logger.info { "[INITIALIZE-EXPOSED] Starting Exposed connection" }
+    DatabaseConfig.runExposed()
+    logger.info { "[INITIALIZE-EXPOSED] Exposed connection enabled" }
+}
+
 fun main() {
     initializeHikariCP()
     initializeFlyway()
+    initializeExposed()
     initializeJavalin()
 }

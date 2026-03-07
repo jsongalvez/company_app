@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import io.github.cdimascio.dotenv.dotenv
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.sql.Database
 
 private val logger = KotlinLogging.logger {}
 val dotenv = dotenv()
@@ -31,5 +32,11 @@ object DatabaseConfig {
             .load()
             .migrate()
         logger.info { "[RUN-MIGRATIONS] Flyway configuration done" }
+    }
+
+    fun runExposed() {
+        logger.info { "[RUN-EXPOSED] Starting Exposed database connection" }
+        Database.connect(dataSource)
+        logger.info { "[RUN-EXPOSED] Exposed database connection done" }
     }
 }
