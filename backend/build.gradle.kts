@@ -27,4 +27,8 @@ dependencies {
 
     // Environment
     implementation(libs.dotenv)
+
+    // Exposed
+    implementation(libs.exposed)
+    implementation(libs.exposed.jdbc)
 }

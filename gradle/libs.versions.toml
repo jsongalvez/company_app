@@ -12,6 +12,7 @@ androidx-testExt = "1.3.0"
 composeMultiplatform = "1.10.0"
 detekt = "1.23.8"
 dotenv = "6.5.1"
+exposed = "0.61.0"
 flyway = "12.0.0"
 flyway-postgresql = "12.0.0"
 hikaricp = "7.0.2"
@@ -29,6 +30,8 @@ postgresql = "42.7.9"
 
 [libraries]
 dotenv = { module = "io.github.cdimascio:dotenv-kotlin", version.ref = "dotenv"}
+exposed = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed"}
+exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed"}
 flyway = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway-postgresql" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp"}
