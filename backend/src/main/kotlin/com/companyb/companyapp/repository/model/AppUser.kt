@@ -5,7 +5,7 @@ import org.jetbrains.exposed.sql.Table
 data class AppUser(
     val id: String,
     val username: String,
-    val password: String,
+    val passwordHash: String,
 )
 
 object AppUserTable : Table("app_user") {
