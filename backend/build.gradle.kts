@@ -31,4 +31,7 @@ dependencies {
     // Exposed
     implementation(libs.exposed)
     implementation(libs.exposed.jdbc)
+
+    // BCrypt
+    implementation(libs.bcrypt)
 }
