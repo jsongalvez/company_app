@@ -1,5 +1,6 @@
 package com.companyb.companyapp
 
+import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.database.DatabaseConfig
 import io.github.cdimascio.dotenv.dotenv
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -13,9 +14,9 @@ fun initializeJavalin() {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
 
     Javalin
-        .create {}
-        .start(dotenv["APP_PORT"].toInt())
-
+        .create {
+            AuthRoutes.login(it)
+        }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
 
