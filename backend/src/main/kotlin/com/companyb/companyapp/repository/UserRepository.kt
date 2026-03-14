@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.repository.model.AppUserTable
+import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 
@@ -19,4 +20,17 @@ object UserRepository {
                     )
                 }.singleOrNull()
         }
+
+    fun createUser(
+        username: String,
+        passwordHash: String,
+    ) {
+        transaction {
+            AppUserTable
+                .insert {
+                    it[AppUserTable.username] = username
+                    it[AppUserTable.passwordHash] = passwordHash
+                }
+        }
+    }
 }
