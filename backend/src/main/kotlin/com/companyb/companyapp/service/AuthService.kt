@@ -14,13 +14,16 @@ object AuthService {
         password: String,
     ): String? {
         logger.info { "[LOGIN] Verifying login for $username" }
-        val appUser: AppUser = UserRepository.findByUsername(username) ?: return null
+        val appUser: AppUser? = UserRepository.findByUsername(username)
 
-        val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), appUser.passwordHash)
+        val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), appUser?.passwordHash)
         if (result.verified) {
             logger.info { "[LOGIN] Successfully verified $username" }
         } else {
             logger.warn { "[LOGIN] Failed to verify user $username" }
+        }
+
+        if (appUser == null || !result.verified) {
             return null
         }
 
