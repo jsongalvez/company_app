@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -12,7 +13,7 @@ object AuthService {
     fun login(
         username: String,
         password: String,
-    ): String? {
+    ): LoginResponse {
         logger.info { "[LOGIN] Verifying login for $username" }
         val appUser: AppUser? = UserRepository.findByUsername(username)
 
@@ -24,13 +25,14 @@ object AuthService {
         }
 
         if (appUser == null || !result.verified) {
-            return null
+            return LoginResponse(null)
         }
 
         logger.info { "[LOGIN] Generating token for $username" }
         val token: String = JwtService.generateToken(appUser.id)
+        val loginResponse = LoginResponse(token)
         logger.info { "[LOGIN] Successfully generated token for $username" }
-        return token
+        return loginResponse
     }
 
     fun register(
