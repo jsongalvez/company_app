@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.utils.Helper
 import io.github.cdimascio.dotenv.dotenv
@@ -17,6 +18,7 @@ fun initializeJavalin() {
 
     Javalin
         .create { config ->
+            config.jsonMapper(KotlinxSerializationMapper())
             config.routes.before {
                 // logback.xml %X{traceId} %X == %mdc
                 MDC.clear()
