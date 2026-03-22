@@ -11,7 +11,12 @@ import java.util.Date
 
 object JwtService {
     private val logger = KotlinLogging.logger {}
-    private val algorithm = Algorithm.HMAC256(dotenv["JWT_SECRET"])
+    private val algorithm =
+        run {
+            val secret = dotenv["JWT_SECRET"]
+            require(secret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
+            Algorithm.HMAC256(secret)
+        }
 
     fun generateToken(userId: String): String {
         logger.info { "[GENERATE-TOKEN] Generating token for $userId" }
