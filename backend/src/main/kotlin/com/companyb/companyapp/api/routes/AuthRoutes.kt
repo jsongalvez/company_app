@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.dto.LoginRequest
+import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.bodyAsClass
@@ -14,7 +15,7 @@ object AuthRoutes {
                 context.status(io.javalin.http.HttpStatus.UNAUTHORIZED)
             } else {
                 context.status(io.javalin.http.HttpStatus.OK)
-                context.result(token)
+                context.json(LoginResponse(token))
             }
         }
     }
