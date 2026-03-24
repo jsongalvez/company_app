@@ -29,6 +29,7 @@ fun initializeJavalin() {
                 MDC.clear()
             }
             AuthRoutes.login(config)
+            AuthRoutes.register(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }

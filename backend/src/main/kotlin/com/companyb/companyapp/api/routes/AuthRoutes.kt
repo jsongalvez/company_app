@@ -2,6 +2,8 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.dto.RegisterRequest
+import com.companyb.companyapp.dto.RegisterResponse
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.bodyAsClass
@@ -16,6 +18,20 @@ object AuthRoutes {
             } else {
                 context.status(io.javalin.http.HttpStatus.OK)
                 context.json(LoginResponse(token))
+            }
+        }
+    }
+
+    fun register(context: JavalinConfig) {
+        context.routes.post("/auth/register") { context ->
+            val registerRequest = context.bodyAsClass<RegisterRequest>()
+            val isRegisterSuccess: Boolean = AuthService.register(registerRequest.username, registerRequest.password)
+            if (!isRegisterSuccess) {
+                context.status(io.javalin.http.HttpStatus.CONFLICT)
+                context.json(RegisterResponse(isSuccess = false))
+            } else {
+                context.status(io.javalin.http.HttpStatus.CREATED)
+                context.json(RegisterResponse(isSuccess = true))
             }
         }
     }
