@@ -22,7 +22,7 @@ fun initializeJavalin() {
             config.routes.before {
                 // logback.xml %X{traceId} %X == %mdc
                 MDC.clear()
-                val traceId = Helper().generateTraceId()
+                val traceId = Helper().generateRandomId()
                 MDC.put("traceId", traceId)
             }
             config.routes.after {
