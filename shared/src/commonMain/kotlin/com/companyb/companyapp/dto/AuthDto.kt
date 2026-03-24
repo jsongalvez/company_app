@@ -12,3 +12,14 @@ data class LoginRequest(
 data class LoginResponse(
     val token: String,
 )
+
+@Serializable
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+)
+
+@Serializable
+data class RegisterResponse(
+    val isSuccess: Boolean,
+)
