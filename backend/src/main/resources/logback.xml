@@ -6,7 +6,7 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %5level [TraceId-%X{traceId}] [%delta] %logger{36} - %msg%n %rEx{full}</pattern>
+            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %5level [TraceId-%X{traceId}] +%delta ms. %logger{36} - %msg%n %rEx{full}</pattern>
         </encoder>
     </appender>
 
