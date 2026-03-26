@@ -6,6 +6,7 @@ import com.companyb.companyapp.dto.RegisterRequest
 import com.companyb.companyapp.dto.RegisterResponse
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
+import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 
 object AuthRoutes {
@@ -14,9 +15,9 @@ object AuthRoutes {
             val loginRequest = context.bodyAsClass<LoginRequest>()
             val token: String? = AuthService.login(loginRequest.username, loginRequest.password)
             if (token.isNullOrBlank()) {
-                context.status(io.javalin.http.HttpStatus.UNAUTHORIZED)
+                context.status(HttpStatus.UNAUTHORIZED)
             } else {
-                context.status(io.javalin.http.HttpStatus.OK)
+                context.status(HttpStatus.OK)
                 context.json(LoginResponse(token))
             }
         }
@@ -27,10 +28,10 @@ object AuthRoutes {
             val registerRequest = context.bodyAsClass<RegisterRequest>()
             val isRegisterSuccess: Boolean = AuthService.register(registerRequest.username, registerRequest.password)
             if (!isRegisterSuccess) {
-                context.status(io.javalin.http.HttpStatus.CONFLICT)
+                context.status(HttpStatus.CONFLICT)
                 context.json(RegisterResponse(isSuccess = false))
             } else {
-                context.status(io.javalin.http.HttpStatus.CREATED)
+                context.status(HttpStatus.CREATED)
                 context.json(RegisterResponse(isSuccess = true))
             }
         }
