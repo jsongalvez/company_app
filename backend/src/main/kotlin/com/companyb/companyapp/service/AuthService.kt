@@ -17,20 +17,13 @@ object AuthService {
         val appUser: AppUser? = UserRepository.findByUsername(username)
 
         val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), appUser?.passwordHash)
-        if (result.verified) {
-            logger.info { "[LOGIN] Successfully verified user" }
-        } else {
-            logger.warn { "[LOGIN] Failed to verify user" }
-        }
 
         if (appUser == null || !result.verified) {
-            return null
+            return null.also { logger.warn { "[LOGIN] Failed login attempt" } }
         }
 
-        logger.info { "[LOGIN] Generating token for ${appUser.id}" }
         val token: String = JwtService.generateToken(appUser.id)
-        logger.info { "[LOGIN] Successfully generated token for ${appUser.id}" }
-        return token
+        return token.also { logger.info { "[LOGIN] User has logged in successfully " } }
     }
 
     fun register(
