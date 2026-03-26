@@ -10,8 +10,8 @@ data class AppUser(
 
 object AppUserTable : Table("app_user") {
     val id = uuid("id").autoGenerate()
-    val username = varchar("username", 255)
-    val passwordHash = char("password_hash", 60)
+    val username = varchar("username", 255).uniqueIndex()
+    val passwordHash = varchar("password_hash", 60)
 
     override val primaryKey = PrimaryKey(id)
 }
