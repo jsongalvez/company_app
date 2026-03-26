@@ -13,23 +13,23 @@ object AuthService {
         username: String,
         password: String,
     ): String? {
-        logger.info { "[LOGIN] Verifying login for $username" }
+        logger.info { "[LOGIN] Verifying user login" }
         val appUser: AppUser? = UserRepository.findByUsername(username)
 
         val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), appUser?.passwordHash)
         if (result.verified) {
-            logger.info { "[LOGIN] Successfully verified $username" }
+            logger.info { "[LOGIN] Successfully verified user" }
         } else {
-            logger.warn { "[LOGIN] Failed to verify user $username" }
+            logger.warn { "[LOGIN] Failed to verify user" }
         }
 
         if (appUser == null || !result.verified) {
             return null
         }
 
-        logger.info { "[LOGIN] Generating token for $username" }
+        logger.info { "[LOGIN] Generating token for ${appUser.id}" }
         val token: String = JwtService.generateToken(appUser.id)
-        logger.info { "[LOGIN] Successfully generated token for $username" }
+        logger.info { "[LOGIN] Successfully generated token for ${appUser.id}" }
         return token
     }
 
@@ -37,10 +37,10 @@ object AuthService {
         username: String,
         password: String,
     ): Boolean {
-        logger.info { "[REGISTER] Register user $username" }
+        logger.info { "[REGISTER] User attempts to register" }
         val appUser: AppUser? = UserRepository.findByUsername(username)
         if (appUser != null) {
-            logger.info { "[REGISTER] User $username already exists" }
+            logger.info { "[REGISTER] Username $username is taken" }
             return false
         }
 
