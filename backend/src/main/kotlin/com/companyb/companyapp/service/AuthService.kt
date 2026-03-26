@@ -16,7 +16,9 @@ object AuthService {
         logger.info { "[LOGIN] Verifying user login" }
         val appUser: AppUser? = UserRepository.findByUsername(username)
 
-        val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), appUser?.passwordHash)
+        val dummyHash = "hC@qxPuS6$#je69nGaNgLPwJpR!T!q&&T7Q2*&o28Y&4Aj#PkR%kccLHCiQj" // run bcrypt on login failure
+        val passwordHash = appUser?.passwordHash ?: dummyHash
+        val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), passwordHash)
 
         if (appUser == null || !result.verified) {
             return null.also { logger.warn { "[LOGIN] Failed login attempt" } }
