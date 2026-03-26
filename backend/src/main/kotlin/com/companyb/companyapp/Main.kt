@@ -23,7 +23,6 @@ fun initializeJavalin() {
             config.jsonMapper(KotlinxSerializationMapper())
             config.routes.before {
                 // logback.xml %X{traceId} %X == %mdc
-                MDC.clear()
                 RequestElapsedConverter.startRequest()
                 DeltaTimeConverter.startRequest()
                 val traceId = Helper().generateRandomId()
