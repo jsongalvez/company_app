@@ -3,6 +3,8 @@ package com.companyb.companyapp
 import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
+import com.companyb.companyapp.logging.DeltaTimeConverter
+import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.utils.Helper
 import io.github.cdimascio.dotenv.dotenv
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -22,10 +24,16 @@ fun initializeJavalin() {
             config.routes.before {
                 // logback.xml %X{traceId} %X == %mdc
                 MDC.clear()
+                RequestElapsedConverter.startRequest()
+                DeltaTimeConverter.startRequest()
                 val traceId = Helper().generateRandomId()
                 MDC.put("traceId", traceId)
             }
             config.routes.after {
+                val elapsed = RequestElapsedConverter.currentElapsedMs()
+                logger.info { "[REQUEST] completed in ${elapsed}ms" }
+                RequestElapsedConverter.endRequest()
+                DeltaTimeConverter.endRequest()
                 MDC.clear()
             }
             AuthRoutes.login(config)

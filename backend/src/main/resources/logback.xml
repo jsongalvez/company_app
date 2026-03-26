@@ -1,13 +1,16 @@
 <configuration>
+    <conversionRule conversionWord="elapsed"
+                    converterClass="com.companyb.companyapp.logging.RequestElapsedConverter" />
+    <conversionRule conversionWord="delta"
+                    converterClass="com.companyb.companyapp.logging.DeltaTimeConverter" />
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %-5level [TraceId-%X{traceId}] %logger{36} - %msg%n %rEx{full}</pattern>
+            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %5level [TraceId-%X{traceId}] [%delta] %logger{36} - %msg%n %rEx{full}</pattern>
         </encoder>
     </appender>
 
     <root level="INFO">
         <appender-ref ref="STDOUT" />
     </root>
-
 </configuration>
