@@ -38,6 +38,7 @@ object JwtService {
             val subj =
                 JWT
                     .require(algorithm)
+                    .acceptLeeway(60) // Accept some clock skew
                     .build()
                     .verify(token)
                     .subject
