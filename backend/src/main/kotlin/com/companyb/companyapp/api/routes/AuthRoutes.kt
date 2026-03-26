@@ -10,6 +10,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 
 object AuthRoutes {
+    // TODO: Apply rate limiting at API layer for auth endpoints
     fun login(context: JavalinConfig) {
         context.routes.post("/auth/login") { context ->
             val loginRequest = context.bodyAsClass<LoginRequest>()
