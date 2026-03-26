@@ -14,6 +14,7 @@ object JwtService {
     private val algorithm =
         run {
             val secret = dotenv["JWT_SECRET"]
+            require(!secret.isNullOrBlank()) { "JWT_SECRET must be set" }
             require(secret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
             // TODO: Consider RS256 for offline login
             Algorithm.HMAC256(secret)
@@ -57,8 +58,7 @@ object JwtService {
             logger.info { "[VERIFY-TOKEN] Successfully verified token" }
             subj
         } catch (e: JWTVerificationException) {
-            // TODO: Don't log e.message
-            logger.warn { "[VERIFY-TOKEN] Invalid token: ${e.message}" }
+            logger.warn(e) { "[VERIFY-TOKEN] Invalid token" }
             null
         }
 }
