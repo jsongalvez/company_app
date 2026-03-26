@@ -20,13 +20,15 @@ object JwtService {
 
     fun generateToken(userId: String): String {
         logger.info { "[GENERATE-TOKEN] Generating token for $userId" }
-        val expiresAt = Instant.now().plus(1, ChronoUnit.DAYS)
+        val now = Instant.now()
+        val expiresAt = now.plus(1, ChronoUnit.DAYS)
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
         val token =
             JWT
                 .create()
                 .withSubject(userId)
                 .withExpiresAt(Date.from(expiresAt))
+                .withIssuedAt(Date.from(now))
                 .sign(algorithm)
         logger.info { "[GENERATE-TOKEN] Successfully generated token" }
         return token
