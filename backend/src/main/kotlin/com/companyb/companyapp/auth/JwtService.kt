@@ -11,6 +11,18 @@ import java.util.Date
 
 object JwtService {
     private val logger = KotlinLogging.logger {}
+    private val issuer =
+        run {
+            val issuer = dotenv["JWT_ISSUER"]
+            require(!issuer.isNullOrBlank()) { "JWT_ISSUER must be set" }
+            issuer
+        }
+    private val audience =
+        run {
+            val audience = dotenv["JWT_AUDIENCE"]
+            require(!audience.isNullOrBlank()) { "JWT_AUDIENCE must be set" }
+            audience
+        }
     private val algorithm =
         run {
             val secret = dotenv["JWT_SECRET"]
@@ -29,11 +41,9 @@ object JwtService {
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
         val token =
             JWT
-                // TODO: Add and enforce:
-                //  - issuer (iss)
-                //  - audience (aud)
-                //  - possibly token version (ver)
                 .create()
+                .withIssuer(issuer)
+                .withAudience(audience)
                 .withSubject(userId)
                 .withExpiresAt(Date.from(expiresAt))
                 .withIssuedAt(Date.from(now))
@@ -48,8 +58,9 @@ object JwtService {
             logger.info { "[VERIFY-TOKEN] Verifying token" }
             val subj =
                 JWT
-                    // TODO: Reject tokens with missing claims (after implmenting)
                     .require(algorithm)
+                    .withIssuer(issuer)
+                    .withAudience(audience)
                     .acceptLeeway(60) // Accept some clock skew
                     .build()
                     .verify(token)
