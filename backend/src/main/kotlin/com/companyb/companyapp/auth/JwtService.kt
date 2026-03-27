@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
 import com.companyb.companyapp.dotenv
+import com.companyb.companyapp.logging.maskUUID
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -33,8 +34,7 @@ object JwtService {
         }
 
     fun generateToken(userId: String): String {
-        // TODO: Mask user ID's
-        logger.info { "[GENERATE-TOKEN] Generating token for $userId" }
+        logger.info { "[GENERATE-TOKEN] Generating token for ${userId.maskUUID()}" }
         // TODO: Reduce token lifetime to 15 minutes (need refresh token)
         val now = Instant.now()
         val expiresAt = now.plus(1, ChronoUnit.DAYS)
