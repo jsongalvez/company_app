@@ -5,6 +5,7 @@ import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
 import com.companyb.companyapp.dotenv
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -64,10 +65,13 @@ object JwtService {
                     .acceptLeeway(60) // Accept some clock skew
                     .build()
                     .verify(token)
-                    // TODO: Never trust without DB validation (add authenticate function)
                     .subject
-            logger.info { "[VERIFY-TOKEN] Successfully verified token" }
-            subj
+            val isAuthorized = UserRepository.authorize(subj)
+            if (isAuthorized) {
+                subj.also { logger.info { "[VERIFY-TOKEN] Successfully verified token" } }
+            } else {
+                null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} attempted an authorized login" } }
+            }
         } catch (e: JWTVerificationException) {
             logger.warn(e) { "[VERIFY-TOKEN] Invalid token" }
             null

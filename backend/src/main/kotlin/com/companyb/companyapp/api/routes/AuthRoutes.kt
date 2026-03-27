@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.RegisterRequest
@@ -15,7 +16,14 @@ object AuthRoutes {
         context.routes.post("/auth/login") { context ->
             val loginRequest = context.bodyAsClass<LoginRequest>()
             val token: String? = AuthService.login(loginRequest.username, loginRequest.password)
+
             if (token == null) {
+                context.status(HttpStatus.UNAUTHORIZED)
+                return@post
+            }
+
+            val subject = JwtService.verifyToken(token)
+            if (subject == null) {
                 context.status(HttpStatus.UNAUTHORIZED)
             } else {
                 context.status(HttpStatus.OK)

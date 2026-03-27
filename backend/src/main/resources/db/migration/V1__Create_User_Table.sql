@@ -1,5 +1,6 @@
 CREATE TABLE if NOT EXISTS app_user(
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(60) NOT NULL
+    password_hash VARCHAR(60) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE'
 );
