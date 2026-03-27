@@ -10,6 +10,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Date
+import kotlin.time.Duration.Companion.seconds
 
 object JwtService {
     private val logger = KotlinLogging.logger {}
@@ -62,7 +63,7 @@ object JwtService {
                     .require(algorithm)
                     .withIssuer(issuer)
                     .withAudience(audience)
-                    .acceptLeeway(60) // Accept some clock skew
+                    .acceptLeeway(60.seconds.inWholeSeconds) // Accept some clock skew
                     .build()
                     .verify(token)
                     .subject
