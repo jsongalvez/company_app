@@ -61,8 +61,15 @@ fun initializeExposed() {
 }
 
 fun main() {
+    RequestElapsedConverter.startRequest()
+    DeltaTimeConverter.startRequest()
+    logger.info { "[INITIALIZATION] Starting initialization" }
     initializeHikariCP()
     initializeFlyway()
     initializeExposed()
     initializeJavalin()
+    val elapsed = RequestElapsedConverter.currentElapsedMs()
+    logger.info { "[INITIALIZATION] Completed in $elapsed ms." }
+    RequestElapsedConverter.endRequest()
+    DeltaTimeConverter.endRequest()
 }
