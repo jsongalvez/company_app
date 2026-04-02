@@ -1,8 +1,8 @@
 <configuration>
     <conversionRule conversionWord="elapsed"
-                    converterClass="com.companyb.companyapp.logging.RequestElapsedConverter" />
+                    class="com.companyb.companyapp.logging.RequestElapsedConverter" />
     <conversionRule conversionWord="delta"
-                    converterClass="com.companyb.companyapp.logging.DeltaTimeConverter" />
+                    class="com.companyb.companyapp.logging.DeltaTimeConverter" />
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
