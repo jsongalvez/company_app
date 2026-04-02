@@ -38,21 +38,17 @@ object AuthRoutes {
             val registerRequest = context.bodyAsClass<RegisterRequest>()
             val registerResult: RegisterResult =
                 AuthService.register(registerRequest.username, registerRequest.password)
-            when (registerResult) {
-                is RegisterResult.Success -> {
-                    context.status(HttpStatus.CREATED)
-                }
 
-                RegisterResult.UsernameTaken -> {
-                    context.status(HttpStatus.CONFLICT)
-                    context.json(registerResult.toErrorResponse())
-                }
-
-                is RegisterResult.WeakPassword -> {
-                    context.status(HttpStatus.BAD_REQUEST)
-                    context.json(registerResult.toErrorResponse())
-                }
+            if (registerResult is RegisterResult.Success) {
+                context.status(HttpStatus.CREATED)
+                return@post
             }
+
+            when (registerResult) {
+                RegisterResult.UsernameTaken -> context.status(HttpStatus.CONFLICT)
+                is RegisterResult.WeakPassword -> context.status(HttpStatus.BAD_REQUEST)
+            }
+            context.json(registerResult.toErrorResponse())
         }
     }
 }
