@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -28,20 +29,18 @@ object AuthService {
         return token.also { logger.info { "[LOGIN] User has logged in successfully " } }
     }
 
-    // TODO: return "username taken" / "weak password"
-    //  - create status codes in db
-    //  - return status code
-    //  - JSONObject JSONArray
-    //  - https://chatgpt.com/c/69cc695c-f810-8322-aba5-98d434355034
     fun register(
         username: String,
         password: String,
-    ): Boolean {
+    ): RegisterResult {
         logger.info { "[REGISTER] User attempts to register" }
+        // TODO: check for weak password
+        //  - return RegisterResult.WeakPassword
+
         val appUser: AppUser? = UserRepository.findByUsername(username)
         if (appUser != null) {
             logger.info { "[REGISTER] Username $username is taken" }
-            return false
+            return RegisterResult.UsernameTaken
         }
 
         logger.info { "[REGISTER] Creating password hash for user $username" }
@@ -51,6 +50,6 @@ object AuthService {
 
         UserRepository.createUser(username, passwordHash)
         logger.info { "[REGISTER] Registered user $username successfully" }
-        return true
+        return RegisterResult.Success
     }
 }

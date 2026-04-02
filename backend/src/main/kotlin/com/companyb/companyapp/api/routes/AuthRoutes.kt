@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.RegisterRequest
@@ -35,13 +36,18 @@ object AuthRoutes {
     fun register(context: JavalinConfig) {
         context.routes.post("/auth/register") { context ->
             val registerRequest = context.bodyAsClass<RegisterRequest>()
-            val isRegisterSuccess: Boolean = AuthService.register(registerRequest.username, registerRequest.password)
-            if (!isRegisterSuccess) {
-                context.status(HttpStatus.CONFLICT)
-                context.json(RegisterResponse(isSuccess = false))
-            } else {
-                context.status(HttpStatus.CREATED)
-                context.json(RegisterResponse(isSuccess = true))
+            val registerResult: RegisterResult =
+                AuthService.register(registerRequest.username, registerRequest.password)
+            when (registerResult) {
+                RegisterResult.Success -> {
+                    context.status(HttpStatus.CREATED)
+                    context.json(RegisterResponse(isSuccess = true))
+                }
+
+                RegisterResult.UsernameTaken -> {
+                    context.status(HttpStatus.CONFLICT)
+                    context.json(RegisterResponse(isSuccess = false))
+                }
             }
         }
     }

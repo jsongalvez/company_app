@@ -31,7 +31,6 @@ object DatabaseConfig {
             .dataSource(dataSource)
             .locations(
                 "classpath:db/migration",
-                "classpath:db/seed",
             ).load()
             .migrate()
         logger.info { "[RUN-MIGRATIONS] Flyway configuration done" }
