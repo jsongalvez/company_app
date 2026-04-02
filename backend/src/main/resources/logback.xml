@@ -13,4 +13,18 @@
     <root level="INFO">
         <appender-ref ref="STDOUT" />
     </root>
+
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/app.log</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %5level [TraceId-%X{traceId}] +%delta ms. %logger{36} - %msg%n %rEx{full}</pattern>
+        </encoder>
+    </appender>
 </configuration>
