@@ -1,11 +1,11 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.mapping.toErrorResponse
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.RegisterRequest
-import com.companyb.companyapp.dto.RegisterResponse
 import com.companyb.companyapp.dto.RegisterSuccessResponse
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
@@ -47,12 +47,12 @@ object AuthRoutes {
 
                 RegisterResult.UsernameTaken -> {
                     context.status(HttpStatus.CONFLICT)
-                    context.json(RegisterResponse(isSuccess = false))
+                    context.json(registerResult.toErrorResponse())
                 }
 
                 is RegisterResult.WeakPassword -> {
                     context.status(HttpStatus.BAD_REQUEST)
-                    context.json(RegisterResponse(isSuccess = false))
+                    context.json(registerResult.toErrorResponse())
                 }
             }
         }

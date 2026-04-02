@@ -20,11 +20,13 @@ data class RegisterRequest(
 )
 
 @Serializable
-data class RegisterResponse(
-    val isSuccess: Boolean,
+data class RegisterSuccessResponse(
+    val userID: String,
 )
 
 @Serializable
-data class RegisterSuccessResponse(
-    val userID: String,
+data class RegisterErrorResponse(
+    val code: String,
+    val label: String,
+    val detail: String,
 )
