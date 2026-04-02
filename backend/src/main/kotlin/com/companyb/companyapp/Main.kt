@@ -27,6 +27,7 @@ fun initializeJavalin() {
                 DeltaTimeConverter.startRequest()
                 val traceId = Helper().generateRandomId()
                 MDC.put("traceId", traceId)
+                logger.info { "[REQUEST] starting request" }
             }
             config.routes.after {
                 val elapsed = RequestElapsedConverter.currentElapsedMs()
