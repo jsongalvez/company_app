@@ -37,10 +37,8 @@ object UserRepository {
                 .insert {
                     it[AppUserTable.username] = username
                     it[AppUserTable.passwordHash] = passwordHash
-                }
-        } get
-            AppUserTable.id
-                .also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
+                } get AppUserTable.id
+        }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 
     // TODO: replace negation (!AppUserTable) with something more readable
     fun authorize(id: String): Boolean =
