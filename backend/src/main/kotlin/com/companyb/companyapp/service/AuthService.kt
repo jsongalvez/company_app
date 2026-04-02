@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.domain.RegisterResult
+import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -48,13 +49,13 @@ object AuthService {
             return RegisterResult.WeakPassword(minimumPasswordLength)
         }
 
-        logger.info { "[REGISTER] Creating password hash for user $username" }
+        logger.info { "[REGISTER] Creating password hash for user" }
         val cost = 12
         val passwordHash: String = BCrypt.withDefaults().hashToString(cost, password.toCharArray())
-        logger.info { "[REGISTER] Password hash created for user $username" }
+        logger.info { "[REGISTER] Password hash created for user" }
 
-        logger.info { "[REGISTER] Registered user $username successfully" }
         val userID: UUID = UserRepository.createUser(username, passwordHash)
+        logger.info { "[REGISTER] Registered user ${userID.toString().maskUUID()} successfully" }
         return RegisterResult.Success("$userID")
     }
 }
