@@ -16,20 +16,19 @@ object AuthRoutes {
     fun login(context: JavalinConfig) {
         context.routes.post("/auth/login") { context ->
             val loginRequest = context.bodyAsClass<LoginRequest>()
-            val token: String? = AuthService.login(loginRequest.username, loginRequest.password)
+            val token: String =
+                AuthService.login(loginRequest.username, loginRequest.password) ?: run {
+                    context.status(HttpStatus.UNAUTHORIZED)
+                    return@post
+                }
 
-            if (token == null) {
+            JwtService.verifyToken(token) ?: run {
                 context.status(HttpStatus.UNAUTHORIZED)
                 return@post
             }
 
-            val subject = JwtService.verifyToken(token)
-            if (subject == null) {
-                context.status(HttpStatus.UNAUTHORIZED)
-            } else {
-                context.status(HttpStatus.OK)
-                context.json(LoginResponse(token))
-            }
+            context.status(HttpStatus.OK)
+            context.json(LoginResponse(token))
         }
     }
 
