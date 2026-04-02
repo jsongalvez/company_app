@@ -71,7 +71,7 @@ object JwtService {
             if (isAuthorized) {
                 subj.also { logger.info { "[VERIFY-TOKEN] Successfully verified token" } }
             } else {
-                null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} attempted an authorized login" } }
+                null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} attempted an unauthorized login" } }
             }
         } catch (e: JWTVerificationException) {
             logger.warn(e) { "[VERIFY-TOKEN] Invalid token" }
