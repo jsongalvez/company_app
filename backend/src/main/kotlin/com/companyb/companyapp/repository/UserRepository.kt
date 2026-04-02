@@ -31,16 +31,18 @@ object UserRepository {
     fun createUser(
         username: String,
         passwordHash: String,
-    ) {
+    ): UUID =
         transaction {
             AppUserTable
                 .insert {
                     it[AppUserTable.username] = username
                     it[AppUserTable.passwordHash] = passwordHash
                 }
-        }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
-    }
+        } get
+            AppUserTable.id
+                .also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 
+    // TODO: replace negation (!AppUserTable) with something more readable
     fun authorize(id: String): Boolean =
         transaction {
             !AppUserTable

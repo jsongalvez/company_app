@@ -6,6 +6,7 @@ import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.util.UUID
 
 object AuthService {
     private val logger = KotlinLogging.logger { }
@@ -29,6 +30,7 @@ object AuthService {
         return token.also { logger.info { "[LOGIN] User has logged in successfully " } }
     }
 
+    @Suppress("ReturnCount")
     fun register(
         username: String,
         password: String,
@@ -51,8 +53,8 @@ object AuthService {
         val passwordHash: String = BCrypt.withDefaults().hashToString(cost, password.toCharArray())
         logger.info { "[REGISTER] Password hash created for user $username" }
 
-        UserRepository.createUser(username, passwordHash)
         logger.info { "[REGISTER] Registered user $username successfully" }
-        return RegisterResult.Success
+        val userID: UUID = UserRepository.createUser(username, passwordHash)
+        return RegisterResult.Success("$userID")
     }
 }

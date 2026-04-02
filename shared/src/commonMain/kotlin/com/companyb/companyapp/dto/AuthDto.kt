@@ -23,3 +23,8 @@ data class RegisterRequest(
 data class RegisterResponse(
     val isSuccess: Boolean,
 )
+
+@Serializable
+data class RegisterSuccessResponse(
+    val userID: String,
+)

@@ -6,6 +6,7 @@ import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.RegisterRequest
 import com.companyb.companyapp.dto.RegisterResponse
+import com.companyb.companyapp.dto.RegisterSuccessResponse
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
@@ -39,9 +40,9 @@ object AuthRoutes {
             val registerResult: RegisterResult =
                 AuthService.register(registerRequest.username, registerRequest.password)
             when (registerResult) {
-                RegisterResult.Success -> {
+                is RegisterResult.Success -> {
                     context.status(HttpStatus.CREATED)
-                    context.json(RegisterResponse(isSuccess = true))
+                    context.json(RegisterSuccessResponse(userID = registerResult.userID))
                 }
 
                 RegisterResult.UsernameTaken -> {
