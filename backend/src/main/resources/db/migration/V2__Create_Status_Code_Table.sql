@@ -1,0 +1,5 @@
+CREATE TABLE status_code(
+    code VARCHAR(64) PRIMARY KEY NOT NULL UNIQUE,
+    label VARCHAR(64) NOT NULL,
+    detail TEXT NOT NULL
+);

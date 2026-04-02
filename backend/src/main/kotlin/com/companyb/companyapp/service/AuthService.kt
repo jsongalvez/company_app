@@ -28,6 +28,11 @@ object AuthService {
         return token.also { logger.info { "[LOGIN] User has logged in successfully " } }
     }
 
+    // TODO: return "username taken" / "weak password"
+    //  - create status codes in db
+    //  - return status code
+    //  - JSONObject JSONArray
+    //  - https://chatgpt.com/c/69cc695c-f810-8322-aba5-98d434355034
     fun register(
         username: String,
         password: String,
