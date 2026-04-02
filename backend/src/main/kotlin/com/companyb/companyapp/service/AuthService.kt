@@ -34,13 +34,16 @@ object AuthService {
         password: String,
     ): RegisterResult {
         logger.info { "[REGISTER] User attempts to register" }
-        // TODO: check for weak password
-        //  - return RegisterResult.WeakPassword
-
         val appUser: AppUser? = UserRepository.findByUsername(username)
         if (appUser != null) {
             logger.info { "[REGISTER] Username $username is taken" }
             return RegisterResult.UsernameTaken
+        }
+
+        val minimumPasswordLength = 8
+        if (password.length < minimumPasswordLength) {
+            logger.info { "[REGISTER] Password does not match requirements" }
+            return RegisterResult.WeakPassword(minimumPasswordLength)
         }
 
         logger.info { "[REGISTER] Creating password hash for user $username" }

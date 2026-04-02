@@ -48,6 +48,11 @@ object AuthRoutes {
                     context.status(HttpStatus.CONFLICT)
                     context.json(RegisterResponse(isSuccess = false))
                 }
+
+                is RegisterResult.WeakPassword -> {
+                    context.status(HttpStatus.BAD_REQUEST)
+                    context.json(RegisterResponse(isSuccess = false))
+                }
             }
         }
     }
