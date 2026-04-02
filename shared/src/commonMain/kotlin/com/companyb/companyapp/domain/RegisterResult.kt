@@ -3,9 +3,7 @@ package com.companyb.companyapp.domain
 sealed class RegisterResult {
     abstract val errorCode: ErrorCode?
 
-    data class Success(
-        val userID: String,
-    ) : RegisterResult() {
+    data object Success : RegisterResult() {
         override val errorCode: ErrorCode? = null
     }
 

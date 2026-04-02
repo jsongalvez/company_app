@@ -20,11 +20,6 @@ data class RegisterRequest(
 )
 
 @Serializable
-data class RegisterSuccessResponse(
-    val userID: String,
-)
-
-@Serializable
 data class RegisterErrorResponse(
     val code: String,
     val label: String,

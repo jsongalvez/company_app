@@ -56,6 +56,6 @@ object AuthService {
 
         val userID: UUID = UserRepository.createUser(username, passwordHash)
         logger.info { "[REGISTER] Registered user ${userID.toString().maskUUID()} successfully" }
-        return RegisterResult.Success("$userID")
+        return RegisterResult.Success
     }
 }

@@ -6,7 +6,6 @@ import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.RegisterRequest
-import com.companyb.companyapp.dto.RegisterSuccessResponse
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
@@ -42,7 +41,6 @@ object AuthRoutes {
             when (registerResult) {
                 is RegisterResult.Success -> {
                     context.status(HttpStatus.CREATED)
-                    context.json(RegisterSuccessResponse(userID = registerResult.userID))
                 }
 
                 RegisterResult.UsernameTaken -> {
