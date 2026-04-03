@@ -2,6 +2,7 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.mapping.toErrorResponse
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.auth.RateLimiter
 import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
@@ -12,9 +13,14 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 
 object AuthRoutes {
-    // TODO: Apply rate limiting at API layer for auth endpoints
     fun login(context: JavalinConfig) {
         context.routes.post("/auth/login") { context ->
+            val ip = context.ip()
+            RateLimiter.isAllowed(ip).takeIf { it } ?: run {
+                context.status(HttpStatus.TOO_MANY_REQUESTS)
+                return@post
+            }
+
             val loginRequest = context.bodyAsClass<LoginRequest>()
             val token: String =
                 AuthService.login(loginRequest.username, loginRequest.password) ?: run {
