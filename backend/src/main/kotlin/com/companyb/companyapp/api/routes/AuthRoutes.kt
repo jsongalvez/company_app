@@ -16,7 +16,9 @@ object AuthRoutes {
     fun login(context: JavalinConfig) {
         context.routes.post("/auth/login") { context ->
             val ip = context.ip()
-            RateLimiter.isAllowed(ip).takeIf { it } ?: run {
+
+            val isRateLimited = !RateLimiter.isAllowed(ip)
+            if (isRateLimited) {
                 context.status(HttpStatus.TOO_MANY_REQUESTS)
                 return@post
             }
