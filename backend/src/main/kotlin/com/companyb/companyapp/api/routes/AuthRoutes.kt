@@ -1,7 +1,6 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.mapping.toErrorResponse
-import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.RateLimiter
 import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
@@ -29,11 +28,6 @@ object AuthRoutes {
                     context.status(HttpStatus.UNAUTHORIZED)
                     return@post
                 }
-
-            JwtService.verifyToken(token) ?: run {
-                context.status(HttpStatus.UNAUTHORIZED)
-                return@post
-            }
 
             context.status(HttpStatus.OK)
             context.json(LoginResponse(token))
