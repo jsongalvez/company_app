@@ -31,7 +31,6 @@ object JwtService {
             val secret = dotenv["JWT_SECRET"]
             require(!secret.isNullOrBlank()) { "JWT_SECRET must be set" }
             require(secret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
-            // TODO: Consider RS256 for offline login
             Algorithm.HMAC256(secret)
         }
 
