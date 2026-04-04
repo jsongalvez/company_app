@@ -52,13 +52,14 @@ object AuthRoutes {
 
                 RegisterResult.UsernameTaken -> {
                     context.status(HttpStatus.CONFLICT)
+                    context.json(registerResult.toErrorResponse())
                 }
 
                 is RegisterResult.WeakPassword -> {
                     context.status(HttpStatus.BAD_REQUEST)
+                    context.json(registerResult.toErrorResponse())
                 }
             }
-            context.json(registerResult.toErrorResponse())
         }
     }
 }
