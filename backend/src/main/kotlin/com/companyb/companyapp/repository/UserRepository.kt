@@ -40,13 +40,12 @@ object UserRepository {
                 } get AppUserTable.id
         }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 
-    // TODO: replace negation (!AppUserTable) with something more readable
     fun authorize(id: String): Boolean =
         transaction {
-            !AppUserTable
+            AppUserTable
                 .selectAll()
                 .where { (AppUserTable.id eq UUID.fromString(id)) and (AppUserTable.status eq UserStatus.ACTIVE) }
-                .empty()
+                .any()
         }.also { isAuthorized ->
             if (isAuthorized) {
                 logger.info { "[AUTHORIZE] User ${id.maskUUID()} is authorized" }
