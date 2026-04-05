@@ -15,242 +15,247 @@ This document captures what we know about the business so far, and what still ne
 ### Users of the App
 - Employees use the app primarily on a laptop (Windows), with Android and iOS as secondary
 - All employees use mobile hotspots — no shared office network
-- Roles: `ADMIN`, `MANAGER`, `EMPLOYEE`, `VIEWER`
-    - `ADMIN` — owner, full access, manages employees
-    - `MANAGER` — handles finance and remittance, can delegate remittance
-    - `EMPLOYEE` — practitioners, log sessions, view clients, manage inventory
+- Roles: `ADMIN`, `MANAGER`, `EMPLOYEE`, `VIEWER`, `ACCOUNTANT`, `TEMPORARY`
+    - `ADMIN` — owner, full access, manages employees, views stats of all branches
+    - `MANAGER` — handles finance and remittance, registers employees, views own branch only
+    - `EMPLOYEE` — practitioners, log sessions, view clients, manage inventory, views own branch only
     - `VIEWER` — read-only, future use
+    - `ACCOUNTANT` — read-only, views sales of all branches
+    - `TEMPORARY` (name pending) — relief employee, can only see daily records for the day they worked at that branch
 
 ### Clients
 - Clients book sessions or walk in — treated identically once the session starts
+- A client can appear in multiple branches (shared across branches)
 - Each client has a running log of all their sessions
-- Client fields: name, cellphone number
+- Client fields: name, cellphone number, address (general location e.g. "Las Pinas", "Bacoor, Cavite"), gender, age, branch they are visiting, blood pressure, other medical conditions (free text)
+- A client can request a specific practitioner; if unavailable, any available practitioner is assigned
 
 ### Sessions
 - A session records one visit by a client
-- Session fields: date, client name, cellphone, concern/illness, session number (1st, 2nd, etc.), next appointment date, practitioner, payment for service, products bought (with price per item)
-- Next appointment is approximate — not all clients follow through
+- Session fields: date, client name, cellphone, concerns/illnesses (checkboxes from a waiver with common concerns + "other" free text), session number (1st, 2nd, etc.), next appointment date, practitioner, payment for service, products bought (with price per item at time of purchase)
+- Session types and rates (editable by Manager):
+    - Regular — ₱2500
+    - 2nd Session — ₱2000
+    - Subsequent — ₱1500
+    - Others — ₱3500
+    - Others — ₱2000
+- Sessions can be edited after submission by Employee, Manager, or Admin
+- Booked sessions can be marked as **no-show** or **cancelled**
+- Walk-in sessions cannot be no-show/cancelled (they already happened)
+- Next appointment is approximate — clients who don't follow through are marked **no-show** with no additional action required
 
 ### Products & Inventory
-- Employees can add incoming stock
-- Clients can buy products during a session
-- Product fields: name, price, amount in stock
+- Products are grouped by category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray, K-ION)
+- Product fields: name, unit price, commission amount (flat value added on top; customer pays price + commission)
+- Commission from product sales is spread evenly among all employees and managers working that day
+- Product commissions are treated as "tips"/bonuses — separate from regular compensation
 - Stock is per-branch
+- When a client buys a product during a session, stock automatically decreases
+- The recorded price is the price at the time of purchase (not the current price)
+- Products can be used as tester samples — deducted from stock manually
+- Inventory can be marked as missing (mark X amount as missing)
+- Only managers and admins can add or edit products and update stock levels
+- Inventory tracking includes: available stock, total stock, sales quantity
+- Low-stock alerts notify the Manager
 
-### Finance
-- Tracks: employee compensation, expenses (pantry, lights, etc.), gross income
-- Gross income = money from clients − (compensation + expenses)
-- Employees can do "remittance" — withdraw the amount owed to them
-- The person handling money can delegate remittance approval to another user when away
+### Finance & Compensation
+- Compensation is per day, assigned manually by Admin after viewing daily sales
+- Admin views: sessions for the day + who is on duty, then assigns a compensation value per employee
+- Either Admin or Manager assigns the pay for each employee for the day
+- Compensation varies per employee — Admin decides the amount based on daily sales
+- Gross income = total income from all client sessions that day
+- Net income = gross income − compensation expenses − other expenses
+- All expenses are company expenses (no employee shoulders any expense)
+- Expense types:
+    - Pantry Items
+    - Communication/Load
+    - Water
+    - Transportation
+    - Electricity
+    - Rental
+    - Office Supplies
+    - Furnitures/Fixtures/Improvements
+    - Miscellaneous / Others
+- Anyone can log an expense
+- Product sales (commissions) are separate from session income — treated as bonus/tips for employees
+
+### Remittance
+- Remittance = the net income sent to the bank after deducting all expenses and compensation
+- Manager handles remittance on the day of their choosing
+- A remittance covers all net income from the day after the previous remittance up to the current day
+- Only the Manager can perform remittance — cannot be delegated
+- Remittance history is visible to all users:
+    - Admin: all branches
+    - Manager/Employee: own branch only
+    - Accountant: all branches
 
 ### Daily Sales
-- A list of all sessions for the day — visible to employees
-- Includes a monthly summary (details TBD)
+- A list of all sessions for the day — visible to employees of the same branch only
+- Employees cannot see other branches' data
+- All roles can view the full history (not just today)
+- Monthly summary columns:
+    - `#`, `DATE`, `DAY`, `GROSS_INCOME`, `COMPENSATION_EXPENSE`, `OTHER_EXPENSE`, `TOTAL_EXPENSES`, `NET_INCOME`, `No_of_Clients`, `Employee` (ranked by seniority), `Coordinator (Manager)`
+    - Totals row at the bottom for all numeric columns
 
 ### Client Search
 - Typeahead search as user types
 - Fuzzy matching to handle typos (e.g. "Jhn" finds "John")
 - Implementation: PostgreSQL `pg_trgm` + `ILIKE`, debounced ~300ms on frontend
 
+### Access Control Summary
+- Admin can view stats of all branches
+- Manager, Employee, Viewer can only view stats for their own branch
+- Accountant can view sales of all branches (read-only)
+- Temporary employee can only see daily records for the day they worked at a given branch
+- Resigned employees appear as-is on historical records
+
+### Exports
+- Export daily sales
+- Export summary reports (monthly, all-time)
+
 ---
 
-## Questions for Dad
+## Questions for Dad — Round 1 (Answered)
 
 ### Clients
 
 1. Is a client shared across branches, or does each branch have their own separate client list?
-    - e.g. If a client visits Branch A then Branch B, does Branch B see their history from Branch A?
-A. Yes, a client can appear in multiple branches.
+   **A. Yes, a client can appear in multiple branches.**
 
 2. Does a client have a fixed assigned practitioner, or can any practitioner work on them?
-A. Can request a specific practitioner, but if the practitioner is not available any other practitioner will be provisioned
+   **A. Can request a specific practitioner, but if unavailable any other practitioner will be assigned.**
 
 3. Can a client have multiple concerns/illnesses logged per session, or just one?
-A. Their current workflow is that a waiver has checkboxes of common concerns and an "other" for those not covered
-
----
+   **A. Their current workflow is that a waiver has checkboxes of common concerns and an "other" for those not covered.**
 
 ### Sessions / Appointments
 
 4. When a next appointment is set, who gets notified when it's coming up?
-    - The receptionist? The practitioner? Everyone?
-    - How far in advance? (e.g. 1 day before, morning of?)
-A. The Manager. 2 days before.
+   **A. The Manager. 2 days before.**
 
-5. How should the app handle clients who don't follow through on their next appointment — is there anything that needs to be tracked or flagged, or just ignored?
-A. Clients who don't follow through on their next appointment will be marked no-show. No additional actions are done.
+5. How should the app handle clients who don't follow through on their next appointment?
+   **A. Marked no-show. No additional actions.**
 
 6. Can a session be edited after it's been saved, or is it locked once submitted?
-    - If editable — who can edit it? Anyone, or only the one who created it?
-A. Editable. Employee, Manager, and Admin.
+   **A. Editable. Employee, Manager, and Admin.**
 
-7. Is there a concept of a "cancelled" or "no-show" session that needs to be recorded?
-A. Booked sessions are marked no-show or cancelled.
-
----
+7. Is there a concept of a "cancelled" or "no-show" session?
+   **A. Booked sessions are marked no-show or cancelled.**
 
 ### Products & Inventory
 
-8. When a client buys a product during a session, does stock automatically go down, or does someone manually update it?
-A. Yes, it automatically goes down.
+8. When a client buys a product during a session, does stock automatically go down?
+   **A. Yes, it automatically goes down.**
 
-9. Can a product's price change over time? If so, does the session record the price at the time of purchase, or the current price?
-    - Past records should show what was actually charged — this affects financial accuracy
-A. A products price can change over time. The recorded price will be at the time of purchase. 
+9. Can a product's price change over time? Does the session record the price at time of purchase?
+   **A. Yes, price can change. The recorded price is at the time of purchase.**
 
 10. Who can add or edit products and update stock levels?
-    - Any employee, or only managers/admins?
-A. managers/admins
+    **A. Managers/admins.**
 
-11. Is there a low-stock alert, or is that a future concern?
-A. Yes. Manager is notified.
-
-Additional note: The products have a flat value added as commission. (e.g. item is 400, commission is 100, customer pays 500). The commission is spread evenly to employees + managers working on that day.
----
+11. Is there a low-stock alert?
+    **A. Yes. Manager is notified.**
 
 ### Finance & Compensation
 
 12. How is a practitioner's compensation calculated?
-    - Fixed salary per day/week/month?
-    - Per-session commission?
-    - A combination of both?
-A. Compensation is per day. The current business flow is, Admin will view branch sales at end of day (client sessions that day, who is on-duty) then assign a value that will be the compensation of that employee.
-   Then either the Admin or Manager will be assigning the pay for the employee for that day. The remaining income after employee compensation and expenses are deducted from the gross income (from all sessions) are then remitted to the bank by the Manager. 
-   Product sales are their own thing, commissions are treated as "tips" and are bonuses for employees. 
+    **A. Per day. Admin views branch sales at end of day (sessions + who is on duty) then assigns a value per employee. Admin or Manager assigns the pay. Remaining income after compensation and expenses is remitted to the bank by the Manager. Product commissions are treated as tips/bonuses.**
 
-13. Is the compensation the same for all practitioners, or does it vary per person?
-A. Vary. Admin supplies the amount paid based on what he sees on the daily sales from client sessions.
+13. Is the compensation the same for all practitioners?
+    **A. Varies. Admin supplies the amount based on daily sales.**
 
 14. What counts as a business expense?
-    - Just recurring things like pantry and utilities, or can one-off expenses be logged too?
-    - Who can log an expense?
-A.  Anyone can log an expense. Pantry, utilities (water, electricity), office supplies, rent, communication, load, transport, and one-offs
-Additional note: expenses are treated as company expenses. No employee will shoulder expenses, it is deducted from gross daily income.
-15. What exactly is shown in the monthly summary?
-    - Total income? Per-practitioner breakdown? Expense breakdown? Net profit?
-A. #	DATE	DAY	 GROSS_INCOME  	 COMPENSATION_EXPENSE 	 OTHER_EXPENSE 	 TOTAL_EXPENSES  	 NET_INCOME 	 No_of_Clients 	 Employee (ranked by seniority) Coordinator(Manager)  
-   include total of GROSS_INCOME  	 COMPENSATION_EXPENSE 	 OTHER_EXPENSE 	 TOTAL_EXPENSES  	 NET_INCOME 	 No_of_Clients
+    **A. Anyone can log an expense. Types: Pantry, utilities (water, electricity), office supplies, rent, communication, load, transport, and one-offs. All are company expenses — no employee shoulders any expense.**
 
----
+15. What is shown in the monthly summary?
+    **A. `#`, `DATE`, `DAY`, `GROSS_INCOME`, `COMPENSATION_EXPENSE`, `OTHER_EXPENSE`, `TOTAL_EXPENSES`, `NET_INCOME`, `No_of_Clients`, `Employee` (ranked by seniority), `Coordinator (Manager)`. Includes totals row.**
 
 ### Remittance
 
-16. Is remittance tracked per transaction (e.g. "Employee X withdrew ₱500 on April 3"), or just a running balance?
-A. I misunderstood. Remittance is the money sent to the bank after calculating net income (after deductions of expense and compensation). Manager will handle remittance on the day of their choosing. The remitted values
-   are the net income for the current day up to the day after the previous remittance.
+16. Is remittance tracked per transaction or as a running balance?
+    **A. Remittance is money sent to the bank after calculating net income. Manager handles it on their chosen day. Covers net income from the day after the previous remittance up to current day.**
 
-17. When the manager delegates remittance handling to someone else, is that a permanent role change or a temporary one?
-    - e.g. "While I'm away this week, User Y can approve remittances"
-A. The Manager cannot delegate remittance. Only they are allowed to remit.
+17. Can the manager delegate remittance to someone else?
+    **A. No. Only the Manager can remit.**
 
-18. Can an employee see their own remittance history, or only the manager/admin can?
-A. Remittance history is shown to all users. Admin for all branches, manager and employee for their own branch only. Accountant for all branches.
-
----
+18. Can an employee see their own remittance history?
+    **A. Remittance history shown to all. Admin and Accountant: all branches. Manager and Employee: own branch only.**
 
 ### Employees & Access
 
-19. Who can register new employee accounts — admin only, or can a manager do it too?
-A. Admins and managers.
+19. Who can register new employee accounts?
+    **A. Admins and Managers.**
 
-20. Can an employee belong to multiple branches, or always just one?
-A.  An employee belongs to one branch. Often times they are called upon to relieve other branches for a short period of time. 
+20. Can an employee belong to multiple branches?
+    **A. Belongs to one branch. May temporarily relieve another branch.**
 
-21. When an employee is deactivated (e.g. they resign), what happens to their historical records?
-    - Should their name still appear on past sessions they handled?
-A. Resigned employees will appear as-is on past records.
-
-Additional note: Admin can view stats of all branches. Manager/Employee/Viewer can only view stats for their own branch.
----
+21. When an employee is deactivated, what happens to their records?
+    **A. Resigned employees appear as-is on past records.**
 
 ### Daily Sales
 
-22. In the daily sales list, can all employees see everyone's sales for the day, or only their own?
-A.  Employees can see their own branch's daily sales. They cannot see other branch's data.
+22. Can all employees see everyone's sales for the day?
+    **A. Employees can see their own branch's daily sales only.**
 
-23. Can past days be viewed, or only today?
-A.  All roles can vew whole history.
+23. Can past days be viewed?
+    **A. All roles can view the whole history.**
 
-24. Is there a need to print or export the daily sales list?
-A.  Export daily sales, and summary reports (monthly, all-time)
-
----
+24. Is there a need to print or export?
+    **A. Export daily sales and summary reports (monthly, all-time).**
 
 ### General
 
-25. Are there any roles or job titles in the business that we haven't covered yet?
-    - e.g. receptionist, cashier, supervisor?
-A. Accountant. They are read-only. Can view sales of all branches.
-   Temporary (name pending). Relief employee who temporarily takes up work for another branch. Can only see daily record for the day they worked at that branch.
+25. Are there any roles not yet covered?
+    **A. Accountant (read-only, all branches). Temporary/relief employee (read-only for the day they worked at another branch, name pending).**
 
-26. Is there anything the app absolutely must do that we haven't talked about yet?
-A. Can't think of one. Maybe during product demo.
+26. Is there anything the app absolutely must do that hasn't been covered?
+    **A. Nothing else comes to mind yet — maybe during product demo.**
 
-Additional: 
-- Clients also write their address, gender, age, clinic(branch they are visiting), blood pressure, other medical conditions (free text)
-- address is a general location in the Philippines e.g.
-  Las Pinas
-  Bacoor, Cavite
-  Valenzuela City
-  Sucat, Paranaque
-- Managers can edit the price per session type:
-  Regular	2500
-  2nd Session	2000
-  Subsequent	1500
-  Others	3500
-  Others	2000
-- expense types are:
-  Pantry Items
-  Communication/Load
-  Water
-  Transportation
-  Electricity
-  Rental
-  Office Supplies
-  Furnitures/Fixtures/Improvements
-  Miscellaneous / Others
-- products sales are like this:
-  INCOME FROM ESSENTIAL OIL				
-  Particulars	Rate	QTY	Amount
-  Big Roll On	500	1	500
-  Big Sprayer	500	1	500
-  Small	300	0	0
-  TOTAL	1000
+---
 
-INCOME FROM BIOMEKANIKS INFUSER				
-Particulars	Rate	QTY	Amount
-Machine	35000	0	0
-Potassium	500	0	0
-TOTAL	0
+## Questions for Dad — Round 2 (Pending)
 
-INCOME FROM MAGNESIUM SPRAY				
-Particulars	Rate	QTY	Amount
-MagSpray	500		0
+### Temporary / Relief Employees
 
-			TOTAL	0
+27. When a relief employee is assigned to another branch temporarily, how is that recorded?
+    - Is there an explicit "assignment" that has a start and end date?
+    - Or is it implied by which branch they log sessions at that day?
+    - This matters because their access to that branch's daily data is time-bounded — the system needs to know *when* they were there.
 
-INCOME FROM K-ION				
-Particulars	Rate	QTY	Amount
-K-ION	500		0
-- products can be used as tester samples and are deducted from stock.
-- currently the manager takes inventory of stock like this:
-  INCOME FROM ESSENTIAL OIL					
-  Particulars	Unit Price	AVAILABLE	STOCK	SALES
-  Big Roll On	500	5	50	43
-  Big Sprayer	500	0	12	12
-  Big Sprayer	500	2	30	27
-  Small	300	 	22	19
-  TESTER	B. Roll-on	2		
-  B. Spray Old	1		
-  B. Spray New	1		
-  S. Spray New	2		  
-  INCOME FROM BIOMEKANIKS INFUSER					
-  Particulars	Rate		STOCK	SALES
-  Machine	35000	2	2	0
-  Potassium	400	14	50	35
+28. Can a relief employee still see their home branch data while on relief duty at another branch?
+    - Or is their access completely switched to the relief branch for that period?
 
-  		H2 sample	1	
-  		K+Ion Sample	1	
-  		missing	1
-- there is an option to mark inventory as missing X amount
-- 
+### Compensation & "Working That Day"
+
+29. When product commissions are split evenly among employees and managers "working that day," how is "working that day" defined?
+    - Is it anyone who has at least one session logged that day?
+    - Or is there an explicit check-in / shift record?
+    - This is important because the commission split needs a definitive list of who qualifies.
+
+30. When Admin assigns compensation at end of day, is it possible for an employee to have zero compensation for a day (e.g. they were present but had no sessions)?
+    - Or does Admin only assign compensation to employees who actually handled sessions?
+
+### Remittance Scope
+
+31. Remittance covers net income from multiple days. When a remittance is recorded, does it need to be broken down per day, or is it recorded as a single lump sum for the covered period?
+    - e.g. Does the system store "₱X remitted, covering April 1–April 5" or does it store five separate daily totals?
+
+32. Can there be multiple remittances in a single day, or at most one per day?
+
+### Inventory
+
+33. When stock is marked as "missing," is a reason recorded, or just the quantity?
+
+34. Tester samples are deducted from stock manually — who is allowed to do this? Any employee, or managers/admins only?
+
+35. Can a product belong to more than one category, or is it always in exactly one?
+
+### Sessions
+
+36. The session has a "session number" (1st, 2nd, etc.) — is this automatically calculated based on the client's history at that branch, or does the practitioner enter it manually?
+
+37. Can a single session have multiple practitioners (e.g. two practitioners working on one client at the same time)?
+
+### Clients
+
+38. The client form includes "clinic (branch they are visiting)" — is this always the branch where the session is being logged, or can a client be registered at one branch and visit another?
