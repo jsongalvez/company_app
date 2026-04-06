@@ -16,53 +16,72 @@ This document captures what we know about the business so far, and what still ne
 - Employees use the app primarily on a laptop (Windows), with Android and iOS as secondary
 - All employees use mobile hotspots — no shared office network
 - Roles: `ADMIN`, `MANAGER`, `EMPLOYEE`, `VIEWER`, `ACCOUNTANT`, `TEMPORARY`
-    - `ADMIN` — owner, full access, manages employees, views stats of all branches
-    - `MANAGER` — handles finance and remittance, registers employees, views own branch only
+    - `ADMIN` — owner, full access, manages employees, views stats of all branches, can work on clients like employees
+    - `MANAGER` — handles finance and remittance (possibly for multiple branches), registers employees, views own branch only
     - `EMPLOYEE` — practitioners, log sessions, view clients, manage inventory, views own branch only
     - `VIEWER` — read-only, future use
     - `ACCOUNTANT` — read-only, views sales of all branches
-    - `TEMPORARY` (name pending) — relief employee, can only see daily records for the day they worked at that branch
+    - `TEMPORARY` (name pending) — relief employee, access determined by daily attendance check-in
+
+### Attendance & Presence
+- An employee taps a button when they first open the app for the day to indicate they are present at a selected branch
+- A Manager can also mark employees present at their branch
+- Attendance determines:
+    - Which branch's data the employee can access that day
+    - Whether they qualify for product commission splits that day
+    - Who appears in the daily compensation assignment list
+- Data can be viewed outside working hours — there is no time-bounded access cutoff
 
 ### Clients
 - Clients book sessions or walk in — treated identically once the session starts
-- A client can appear in multiple branches (shared across branches)
-- Each client has a running log of all their sessions
-- Client fields: name, cellphone number, address (general location e.g. "Las Pinas", "Bacoor, Cavite"), gender, age, branch they are visiting, blood pressure, other medical conditions (free text)
+- A client is shared across branches (global client record)
+- Each client has a running log of all their sessions across all branches
+- Client fields: name, cellphone number, address (general location e.g. "Las Pinas", "Bacoor, Cavite"), gender, age, blood pressure, other medical conditions (free text)
 - A client can request a specific practitioner; if unavailable, any available practitioner is assigned
+- Clients can receive discounts or free sessions — remarks are added (e.g. "discount, mcgi")
+- Discounted/free sessions still count toward the client's session number history
 
 ### Sessions
 - A session records one visit by a client
-- Session fields: date, client name, cellphone, concerns/illnesses (checkboxes from a waiver with common concerns + "other" free text), session number (1st, 2nd, etc.), next appointment date, practitioner, payment for service, products bought (with price per item at time of purchase)
-- Session types and rates (editable by Manager):
+- Session fields: date, branch, client, session type, price (adjustable), practitioner(s), concerns/illnesses, next appointment date, products bought (with price at time of purchase), remarks
+- Multiple practitioners can work on one client in a single session — remarks can be added
+- Session types (base rates, editable by Manager):
     - Regular — ₱2500
     - 2nd Session — ₱2000
     - Subsequent — ₱1500
     - Others — ₱3500
     - Others — ₱2000
+- Price is adjustable per session by the practitioner — overrides the base rate
+- Prices are typically multiples of ₱500, but any amount down to ₱0 is allowed
+- Session number is automatic and global across all branches:
+    - First visit anywhere = Regular (1st)
+    - Second visit = 2nd Session
+    - Third and beyond = Subsequent
+- Concerns/illnesses: checkboxes from a waiver with common concerns + "other" free text
 - Sessions can be edited after submission by Employee, Manager, or Admin
 - Booked sessions can be marked as **no-show** or **cancelled**
-- Walk-in sessions cannot be no-show/cancelled (they already happened)
-- Next appointment is approximate — clients who don't follow through are marked **no-show** with no additional action required
+- Walk-in sessions cannot be no-show/cancelled
+- Next appointment is approximate — clients who don't follow through are marked **no-show**
 
 ### Products & Inventory
-- Products are grouped by category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray, K-ION)
+- Products are grouped by category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray, K-ION) — exactly one category per product
 - Product fields: name, unit price, commission amount (flat value added on top; customer pays price + commission)
-- Commission from product sales is spread evenly among all employees and managers working that day
-- Product commissions are treated as "tips"/bonuses — separate from regular compensation
+- Commission from product sales is spread evenly among all employees and managers who were present (attended) that day
+- Product commissions are treated as tips/bonuses — separate from regular compensation
 - Stock is per-branch
 - When a client buys a product during a session, stock automatically decreases
-- The recorded price is the price at the time of purchase (not the current price)
-- Products can be used as tester samples — deducted from stock manually
-- Inventory can be marked as missing (mark X amount as missing)
+- The recorded price is the price at the time of purchase
+- Products can be used as tester samples — any employee can manually deduct from stock
+- Inventory can be marked as missing (quantity + optional reason)
 - Only managers and admins can add or edit products and update stock levels
 - Inventory tracking includes: available stock, total stock, sales quantity
 - Low-stock alerts notify the Manager
 
 ### Finance & Compensation
-- Compensation is per day, assigned manually by Admin after viewing daily sales
-- Admin views: sessions for the day + who is on duty, then assigns a compensation value per employee
-- Either Admin or Manager assigns the pay for each employee for the day
-- Compensation varies per employee — Admin decides the amount based on daily sales
+- Compensation is per day, assigned manually by Admin or Manager after viewing daily sales
+- Admin views sessions for the day + who is on duty, then assigns a compensation value per employee
+- Compensation is never zero — even if an employee had no sessions that day, some amount is always provided
+- Compensation varies per employee — decided by Admin based on daily sales
 - Gross income = total income from all client sessions that day
 - Net income = gross income − compensation expenses − other expenses
 - All expenses are company expenses (no employee shoulders any expense)
@@ -77,25 +96,33 @@ This document captures what we know about the business so far, and what still ne
     - Furnitures/Fixtures/Improvements
     - Miscellaneous / Others
 - Anyone can log an expense
-- Product sales (commissions) are separate from session income — treated as bonus/tips for employees
+- Product commissions are separate from session income — treated as bonus/tips for employees
 
 ### Remittance
 - Remittance = the net income sent to the bank after deducting all expenses and compensation
-- Manager handles remittance on the day of their choosing
+- Manager handles remittance on the day of their choosing — at most one remittance per day per branch
 - A remittance covers all net income from the day after the previous remittance up to the current day
-- Only the Manager can perform remittance — cannot be delegated
+- The remittance record shows: total amount remitted, the date range covered, and the daily breakdown for each day in the range
+- Some managers handle remittances for multiple branches (not just their home branch)
+- Only a Manager can perform remittance — cannot be delegated
 - Remittance history is visible to all users:
     - Admin: all branches
     - Manager/Employee: own branch only
     - Accountant: all branches
 
-### Daily Sales
+### Special Events
+- **Provincial Tour** — practitioners travel to an off-site location for one day; sessions are charged at ₱3500 (Regular), with subsequent sessions reduced by ₱500 each; has its own report; only Admins can view provincial tour reports
+- **Medical Mission** — a free version of a provincial tour; Admin can delegate someone to assign practitioners on their behalf for that day; has its own report; all roles can view medical mission reports
+- Provincial tour and medical mission daily sales are separate from regular branch sales
+
+### Daily Sales & Reporting
 - A list of all sessions for the day — visible to employees of the same branch only
 - Employees cannot see other branches' data
 - All roles can view the full history (not just today)
 - Monthly summary columns:
     - `#`, `DATE`, `DAY`, `GROSS_INCOME`, `COMPENSATION_EXPENSE`, `OTHER_EXPENSE`, `TOTAL_EXPENSES`, `NET_INCOME`, `No_of_Clients`, `Employee` (ranked by seniority), `Coordinator (Manager)`
     - Totals row at the bottom for all numeric columns
+    - Employee column shows employees who were on duty that day
 
 ### Client Search
 - Typeahead search as user types
@@ -103,15 +130,18 @@ This document captures what we know about the business so far, and what still ne
 - Implementation: PostgreSQL `pg_trgm` + `ILIKE`, debounced ~300ms on frontend
 
 ### Access Control Summary
-- Admin can view stats of all branches
-- Manager, Employee, Viewer can only view stats for their own branch
-- Accountant can view sales of all branches (read-only)
-- Temporary employee can only see daily records for the day they worked at a given branch
+- Admin: full access, all branches, can work on clients
+- Manager: own branch + any branches they are assigned to remit for
+- Employee/Viewer: own branch only
+- Accountant: read-only, all branches
+- Temporary: access to branches they check in at that day
 - Resigned employees appear as-is on historical records
 
 ### Exports
 - Export daily sales
 - Export summary reports (monthly, all-time)
+- Export provincial tour reports
+- Export medical mission reports
 
 ---
 
@@ -213,80 +243,90 @@ This document captures what we know about the business so far, and what still ne
 
 ---
 
-## Questions for Dad — Round 2 (Pending)
+## Questions for Dad — Round 2 (Answered)
 
 ### Temporary / Relief Employees
 
 27. When a relief employee is assigned to another branch temporarily, how is that recorded?
-    - Is there an explicit "assignment" that has a start and end date?
-    - Or is it implied by which branch they log sessions at that day?
-    - This matters because their access to that branch's daily data is time-bounded — the system needs to know *when* they were there.
-    **A. We are pretty lax on this, an employee can click a button to indicate that they are present in a selected branch when they first open the app for the day. The manager of a branch can also mark employees present. data can be viewed outside working hours so there's no time-bounded access for all roles.**
+    **A. Employee taps a button when they first open the app to indicate they are present at a selected branch. The manager of a branch can also mark employees present. Data can be viewed outside working hours so there is no time-bounded access cutoff.**
 
 28. Can a relief employee still see their home branch data while on relief duty at another branch?
-    - Or is their access completely switched to the relief branch for that period?
-    **A. Yes, even if they're in a Provincial tour and medical mission. Only admins can see provincial tour report, everyone can see medical mission report**
+    **A. Yes. Additionally, there are two special event types: provincial tour (admin-only report) and medical mission (visible to all roles).**
 
 ### Compensation & "Working That Day"
 
-29. When product commissions are split evenly among employees and managers "working that day," how is "working that day" defined?
-    - Is it anyone who has at least one session logged that day?
-    - Or is there an explicit check-in / shift record?
-    - This is important because the commission split needs a definitive list of who qualifies.
-    **A. Anyone who was at work that day counts as working that day.**
+29. How is "working that day" defined for product commission splits?
+    **A. Anyone who was at work (present/attended) that day counts.**
 
-30. When Admin assigns compensation at end of day, is it possible for an employee to have zero compensation for a day (e.g. they were present but had no sessions)?
-    - Or does Admin only assign compensation to employees who actually handled sessions?
-    **A. Never zero, even if no clients that day, some amount is provided.**
-    
+30. Can an employee have zero compensation for a day?
+    **A. Never zero — even if no clients that day, some amount is always provided.**
 
 ### Remittance Scope
 
-31. Remittance covers net income from multiple days. When a remittance is recorded, does it need to be broken down per day, or is it recorded as a single lump sum for the covered period?
-    - e.g. Does the system store "₱X remitted, covering April 1–April 5" or does it store five separate daily totals?
-    **A. It shows the total remitted "₱X remitted, covering April 1–April 5" and the separate daily totals for each day the remit covers**
+31. Is a remittance broken down per day or recorded as a lump sum?
+    **A. Shows the total remitted covering the date range, plus the separate daily totals for each day in the range.**
 
-32. Can there be multiple remittances in a single day, or at most one per day?
-    **A. One per day**
+32. Can there be multiple remittances in a single day?
+    **A. At most one per day.**
 
 ### Inventory
 
-33. When stock is marked as "missing," is a reason recorded, or just the quantity?
-    **A. reason can be added as an optional entry**
+33. When stock is marked as missing, is a reason recorded?
+    **A. Reason can be added as an optional entry.**
 
-34. Tester samples are deducted from stock manually — who is allowed to do this? Any employee, or managers/admins only?
-    **A. Any employee**
+34. Who can deduct tester samples from stock?
+    **A. Any employee.**
 
-35. Can a product belong to more than one category, or is it always in exactly one?
-    **A.exactly one**
-    
+35. Can a product belong to more than one category?
+    **A. Exactly one category.**
 
 ### Sessions
 
-36. The session has a "session number" (1st, 2nd, etc.) — is this automatically calculated based on the client's history at that branch, or does the practitioner enter it manually?
-    **A. It's automatic, if it's their first time, they are not recorded anywhere in any branch so it will be 1st Regular, then if they go to another branch, it will be 2nd session, the 3rd subsequent, 4th subsequent. **
+36. Is the session number automatic or manually entered?
+    **A. Automatic and global across all branches. First visit anywhere = Regular (1st). Second = 2nd Session. Third and beyond = Subsequent.**
 
-37. Can a single session have multiple practitioners (e.g. two practitioners working on one client at the same time)?
-    **A. Yes, multiple practitioners can work on one client at a time. Remarks can be added.**
+37. Can a single session have multiple practitioners?
+    **A. Yes. Remarks can be added.**
 
 ### Clients
 
-38. The client form includes "clinic (branch they are visiting)" — is this always the branch where the session is being logged, or can a client be registered at one branch and visit another?
-    **A. Can visit any branch, but their history is of course recorded so other branches know which session type she is. If it's their first time, they are Regular, if they did Regular previously, they then have 2nd session, then subsequent**
+38. Is the "clinic" field always the branch where the session is logged?
+    **A. Clients can visit any branch. Session type is determined by their global history across all branches.**
 
-### Additional notes
-1. the employee row are the ones on-duty that day.
-- What is shown in the monthly summary?
-    **A. `#`, `DATE`, `DAY`, `GROSS_INCOME`, `COMPENSATION_EXPENSE`, `OTHER_EXPENSE`, `TOTAL_EXPENSES`, `NET_INCOME`, `No_of_Clients`, `Employee` (ranked by seniority), `Coordinator (Manager)`. Includes totals row.**
+---
 
-2. There's this thing called "provincial tour" where practitioners go to a location for 1 day. "Medical mission" is a free version of "provincial tour", an admin can delegate someone to assign people on their behalf for that day. 
-   Daily sales for provincial tours and medical missions are their own thing. So provincial tours will have their own report to see previous tours, and medical missions the same.
+## Questions for Dad — Round 3 (Pending)
 
-3. Sometimes clients ask for discounts which is accepted, some clients even receive the service for free. Remarks are added for example "discount, mcgi"
+### Provincial Tour & Medical Mission
 
-4. Provincial tours are 3500. Subsequent sessions are lowered by 500. Actually can you just set it so the practitioner can adjust the price for a client they worked on? Also we usually price in multiples of 500, but custom price flexibility is also required up to zero.
+39. Does a provincial tour belong to a specific branch, or is it a standalone event not tied to any branch?
+    - This affects where its financial data lives — does the income and compensation roll into a branch's monthly summary, or does it appear only in the tour's own report?
 
-5. Admins also work on clients like employees.
+40. Do provincial tour and medical mission sessions count toward a client's global session number history?
+    - e.g. If a client's first-ever visit is at a provincial tour, are they "2nd Session" the next time they visit a regular branch?
 
-6. Some managers handle remittances for other branches.
+41. Do employees receive daily compensation for provincial tour days using the same Admin/Manager assignment flow as regular branch days?
 
+42. For medical missions, when Admin delegates attendance assignment to someone else, is that delegation only for that one event and expires after the day?
+
+43. For medical missions, since sessions are free, what is recorded as gross income for that day — zero? Or is it tracked separately and excluded from financial summaries entirely?
+
+### Remittance Across Branches
+
+44. When a manager handles remittances for multiple branches, is that a permanent assignment set up by Admin, or is it ad hoc (any manager can remit for any branch at any time)?
+
+45. Can two managers both be assigned to remit for the same branch, or is it always exactly one manager per branch?
+
+### Pricing & Session Types
+
+46. A session has both an auto-assigned type (Regular, 2nd Session, Subsequent) and a practitioner-adjustable price. Are these always two independent fields on the session record — i.e. the type never changes, only the price can be overridden?
+
+47. Provincial tour pricing starts at ₱3500 for Regular and drops by ₱500 for each subsequent session. Does this use the client's global session count to determine which tier applies, or does the tour have its own separate pricing ladder regardless of the client's history elsewhere?
+
+### Access Control
+
+48. When a temporary employee checks in at another branch, can they still see their home branch data on the same day, or does the check-in at the other branch replace their home branch access for that day?
+
+### Seniority
+
+49. The monthly summary shows employees ranked by seniority. Where does seniority come from — is it a field manually set on the employee record, or is it derived from something like hire date?
