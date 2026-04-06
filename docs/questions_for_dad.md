@@ -221,9 +221,11 @@ This document captures what we know about the business so far, and what still ne
     - Is there an explicit "assignment" that has a start and end date?
     - Or is it implied by which branch they log sessions at that day?
     - This matters because their access to that branch's daily data is time-bounded — the system needs to know *when* they were there.
+    **A. We are pretty lax on this, an employee can click a button to indicate that they are present in a selected branch when they first open the app for the day. The manager of a branch can also mark employees present. data can be viewed outside working hours so there's no time-bounded access for all roles.**
 
 28. Can a relief employee still see their home branch data while on relief duty at another branch?
     - Or is their access completely switched to the relief branch for that period?
+    **A. Yes, even if they're in a Provincial tour and medical mission. Only admins can see provincial tour report, everyone can see medical mission report**
 
 ### Compensation & "Working That Day"
 
@@ -231,31 +233,60 @@ This document captures what we know about the business so far, and what still ne
     - Is it anyone who has at least one session logged that day?
     - Or is there an explicit check-in / shift record?
     - This is important because the commission split needs a definitive list of who qualifies.
+    **A. Anyone who was at work that day counts as working that day.**
 
 30. When Admin assigns compensation at end of day, is it possible for an employee to have zero compensation for a day (e.g. they were present but had no sessions)?
     - Or does Admin only assign compensation to employees who actually handled sessions?
+    **A. Never zero, even if no clients that day, some amount is provided.**
+    
 
 ### Remittance Scope
 
 31. Remittance covers net income from multiple days. When a remittance is recorded, does it need to be broken down per day, or is it recorded as a single lump sum for the covered period?
     - e.g. Does the system store "₱X remitted, covering April 1–April 5" or does it store five separate daily totals?
+    **A. It shows the total remitted "₱X remitted, covering April 1–April 5" and the separate daily totals for each day the remit covers**
 
 32. Can there be multiple remittances in a single day, or at most one per day?
+    **A. One per day**
 
 ### Inventory
 
 33. When stock is marked as "missing," is a reason recorded, or just the quantity?
+    **A. reason can be added as an optional entry**
 
 34. Tester samples are deducted from stock manually — who is allowed to do this? Any employee, or managers/admins only?
+    **A. Any employee**
 
 35. Can a product belong to more than one category, or is it always in exactly one?
+    **A.exactly one**
+    
 
 ### Sessions
 
 36. The session has a "session number" (1st, 2nd, etc.) — is this automatically calculated based on the client's history at that branch, or does the practitioner enter it manually?
+    **A. It's automatic, if it's their first time, they are not recorded anywhere in any branch so it will be 1st Regular, then if they go to another branch, it will be 2nd session, the 3rd subsequent, 4th subsequent. **
 
 37. Can a single session have multiple practitioners (e.g. two practitioners working on one client at the same time)?
+    **A. Yes, multiple practitioners can work on one client at a time. Remarks can be added.**
 
 ### Clients
 
 38. The client form includes "clinic (branch they are visiting)" — is this always the branch where the session is being logged, or can a client be registered at one branch and visit another?
+    **A. Can visit any branch, but their history is of course recorded so other branches know which session type she is. If it's their first time, they are Regular, if they did Regular previously, they then have 2nd session, then subsequent**
+
+### Additional notes
+1. the employee row are the ones on-duty that day.
+- What is shown in the monthly summary?
+    **A. `#`, `DATE`, `DAY`, `GROSS_INCOME`, `COMPENSATION_EXPENSE`, `OTHER_EXPENSE`, `TOTAL_EXPENSES`, `NET_INCOME`, `No_of_Clients`, `Employee` (ranked by seniority), `Coordinator (Manager)`. Includes totals row.**
+
+2. There's this thing called "provincial tour" where practitioners go to a location for 1 day. "Medical mission" is a free version of "provincial tour", an admin can delegate someone to assign people on their behalf for that day. 
+   Daily sales for provincial tours and medical missions are their own thing. So provincial tours will have their own report to see previous tours, and medical missions the same.
+
+3. Sometimes clients ask for discounts which is accepted, some clients even receive the service for free. Remarks are added for example "discount, mcgi"
+
+4. Provincial tours are 3500. Subsequent sessions are lowered by 500. Actually can you just set it so the practitioner can adjust the price for a client they worked on? Also we usually price in multiples of 500, but custom price flexibility is also required up to zero.
+
+5. Admins also work on clients like employees.
+
+6. Some managers handle remittances for other branches.
+
