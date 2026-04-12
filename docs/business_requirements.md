@@ -335,3 +335,16 @@ Resigned users appear as-is on all historical records — their data is never al
 - All-time summary
 - Provincial tour reports
 - Medical mission reports
+
+---
+
+## Questions:
+
+1. Can a staff member ever be assigned to more than one home branch at the same time? For example, could a practitioner split their time between two clinics and be considered "home" at both?
+   **A. Yes**
+
+2. If someone made a mistake on a past day's record — say, a session from two days ago has a wrong price — can that be corrected? Or once the day is over, is everything final?
+    **A. Yes can be corrected**
+
+3. Once a remittance has been submitted for a period, can anything from those days still be changed? Or is that period considered permanently closed?
+    **A. It can be changed with admin approval**
