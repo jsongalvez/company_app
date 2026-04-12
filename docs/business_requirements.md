@@ -29,7 +29,7 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
 | `TEMPORARY` | Relief practitioner. Always sees home branch(es). Also sees daily sales of any branch checked into that day. |
 | `VIEWER` | Read-only. Future use. |
-
+(A SPECIAL_COORDINATOR role may be necessary, the medical mission delegate and the person who schedules coordinators and practitioners is delegated by the admin to the same person)
 ---
 
 ## Branches
@@ -39,6 +39,7 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 - A Coordinator can be assigned to multiple branches and does not need to be physically present
 - For solo or periodic branches, the practitioner hands over money to the Coordinator remotely
 - A practitioner can be assigned to more than one home branch simultaneously — for example, a practitioner who splits their time between two clinics can be considered "home" at both
+  (A practitioner assigned to a branch is assumed to have a daily schedule for that branch, some practitioners have a schedule where they work at branch A on weekends and branch B on weekdays, and sometimes when a branch is missing manpower, a practitioner can be called upon the day before (Relief duty). A coordinator can be called upon to work on documents on-call and compensation is deducted from home branch, practitioners compensation is deducted from branch where they were on duty, same for if you were called on for relief duty)
 - A practitioner can request a home branch change or addition; Admin or their assigned Coordinator can approve or deny; the practitioner remains on their current home branch(es) until approved
 
 ---
@@ -47,8 +48,10 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 
 - A practitioner taps a button when they first open the app for the day to indicate they are present at a selected branch
 - A Coordinator can also mark practitioners present at their branch
+  (Practitioners can also mark other members as present, they can see all members of home branch and mark them as present or absent)
 - Attendance determines:
     - Which branch's data the practitioner can access that day (in addition to their home branch(es))
+      (Relief duty means they can edit the daily sales for that day they were on duty, but view only for the branch data)
     - Whether they qualify for product commission splits that day
     - Who appears in the daily compensation assignment list
 - Data can be viewed outside working hours — there is no time-bounded access cutoff
@@ -58,7 +61,7 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 ## Seniority
 
 Seniority is a system-maintained designation stored as a tier on each user. It never changes once assigned — OG status is a founding-era designation and no one is promoted into it.
-
+(NVM seniority is who gets paid more)
 | Tier | Who |
 |------|-----|
 | 1 — CEO | The Admin/owner. Always most senior. |
@@ -77,7 +80,7 @@ Seniority is used to determine the ordering of practitioners in the monthly summ
 - A client can request a specific practitioner; if unavailable, any available practitioner is assigned
 - Clients can receive discounts or free sessions — remarks are added (e.g. "discount, mcgi")
 - Discounted and free sessions still count toward the client's global session history
-
+  (When a client receives a special discount, their default pricing tier for the next session is SUBSEQUENT, but can be adjusted)
 ### Client Fields
 
 | Field | Notes |
@@ -144,6 +147,7 @@ Base rates are per session type and are editable by Coordinators. Defaults:
 - Walk-in sessions cannot be marked as no-show or cancelled
 - Next appointment date is approximate — clients who do not follow through are marked no-show
 - The Coordinator is notified 2 days before a scheduled next appointment
+  (Some come back a week ahead or a month after)
 
 ---
 
@@ -166,6 +170,7 @@ Base rates are per session type and are editable by Coordinators. Defaults:
 - Stock is tracked per branch
 - When a client buys a product during a session, stock automatically decreases
 - The price recorded on the session is the price at the time of purchase
+  (Sometimes staff will forget to add a product sale for a client session and need to add it for a previous day's sales record)
 - Any practitioner can deduct stock for tester samples
 - Inventory can be marked as missing — quantity and an optional reason are recorded
 - Inventory tracking covers: available stock, total stock, sales quantity
@@ -224,6 +229,7 @@ There are two independent remittance flows per branch:
 |------|---------------|
 | Session remittance | Net session income (gross − compensation − expenses) |
 | Product remittance | Product sales revenue (unit price × quantity; not the commission) |
+(Client wants to rename session remittance to HEALot remittance)
 
 ### Rules
 
@@ -233,7 +239,7 @@ There are two independent remittance flows per branch:
 - The remittance record shows the total amount remitted, the date range covered, and a daily breakdown for each day in the range
 - Once a day is covered by a remittance it is **locked by default** — edits are not permitted without explicit Admin approval
 - If an error is found in a remitted period, Admin can unlock the specific record for correction; once corrected, it is re-locked
-
+  (Coordinators need to note if remittance is through bank or given to the accountant)
 ### Visibility
 
 | Role | Can see |
@@ -286,6 +292,7 @@ The state machine applies to: sessions, attendance, expenses, compensations, and
 - Typeahead search as the user types, debounced ~300ms before firing the request
 - Fuzzy matching to handle typos (e.g. "Jhn" finds "John")
 - Implementation: PostgreSQL `pg_trgm` + `ILIKE`
+  (Can search via phone number)
 
 ---
 
@@ -336,3 +343,18 @@ Resigned users appear as-is on all historical records — their data is never al
 - All-time summary
 - Provincial tour reports
 - Medical mission reports
+
+---
+
+## New requirements
+
+- (A SPECIAL_COORDINATOR role may be necessary, the medical mission delegate and the person who schedules coordinators and practitioners is delegated by the admin to the same person)
+- (A practitioner assigned to a branch is assumed to have a daily schedule for that branch, some practitioners have a schedule where they work at branch A on weekends and branch B on weekdays, and sometimes when a branch is missing manpower, a practitioner can be called upon the day before (Relief duty). A coordinator can be called upon to work on documents on-call and compensation is deducted from home branch, practitioners compensation is deducted from branch where they were on duty, same for if you were called on for relief duty)
+- (Relief duty means they can edit the daily sales for that day they were on duty, but view only for the branch data)
+- (NVM seniority is who gets paid more)
+- (When a client receives a special discount, their default pricing tier for the next session is SUBSEQUENT, but can be adjusted)
+- (Some come back a week ahead or a month after)
+- (Sometimes staff will forget to add a product sale for a client session and need to add it for a previous day's sales record)
+- (Client wants to rename session remittance to HEALot remittance)
+- (Coordinators need to note if remittance is through bank or given to the accountant)
+- (Can search via phone number)
