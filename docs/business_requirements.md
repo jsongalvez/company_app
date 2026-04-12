@@ -25,9 +25,9 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 |------|-------------|
 | `ADMIN` | Owner. Full access across all branches. Can manage all users. Can work on clients. |
 | `COORDINATOR` | Handles finance and remittance for assigned branch(es). Can register users. Views assigned branches only. Can work on clients. |
-| `PRACTITIONER` | Logs sessions, views clients, manages inventory. Views home branch only, plus any branch checked into that day. |
+| `PRACTITIONER` | Logs sessions, views clients, manages inventory. Views all home branches, plus any branch checked into that day. |
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
-| `TEMPORARY` | Relief practitioner. Always sees home branch. Also sees daily sales of any branch checked into that day. |
+| `TEMPORARY` | Relief practitioner. Always sees home branch(es). Also sees daily sales of any branch checked into that day. |
 | `VIEWER` | Read-only. Future use. |
 
 ---
@@ -38,8 +38,8 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 - Each branch has exactly one assigned Coordinator — set by Admin, permanent until changed
 - A Coordinator can be assigned to multiple branches and does not need to be physically present
 - For solo or periodic branches, the practitioner hands over money to the Coordinator remotely
-- Practitioners belong to exactly one home branch — no exceptions
-- A practitioner can request a home branch change; Admin or their assigned Coordinator can approve or deny; the practitioner remains on their current home branch until approved
+- A practitioner can be assigned to more than one home branch simultaneously — for example, a practitioner who splits their time between two clinics can be considered "home" at both
+- A practitioner can request a home branch change or addition; Admin or their assigned Coordinator can approve or deny; the practitioner remains on their current home branch(es) until approved
 
 ---
 
@@ -48,7 +48,7 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 - A practitioner taps a button when they first open the app for the day to indicate they are present at a selected branch
 - A Coordinator can also mark practitioners present at their branch
 - Attendance determines:
-    - Which branch's data the practitioner can access that day (in addition to their home branch)
+    - Which branch's data the practitioner can access that day (in addition to their home branch(es))
     - Whether they qualify for product commission splits that day
     - Who appears in the daily compensation assignment list
 - Data can be viewed outside working hours — there is no time-bounded access cutoff
@@ -231,7 +231,8 @@ There are two independent remittance flows per branch:
 - Only the assigned Coordinator can perform remittance — cannot be delegated
 - A remittance covers the date range from the day after the previous remittance up to the current day
 - The remittance record shows the total amount remitted, the date range covered, and a daily breakdown for each day in the range
-- Once a day is covered by a remittance it is permanently locked — no edits permitted
+- Once a day is covered by a remittance it is **locked by default** — edits are not permitted without explicit Admin approval
+- If an error is found in a remitted period, Admin can unlock the specific record for correction; once corrected, it is re-locked
 
 ### Visibility
 
@@ -240,7 +241,7 @@ There are two independent remittance flows per branch:
 | Admin | All branches |
 | Accountant | All branches |
 | Coordinator | Assigned branches only |
-| Practitioner | Home branch only |
+| Practitioner | Home branch(es) only |
 
 ---
 
@@ -252,7 +253,7 @@ Each branch day has a status that governs edit permissions:
 |--------|------|----------------|
 | OPEN | The current calendar day | Freely editable |
 | PAST | A previous day not yet remitted | Editable with warning |
-| REMITTED | Covered by a remittance | Permanently locked |
+| REMITTED | Covered by a remittance | Locked; editable only with Admin approval |
 
 The state machine applies to: sessions, attendance, expenses, compensations, and product sales.
 
@@ -319,8 +320,8 @@ A totals row appears at the bottom for all numeric columns.
 |------|--------------|----------------|
 | Admin | All branches | Full access, can work on clients |
 | Coordinator | Assigned branches only | Finance and remittance |
-| Practitioner | Home branch + checked-in branch(es) that day | |
-| Temporary | Home branch + checked-in branch(es) that day | Daily sales only for relief branches |
+| Practitioner | All home branches + checked-in branch(es) that day | |
+| Temporary | All home branches + checked-in branch(es) that day | Daily sales only for relief branches |
 | Accountant | All branches | Read-only |
 | Viewer | TBD | Read-only, future use |
 
@@ -335,16 +336,3 @@ Resigned users appear as-is on all historical records — their data is never al
 - All-time summary
 - Provincial tour reports
 - Medical mission reports
-
----
-
-## Questions:
-
-1. Can a staff member ever be assigned to more than one home branch at the same time? For example, could a practitioner split their time between two clinics and be considered "home" at both?
-   **A. Yes**
-
-2. If someone made a mistake on a past day's record — say, a session from two days ago has a wrong price — can that be corrected? Or once the day is over, is everything final?
-    **A. Yes can be corrected**
-
-3. Once a remittance has been submitted for a period, can anything from those days still be changed? Or is that period considered permanently closed?
-    **A. It can be changed with admin approval**
