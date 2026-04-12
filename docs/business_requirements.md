@@ -24,12 +24,14 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 | Role | Description |
 |------|-------------|
 | `ADMIN` | Owner. Edit access: home branches + checked-in branch that day. View-only: all branches. Can manage all users. Can work on clients. |
-| `SPECIAL_COORDINATOR` | Permanent role assigned by Admin. Assigns home branches to all users directly. Manages medical mission delegation. Can work on clients. |
+| `SPECIAL_COORDINATOR` | A superset of COORDINATOR — all coordinator permissions apply, plus: assigns home branches to all users directly, and manages medical mission delegation. Can work on clients. |
 | `COORDINATOR` | Handles finance and remittance for assigned branch(es). Views assigned branches only. Can work on clients. |
 | `PRACTITIONER` | Logs sessions, views clients, manages inventory. Views all home branches, plus any branch checked into that day. |
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
 | `TEMPORARY` | Relief practitioner. Always sees home branch(es). Also sees daily sales of any branch checked into that day. |
 | `VIEWER` | Read-only. Future use. |
+
+A user has exactly one role. SPECIAL_COORDINATOR is not a separate role stack — it is a role that inherits all COORDINATOR permissions and adds its own on top.
 
 ---
 
@@ -41,6 +43,18 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 - For solo or periodic branches, the practitioner hands over money to the Coordinator remotely
 - A practitioner can be assigned to more than one home branch simultaneously — for example, a practitioner who splits their time between two clinics can be considered "home" at both
 - Home branch assignment is performed directly by Admin or SPECIAL_COORDINATOR — there is no request flow from the practitioner
+
+---
+
+## Branch Slot Ordering
+
+Each user has a **slot number per assigned branch** (e.g. Practitioner 1, Practitioner 2, Coordinator). Slot 1 is the senior position within that branch.
+
+- Slot is per branch assignment — a user can be Practitioner 1 at Branch A and Practitioner 3 at Branch B simultaneously
+- A user in their home branch can set their own slot number; conflicts are resolved manually by Admin or SPECIAL_COORDINATOR
+- Slot ordering determines the display order of practitioners in reports (monthly summary, daily sales)
+- Within a session, ordering of practitioners is by slot number.
+- Relief practitioners (checked into a non-home branch) appear after all home branch slots in reports for that branch
 
 ---
 
@@ -74,20 +88,6 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 
 - A relief user's compensation for that day is deducted from the branch where they performed duty, not their home branch
 - This applies to both Practitioners and Coordinators on relief duty
-
----
-
-## Seniority
-TODO: Pain in the ass, need to remove this somehow (maybe have it be rearrangeable)
-Seniority is a system-maintained designation stored as a tier on each user. It never changes once assigned — OG status is a founding-era designation. Seniority determines ordering in reports and influences compensation level; Admin still manually assigns compensation amounts.
-
-| Tier | Who |
-|------|-----|
-| 1 — CEO | The Admin/owner. Always most senior. |
-| 2 — OG | Founding practitioners. Assigned at account creation. |
-| 3 — NON_OG | All other practitioners. Default for new hires. |
-
-Seniority determines the ordering of practitioners in the monthly summary and within a session's practitioner list: OG members appear before NON_OG members. Within each tier, ordering is by who worked on the client first in that session.
 
 ---
 
@@ -159,6 +159,7 @@ Base rates are per session type and are editable by Coordinators. Defaults:
 - Multiple practitioners can work on one client in a single session
 - Each practitioner adds themselves to the session when they begin working
 - Remarks can be added per practitioner
+- Display order within a session is by slot order
 
 ### Session Status
 
@@ -181,28 +182,58 @@ Base rates are per session type and are editable by Coordinators. Defaults:
 
 ## Products and Inventory
 
-### Products
-TODO: need to refine this, products have subcategories like Product Essential Oil, subcategories: big spray, small spray
-- Products are grouped by exactly one category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray, K-ION)
-- Only Coordinators and Admins can add or edit products and update stock levels
+### Product Structure
+
+Products are organized in two levels:
+
+```
+Category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray)
+  └── Product (e.g. Big Roll On, Big Sprayer, Small Sprayer, Potassium, MagSpray)
+```
+
+Products within the same category are distinct items, each with their own price, commission, and stock. There are no sub-variants — Big Roll On and Big Sprayer are separate products that happen to share a category.
+
+Only Coordinators and Admins can add or edit products and update stock levels.
 
 | Field | Notes |
 |-------|-------|
 | Name | |
 | Category | Exactly one per product |
-| Unit price | Can change over time |
-| Commission amount | Flat bonus on top of unit price; customer pays price + commission |
+| Unit price | The base selling price |
+| Commission amount | A flat bonus amount on top of unit price (can be ₱0). The customer pays unit price + commission. |
+| Active | Products can be deactivated rather than deleted |
 
 ### Inventory
 
-- Stock is tracked per branch
-- When a client buys a product during a session, stock automatically decreases
+Stock is tracked per branch. Each branch holds its own stock levels for each product.
+
+The inventory sheet tracks four values per product:
+
+| Column | Meaning |
+|--------|---------|
+| Available | Units currently on shelf and sellable (live count) |
+| Stock | Total units received at this branch (baseline) |
+| Sales | Units sold |
+| Tester / Sample | Units set aside as non-sellable testers or samples — tracked separately, not counted as available |
+
+Available is a derived value: `Available = Stock − Sales − Tester − Sample − Missing`.
+
+Low-stock alerts notify the Coordinator when available stock hits zero or near-zero (highlighted in the UI).
+
+**Special stock movements tracked separately from sales:**
+
+| Movement Type | Description |
+|---------------|-------------|
+| Tester | Unit set aside for demonstration — not sold |
+| Sample | Unit given as a free sample — not sold |
+| Missing | Unit unaccounted for; quantity and optional reason recorded |
+| Restock | New stock added to branch |
+| Adjustment | Manual correction |
+
+- When a client buys a product during a session, available stock automatically decreases and a Sale movement is recorded
 - The price recorded on the session is the price at the time of purchase
 - Product sales can be retroactively added to a previous day's session record, subject to the day state machine
 - Any practitioner can deduct stock for tester samples
-- Inventory can be marked as missing — quantity and an optional reason are recorded
-- Inventory tracking covers: available stock, total stock, sales quantity
-- Low-stock alerts notify the Coordinator
 
 ### Product Commission
 
@@ -222,7 +253,7 @@ TODO: need to refine this, products have subcategories like Product Essential Oi
 - Compensation is assigned per day, per practitioner, by Admin or Coordinator after viewing daily sales
 - Admin views the sessions for the day and who is on duty, then assigns a value per practitioner
 - Compensation is never zero — even if a practitioner had no sessions that day, some amount is always provided
-- Compensation varies per practitioner and is decided based on daily sales and seniority
+- Compensation varies per practitioner and is decided by Admin
 
 ### Expenses
 
@@ -346,7 +377,7 @@ Each branch day has a status that governs edit permissions:
 | Total Expenses | Compensation + Other |
 | Net Income | |
 | No. of Clients | |
-| Practitioner | Ordered by seniority tier, then by who worked the client first within tier |
+| Practitioner | Ordered by branch slot number (slot 1 first), then relief practitioners after |
 | Coordinator | |
 
 A totals row appears at the bottom for all numeric columns.
@@ -354,11 +385,11 @@ A totals row appears at the bottom for all numeric columns.
 ---
 
 ## Access Control Summary
-TODO: Special coordinator is an extension to coordinator, they act as a coordinator of a branch in addition to their added responsibilities
+
 | Role | Branch access | Special access |
 |------|--------------|----------------|
 | Admin | Edit: home branches + checked-in branch that day. View: all branches. | Can work on clients. No special edit rights over branch financial records. |
-| Special Coordinator | Assigned branches + checked-in branch that day | Assigns home branches to all users. Medical mission delegation. |
+| Special Coordinator | Assigned branches + checked-in branch that day | Assigns home branches to all users. Medical mission delegation. All COORDINATOR permissions. |
 | Coordinator | Assigned branches only | Finance and remittance. Sole editor of PAST and REMITTED records for their branch. |
 | Practitioner | All home branches + checked-in branch(es) that day | |
 | Temporary | All home branches + checked-in branch(es) that day | Daily sales view only for relief branches unless edit access is granted |
