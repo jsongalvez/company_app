@@ -24,7 +24,7 @@ object AuthService {
         val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), passwordHash)
 
         if (appUser == null || !result.verified) {
-            return null.also { logger.warn { "[LOGIN] Failed login attempt" } }
+            return null.also { logger.warn { "[LOGIN] Failed login attempt for user: $username" } }
         }
 
         val token: String = JwtService.generateToken(appUser.id)
