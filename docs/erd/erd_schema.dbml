@@ -186,6 +186,7 @@ Table client {
   systolic_bp        smallint    [check: `systolic_bp BETWEEN 40 AND 300`]
   diastolic_bp       smallint    [check: `diastolic_bp BETWEEN 20 AND 200`]
   medical_conditions text
+  session_number     smallint    [not null, default: 0, check: `session_number >= 0`]
 
   Note: '''
   Global record shared across all branches.
@@ -237,7 +238,7 @@ Table session {
     - SECOND_SESSION if exactly one prior session
     - SUBSEQUENT if two or more prior sessions
 
-  session_number (for display) is derived: COUNT of prior non-voided sessions for this client.
+  session_number (for display) is cached to client.session_number: COUNT of prior non-voided sessions for this client.
 
   Walk-in sessions cannot be marked NO_SHOW or CANCELLED.
   '''
