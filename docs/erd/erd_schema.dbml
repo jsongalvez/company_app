@@ -86,6 +86,10 @@ Table grant_relief_access {
   granted_by     uuid          [ref: > app_user.id]
   granted_at     timestamp
 
+  indexes {
+    (branch_day_id, requested_by) [unique]
+  }
+
   Note: '''
   Scoped per branch_day. A relief user selects a currently
   checked-in user at the branch and requests edit access.
