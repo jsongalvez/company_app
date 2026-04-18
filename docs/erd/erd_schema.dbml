@@ -20,21 +20,21 @@ Enum user_status {
 }
 
 Table app_user {
-  id uuid [pk, default: `gen_random_uuid()`]
-  username varchar(255) [not null, unique]
-  password_hash varchar(60) [not null]
-  status user_status [not null, default: 'ACTIVE']
-  role user_role [not null, default: 'VIEWER']
+  id            uuid         [pk, default: `gen_random_uuid()`]
+  username      varchar(255) [not null, unique]
+  password_hash varchar(60)  [not null]
+  status        user_status  [not null, default: 'ACTIVE']
+  role          user_role    [not null, default: 'VIEWER']
 }
 
 Table user_branch_assignment {
-  id uuid [pk, default: `gen_random_uuid()`]
-  user_id uuid [not null, ref: > app_user.id]
-  branch_id uuid [not null, ref: > branch.id]
-  slot smallint [not null, default: 0]
-  assigned_by uuid [not null, ref: >app_user.id]
+  id          uuid      [pk, default: `gen_random_uuid()`]
+  user_id     uuid      [not null, ref: > app_user.id]
+  branch_id   uuid      [not null, ref: > branch.id]
+  slot        smallint  [not null, default: 0]
+  assigned_by uuid      [not null, ref: >app_user.id]
   assigned_at timestamp [not null, default: `now()`]
-  ended_at timestamp [note: 'NULL means assignment is active']
+  ended_at    timestamp [note: 'NULL means assignment is active']
 
   indexes {
     (user_id, branch_id) [unique, note: 'only one active assignment per user per branch; enforce at app level for ended_at IS NULL']
@@ -62,9 +62,9 @@ Enum branch_type {
 }
 
 Table branch {
-  id uuid [pk, default: `gen_random_uuid()`]
+  id          uuid        [pk, default: `gen_random_uuid()`]
   branch_type branch_type [not null, default: 'CLINIC']
-  name text [not null, unique]
+  name        text        [not null, unique]
 
   indexes {
     (branch_type, name) [unique]
@@ -78,13 +78,13 @@ Enum relief_status {
 }
 
 Table grant_relief_access {
-  id uuid [pk, default: `gen_random_uuid()`]
-  branch_day_id uuid [not null, ref: > branch_day.id]
-  requested_by uuid [not null, ref: > app_user.id]
+  id             uuid          [pk, default: `gen_random_uuid()`]
+  branch_day_id  uuid          [not null, ref: > branch_day.id]
+  requested_by   uuid          [not null, ref: > app_user.id]
   request_status relief_status [not null, default: 'PENDING']
-  target_user uuid [not null, ref: > app_user.id]
-  granted_by uuid [ref: > app_user.id]
-  granted_at timestamp
+  target_user    uuid          [not null, ref: > app_user.id]
+  granted_by     uuid          [ref: > app_user.id]
+  granted_at     timestamp
 
   Note: '''
   Scoped per branch_day. A relief user selects a currently
@@ -240,25 +240,25 @@ Table session {
 }
 
 Table session_void {
-  id uuid [pk, default: `gen_random_uuid()`]
-  session_id uuid [not null, ref: > session.id, unique]
-  voided_at timestamp [not null, default: `now()`]
-  voided_by uuid [not null, ref: > app_user.id]
-  void_reason text [not null]
-  unvoided_at timestamp
-  unvoided_by uuid [ref: > app_user.id]
+  id              uuid      [pk, default: `gen_random_uuid()`]
+  session_id      uuid      [not null, ref: > session.id, unique]
+  voided_at       timestamp [not null, default: `now()`]
+  voided_by       uuid      [not null, ref: > app_user.id]
+  void_reason     text      [not null]
+  unvoided_at     timestamp
+  unvoided_by     uuid      [ref: > app_user.id]
   unvoided_reason text
 
   Note: 'Only Coordinators can void and un-void.'
 }
 
 Table session_base_rate {
-  id uuid [pk, default: `gen_random_uuid()`]
-  set_by uuid [not null, ref: > app_user.id,  note: 'MUST be set from authenticated user context; never accept from client']
-  branch_id uuid [not null, ref: > branch.id]
-  session_type session_type [not null]
-  rate numeric(10,2) [not null]
-  effective_from timestamp [not null]
+  id             uuid          [pk, default: `gen_random_uuid()`]
+  set_by         uuid          [not null, ref: > app_user.id,  note: 'MUST be set from authenticated user context; never accept from client']
+  branch_id      uuid          [not null, ref: > branch.id]
+  session_type   session_type  [not null]
+  rate           numeric(10,2) [not null]
+  effective_from timestamp     [not null]
 
   indexes {
     (branch_id, session_type, effective_from) [unique, note: 'effective_from allows rate history']
@@ -342,12 +342,12 @@ Table inventory_movement {
 }
 
 Table product {
-  id uuid [pk, default: `gen_random_uuid()`]
-  name text [not null]
-  product_category_id uuid [not null, ref: > product_category.id]
-  is_active boolean [not null, default: true]
-  unit_price numeric(10,2) [not null, check: `unit_price >= 0`]
-  commission_amount numeric(10,2) [not null, check: `commission_amount >= 0`]
+  id                  uuid          [pk, default: `gen_random_uuid()`]
+  name                text          [not null]
+  product_category_id uuid          [not null, ref: > product_category.id]
+  is_active           boolean       [not null, default: true]
+  unit_price          numeric(10,2) [not null, check: `unit_price >= 0`]
+  commission_amount   numeric(10,2) [not null, check: `commission_amount >= 0`]
 }
 
 Table product_category {
@@ -358,13 +358,13 @@ Table product_category {
 }
 
 Table product_sale {
-  id                         uuid [pk, default: `gen_random_uuid()`]
-  branch_day_id              uuid [not null, ref: > branch_day.id]
-  session_id                 uuid [not null, ref: > session.id]
-  client_id                  uuid [not null, ref: > client.id]
-  product_id                 uuid [not null, ref: > product.id]
-  product_name               text [not null, note: 'snapshot at time of sale']
-  quantity                   smallint [not null, check: `quantity >= 1`]
+  id                         uuid          [pk, default: `gen_random_uuid()`]
+  branch_day_id              uuid          [not null, ref: > branch_day.id]
+  session_id                 uuid          [not null, ref: > session.id]
+  client_id                  uuid          [not null, ref: > client.id]
+  product_id                 uuid          [not null, ref: > product.id]
+  product_name               text          [not null, note: 'snapshot at time of sale']
+  quantity                   smallint      [not null, check: `quantity >= 1`]
   unit_price_at_time         numeric(10,2) [not null]
   commission_amount_at_time  numeric(10,2) [not null]
 }
@@ -399,7 +399,7 @@ Table allowance {
   user_id       uuid          [not null, ref: > app_user.id]
   amount        numeric(10,2) [not null, check: `amount >= 0`]
   assigned_by   uuid          [not null, ref: > app_user.id]
-  assigned_at timestamp [not null, default: `now()`]
+  assigned_at   timestamp     [not null, default: `now()`]
 
   Note: 'Used for medical mission transport allowances. Separate from compensation and not subject to remittance.'
 }
@@ -441,16 +441,16 @@ Enum remittance_method {
 }
 
 Table remittance {
-  id               uuid [pk, default: `gen_random_uuid()`]
-  type             remittance_type [not null]
-  branch_id        uuid [not null, ref: > branch.id]
+  id               uuid              [pk, default: `gen_random_uuid()`]
+  type             remittance_type   [not null]
+  branch_id        uuid              [not null, ref: > branch.id]
   method           remittance_method [not null]
-  remittance_date  date [not null]
-  date_range_start date [not null]
-  date_range_end   date [not null]
-  total_amount     numeric(12,2)    [not null]
-  submitted_by     uuid [not null, ref: > app_user.id]
-  created_at       timestamp [not null, default: `now()`]
+  remittance_date  date              [not null]
+  date_range_start date              [not null]
+  date_range_end   date              [not null]
+  total_amount     numeric(12,2)     [not null]
+  submitted_by     uuid              [not null, ref: > app_user.id]
+  created_at       timestamp         [not null, default: `now()`]
 
   indexes {
     (branch_id, type, remittance_date) [unique]
@@ -467,10 +467,10 @@ Table remittance {
 }
 
 Table remittance_day_breakdown {
-  id uuid [pk, default: `gen_random_uuid()`]
-  remittance_id uuid [not null, ref: > remittance.id]
-  branch_day_id uuid [not null, ref: > branch_day.id]
-  amount numeric(10,2) [not null]
+  id            uuid          [pk, default: `gen_random_uuid()`]
+  remittance_id uuid          [not null, ref: > remittance.id]
+  branch_day_id uuid          [not null, ref: > branch_day.id]
+  amount        numeric(10,2) [not null]
 
   indexes {
     (remittance_id, branch_day_id) [unique]
@@ -483,14 +483,14 @@ Enum remittance_line_type {
 }
 
 Table remittance_line {
-  id uuid [pk, default: `gen_random_uuid()`]
-  remittance_id uuid [not null, ref: > remittance.id]
-  type remittance_line_type [not null]
-  session_id uuid [ref: > session.id]
-  product_sale_id uuid [ref: > product_sale.id]
-  created_by uuid [ref: > app_user.id]
-  created_at timestamp [not null, default: `now()`]
-  deleted_at timestamp
+  id              uuid                 [pk, default: `gen_random_uuid()`]
+  remittance_id   uuid                 [not null, ref: > remittance.id]
+  type            remittance_line_type [not null]
+  session_id      uuid                 [ref: > session.id]
+  product_sale_id uuid                 [ref: > product_sale.id]
+  created_by      uuid                 [ref: > app_user.id]
+  created_at      timestamp            [not null, default: `now()`]
+  deleted_at      timestamp
 
   Note: '''
   RULE:
