@@ -23,38 +23,60 @@ Practitioners use the app primarily on a laptop (Windows), with Android and iOS 
 
 | Role | Description |
 |------|-------------|
-| `ADMIN` | Owner. Edit access: home branches + checked-in branch that day. View-only: all branches. Can manage all users. Can work on clients. |
+| `SUPERUSER` | Secret developer/owner god mode. Full access to everything. |
+| `ADMIN` | Owner. Edit access: home branches + checked-in branch that day. View-only: all branches. Can manage all users. Can work on clients. No special edit rights over branch financial records — Coordinator is the sole owner of PAST and REMITTED record edits. |
 | `SPECIAL_COORDINATOR` | A superset of COORDINATOR — all coordinator permissions apply, plus: assigns home branches to all users directly, and manages medical mission delegation. Can work on clients. |
-| `COORDINATOR` | Handles finance and remittance for assigned branch(es). Views assigned branches only. Can work on clients. |
+| `COORDINATOR` | Handles finance and remittance for assigned branch(es). Views assigned branches only. Sole editor of PAST and REMITTED records for their branch. Can work on clients. |
 | `PRACTITIONER` | Logs sessions, views clients, manages inventory. Views all home branches, plus any branch checked into that day. |
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
-| `TEMPORARY` | Relief practitioner. Always sees home branch(es). Also sees daily sales of any branch checked into that day. |
 | `VIEWER` | Read-only. Future use. |
 
-A user has exactly one role. SPECIAL_COORDINATOR is not a separate role stack — it is a role that inherits all COORDINATOR permissions and adds its own on top.
+A user has exactly one role. SPECIAL_COORDINATOR is not a separate role stack — it is a role that inherits all COORDINATOR permissions and adds its own on top. There is no TEMPORARY role — relief access is a behavioral state managed by `grant_relief_access`, not a permanent identity.
 
 ---
 
 ## Branches
 
 - A branch is either a physical clinic or a periodic off-site location (e.g. one practitioner visits every two weeks)
-- Each branch has exactly one assigned Coordinator — set by Admin or SPECIAL_COORDINATOR, permanent until changed
+- Each branch can have one or more assigned Coordinators — set by Admin or SPECIAL_COORDINATOR, permanent until changed. No hard limit on the number of coordinators per branch.
 - A Coordinator can be assigned to multiple branches and does not need to be physically present
 - For solo or periodic branches, the practitioner hands over money to the Coordinator remotely
-- A practitioner can be assigned to more than one home branch simultaneously — for example, a practitioner who splits their time between two clinics can be considered "home" at both
+- A practitioner can be assigned to more than one home branch simultaneously
 - Home branch assignment is performed directly by Admin or SPECIAL_COORDINATOR — there is no request flow from the practitioner
+
+### Branch Types
+
+| Type | Description |
+|------|-------------|
+| `CLINIC` | A permanent physical location |
+| `PROVINCIAL_TOUR` | A temporary off-site event, treated as its own standalone branch |
+| `MEDICAL_MISSION` | A free event. Always its own branch record, even if physically hosted at an existing clinic location |
 
 ---
 
 ## Branch Slot Ordering
 
-Each user has a **slot number per assigned branch** (e.g. Practitioner 1, Practitioner 2, Coordinator). Slot 1 is the senior position within that branch.
+Each user has a **slot number per assigned branch** (e.g. Practitioner 1, Practitioner 2). Slot 1 is the senior position within that branch.
 
 - Slot is per branch assignment — a user can be Practitioner 1 at Branch A and Practitioner 3 at Branch B simultaneously
+- Slot is cosmetic and user-managed — it exists purely to control display order in reports
 - A user in their home branch can set their own slot number; conflicts are resolved manually by Admin or SPECIAL_COORDINATOR
 - Slot ordering determines the display order of practitioners in reports (monthly summary, daily sales)
-- Within a session, ordering of practitioners is by slot number.
+- Within a session, practitioners are ordered by slot number
 - Relief practitioners (checked into a non-home branch) appear after all home branch slots in reports for that branch
+- Slot history is not tracked — current value only
+
+---
+
+## Branch Access and History
+
+Branch access is determined by the user's current and past assignments:
+
+- **Current assignment** — full operational access (read + write per role)
+- **Past assignment (ended)** — read-only, records scoped up to the day the assignment ended
+- **Reassigned back** — full operational access resumes; all historical records are accessible again since data was never removed
+
+This is a query-time filter, not a data deletion. No record is ever hidden — only the access window changes.
 
 ---
 
@@ -81,7 +103,8 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - To gain edit access, the relief user selects a specific currently checked-in user at that branch and sends an access request
 - The selected user receives an in-app notification with an explicit **Grant / Deny** choice
 - Any currently checked-in user at the branch can grant access — Coordinator presence is not required
-- Once granted, edit access is active for the rest of that calendar day
+- Once granted, edit access is active for the rest of that calendar day only
+- If relief duty spans multiple days, a new access request must be made each day
 - Edit access allows: signing in clients for sessions, adding practitioners to sessions, adding product sales, and receiving commission pool splits
 
 ### Compensation
@@ -121,25 +144,29 @@ A session records one visit by a client at a branch.
 
 ### Session Type
 
-Session type is auto-assigned based on the client's global session history across all branches and is never manually changed:
+Session type is auto-assigned based on the client's global session history across all branches. On medical mission branches, all sessions are always assigned `MEDICAL_MISSION` regardless of the client's history.
 
 | Type | Condition |
 |------|-----------|
-| Regular | First visit anywhere |
-| 2nd Session | Second visit |
-| Subsequent | Third visit and beyond |
-| Provincial (first session) | First visit ever, at a provincial tour |
+| `REGULAR` | First visit anywhere (non-medical-mission) |
+| `SECOND_SESSION` | Second visit (non-medical-mission) |
+| `SUBSEQUENT` | Third visit and beyond (non-medical-mission) |
+| `PROVINCIAL_FIRST` | First visit ever, at a provincial tour branch |
+| `MEDICAL_MISSION` | Any visit at a medical mission branch — always free (₱0) |
+
+Session type is never manually changed.
 
 ### Base Rates
 
-Base rates are per session type and are editable by Coordinators. Defaults:
+Base rates are per session type and per branch, editable by Coordinators.
 
-| Type | Base Rate |
+| Type | Default Base Rate |
 |------|-----------|
 | Regular | ₱2,500 |
 | 2nd Session | ₱2,000 |
 | Subsequent | ₱1,500 |
 | Provincial (first session) | ₱3,500 |
+| Medical Mission | ₱0 (always) |
 
 ### Pricing
 
@@ -147,6 +174,7 @@ Base rates are per session type and are editable by Coordinators. Defaults:
 - Final price can be overridden per session by the practitioner
 - Prices are typically multiples of ₱500 but any amount down to ₱0 is allowed
 - Session type and final price are always two independent fields — type does not change when price is overridden
+- A remark field captures the reason for any discount or override
 
 ### Concerns and Illnesses
 
@@ -166,16 +194,16 @@ Base rates are per session type and are editable by Coordinators. Defaults:
 - Completed sessions are always editable by Coordinators (with appropriate day-state warnings — see Day State Machine)
 - Booked sessions can be marked as no-show or cancelled
 - Walk-in sessions cannot be marked as no-show or cancelled
-- Next appointment date is approximate — clients may return earlier or later than scheduled; clients who do not follow through are marked no-show
-- The Coordinator is notified 2 days before a scheduled next appointment
+- Next appointment date is approximate — the Coordinator is notified 2 days before a scheduled next appointment
+- Clients who do not follow through on a booked appointment are marked no-show
 
 ### Session Voiding
 
-- Only Coordinators can void a session — sessions are never hard-deleted
+- Only assigned Coordinators can void a session — sessions are never hard-deleted
 - A void reason is required (free text)
 - Voided sessions remain visible in the record with a clear visual indicator and are excluded from all financial calculations
-- Voiding is a versioned action covered by the audit trail
-- An Admin can un-void a session if it was done in error
+- Voiding is covered by the audit trail
+- Assigned coordinators can un-void a session if it was done in error
 - Voided sessions are visible to all roles by default and can be hidden as a quality-of-life filter
 
 ---
@@ -191,7 +219,7 @@ Category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray)
   └── Product (e.g. Big Roll On, Big Sprayer, Small Sprayer, Potassium, MagSpray)
 ```
 
-Products within the same category are distinct items, each with their own price, commission, and stock. There are no sub-variants — Big Roll On and Big Sprayer are separate products that happen to share a category.
+Products within the same category are distinct items, each with their own price, commission, and stock. There are no sub-variants.
 
 Only Coordinators and Admins can add or edit products and update stock levels.
 
@@ -214,7 +242,7 @@ The inventory sheet tracks four values per product:
 | Available | Units currently on shelf and sellable (live count) |
 | Stock | Total units received at this branch (baseline) |
 | Sales | Units sold |
-| Tester / Sample | Units set aside as non-sellable testers or samples — tracked separately, not counted as available |
+| Tester / Sample | Units set aside as non-sellable testers or samples |
 
 Available is a derived value: `Available = Stock − Sales − Tester − Sample − Missing`.
 
@@ -231,9 +259,9 @@ Low-stock alerts notify the Coordinator when available stock hits zero or near-z
 | Adjustment | Manual correction |
 
 - When a client buys a product during a session, available stock automatically decreases and a Sale movement is recorded
-- The price recorded on the session is the price at the time of purchase
+- The price recorded on the sale is the price at the time of purchase
 - Product sales can be retroactively added to a previous day's session record, subject to the day state machine
-- Any practitioner can deduct stock for tester samples
+- Any practitioner can deduct stock for tester/sample use
 
 ### Product Commission
 
@@ -251,9 +279,15 @@ Low-stock alerts notify the Coordinator when available stock hits zero or near-z
 ### Compensation
 
 - Compensation is assigned per day, per practitioner, by Admin or Coordinator after viewing daily sales
-- Admin views the sessions for the day and who is on duty, then assigns a value per practitioner
 - Compensation is never zero — even if a practitioner had no sessions that day, some amount is always provided
-- Compensation varies per practitioner and is decided by Admin
+- Compensation varies per practitioner and is decided by Admin or Coordinator
+- Relief duty compensation is deducted from the branch where duty was performed, not the home branch
+
+### Allowances
+
+- A separate allowance amount can be assigned per user per day
+- Used for medical mission transport allowances (paid by Admin, not subject to remittance)
+- Allowances are distinct from compensation and from expenses
 
 ### Expenses
 
@@ -274,9 +308,10 @@ Low-stock alerts notify the Coordinator when available stock hits zero or near-z
 
 ### Daily Financials
 
-- **Gross income** = total final price of all completed sessions that day
+- **Gross income** = total final price of all completed, non-voided sessions that day
 - **Net income** = gross income − compensation expenses − other expenses
 - Product sales revenue is tracked separately and does not factor into gross or net income
+- Product commissions are not included in any remittance flow
 
 ---
 
@@ -292,7 +327,7 @@ There are two independent remittance flows per branch:
 ### Rules
 
 - At most one HEALot remittance and one product remittance per branch per day
-- Only the assigned Coordinator can perform remittance — cannot be delegated
+- Only the assigned Coordinator(s) can perform remittance — cannot be delegated
 - A remittance covers the date range from the day after the previous remittance up to the current day
 - The remittance record shows the total amount remitted, the date range covered, and a daily breakdown for each day in the range
 - Coordinators must note the remittance method: bank transfer or handed to the accountant
@@ -307,7 +342,7 @@ Each branch day has a status that governs edit permissions:
 | PAST | A previous day not yet remitted | Coordinator only | Warning shown |
 | REMITTED | Covered by a remittance | Coordinator only | Stricter warning shown |
 
-- Admin has no special edit access to branch financial records — the Coordinator is the sole owner of past and remitted record edits
+- Admin has no special edit access to branch financial records — the Coordinator is the sole owner of PAST and REMITTED record edits
 - The day state machine applies to: sessions, attendance, expenses, compensations, and product sales
 
 ### Record Integrity
@@ -324,7 +359,7 @@ Each branch day has a status that governs edit permissions:
 | Admin | All branches |
 | Accountant | All branches |
 | Coordinator | Assigned branches only |
-| Practitioner | Home branch(es) only |
+| Practitioner | Home branch(es) only + checked-in branch(es) that day |
 
 ---
 
@@ -333,7 +368,7 @@ Each branch day has a status that governs edit permissions:
 ### Provincial Tour
 
 - Practitioners travel to an off-site location for one or more consecutive days
-- Treated as its own standalone branch with its own history — income and compensation do not roll into any regular branch
+- Treated as its own standalone branch (`branch_type = PROVINCIAL_TOUR`) with its own history — income and compensation do not roll into any regular branch
 - Practitioners rotate — membership is not fixed per tour
 - Session pricing uses the client's global session history (same auto-assignment logic as regular branches)
 - Practitioners receive daily compensation using the same Admin/Coordinator assignment flow
@@ -341,10 +376,10 @@ Each branch day has a status that governs edit permissions:
 
 ### Medical Mission
 
-- A free version of a provincial tour — all sessions are free (gross income = ₱0)
-- Admin assigns one global delegate (the SPECIAL_COORDINATOR) to manage medical mission attendance; this is ongoing until Admin changes it
-- The delegate acts as the Coordinator for medical missions — can assign practitioners to a mission
-- Only one active delegate at a time; the previous delegate loses access immediately upon reassignment
+- A free event — all sessions are `MEDICAL_MISSION` type and are always ₱0
+- Always its own branch record (`branch_type = MEDICAL_MISSION`), even if physically hosted at an existing clinic location
+- Admin assigns one or more delegates (SPECIAL_COORDINATOR) to manage medical mission attendance
+- The delegate(s) act as Coordinators for medical missions — can assign practitioners to a mission
 - Practitioners receive a transport allowance (not compensation) provided by Admin
 - All roles can view medical mission reports
 
@@ -388,15 +423,15 @@ A totals row appears at the bottom for all numeric columns.
 
 | Role | Branch access | Special access |
 |------|--------------|----------------|
+| Superuser | Everything | Secret god mode |
 | Admin | Edit: home branches + checked-in branch that day. View: all branches. | Can work on clients. No special edit rights over branch financial records. |
-| Special Coordinator | Assigned branches + checked-in branch that day | Assigns home branches to all users. Medical mission delegation. All COORDINATOR permissions. |
+| Special Coordinator | Assigned branches + checked-in branch that day | Assigns home branches to all users. Manages medical mission delegates. All COORDINATOR permissions. |
 | Coordinator | Assigned branches only | Finance and remittance. Sole editor of PAST and REMITTED records for their branch. |
 | Practitioner | All home branches + checked-in branch(es) that day | |
-| Temporary | All home branches + checked-in branch(es) that day | Daily sales view only for relief branches unless edit access is granted |
 | Accountant | All branches | Read-only |
 | Viewer | TBD | Read-only, future use |
 
-Resigned users appear as-is on all historical records — their data is never altered or hidden.
+Resigned/inactive users appear as-is on all historical records — their data is never altered or hidden.
 
 ---
 
