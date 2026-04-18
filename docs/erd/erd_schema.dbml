@@ -1,0 +1,496 @@
+// Company App — Database ER Diagram
+
+// ============================================================
+// USERS & BRANCHES
+// ============================================================
+
+Enum user_role {
+  ADMIN
+  SPECIAL_COORDINATOR
+  COORDINATOR
+  PRACTITIONER
+  ACCOUNTANT
+  VIEWER
+  SUPERUSER
+}
+
+Enum user_status {
+  ACTIVE
+  INACTIVE
+}
+
+Table app_user {
+  id uuid [pk, default: `gen_random_uuid()`]
+  username varchar(255) [not null]
+  password_hash varchar(60) [not null]
+  status user_status [not null, default: 'ACTIVE']
+  role user_role [not null, default: 'VIEWER']
+}
+
+Table user_branch_assignment {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > app_user.id]
+  branch_id uuid [not null, ref: > branch.id]
+  slot smallint [not null, default: 0]
+  assigned_by uuid [not null, ref: >app_user.id]
+  assigned_at timestamp [not null, default: `now()`]
+
+  indexes {
+    (user_id, branch_id) [unique]
+    (branch_id, slot) [unique]
+  }
+}
+
+Enum branch_type {
+  CLINIC
+  PROVINCIAL_TOUR
+  MEDICAL_MISSION
+}
+
+Table branch {
+  id uuid [pk, default: `gen_random_uuid()`]
+  branch_type branch_type [not null, default: 'CLINIC']
+  name text [not null, unique]
+
+  indexes {
+    (branch_type, name) [unique]
+  }
+}
+
+Table branch_coordinator {
+  id uuid [pk, default: `gen_random_uuid()`]
+  coordinator_id uuid [not null, ref: > app_user.id]
+  branch_id uuid [not null, ref: > branch.id]
+  assigned_at timestamp [not null, default: `now()`]
+  assigned_by uuid [not null, ref: > app_user.id]
+  ended_at timestamp [note: 'NULL means coordinator is active']
+
+  indexes {
+    (branch_id, coordinator_id) [unique]
+  }
+
+  Note: '''
+  SOURCE OF TRUTH FOR BRANCH AUTHORITY.
+
+  A user is considered an ACTIVE coordinator if:
+    ended_at IS NULL
+
+  This table is used for:
+    - Rate modification permissions
+    - Operational authority within a branch
+  '''
+}
+
+Enum relief_status {
+  PENDING
+  GRANTED
+  DENIED
+}
+
+Table grant_relief_access {
+  id uuid [pk, default: `gen_random_uuid()`]
+  branch_id uuid [not null, ref: > branch.id]
+  branch_day_id uuid [not null, ref: > branch_day.id]
+  requested_by uuid [not null, ref: > app_user.id]
+  request_status relief_status [not null, default: 'PENDING']
+  target_user uuid [not null, ref: > app_user.id]
+  granted_by uuid [ref: > app_user.id]
+  granted_at timestamp
+}
+
+Table medical_mission_delegate {
+  id          uuid      [pk, default: `gen_random_uuid()`]
+  user_id     uuid      [not null, ref: > app_user.id]
+  assigned_at timestamp [not null, default: `now()`]
+  assigned_by uuid      [not null, ref: > app_user.id]
+  ended_at    date
+
+  // TODO: maybe allow more than one delegate?
+  Note: 'ended_at == NULL means active delegate'
+}
+
+// ============================================================
+// ATTENDANCE & DAY STATE
+// ============================================================
+
+Table attendance {
+  id            uuid    [pk, default: `gen_random_uuid()`]
+  branch_day_id uuid    [not null, ref: > branch_day.id]
+  user_id       uuid    [not null, ref: > app_user.id]
+  marked_by     uuid    [not null, ref: > app_user.id]
+  present       boolean [not null]
+
+  indexes {
+    (user_id, branch_day_id) [unique]
+  }
+}
+
+Enum day_status {
+  OPEN
+  PAST
+  REMITTED
+}
+
+Table branch_day {
+  id        uuid       [pk, default: `gen_random_uuid()`]
+  branch_id uuid       [not null, ref: > branch.id]
+  date      date       [not null]
+  status    day_status [not null, default: `OPEN`]
+
+  indexes {
+    (branch_id, date) [unique]
+  }
+
+   Note: '''
+  POST-REMIT EDIT POLICY:
+
+  Coordinators may edit records even after REMITTED status.
+
+  Therefore:
+  - ALL changes to financial and operational records MUST be logged in audit_log
+  - Historical accuracy is maintained via audit trail, not immutability
+  '''
+}
+
+Table branch_day_assignment {
+  id            uuid    [pk, default: `gen_random_uuid()`]
+  branch_day_id uuid    [not null, ref: > branch_day.id]
+  user_id       uuid    [not null, ref: > app_user.id]
+  is_relief     boolean [not null]
+
+  indexes {
+    (branch_day_id, user_id) [unique]
+  }
+}
+
+// ============================================================
+// CLIENTS & SESSIONS
+// ============================================================
+
+Table client {
+  id                 uuid        [pk, default: `gen_random_uuid()`]
+  name               text        [not null]
+  phone_number       varchar(20) [check: `phone_number.length == 11`]
+  address            text        [not null, default: 'N/A']
+  gender             char        [not null, check: `gender in ('M', 'F')`]
+  age                int         [not null, check: `age BETWEEN 0 AND 120`]
+  systolic_bp        smallint    [check: `systolic_bp BETWEEN 40 AND 300`]
+  diastolic_bp       smallint    [check: `diastolic_bp BETWEEN 20 AND 200`]
+  medical_conditions text
+
+  Note: 'BP fields must both be NULL or both be NOT NULL'
+
+  checks {`
+    (systolic_bp IS NULL AND diastolic_bp IS NULL)
+    OR
+    (systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL)`
+  }
+}
+
+Enum session_type {
+  REGULAR
+  SECOND_SESSION
+  SUBSEQUENT
+  PROVINCIAL_FIRST
+  MEDICAL_MISSION // what if the medical mission is on a branch?
+}
+
+Enum session_status {
+  PENDING
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+Table session {
+  id                        uuid           [pk, default: `gen_random_uuid()`]
+  client_id                 uuid           [not null, ref: > client.id]
+  branch_id                 uuid           [not null, ref: > branch.id]
+  branch_day_id             uuid           [not null, ref: > branch_day.id]
+  requested_practitioner_id uuid           [ref: > app_user.id]
+  session_type              session_type   [not null, default: `REGULAR`]
+  is_walk_in                boolean        [not null]
+  session_status            session_status [not null, default: `PENDING`]
+  base_price                numeric(10,2)  [not null, note: 'derived from session_base_rate.rate']
+  final_price               numeric(10,2)  [not null]
+  remarks                   text           [note: 'reason for discount']
+  booked_at                 timestamp
+  next_appointment_date     date
+
+  Note: 'session_number is calculated as prior sessions'
+}
+
+Table session_void {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > session.id, unique]
+  voided_at timestamp [not null, default: `now()`]
+  voided_by uuid [not null, ref: > app_user.id]
+  void_reason text
+  unvoided_at timestamp
+  unvoided_by uuid [ref: > app_user.id]
+}
+
+Table session_base_rate {
+  id uuid [pk, default: `gen_random_uuid()`]
+  set_by uuid [not null, ref: > app_user.id,  note: 'MUST be set from authenticated user context; never accept from client']
+  branch_id uuid [not null, ref: > branch.id]
+  session_type session_type [not null]
+  rate numeric(10,2) [not null]
+  effective_from timestamp [not null]
+
+  indexes {
+    (branch_id, session_type, effective_from) [unique, note: 'effective_from allows rate history']
+  }
+}
+
+Table session_practitioner {
+  id              uuid [pk, default: `gen_random_uuid()`]
+  session_id      uuid [not null, ref: > session.id]
+  practitioner_id uuid [not null, ref: > app_user.id]
+  remarks         text
+
+  indexes {
+    (session_id, practitioner_id) [unique]
+  }
+}
+
+Table session_concern {
+  session_id uuid [not null, ref: > session.id]
+  concern_id uuid [not null, ref: > concern.id]
+
+  indexes {
+    (session_id, concern_id) [pk]
+  }
+}
+
+Table concern {
+  id    uuid [pk, default: `gen_random_uuid()`]
+  label text
+}
+
+// ============================================================
+// PRODUCTS & INVENTORY
+// ============================================================
+
+Table branch_inventory {
+  id            uuid [pk, default: `gen_random_uuid()`]
+  branch_id     uuid [ref: > branch.id]
+  product_id    uuid [ref: > product.id]
+  current_stock int  [check: `current_stock >= 0`, default: 0]
+
+  indexes {
+    (branch_id, product_id) [unique]
+  }
+
+  Note: 'current_stock is computed with inventory movement per transaction'
+}
+
+Enum inventory_movement_reason {
+  SALE
+  TESTER
+  SAMPLE
+  MISSING
+  RESTOCK
+  ADJUSTMENT
+}
+
+Table inventory_movement {
+  id              uuid                      [pk, default: `gen_random_uuid()`]
+  product_id      uuid                      [not null, ref: > product.id]
+  session_id      uuid                      [ref: > session.id]
+  branch_id       uuid                      [not null, ref: > branch.id]
+  reason          inventory_movement_reason [not null]
+  quantity_change int                       [not null]
+  moved_by        uuid                      [not null, ref: > app_user.id]
+  moved_at        timestamp                 [not null, default: `now()`]
+
+  indexes {
+    (branch_id, product_id)
+    (moved_at)
+  }
+
+  Note: 'Compute branch_inventory.current_stock with inventory movement per transaction'
+}
+
+Table product {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+  product_category_id uuid [ref: > product_category.id]
+  is_active boolean [default: `true`]
+  unit_price numeric(10,2) [not null, check: `unit_price >= 0`]
+  commission_amount numeric(10,2) [not null, check: `commission_amount >= 0`]
+}
+
+Table product_category {
+  id   uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+}
+
+Table product_sale {
+  id                         uuid [pk, default: `gen_random_uuid()`]
+  branch_day_id              uuid [not null, ref: > branch_day.id]
+  session_id                 uuid [not null, ref: > session.id]
+  client_id                  uuid [not null, ref: > client.id]
+  product_id                 uuid [not null, ref: > product.id]
+  product_name               text [not null]
+  quantity                   smallint [not null, check: `quantity >= 1`]
+  unit_price_at_time         numeric(10,2) [not null]
+  commission_amount_at_time  numeric(10,2) [not null]
+}
+
+// ============================================================
+// FINANCE
+// ============================================================
+
+Table compensation {
+  id            uuid          [pk, default: `gen_random_uuid()`]
+  branch_day_id uuid          [not null, ref: > branch_day.id]
+  user_id       uuid          [not null, ref: > app_user.id]
+  amount        numeric(10,2) [not null, check: `amount >= 0`]
+  assigned_by   uuid          [not null, ref: > app_user.id, note: 'assigned by admin or branch coordinator']
+  assigned_at   timestamp     [not null, default: `now()`]
+
+  indexes {
+    (user_id, branch_day_id) [unique]
+  }
+
+  Note: 'User only compensated when on-duty on branch_day'
+  //TODO: Allow users to choose if they want to deduct their commission from relief branch that day or one of their home branches
+}
+
+Table allowance {
+  id            uuid          [pk, default: `gen_random_uuid()`]
+  branch_day_id uuid          [not null, ref: > branch_day.id]
+  user_id       uuid          [not null, ref: > app_user.id]
+  amount        numeric(10,2) [not null, check: `amount >= 0`]
+  assigned_by   uuid          [not null, ref: > app_user.id]
+}
+
+Enum expense_category {
+  PANTRY
+  COMMUNICATION
+  WATER
+  TRANSPORTATION
+  ELECTRICITY
+  RENTAL
+  OFFICE_SUPPLIES
+  FURNITURE_FIXTURES
+  MISCELLANEOUS
+}
+
+Table expense {
+  id            uuid             [pk, default: `gen_random_uuid()`]
+  branch_day_id uuid             [not null, ref: > branch_day.id]
+  amount        numeric(10,2)    [not null]
+  category      expense_category [not null]
+  notes         text
+  created_by    uuid             [not null, ref: > app_user.id]
+  created_at    timestamp        [not null, default: `now()`]
+}
+
+// ============================================================
+// REMITTANCE
+// ============================================================
+
+Enum remittance_type {
+  SESSION
+  PRODUCT
+}
+
+Enum remittance_method {
+  BANK_TRANSFER
+  HANDED_TO_ACCOUNTANT
+}
+
+Table remittance {
+  id               uuid [pk, default: `gen_random_uuid()`]
+  type             remittance_type [not null]
+  branch_id        uuid [not null, ref: > branch.id]
+  method           remittance_method [not null]
+  remittance_date  date [not null]
+  date_range_start date [not null]
+  date_range_end   date [not null]
+  total_amount     numeric(12,2)    [not null]
+  submitted_by     uuid [not null, ref: > app_user.id]
+  created_at       timestamp [not null, default: `now()`]
+
+  indexes {
+    (branch_id, type, remittance_date) [unique]
+  }
+
+  Note: '''
+    On insert, trigger transitions all covered branch_days to REMITTED.
+
+    RULE:
+    - SESSION remittance only links to sessions
+    - PRODUCT remittance only links to product_sales
+    '''
+
+}
+
+Table remittance_day_breakdown {
+  id uuid [pk, default: `gen_random_uuid()`]
+  remittance_id uuid [not null, ref: > remittance.id]
+  branch_day_id uuid [not null, ref: > branch_day.id]
+  amount numeric(10,2) [not null]
+
+  Note: 'amount per branch day'
+
+  indexes {
+    (remittance_id, branch_day_id) [unique]
+  }
+}
+
+Enum remittance_line_type {
+  SESSION
+  PRODUCT_SALE
+}
+
+Table remittance_line {
+  id uuid [pk, default: `gen_random_uuid()`]
+  remittance_id uuid [not null, ref: > remittance.id]
+  type remittance_line_type [not null]
+  session_id uuid [ref: > session.id]
+  product_sale_id uuid [ref: > product_sale.id]
+  created_by uuid [ref: > app_user.id]
+  created_at timestamp [default: `now()`]
+  deleted_at timestamp
+
+  Note: '''
+  RULE:
+  - If type = SESSION → session_id must be set, product_sale_id must be NULL
+  - If type = PRODUCT_SALE → product_sale_id must be set, session_id must be NULL
+
+  INCLUSION RULES:
+
+  A session/product_sale may only be included if:
+
+  1. It belongs to the same branch as remittance.branch_id
+  2. It falls within remittance date_range
+  3. It is not voided/cancelled
+  4. It has not already been included in another active remittance
+
+  These rules must be enforced at application or trigger level.
+  '''
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+Enum audit_action {
+  INSERT
+  UPDATE
+  DELETE
+}
+
+Table audit_log {
+  id         uuid         [pk, default: `gen_random_uuid()`]
+  table_name text         [not null]
+  record_id  uuid         [not null]
+  action     audit_action [not null]
+  changed_by uuid         [not null]
+  changed_at timestamp    [not null]
+  old_value  jsonb        [note: 'NULL on INSERT']
+  new_value  jsonb        [note: 'NULL on DELETE']
+}
