@@ -19,30 +19,34 @@ A physical therapy and wellness practice where practitioners work on clients on 
 
 Practitioners use the app primarily on a laptop (Windows), with Android and iOS as secondary devices. All practitioners use mobile hotspots — no shared office network.
 
+### Auth Model
+
+Auth checks are always against **capabilities**, not role names directly. Roles are predefined bundles of capabilities. A user may hold multiple roles. The `user_capability` table handles temporary or scoped grants (e.g. relief access, medical mission delegation) within the same system without requiring role changes.
+
 ### Roles
 
 | Role | Description |
 |------|-------------|
 | `SUPERUSER` | Secret developer/owner god mode. Full access to everything. |
-| `ADMIN` | Owner. Edit access: home branches + checked-in branch that day. View-only: all branches. Can manage all users. Can work on clients. No special edit rights over branch financial records — Coordinator is the sole owner of PAST and REMITTED record edits. |
-| `SPECIAL_COORDINATOR` | A superset of COORDINATOR — all coordinator permissions apply, plus: assigns home branches to all users directly, and manages medical mission delegation. Can work on clients. |
+| `OWNER` | Business owner. Edit access: home branches + checked-in branch that day. View-only: all branches. Can manage all users. Can work on clients. No special edit rights over branch financial records — Coordinator is the sole owner of PAST and REMITTED record edits. |
+| `MANAGER` | A superset of COORDINATOR — all coordinator permissions apply, plus: assigns home branches to all users directly, and manages medical mission delegation. Can work on clients. |
 | `COORDINATOR` | Handles finance and remittance for assigned branch(es). Views assigned branches only. Sole editor of PAST and REMITTED records for their branch. Can work on clients. |
 | `PRACTITIONER` | Logs sessions, views clients, manages inventory. Views all home branches, plus any branch checked into that day. |
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
 | `VIEWER` | Read-only. Future use. |
 
-A user has exactly one role. SPECIAL_COORDINATOR is not a separate role stack — it is a role that inherits all COORDINATOR permissions and adds its own on top. There is no TEMPORARY role — relief access is a behavioral state managed by `grant_relief_access`, not a permanent identity.
+There is no TEMPORARY role — relief access is a behavioral state managed by `grant_relief_access`, not a permanent role assignment.
 
 ---
 
 ## Branches
 
-- A branch is either a physical clinic or a periodic off-site location (e.g. one practitioner visits every two weeks)
-- Each branch can have one or more assigned Coordinators — set by Admin or SPECIAL_COORDINATOR, permanent until changed. No hard limit on the number of coordinators per branch.
+- A branch is either a permanent physical clinic or a periodic off-site location (e.g. one practitioner visits every two weeks)
+- Each branch can have one or more assigned Coordinators — set by Owner or Manager, permanent until changed. No hard limit on the number of coordinators per branch.
 - A Coordinator can be assigned to multiple branches and does not need to be physically present
 - For solo or periodic branches, the practitioner hands over money to the Coordinator remotely
 - A practitioner can be assigned to more than one home branch simultaneously
-- Home branch assignment is performed directly by Admin or SPECIAL_COORDINATOR — there is no request flow from the practitioner
+- Home branch assignment is performed directly by Owner or Manager — there is no request flow from the practitioner
 
 ### Branch Types
 
@@ -60,7 +64,7 @@ Each user has a **slot number per assigned branch** (e.g. Practitioner 1, Practi
 
 - Slot is per branch assignment — a user can be Practitioner 1 at Branch A and Practitioner 3 at Branch B simultaneously
 - Slot is cosmetic and user-managed — it exists purely to control display order in reports
-- A user in their home branch can set their own slot number; conflicts are resolved manually by Admin or SPECIAL_COORDINATOR
+- A user in their home branch can set their own slot number; conflicts are resolved manually by Owner or Manager
 - Slot ordering determines the display order of practitioners in reports (monthly summary, daily sales)
 - Within a session, practitioners are ordered by slot number
 - Relief practitioners (checked into a non-home branch) appear after all home branch slots in reports for that branch
@@ -76,7 +80,7 @@ Branch access is determined by the user's current and past assignments:
 - **Past assignment (ended)** — read-only, records scoped up to the day the assignment ended
 - **Reassigned back** — full operational access resumes; all historical records are accessible again since data was never removed
 
-This is a query-time filter, not a data deletion. No record is ever hidden — only the access window changes.
+Records are updated in-place. The full change history — who changed it, when, and what the previous value was — is preserved in the audit log. No record is ever hidden from authorized users; only the access window changes based on branch assignment.
 
 ---
 
@@ -144,15 +148,15 @@ A session records one visit by a client at a branch.
 
 ### Session Type
 
-Session type is auto-assigned based on the client's global session history across all branches. On medical mission branches, all sessions are always assigned `MEDICAL_MISSION` regardless of the client's history.
+Session type is auto-assigned based on the client's **non-medical-mission session history** across all branches. Medical mission sessions are always free and never count toward a client's history — a client who has attended ten medical missions is still priced as a first-time client at their first regular or provincial visit. On medical mission branches, all sessions are always assigned `MEDICAL_MISSION` regardless of history.
 
 | Type | Condition |
 |------|-----------|
-| `REGULAR` | First visit anywhere (non-medical-mission) |
-| `SECOND_SESSION` | Second visit (non-medical-mission) |
-| `SUBSEQUENT` | Third visit and beyond (non-medical-mission) |
-| `PROVINCIAL_FIRST` | First visit ever, at a provincial tour branch |
-| `MEDICAL_MISSION` | Any visit at a medical mission branch — always free (₱0) |
+| `REGULAR` | First non-medical-mission visit anywhere, at a clinic branch |
+| `PROVINCIAL_FIRST` | First non-medical-mission visit anywhere, at a provincial tour branch |
+| `SECOND_SESSION` | Exactly one prior non-medical-mission session |
+| `SUBSEQUENT` | Two or more prior non-medical-mission sessions |
+| `MEDICAL_MISSION` | Any visit at a medical mission branch — always free (₱0), never counted toward history |
 
 Session type is never manually changed.
 
@@ -221,7 +225,7 @@ Category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray)
 
 Products within the same category are distinct items, each with their own price, commission, and stock. There are no sub-variants.
 
-Only Coordinators and Admins can add or edit products and update stock levels.
+Only Coordinators and Owners can add or edit products and update stock levels.
 
 | Field | Notes |
 |-------|-------|
@@ -263,6 +267,10 @@ Low-stock alerts notify the Coordinator when available stock hits zero or near-z
 - Product sales can be retroactively added to a previous day's session record, subject to the day state machine
 - Any practitioner can deduct stock for tester/sample use
 
+### Out-of-Session Product Sales
+
+Clients may return to purchase products outside of a booked session. These sales are recorded with `session_id = NULL` and linked to the client record. If the buyer is genuinely unidentifiable (not in the system), an anonymous sale is permitted — but this should be rare. If the client is in the system, always link them.
+
 ### Product Commission
 
 - The commission amount is a flat value added on top of the unit price — the customer pays price + commission
@@ -278,15 +286,15 @@ Low-stock alerts notify the Coordinator when available stock hits zero or near-z
 
 ### Compensation
 
-- Compensation is assigned per day, per practitioner, by Admin or Coordinator after viewing daily sales
-- Compensation is never zero — even if a practitioner had no sessions that day, some amount is always provided
-- Compensation varies per practitioner and is decided by Admin or Coordinator
+- Compensation is assigned per day, per practitioner, by Owner or Coordinator after viewing daily sales
+- Compensation is typically non-zero — even if a practitioner had no sessions that day, some amount is generally provided. This is a business policy enforced at the application layer, not a database constraint. The database permits zero for edge cases such as unpaid or honorary roles.
+- Compensation varies per practitioner and is decided by Owner or Coordinator
 - Relief duty compensation is deducted from the branch where duty was performed, not the home branch
 
 ### Allowances
 
 - A separate allowance amount can be assigned per user per day
-- Used for medical mission transport allowances (paid by Admin, not subject to remittance)
+- Used for medical mission transport allowances (paid by Owner, not subject to remittance)
 - Allowances are distinct from compensation and from expenses
 
 ### Expenses
@@ -342,21 +350,20 @@ Each branch day has a status that governs edit permissions:
 | PAST | A previous day not yet remitted | Coordinator only | Warning shown |
 | REMITTED | Covered by a remittance | Coordinator only | Stricter warning shown |
 
-- Admin has no special edit access to branch financial records — the Coordinator is the sole owner of PAST and REMITTED record edits
+- Owner has no special edit access to branch financial records — the Coordinator is the sole owner of PAST and REMITTED record edits
 - The day state machine applies to: sessions, attendance, expenses, compensations, and product sales
 
 ### Record Integrity
 
-- No record is ever mutated in the database
-- An edit creates a new version that overrides the display; the original stays pristine underneath
-- Full audit trail is maintained: who changed it, when, and what the previous value was
+- Records are updated in-place. The full change history — who changed it, when, and what the previous value was — is preserved in the audit log.
+- No record is ever hidden from authorized users; only the access window changes based on branch assignment.
 - Audit trail is visible to all roles
 
 ### Visibility
 
 | Role | Can see |
 |------|---------|
-| Admin | All branches |
+| Owner | All branches |
 | Accountant | All branches |
 | Coordinator | Assigned branches only |
 | Practitioner | Home branch(es) only + checked-in branch(es) that day |
@@ -370,17 +377,17 @@ Each branch day has a status that governs edit permissions:
 - Practitioners travel to an off-site location for one or more consecutive days
 - Treated as its own standalone branch (`branch_type = PROVINCIAL_TOUR`) with its own history — income and compensation do not roll into any regular branch
 - Practitioners rotate — membership is not fixed per tour
-- Session pricing uses the client's global session history (same auto-assignment logic as regular branches)
-- Practitioners receive daily compensation using the same Admin/Coordinator assignment flow
-- Only Admins can view provincial tour reports
+- Session pricing uses the client's global non-medical-mission session history (same auto-assignment logic as regular branches)
+- Practitioners receive daily compensation using the same Owner/Coordinator assignment flow
+- Only Owners can view provincial tour reports
 
 ### Medical Mission
 
 - A free event — all sessions are `MEDICAL_MISSION` type and are always ₱0
 - Always its own branch record (`branch_type = MEDICAL_MISSION`), even if physically hosted at an existing clinic location
-- Admin assigns one or more delegates (SPECIAL_COORDINATOR) to manage medical mission attendance
+- Owner assigns one or more delegates (Manager role) to manage medical mission attendance
 - The delegate(s) act as Coordinators for medical missions — can assign practitioners to a mission
-- Practitioners receive a transport allowance (not compensation) provided by Admin
+- Practitioners receive a transport allowance (not compensation) provided by Owner
 - All roles can view medical mission reports
 
 ---
@@ -424,8 +431,8 @@ A totals row appears at the bottom for all numeric columns.
 | Role | Branch access | Special access |
 |------|--------------|----------------|
 | Superuser | Everything | Secret god mode |
-| Admin | Edit: home branches + checked-in branch that day. View: all branches. | Can work on clients. No special edit rights over branch financial records. |
-| Special Coordinator | Assigned branches + checked-in branch that day | Assigns home branches to all users. Manages medical mission delegates. All COORDINATOR permissions. |
+| Owner | Edit: home branches + checked-in branch that day. View: all branches. | Can work on clients. No special edit rights over branch financial records. |
+| Manager | Assigned branches + checked-in branch that day | Assigns home branches to all users. Manages medical mission delegates. All COORDINATOR permissions. |
 | Coordinator | Assigned branches only | Finance and remittance. Sole editor of PAST and REMITTED records for their branch. |
 | Practitioner | All home branches + checked-in branch(es) that day | |
 | Accountant | All branches | Read-only |
