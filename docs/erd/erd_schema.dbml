@@ -1,9 +1,6 @@
 // Company App — Database ER Diagram
 
-// NOTE: "No record is ever mutated" is misaligned. system is stateful with audit log, not immutable. Update documentation.
-// NOTE: "A user has exactly one role". Allow multiple roles to prevent role explosion
-// NOTE: Multiple active delegates allowed
-// NOTE: "Compensation is always non-zero", allow zero for edge cases (unpaid roles), move "never zero" to application layer in needed
+// NOTE: compensation zero-floor is a business policy enforced at the application layer, not a DB constraint. DB permits zero for edge cases.
 
 // TODO: stress-testing this schema against edge cases (voids, retro edits, remittance overlaps)
 // TODO: add currency, but how? per table? centralized?
@@ -103,7 +100,7 @@ Table user_capability {
 
 
   indexes {
-    (user_id, capability_id, context_type, context_id) [unique]
+    (user_id, capability_id, context_type, context_id) // NOT unique — overlapping time windows are explicitly allowed; priority resolves conflicts
     (user_id, valid_to) // time filtering
     (source_type, source_id) // source lookup
   }
@@ -225,7 +222,7 @@ Table medical_mission_delegate {
   ended_at    timestamptz [note: 'NULL means currently active delegate']
 
   Note: '''
-  Tracks which SPECIAL_COORDINATOR users are authorized to manage
+  Tracks which MANAGER users are authorized to manage
   medical mission attendance and act as coordinator for medical missions.
   Multiple active delegates allowed.
   ended_at IS NULL = currently active.
@@ -278,6 +275,13 @@ Table branch_day {
   }
 
    Note: '''
+  CREATION POLICY:
+  A branch_day row is created lazily by the application on first activity for that
+  branch on that calendar date (first check-in, first session creation, or first
+  expense log). It is never pre-created by a scheduled job or midnight rollover.
+  All writes to sessions, attendance, expenses, compensation, and product_sale
+  must resolve or create the branch_day row for their target branch+date before inserting.
+
   POST-REMIT EDIT POLICY:
 
   Coordinators may edit records even after REMITTED status.
@@ -371,14 +375,17 @@ Table session {
   }
 
   Note: '''
-  session_type is auto-assigned:
-    - MEDICAL_MISSION if branch.branch_type = MEDICAL_MISSION (always, regardless of history)
-    - PROVINCIAL_FIRST if branch.branch_type = PROVINCIAL_TOUR AND client has no prior sessions
-    - REGULAR if first session ever (non-medical-mission)
-    - SECOND_SESSION if exactly one prior session
-    - SUBSEQUENT if two or more prior sessions
+  session_type is auto-assigned based on the client's non-medical-mission session history only.
+  MEDICAL_MISSION sessions never count toward a client's history — a client with any number
+  of medical mission sessions is still priced as a first-timer at their first regular or provincial visit.
 
-  session_number (for display) is cached to client.session_number: COUNT of prior non-voided sessions for this client.
+    - MEDICAL_MISSION    if branch.branch_type = MEDICAL_MISSION (always, regardless of history)
+    - PROVINCIAL_FIRST   if branch.branch_type = PROVINCIAL_TOUR AND client has 0 prior non-medical-mission sessions
+    - REGULAR            if client has 0 prior non-medical-mission sessions AND branch is CLINIC
+    - SECOND_SESSION     if client has exactly 1 prior non-medical-mission session
+    - SUBSEQUENT         if client has 2 or more prior non-medical-mission sessions
+
+  session_number (for display): COUNT of prior non-voided, non-medical-mission sessions for this client.
 
   Walk-in sessions cannot be marked NO_SHOW or CANCELLED.
   '''
@@ -394,7 +401,18 @@ Table session_void {
   unvoided_by     uuid      [ref: > app_user.id]
   unvoided_reason text
 
-  Note: 'Only Coordinators can void and un-void.'
+  Note: '''
+  Only Coordinators can void and un-void.
+
+  CURRENT VOID STATE:
+  A row existing here does NOT mean the session is currently voided —
+  it may have been un-voided. Always check unvoided_at IS NULL to determine
+  active void status. Never query session_void without this filter.
+
+  Use the view active_session_voids (WHERE unvoided_at IS NULL) in all
+  financial queries and remittance inclusion checks. Never query the raw
+  table directly for void status.
+  '''
 
   checks {`
     (unvoided_at IS NULL AND unvoided_by IS NULL AND unvoided_reason IS NULL)
@@ -474,7 +492,7 @@ Table branch_inventory {
 }
 
 Enum inventory_movement_reason {
-  SESSION_SALE
+  SALE
   TESTER
   SAMPLE
   MISSING
@@ -485,12 +503,12 @@ Enum inventory_movement_reason {
 Table inventory_movement {
   id              uuid                      [pk, default: `gen_random_uuid()`]
   product_id      uuid                      [not null, ref: > product.id]
-  session_id      uuid                      [ref: > session.id, note: 'set only for SESSION_SALE movements']
+  product_sale_id uuid                      [ref: > product_sale.id, note: 'set only for SALE movements; reach session via product_sale.session_id if needed']
   branch_id       uuid                      [not null, ref: > branch.id]
   reason          inventory_movement_reason [not null]
   quantity_change int                       [not null, check: `quantity_change != 0`, note: 'negative for reductions, positive for additions']
   moved_by        uuid                      [not null, ref: > app_user.id]
-  moved_at        timestamptz                 [not null, default: `now()`]
+  moved_at        timestamptz               [not null, default: `now()`]
 
   indexes {
     (branch_id, product_id)
@@ -498,9 +516,9 @@ Table inventory_movement {
   }
 
   checks {`
-    (reason = 'SESSION_SALE' AND session_id IS NOT NULL AND quantity_change < 0)
+    (reason = 'SALE' AND product_sale_id IS NOT NULL AND quantity_change < 0)
     OR
-    (reason != 'SESSION_SALE' AND session_id IS NULL)
+    (reason != 'SALE' AND product_sale_id IS NULL)
   `}
 
   Note: 'Append only. Compute branch_inventory.current_stock with inventory movement per transaction'
@@ -547,9 +565,11 @@ Table product_sale {
     )
     AND
     (
-      (session_id IS NOT NULL AND client_id IS NULL)
+      (session_id IS NOT NULL AND client_id IS NULL)                   -- in-session sale
       OR
-      (session_id IS NULL AND client_id IS NOT NULL)
+      (session_id IS NULL AND client_id IS NOT NULL)                   -- out-of-session, known client
+      OR
+      (session_id IS NULL AND client_id IS NULL AND is_walk_in = true) -- anonymous sale: buyer not in system
     )
   `}
 }
@@ -574,8 +594,8 @@ Table compensation {
   // TODO: allow user to select home branch as compensation source if needed
 
   Note: '''
-  Assigned per day per user by Admin or Coordinator.
-  Compensation is always non-zero.
+  Assigned per day per user by Owner or Coordinator.
+  Compensation is typically non-zero (business policy, not a DB constraint).
   For relief duty, compensation is assigned to the branch where duty was performed.
   '''
 }
@@ -601,6 +621,19 @@ Table commission_split {
   indexes {
     (branch_day_id, user_id) [unique]
   }
+
+  Note: '''
+  FINALIZATION POLICY:
+  commission_split is live for OPEN days — recalculated on every product sale
+  and every new check-in via application logic (upsert per user per branch_day).
+
+  Once a branch_day transitions to PAST or REMITTED, the split is frozen.
+  Retroactive product sales added to a PAST/REMITTED day do NOT recompute
+  the split — the Coordinator is responsible for any manual correction.
+
+  The displayed per-person amount at end of day is the final cash handout figure.
+  No separate confirmation step is required.
+  '''
 }
 
 Table allowance {
@@ -732,8 +765,15 @@ Table remittance_line {
   product_sale_id uuid                 [ref: > product_sale.id]
   created_by      uuid                 [ref: > app_user.id]
   created_at      timestamptz          [not null, default: `now()`]
-  deleted_at      timestamptz // TODO: inconsistent with other soft-delete strategies, maybe change?
-  amount          numeric(10,2)        [not null, note: 'snapshot at time of inclusion']
+  deleted_by      uuid                 [ref: > app_user.id, note: 'required when deleted_at is set']
+  deleted_at      timestamptz
+  amount          numeric(10,2)        [not null, note: '''
+    snapshot of the remittable amount at time of inclusion.
+    SOURCE OF TRUTH for remittance totals — always use rl.amount in aggregations,
+    never re-derive from session.final_price or product_sale.unit_price_at_time * quantity.
+    This prevents remittance totals from silently changing if a Coordinator edits
+    session.final_price after the line was included.
+  ''']
 
   indexes {
     (session_id) [unique, note: 'Partial: WHERE deleted_at IS NULL']
@@ -746,6 +786,12 @@ Table remittance_line {
   (type = 'PRODUCT_SALE' AND product_sale_id IS NOT NULL AND session_id IS NULL)
   `}
 
+  checks {`
+    (deleted_at IS NULL AND deleted_by IS NULL)
+    OR
+    (deleted_at IS NOT NULL AND deleted_by IS NOT NULL)
+  `}
+
   Note: '''
   RULE:
   - If type = SESSION → session_id must be set, product_sale_id must be NULL
@@ -754,21 +800,12 @@ Table remittance_line {
   INCLUSION RULES (enforced at application layer):
   1. Must belong to the same branch as remittance.branch_id
   2. Must fall within remittance date range
-  3. Must not be voided or cancelled // TODO: enforce at db level?
+  3. Must not be voided or cancelled (check active_session_voids view, not raw session_void)
   4. Must not already be included in another active remittance
 
-  prefer financial correctness (derived total_amount) over micro-optimization (cached total_amount)
-
-  Query example:
-  SELECT SUM(
-    CASE
-      WHEN rl.type = 'SESSION' THEN s.final_price
-      WHEN rl.type = 'PRODUCT_SALE' THEN ps.unit_price_at_time * ps.quantity
-    END
-  )
+  AGGREGATION — use rl.amount (snapshot), not live source fields:
+  SELECT SUM(rl.amount)
   FROM remittance_line rl
-  LEFT JOIN session s ON rl.session_id = s.id
-  LEFT JOIN product_sale ps ON rl.product_sale_id = ps.id
   WHERE rl.remittance_id = ?
   AND rl.deleted_at IS NULL;
   '''
@@ -804,6 +841,11 @@ Table audit_log {
 // ============================================================
 // VIEWS (defined in Flyway migrations, not DBML syntax)
 // ============================================================
+
+// active_session_voids
+//   SELECT * FROM session_void WHERE unvoided_at IS NULL
+//   USE THIS VIEW — never query session_void directly for void status checks.
+//   A session_void row with unvoided_at IS NOT NULL means the void was reversed.
 
 // daily_sales_summary
 //   Aggregates per branch_day:
