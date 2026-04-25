@@ -3,7 +3,7 @@
 // NOTE: compensation zero-floor is a business policy enforced at the application layer, not a DB constraint. DB permits zero for edge cases.
 
 // TODO: stress-testing this schema against edge cases (voids, retro edits, remittance overlaps)
-// TODO: add currency, but how? per table? centralized?
+// Currency: all monetary values are PHP (Philippine Peso). Single-currency business — no currency column needed.
 
 // ============================================================
 // USERS & BRANCHES
@@ -18,6 +18,8 @@ Table app_user {
   id            uuid         [pk, default: `gen_random_uuid()`]
   username      varchar(255) [not null, unique]
   password_hash varchar(60)  [not null]
+  email         text         [not null, unique]
+  display_name  text         [not null]
   status        user_status  [not null, default: 'ACTIVE']
 }
 
@@ -63,7 +65,6 @@ Table user_role {
   }
 }
 
-// GLOBAL, BRANCH are just ideas, no concrete plans yet
 Enum capability_context_type {
   GLOBAL
   BRANCH
@@ -72,7 +73,6 @@ Enum capability_context_type {
   PROVINCIAL_TOUR
 }
 
-// MANUAL_OVERRIDE, SYSTEM are just ideas, no concrete plans yet
 Enum capability_source_type {
   RELIEF_ACCESS
   MEDICAL_MISSION_DELEGATE
@@ -98,6 +98,7 @@ Table user_capability {
     MANUAL_OVERRIDE          100
   ''']
 
+  // TODO: if priority > 0 AND valid_to == NULL, set valid_to to 23:59:59 of current day
 
   indexes {
     (user_id, capability_id, context_type, context_id) // NOT unique — overlapping time windows are explicitly allowed; priority resolves conflicts
@@ -129,15 +130,28 @@ Table user_capability {
       AND now() BETWEEN valid_from AND COALESCE(valid_to, 'infinity')
     ORDER BY priority DESC
     LIMIT 1
+
+    view:
+    CREATE VIEW active_user_capabilities AS
+    SELECT DISTINCT ON (user_id, capability_id, context_id)
+        user_id,
+        capability_id,
+        context_type,
+        context_id,
+        priority,
+        source_type
+    FROM user_capability
+    WHERE now() BETWEEN valid_from AND COALESCE(valid_to, 'infinity')
+    ORDER BY user_id, capability_id, context_id, priority DESC; -- Higher priority wins
   '''
 }
 
 Table user_branch_assignment {
-  id          uuid      [pk, default: `gen_random_uuid()`]
-  user_id     uuid      [not null, ref: > app_user.id]
-  branch_id   uuid      [not null, ref: > branch.id]
-  slot        smallint  [not null, default: 0]
-  assigned_by uuid      [not null, ref: >app_user.id]
+  id          uuid        [pk, default: `gen_random_uuid()`]
+  user_id     uuid        [not null, ref: > app_user.id]
+  branch_id   uuid        [not null, ref: > branch.id]
+  slot        smallint    [not null, default: 0]
+  assigned_by uuid        [not null, ref: >app_user.id]
   assigned_at timestamptz [not null, default: `now()`]
   ended_at    timestamptz [note: 'NULL means assignment is active']
 
@@ -316,7 +330,10 @@ Table branch_day_assignment {
 
 Table client {
   id                 uuid        [pk, default: `gen_random_uuid()`]
-  name               text        [not null]
+  first_name         text        [not null]
+  last_name          text        [not null]
+  middle_name        text
+  suffix             text
   phone_number       varchar(20)
   address            text        [not null, default: 'N/A']
   gender             char        [not null, check: `gender in ('M', 'F')`]
@@ -422,12 +439,13 @@ Table session_void {
 }
 
 Table session_base_rate {
-  id             uuid          [pk, default: `gen_random_uuid()`]
-  set_by         uuid          [not null, ref: > app_user.id, note: 'MUST be set from authenticated user context; never accept from client']
-  branch_id      uuid          [not null, ref: > branch.id]
-  session_type   session_type  [not null]
-  rate           numeric(10,2) [not null]
-  effective_from timestamptz     [not null]
+  id              uuid          [pk, default: `gen_random_uuid()`]
+  set_by          uuid          [not null, ref: > app_user.id, note: 'MUST be set from authenticated user context; never accept from client']
+  branch_id       uuid          [not null, ref: > branch.id]
+  session_type    session_type  [not null]
+  rate            numeric(10,2) [not null]
+  effective_from  timestamptz   [not null]
+  effective_until timestamptz   [not null]
 
   indexes {
     (branch_id, session_type, effective_from) [unique, note: 'effective_from allows rate history']
@@ -555,21 +573,23 @@ Table product_sale {
     total_amount_at_time = unit_price_at_time * quantity, computed and stored at insert
     prevents accumulating rounding errors from unit_price_at_time * quantity
   ''']
-  commission_amount_at_time numeric(10,2) [not null]
+  commission_amount_at_time numeric(15,4) [not null]
 
   Checks {`
     (
-      (is_walk_in = false AND session_id IS NOT NULL)
-      OR
-      (is_walk_in = true AND session_id IS NULL)
-    )
-    AND
-    (
-      (session_id IS NOT NULL AND client_id IS NULL)                   -- in-session sale
-      OR
-      (session_id IS NULL AND client_id IS NOT NULL)                   -- out-of-session, known client
-      OR
-      (session_id IS NULL AND client_id IS NULL AND is_walk_in = true) -- anonymous sale: buyer not in system
+    -- 1. In-Session Sale: Session is the driver.
+    -- (client_id is NULL because we derive it from the session)
+    (session_id IS NOT NULL AND client_id IS NULL AND is_walk_in = FALSE)
+
+    OR
+
+    -- 2. Out-of-Session Sale (Known Client): No session, but we know who it is.
+    (session_id IS NULL AND client_id IS NOT NULL AND is_walk_in = TRUE)
+
+    OR
+
+    -- 3. Anonymous Walk-in: Pure retail, no records.
+    (session_id IS NULL AND client_id IS NULL AND is_walk_in = TRUE)
     )
   `}
 }
@@ -579,19 +599,21 @@ Table product_sale {
 // ============================================================
 
 Table compensation {
-  id            uuid          [pk, default: `gen_random_uuid()`]
-  branch_day_id uuid          [not null, ref: > branch_day.id]
-  user_id       uuid          [not null, ref: > app_user.id]
-  amount        numeric(10,2) [not null, check: `amount >= 0`]
-  assigned_by   uuid          [not null, ref: > app_user.id]
-  assigned_at   timestamptz     [not null, default: `now()`]
-  note          text
+  id                   uuid          [pk, default: `gen_random_uuid()`]
+  work_branch_day_id   uuid          [not null, ref: > branch_day.id, note: 'where the work happened']
+  paying_branch_day_id uuid          [not null, ref: > branch_day.id, note: 'which branch drawer pays this']
+  user_id              uuid          [not null, ref: > app_user.id]
+  amount               numeric(10,2) [not null, check: `amount >= 0`]
+  assigned_by          uuid          [not null, ref: > app_user.id]
+  assigned_at          timestamptz   [not null, default: `now()`]
+  note                 text
 
   indexes {
-    (user_id, branch_day_id) [unique]
+    (user_id, work_branch_day_id) [unique]
   }
 
-  // TODO: allow user to select home branch as compensation source if needed
+  // NOTE: compensation source redirect — not needed. A coordinator called to another branch
+  //   can mark attendance at their home branch instead, naturally routing compensation there.
 
   Note: '''
   Assigned per day per user by Owner or Coordinator.
@@ -600,23 +622,16 @@ Table compensation {
   '''
 }
 
-// TODO: handle total_amount later
-Table commission_pool {
-  id uuid [pk, default: `gen_random_uuid()`]
-  branch_day_id uuid [not null, ref: > branch_day.id]
-  total_amount numeric(10,2) [not null, default: 0, check: `total_amount >= 0`, note: '''
-    enforce via trigger
-    never allow manual writes
-
-    optionally, remove total_amount, compute always
-  ''']
-}
+// commission_pool table removed.
+// Total commission is derived at query time from product_sale:
+//   SUM(commission_amount_at_time * quantity) WHERE branch_day_id = ?
+// Exposed via daily_sales_summary view as total_commission.
 
 Table commission_split {
   id uuid [pk, default: `gen_random_uuid()`]
   branch_day_id uuid [not null, ref: > branch_day.id]
   user_id uuid [not null, ref: > app_user.id]
-  amount numeric(10,2) [not null, check: `amount >= 0`]
+  amount numeric(15,4) [not null, check: `amount >= 0`]
 
   indexes {
     (branch_day_id, user_id) [unique]
@@ -642,7 +657,7 @@ Table allowance {
   user_id       uuid          [not null, ref: > app_user.id]
   amount        numeric(10,2) [not null, check: `amount >= 0`]
   assigned_by   uuid          [not null, ref: > app_user.id]
-  assigned_at   timestamptz     [not null, default: `now()`]
+  assigned_at   timestamptz   [not null, default: `now()`]
 
   Note: 'Used for medical mission transport allowances. Separate from compensation and not subject to remittance.'
 }
@@ -700,7 +715,7 @@ Table remittance {
   date_range_start date              [not null]
   date_range_end   date              [not null]
   submitted_by     uuid              [not null, ref: > app_user.id]
-  created_at       timestamptz         [not null, default: `now()`]
+  created_at       timestamptz       [not null, default: `now()`]
 
   indexes {
     (branch_id, type, remittance_date) [unique]
@@ -739,9 +754,9 @@ Table remittance {
 }
 
 Table remittance_day_breakdown {
-  id            uuid          [pk, default: `gen_random_uuid()`]
-  remittance_id uuid          [not null, ref: > remittance.id]
-  branch_day_id uuid          [not null, ref: > branch_day.id]
+  id            uuid [pk, default: `gen_random_uuid()`]
+  remittance_id uuid [not null, ref: > remittance.id]
+  branch_day_id uuid [not null, ref: > branch_day.id]
 
   indexes {
     (remittance_id, branch_day_id) [unique]
@@ -841,6 +856,9 @@ Table audit_log {
 // ============================================================
 // VIEWS (defined in Flyway migrations, not DBML syntax)
 // ============================================================
+
+// active_user_capabilities
+//  defined in user_capabilities table
 
 // active_session_voids
 //   SELECT * FROM session_void WHERE unvoided_at IS NULL
