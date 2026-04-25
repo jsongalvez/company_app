@@ -2,6 +2,11 @@
 
 // NOTE: compensation zero-floor is a business policy enforced at the application layer, not a DB constraint. DB permits zero for edge cases.
 
+// IDEMPOTENCY POLICY (Application Layer):
+// Every mutating request (INSERT/UPDATE) must be idempotent to support auto-retry over flaky connections.
+// Mutating tables (session, product_sale, inventory_movement, etc.) use client-generated UUIDs as primary keys.
+// The server must reject or ignore duplicate inserts for the same UUID.
+
 // TODO: stress-testing this schema against edge cases (voids, retro edits, remittance overlaps)
 // Currency: all monetary values are PHP (Philippine Peso). Single-currency business — no currency column needed.
 
@@ -98,7 +103,7 @@ Table user_capability {
     MANUAL_OVERRIDE          100
   ''']
 
-  // TODO: if priority > 0 AND valid_to == NULL, set valid_to to 23:59:59 of current day
+  // TODO: if priority > 0 AND valid_to == NULL, set valid_to to 04:00 AM of next day (Manila time)
 
   indexes {
     (user_id, capability_id, context_type, context_id) // NOT unique — overlapping time windows are explicitly allowed; priority resolves conflicts
@@ -109,6 +114,11 @@ Table user_capability {
   note: '''
     Stores granted capabilities scoped by context and time.
     Used for overrides such as relief access.
+
+    Relief Access Expiry:
+    Always 04:00 AM Asia/Manila of the next day relative to the branch_day date.
+    Transitions for branch_day status (OPEN -> PAST) are lazy, but security
+    checks must use valid_to timestamps.
 
     polymorphic association:
     context_type (table name) + context_id (table.id)
@@ -209,7 +219,7 @@ Table grant_relief_access {
   granted_at     timestamptz
 
   indexes {
-    (branch_day_id, requested_by) [unique]
+    (branch_day_id, requested_by, target_user) [unique]
   }
 
   checks {`
@@ -253,10 +263,11 @@ Table attendance {
   branch_day_id uuid    [not null, ref: > branch_day.id]
   user_id       uuid    [not null, ref: > app_user.id]
   marked_by     uuid    [not null, ref: > app_user.id]
-  present       boolean [not null]
+  clock_in      timestamptz [not null, default: `now()`]
+  clock_out     timestamptz
 
   indexes {
-    (user_id, branch_day_id) [unique]
+    (user_id, branch_day_id)
   }
 
   Note: 'Invariant: Actual presence. Must reference a valid user in branch_day_assignment for this branch_day.'
@@ -267,7 +278,8 @@ Table attendance_history {
   branch_day_id uuid    [not null, ref: > branch_day.id]
   user_id       uuid    [not null, ref: > app_user.id]
   marked_by     uuid    [not null, ref: > app_user.id]
-  present       boolean [not null]
+  clock_in      timestamptz [not null]
+  clock_out     timestamptz
 
   note: 'snapshot at end-of-day'
 }
@@ -341,10 +353,16 @@ Table client {
   systolic_bp        smallint    [check: `systolic_bp BETWEEN 40 AND 300`]
   diastolic_bp       smallint    [check: `diastolic_bp BETWEEN 20 AND 200`]
   medical_conditions text
+  deleted_at         timestamptz [note: 'Privacy request or duplicate cleanup signal']
 
   Note: '''
   Global record shared across all branches.
   BP fields must both be NULL or both be NOT NULL.
+
+  Anonymization Policy:
+  Null out first_name, last_name, middle_name, suffix, phone_number, address,
+  medical_conditions, systolic_bp, and diastolic_bp.
+  Retain gender and age for aggregate reporting.
 
   session_number is a standard view
   '''
@@ -405,6 +423,12 @@ Table session {
   session_number (for display): COUNT of prior non-voided, non-medical-mission sessions for this client.
 
   Walk-in sessions cannot be marked NO_SHOW or CANCELLED.
+
+  CONCURRENT SESSION POLICY (Application Layer):
+  A client can only have ONE active session globally across all branches.
+  Active = (PENDING or COMPLETED) AND NOT voided.
+  Creation must check for active sessions and reject if found.
+  Use transaction + client row lock to prevent race conditions.
   '''
 }
 
@@ -506,6 +530,12 @@ Table branch_inventory {
   Note: '''
   current_stock is a running total maintained via inventory_movement.
   Available = Stock − Sales − Tester − Sample − Missing (derived at query time).
+
+  PRODUCT LISTING POLICY:
+  A branch carries a product IF a row exists in branch_inventory.
+  If no row exists, the product is NOT listed for that branch.
+  Zero current_stock means "Out of Stock", not "Not Listed".
+  Sales menu must also filter on product.is_active = true.
   '''
 }
 
@@ -527,6 +557,7 @@ Table inventory_movement {
   quantity_change int                       [not null, check: `quantity_change != 0`, note: 'negative for reductions, positive for additions']
   moved_by        uuid                      [not null, ref: > app_user.id]
   moved_at        timestamptz               [not null, default: `now()`]
+  notes           text
 
   indexes {
     (branch_id, product_id)
@@ -574,6 +605,7 @@ Table product_sale {
     prevents accumulating rounding errors from unit_price_at_time * quantity
   ''']
   commission_amount_at_time numeric(15,4) [not null]
+  sold_at                   timestamptz   [not null, default: `now()`]
 
   Checks {`
     (
@@ -609,7 +641,7 @@ Table compensation {
   note                 text
 
   indexes {
-    (user_id, work_branch_day_id) [unique]
+    (user_id, paying_branch_day_id) [unique]
   }
 
   // NOTE: compensation source redirect — not needed. A coordinator called to another branch
@@ -649,6 +681,22 @@ Table commission_split {
   The displayed per-person amount at end of day is the final cash handout figure.
   No separate confirmation step is required.
   '''
+}
+
+Table commission_manual_inclusion {
+  id              uuid        [pk, default: `gen_random_uuid()`]
+  product_sale_id uuid        [not null, ref: > product_sale.id]
+  user_id         uuid        [not null, ref: > app_user.id]
+  is_included     boolean     [not null, note: 'true = manually include, false = manually exclude']
+  reason          text
+  assigned_by     uuid        [not null, ref: > app_user.id]
+  assigned_at     timestamptz [not null, default: `now()`]
+
+  indexes {
+    (product_sale_id, user_id) [unique]
+  }
+
+  Note: 'Recovery flow for disputes or forgotten check-ins.'
 }
 
 Table allowance {
@@ -706,9 +754,15 @@ Enum remittance_method {
   HANDED_TO_ACCOUNTANT
 }
 
+Enum remittance_status {
+  DRAFT
+  SUBMITTED
+}
+
 Table remittance {
   id               uuid              [pk, default: `gen_random_uuid()`]
   type             remittance_type   [not null]
+  status           remittance_status [not null, default: 'DRAFT']
   branch_id        uuid              [not null, ref: > branch.id]
   method           remittance_method [not null]
   remittance_date  date              [not null]
@@ -764,6 +818,20 @@ Table remittance_day_breakdown {
 
   note: '''
     remittance_day_breakdown.amount is derived from remittance_line
+  '''
+}
+
+Table remittance_financial_snapshot {
+  remittance_id      uuid          [pk, ref: > remittance.id]
+  gross_income       numeric(10,2) [not null, note: 'SUM(session.final_price) at time of remittance']
+  total_compensation numeric(10,2) [not null, note: 'SUM(compensation.amount) at time of remittance']
+  total_expenses     numeric(10,2) [not null, note: 'SUM(expense.amount) at time of remittance']
+  net_income         numeric(10,2) [not null, note: 'gross - compensation - expenses']
+  snapshotted_at     timestamptz   [not null, default: `now()`]
+
+  Note: '''
+    Immutable financial state for SESSION remittances.
+    PRODUCT remittances derive totals directly from snapshot-inclusive remittance_line amounts.
   '''
 }
 
@@ -837,19 +905,34 @@ Enum audit_action {
 }
 
 Table audit_log {
-  id         uuid         [pk, default: `gen_random_uuid()`]
-  table_name text         [not null]
-  record_id  uuid         [not null]
-  action     audit_action [not null]
-  changed_by uuid         [not null, ref: > app_user.id]
-  changed_at timestamptz    [not null, default: `now()`]
-  old_value  jsonb        [note: 'NULL on INSERT']
-  new_value  jsonb        [note: 'NULL on DELETE']
+  id              uuid         [pk, default: `gen_random_uuid()`]
+  table_name      text         [not null]
+  record_id       uuid         [not null]
+  action          audit_action [not null]
+  changed_by      uuid         [not null, ref: > app_user.id]
+  changed_at      timestamptz  [not null, default: `now()`]
+  old_value       jsonb        [note: 'NULL on INSERT']
+  new_value       jsonb        [note: 'NULL on DELETE']
+  is_flagged      boolean      [not null, default: false, note: 'Automatically set true for edits on REMITTED days']
+  reason          text         [note: 'Mandatory reason for flagged edits']
+  acknowledged_by uuid         [ref: > app_user.id]
+  acknowledged_at timestamptz
+
+  indexes {
+    (table_name, record_id)
+    (changed_at)
+    (is_flagged) [note: 'For alerts dashboard: is_flagged = true AND acknowledged_at IS NULL']
+  }
 
   Note: '''
   Visible to all roles.
   All changes to financial and operational records must be logged here via the service layer.
   The audit trail provides historical accuracy — not immutability. Records may be updated.
+
+  REMITTED Edits:
+  Service layer must flag edits to records belonging to REMITTED days.
+  Flagged edits require a mandatory reason.
+  Owner/Accountant acknowledge alerts via acknowledged_by/at.
   '''
 }
 

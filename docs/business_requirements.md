@@ -64,7 +64,7 @@ Each user has a **slot number per assigned branch** (e.g. Practitioner 1, Practi
 
 - Slot is per branch assignment — a user can be Practitioner 1 at Branch A and Practitioner 3 at Branch B simultaneously
 - Slot is cosmetic and user-managed — it exists purely to control display order in reports
-- A user in their home branch can set their own slot number; conflicts are resolved manually by Owner or Manager
+- A user in their home branch can set their own slot number; conflicts are resolved manually via user-to-user coordination (swapping slots)
 - Slot ordering determines the display order of practitioners in reports (monthly summary, daily sales)
 - Within a session, practitioners are ordered by slot number
 - Relief practitioners (checked into a non-home branch) appear after all home branch slots in reports for that branch
@@ -87,11 +87,12 @@ Records are updated in-place. The full change history — who changed it, when, 
 ## Attendance & Presence
 
 - A practitioner taps a button when they first open the app for the day to indicate they are present at a selected branch
+- Attendance is recorded with **Clock-In** and **Clock-Out** timestamps
 - Practitioners can also mark other members of their home branch as present or absent
 - A Coordinator can also mark practitioners present at their branch
 - Attendance determines:
     - Which branch's data the user can access that day (in addition to their home branch(es))
-    - Whether they qualify for product commission splits that day
+    - Whether they qualify for product commission splits that day (based on `sold_at` time vs `clock_in/out` window)
     - Who appears in the daily compensation assignment list
 - Data can be viewed outside working hours — there is no time-bounded access cutoff
 
@@ -105,9 +106,10 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 
 - On check-in to a non-home branch, the user automatically has **view-only access** to all branch data for that day
 - To gain edit access, the relief user selects a specific currently checked-in user at that branch and sends an access request
-- The selected user receives an in-app notification with an explicit **Grant / Deny** choice
+- Multiple concurrent requests targeting different users are allowed; first grant wins
+- Selected user(s) receive in-app notifications with explicit **Grant / Deny** choices
 - Any currently checked-in user at the branch can grant access — Coordinator presence is not required
-- Once granted, edit access is active for the rest of that calendar day only
+- Once granted, edit access is active until **04:00 AM Asia/Manila** of the following day
 - If relief duty spans multiple days, a new access request must be made each day
 - Edit access allows: signing in clients for sessions, adding practitioners to sessions, adding product sales, and receiving commission pool splits
 
@@ -115,12 +117,14 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 
 - A relief user's compensation for that day is deducted from the branch where they performed duty, not their home branch
 - This applies to both Practitioners and Coordinators on relief duty
+- Each user can only source compensation from one branch per day (`unique(user_id, paying_branch_day_id)`)
 
 ---
 
 ## Clients
 
 - A client is a global record shared across all branches
+- **One active session rule:** A client can only have one active session (`PENDING` or `COMPLETED` and not voided) across all branches at any given time.
 - Each client has a running log of all their sessions across all branches
 - Clients book sessions or walk in — treated identically once the session starts
 - A client can request a specific practitioner; if unavailable, any available practitioner is assigned
@@ -140,6 +144,13 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 | Blood pressure | |
 | Medical conditions | Free text for conditions not covered by the waiver |
 
+### Privacy and Cleanup
+
+- **Soft-Delete/Anonymization:** Clients can be anonymized upon request or for duplicate cleanup.
+- Names, phone, address, conditions, and BP fields are nullified.
+- Gender and age are retained for aggregate reporting.
+- Anonymized records are marked with `deleted_at` and a canonical name marker.
+
 ---
 
 ## Sessions
@@ -148,7 +159,7 @@ A session records one visit by a client at a branch.
 
 ### Session Type
 
-Session type is auto-assigned based on the client's **non-medical-mission session history** across all branches. Medical mission sessions are always free and never count toward a client's history — a client who has attended ten medical missions is still priced as a first-time client at their first regular or provincial visit. On medical mission branches, all sessions are always assigned `MEDICAL_MISSION` regardless of history.
+Session type is auto-assigned based on the client's **non-medical-mission session history** across all branches. Medical mission sessions are always free and never count toward a client's history. Voided sessions do not count toward history.
 
 | Type | Condition |
 |------|-----------|
@@ -185,6 +196,7 @@ Base rates are per session type and per branch, editable by Coordinators.
 - A waiver with checkboxes of common concerns is used during intake
 - Multiple concerns can be selected per session
 - An "other" free text field covers concerns not on the waiver
+- Coordinators can promote "Other" text to a structured concern after matching and review
 
 ### Multiple Practitioners
 
@@ -225,7 +237,7 @@ Category (e.g. Essential Oil, Biomekaniks Infuser, Magnesium Spray)
 
 Products within the same category are distinct items, each with their own price, commission, and stock. There are no sub-variants.
 
-Only Coordinators and Owners can add or edit products and update stock levels.
+Only Coordinators and Owners can add or edit products and update stock levels. `product.is_active` acts as a global master switch; inactive products are hidden from all branches.
 
 | Field | Notes |
 |-------|-------|
@@ -237,7 +249,7 @@ Only Coordinators and Owners can add or edit products and update stock levels.
 
 ### Inventory
 
-Stock is tracked per branch. Each branch holds its own stock levels for each product.
+Stock is tracked per branch. Each branch holds its own stock levels for each product. A branch's product listing is determined by the existence of a record in `branch_inventory`.
 
 The inventory sheet tracks four values per product:
 
@@ -258,7 +270,7 @@ Low-stock alerts notify the Coordinator when available stock hits zero or near-z
 |---------------|-------------|
 | Tester | Unit set aside for demonstration — not sold |
 | Sample | Unit given as a free sample — not sold |
-| Missing | Unit unaccounted for; quantity and optional reason recorded |
+| Missing | Unit unaccounted for; quantity and mandatory reason (notes) recorded |
 | Restock | New stock added to branch |
 | Adjustment | Manual correction |
 
@@ -275,9 +287,9 @@ Clients may return to purchase products outside of a booked session. These sales
 
 - The commission amount is a flat value added on top of the unit price — the customer pays price + commission
 - All commission collected across all product sales for the day is pooled
-- The pool is split evenly among all practitioners and coordinators who were present (attended) that day, regardless of when they arrived or left
-- The per-person split is recalculated live as each product is sold and as people check in throughout the day
-- The split is displayed to the Coordinator at end of day for cash handout — no confirmation step required
+- The pool is split among all practitioners and coordinators who were clocked in at the time of the sale (`sold_at` window). Sales during lunch breaks are counted.
+- The split is high-precision in the DB; the UI truncates to 2 decimal places for the cash handout.
+- Recovery flow: Users can be manually included/excluded for specific product sales via a `commission_manual_inclusion` entry.
 - Product commissions are treated as tips or bonuses — separate from regular compensation and not subject to remittance
 
 ---
@@ -287,7 +299,7 @@ Clients may return to purchase products outside of a booked session. These sales
 ### Compensation
 
 - Compensation is assigned per day, per practitioner, by Owner or Coordinator after viewing daily sales
-- Compensation is typically non-zero — even if a practitioner had no sessions that day, some amount is generally provided. This is a business policy enforced at the application layer, not a database constraint. The database permits zero for edge cases such as unpaid or honorary roles.
+- Compensation is typically non-zero. The database permits zero for edge cases.
 - Compensation varies per practitioner and is decided by Owner or Coordinator
 - Relief duty compensation is deducted from the branch where duty was performed, not the home branch
 
@@ -314,13 +326,6 @@ Clients may return to purchase products outside of a booked session. These sales
 | Furniture / Fixtures / Improvements |
 | Miscellaneous / Others |
 
-### Daily Financials
-
-- **Gross income** = total final price of all completed, non-voided sessions that day
-- **Net income** = gross income − compensation expenses − other expenses
-- Product sales revenue is tracked separately and does not factor into gross or net income
-- Product commissions are not included in any remittance flow
-
 ---
 
 ## Remittance
@@ -334,39 +339,30 @@ There are two independent remittance flows per branch:
 
 ### Rules
 
-- At most one HEALot remittance and one product remittance per branch per day
-- Only the assigned Coordinator(s) can perform remittance — cannot be delegated
-- A remittance covers the date range from the day after the previous remittance up to the current day
-- The remittance record shows the total amount remitted, the date range covered, and a daily breakdown for each day in the range
+- Only the assigned Coordinator(s) can perform remittance.
+- **Draft Status:** Multiple coordinators can view and edit draft remittances to avoid double-work.
+- A remittance covers the date range from the day after the previous remittance up to the current day.
+- **Financial Snapshot:** At submission, an immutable snapshot of gross income, total compensation, and total expenses is saved to freeze the P&L state.
+- Product remittance totals are derived directly from snapshotted `remittance_line` amounts.
 - Coordinators must note the remittance method: bank transfer or handed to the accountant
 
 ### Day State Machine and Edit Access
 
-Each branch day has a status that governs edit permissions:
+Each branch day has a status that governs edit permissions. Transition from OPEN to PAST happens lazily at **04:00 AM Asia/Manila**.
 
 | Status | When | Who Can Edit | UX |
 |--------|------|-------------|-----|
-| OPEN | The current calendar day | All on-duty users per current access rules | Normal |
-| PAST | A previous day not yet remitted | Coordinator only | Warning shown |
+| OPEN | Current day (until 4 AM next day) | All on-duty users per current access rules | Normal |
+| PAST | After 4 AM boundary | Coordinator only | Warning shown |
 | REMITTED | Covered by a remittance | Coordinator only | Stricter warning shown |
 
-- Owner has no special edit access to branch financial records — the Coordinator is the sole owner of PAST and REMITTED record edits
-- The day state machine applies to: sessions, attendance, expenses, compensations, and product sales
+- Owner has no special edit access to branch financial records.
+- The day state machine applies to: sessions, attendance, expenses, compensations, and product sales.
 
 ### Record Integrity
 
-- Records are updated in-place. The full change history — who changed it, when, and what the previous value was — is preserved in the audit log.
-- No record is ever hidden from authorized users; only the access window changes based on branch assignment.
+- Records are updated in-place. The full change history is preserved in the audit log.
 - Audit trail is visible to all roles
-
-### Visibility
-
-| Role | Can see |
-|------|---------|
-| Owner | All branches |
-| Accountant | All branches |
-| Coordinator | Assigned branches only |
-| Practitioner | Home branch(es) only + checked-in branch(es) that day |
 
 ---
 
@@ -374,71 +370,27 @@ Each branch day has a status that governs edit permissions:
 
 ### Provincial Tour
 
-- Practitioners travel to an off-site location for one or more consecutive days
-- Treated as its own standalone branch (`branch_type = PROVINCIAL_TOUR`) with its own history — income and compensation do not roll into any regular branch
-- Practitioners rotate — membership is not fixed per tour
-- Session pricing uses the client's global non-medical-mission session history (same auto-assignment logic as regular branches)
-- Practitioners receive daily compensation using the same Owner/Coordinator assignment flow
-- Only Owners can view provincial tour reports
+- Treated as its own standalone branch (`branch_type = PROVINCIAL_TOUR`)
+- Session pricing uses the client's global non-medical-mission session history.
+- `PROVINCIAL_FIRST` only applies if global history is zero.
 
 ### Medical Mission
 
 - A free event — all sessions are `MEDICAL_MISSION` type and are always ₱0
-- Always its own branch record (`branch_type = MEDICAL_MISSION`), even if physically hosted at an existing clinic location
-- Owner assigns one or more delegates (Manager role) to manage medical mission attendance
-- The delegate(s) act as Coordinators for medical missions — can assign practitioners to a mission
-- Practitioners receive a transport allowance (not compensation) provided by Owner
-- All roles can view medical mission reports
+- Owner assigns delegates (Manager role) to manage medical mission attendance. Delegates can also receive transport allowances as practitioners.
 
 ---
 
-## Client Search
+## Connectivity and Reliability
 
-- Typeahead search as the user types, debounced ~300ms before firing the request
-- Fuzzy matching to handle typos (e.g. "Jhn" finds "John")
-- Search supports both client name (fuzzy) and phone number
-- Implementation: PostgreSQL `pg_trgm` + `ILIKE`
+### Strictly Online Model
 
----
+The application operates on a **strictly online** basis. Offline-first synchronization is not supported in Phase 2 due to the complexity of real-time commission splits, auto-assigned session types, and remittance constraints.
 
-## Daily Sales and Reporting
-
-- Daily sales shows all sessions for the day, visible to practitioners of the same branch only
-- All roles can view the full historical record, not just the current day
-
-### Monthly Summary Columns
-
-| Column | Notes |
-|--------|-------|
-| # | Row number |
-| Date | |
-| Day | Day of week |
-| Gross Income | |
-| Compensation Expense | |
-| Other Expense | |
-| Total Expenses | Compensation + Other |
-| Net Income | |
-| No. of Clients | |
-| Practitioner | Ordered by branch slot number (slot 1 first), then relief practitioners after |
-| Coordinator | |
-
-A totals row appears at the bottom for all numeric columns.
-
----
-
-## Access Control Summary
-
-| Role | Branch access | Special access |
-|------|--------------|----------------|
-| Superuser | Everything | Secret god mode |
-| Owner | Edit: home branches + checked-in branch that day. View: all branches. | Can work on clients. No special edit rights over branch financial records. |
-| Manager | Assigned branches + checked-in branch that day | Assigns home branches to all users. Manages medical mission delegates. All COORDINATOR permissions. |
-| Coordinator | Assigned branches only | Finance and remittance. Sole editor of PAST and REMITTED records for their branch. |
-| Practitioner | All home branches + checked-in branch(es) that day | |
-| Accountant | All branches | Read-only |
-| Viewer | TBD | Read-only, future use |
-
-Resigned/inactive users appear as-is on all historical records — their data is never altered or hidden.
+- **Optimistic UI:** Mutating operations (e.g. logging a session, product sale) reflect the expected result in the UI immediately while the request is in flight.
+- **Auto-Retry:** If a connection drops, the client automatically retries the request until a definitive success or failure is received.
+- **Idempotency:** To prevent duplicate records during retries, every mutating request includes a client-generated UUID as its primary identifier. The server ignores subsequent requests with the same ID.
+- **Safety Net:** Users see a clear "Saving..." or "Retrying..." state until the server acknowledges the write.
 
 ---
 
