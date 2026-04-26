@@ -534,7 +534,133 @@ docker compose -f docker/docker-compose.yml down -v
 
 ---
 
-## 20. Guiding Principles
+## 20. Notification Table
+
+Used by the next-appointment alert scheduler (Phase 2G). One row per Coordinator
+per alert.
+
+```
+notification (
+  id         uuid        pk,
+  user_id    uuid        → app_user,
+  session_id uuid        → session,   -- the session with the upcoming appointment
+  message    text        not null,
+  created_at timestamptz not null,
+  read_at    timestamptz             -- null = unread
+)
+```
+
+Scheduler writes one row per Coordinator assigned to the branch where the session
+was booked. UI filters `WHERE user_id = :me AND read_at IS NULL` for the unread
+badge count.
+
+---
+
+## 21. Deep Module Map
+
+Ideal end-state of the backend. Each block is a module with a narrow external
+interface hiding significant implementation complexity. Use this as the reference
+when deciding where new logic belongs — if you are unsure where something goes,
+find the module whose hidden complexity it belongs to.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         ROUTES LAYER                        │
+│   (thin — parse request, call one service method, return)   │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────┐
+│                      CAPABILITY MIDDLEWARE                   │
+│  hasCapability(userId, code, contextType, contextId): Bool  │
+│  • queries active_user_capabilities view                    │
+│  • checks JWT deny list                                     │
+│  • one call — 403 or pass                                   │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+┌────────▼────────┐ ┌────────▼────────┐ ┌────────▼────────┐
+│  SESSION MODULE │ │ INVENTORY MODULE│ │  FINANCE MODULE │
+│                 │ │                 │ │                 │
+│ create()        │ │ recordSale()    │ │ assignCompensation()│
+│ updateStatus()  │ │ adjustStock()   │ │ recalcCommission()  │
+│ void()          │ │ restock()       │ │ createDraft()       │
+│ unvoid()        │ │ markMissing()   │ │ submitRemittance()  │
+│ addPractitioner │ │                 │ │ logExpense()        │
+│ promoteConcern()│ │ Hides:          │ │                     │
+│                 │ │ • optimistic    │ │ Hides:              │
+│ Hides:          │ │   lock on       │ │ • commission engine │
+│ • session type  │ │   branch_inv    │ │   (per-sale window  │
+│   computation   │ │ • sign/notes    │ │   + overrides)      │
+│ • concurrent    │ │   constraints   │ │ • SERIALIZABLE      │
+│   session guard │ │ • branch_day    │ │   submit tx         │
+│ • base rate     │ │   state check   │ │ • snapshot write    │
+│   snapshot      │ │ • movement log  │ │ • day transition    │
+│ • void view     │ │                 │ │ • BigDecimal        │
+│   (never raw    │ │                 │ │   arithmetic        │
+│   session_void) │ │                 │ │                     │
+└────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+         │                   │                   │
+┌────────▼───────────────────▼───────────────────▼────────┐
+│                     BRANCH DAY MODULE                    │
+│             resolveOrCreate(branchId, date): BranchDay  │
+│             assertEditable(branchDayId, userId)         │
+│                                                         │
+│  Hides: UPSERT branch_day, day-state evaluation,        │
+│  OPEN/PAST/REMITTED logic, flagged audit enforcement    │
+└──────────────────────────────┬──────────────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         │                     │                     │
+┌────────▼────────┐  ┌─────────▼────────┐  ┌────────▼────────┐
+│ ATTENDANCE MOD  │  │   AUTH MODULE    │  │  AUDIT MODULE   │
+│                 │  │                  │  │                 │
+│ clockIn()       │  │ login()          │  │ log(event)      │
+│ clockOut()      │  │ issueToken()     │  │ flag(id, reason)│
+│ markPresent()   │  │ validateToken()  │  │ acknowledge()   │
+│                 │  │ deactivateUser() │  │                 │
+│ Hides:          │  │                  │  │ Hides:          │
+│ • branch_day_   │  │ Hides:           │  │ • old/new value │
+│   assignment    │  │ • deny list      │  │   serialization │
+│   creation      │  │ • bcrypt compare │  │ • flagging rule │
+│ • is_relief     │  │ • JWT claims     │  │   (REMITTED     │
+│   computation   │  │ • capability     │  │   days auto-    │
+│ • multiple-     │  │   seeding        │  │   flag)         │
+│   shift index   │  │                  │  │                 │
+└────────┬────────┘  └────────┬─────────┘  └────────┬────────┘
+         │                    │                      │
+         └────────────────────┼──────────────────────┘
+                              │
+┌─────────────────────────────▼────────────────────────────┐
+│                     REPOSITORY LAYER                     │
+│   (one repo per aggregate — no cross-repo calls here)    │
+│                                                          │
+│  SessionRepo    InventoryRepo    RemittanceRepo          │
+│  ClientRepo     CompensationRepo AttendanceRepo          │
+│  BranchDayRepo  UserRepo         AuditRepo               │
+└──────────────────────────────────────────────────────────┘
+```
+
+**BranchDayModule** is the deepest single module. Every financial or operational
+write calls `resolveOrCreate` and `assertEditable` first. All day-state logic lives
+here and nowhere else.
+
+**FinanceModule** is the second deepest. The commission engine, serializable
+remittance submission, snapshot write, and BigDecimal arithmetic are all hidden
+behind four method calls.
+
+**CapabilityMiddleware** is narrow by design — one boolean return — but hides the
+view query, time-window filtering, deny list check, and priority resolution.
+
+**AuditModule** looks trivial from the outside (`log(event)`) but hides old/new
+value diffing, flagging rules, and JSONB serialization.
+
+**Repository layer** is intentionally shallow — interface complexity roughly
+matches implementation complexity. Not candidates for deepening.
+
+---
+
+## 22. Guiding Principles
 
 - Clarity over cleverness
 - Thin, explicit layers — routes parse, services decide, repositories query

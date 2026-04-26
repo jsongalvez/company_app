@@ -54,7 +54,7 @@ code, which is defined as an enum/sealed class in `shared/domain/`.
 | `SUBMIT_REMITTANCE` | BRANCH | Coordinator |
 | `ASSIGN_COMPENSATION` | BRANCH | Coordinator, Owner |
 | `MANAGE_USERS` | GLOBAL | Owner, Manager |
-| `MANAGE_PRODUCTS` | GLOBAL | Owner, Coordinator |
+| `MANAGE_PRODUCTS` | BRANCH | Owner (home branch only), Coordinator (assigned branches only) |
 | `ASSIGN_DELEGATE` | GLOBAL | Owner, Manager |
 | `EDIT_PAST_DAY` | BRANCH | Coordinator only (PAST/REMITTED days) |
 
@@ -607,12 +607,119 @@ done.
 
 ---
 
-## OPEN ITEMS
+## RESOLVED DECISIONS
 
-| # | Item | Owner | Status |
-|---|------|-------|--------|
-| 1 | Notification delivery model (in-app table schema) | — | Not started |
-| 2 | `concern` promotion UI flow — does nullifying `other_concerns` require coordinator confirmation? | — | Needs decision |
-| 3 | Slot conflict resolution — UI for practitioners swapping slots | — | Not started |
-| 4 | Export format — PDF, CSV, or both? | — | Needs decision |
-| 5 | Session base rate: future-dated changes — is this needed in Phase 2? | — | Needs decision |
+| # | Item | Decision |
+|---|------|----------|
+| 1 | Notification delivery model | `notification` table: `(id, user_id, session_id → session, message, created_at, read_at)`. Scheduler writes one row per Coordinator assigned to the branch. `read_at IS NULL` = unread. |
+| 2 | `concern` promotion UX | Silent nullify with undo toast (~10s). No modal confirmation. Audit log preserves the original text. |
+| 3 | Slot conflict resolution | Dedicated swap action: `POST /branches/{branchId}/slots/swap` with `{ userIdA, userIdB }`. Both slot updates written in one transaction — no intermediate state where two users share a slot. |
+| 4 | Export format | Both PDF and CSV. Generated on-demand, not stored. Format selected via `?format=pdf\|csv` query param. |
+| 5 | Session base rate: future-dated changes | Not in Phase 2. Rate changes take effect immediately: close current rate at `now()`, open new rate at `now()`. No scheduler, no future-date validation. |
+
+---
+
+## DEEP MODULE MAP
+
+Ideal end-state of the backend as a set of deep modules. Each box is a module with
+a narrow external interface hiding significant implementation complexity. Use this
+as the reference when deciding where new logic belongs.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         ROUTES LAYER                        │
+│   (thin — parse request, call one service method, return)   │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+┌────────────────────────────▼────────────────────────────────┐
+│                      CAPABILITY MIDDLEWARE                   │
+│  hasCapability(userId, code, contextType, contextId): Bool  │
+│  • queries active_user_capabilities view                    │
+│  • checks JWT deny list                                     │
+│  • one call — 403 or pass                                   │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+         ┌───────────────────┼───────────────────┐
+         │                   │                   │
+┌────────▼────────┐ ┌────────▼────────┐ ┌────────▼────────┐
+│  SESSION MODULE │ │ INVENTORY MODULE│ │  FINANCE MODULE │
+│                 │ │                 │ │                 │
+│ create()        │ │ recordSale()    │ │ assignCompensation()│
+│ updateStatus()  │ │ adjustStock()   │ │ recalcCommission()  │
+│ void()          │ │ restock()       │ │ createDraft()       │
+│ unvoid()        │ │ markMissing()   │ │ submitRemittance()  │
+│ addPractitioner │ │                 │ │ logExpense()        │
+│ promoteConcern()│ │ Hides:          │ │                     │
+│                 │ │ • optimistic    │ │ Hides:              │
+│ Hides:          │ │   lock on       │ │ • commission engine │
+│ • session type  │ │   branch_inv    │ │   (per-sale window  │
+│   computation   │ │ • sign/notes    │ │   + overrides)      │
+│ • concurrent    │ │   constraints   │ │ • SERIALIZABLE      │
+│   session guard │ │ • branch_day    │ │   submit tx         │
+│ • base rate     │ │   state check   │ │ • snapshot write    │
+│   snapshot      │ │ • movement log  │ │ • day transition    │
+│ • void view     │ │                 │ │ • BigDecimal        │
+│   (never raw    │ │                 │ │   arithmetic        │
+│   session_void) │ │                 │ │                     │
+└────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+         │                   │                   │
+┌────────▼───────────────────▼───────────────────▼────────┐
+│                     BRANCH DAY MODULE                    │
+│             resolveOrCreate(branchId, date): BranchDay  │
+│             assertEditable(branchDayId, userId)         │
+│                                                         │
+│  Hides: UPSERT branch_day, day-state evaluation,        │
+│  OPEN/PAST/REMITTED logic, flagged audit enforcement    │
+└──────────────────────────────┬──────────────────────────┘
+                               │
+         ┌─────────────────────┼─────────────────────┐
+         │                     │                     │
+┌────────▼────────┐  ┌─────────▼────────┐  ┌────────▼────────┐
+│ ATTENDANCE MOD  │  │   AUTH MODULE    │  │  AUDIT MODULE   │
+│                 │  │                  │  │                 │
+│ clockIn()       │  │ login()          │  │ log(event)      │
+│ clockOut()      │  │ issueToken()     │  │ flag(id, reason)│
+│ markPresent()   │  │ validateToken()  │  │ acknowledge()   │
+│                 │  │ deactivateUser() │  │                 │
+│ Hides:          │  │                  │  │ Hides:          │
+│ • branch_day_   │  │ Hides:           │  │ • old/new value │
+│   assignment    │  │ • deny list      │  │   serialization │
+│   creation      │  │ • bcrypt compare │  │ • flagging rule │
+│ • is_relief     │  │ • JWT claims     │  │   (REMITTED     │
+│   computation   │  │ • capability     │  │   days auto-    │
+│ • multiple-     │  │   seeding        │  │   flag)         │
+│   shift index   │  │                  │  │                 │
+└────────┬────────┘  └────────┬─────────┘  └────────┬────────┘
+         │                    │                      │
+         └────────────────────┼──────────────────────┘
+                              │
+┌─────────────────────────────▼────────────────────────────┐
+│                     REPOSITORY LAYER                     │
+│   (one repo per aggregate — no cross-repo calls here)    │
+│                                                          │
+│  SessionRepo    InventoryRepo    RemittanceRepo          │
+│  ClientRepo     CompensationRepo AttendanceRepo          │
+│  BranchDayRepo  UserRepo         AuditRepo               │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Where depth lives
+
+**BranchDayModule** is the deepest single module. Every financial or operational
+write calls `resolveOrCreate` and `assertEditable` first. All day-state logic lives
+here and nowhere else. Deleting it would scatter OPEN/PAST/REMITTED checks across
+every other module.
+
+**FinanceModule** is the second deepest. The commission engine, serializable
+remittance submission, snapshot write, and BigDecimal arithmetic are all hidden
+behind four method calls.
+
+**CapabilityMiddleware** is narrow by design — one boolean return — but hides the
+view query, time-window filtering, deny list check, and priority resolution.
+
+**AuditModule** looks trivial from the outside (`log(event)`) but hides old/new
+value diffing, flagging rules, and JSONB serialization.
+
+**Repository layer** is intentionally shallow. Interface complexity roughly matches
+implementation complexity (query, map, return). Repos are not candidates for
+deepening — they are the correct shape.
