@@ -22,6 +22,8 @@ object DatabaseConfig {
                 addDataSourceProperty("portNumber", dotenv["DB_PORT"])
 
                 maximumPoolSize = 3
+                minimumIdle = 3
+                connectionTimeout = 30_000
             }
         HikariDataSource(config)
     }
