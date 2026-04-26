@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.domain.RegisterResult
+import com.companyb.companyapp.dotenv
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
@@ -11,6 +12,12 @@ import java.util.UUID
 
 object AuthService {
     private val logger = KotlinLogging.logger { }
+    private val dummyHash by lazy {
+        BCrypt.withDefaults().hashToString(
+            12,
+            dotenv["AUTH_DUMMY_PASSWORD"].toCharArray(),
+        )
+    }
 
     fun login(
         username: String,
@@ -19,7 +26,6 @@ object AuthService {
         logger.info { "[LOGIN] Verifying user login" }
         val appUser: AppUser? = UserRepository.findByUsername(username)
 
-        val dummyHash = "hC@qxPuS6$#je69nGaNgLPwJpR!T!q&&T7Q2*&o28Y&4Aj#PkR%kccLHCiQj" // run bcrypt on login failure
         val passwordHash = appUser?.passwordHash ?: dummyHash
         val result: BCrypt.Result = BCrypt.verifyer().verify(password.toCharArray(), passwordHash)
 
