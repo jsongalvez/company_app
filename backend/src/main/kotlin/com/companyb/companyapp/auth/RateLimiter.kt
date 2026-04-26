@@ -1,7 +1,7 @@
 package com.companyb.companyapp.auth
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 import kotlin.time.Duration.Companion.seconds
 
 object RateLimiter {
@@ -12,32 +12,40 @@ object RateLimiter {
         var now: Long,
     )
 
-    const val MAX_REQUESTS = 10
-    val WINDOW_NANOSECONDS = 60.seconds.inWholeNanoseconds
+    private const val MAX_REQUESTS = 10
+    private const val MAX_ENTRIES = 1000 // Bound memory usage
+    private val WINDOW_NANOSECONDS = 60.seconds.inWholeNanoseconds
 
-    private val list = ConcurrentHashMap<String, Window>()
+    private val list: MutableMap<String, Window> =
+        Collections.synchronizedMap(
+            object : LinkedHashMap<String, Window>(64, 0.75f, true) {
+                override fun removeEldestEntry(eldest: Map.Entry<String, Window>): Boolean = size > MAX_ENTRIES
+            },
+        )
 
     fun isAllowed(ip: String): Boolean {
         val now = System.nanoTime()
 
-        val window =
-            list.computeIfAbsent(ip) {
-                Window(0, now).also { logger.info { "[RATE-LIMITER] Add new entry" } }
+        // Use synchronized on the list to ensure atomic read-modify-write
+        synchronized(list) {
+            val window =
+                list.getOrPut(ip) {
+                    Window(0, now)
+                }
+
+            val isWindowExpired = now - window.now > WINDOW_NANOSECONDS
+            if (isWindowExpired) {
+                window.count = 1
+                window.now = now
+                return true
             }
 
-        val isWindowExpired = now - window.now > WINDOW_NANOSECONDS
-        if (isWindowExpired) {
-            window.count = 1
-            window.now = now
-            return true.also { logger.info { "[RATE-LIMITER] Reset limits; Request count: ${window.count}" } }
+            window.count++
+            val isAllowed = window.count <= MAX_REQUESTS
+            if (!isAllowed) {
+                logger.warn { "[RATE-LIMITER] Rate limiting ip ($ip), tries: ${window.count}" }
+            }
+            return isAllowed
         }
-
-        window.count++
-        val isAllowed = window.count <= MAX_REQUESTS
-        when (isAllowed) {
-            true -> logger.info { "[RATE-LIMITER] Request count: ${window.count}" }
-            false -> logger.warn { "[RATE-LIMITER] rate limiting ip ($ip), tries: ${window.count}" }
-        }
-        return isAllowed
     }
 }
