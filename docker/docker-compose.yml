@@ -1,6 +1,7 @@
 services:
     postgres:
         image: postgres:18
+        restart: always
         container_name: company-postgres
         ports:
             -   "5432:5432"
