@@ -18,6 +18,8 @@ object DatabaseConfig {
                 addDataSourceProperty("user", dotenv["POSTGRES_USER"])
                 addDataSourceProperty("password", dotenv["POSTGRES_PASSWORD"])
                 addDataSourceProperty("databaseName", dotenv["POSTGRES_DB"])
+                addDataSourceProperty("serverName", dotenv["DB_HOST"])
+                addDataSourceProperty("portNumber", dotenv["DB_PORT"])
 
                 maximumPoolSize = 3
             }
