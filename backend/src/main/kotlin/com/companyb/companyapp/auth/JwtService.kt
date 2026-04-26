@@ -33,10 +33,16 @@ object JwtService {
             require(secret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
             Algorithm.HMAC256(secret)
         }
+    private val verifier =
+        JWT
+            .require(algorithm)
+            .withIssuer(issuer)
+            .withAudience(audience)
+            .acceptLeeway(60.seconds.inWholeSeconds) // Accept some clock skew
+            .build()
 
     fun generateToken(userId: String): String {
         logger.info { "[GENERATE-TOKEN] Generating token for ${userId.maskUUID()}" }
-        // TODO: Reduce token lifetime to 15 minutes (need refresh token)
         val now = Instant.now()
         val expiresAt = now.plus(1, ChronoUnit.DAYS)
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
@@ -53,22 +59,12 @@ object JwtService {
         return token
     }
 
-    // TODO: Token blacklist / Logout invalidation
     fun verifyToken(token: String): String? =
         try {
-            logger.info { "[VERIFY-TOKEN] Verifying token" }
-            val subj =
-                JWT
-                    .require(algorithm)
-                    .withIssuer(issuer)
-                    .withAudience(audience)
-                    .acceptLeeway(60.seconds.inWholeSeconds) // Accept some clock skew
-                    .build()
-                    .verify(token)
-                    .subject
+            val subj = verifier.verify(token).subject
             val isAuthorized = UserRepository.authorize(subj)
             if (isAuthorized) {
-                subj.also { logger.info { "[VERIFY-TOKEN] Successfully verified token" } }
+                subj
             } else {
                 null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} attempted an unauthorized login" } }
             }
