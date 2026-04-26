@@ -1,24 +1,24 @@
--- V2__Full_Schema_and_Phase2_Hardening.sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- ----------------------------
 -- ENUMS
 -- ----------------------------
 
-CREATE TYPE capability_context_type  AS ENUM ('GLOBAL', 'BRANCH', 'BRANCH_DAY', 'MEDICAL_MISSION', 'PROVINCIAL_TOUR');
-CREATE TYPE capability_source_type   AS ENUM ('RELIEF_ACCESS', 'MEDICAL_MISSION_DELEGATE', 'MANUAL_OVERRIDE', 'SYSTEM');
-CREATE TYPE branch_type              AS ENUM ('CLINIC', 'PROVINCIAL_TOUR', 'MEDICAL_MISSION');
-CREATE TYPE relief_status            AS ENUM ('PENDING', 'GRANTED', 'DENIED');
-CREATE TYPE day_status               AS ENUM ('OPEN', 'PAST', 'REMITTED');
-CREATE TYPE session_type             AS ENUM ('REGULAR', 'SECOND_SESSION', 'SUBSEQUENT', 'PROVINCIAL_FIRST', 'MEDICAL_MISSION');
-CREATE TYPE session_status           AS ENUM ('PENDING', 'COMPLETED', 'NO_SHOW', 'CANCELLED');
+CREATE TYPE user_status               AS ENUM ('ACTIVE', 'INACTIVE');
+CREATE TYPE capability_context_type   AS ENUM ('GLOBAL', 'BRANCH', 'BRANCH_DAY', 'MEDICAL_MISSION', 'PROVINCIAL_TOUR');
+CREATE TYPE capability_source_type    AS ENUM ('RELIEF_ACCESS', 'MEDICAL_MISSION_DELEGATE', 'MANUAL_OVERRIDE', 'SYSTEM');
+CREATE TYPE branch_type               AS ENUM ('CLINIC', 'PROVINCIAL_TOUR', 'MEDICAL_MISSION');
+CREATE TYPE relief_status             AS ENUM ('PENDING', 'GRANTED', 'DENIED');
+CREATE TYPE day_status                AS ENUM ('OPEN', 'PAST', 'REMITTED');
+CREATE TYPE session_type              AS ENUM ('REGULAR', 'SECOND_SESSION', 'SUBSEQUENT', 'PROVINCIAL_FIRST', 'MEDICAL_MISSION');
+CREATE TYPE session_status            AS ENUM ('PENDING', 'COMPLETED', 'NO_SHOW', 'CANCELLED');
 CREATE TYPE inventory_movement_reason AS ENUM ('SALE', 'TESTER', 'SAMPLE', 'MISSING', 'RESTOCK', 'ADJUSTMENT');
-CREATE TYPE remittance_type          AS ENUM ('SESSION', 'PRODUCT');
-CREATE TYPE remittance_method        AS ENUM ('BANK_TRANSFER', 'HANDED_TO_ACCOUNTANT');
-CREATE TYPE remittance_status        AS ENUM ('DRAFT', 'SUBMITTED');
-CREATE TYPE remittance_line_type     AS ENUM ('SESSION', 'PRODUCT_SALE');
-CREATE TYPE audit_action             AS ENUM ('INSERT', 'UPDATE', 'DELETE');
-CREATE TYPE expense_category         AS ENUM (
+CREATE TYPE remittance_type           AS ENUM ('SESSION', 'PRODUCT');
+CREATE TYPE remittance_method         AS ENUM ('BANK_TRANSFER', 'HANDED_TO_ACCOUNTANT');
+CREATE TYPE remittance_status         AS ENUM ('DRAFT', 'SUBMITTED');
+CREATE TYPE remittance_line_type      AS ENUM ('SESSION', 'PRODUCT_SALE');
+CREATE TYPE audit_action              AS ENUM ('INSERT', 'UPDATE', 'DELETE');
+CREATE TYPE expense_category          AS ENUM (
     'PANTRY', 'COMMUNICATION', 'WATER', 'TRANSPORTATION',
     'ELECTRICITY', 'RENTAL', 'OFFICE_SUPPLIES', 'FURNITURE_FIXTURES', 'MISCELLANEOUS'
 );
@@ -26,6 +26,15 @@ CREATE TYPE expense_category         AS ENUM (
 -- ----------------------------
 -- ROLES & CAPABILITIES
 -- ----------------------------
+
+CREATE TABLE app_user (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    username      VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(60)  NOT NULL,
+    status        user_status  NOT NULL DEFAULT 'ACTIVE',
+    email         TEXT         NOT NULL UNIQUE,
+    display_name  TEXT         NOT NULL DEFAULT 'User'
+);
 
 CREATE TABLE role (
     id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -175,7 +184,7 @@ CREATE TABLE client (
     medical_conditions TEXT,
     deleted_at         TIMESTAMPTZ,
     CONSTRAINT bp_both_or_none CHECK (
-        (systolic_bp IS NULL AND diastolic_bp IS NULL)
+           (systolic_bp IS NULL     AND diastolic_bp IS NULL)
         OR (systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL)
     )
 );
@@ -359,7 +368,7 @@ CREATE TABLE compensation (
     amount               NUMERIC(10,2) NOT NULL CHECK (amount >= 0),
     assigned_by          UUID          NOT NULL REFERENCES app_user(id),
     assigned_at          TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    note           TEXT
+    note                 TEXT
 );
 -- Issue #18: One payout per user per paying branch per day
 CREATE UNIQUE INDEX idx_compensation_unique ON compensation (user_id, paying_branch_day_id);
@@ -483,7 +492,7 @@ CREATE TABLE remittance_line (
     -- BUG FIX (#1): was `deleted_at IS NOT NULL AND deleted_at IS NOT NULL`
     -- Corrected to check deleted_by in the second branch.
     CONSTRAINT line_deleted_logic CHECK (
-        (deleted_at IS NULL     AND deleted_by IS NULL)
+           (deleted_at IS NULL     AND deleted_by IS NULL)
         OR (deleted_at IS NOT NULL AND deleted_by IS NOT NULL)
     ),
     CONSTRAINT line_type_logic CHECK (
