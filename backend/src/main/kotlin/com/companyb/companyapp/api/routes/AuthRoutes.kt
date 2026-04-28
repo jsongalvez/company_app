@@ -1,7 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.mapping.toErrorResponse
-import com.companyb.companyapp.auth.RateLimiter
+import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
@@ -14,23 +14,28 @@ import io.javalin.http.bodyAsClass
 object AuthRoutes {
     fun login(context: JavalinConfig) {
         context.routes.post("/auth/login") { context ->
-            val ip = context.ip()
-
-            val isRateLimited = !RateLimiter.isAllowed(ip)
-            if (isRateLimited) {
-                context.status(HttpStatus.TOO_MANY_REQUESTS)
-                return@post
-            }
-
             val loginRequest = context.bodyAsClass<LoginRequest>()
-            val token: String =
-                AuthService.login(loginRequest.username, loginRequest.password) ?: run {
-                    context.status(HttpStatus.UNAUTHORIZED)
-                    return@post
+            val loginResult: LoginResult =
+                AuthService.login(
+                    loginRequest.username,
+                    loginRequest.password,
+                    context.ip(),
+                )
+
+            when (loginResult) {
+                is LoginResult.Success -> {
+                    context.status(HttpStatus.OK)
+                    context.json(LoginResponse(loginResult.token))
                 }
 
-            context.status(HttpStatus.OK)
-            context.json(LoginResponse(token))
+                LoginResult.RateLimited -> {
+                    context.status(HttpStatus.TOO_MANY_REQUESTS)
+                }
+
+                LoginResult.InvalidCredentials -> {
+                    context.status(HttpStatus.UNAUTHORIZED)
+                }
+            }
         }
     }
 
