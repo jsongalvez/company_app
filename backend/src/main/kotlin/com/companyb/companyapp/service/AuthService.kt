@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import at.favre.lib.crypto.bcrypt.BCrypt
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.RateLimiter
@@ -9,6 +8,7 @@ import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
+import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -54,16 +54,11 @@ object AuthService {
             return RegisterResult.UsernameTaken
         }
 
-        val minimumPasswordLength = 8
-        if (password.length < minimumPasswordLength) {
-            logger.info { "[REGISTER] Password does not match requirements" }
-            return RegisterResult.WeakPassword(minimumPasswordLength)
+        if (!PasswordPolicy.isValid(password)) {
+            return RegisterResult.WeakPassword(PasswordPolicy.MIN_LENGTH)
         }
 
-        logger.info { "[REGISTER] Creating password hash for user" }
-        val cost = 12
-        val passwordHash: String = BCrypt.withDefaults().hashToString(cost, password.toCharArray())
-        logger.info { "[REGISTER] Password hash created for user" }
+        val passwordHash = Password.create(password)
 
         val userID: UUID = UserRepository.createUser(username, passwordHash)
         logger.info { "[REGISTER] Registered user ${userID.toString().maskUUID()} successfully" }
