@@ -16,4 +16,8 @@ sealed class RegisterResult {
     ) : RegisterResult() {
         override val errorCode = ErrorCode.WEAK_PASSWORD
     }
+
+    data object InvalidEmail : RegisterResult() {
+        override val errorCode = ErrorCode.INVALID_EMAIL
+    }
 }

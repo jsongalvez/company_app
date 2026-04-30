@@ -8,6 +8,7 @@ import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
+import com.companyb.companyapp.validation.EmailPolicy
 import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
@@ -46,6 +47,8 @@ object AuthService {
     fun register(
         username: String,
         password: String,
+        email: String,
+        displayName: String,
     ): RegisterResult {
         logger.info { "[REGISTER] User attempts to register" }
         val appUser: AppUser? = UserRepository.findByUsername(username)
@@ -58,9 +61,13 @@ object AuthService {
             return RegisterResult.WeakPassword(PasswordPolicy.MIN_LENGTH)
         }
 
+        if (!EmailPolicy.isValid(email)) {
+            return RegisterResult.InvalidEmail
+        }
+
         val passwordHash = Password.create(password)
 
-        val userID: UUID = UserRepository.createUser(username, passwordHash)
+        val userID: UUID = UserRepository.createUser(username, passwordHash, email, displayName)
         logger.info { "[REGISTER] Registered user ${userID.toString().maskUUID()} successfully" }
         return RegisterResult.Success
     }

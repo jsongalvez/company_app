@@ -31,12 +31,16 @@ object UserRepository {
     fun createUser(
         username: String,
         passwordHash: String,
+        email: String,
+        displayName: String,
     ): UUID =
         transaction {
             AppUserTable
                 .insert {
                     it[AppUserTable.username] = username
                     it[AppUserTable.passwordHash] = passwordHash
+                    it[AppUserTable.email] = email
+                    it[AppUserTable.displayName] = displayName
                 } get AppUserTable.id
         }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 

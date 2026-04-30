@@ -15,6 +15,8 @@ object AppUserTable : Table("app_user") {
     val username = varchar("username", 255).uniqueIndex()
     val passwordHash = varchar("password_hash", 60)
     val status = enumerationByName<UserStatus>("status", 50).default(UserStatus.ACTIVE)
+    val email = varchar("email", 50).uniqueIndex()
+    val displayName = varchar("display_name", 50).default("User")
 
     override val primaryKey = PrimaryKey(id)
 }

@@ -12,4 +12,8 @@ enum class ErrorCode(
         label = "Weak Password",
         detail = "Password does not meet minimum requirements.",
     ),
+    INVALID_EMAIL(
+        label = "Invalid Email",
+        detail = "This email is not a valid email.",
+    ),
 }

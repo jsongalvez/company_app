@@ -43,7 +43,12 @@ object AuthRoutes {
         context.routes.post("/auth/register") { context ->
             val registerRequest = context.bodyAsClass<RegisterRequest>()
             val registerResult: RegisterResult =
-                AuthService.register(registerRequest.username, registerRequest.password)
+                AuthService.register(
+                    registerRequest.username,
+                    registerRequest.password,
+                    registerRequest.email,
+                    registerRequest.displayName,
+                )
 
             when (registerResult) {
                 RegisterResult.Success -> {
@@ -56,7 +61,7 @@ object AuthRoutes {
                     context.json(registerResult.toErrorResponse())
                 }
 
-                is RegisterResult.WeakPassword -> {
+                is RegisterResult.WeakPassword, RegisterResult.InvalidEmail -> {
                     context.status(HttpStatus.BAD_REQUEST)
                     context.json(registerResult.toErrorResponse())
                 }
