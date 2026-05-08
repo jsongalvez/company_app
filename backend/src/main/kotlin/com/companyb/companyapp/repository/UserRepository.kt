@@ -28,6 +28,19 @@ object UserRepository {
                 }.singleOrNull()
         }.also { logger.info { "[FIND-BY-USERNAME] Fetched username" } }
 
+    fun isEmailTaken(email: String): Boolean =
+        transaction {
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { AppUserTable.email eq email }
+                .empty()
+                .not()
+        }.also {
+            if (it) {
+                logger.info { "[IS-EMAIL-TAKEN] Email is taken" }
+            }
+        }
+
     fun createUser(
         username: String,
         passwordHash: String,

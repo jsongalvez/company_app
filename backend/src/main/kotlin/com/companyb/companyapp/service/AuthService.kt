@@ -65,6 +65,10 @@ object AuthService {
             return RegisterResult.InvalidEmail
         }
 
+        if (UserRepository.isEmailTaken(email)) {
+            return RegisterResult.EmailTaken
+        }
+
         val passwordHash = Password.create(password)
 
         val userID: UUID = UserRepository.createUser(username, passwordHash, email, displayName)

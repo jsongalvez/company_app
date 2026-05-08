@@ -56,7 +56,7 @@ object AuthRoutes {
                     return@post
                 }
 
-                RegisterResult.UsernameTaken -> {
+                RegisterResult.UsernameTaken, RegisterResult.EmailTaken -> {
                     context.status(HttpStatus.CONFLICT)
                     context.json(registerResult.toErrorResponse())
                 }

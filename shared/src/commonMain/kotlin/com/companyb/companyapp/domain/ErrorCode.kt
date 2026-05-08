@@ -16,4 +16,8 @@ enum class ErrorCode(
         label = "Invalid Email",
         detail = "This email is not a valid email.",
     ),
+    EMAIL_TAKEN(
+        label = "Email Taken",
+        detail = "This email is taken.",
+    ),
 }

@@ -20,4 +20,8 @@ sealed class RegisterResult {
     data object InvalidEmail : RegisterResult() {
         override val errorCode = ErrorCode.INVALID_EMAIL
     }
+
+    data object EmailTaken : RegisterResult() {
+        override val errorCode = ErrorCode.EMAIL_TAKEN
+    }
 }
