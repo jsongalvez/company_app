@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.logging.DeltaTimeConverter
@@ -9,6 +10,7 @@ import com.companyb.companyapp.utils.Helper
 import io.github.cdimascio.dotenv.dotenv
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
+import io.javalin.http.UnauthorizedResponse
 import org.slf4j.MDC
 
 private val logger = KotlinLogging.logger {}
@@ -35,6 +37,11 @@ fun initializeJavalin() {
                 RequestElapsedConverter.endRequest()
                 DeltaTimeConverter.endRequest()
                 MDC.clear()
+            }
+            config.routes.before("/api/*") { context ->
+                val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
+                context.attribute("userId", userId)
             }
             AuthRoutes.login(config)
             AuthRoutes.register(config)
