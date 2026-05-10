@@ -62,7 +62,7 @@ object AuthRoutes {
                 }
 
                 is RegisterResult.WeakPassword, RegisterResult.InvalidEmail -> {
-                    context.status(HttpStatus.BAD_REQUEST)
+                    context.status(HttpStatus.UNPROCESSABLE_CONTENT)
                     context.json(registerResult.toErrorResponse())
                 }
             }
