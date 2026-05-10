@@ -5,13 +5,14 @@
                     class="com.companyb.companyapp.logging.DeltaTimeConverter" />
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <withJansi>true</withJansi>
         <encoder>
-            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %5level [TraceId-%X{traceId}] +%delta ms. %logger{36} - %msg%n %rEx{full}</pattern>
+            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %highlight(%5level) [TraceId-%X{traceId}] +%delta ms. %green(%logger{36}) - %cyan(%msg%n) %red(%rEx{full})</pattern>
         </encoder>
     </appender>
 
     <root level="INFO">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="STDOUT"/>
     </root>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
