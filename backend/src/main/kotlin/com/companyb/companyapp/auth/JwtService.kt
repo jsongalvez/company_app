@@ -10,10 +10,12 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Date
+import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 
 object JwtService {
     private val logger = KotlinLogging.logger {}
+    private const val MIN_SECRET_LENGTH = 32
     private val issuer =
         run {
             val issuer = dotenv["JWT_ISSUER"]
@@ -30,7 +32,7 @@ object JwtService {
         run {
             val secret = dotenv["JWT_SECRET"]
             require(!secret.isNullOrBlank()) { "JWT_SECRET must be set" }
-            require(secret.length >= 32) { "JWT_SECRET must be at least 32 characters" }
+            require(secret.length >= MIN_SECRET_LENGTH) { "JWT_SECRET must be at least $MIN_SECRET_LENGTH characters" }
             Algorithm.HMAC256(secret)
         }
     private val verifier =
@@ -62,11 +64,19 @@ object JwtService {
     fun verifyToken(token: String): String? =
         try {
             val subj = verifier.verify(token).subject
-            val isAuthorized = UserRepository.authorize(subj)
-            if (isAuthorized) {
-                subj
-            } else {
-                null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} attempted an unauthorized login" } }
+            when {
+                // Deny list is checked in-memory before any database request.
+                DenyList.isDenied(UUID.fromString(subj)) -> {
+                    null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is on the deny list" } }
+                }
+
+                UserRepository.authorize(subj) -> {
+                    subj
+                }
+
+                else -> {
+                    null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is unauthorized" } }
+                }
             }
         } catch (e: JWTVerificationException) {
             logger.warn(e) { "[VERIFY-TOKEN] Invalid token" }

@@ -57,6 +57,14 @@ object UserRepository {
                 } get AppUserTable.id
         }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 
+    fun findInactiveUserIds(): List<UUID> =
+        transaction {
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { AppUserTable.status eq UserStatus.INACTIVE }
+                .map { it[AppUserTable.id] }
+        }.also { logger.info { "[FIND-INACTIVE-USER-IDS] Fetched ${it.size} inactive user(s)" } }
+
     fun authorize(id: String): Boolean =
         transaction {
             AppUserTable

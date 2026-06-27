@@ -5,6 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 
 class RequestElapsedConverter : ClassicConverter() {
     companion object {
+        private const val NANOS_PER_MILLI = 1_000_000
         private val requestStartNanos = ThreadLocal<Long>()
 
         fun startRequest() {
@@ -17,13 +18,13 @@ class RequestElapsedConverter : ClassicConverter() {
 
         fun currentElapsedMs(): Long {
             val start = requestStartNanos.get() ?: return -1
-            return (System.nanoTime() - start) / 1_000_000
+            return (System.nanoTime() - start) / NANOS_PER_MILLI
         }
     }
 
     override fun convert(event: ILoggingEvent): String {
         val start = requestStartNanos.get() ?: return "-"
-        val elapsedMs = (System.nanoTime() - start) / 1_000_000
+        val elapsedMs = (System.nanoTime() - start) / NANOS_PER_MILLI
         return "$elapsedMs"
     }
 }

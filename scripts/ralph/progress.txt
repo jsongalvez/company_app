@@ -1,0 +1,26 @@
+# Ralph Progress Log
+Started: Sat Jun 27 12:27:08 PM PST 2026
+---
+
+## Codebase Patterns
+- Backend module: Kotlin (JVM) + Javalin + Exposed (DSL) + Flyway, package root `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repository` (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
+- Quality gate (run per backend change): `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`. ktlint auto-fix: `./gradlew :backend:ktlintFormat`.
+- detekt `MagicNumber` is strict: extract any literal (column widths, pool sizes, durations) to a `private const val`. Constants are exempt via `ignoreConstantDeclaration`. `ReturnCount` max is 2 — match the existing pattern of `@Suppress("ReturnCount")` used in AuthService.
+- detekt requires the `detekt-formatting` plugin (wired in root `build.gradle.kts` `subprojects { dependencies { add("detektPlugins", ...) } }`) because `detekt.yml` enables the `formatting` ruleset.
+- Authorization MUST go through `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)` which queries the `active_user_capabilities` SQL view. Never check roles directly in business logic. The view already filters INACTIVE users and time windows.
+- For Postgres enum columns in raw SQL, bind params as text and cast in SQL (e.g. `?::capability_context_type`, `?::uuid`) via Exposed `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`. Avoids Exposed PG-enum operator mismatches.
+- Immediate revocation: `DenyList` (in-memory `ConcurrentHashMap<UUID, Instant>`) is checked inside `JwtService.verifyToken` BEFORE the DB `authorize` call. Populated at startup via `DenyList.loadInactiveUsers()` in `Main.kt`. Entries auto-evict after 24h (JWT max expiry).
+- No Postgres/Docker available in this environment — DB integration tests cannot be run here. Write DB-free unit tests (inject time via internal `*At(now)` helpers as done in `DenyListTest`).
+- Exposed needs `exposed-java-time` dependency for `timestampWithTimeZone`/`CurrentTimestampWithTimeZone`.
+
+## Sat Jun 27 2026 - US-001
+Thread: https://ampcode.com/threads/T-019f0759-389e-70e8-b4b8-15b6136bf4ea
+- Implemented CapabilityService.hasCapability querying the active_user_capabilities view via CapabilityRepository (raw SQL with text params + PG enum/uuid casts).
+- Implemented in-memory DenyList (ConcurrentHashMap<UUID, Instant>) with lazy 24h eviction; wired into JwtService.verifyToken (checked before DB) and populated at startup (Main.kt initializeDenyList + UserRepository.findInactiveUserIds).
+- Added backend test source set (kotlin-test/junit) + DenyListTest (5 DB-free cases).
+- Files changed: service/CapabilityService.kt, repository/CapabilityRepository.kt (new), auth/DenyList.kt (new), auth/JwtService.kt, repository/UserRepository.kt, Main.kt, repository/model/{CapabilityTable,UserCapability,AppUser}.kt, backend/build.gradle.kts, root build.gradle.kts (detekt-formatting), gradle/libs.versions.toml, backend/src/test/.../DenyListTest.kt.
+- **Learnings for future iterations:**
+  - detekt was previously unrunnable (invalid config: `formatting` ruleset without plugin). Fixed by adding `detekt-formatting` in root subprojects; then cleared ~20 pre-existing MagicNumber/ReturnCount/MatchingDeclarationName issues across auth/logging/database/model files. detekt is now a real, green gate for all future stories.
+  - `active_user_capabilities` columns: user_id, capability_id, context_type, context_id, priority, source_type (no `code`); join `capability` on id to filter by code.
+  - No DB available locally; clock-in/financial integration tests in later stories will need a Postgres (docker compose in docker/) — not runnable in this sandbox.
+---

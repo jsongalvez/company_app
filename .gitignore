@@ -33,3 +33,5 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 
 node_modules/
+
+kls_database.db

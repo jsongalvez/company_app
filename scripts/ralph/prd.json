@@ -139,7 +139,7 @@
         "Unit tests for hasCapability and deny list pass"
       ],
       "notes": "active_user_capabilities view is already defined in V1__full_schema.sql. contextType maps to capability_context_type enum.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-002",

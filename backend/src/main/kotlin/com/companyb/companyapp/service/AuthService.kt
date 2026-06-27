@@ -16,6 +16,7 @@ import java.util.UUID
 object AuthService {
     private val logger = KotlinLogging.logger { }
 
+    @Suppress("ReturnCount")
     fun login(
         username: String,
         password: String,

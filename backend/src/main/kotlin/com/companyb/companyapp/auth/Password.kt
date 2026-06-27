@@ -4,7 +4,7 @@ import at.favre.lib.crypto.bcrypt.BCrypt
 import com.companyb.companyapp.dotenv
 
 object Password {
-    private val BCRYPT_COST = 12
+    private const val BCRYPT_COST = 12
     private val DUMMY_HASH: String by lazy {
         BCrypt.withDefaults().hashToString(BCRYPT_COST, dotenv["AUTH_DUMMY_PASSWORD"].toCharArray())
     }

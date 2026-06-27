@@ -26,4 +26,8 @@ subprojects {
         allRules = false
         config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
     }
+
+    dependencies {
+        add("detektPlugins", "io.gitlab.arturbosch.detekt:detekt-formatting:${rootProject.libs.versions.detekt.get()}")
+    }
 }

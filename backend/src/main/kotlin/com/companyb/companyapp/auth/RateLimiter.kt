@@ -14,11 +14,13 @@ object RateLimiter {
 
     private const val MAX_REQUESTS = 10
     private const val MAX_ENTRIES = 1000 // Bound memory usage
+    private const val INITIAL_CAPACITY = 64
+    private const val LOAD_FACTOR = 0.75f
     private val WINDOW_NANOSECONDS = 60.seconds.inWholeNanoseconds
 
     private val list: MutableMap<String, Window> =
         Collections.synchronizedMap(
-            object : LinkedHashMap<String, Window>(64, 0.75f, true) {
+            object : LinkedHashMap<String, Window>(INITIAL_CAPACITY, LOAD_FACTOR, true) {
                 override fun removeEldestEntry(eldest: Map.Entry<String, Window>): Boolean = size > MAX_ENTRIES
             },
         )

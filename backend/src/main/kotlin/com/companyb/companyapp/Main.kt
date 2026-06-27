@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
@@ -16,6 +17,8 @@ import org.slf4j.MDC
 private val logger = KotlinLogging.logger {}
 
 val dotenv = dotenv()
+private const val KB = 1024L
+private const val MAX_REQUEST_SIZE_KB = 64L
 
 fun initializeJavalin() {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
@@ -23,6 +26,7 @@ fun initializeJavalin() {
     Javalin
         .create { config ->
             config.jsonMapper(KotlinxSerializationMapper())
+            config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
             config.routes.before {
                 // logback.xml %X{traceId} %X == %mdc
                 RequestElapsedConverter.startRequest()
@@ -67,6 +71,12 @@ fun initializeExposed() {
     logger.info { "[INITIALIZE-EXPOSED] Exposed connection enabled" }
 }
 
+fun initializeDenyList() {
+    logger.info { "[INITIALIZE-DENY-LIST] Loading inactive users into deny list" }
+    DenyList.loadInactiveUsers()
+    logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
+}
+
 fun main() {
     RequestElapsedConverter.startRequest()
     DeltaTimeConverter.startRequest()
@@ -74,6 +84,7 @@ fun main() {
     initializeHikariCP()
     initializeFlyway()
     initializeExposed()
+    initializeDenyList()
     initializeJavalin()
     val elapsed = RequestElapsedConverter.currentElapsedMs()
     logger.info { "[INITIALIZATION] Completed in $elapsed ms." }

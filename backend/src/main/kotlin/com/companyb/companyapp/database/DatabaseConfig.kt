@@ -11,6 +11,10 @@ private val logger = KotlinLogging.logger {}
 val dotenv = dotenv()
 
 object DatabaseConfig {
+    private const val MAX_POOL_SIZE = 3
+    private const val MIN_IDLE = 3
+    private const val CONNECTION_TIMEOUT_MS = 30_000L
+
     val dataSource: HikariDataSource by lazy {
         val config =
             HikariConfig().apply {
@@ -21,9 +25,9 @@ object DatabaseConfig {
                 addDataSourceProperty("serverName", dotenv["DB_HOST"])
                 addDataSourceProperty("portNumber", dotenv["DB_PORT"])
 
-                maximumPoolSize = 3
-                minimumIdle = 3
-                connectionTimeout = 30_000
+                maximumPoolSize = MAX_POOL_SIZE
+                minimumIdle = MIN_IDLE
+                connectionTimeout = CONNECTION_TIMEOUT_MS
             }
         HikariDataSource(config)
     }
