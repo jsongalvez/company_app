@@ -1,0 +1,749 @@
+{
+  "project": "CompanyApp",
+  "branchName": "ralph/company-app-full-build",
+  "description": "Full build of the internal physical therapy business app — Kotlin backend (Javalin + PostgreSQL) through Android, iOS, and Windows Desktop clients (Kotlin Multiplatform + Compose Multiplatform).",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "CapabilityService.hasCapability + JWT deny list",
+      "description": "As the backend, I need a central capability check method and an in-memory deny list so that all auth checks go through one path and inactive users are immediately blocked.",
+      "acceptanceCriteria": [
+        "CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId): Boolean queries the active_user_capabilities view",
+        "Returns true if any matching row exists, false otherwise",
+        "JWT middleware checks deny list (ConcurrentHashMap<UUID, Instant>) before the capability query; deny-listed users receive 401",
+        "On server startup, deny list is populated from app_user WHERE status = 'INACTIVE'",
+        "Deny list entries are evicted after 24 hours (JWT max lifetime)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "active_user_capabilities view already exists in V1__full_schema.sql. contextType maps to capability_context_type enum."
+    },
+    {
+      "id": "US-002",
+      "title": "BranchDayService — resolveOrCreate and assertEditable",
+      "description": "As the backend, I need a shared service to resolve or create a branch_day row and assert it is editable so that every other module can call it before any write.",
+      "acceptanceCriteria": [
+        "BranchDayService.resolveOrCreate(branchId: UUID, date: LocalDate): BranchDay — UPSERT branch_day (branch_id, date) ON CONFLICT DO NOTHING, returns the row",
+        "BranchDayService.assertEditable(branchDayId: UUID, userId: UUID) — evaluates effective status lazily: if branch_day.date < today (Asia/Manila) and status=OPEN, treat as PAST",
+        "If effective status is PAST or REMITTED, checks caller holds EDIT_PAST_DAY capability for the branch; throws 403 if not",
+        "If effective status is REMITTED and a write is attempted, the caller must supply a non-null reason; service throws 400 if absent",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "4AM Manila boundary: branchDate.plusDays(1).atTime(4,0).atZone(ZoneId.of('Asia/Manila')). Called by every service before any financial or operational write."
+    },
+    {
+      "id": "US-003",
+      "title": "User deactivation endpoint",
+      "description": "As an Owner or Manager, I want to deactivate a user so that they immediately lose all access.",
+      "acceptanceCriteria": [
+        "PATCH /users/{userId}/deactivate sets app_user.status = INACTIVE",
+        "Requires MANAGE_USERS capability with GLOBAL context",
+        "On deactivation, userId is added to the in-memory deny list",
+        "Subsequent requests from that user return 401",
+        "Audit log entry written for the UPDATE (table=app_user, action=UPDATE)",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Branch CRUD endpoints",
+      "description": "As an Owner or Manager, I want to create and list branches so that the system knows which locations exist.",
+      "acceptanceCriteria": [
+        "POST /branches body: { id (UUID, client-generated), name, branchType } — idempotency via id as PK; requires MANAGE_USERS capability",
+        "GET /branches — returns all branches; any authenticated user",
+        "GET /branches/{branchId} — returns single branch",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "branch_type enum values: CLINIC, PROVINCIAL_TOUR, MEDICAL_MISSION"
+    },
+    {
+      "id": "US-005",
+      "title": "User branch assignment and slot endpoints",
+      "description": "As an Owner or Manager, I want to assign users to home branches and set their slot so that the system knows who belongs where.",
+      "acceptanceCriteria": [
+        "POST /branches/{branchId}/assignments body: { userId, slot } — INSERT user_branch_assignment with ended_at=NULL; requires MANAGE_USERS; enforced by idx_one_active_assignment partial unique index",
+        "DELETE /branches/{branchId}/assignments/{userId} — sets ended_at=now() on the active assignment",
+        "PATCH /branches/{branchId}/assignments/{userId}/slot body: { slot } — updates slot; requires caller to be the assigned user OR hold MANAGE_USERS",
+        "POST /branches/{branchId}/slots/swap body: { userIdA, userIdB } — swaps slot numbers for both users in one transaction",
+        "Audit log entry written for each UPDATE/INSERT",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Clock-in endpoint",
+      "description": "As a user, I want to clock into a branch so that my attendance is recorded and I can access that branch's data.",
+      "acceptanceCriteria": [
+        "POST /attendance/clock-in body: { attendanceId (UUID), branchId } — idempotency via attendanceId as PK",
+        "Service calls resolveOrCreate(branchId, today), then UPSERT branch_day_assignment (computing is_relief by checking user_branch_assignment for active home assignment), then INSERT attendance with clock_in=now()",
+        "is_relief = true if no active user_branch_assignment exists for this user+branch",
+        "Returns existing row as 200 on duplicate attendanceId (idempotency)",
+        "Triggers commission recalculation for the branch_day",
+        "Audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "idx_one_active_clock_in partial unique index (user_id, branch_day_id WHERE clock_out IS NULL) prevents double clock-in."
+    },
+    {
+      "id": "US-007",
+      "title": "Clock-out endpoint",
+      "description": "As a user, I want to clock out so that my attendance window is closed.",
+      "acceptanceCriteria": [
+        "POST /attendance/clock-out body: { attendanceId } — UPDATE attendance SET clock_out=now() WHERE id=attendanceId AND clock_out IS NULL",
+        "Idempotent: if clock_out already set, return existing row as 200",
+        "Triggers commission recalculation for the branch_day",
+        "Audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Relief access request endpoint",
+      "description": "As a relief user, I want to request edit access from a checked-in user so that I can make changes at the branch.",
+      "acceptanceCriteria": [
+        "POST /relief-access/request body: { requestId (UUID), branchDayId, targetUserId } — INSERT grant_relief_access with status=PENDING; idempotency via requestId as PK",
+        "Target user must have an open clock-in (clock_out IS NULL) for the branch_day; reject 400 otherwise",
+        "Requesting user must have is_relief=true in branch_day_assignment for this branch_day; reject 403 otherwise",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Relief access grant/deny endpoint",
+      "description": "As a checked-in user, I want to grant or deny a relief access request so that the relief user can or cannot edit.",
+      "acceptanceCriteria": [
+        "PATCH /relief-access/{requestId}/grant — UPDATE grant_relief_access SET status=GRANTED, granted_by=caller, granted_at=now(); INSERT user_capability (source_type=RELIEF_ACCESS, context_type=BRANCH_DAY, context_id=branch_day.id, valid_to=4AM Manila next day in UTC, priority=10); both in one transaction",
+        "If idx_one_grant_per_day unique constraint fires (GRANTED row already exists for same requested_by+branch_day_id), silently return 200",
+        "PATCH /relief-access/{requestId}/deny — UPDATE status=DENIED",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "valid_to = branchDay.date.plusDays(1).atTime(4,0).atZone('Asia/Manila').toInstant()"
+    },
+    {
+      "id": "US-010",
+      "title": "Medical mission delegate assign/revoke",
+      "description": "As an Owner or Manager, I want to assign and revoke medical mission delegates so that the right people can manage mission branches.",
+      "acceptanceCriteria": [
+        "POST /delegates body: { delegateId (UUID), targetUserId, branchId } — INSERT medical_mission_delegate + INSERT user_capability (source_type=MEDICAL_MISSION_DELEGATE, context_type=BRANCH, context_id=branchId, priority=20, valid_to=NULL) in one transaction; requires ASSIGN_DELEGATE capability; idempotency via delegateId",
+        "DELETE /delegates/{delegateId} — UPDATE medical_mission_delegate SET ended_at=now() + UPDATE user_capability SET valid_to=now() WHERE source_type=MEDICAL_MISSION_DELEGATE AND source_id=delegateId; in one transaction",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Client create and search endpoints",
+      "description": "As a practitioner, I want to create clients and search for them by name or phone so that I can find the right client when starting a session.",
+      "acceptanceCriteria": [
+        "New Flyway migration adds: CREATE EXTENSION IF NOT EXISTS pg_trgm",
+        "POST /clients body: { id (UUID), firstName, lastName, middleName?, suffix?, phoneNumber?, address, gender, age, systolicBp?, diastolicBp?, medicalConditions? } — idempotency via id as PK",
+        "GET /clients?q= — fuzzy name search via pg_trgm ILIKE '%q%' on (first_name || ' ' || last_name); also exact phone prefix match; returns id, fullName, phone, age, gender",
+        "GET /clients/{clientId} — full client record",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "bp_both_or_none constraint: both systolicBp and diastolicBp must be set or both null."
+    },
+    {
+      "id": "US-012",
+      "title": "Client update and anonymize endpoints",
+      "description": "As a coordinator, I want to update client info and anonymize a client on request so that we respect privacy.",
+      "acceptanceCriteria": [
+        "PATCH /clients/{clientId} — updates allowed fields; audit log entry written; requires EDIT_BRANCH_DATA on any branch (client is global)",
+        "POST /clients/{clientId}/anonymize — sets deleted_at=now(), nullifies firstName, lastName, middleName, suffix, phoneNumber, address, medicalConditions, systolicBp, diastolicBp; retains gender and age; audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Session create endpoint",
+      "description": "As a practitioner, I want to create a session for a client so that the visit is recorded with the correct type and price.",
+      "acceptanceCriteria": [
+        "POST /sessions body: { id (UUID), clientId, branchId, isWalkIn, requestedPractitionerId?, finalPrice, remarks?, otherConcerns?, bookedAt?, nextAppointmentDate? } — idempotency via id as PK",
+        "Service acquires SELECT ... FOR UPDATE on client row to prevent concurrent session race",
+        "Checks no active PENDING session exists for this client (idx_client_one_pending_session); returns 409 if one exists",
+        "Calls resolveOrCreate for branch+today",
+        "Computes session_type using the standard algorithm (MEDICAL_MISSION branch → MEDICAL_MISSION; PROVINCIAL_TOUR + 0 prior → PROVINCIAL_FIRST; 0 prior → REGULAR; 1 prior → SECOND_SESSION; else SUBSEQUENT); prior count uses active_session_voids view to exclude voided sessions and excludes MEDICAL_MISSION type sessions",
+        "Snapshots base_price from the current active session_base_rate for branch+session_type",
+        "Requires EDIT_BRANCH_DATA capability for the branch",
+        "Audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Session status update endpoint",
+      "description": "As a practitioner or coordinator, I want to update session status so that the record is accurate.",
+      "acceptanceCriteria": [
+        "PATCH /sessions/{sessionId}/status body: { status, version } — uses optimistic lock on session.version; returns 409 on mismatch",
+        "Requires EDIT_BRANCH_DATA; calls assertEditable on the session's branch_day",
+        "Walk-in sessions reject NO_SHOW and CANCELLED (walk_in_status constraint enforced at DB and service layer)",
+        "Audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Session void and un-void endpoints",
+      "description": "As a coordinator, I want to void a session with a reason and un-void it if done in error so that financial records stay accurate.",
+      "acceptanceCriteria": [
+        "POST /sessions/{sessionId}/void body: { voidId (UUID), voidReason } — requires VOID_SESSION capability; INSERT session_void; idempotency via voidId as PK; audit log entry written",
+        "POST /sessions/{sessionId}/unvoid body: { unvoidedReason } — UPDATE session_void SET unvoided_at=now(), unvoided_by=caller, unvoided_reason WHERE session_id=? AND unvoided_at IS NULL; requires VOID_SESSION; audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "Always query active_session_voids view (WHERE unvoided_at IS NULL) for void status — never raw session_void."
+    },
+    {
+      "id": "US-016",
+      "title": "Session practitioner management endpoints",
+      "description": "As a practitioner, I want to add myself to a session and add remarks so that the record shows who worked on the client.",
+      "acceptanceCriteria": [
+        "POST /sessions/{sessionId}/practitioners body: { id (UUID), practitionerId, remarks? } — idempotency via id; INSERT session_practitioner with slot_at_time snapshotted from current user_branch_assignment.slot; optimistic lock on session.version; requires EDIT_BRANCH_DATA",
+        "PATCH /sessions/{sessionId}/practitioners/{practitionerId} body: { remarks } — update remarks; requires EDIT_BRANCH_DATA",
+        "DELETE /sessions/{sessionId}/practitioners/{practitionerId} — remove row; requires EDIT_BRANCH_DATA",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Session concerns endpoints",
+      "description": "As a practitioner, I want to select concerns and promote free-text ones to structured concerns so that health info is captured.",
+      "acceptanceCriteria": [
+        "GET /concerns — list all concern rows (id, label, created_by, created_at)",
+        "POST /sessions/{sessionId}/concerns body: { concernId } — INSERT session_concern; requires EDIT_BRANCH_DATA",
+        "DELETE /sessions/{sessionId}/concerns/{concernId} — DELETE session_concern row; requires EDIT_BRANCH_DATA",
+        "POST /sessions/{sessionId}/promote-concern body: { label } — INSERT concern (created_by=caller, created_at=now()); INSERT session_concern; UPDATE session SET other_concerns=NULL; audit log entry for session UPDATE; requires EDIT_BRANCH_DATA",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "concern.created_by=NULL means system-seeded; NOT NULL means Coordinator-promoted."
+    },
+    {
+      "id": "US-018",
+      "title": "Session base rate management endpoints",
+      "description": "As a coordinator, I want to set base rates per session type per branch so that new sessions snapshot the correct price.",
+      "acceptanceCriteria": [
+        "POST /branches/{branchId}/rates body: { sessionType, rate } — requires MANAGE_PRODUCTS capability; service sets effective_until=now() on current active rate then INSERTs new rate with effective_from=now(); no_rate_overlap EXCLUDE constraint in DB prevents overlaps",
+        "GET /branches/{branchId}/rates — returns current active rate per session_type (effective_from <= now() AND effective_until >= now())",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": "effective_from and effective_until stored in UTC. Rate changes take effect immediately — no future-dating."
+    },
+    {
+      "id": "US-019",
+      "title": "Product category and product CRUD",
+      "description": "As a coordinator or owner, I want to create and manage product categories and products so that inventory can be tracked.",
+      "acceptanceCriteria": [
+        "POST /product-categories body: { id (UUID), name } — requires MANAGE_PRODUCTS; idempotency via id",
+        "GET /product-categories — list all",
+        "POST /products body: { id (UUID), name, productCategoryId, unitPrice, commissionAmount } — requires MANAGE_PRODUCTS; idempotency via id",
+        "PATCH /products/{productId} body: { name?, unitPrice?, commissionAmount?, isActive? } — requires MANAGE_PRODUCTS",
+        "GET /products — list all products where is_active=true, with category name",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": "unitPrice >= 0 and commissionAmount >= 0 enforced at DB level."
+    },
+    {
+      "id": "US-020",
+      "title": "Branch inventory management and restock",
+      "description": "As a coordinator, I want to add products to a branch and restock so that inventory levels are tracked.",
+      "acceptanceCriteria": [
+        "POST /branches/{branchId}/inventory body: { productId } — INSERT branch_inventory (current_stock=0) if not exists ON CONFLICT DO NOTHING; requires MANAGE_PRODUCTS",
+        "POST /branches/{branchId}/inventory/{productId}/restock body: { movementId (UUID), quantity, branchDayId } — requires MANAGE_PRODUCTS; calls assertEditable; INSERT inventory_movement (reason=RESTOCK, quantity_change=+quantity, moved_by=caller); UPDATE branch_inventory SET current_stock=current_stock+quantity, version=version+1 WHERE version=expectedVersion; returns 409 on version mismatch; idempotency via movementId",
+        "GET /branches/{branchId}/inventory — list all branch_inventory rows for the branch with product name, category, current_stock",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Product sale endpoint",
+      "description": "As a practitioner, I want to record a product sale so that stock decreases and commission is recalculated.",
+      "acceptanceCriteria": [
+        "POST /product-sales body: { id (UUID), branchDayId, sessionId?, clientId?, isWalkIn, productId, quantity, expectedVersion } — idempotency via id as PK",
+        "Service calls assertEditable; snapshots unit_price_at_time and commission_amount_at_time from product table; computes total_amount_at_time = unit_price_at_time * quantity",
+        "SELECT FOR UPDATE on branch_inventory; if current_stock - quantity < 0 throw 400 (insufficient stock); UPDATE branch_inventory with optimistic lock (expectedVersion); INSERT inventory_movement (reason=SALE, quantity_change=-quantity); INSERT product_sale — all in one transaction",
+        "sale_type_logic constraint: (session sale: sessionId NOT NULL, clientId NULL, isWalkIn=false) OR (known walk-in: sessionId NULL, clientId NOT NULL, isWalkIn=true) OR (anonymous: sessionId NULL, clientId NULL, isWalkIn=true)",
+        "Triggers commission recalculation for the branch_day after transaction commits",
+        "Audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": "commission_amount_at_time stored as NUMERIC(15,4). All commission arithmetic uses BigDecimal."
+    },
+    {
+      "id": "US-022",
+      "title": "Non-sale inventory movement endpoint",
+      "description": "As a practitioner, I want to record tester, sample, missing, and adjustment movements so that stock levels stay accurate.",
+      "acceptanceCriteria": [
+        "POST /branches/{branchId}/inventory/{productId}/movement body: { movementId (UUID), reason, quantityChange, notes?, branchDayId, expectedVersion } — idempotency via movementId",
+        "Calls assertEditable; validates sign per reason at service layer (RESTOCK>0, SALE/TESTER/SAMPLE/MISSING<0, ADJUSTMENT either); MISSING requires non-empty notes",
+        "UPDATE branch_inventory current_stock with optimistic lock; INSERT inventory_movement; returns 409 on version mismatch",
+        "Audit log entry written",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": "DB constraints (quantity_sign, missing_notes) act as final safety net. Service validates first."
+    },
+    {
+      "id": "US-023",
+      "title": "Compensation assign endpoint",
+      "description": "As a coordinator or owner, I want to assign daily compensation to each user so that they know what they're owed.",
+      "acceptanceCriteria": [
+        "POST /compensation body: { id (UUID), workBranchDayId, payingBranchDayId, userId, amount, note? } — requires ASSIGN_COMPENSATION; idempotency via id as PK; idx_compensation_unique (user_id, paying_branch_day_id) prevents duplicate payout",
+        "PATCH /compensation/{compensationId} body: { amount?, note? } — update; last-write-wins (no version check required)",
+        "Audit log entry written for INSERT and UPDATE",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": "For relief duty: workBranchDayId != payingBranchDayId is valid and expected."
+    },
+    {
+      "id": "US-024",
+      "title": "Commission manual inclusion/exclusion and split read endpoint",
+      "description": "As a coordinator, I want to manually include or exclude a user from a product sale's commission and view the daily split so that errors can be corrected.",
+      "acceptanceCriteria": [
+        "POST /commission-inclusions body: { id (UUID), productSaleId, userId, isIncluded, reason? } — UPSERT on (productSaleId, userId) unique constraint; triggers full commission recalculation for the affected branch_day after transaction commits",
+        "GET /commission-splits/{branchDayId} — returns commission_split rows for the branch_day with user display names and amounts",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": "Commission recalculation algorithm: fetch all product_sales for branch_day; for each sale find attendance-eligible users; apply manual inclusions/exclusions; split commission_amount_at_time*quantity equally (BigDecimal); batch UPSERT commission_split; DELETE dropped users."
+    },
+    {
+      "id": "US-025",
+      "title": "Expense CRUD endpoints",
+      "description": "As any user, I want to log and soft-delete branch expenses so that remittance calculations are accurate.",
+      "acceptanceCriteria": [
+        "POST /expenses body: { id (UUID), branchDayId, amount, category, notes? } — idempotency via id; requires EDIT_BRANCH_DATA; calls assertEditable; audit log entry written",
+        "DELETE /expenses/{expenseId} body: { reason? } — soft delete: SET deleted_by=caller, deleted_at=now(); calls assertEditable; audit log entry written",
+        "GET /expenses?branchDayId= — list non-deleted expenses for a branch_day",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": "expense.amount > 0 enforced at DB level."
+    },
+    {
+      "id": "US-026",
+      "title": "Allowance assign endpoint",
+      "description": "As an owner or coordinator, I want to assign transport allowances for medical mission users so that they are reimbursed.",
+      "acceptanceCriteria": [
+        "POST /allowances body: { id (UUID), branchDayId, userId, amount } — idempotency via id; requires ASSIGN_COMPENSATION capability; audit log entry written",
+        "GET /allowances?branchDayId= — list allowances for a branch_day",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Remittance draft create endpoint",
+      "description": "As a coordinator, I want to create a remittance draft covering a date range so that I can prepare before submitting.",
+      "acceptanceCriteria": [
+        "POST /remittances body: { id (UUID), type (SESSION|PRODUCT), branchId, method (BANK_TRANSFER|HANDED_TO_ACCOUNTANT), dateRangeStart, dateRangeEnd } — requires SUBMIT_REMITTANCE; idempotency via id as PK; INSERT remittance with status=DRAFT, submitted_date=today (Manila)",
+        "The no_remittance_overlap EXCLUDE constraint only applies to SUBMITTED rows — drafts are unconstrained, so multiple drafts for the same range are allowed",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Remittance line and day breakdown management",
+      "description": "As a coordinator, I want to add and remove sessions or product sales from a remittance draft and link branch days so that the right items are covered.",
+      "acceptanceCriteria": [
+        "POST /remittances/{remittanceId}/lines body: { id (UUID), type, sessionId?, productSaleId?, amount } — amount is snapshot at time of inclusion; idempotency via id; INSERT remittance_line; optimistic lock on remittance.version",
+        "DELETE /remittances/{remittanceId}/lines/{lineId} — soft delete: SET deleted_by=caller, deleted_at=now(); optimistic lock on remittance.version",
+        "POST /remittances/{remittanceId}/day-breakdowns body: { branchDayId } — INSERT remittance_day_breakdown; unique (remittance_id, branch_day_id)",
+        "GET /remittances/{remittanceId} — returns remittance with all non-deleted lines and day breakdowns",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": "line_type_logic constraint: SESSION line requires sessionId NOT NULL and productSaleId NULL; PRODUCT_SALE line requires productSaleId NOT NULL and sessionId NULL."
+    },
+    {
+      "id": "US-029",
+      "title": "Remittance submission endpoint",
+      "description": "As a coordinator, I want to submit a remittance so that it is finalized, snapshotted, and covered branch days are marked REMITTED.",
+      "acceptanceCriteria": [
+        "POST /remittances/{remittanceId}/submit body: { expectedVersion } — requires SUBMIT_REMITTANCE",
+        "SERIALIZABLE transaction: SELECT FOR UPDATE on remittance; verify status=DRAFT and version=expectedVersion (409 on mismatch)",
+        "Calculate gross_income = SUM(remittance_line.amount WHERE type=SESSION AND deleted_at IS NULL)",
+        "Calculate total_compensation = SUM(compensation.amount) for paying_branch_day_ids in remittance_day_breakdown",
+        "Calculate total_expenses = SUM(expense.amount WHERE deleted_at IS NULL) for branch_days in remittance_day_breakdown",
+        "INSERT remittance_financial_snapshot (immutable trigger in DB blocks future UPDATE/DELETE) — SESSION remittances only; PRODUCT remittances skip this step",
+        "UPDATE remittance SET status=SUBMITTED, version=version+1",
+        "UPDATE branch_day SET status=REMITTED for all branch_days in remittance_day_breakdown (idempotent — already REMITTED rows are fine)",
+        "Audit log entries written for remittance UPDATE and each branch_day UPDATE",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": "fn_remittance_snapshot_immutable trigger already exists in V1__full_schema.sql."
+    },
+    {
+      "id": "US-030",
+      "title": "Notification table migration and next appointment alert scheduler",
+      "description": "As the backend, I need a notification table and a daily scheduler that alerts coordinators of upcoming appointments.",
+      "acceptanceCriteria": [
+        "New Flyway migration creates notification table: (id UUID PK, user_id UUID → app_user, session_id UUID → session, message TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), read_at TIMESTAMPTZ)",
+        "Scheduler runs once daily at 07:00 Asia/Manila",
+        "Query: sessions WHERE next_appointment_date = CURRENT_DATE + 2 days AND session_status = 'COMPLETED' AND id NOT IN (SELECT session_id FROM active_session_voids)",
+        "For each matched session, INSERT one notification per Coordinator assigned to that branch (find via user_branch_assignment WHERE ended_at IS NULL and the user holds SUBMIT_REMITTANCE or VOID_SESSION capability for that branch)",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": "Scheduler lives in backend/scheduler/. Delegates to a NotificationService — no business logic in the scheduler itself."
+    },
+    {
+      "id": "US-031",
+      "title": "Notifications read and mark-read endpoints",
+      "description": "As a coordinator, I want to fetch my unread notifications and mark them as read so that I know about upcoming appointments.",
+      "acceptanceCriteria": [
+        "GET /notifications — returns notifications for calling user WHERE read_at IS NULL, ordered by created_at DESC",
+        "PATCH /notifications/{notificationId}/read — SET read_at=now()",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Daily sales summary view and endpoint",
+      "description": "As a coordinator or owner, I want to view the daily sales summary for a branch so that I can see income and expenses at a glance.",
+      "acceptanceCriteria": [
+        "New Flyway migration creates view daily_sales_summary aggregating per branch_day: gross_income (SUM session.final_price for COMPLETED non-voided sessions using active_session_voids view), total_compensation, total_expenses (non-deleted), net_income (gross - compensation - expenses), total_product_sales (SUM unit_price_at_time*quantity), total_commission (SUM commission_amount_at_time*quantity)",
+        "GET /branches/{branchId}/daily-summary?date= — returns the summary for that branch_day; requires VIEW_BRANCH_DATA",
+        "Typecheck passes"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Monthly remittance summary view and endpoint",
+      "description": "As a coordinator or accountant, I want to view a monthly summary of submitted remittances so that I can see the financial picture over time.",
+      "acceptanceCriteria": [
+        "New Flyway migration creates view monthly_remittance_summary aggregating per submitted remittance: date_range, gross_income/total_compensation/total_expenses/net_income from snapshot, session count (non-deleted SESSION lines), product sale count (non-deleted PRODUCT_SALE lines)",
+        "GET /branches/{branchId}/monthly-summary?year=&month= — returns submitted remittances and snapshot totals for that month; requires VIEW_BRANCH_DATA",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Export endpoints (PDF and CSV)",
+      "description": "As a coordinator, I want to export daily, monthly, all-time, provincial, and medical mission reports as PDF or CSV.",
+      "acceptanceCriteria": [
+        "GET /branches/{branchId}/export/daily?date=&format=pdf|csv — daily sales data for the branch_day",
+        "GET /branches/{branchId}/export/monthly?year=&month=&format=pdf|csv — monthly remittance summary",
+        "GET /export/all-time?format=pdf|csv — all-time summary across all branches; requires VIEW_BRANCH_DATA globally (Accountant or Owner)",
+        "GET /branches/{branchId}/export/provincial?format=pdf|csv — only valid for PROVINCIAL_TOUR branches",
+        "GET /branches/{branchId}/export/medical-mission?format=pdf|csv — only valid for MEDICAL_MISSION branches",
+        "Generated on-demand, not stored; Content-Type: application/pdf or text/csv based on format param",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": "Use a lightweight PDF library (e.g. iText or Apache PDFBox) on the JVM backend. CSV is plain text."
+    },
+    {
+      "id": "US-035",
+      "title": "Audit log read and acknowledge endpoints",
+      "description": "As any authorized user, I want to view the audit log for a record and acknowledge flagged entries so that accountability is maintained.",
+      "acceptanceCriteria": [
+        "GET /audit-log?tableName=&recordId= — returns audit entries ordered by changed_at DESC; requires VIEW_BRANCH_DATA",
+        "GET /audit-log/flagged — returns is_flagged=true AND acknowledged_at IS NULL entries; requires VIEW_BRANCH_DATA",
+        "PATCH /audit-log/{entryId}/acknowledge — SET acknowledged_by=caller, acknowledged_at=now(); requires ASSIGN_COMPENSATION capability",
+        "Typecheck passes"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Shared HTTP client and token store (commonMain)",
+      "description": "As a developer, I need a shared Ktor HTTP client in commonMain that attaches the JWT to every request and handles retry so that all platforms share one networking layer.",
+      "acceptanceCriteria": [
+        "Add Ktor client dependencies to shared module: ktor-client-core, ktor-client-content-negotiation, ktor-serialization-kotlinx-json; platform engines: OkHttp (Android), Darwin (iOS), CIO (Desktop/JVM)",
+        "ApiClient singleton in commonMain attaches Authorization: Bearer <token> header to every request",
+        "On 401 response, clears stored token and emits a 'session expired' event for the UI to navigate to login",
+        "On network timeout, retries up to 3 times with the same request (safe due to client-generated UUID idempotency keys)",
+        "AuthTokenStore expect/actual: Android = EncryptedSharedPreferences, iOS = Keychain wrapper, Desktop = file in user app data dir",
+        "Typecheck passes"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": "This must be done before any UI story that calls the API."
+    },
+    {
+      "id": "US-037",
+      "title": "Shared ViewModels for all features (commonMain)",
+      "description": "As a developer, I want shared ViewModels in commonMain for each feature so that business logic is not duplicated across platforms.",
+      "acceptanceCriteria": [
+        "One ViewModel per major screen: AuthViewModel, HomeViewModel, ClientSearchViewModel, SessionViewModel, InventoryViewModel, ProductSaleViewModel, FinanceViewModel, RemittanceViewModel",
+        "Each ViewModel exposes a StateFlow<UiState> and suspend event methods",
+        "ViewModels use the shared ApiClient; zero platform-specific code inside them",
+        "UiState data classes are defined in commonMain alongside the ViewModels",
+        "Typecheck passes"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": "Depends on US-036 (ApiClient). UI stories depend on these ViewModels."
+    },
+    {
+      "id": "US-038",
+      "title": "Android app — login screen",
+      "description": "As a user, I want to log in on Android so that I can access the app.",
+      "acceptanceCriteria": [
+        "Compose login screen with username field, password field (hidden), and login button",
+        "On submit: calls AuthViewModel.login(); shows loading indicator while in flight",
+        "On success: JWT stored via AuthTokenStore (Android EncryptedSharedPreferences); navigates to home screen",
+        "On failure: inline error message shown below fields",
+        "Typecheck passes"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Android app — home screen with branch selector and clock-in",
+      "description": "As a user, I want to see my branches and clock into one on Android so that I can start working.",
+      "acceptanceCriteria": [
+        "Home screen lists user's active branch assignments from HomeViewModel",
+        "Each branch card shows name, branch type, and current clock-in status",
+        "Tap branch → shows Clock In button if not clocked in; Clock Out button if clocked in",
+        "Clock In calls HomeViewModel.clockIn(branchId) with client-generated UUID; optimistic UI update",
+        "Typecheck passes"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Android app — client search screen",
+      "description": "As a practitioner, I want to search for clients on Android so that I can find who I'm about to work on.",
+      "acceptanceCriteria": [
+        "Search bar at top; input debounced 300ms before calling ClientSearchViewModel.search(q)",
+        "Results list shows full name, phone, age per client",
+        "Empty state shown when no results",
+        "Tap result navigates to client detail screen (shows full client record + session history)",
+        "Typecheck passes"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Android app — session create screen",
+      "description": "As a practitioner, I want to create a session from the client detail screen on Android.",
+      "acceptanceCriteria": [
+        "Form fields: isWalkIn toggle, finalPrice numeric input, remarks text, concern checkboxes (loaded from GET /concerns), otherConcerns text, nextAppointmentDate date picker",
+        "On submit: SessionViewModel.createSession() with client-generated UUID; optimistic UI",
+        "On success: navigates to session detail screen",
+        "On 409 (active session exists): shows error 'Client already has an active session'",
+        "Typecheck passes"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Android app — session detail screen",
+      "description": "As a practitioner, I want to view and manage a session on Android.",
+      "acceptanceCriteria": [
+        "Shows session type, status, base price, final price, practitioners list (ordered by slot), concerns list",
+        "Status update buttons: Complete, No-Show, Cancel; No-Show and Cancel disabled for walk-in sessions",
+        "Add Practitioner button → bottom sheet → select from clocked-in users → POST",
+        "Void button visible to Coordinator only → dialog with void reason field → POST /sessions/{id}/void",
+        "Un-void button visible if session is voided → dialog with reason → POST /sessions/{id}/unvoid",
+        "Typecheck passes"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Android app — inventory screen",
+      "description": "As a practitioner or coordinator, I want to view and update branch inventory on Android.",
+      "acceptanceCriteria": [
+        "List of products grouped by category showing current_stock",
+        "Zero stock highlighted in red with low-stock label",
+        "Restock button (Coordinator/Owner only) → dialog with quantity input → POST /branches/{id}/inventory/{productId}/restock",
+        "Deduct button (Tester/Sample) → dialog with reason and quantity → POST movement endpoint",
+        "Typecheck passes"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Android app — product sale screen",
+      "description": "As a practitioner, I want to record a product sale on Android.",
+      "acceptanceCriteria": [
+        "Product picker showing in-stock products from branch inventory",
+        "Quantity input; shows unit price and commission (retail total = unit_price + commission) per item",
+        "Optional session link: if navigated from a session, sessionId pre-filled",
+        "On submit: ProductSaleViewModel.recordSale() with client-generated UUID; optimistic UI",
+        "Typecheck passes"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "Android app — daily finance screen",
+      "description": "As a coordinator, I want to see daily compensation, commission splits, and expenses on Android.",
+      "acceptanceCriteria": [
+        "Fetches daily_sales_summary, commission_splits, compensation list, expense list for current branch_day via FinanceViewModel",
+        "Assign compensation button per user in attendance list → amount input dialog → POST /compensation",
+        "Add expense button → category picker + amount + notes → POST /expenses",
+        "Commission splits shown per user with 2-decimal display (stored as NUMERIC(15,4))",
+        "Typecheck passes"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Android app — remittance screen",
+      "description": "As a coordinator, I want to create and submit a remittance on Android.",
+      "acceptanceCriteria": [
+        "Create Draft button → type selector (SESSION/PRODUCT), date range pickers, method selector → POST /remittances",
+        "Draft view: list of eligible sessions or product_sales with checkboxes; add/remove buttons → POST/DELETE remittance lines",
+        "Submit button → confirmation dialog → POST /remittances/{id}/submit with current version",
+        "Submitted remittances list showing snapshot totals",
+        "Typecheck passes"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "iOS app — login and home screens",
+      "description": "As a user, I want to log in and see my branches on iOS using shared Compose Multiplatform code.",
+      "acceptanceCriteria": [
+        "Shared AuthViewModel and HomeViewModel from commonMain used on iOS",
+        "iOS token stored in Keychain via AuthTokenStore actual implementation",
+        "Login screen and home screen (branch list + clock-in) render correctly on iOS simulator",
+        "Navigation uses Compose Navigation in commonMain",
+        "Typecheck passes"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "iOS app — all remaining core screens",
+      "description": "As a user, I want all remaining screens to work on iOS via shared Compose code.",
+      "acceptanceCriteria": [
+        "Client search, session create, session detail, inventory, product sale, daily finance, remittance screens all use shared commonMain composables",
+        "All screens render without crashes on iOS simulator",
+        "Platform-specific navigation and lifecycle wiring done in iosMain",
+        "Typecheck passes"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "Desktop app — Windows target setup and token storage",
+      "description": "As a developer, I want the composeApp to target Windows Desktop so that practitioners on laptops can use the app.",
+      "acceptanceCriteria": [
+        "Add compose.desktop plugin to composeApp; add jvm desktop target with mainClass entry point",
+        "desktopMain source set created with a main() function that launches a Compose window (minimum 1024x768)",
+        "AuthTokenStore actual for desktop stores JWT in a file in the OS app data directory (System.getProperty('user.home') + '/.companyapp/token')",
+        "App launches on desktop JVM without errors",
+        "Typecheck passes"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Desktop app — all core screens",
+      "description": "As a practitioner on Windows, I want to use the same screens as Android and iOS.",
+      "acceptanceCriteria": [
+        "All shared composables from commonMain render correctly in the desktop window",
+        "Layout uses wider form factor where appropriate (e.g. side-by-side panels for list + detail)",
+        "Navigation uses explicit back buttons (no swipe gestures)",
+        "All screens functional: login, home, client search, session create/detail, inventory, product sale, finance, remittance",
+        "Typecheck passes"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
