@@ -165,7 +165,7 @@
         "Unit tests for resolveOrCreate and assertEditable pass"
       ],
       "notes": "4AM Manila boundary: branchDate.plusDays(1).atTime(4,0).atZone(ZoneId.of('Asia/Manila')). Called by every service before any financial or operational write.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",

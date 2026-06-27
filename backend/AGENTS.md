@@ -30,6 +30,19 @@ Immediate revocation uses the in-memory `DenyList` (`ConcurrentHashMap<UUID, Ins
 inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup
 (`Main.initializeDenyList`), and auto-evicting entries older than 24h (JWT max expiry).
 
+## HTTP errors & day state
+
+Signal HTTP errors by throwing Javalin's built-in response exceptions from the service layer:
+`ForbiddenResponse` (403), `BadRequestResponse` (400), `NotFoundResponse` (404),
+`UnauthorizedResponse` (401). There is no custom exception hierarchy.
+
+Before any operational/financial write, resolve the owning day with
+`BranchDayService.resolveOrCreate(branchId, date)` and gate it with
+`BranchDayService.assertEditable(branchDayId, userId, reason?)`. Day state is **lazy**: an OPEN day
+whose calendar date precedes today (Asia/Manila) is treated as PAST without a DB write — reuse
+`BranchDayService.evaluateStatus` instead of re-deriving. `EDIT_PAST_DAY` is scoped to `BRANCH`
+context (contextId = `branch_day.branch_id`).
+
 ## Exposed + Postgres gotchas
 
 - Add `exposed-java-time` for `timestampWithTimeZone` / `CurrentTimestampWithTimeZone`.

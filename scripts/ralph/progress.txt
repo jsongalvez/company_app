@@ -12,6 +12,9 @@ Started: Sat Jun 27 12:27:08 PM PST 2026
 - Immediate revocation: `DenyList` (in-memory `ConcurrentHashMap<UUID, Instant>`) is checked inside `JwtService.verifyToken` BEFORE the DB `authorize` call. Populated at startup via `DenyList.loadInactiveUsers()` in `Main.kt`. Entries auto-evict after 24h (JWT max expiry).
 - No Postgres/Docker available in this environment — DB integration tests cannot be run here. Write DB-free unit tests (inject time via internal `*At(now)` helpers as done in `DenyListTest`).
 - Exposed needs `exposed-java-time` dependency for `timestampWithTimeZone`/`CurrentTimestampWithTimeZone`.
+- HTTP errors are signalled by throwing Javalin's built-in response exceptions from the service layer (`ForbiddenResponse`=403, `BadRequestResponse`=400, `NotFoundResponse`=404, `UnauthorizedResponse`=401). No custom exception hierarchy.
+- Day state is lazy: reuse `BranchDayService.evaluateStatus(status, date, today)` — an OPEN day with date < today(Asia/Manila) is treated as PAST without a DB write. Call `BranchDayService.assertEditable(branchDayId, userId, reason?)` before any operational/financial write.
+- For testable time logic, keep pure functions taking explicit `today`/inputs and have the public method fetch `LocalDate.now(zone)` then delegate (see BranchDayServiceTest, DenyListTest).
 
 ## Sat Jun 27 2026 - US-001
 Thread: https://ampcode.com/threads/T-019f0759-389e-70e8-b4b8-15b6136bf4ea
@@ -23,4 +26,18 @@ Thread: https://ampcode.com/threads/T-019f0759-389e-70e8-b4b8-15b6136bf4ea
   - detekt was previously unrunnable (invalid config: `formatting` ruleset without plugin). Fixed by adding `detekt-formatting` in root subprojects; then cleared ~20 pre-existing MagicNumber/ReturnCount/MatchingDeclarationName issues across auth/logging/database/model files. detekt is now a real, green gate for all future stories.
   - `active_user_capabilities` columns: user_id, capability_id, context_type, context_id, priority, source_type (no `code`); join `capability` on id to filter by code.
   - No DB available locally; clock-in/financial integration tests in later stories will need a Postgres (docker compose in docker/) — not runnable in this sandbox.
+---
+
+## Sat Jun 27 2026 - US-002
+Thread: https://ampcode.com/threads/T-019f0766-99ca-7355-b0fc-75bf78eaeadc
+- Implemented BranchDayService with resolveOrCreate (idempotent UPSERT) and assertEditable (lazy PAST evaluation, EDIT_PAST_DAY check, REMITTED reason requirement), plus expirationUtc 4 AM Manila boundary helper.
+- Split throwing logic into pure, DB-free functions (evaluateStatus, assertEditableState, expirationUtc) so they are unit-testable without Postgres.
+- Files changed: service/BranchDayService.kt (new), repository/BranchDayRepository.kt (new), repository/model/BranchDay.kt (new), test/.../service/BranchDayServiceTest.kt (new, 11 DB-free cases).
+- **Learnings for future iterations:**
+  - HTTP error mapping uses Javalin's built-in response exceptions thrown from the service layer: `ForbiddenResponse` (403), `BadRequestResponse` (400), `NotFoundResponse` (404), `UnauthorizedResponse` (401). No custom exception hierarchy exists — follow this pattern for all future endpoint validations.
+  - `ON CONFLICT DO NOTHING` returns no row, so resolveOrCreate does the INSERT then a follow-up SELECT in the same `transaction {}` to read the row back (raw SQL + `?::uuid` / `?::date` text casts, per the established enum/uuid casting pattern).
+  - EDIT_PAST_DAY capability is scoped to `BRANCH` context (contextId = branch_day.branch_id), per the V2 seed comments — not BRANCH_DAY.
+  - Day state is lazy: an OPEN day whose calendar date < today(Asia/Manila) is treated as PAST without any DB write. The branch_day.status column is only physically flipped to PAST/REMITTED by other flows (e.g. remittance submission). Reuse `BranchDayService.evaluateStatus` rather than re-deriving this.
+  - BranchTable Exposed model does not exist yet (US-004); BranchDayTable.branchId is a plain `uuid` column without `.references()` to avoid a premature dependency. Wire the FK reference when BranchTable lands if desired.
+  - Pattern for testable time-dependent logic: keep pure functions that take `today: LocalDate` / explicit inputs, and have the public method fetch `LocalDate.now(manilaZone)` then delegate. Mirrors DenyListTest's `*At(now)` approach.
 ---
