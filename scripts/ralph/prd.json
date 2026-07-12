@@ -415,7 +415,7 @@
         "Integration tests for client fuzzy search and constraints pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-012",

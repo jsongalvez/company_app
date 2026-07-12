@@ -86,6 +86,22 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000000
   - Idempotent creation pattern: use `ON CONFLICT (id) DO NOTHING` + separate SELECT in same transaction, with `AuditLogRepository.record` only on actual insert.
 ---
 
+## Sun Jul 12 2026 - US-011
+Thread: unavailable
+- Implemented client create and search endpoints: POST /api/clients (idempotent create with bp_both_or_none validation), GET /api/clients?q= (fuzzy name + phone prefix search), GET /api/clients/{clientId} (retrieve by id).
+- Added V4 Flyway migration to enable pg_trgm extension for future trgm index support.
+- ClientService.create validates firstName/lastName required, gender must be 'M' or 'F', and bp_both_or_none constraint.
+- ClientRepository uses insertIgnore for idempotent creates with audit logging, and LIKE-based search with 20-result limit.
+- All endpoints are open to authenticated users (no capability gate) per the "as a practitioner" story description.
+- Files changed: resources/db/migration/V4__enable_pg_trgm.sql (new), repository/model/Client.kt (new), repository/ClientRepository.kt (new), service/ClientService.kt (new), api/routes/ClientRoutes.kt (new), shared/.../dto/ClientDto.kt (new), Main.kt (wired routes), scripts/ralph/prd.json (passes=true), scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - `like` infix function works in Exposed `where {}` blocks without explicit import (it's available on the `SqlExpressionBuilder` receiver, just like `eq`).
+  - Exposed `char()` returns `Column<Char>`, not `Column<String>`. Use `varchar("col", 1)` instead to keep String-based DTO compatibility.
+  - `timestampWithTimeZone` columns return `OffsetDateTime` (from exposed-java-time), NOT `Instant`. Use `OffsetDateTime` in data classes.
+  - Exposed `limit(n)` works on Query objects for pagination.
+  - Set `@Suppress("ThrowsCount")` on service methods with >2 throw statements (established pattern from AuthService).
+  - Added ClientServicePostgresTest (15 test cases): create, duplicate idempotency, bp_both_or_none validation, gender validation, name validation, findById, NotFoundResponse, search by firstName/lastName/phone prefix, empty query rejection, case-sensitive LIKE.
 ---
 
 ## Sun Jul 12 2026 - US-005
