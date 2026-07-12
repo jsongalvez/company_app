@@ -52,8 +52,7 @@ action, changedBy, oldValue?, newValue?, reason?)`. `record` opens its own `tran
 **joins an enclosing transaction** (Exposed reuses the connection unless nested transactions are
 explicitly enabled), so the audit insert commits atomically with the change it describes — call it
 inside the same repository `transaction {}` that performs the mutation. Build JSON values with
-`AuditLogRepository.jsonField(key, value)` (safely escaped). `old_value`/`new_value` are JSONB and
-bound as text with `?::jsonb` casts.
+`AuditLogRepository.jsonField(key, value)` (safely escaped).
 
 Immediate revocation uses the in-memory `DenyList` (`ConcurrentHashMap<UUID, Instant>`), checked
 inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup
@@ -72,16 +71,79 @@ whose calendar date precedes today (Asia/Manila) is treated as PAST without a DB
 `BranchDayService.evaluateStatus` instead of re-deriving. `EDIT_PAST_DAY` is scoped to `BRANCH`
 context (contextId = `branch_day.branch_id`).
 
-## Exposed + Postgres gotchas
+## Database access — Exposed DSL only
 
+**All database access MUST use the Exposed DSL.** Raw SQL (`exec()`, `TransactionManager.current().exec()`, `TextColumnType` binds) is forbidden in repositories. The codebase was migrated away from raw SQL in favor of type-safe DSL queries.
+
+### Table & view definitions
+
+- Every table and view needs an Exposed `Table` / `object` in `repository/model/`.
+- Views (e.g. `ActiveUserCapabilitiesView`) are modeled as `Table` objects with the view name; they are read-only — never insert/update/delete against them.
 - Add `exposed-java-time` for `timestampWithTimeZone` / `CurrentTimestampWithTimeZone`.
-- When querying Postgres `enum` columns via raw SQL, bind params as text and cast in SQL
-  (e.g. `?::capability_context_type`, `?::uuid`) using
-  `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`.
-  This avoids Exposed PG-enum operator mismatches.
-- The same enum rule applies to writes: Exposed `enumerationByName` binds values as varchar, so
-  updates to native Postgres enum columns need raw SQL with explicit casts (for example,
-  `SET status = ?::user_status`).
+
+### PostgreSQL native enums
+
+Postgres enums (`user_status`, `branch_type`, `day_status`, `capability_context_type`,
+`capability_source_type`, `audit_action`) must use `customEnumeration` with a `PGobject` binding
+so the JDBC driver sends the correct PG type:
+
+```kotlin
+val status = customEnumeration<UserStatus>(
+    name = "status",
+    sql = "user_status",
+    fromDb = { value -> UserStatus.valueOf(value as String) },
+    toDb = {
+        val obj = PGobject()
+        obj.type = "user_status"
+        obj.value = it.name
+        obj
+    },
+).default(UserStatus.ACTIVE)
+```
+
+Never use `enumerationByName` — it binds values as `varchar` and will fail with
+`operator does not exist` at runtime.
+
+### Idempotent inserts (ON CONFLICT DO NOTHING)
+
+Use `insertIgnore` and check `insertedCount` to detect whether the row was newly created:
+
+```kotlin
+val wasInserted = SomeTable.insertIgnore {
+    it[id] = id
+    it[name] = name
+}.insertedCount > 0
+val row = SomeTable.selectAll().where { SomeTable.id eq id }.single()
+```
+
+### Query patterns
+
+| Purpose | DSL |
+|---|---|
+| Select by id | `Table.selectAll().where { Table.id eq id }.singleOrNull()` |
+| Select with filters | `Table.selectAll().where { (col eq val) and (col2 eq val2) }` |
+| Ordered select | `.selectAll().orderBy(Table.col to SortOrder.ASC)` |
+| Existence check | `.selectAll().where { ... }.empty().not()` |
+| Insert | `Table.insert { it[col] = value }` |
+| Update | `Table.update({ whereClause }) { it[col] = value }` |
+| Join | `TableA.innerJoin(TableB, { fk }, { pk }).selectAll().where { ... }` |
+
+### Anti-patterns — DO NOT
+
+- ❌ Raw SQL: `exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... }`
+- ❌ `TransactionManager.current().exec(...)`
+- ❌ Manual `ResultSet` row mapping with `getString()`/`getObject()`
+- ❌ `enumerationByName` for Postgres enum columns
+- ❌ SQL casts in strings (`?::uuid`, `?::jsonb`, `?::branch_type`)
+
+### JSONB columns
+
+`AuditLogTable.oldValue` / `newValue` use a custom `JsonBColumnType` (defined in `AuditLogTable.kt`)
+that binds via `PGobject(type = "jsonb")`. New JSONB columns should reuse this type:
+
+```kotlin
+val myJsonCol = registerColumn("my_json_col", JsonBColumnType()).nullable()
+```
 
 ## Clock-in / Attendance
 
@@ -89,14 +151,14 @@ Clock-in (`POST /api/attendance/clock-in`) is open to all authenticated users (n
 The service determines `is_relief` by checking for an active `user_branch_assignment` at the target
 branch: if no assignment exists, the user clocks in as relief.
 
-Before inserting, check for an existing active clock-in via `hasActiveClockIn` and throw
-`io.javalin.http.ConflictResponse` (409) if found — this prevents the unique index violation on
-`idx_one_active_clock_in`.
+Before inserting, check for an existing active clock-in via `AttendanceRepository.hasActiveClockIn`
+and throw `io.javalin.http.ConflictResponse` (409) if found — this prevents the unique index
+violation on `idx_one_active_clock_in`.
 
-The attendance insert and `branch_day_assignment` upsert happen in a single transaction via raw SQL
-(`ON CONFLICT DO NOTHING`). For idempotency, `ON CONFLICT (id) DO NOTHING` with `RETURNING id`
-returns the id only on insert; when the id already exists, RETURNING returns zero rows so we detect
-the duplicate and read the existing row with a follow-up `SELECT`.
+The attendance insert and `branch_day_assignment` upsert happen in a single transaction using
+`insertIgnore` for idempotency. `insertIgnore` with `insertedCount` detects whether the row was
+newly inserted; if the row already exists (count = 0), the existing row is read back with a
+follow-up `selectAll`.
 
 ## Testing
 
