@@ -1,14 +1,84 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
+import com.companyb.companyapp.repository.model.ReliefStatus
+import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
+import java.time.OffsetDateTime
 import java.util.UUID
 
 object ReliefAccessRepository {
+    fun findById(id: UUID): ReliefAccess? =
+        transaction {
+            GrantReliefAccessTable
+                .selectAll()
+                .where { GrantReliefAccessTable.id eq id }
+                .singleOrNull()
+                ?.toReliefAccess()
+        }
+
+    fun findByRequestedByAndBranchDayId(
+        requestedBy: UUID,
+        branchDayId: UUID,
+        status: ReliefStatus,
+    ): ReliefAccess? =
+        transaction {
+            GrantReliefAccessTable
+                .selectAll()
+                .where {
+                    (GrantReliefAccessTable.requestedBy eq requestedBy) and
+                        (GrantReliefAccessTable.branchDayId eq branchDayId) and
+                        (GrantReliefAccessTable.requestStatus eq status)
+                }.singleOrNull()
+                ?.toReliefAccess()
+        }
+
+    @Suppress("LongParameterList")
+    fun grantWithCapability(
+        requestId: UUID,
+        grantedBy: UUID,
+        userId: UUID,
+        capabilityId: UUID,
+        branchDayId: UUID,
+        sourceId: UUID,
+        validTo: OffsetDateTime?,
+        priority: Short,
+    ): Unit =
+        transaction {
+            GrantReliefAccessTable
+                .update({ GrantReliefAccessTable.id eq requestId }) {
+                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
+                    it[GrantReliefAccessTable.grantedBy] = grantedBy
+                    it[GrantReliefAccessTable.grantedAt] = OffsetDateTime.now()
+                }
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = userId
+                it[UserCapabilityTable.capabilityId] = capabilityId
+                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
+                it[UserCapabilityTable.contextId] = branchDayId
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
+                it[UserCapabilityTable.sourceId] = sourceId
+                it[UserCapabilityTable.validTo] = validTo
+                it[UserCapabilityTable.priority] = priority
+            }
+        }
+
+    fun deny(requestId: UUID) =
+        transaction {
+            GrantReliefAccessTable
+                .update({ GrantReliefAccessTable.id eq requestId }) {
+                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+                }
+        }
+
     fun insertRequest(
         id: UUID,
         branchDayId: UUID,

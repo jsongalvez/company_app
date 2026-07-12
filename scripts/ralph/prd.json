@@ -360,7 +360,7 @@
         "Integration tests for relief grant/deny and capability expiration pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-010",

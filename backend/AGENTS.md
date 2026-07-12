@@ -45,6 +45,10 @@ GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`) have no specific 
 `CapabilityContextType.GLOBAL` with `contextId = CapabilityService.GLOBAL_CONTEXT_ID` (the nil
 all-zero UUID).
 
+When inserting `user_capability` rows (e.g. for relief access grants or delegate assignments), use
+`CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")` to look up the capability ID, then use the
+Exposed DSL `UserCapabilityTable.insert {}` with `customEnumeration` columns (see below).
+
 ## Audit logging
 
 Every mutating service must write an audit row via `AuditLogRepository.record(tableName, recordId,

@@ -60,6 +60,8 @@ fun initializeJavalin() {
             UserBranchAssignmentRoutes.register(config)
             UserRoutes.deactivate(config)
             ReliefAccessRoutes.requestReliefAccess(config)
+            ReliefAccessRoutes.grantReliefAccess(config)
+            ReliefAccessRoutes.denyReliefAccess(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }

@@ -13,6 +13,15 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object CapabilityRepository {
+    fun findIdByCode(code: String): UUID? =
+        transaction {
+            CapabilityTable
+                .selectAll()
+                .where { CapabilityTable.code eq code }
+                .singleOrNull()
+                ?.let { it[CapabilityTable.id] }
+        }
+
     fun hasCapability(
         userId: UUID,
         capabilityCode: String,

@@ -11,6 +11,52 @@ import java.util.UUID
 
 object ReliefAccessRoutes {
     @Suppress("ThrowsCount")
+    fun grantReliefAccess(config: JavalinConfig) {
+        config.routes.patch("/api/relief-access/{requestId}/grant") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val requestId = UUID.fromString(context.pathParam("requestId"))
+
+            val result = ReliefAccessService.grantAccess(requestId, callerId)
+
+            context.status(HttpStatus.OK)
+            context.json(
+                ReliefAccessResponse(
+                    id = result.id.toString(),
+                    branchDayId = result.branchDayId.toString(),
+                    requestedBy = result.requestedBy.toString(),
+                    requestStatus = result.requestStatus.name,
+                    targetUser = result.targetUser.toString(),
+                    grantedBy = result.grantedBy?.toString(),
+                    grantedAt = result.grantedAt?.toString(),
+                ),
+            )
+        }
+    }
+
+    @Suppress("ThrowsCount")
+    fun denyReliefAccess(config: JavalinConfig) {
+        config.routes.patch("/api/relief-access/{requestId}/deny") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val requestId = UUID.fromString(context.pathParam("requestId"))
+
+            val result = ReliefAccessService.denyAccess(requestId, callerId)
+
+            context.status(HttpStatus.OK)
+            context.json(
+                ReliefAccessResponse(
+                    id = result.id.toString(),
+                    branchDayId = result.branchDayId.toString(),
+                    requestedBy = result.requestedBy.toString(),
+                    requestStatus = result.requestStatus.name,
+                    targetUser = result.targetUser.toString(),
+                    grantedBy = result.grantedBy?.toString(),
+                    grantedAt = result.grantedAt?.toString(),
+                ),
+            )
+        }
+    }
+
+    @Suppress("ThrowsCount")
     fun requestReliefAccess(config: JavalinConfig) {
         config.routes.post("/api/relief-access/request") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
