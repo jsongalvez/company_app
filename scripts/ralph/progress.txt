@@ -8,7 +8,7 @@ Started: Sat Jun 27 12:27:08 PM PST 2026
 - detekt `MagicNumber` is strict: extract any literal (column widths, pool sizes, durations) to a `private const val`. Constants are exempt via `ignoreConstantDeclaration`. `ReturnCount` max is 2 — match the existing pattern of `@Suppress("ReturnCount")` used in AuthService.
 - detekt requires the `detekt-formatting` plugin (wired in root `build.gradle.kts` `subprojects { dependencies { add("detektPlugins", ...) } }`) because `detekt.yml` enables the `formatting` ruleset.
 - Authorization MUST go through `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)` which queries the `active_user_capabilities` SQL view. Never check roles directly in business logic. The view already filters INACTIVE users and time windows.
-- For Postgres enum columns in raw SQL, bind params as text and cast in SQL (e.g. `?::capability_context_type`, `?::uuid`) via Exposed `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`. Avoids Exposed PG-enum operator mismatches.
+- For Postgres enum columns in raw SQL, bind params as text and cast in SQL (e.g. `?::capability_context_type`, `?::uuid`) via Exposed `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`. Avoids Exposed PG-enum operator mismatches. This also applies to writes: Exposed `enumerationByName` binds varchar, so native enum updates need raw SQL casts like `SET status = ?::user_status`.
 - Immediate revocation: `DenyList` (in-memory `ConcurrentHashMap<UUID, Instant>`) is checked inside `JwtService.verifyToken` BEFORE the DB `authorize` call. Populated at startup via `DenyList.loadInactiveUsers()` in `Main.kt`. Entries auto-evict after 24h (JWT max expiry).
 - No Postgres/Docker available in this environment — DB integration tests cannot be run here. Write DB-free unit tests (inject time via internal `*At(now)` helpers as done in `DenyListTest`).
 - Exposed needs `exposed-java-time` dependency for `timestampWithTimeZone`/`CurrentTimestampWithTimeZone`.
@@ -60,4 +60,16 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-0faeafe7a657
   - GLOBAL capabilities: pass CapabilityContextType.GLOBAL + CapabilityService.GLOBAL_CONTEXT_ID. NOTE: role_capability seeds are NOT materialized into user_capability, and active_user_capabilities only reads user_capability — so capability checks only pass for users with explicit user_capability rows. A role->user_capability materialization step is still missing and will be needed for end-to-end auth (likely a future story / seeding concern).
   - detekt MatchingDeclarationName: file name must equal the single top-level declaration name (had to rename AuditLog.kt -> AuditAction.kt).
   - No Postgres/Docker in sandbox, so the PRD's "integration tests for user deactivation" can't run here; wrote DB-free unit tests for the pure helpers (jsonField escaping, GLOBAL_CONTEXT_ID = nil UUID). The deactivate orchestration (capability gate, DB update+audit, DenyList) needs a Postgres-backed integration test when DB is available.
+---
+
+## Sun Jul 12 2026 - US-003 Postgres verification
+Thread: unavailable
+- Added Postgres-backed integration coverage for UserService.deactivate: MANAGE_USERS gate, persisted INACTIVE status, audit row old/new status, deny-list insertion, and existing-token rejection via JwtService.verifyToken.
+- Fixed the live Postgres failure where Exposed attempted `UPDATE app_user SET status=?` with a varchar value against the native `user_status` enum; UserRepository.deactivate now uses raw SQL with `?::user_status`.
+- Configured backend tests to run from the repo root so dotenv-kotlin can load the root `.env` during database integration tests.
+- Files changed: backend/build.gradle.kts, repository/UserRepository.kt, service/UserServicePostgresTest.kt, backend/AGENTS.md, progress.txt.
+- Quality gate green with Postgres available: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`.
+- **Learnings for future iterations:**
+  - Native Postgres enum writes must use explicit casts just like enum reads/checks; Exposed `enumerationByName` is not sufficient for updates to PG enum columns.
+  - Backend integration tests that rely on `.env` need the Gradle test working directory set to the repo root.
 ---

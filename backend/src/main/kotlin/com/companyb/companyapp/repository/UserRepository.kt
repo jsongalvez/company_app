@@ -6,16 +6,23 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.sql.TextColumnType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
 
 object UserRepository {
+    private val DEACTIVATE_SQL =
+        """
+        UPDATE app_user
+        SET status = ?::user_status
+        WHERE id = ?::uuid
+        """.trimIndent()
+
     fun findByUsername(username: String): AppUser? =
         transaction {
             AppUserTable
@@ -85,7 +92,14 @@ object UserRepository {
                 false
             } else {
                 val oldStatus = current[AppUserTable.status]
-                AppUserTable.update({ AppUserTable.id eq userId }) { it[status] = UserStatus.INACTIVE }
+                exec(
+                    DEACTIVATE_SQL,
+                    args =
+                        listOf(
+                            TextColumnType() to UserStatus.INACTIVE.name,
+                            TextColumnType() to userId.toString(),
+                        ),
+                )
                 AuditLogRepository.record(
                     tableName = AppUserTable.tableName,
                     recordId = userId,

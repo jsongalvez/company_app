@@ -72,9 +72,15 @@ context (contextId = `branch_day.branch_id`).
   (e.g. `?::capability_context_type`, `?::uuid`) using
   `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`.
   This avoids Exposed PG-enum operator mismatches.
+- The same enum rule applies to writes: Exposed `enumerationByName` binds values as varchar, so
+  updates to native Postgres enum columns need raw SQL with explicit casts (for example,
+  `SET status = ?::user_status`).
 
 ## Testing
 
 No Postgres/Docker is guaranteed in the agent sandbox, so DB integration tests may not run here.
 Prefer DB-free unit tests; inject time through internal `*At(now: Instant)` helpers (see
 `DenyListTest`) rather than sleeping or relying on wall-clock time.
+
+Gradle backend tests run from the repo root (`tasks.test.workingDir = rootProject.projectDir`) so
+dotenv-kotlin can load the root `.env`.

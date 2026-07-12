@@ -44,4 +44,5 @@ dependencies {
 
 tasks.test {
     useJUnit()
+    workingDir = rootProject.projectDir
 }
