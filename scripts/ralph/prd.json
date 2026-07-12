@@ -249,7 +249,7 @@
         "Integration tests for slot swapping and assignments pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",

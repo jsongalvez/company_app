@@ -16,3 +16,32 @@ data class BranchResponse(
     val name: String,
     val branchType: BranchType,
 )
+
+@Serializable
+data class CreateAssignmentRequest(
+    val id: String,
+    val userId: String,
+    val slot: Short,
+)
+
+@Serializable
+data class UpdateSlotRequest(
+    val slot: Short,
+)
+
+@Serializable
+data class SwapSlotsRequest(
+    val userIdA: String,
+    val userIdB: String,
+)
+
+@Serializable
+data class AssignmentResponse(
+    val id: String,
+    val userId: String,
+    val branchId: String,
+    val slot: Short,
+    val assignedBy: String,
+    val assignedAt: String,
+    val endedAt: String? = null,
+)

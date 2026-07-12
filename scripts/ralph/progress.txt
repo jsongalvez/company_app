@@ -84,3 +84,16 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000000
   - Backend compilation requires the `shared` module to compile first (it contains BranchType enum and DTOs). Gradle handles this automatically via the `:shared` dependency.
   - Idempotent creation pattern: use `ON CONFLICT (id) DO NOTHING` + separate SELECT in same transaction, with `AuditLogRepository.record` only on actual insert.
 ---
+
+---
+
+## Sun Jul 12 2026 - US-005
+Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000005
+- Implemented user branch assignment endpoints: POST /api/branches/{branchId}/assignments (create with idempotency and MANAGE_USERS gate), GET /api/branches/{branchId}/assignments (list active assignments), DELETE /api/branches/{branchId}/assignments/{userId} (soft-delete by setting ended_at=now()), PATCH /api/branches/{branchId}/assignments/{userId}/slot (update slot; self-service or MANAGE_USERS), POST /api/branches/{branchId}/slots/swap (atomic slot swap in single transaction). All mutations write audit log entries.
+- Files changed: repository/model/UserBranchAssignment.kt (new), repository/UserBranchAssignmentRepository.kt (new), service/UserBranchAssignmentService.kt (new), api/routes/UserBranchAssignmentRoutes.kt (new), shared/.../BranchDto.kt (added DTOs), Main.kt (wired routes), scripts/ralph/prd.json (set passes=true).
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - `timestampWithTimeZone` columns cannot use `.autoGenerate()` — use `.defaultExpression(CurrentTimestampWithTimeZone)` instead.
+  - detekt `LongMethod` and `ThrowsCount` are active on route registration and service methods; use `@Suppress("LongMethod", "ThrowsCount")` on routes and `@Suppress("ThrowsCount")` on service methods.
+  - Slot swaps run inside `transaction {}` wrapper to let the repo use `TransactionManager.current()`.
+  - The `user_branch_assignment` table has `idx_one_active_assignment` partial unique index — the service layer checks for existing active assignments before insert.
