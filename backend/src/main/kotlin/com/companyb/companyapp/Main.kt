@@ -54,6 +54,7 @@ fun initializeJavalin() {
             AuthRoutes.login(config)
             AuthRoutes.register(config)
             AttendanceRoutes.clockIn(config)
+            AttendanceRoutes.clockOut(config)
             BranchRoutes.register(config)
             UserBranchAssignmentRoutes.register(config)
             UserRoutes.deactivate(config)

@@ -160,6 +160,12 @@ The attendance insert and `branch_day_assignment` upsert happen in a single tran
 newly inserted; if the row already exists (count = 0), the existing row is read back with a
 follow-up `selectAll`.
 
+Clock-out (`POST /api/attendance/clock-out`) is a non-mutating lookup for idempotency: if the
+attendance record already has `clock_out` set, return the existing row with HTTP 200. Otherwise,
+update `clock_out = now()` where `clock_out IS NULL` (using `Table.update` with `and` condition),
+write an audit log entry for the UPDATE, and return the updated record. `isRelief` is fetched from
+`branch_day_assignment` via `AttendanceRepository.branchDayAssignmentIsRelief`.
+
 ## Testing
 
 No Postgres/Docker is guaranteed in the agent sandbox, so DB integration tests may not run here.

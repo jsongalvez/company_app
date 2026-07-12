@@ -308,7 +308,7 @@
         "Integration tests for clock-out and commission updates pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",

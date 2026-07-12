@@ -111,6 +111,42 @@ class AttendanceServicePostgresTest {
         assertTrue(result.isRelief.not())
     }
 
+    @Test
+    fun `clockOut sets clockOut and writes audit`() {
+        val attendanceId = UUID.randomUUID()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        val result = AttendanceService.clockOut(attendanceId, userId)
+
+        assertTrue(result.created.not())
+        assertNotNull(result.clockOut)
+        assertEquals(2L, auditEntryCount(attendanceId))
+        assertNotNull(auditNewClockOut(attendanceId))
+    }
+
+    @Test
+    fun `clockOut on already clocked out record returns existing`() {
+        val attendanceId = UUID.randomUUID()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+        val first = AttendanceService.clockOut(attendanceId, userId)
+
+        val second = AttendanceService.clockOut(attendanceId, userId)
+
+        assertTrue(first.created.not())
+        assertTrue(second.created.not())
+        assertEquals(first.clockOut, second.clockOut)
+        assertEquals(2L, auditEntryCount(attendanceId))
+    }
+
+    @Test
+    fun `clockOut on non-existent attendance throws NotFound`() {
+        val unknownId = UUID.randomUUID()
+
+        assertFailsWith<NotFoundResponse> {
+            AttendanceService.clockOut(unknownId, userId)
+        }
+    }
+
     private fun insertUser(id: UUID) {
         DatabaseTestHelper.insertUser(
             id = id,
@@ -163,6 +199,20 @@ class AttendanceServicePostgresTest {
                     (AuditLogTable.auditTableName eq "attendance") and
                         (AuditLogTable.recordId eq attendanceId)
                 }.count()
+        }
+
+    private fun auditNewClockOut(attendanceId: UUID): String =
+        transaction {
+            val row =
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq "attendance") and
+                            (AuditLogTable.recordId eq attendanceId)
+                    }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
+                    .limit(1)
+                    .single()
+            extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
         }
 
     private fun deleteTestRows() {

@@ -110,6 +110,22 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000006
   - `ON CONFLICT (id) DO NOTHING` with `RETURNING id` returns zero rows (not the conflicting row) when the id already exists; detect via empty ResultSet rather than a special UUID sentinel.
   - Clock-in is open to all authenticated users (no capability gate) — only relief determination logic is needed.
   - Use `io.javalin.http.ConflictResponse` (409) for unique-index conflicts (active clock-in) thrown from the service layer.
-  - `hasActiveClockIn` pre-check is a read-before-write guard; the partial unique index `idx_one_active_clock_in` is the DB-level backstop.
-  - Commission recalculation trigger is described in the PRD Engine 1 but has no DB function or Kotlin implementation yet — stub with a log line until the engine is built (likely US-021).
+   - `hasActiveClockIn` pre-check is a read-before-write guard; the partial unique index `idx_one_active_clock_in` is the DB-level backstop.
+   - Commission recalculation trigger is described in the PRD Engine 1 but has no DB function or Kotlin implementation yet — stub with a log line until the engine is built (likely US-021).
+---
+
+## Sun Jul 12 2026 - US-007
+Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000007
+- Implemented clock-out endpoint: POST /api/attendance/clock-out body: { attendanceId }.
+- AttendanceService.clockOut looks up attendance by ID (throws 404 if not found), returns existing with HTTP 200 if already clocked out (idempotent), otherwise updates clock_out=now() and writes audit log.
+- AttendanceRepository.clockOut uses Exposed DSL `update` with `(id eq attendanceId) and (clockOut.isNull())` conditions.
+- Added ClockOutRequest/ClockOutResponse DTOs, branchDayAssignmentIsRelief query for response isRelief field.
+- Registered AttendanceRoutes.clockOut in Main.kt.
+- Files changed: shared/.../dto/AttendanceDto.kt, repository/AttendanceRepository.kt, service/AttendanceService.kt, api/routes/AttendanceRoutes.kt, Main.kt, backend/AGENTS.md, scripts/ralph/prd.json.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Clock-out uses `Table.update({ whereClause })` with combined conditions via `and` and `clockOut.isNull()` guard to ensure only null clock_out rows are updated. The same read-after-update pattern (select by id after update) is used.
+  - `findById` with `singleOrNull` + `.toAttendance()` pattern works for repository lookups.
+  - For idempotent reads (already clocked out), return the existing record without audit log — only log the actual UPDATE mutation.
+  - `isRelief` lives in `branch_day_assignment`, not `attendance` — need to query separately via `branchDayAssignmentIsRelief(branchDayId, userId)`.
 ---

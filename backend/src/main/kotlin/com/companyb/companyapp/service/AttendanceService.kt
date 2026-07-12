@@ -7,6 +7,7 @@ import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditAction
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.ConflictResponse
+import io.javalin.http.NotFoundResponse
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -16,6 +17,43 @@ object AttendanceService {
     private val logger = KotlinLogging.logger {}
 
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
+
+    @Suppress("ThrowsCount")
+    fun clockOut(
+        attendanceId: UUID,
+        callerId: UUID,
+    ): AttendanceServiceResult {
+        val existing = AttendanceRepository.findById(attendanceId)
+        if (existing == null) {
+            throw NotFoundResponse("Attendance record not found")
+        }
+
+        if (existing.clockOut != null) {
+            val isRelief = getIsRelief(existing.branchDayId, existing.userId)
+            return AttendanceServiceResult(existing, false, isRelief)
+        }
+
+        val now = OffsetDateTime.now()
+        val attendance = AttendanceRepository.clockOut(attendanceId, now)
+
+        AuditLogRepository.record(
+            tableName = AttendanceTable.tableName,
+            recordId = attendanceId,
+            action = AuditAction.UPDATE,
+            changedBy = callerId,
+            newValue = AuditLogRepository.jsonField("clockOut", now.toString()),
+        )
+
+        logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
+
+        val isRelief = getIsRelief(attendance.branchDayId, attendance.userId)
+        return AttendanceServiceResult(attendance, false, isRelief)
+    }
+
+    private fun getIsRelief(
+        branchDayId: UUID,
+        userId: UUID,
+    ): Boolean = AttendanceRepository.branchDayAssignmentIsRelief(branchDayId, userId) ?: false
 
     @Suppress("ThrowsCount")
     fun clockIn(
