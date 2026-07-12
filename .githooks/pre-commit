@@ -1,0 +1,111 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+log() { echo "$(date '+%H:%M:%S') [pre-commit] $*"; }
+
+# ----------------------------------------------------------------
+# 1. Quality gate
+# ----------------------------------------------------------------
+log "Running quality gate (detekt, ktlint, test)..."
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test --no-daemon 2>&1 | tail -5
+log "Quality gate passed."
+
+# ----------------------------------------------------------------
+# 2. Ensure Postgres is reachable
+# ----------------------------------------------------------------
+source .env 2>/dev/null || true
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
+POSTGRES_USER="${POSTGRES_USER:-company_user}"
+POSTGRES_DB="${POSTGRES_DB:-company_app}"
+
+log "Checking Postgres connectivity at $DB_HOST:$DB_PORT..."
+if command -v pg_isready &>/dev/null; then
+    if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" &>/dev/null; then
+        log "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        exit 1
+    fi
+elif command -v psql &>/dev/null; then
+    if ! PGPASSWORD="${POSTGRES_PASSWORD:-}" psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &>/dev/null; then
+        log "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        exit 1
+    fi
+else
+    # Fallback: try connecting via /dev/tcp (bash builtin)
+    if ! timeout 3 bash -c "echo > /dev/tcp/$DB_HOST/$DB_PORT" 2>/dev/null; then
+        log "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        exit 1
+    fi
+fi
+log "Postgres is reachable."
+
+# ----------------------------------------------------------------
+# 3. Build and boot the app, verify it starts
+# ----------------------------------------------------------------
+log "Building backend distribution..."
+./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
+log "Build complete."
+
+log "Starting app to verify boot..."
+APP_PORT="${APP_PORT:-3023}"
+
+# Run the app in background
+./gradlew :backend:run --no-daemon > /tmp/company-app-boot.log 2>&1 &
+APP_PID=$!
+
+# Wait for the app to bind the port
+APP_STARTED=false
+for i in $(seq 1 45); do
+    if ! kill -0 "$APP_PID" 2>/dev/null; then
+        wait "$APP_PID" || true
+        log "ERROR: App process died during startup. Last 20 lines of log:"
+        tail -20 /tmp/company-app-boot.log
+        exit 1
+    fi
+    # Check if port is listening
+    if command -v lsof &>/dev/null; then
+        if lsof -i ":$APP_PORT" -P 2>/dev/null | grep -q LISTEN; then
+            APP_STARTED=true
+            break
+        fi
+    elif command -v ss &>/dev/null; then
+        if ss -tlnp "sport = :$APP_PORT" 2>/dev/null | grep -q LISTEN; then
+            APP_STARTED=true
+            break
+        fi
+    fi
+    sleep 1
+done
+
+if [ "$APP_STARTED" = false ]; then
+    log "ERROR: App did not start within 45 seconds. Last 20 lines of log:"
+    tail -20 /tmp/company-app-boot.log
+    kill "$APP_PID" 2>/dev/null || true
+    exit 1
+fi
+
+log "App is running and listening on port $APP_PORT."
+
+# ----------------------------------------------------------------
+# 4. Cleanup: kill the app
+# ----------------------------------------------------------------
+log "Stopping app (PID $APP_PID)..."
+kill "$APP_PID" 2>/dev/null || true
+# Give it a moment to shut down gracefully
+for i in $(seq 1 10); do
+    if ! kill -0 "$APP_PID" 2>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+kill -9 "$APP_PID" 2>/dev/null || true
+wait "$APP_PID" 2>/dev/null || true
+log "App stopped."
+
+log "All checks passed — commit allowed."

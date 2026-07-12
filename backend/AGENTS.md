@@ -5,11 +5,18 @@ Package root: `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repos
 
 ## Quality gate (run before every commit)
 
-```
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test
-```
+The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
+
+1. **Static analysis & tests:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
+2. **App boot verification:** Postgres must be reachable, then the app is started and confirmed listening on its port before the commit is allowed.
+
+Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
+
+To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
 
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
+
+Run the app: `./gradlew :backend:run` (requires Postgres at `DB_HOST:DB_PORT`).
 
 - **detekt `MagicNumber` is strict.** Extract every literal (column widths, pool sizes,
   durations, lengths) into a `private const val`; constants are exempt. `ReturnCount` max is 2 —
