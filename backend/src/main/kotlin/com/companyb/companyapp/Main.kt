@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.api.routes.UserRoutes
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.config.KotlinxSerializationMapper
@@ -49,6 +50,7 @@ fun initializeJavalin() {
             }
             AuthRoutes.login(config)
             AuthRoutes.register(config)
+            UserRoutes.deactivate(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }

@@ -3,12 +3,14 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
@@ -64,6 +66,37 @@ object UserRepository {
                 .where { AppUserTable.status eq UserStatus.INACTIVE }
                 .map { it[AppUserTable.id] }
         }.also { logger.info { "[FIND-INACTIVE-USER-IDS] Fetched ${it.size} inactive user(s)" } }
+
+    /**
+     * Deactivates a user (status -> INACTIVE) and writes an UPDATE audit entry atomically.
+     * Returns false (no write) when no user with [userId] exists.
+     */
+    fun deactivate(
+        userId: UUID,
+        changedBy: UUID,
+    ): Boolean =
+        transaction {
+            val current =
+                AppUserTable
+                    .select(AppUserTable.status)
+                    .where { AppUserTable.id eq userId }
+                    .singleOrNull()
+            if (current == null) {
+                false
+            } else {
+                val oldStatus = current[AppUserTable.status]
+                AppUserTable.update({ AppUserTable.id eq userId }) { it[status] = UserStatus.INACTIVE }
+                AuditLogRepository.record(
+                    tableName = AppUserTable.tableName,
+                    recordId = userId,
+                    action = AuditAction.UPDATE,
+                    changedBy = changedBy,
+                    oldValue = AuditLogRepository.jsonField("status", oldStatus.name),
+                    newValue = AuditLogRepository.jsonField("status", UserStatus.INACTIVE.name),
+                )
+                true
+            }
+        }.also { updated -> logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=$updated" } }
 
     fun authorize(id: String): Boolean =
         transaction {

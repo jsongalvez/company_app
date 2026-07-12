@@ -18,6 +18,14 @@ Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 - detekt needs the `detekt-formatting` plugin (wired in the root `build.gradle.kts`
   `subprojects { dependencies { add("detektPlugins", ...) } }`).
 
+## Routes & authentication
+
+Register **public** routes (login/register) directly (e.g. `/auth/login`). Register **protected**
+routes under `/api/*` so the `config.routes.before("/api/*")` filter authenticates the JWT and sets
+the caller's id via `context.attribute("userId", ...)` (a `String` JWT subject). Read it back with
+`UUID.fromString(context.attribute<String>("userId"))`. Wire each route object into
+`Main.initializeJavalin` alongside `AuthRoutes`.
+
 ## Authorization
 
 All operational permission checks MUST go through
@@ -25,6 +33,20 @@ All operational permission checks MUST go through
 `active_user_capabilities` SQL view (defined in `V1__full_schema.sql`). **Never check roles directly
 in business logic** — roles only seed capabilities in the V2 migration. The view already excludes
 INACTIVE users and out-of-window grants.
+
+GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`) have no specific branch/day; pass
+`CapabilityContextType.GLOBAL` with `contextId = CapabilityService.GLOBAL_CONTEXT_ID` (the nil
+all-zero UUID).
+
+## Audit logging
+
+Every mutating service must write an audit row via `AuditLogRepository.record(tableName, recordId,
+action, changedBy, oldValue?, newValue?, reason?)`. `record` opens its own `transaction {}` which
+**joins an enclosing transaction** (Exposed reuses the connection unless nested transactions are
+explicitly enabled), so the audit insert commits atomically with the change it describes — call it
+inside the same repository `transaction {}` that performs the mutation. Build JSON values with
+`AuditLogRepository.jsonField(key, value)` (safely escaped). `old_value`/`new_value` are JSONB and
+bound as text with `?::jsonb` casts.
 
 Immediate revocation uses the in-memory `DenyList` (`ConcurrentHashMap<UUID, Instant>`), checked
 inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup

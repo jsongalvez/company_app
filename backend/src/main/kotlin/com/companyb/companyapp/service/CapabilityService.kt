@@ -10,6 +10,14 @@ import java.util.UUID
  * permission checks — never inspect roles directly in business logic.
  */
 object CapabilityService {
+    /**
+     * Sentinel context id for GLOBAL-scoped capabilities (e.g. MANAGE_USERS, ASSIGN_DELEGATE).
+     * GLOBAL grants have no specific branch/day, so they are stored and checked against the
+     * all-zero (nil) UUID. Use this whenever [hasCapability] is called with
+     * [CapabilityContextType.GLOBAL].
+     */
+    val GLOBAL_CONTEXT_ID: UUID = UUID(0L, 0L)
+
     fun hasCapability(
         userId: UUID,
         capabilityCode: String,

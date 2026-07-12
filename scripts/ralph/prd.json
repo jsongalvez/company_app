@@ -193,7 +193,7 @@
         "Integration tests for user deactivation pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",

@@ -15,6 +15,10 @@ Started: Sat Jun 27 12:27:08 PM PST 2026
 - HTTP errors are signalled by throwing Javalin's built-in response exceptions from the service layer (`ForbiddenResponse`=403, `BadRequestResponse`=400, `NotFoundResponse`=404, `UnauthorizedResponse`=401). No custom exception hierarchy.
 - Day state is lazy: reuse `BranchDayService.evaluateStatus(status, date, today)` — an OPEN day with date < today(Asia/Manila) is treated as PAST without a DB write. Call `BranchDayService.assertEditable(branchDayId, userId, reason?)` before any operational/financial write.
 - For testable time logic, keep pure functions taking explicit `today`/inputs and have the public method fetch `LocalDate.now(zone)` then delegate (see BranchDayServiceTest, DenyListTest).
+- Protected (authenticated) routes MUST be registered under `/api/*` — only that path is guarded by the `before("/api/*")` filter which sets `context.attribute("userId", <jwt-subject String>)`. Public routes (auth) have no prefix. Read caller id with `UUID.fromString(context.attribute<String>("userId"))`. Register each route object in `Main.initializeJavalin`.
+- Audit logging: call `AuditLogRepository.record(tableName, recordId, action, changedBy, oldValue?, newValue?, reason?)` from inside the repository's `transaction {}` — it nests/joins the outer transaction so the audit row commits atomically with the change. Build JSON values with `AuditLogRepository.jsonField(key, value)`. `old_value`/`new_value` are JSONB bound as text with `?::jsonb`.
+- GLOBAL-scoped capability checks use `CapabilityService.GLOBAL_CONTEXT_ID` (nil all-zero UUID) as the contextId with `CapabilityContextType.GLOBAL`.
+- Kotlin file naming: detekt `MatchingDeclarationName` requires the file name to match its single top-level declaration (e.g. enum `AuditAction` must live in `AuditAction.kt`, not `AuditLog.kt`).
 
 ## Sat Jun 27 2026 - US-001
 Thread: https://ampcode.com/threads/T-019f0759-389e-70e8-b4b8-15b6136bf4ea
@@ -40,4 +44,20 @@ Thread: https://ampcode.com/threads/T-019f0766-99ca-7355-b0fc-75bf78eaeadc
   - Day state is lazy: an OPEN day whose calendar date < today(Asia/Manila) is treated as PAST without any DB write. The branch_day.status column is only physically flipped to PAST/REMITTED by other flows (e.g. remittance submission). Reuse `BranchDayService.evaluateStatus` rather than re-deriving this.
   - BranchTable Exposed model does not exist yet (US-004); BranchDayTable.branchId is a plain `uuid` column without `.references()` to avoid a premature dependency. Wire the FK reference when BranchTable lands if desired.
   - Pattern for testable time-dependent logic: keep pure functions that take `today: LocalDate` / explicit inputs, and have the public method fetch `LocalDate.now(manilaZone)` then delegate. Mirrors DenyListTest's `*At(now)` approach.
+---
+
+## Sat Jun 27 2026 - US-003
+Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-0faeafe7a657
+- Implemented user deactivation endpoint: PATCH /api/users/{userId}/deactivate.
+- UserService.deactivate checks MANAGE_USERS on GLOBAL context, persists app_user.status=INACTIVE + audit entry atomically (UserRepository.deactivate), then adds the user to the in-memory DenyList for immediate token rejection. Throws 403 (no capability) / 404 (unknown user).
+- Added reusable AuditLogRepository.record(...) (raw SQL, JSONB casts, joins enclosing transaction) + jsonField helper; AuditAction enum mirrors the Postgres audit_action type. These will be reused by every future mutating story.
+- Added CapabilityService.GLOBAL_CONTEXT_ID (nil UUID) sentinel for GLOBAL-scoped capability checks.
+- Files changed: service/UserService.kt (new), api/routes/UserRoutes.kt (new), repository/AuditLogRepository.kt (new), repository/model/AuditAction.kt (new), repository/UserRepository.kt (deactivate), service/CapabilityService.kt (GLOBAL_CONTEXT_ID), Main.kt (route wiring), backend/AGENTS.md, test/.../repository/AuditLogRepositoryTest.kt + service/CapabilityServiceTest.kt (new, DB-free).
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Protected routes go under /api/* (only path covered by the auth before-filter that sets the "userId" attribute). Public auth routes have no prefix. Wire new route objects in Main.initializeJavalin.
+  - AuditLogRepository.record nests into the caller's open Exposed transaction (Exposed reuses the connection unless nested transactions are enabled), so audit + mutation are atomic when record is called inside the same transaction {} block.
+  - GLOBAL capabilities: pass CapabilityContextType.GLOBAL + CapabilityService.GLOBAL_CONTEXT_ID. NOTE: role_capability seeds are NOT materialized into user_capability, and active_user_capabilities only reads user_capability — so capability checks only pass for users with explicit user_capability rows. A role->user_capability materialization step is still missing and will be needed for end-to-end auth (likely a future story / seeding concern).
+  - detekt MatchingDeclarationName: file name must equal the single top-level declaration name (had to rename AuditLog.kt -> AuditAction.kt).
+  - No Postgres/Docker in sandbox, so the PRD's "integration tests for user deactivation" can't run here; wrote DB-free unit tests for the pure helpers (jsonField escaping, GLOBAL_CONTEXT_ID = nil UUID). The deactivate orchestration (capability gate, DB update+audit, DenyList) needs a Postgres-backed integration test when DB is available.
 ---
