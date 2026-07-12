@@ -3,6 +3,9 @@ Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
 ## Codebase Patterns
+- Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
+- Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.
+- When revoking a delegate/access, update the associated `user_capability.valid_to = now()` to immediately expire the grant using Exposed DSL `update` with `and` conditions.
 - Backend module: Kotlin (JVM) + Javalin + Exposed (DSL) + Flyway, package root `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repository` (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
 - Quality gate (run per backend change): `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`. ktlint auto-fix: `./gradlew :backend:ktlintFormat`.
 - detekt `MagicNumber` is strict: extract any literal (column widths, pool sizes, durations) to a `private const val`. Constants are exempt via `ignoreConstantDeclaration`. `ReturnCount` max is 2 — match the existing pattern of `@Suppress("ReturnCount")` used in AuthService.
@@ -155,4 +158,20 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000009
   - `CapabilityRepository.findIdByCode` is useful for any story that needs to insert a `user_capability` row (e.g. US-010 medical mission delegates).
   - When working around detekt's `ReturnCount` on guard-clause-heavy methods, use `@Suppress("ReturnCount")` (already established pattern).
   - `grantWithCapability` triggers detekt `LongParameterList` (8 params); suppress with `@Suppress("LongParameterList")`.
+---
+
+## Sun Jul 12 2026 - US-010
+Thread: unavailable
+- Implemented medical mission delegate assign (POST /api/delegates) and revoke (DELETE /api/delegates/{delegateId}) endpoints.
+- assignWithCapability: single transaction inserts medical_mission_delegate row (idempotent via insertIgnore) + user_capability with source_type=MEDICAL_MISSION_DELEGATE, context_type=BRANCH, priority=20, valid_to=NULL for EDIT_BRANCH_DATA capability.
+- revokeWithCapability: single transaction sets ended_at=now() on delegate and valid_to=now() on the associated user_capability.
+- Added V3 Flyway migration to add branch_id column to medical_mission_delegate (required for capability scoping).
+- ASSIGN_DELEGATE capability check (GLOBAL context) guards both endpoints.
+- Files changed: resources/db/migration/V3__add_branch_id_to_medical_mission_delegate.sql (new), repository/model/MedicalMissionDelegate.kt (new), repository/MedicalMissionDelegateRepository.kt (new), service/MedicalMissionDelegateService.kt (new), api/routes/MedicalMissionDelegateRoutes.kt (new), shared/.../dto/DelegateDto.kt (new), Main.kt (wired routes), scripts/ralph/prd.json (passes=true), scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Use `insert` (not `insertIgnore`) for user_capability rows — there's no expected conflict and we always want a new row. `insertIgnore` is reserved for idempotent inserts with client-generated PKs.
+  - Medical mission delegate assign creates a permanent (valid_to=NULL) EDIT_BRANCH_DATA grant scoped to the mission branch; revoke expires it immediately (valid_to=now()).
+  - Priority 20 ensures MEDICAL_MISSION_DELEGATE grants outrank RELIEF_ACCESS (priority 10) in active_user_capabilities ordering.
+  - The medical_mission_delegate table in V1 lacked branch_id — added via V3 migration. Future FK-sensitive stories should check the schema first.
 ---

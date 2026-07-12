@@ -3,6 +3,7 @@ package com.companyb.companyapp
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.api.routes.BranchRoutes
+import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.ReliefAccessRoutes
 import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
 import com.companyb.companyapp.api.routes.UserRoutes
@@ -62,6 +63,8 @@ fun initializeJavalin() {
             ReliefAccessRoutes.requestReliefAccess(config)
             ReliefAccessRoutes.grantReliefAccess(config)
             ReliefAccessRoutes.denyReliefAccess(config)
+            MedicalMissionDelegateRoutes.assignDelegate(config)
+            MedicalMissionDelegateRoutes.revokeDelegate(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }

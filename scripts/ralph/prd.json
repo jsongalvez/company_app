@@ -387,7 +387,7 @@
         "Integration tests for delegate transactions pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-011",
