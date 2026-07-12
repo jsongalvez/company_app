@@ -73,3 +73,14 @@ Thread: unavailable
   - Native Postgres enum writes must use explicit casts just like enum reads/checks; Exposed `enumerationByName` is not sufficient for updates to PG enum columns.
   - Backend integration tests that rely on `.env` need the Gradle test working directory set to the repo root.
 ---
+
+## Sun Jul 12 2026 - US-004
+Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000000
+- Branch CRUD endpoints already implemented prior to this iteration: BranchTable model, BranchRepository (idempotent ON CONFLICT DO NOTHING insert with audit), BranchService (MANAGE_USERS gate on GLOBAL context), BranchRoutes (POST /api/branches, GET /api/branches, GET /api/branches/{branchId}).
+- Wired in Main.kt and verified full compilation + quality gate (detekt, ktlint, test all green).
+- Files already existed: repository/model/Branch.kt, repository/BranchRepository.kt, service/BranchService.kt, api/routes/BranchRoutes.kt, shared/.../BranchType.kt, shared/.../BranchDto.kt, test/.../BranchServicePostgresTest.kt.
+- **Learnings for future iterations:**
+  - The branch table migration (V1) already defines `branch_type` as a native PG enum with values CLINIC, PROVINCIAL_TOUR, MEDICAL_MISSION. Raw SQL casts with `?::branch_type` are required for inserts.
+  - Backend compilation requires the `shared` module to compile first (it contains BranchType enum and DTOs). Gradle handles this automatically via the `:shared` dependency.
+  - Idempotent creation pattern: use `ON CONFLICT (id) DO NOTHING` + separate SELECT in same transaction, with `AuditLogRepository.record` only on actual insert.
+---

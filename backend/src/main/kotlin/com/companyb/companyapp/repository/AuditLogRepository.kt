@@ -58,8 +58,12 @@ object AuditLogRepository {
     fun jsonField(
         key: String,
         value: String,
-    ): String =
+    ): String = jsonFields(key to value)
+
+    fun jsonFields(vararg fields: Pair<String, String>): String =
         buildJsonObject {
-            put(key, JsonPrimitive(value))
+            fields.forEach { (key, value) ->
+                put(key, JsonPrimitive(value))
+            }
         }.toString()
 }

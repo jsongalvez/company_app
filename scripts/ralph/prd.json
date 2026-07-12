@@ -219,7 +219,7 @@
         "Integration tests for branch CRUD and idempotency pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-005",

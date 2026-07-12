@@ -1,6 +1,7 @@
 package com.companyb.companyapp
 
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.UserRoutes
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
@@ -50,6 +51,7 @@ fun initializeJavalin() {
             }
             AuthRoutes.login(config)
             AuthRoutes.register(config)
+            BranchRoutes.register(config)
             UserRoutes.deactivate(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
