@@ -68,10 +68,16 @@ object UserRepository {
 
     fun findInactiveUserIds(): List<UUID> =
         transaction {
-            AppUserTable
-                .select(AppUserTable.id)
-                .where { AppUserTable.status eq UserStatus.INACTIVE }
-                .map { it[AppUserTable.id] }
+            exec(
+                "SELECT id FROM app_user WHERE status = ?::user_status",
+                args = listOf(TextColumnType() to UserStatus.INACTIVE.name),
+            ) { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(UUID.fromString(rs.getString("id")))
+                    }
+                }
+            } ?: emptyList()
         }.also { logger.info { "[FIND-INACTIVE-USER-IDS] Fetched ${it.size} inactive user(s)" } }
 
     /**
@@ -112,17 +118,23 @@ object UserRepository {
             }
         }.also { updated -> logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=$updated" } }
 
-    fun authorize(id: String): Boolean =
-        transaction {
-            AppUserTable
-                .selectAll()
-                .where { (AppUserTable.id eq UUID.fromString(id)) and (AppUserTable.status eq UserStatus.ACTIVE) }
-                .any()
-        }.also { isAuthorized ->
-            if (isAuthorized) {
-                logger.info { "[AUTHORIZE] User ${id.maskUUID()} is authorized" }
-            } else {
-                logger.warn { "[AUTHORIZE] User ${id.maskUUID()} is not authorized" }
-            }
+    fun authorize(id: String): Boolean {
+        val authorized =
+            transaction {
+                exec(
+                    "SELECT 1 FROM app_user WHERE id = ?::uuid AND status = ?::user_status",
+                    args =
+                        listOf(
+                            TextColumnType() to id,
+                            TextColumnType() to UserStatus.ACTIVE.name,
+                        ),
+                ) { rs -> rs.next() }
+            } ?: false
+        if (authorized) {
+            logger.info { "[AUTHORIZE] User ${id.maskUUID()} is authorized" }
+        } else {
+            logger.warn { "[AUTHORIZE] User ${id.maskUUID()} is not authorized" }
         }
+        return authorized
+    }
 }
