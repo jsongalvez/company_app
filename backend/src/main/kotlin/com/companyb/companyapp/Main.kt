@@ -1,5 +1,6 @@
 package com.companyb.companyapp
 
+import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
@@ -52,6 +53,7 @@ fun initializeJavalin() {
             }
             AuthRoutes.login(config)
             AuthRoutes.register(config)
+            AttendanceRoutes.clockIn(config)
             BranchRoutes.register(config)
             UserBranchAssignmentRoutes.register(config)
             UserRoutes.deactivate(config)

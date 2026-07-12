@@ -281,7 +281,7 @@
         "Integration tests for clock-in and relief computation pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",

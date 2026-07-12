@@ -76,6 +76,21 @@ context (contextId = `branch_day.branch_id`).
   updates to native Postgres enum columns need raw SQL with explicit casts (for example,
   `SET status = ?::user_status`).
 
+## Clock-in / Attendance
+
+Clock-in (`POST /api/attendance/clock-in`) is open to all authenticated users (no capability gate).
+The service determines `is_relief` by checking for an active `user_branch_assignment` at the target
+branch: if no assignment exists, the user clocks in as relief.
+
+Before inserting, check for an existing active clock-in via `hasActiveClockIn` and throw
+`io.javalin.http.ConflictResponse` (409) if found — this prevents the unique index violation on
+`idx_one_active_clock_in`.
+
+The attendance insert and `branch_day_assignment` upsert happen in a single transaction via raw SQL
+(`ON CONFLICT DO NOTHING`). For idempotency, `ON CONFLICT (id) DO NOTHING` with `RETURNING id`
+returns the id only on insert; when the id already exists, RETURNING returns zero rows so we detect
+the duplicate and read the existing row with a follow-up `SELECT`.
+
 ## Testing
 
 No Postgres/Docker is guaranteed in the agent sandbox, so DB integration tests may not run here.

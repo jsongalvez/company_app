@@ -97,3 +97,19 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000005
   - detekt `LongMethod` and `ThrowsCount` are active on route registration and service methods; use `@Suppress("LongMethod", "ThrowsCount")` on routes and `@Suppress("ThrowsCount")` on service methods.
   - Slot swaps run inside `transaction {}` wrapper to let the repo use `TransactionManager.current()`.
   - The `user_branch_assignment` table has `idx_one_active_assignment` partial unique index — the service layer checks for existing active assignments before insert.
+
+## Sun Jul 12 2026 - US-006
+Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000006
+- Implemented clock-in endpoint: POST /api/attendance/clock-in body: { id, branchId }.
+- AttendanceRepository.clockIn handles the attendance INSERT with ON CONFLICT (id) DO NOTHING (idempotency) plus branch_day_assignment upsert in a single transaction.
+- AttendanceService.clockIn resolves/creates the branch day, checks for existing active clock-in (throws 409 Conflict if found, preventing idx_one_active_clock_in violation), determines is_relief by checking active user_branch_assignment, and writes audit log entry.
+- Commission recalculation trigger is stubbed (no DB function exists yet for the commission engine — will be wired in a later story).
+- All quality checks pass (detekt, ktlint, test).
+- Files changed: shared/.../dto/AttendanceDto.kt (new), repository/model/Attendance.kt (new), repository/AttendanceRepository.kt (new), service/AttendanceService.kt (new), api/routes/AttendanceRoutes.kt (new), Main.kt (wired AttendanceRoutes), backend/AGENTS.md (added Clock-in/Attendance section), scripts/ralph/prd.json (US-006 passes=true), scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - `ON CONFLICT (id) DO NOTHING` with `RETURNING id` returns zero rows (not the conflicting row) when the id already exists; detect via empty ResultSet rather than a special UUID sentinel.
+  - Clock-in is open to all authenticated users (no capability gate) — only relief determination logic is needed.
+  - Use `io.javalin.http.ConflictResponse` (409) for unique-index conflicts (active clock-in) thrown from the service layer.
+  - `hasActiveClockIn` pre-check is a read-before-write guard; the partial unique index `idx_one_active_clock_in` is the DB-level backstop.
+  - Commission recalculation trigger is described in the PRD Engine 1 but has no DB function or Kotlin implementation yet — stub with a log line until the engine is built (likely US-021).
+---
