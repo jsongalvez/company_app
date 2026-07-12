@@ -38,7 +38,7 @@ object AttendanceService {
         val branchDayAssignmentId = UUID.randomUUID()
         val now = OffsetDateTime.now()
 
-        val attendance =
+        val (attendance, wasCreated) =
             AttendanceRepository.clockIn(
                 attendanceId = attendanceId,
                 branchDayId = branchDay.id,
@@ -48,8 +48,6 @@ object AttendanceService {
                 branchDayAssignmentId = branchDayAssignmentId,
                 isRelief = isRelief,
             )
-
-        val wasCreated = attendance.id == attendanceId
 
         val auditNewValue =
             AuditLogRepository.jsonFields(

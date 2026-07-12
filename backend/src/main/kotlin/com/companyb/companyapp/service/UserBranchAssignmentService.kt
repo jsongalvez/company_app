@@ -179,19 +179,21 @@ object UserBranchAssignmentService {
     ) {
         requireManageUsers(callerId)
 
-        val assignA =
-            UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userIdA)
-                ?: throw NotFoundResponse("Active assignment not found for user A at this branch")
-        val assignB =
-            UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userIdB)
-                ?: throw NotFoundResponse("Active assignment not found for user B at this branch")
+        val (assignA, assignB) =
+            transaction {
+                val a =
+                    UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userIdA)
+                        ?: throw NotFoundResponse("Active assignment not found for user A at this branch")
+                val b =
+                    UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userIdB)
+                        ?: throw NotFoundResponse("Active assignment not found for user B at this branch")
+
+                UserBranchAssignmentRepository.swapSlotsInTransaction(a.id, a.slot, b.id, b.slot)
+                a to b
+            }
 
         val slotA = assignA.slot
         val slotB = assignB.slot
-
-        transaction {
-            UserBranchAssignmentRepository.swapSlotsInTransaction(assignA.id, slotA, assignB.id, slotB)
-        }
 
         val auditValue =
             AuditLogRepository.jsonFields(

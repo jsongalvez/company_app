@@ -45,7 +45,6 @@ object UserBranchAssignmentRoutes {
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/assignments") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId =
                 runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
                     .getOrElse { throw BadRequestResponse("Invalid branch id") }

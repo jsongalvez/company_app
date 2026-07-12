@@ -13,10 +13,13 @@ private val logger = KotlinLogging.logger {}
 object AttendanceRepository {
     private val INSERT_ATTENDANCE_SQL =
         """
-        INSERT INTO attendance (id, branch_day_id, user_id, marked_by, clock_in)
-        VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?::timestamptz)
-        ON CONFLICT (id) DO NOTHING
-        RETURNING id
+        WITH inserted AS (
+            INSERT INTO attendance (id, branch_day_id, user_id, marked_by, clock_in)
+            VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?::timestamptz)
+            ON CONFLICT (id) DO NOTHING
+            RETURNING 1
+        )
+        SELECT EXISTS (SELECT 1 FROM inserted) AS inserted
         """.trimIndent()
 
     private val UPSERT_BRANCH_DAY_ASSIGNMENT_SQL =
@@ -42,8 +45,6 @@ object AttendanceRepository {
         LIMIT 1
         """.trimIndent()
 
-    private val UUID_ZERO = UUID(0L, 0L)
-
     fun hasActiveClockIn(
         userId: UUID,
         branchDayId: UUID,
@@ -68,9 +69,9 @@ object AttendanceRepository {
         clockIn: OffsetDateTime,
         branchDayAssignmentId: UUID,
         isRelief: Boolean,
-    ): Attendance =
+    ): Pair<Attendance, Boolean> =
         transaction {
-            val inserted =
+            val isNew =
                 exec(
                     INSERT_ATTENDANCE_SQL,
                     args =
@@ -83,11 +84,9 @@ object AttendanceRepository {
                         ),
                     explicitStatementType = StatementType.SELECT,
                 ) { rs ->
-                    check(rs.next()) { "Expected inserted id for attendance $attendanceId" }
-                    UUID.fromString(rs.getString("id"))
-                } ?: UUID_ZERO
-
-            val isNew = inserted != UUID_ZERO
+                    check(rs.next()) { "Expected insert status for attendance $attendanceId" }
+                    rs.getBoolean("inserted")
+                } ?: false
 
             if (isNew) {
                 exec(
@@ -105,13 +104,16 @@ object AttendanceRepository {
                 logger.info { "[CLOCK-IN] Attendance $attendanceId already exists, returning existing" }
             }
 
-            exec(
-                SELECT_ATTENDANCE_SQL,
-                args = listOf(TextColumnType() to attendanceId.toString()),
-            ) { rs ->
-                check(rs.next()) { "Expected attendance record $attendanceId" }
-                rs.toAttendance()
-            } ?: error("Attendance not found after clock-in for $attendanceId")
+            val attendance =
+                exec(
+                    SELECT_ATTENDANCE_SQL,
+                    args = listOf(TextColumnType() to attendanceId.toString()),
+                ) { rs ->
+                    check(rs.next()) { "Expected attendance record $attendanceId" }
+                    rs.toAttendance()
+                } ?: error("Attendance not found after clock-in for $attendanceId")
+
+            attendance to isNew
         }
 
     private fun java.sql.ResultSet.toAttendance(): Attendance =
