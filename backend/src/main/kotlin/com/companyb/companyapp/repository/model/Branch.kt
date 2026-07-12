@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository.model
 
 import com.companyb.companyapp.domain.BranchType
 import org.jetbrains.exposed.sql.Table
+import org.postgresql.util.PGobject
 import java.util.UUID
 
 data class Branch(
@@ -11,10 +12,19 @@ data class Branch(
 )
 
 object BranchTable : Table("branch") {
-    private const val ENUM_LENGTH = 50
-
     val id = uuid("id").autoGenerate()
-    val branchType = enumerationByName<BranchType>("branch_type", ENUM_LENGTH).default(BranchType.CLINIC)
+    val branchType =
+        customEnumeration<BranchType>(
+            name = "branch_type",
+            sql = "branch_type",
+            fromDb = { value -> BranchType.valueOf(value as String) },
+            toDb = {
+                val obj = PGobject()
+                obj.type = "branch_type"
+                obj.value = it.name
+                obj
+            },
+        ).default(BranchType.CLINIC)
     val name = text("name")
 
     override val primaryKey = PrimaryKey(id)

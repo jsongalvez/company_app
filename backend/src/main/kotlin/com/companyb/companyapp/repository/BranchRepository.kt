@@ -6,11 +6,10 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.BranchTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.TextColumnType
-import org.jetbrains.exposed.sql.statements.StatementType
-import org.jetbrains.exposed.sql.transactions.TransactionManager
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import java.sql.ResultSet
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -21,31 +20,6 @@ data class BranchCreateResult(
 )
 
 object BranchRepository {
-    private val INSERT_SQL =
-        """
-        WITH inserted AS (
-            INSERT INTO branch (id, branch_type, name)
-            VALUES (?::uuid, ?::branch_type, ?)
-            ON CONFLICT (id) DO NOTHING
-            RETURNING 1
-        )
-        SELECT EXISTS (SELECT 1 FROM inserted) AS inserted
-        """.trimIndent()
-
-    private val FIND_BY_ID_SQL =
-        """
-        SELECT id, branch_type::text AS branch_type, name
-        FROM branch
-        WHERE id = ?::uuid
-        """.trimIndent()
-
-    private val FIND_ALL_SQL =
-        """
-        SELECT id, branch_type::text AS branch_type, name
-        FROM branch
-        ORDER BY name ASC, id ASC
-        """.trimIndent()
-
     fun create(
         id: UUID,
         name: String,
@@ -53,20 +27,14 @@ object BranchRepository {
         changedBy: UUID,
     ): BranchCreateResult =
         transaction {
-            val inserted =
-                exec(
-                    INSERT_SQL,
-                    args =
-                        listOf(
-                            TextColumnType() to id.toString(),
-                            TextColumnType() to branchType.name,
-                            TextColumnType() to name,
-                        ),
-                    explicitStatementType = StatementType.SELECT,
-                ) { rs ->
-                    check(rs.next()) { "Expected insert status row for branch $id" }
-                    rs.getBoolean("inserted")
-                } ?: false
+            val insertedCount =
+                BranchTable
+                    .insertIgnore {
+                        it[BranchTable.id] = id
+                        it[BranchTable.branchType] = branchType
+                        it[BranchTable.name] = name
+                    }.insertedCount
+            val inserted = insertedCount > 0
             val branch = findByIdInTransaction(id) ?: error("branch row not found after idempotent insert for $id")
 
             if (inserted) {
@@ -102,25 +70,23 @@ object BranchRepository {
 
     fun findAll(): List<Branch> =
         transaction {
-            exec(FIND_ALL_SQL) { rs ->
-                buildList {
-                    while (rs.next()) {
-                        add(rs.toBranch())
-                    }
-                }
-            } ?: emptyList()
+            BranchTable
+                .selectAll()
+                .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
+                .map { it.toBranch() }
         }.also { logger.info { "[FIND-BRANCHES] Fetched ${it.size} branch(es)" } }
 
     private fun findByIdInTransaction(id: UUID): Branch? =
-        TransactionManager.current().exec(
-            FIND_BY_ID_SQL,
-            args = listOf(TextColumnType() to id.toString()),
-        ) { rs -> if (rs.next()) rs.toBranch() else null }
+        BranchTable
+            .selectAll()
+            .where { BranchTable.id eq id }
+            .singleOrNull()
+            ?.let { it.toBranch() }
 
-    private fun ResultSet.toBranch(): Branch =
+    private fun org.jetbrains.exposed.sql.ResultRow.toBranch(): Branch =
         Branch(
-            id = UUID.fromString(getString("id")),
-            branchType = BranchType.valueOf(getString("branch_type")),
-            name = getString("name"),
+            id = this[BranchTable.id],
+            branchType = this[BranchTable.branchType],
+            name = this[BranchTable.name],
         )
 }

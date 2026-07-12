@@ -3,6 +3,7 @@ package com.companyb.companyapp.repository.model
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.postgresql.util.PGobject
 import java.time.OffsetDateTime
 
 data class UserCapability(
@@ -23,16 +24,36 @@ enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, 
 enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM }
 
 object UserCapabilityTable : Table("user_capability") {
-    private const val ENUM_LENGTH = 50
-
     val id = uuid("id").autoGenerate()
     val userId = uuid("user_id").references(AppUserTable.id)
     val capabilityId = uuid("capability_id").references(CapabilityTable.id)
-    val contextType = enumerationByName<CapabilityContextType>("context_type", ENUM_LENGTH)
+    val contextType =
+        customEnumeration<CapabilityContextType>(
+            name = "context_type",
+            sql = "capability_context_type",
+            fromDb = { value -> CapabilityContextType.valueOf(value as String) },
+            toDb = {
+                val obj = PGobject()
+                obj.type = "capability_context_type"
+                obj.value = it.name
+                obj
+            },
+        )
     val contextId = uuid("context_id")
     val validFrom = timestampWithTimeZone("valid_from").defaultExpression(CurrentTimestampWithTimeZone)
     val validTo = timestampWithTimeZone("valid_to").nullable()
-    val sourceType = enumerationByName<CapabilitySourceType>("source_type", ENUM_LENGTH)
+    val sourceType =
+        customEnumeration<CapabilitySourceType>(
+            name = "source_type",
+            sql = "capability_source_type",
+            fromDb = { value -> CapabilitySourceType.valueOf(value as String) },
+            toDb = {
+                val obj = PGobject()
+                obj.type = "capability_source_type"
+                obj.value = it.name
+                obj
+            },
+        )
     val sourceId = uuid("source_id")
     val priority = short("priority").default(0)
 

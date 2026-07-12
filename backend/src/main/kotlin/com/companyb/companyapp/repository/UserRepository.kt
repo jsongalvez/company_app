@@ -6,23 +6,17 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.TextColumnType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
 
 object UserRepository {
-    private val DEACTIVATE_SQL =
-        """
-        UPDATE app_user
-        SET status = ?::user_status
-        WHERE id = ?::uuid
-        """.trimIndent()
-
     fun findByUsername(username: String): AppUser? =
         transaction {
             AppUserTable
@@ -68,22 +62,12 @@ object UserRepository {
 
     fun findInactiveUserIds(): List<UUID> =
         transaction {
-            exec(
-                "SELECT id FROM app_user WHERE status = ?::user_status",
-                args = listOf(TextColumnType() to UserStatus.INACTIVE.name),
-            ) { rs ->
-                buildList {
-                    while (rs.next()) {
-                        add(UUID.fromString(rs.getString("id")))
-                    }
-                }
-            } ?: emptyList()
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { AppUserTable.status eq UserStatus.INACTIVE }
+                .map { it[AppUserTable.id] }
         }.also { logger.info { "[FIND-INACTIVE-USER-IDS] Fetched ${it.size} inactive user(s)" } }
 
-    /**
-     * Deactivates a user (status -> INACTIVE) and writes an UPDATE audit entry atomically.
-     * Returns false (no write) when no user with [userId] exists.
-     */
     fun deactivate(
         userId: UUID,
         changedBy: UUID,
@@ -98,14 +82,9 @@ object UserRepository {
                 false
             } else {
                 val oldStatus = current[AppUserTable.status]
-                exec(
-                    DEACTIVATE_SQL,
-                    args =
-                        listOf(
-                            TextColumnType() to UserStatus.INACTIVE.name,
-                            TextColumnType() to userId.toString(),
-                        ),
-                )
+                AppUserTable.update({ AppUserTable.id eq userId }) {
+                    it[status] = UserStatus.INACTIVE
+                }
                 AuditLogRepository.record(
                     tableName = AppUserTable.tableName,
                     recordId = userId,
@@ -119,17 +98,15 @@ object UserRepository {
         }.also { updated -> logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=$updated" } }
 
     fun authorize(id: String): Boolean {
+        val userId = UUID.fromString(id)
         val authorized =
             transaction {
-                exec(
-                    "SELECT 1 FROM app_user WHERE id = ?::uuid AND status = ?::user_status",
-                    args =
-                        listOf(
-                            TextColumnType() to id,
-                            TextColumnType() to UserStatus.ACTIVE.name,
-                        ),
-                ) { rs -> rs.next() }
-            } ?: false
+                AppUserTable
+                    .select(AppUserTable.id)
+                    .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
+                    .empty()
+                    .not()
+            }
         if (authorized) {
             logger.info { "[AUTHORIZE] User ${id.maskUUID()} is authorized" }
         } else {
