@@ -120,6 +120,10 @@ val wasInserted = SomeTable.insertIgnore {
 val row = SomeTable.selectAll().where { SomeTable.id eq id }.single()
 ```
 
+⚠️ `defaultExpression(CurrentTimestampWithTimeZone)` does NOT work with `insertIgnore` — the
+expression is not emitted. Columns with a DEFAULT expression must be explicitly set in the
+`insertIgnore` block (e.g., `it[effectiveFrom] = OffsetDateTime.now(ZoneOffset.UTC)`).
+
 ### Query patterns
 
 | Purpose | DSL |

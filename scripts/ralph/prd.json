@@ -594,7 +594,7 @@
         "US-004"
       ],
       "requirements": [
-        "Expose POST /branches/{branchId}/rates body: { sessionType, rate }",
+        "Expose POST /branches/{branchId}/rates body: { id, sessionType, rate }",
         "Require MANAGE_PRODUCTS capability",
         "Close previous active rate (set effective_until=now()) and insert new rate (effective_from=now()) to prevent overlaps",
         "Expose GET /branches/{branchId}/rates retrieving active rates"
@@ -608,7 +608,7 @@
         "Integration tests for base rate timeline validations pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-019",

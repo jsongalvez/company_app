@@ -6,6 +6,7 @@ import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.ReliefAccessRoutes
+import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
 import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
 import com.companyb.companyapp.api.routes.UserRoutes
 import com.companyb.companyapp.auth.DenyList
@@ -67,6 +68,7 @@ fun initializeJavalin() {
             MedicalMissionDelegateRoutes.assignDelegate(config)
             MedicalMissionDelegateRoutes.revokeDelegate(config)
             ClientRoutes.register(config)
+            SessionBaseRateRoutes.register(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }

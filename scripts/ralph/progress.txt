@@ -19,6 +19,19 @@ Thread: unavailable
   - Detekt CyclomaticComplexMethod threshold is 15 — the `update` repository method with 11 conditional branches hits exactly 15, needs `@Suppress("CyclomaticComplexMethod")`.
 ---
 
+## Sun Jul 12 2026 - US-018
+Thread: unavailable
+- Implemented session base rate management endpoints: POST /api/branches/{branchId}/rates (set rate with idempotency, MANAGE_PRODUCTS gate, deactivates previous overlapping rate) and GET /api/branches/{branchId}/rates (list active rates).
+- Created SessionType enum in shared domain, SetRateRequest/RateResponse DTOs, SessionBaseRateTable Exposed model with customEnumeration for session_type PG enum, SessionBaseRateRepository (setRate with insertIgnore + deactivatePreviousRates + findActiveByBranch), SessionBaseRateService (MANAGE_PRODUCTS gate, deactivates previous rate, inserts new rate with far-future effective_until), SessionBaseRateRoutes (POST + GET).
+- Wired in Main.kt, added grantManageProducts to DatabaseTestHelper.
+- Added 8 integration tests covering: successful create with audit, forbidden without capability, invalid rate format, negative rate rejection, second rate deactivates first, multiple session types, duplicate idempotency, empty branch rates.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 113 tests).
+- **Learnings for future iterations:**
+  - `decimal("rate", precision, scale)` in Exposed maps to `BigDecimal`. Precision and scale must be extracted as `private const val` constants to satisfy detekt MagicNumber.
+  - `insertIgnore` with `defaultExpression(CurrentTimestampWithTimeZone)` does NOT apply the default expression — must explicitly set the column value in the `insertIgnore` block.
+  - PG enum columns for `session_type` use `customEnumeration` with PGobject pattern matching the existing convention.
+  - The branch table has a UNIQUE constraint on `(branch_type, name)` — test branch names must be unique (e.g., include UUID suffix) to avoid collisions.
+---
 ## Codebase Patterns
 - Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
 - Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.
