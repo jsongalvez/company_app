@@ -7,14 +7,23 @@ cd "$ROOT_DIR"
 log() { echo "$(date '+%H:%M:%S') [pre-commit] $*"; }
 
 # ----------------------------------------------------------------
-# 1. Quality gate
+# 1. Optimize imports (auto-fix via ktlintFormat)
+# ----------------------------------------------------------------
+log "Running ktlintFormat to optimize imports and fix formatting..."
+./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
+log "Re-staging auto-fixed files..."
+git add -u
+log "Import optimization complete."
+
+# ----------------------------------------------------------------
+# 2. Quality gate
 # ----------------------------------------------------------------
 log "Running quality gate (detekt, ktlint, test)..."
 ./gradlew :backend:detekt :backend:ktlintCheck :backend:test --no-daemon 2>&1 | tail -5
 log "Quality gate passed."
 
 # ----------------------------------------------------------------
-# 2. Ensure Postgres is reachable
+# 3. Ensure Postgres is reachable
 # ----------------------------------------------------------------
 source .env 2>/dev/null || true
 DB_HOST="${DB_HOST:-localhost}"
@@ -46,7 +55,7 @@ fi
 log "Postgres is reachable."
 
 # ----------------------------------------------------------------
-# 3. Build and boot the app, verify it starts
+# 4. Build and boot the app, verify it starts
 # ----------------------------------------------------------------
 log "Building backend distribution..."
 ./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
@@ -93,7 +102,7 @@ fi
 log "App is running and listening on port $APP_PORT."
 
 # ----------------------------------------------------------------
-# 4. Cleanup: kill the app
+# 5. Cleanup: kill the app
 # ----------------------------------------------------------------
 log "Stopping app (PID $APP_PID)..."
 kill "$APP_PID" 2>/dev/null || true
