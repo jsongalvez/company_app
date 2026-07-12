@@ -168,9 +168,10 @@ write an audit log entry for the UPDATE, and return the updated record. `isRelie
 
 ## Testing
 
-No Postgres/Docker is guaranteed in the agent sandbox, so DB integration tests may not run here.
-Prefer DB-free unit tests; inject time through internal `*At(now: Instant)` helpers (see
-`DenyListTest`) rather than sleeping or relying on wall-clock time.
+Integration tests use a real Postgres instance via `DatabaseTestHelper.ensureDatabase()` (connects
+via the root `.env` configuration). Run all tests with `./gradlew :backend:test`. Prefer DB-free
+unit tests for pure-logic helpers; inject time through internal `*At(now: Instant)` helpers (see
+`DenyListTest`).
 
 Gradle backend tests run from the repo root (`tasks.test.workingDir = rootProject.projectDir`) so
 dotenv-kotlin can load the root `.env`.

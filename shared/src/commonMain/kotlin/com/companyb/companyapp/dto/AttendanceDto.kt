@@ -34,3 +34,21 @@ data class ClockOutResponse(
     val clockOut: String?,
     val isRelief: Boolean,
 )
+
+@Serializable
+data class ReliefAccessRequest(
+    val requestId: String,
+    val branchDayId: String,
+    val targetUserId: String,
+)
+
+@Serializable
+data class ReliefAccessResponse(
+    val id: String,
+    val branchDayId: String,
+    val requestedBy: String,
+    val requestStatus: String,
+    val targetUser: String,
+    val grantedBy: String? = null,
+    val grantedAt: String? = null,
+)

@@ -10,7 +10,7 @@ Started: Sat Jun 27 12:27:08 PM PST 2026
 - Authorization MUST go through `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)` which queries the `active_user_capabilities` SQL view. Never check roles directly in business logic. The view already filters INACTIVE users and time windows.
 - For Postgres enum columns in raw SQL, bind params as text and cast in SQL (e.g. `?::capability_context_type`, `?::uuid`) via Exposed `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`. Avoids Exposed PG-enum operator mismatches. This also applies to writes: Exposed `enumerationByName` binds varchar, so native enum updates need raw SQL casts like `SET status = ?::user_status`.
 - Immediate revocation: `DenyList` (in-memory `ConcurrentHashMap<UUID, Instant>`) is checked inside `JwtService.verifyToken` BEFORE the DB `authorize` call. Populated at startup via `DenyList.loadInactiveUsers()` in `Main.kt`. Entries auto-evict after 24h (JWT max expiry).
-- No Postgres/Docker available in this environment — DB integration tests cannot be run here. Write DB-free unit tests (inject time via internal `*At(now)` helpers as done in `DenyListTest`).
+- DB integration tests connect to a real Postgres instance via `DatabaseTestHelper.ensureDatabase()`. Run tests with `./gradlew :backend:test`.
 - Exposed needs `exposed-java-time` dependency for `timestampWithTimeZone`/`CurrentTimestampWithTimeZone`.
 - HTTP errors are signalled by throwing Javalin's built-in response exceptions from the service layer (`ForbiddenResponse`=403, `BadRequestResponse`=400, `NotFoundResponse`=404, `UnauthorizedResponse`=401). No custom exception hierarchy.
 - Day state is lazy: reuse `BranchDayService.evaluateStatus(status, date, today)` — an OPEN day with date < today(Asia/Manila) is treated as PAST without a DB write. Call `BranchDayService.assertEditable(branchDayId, userId, reason?)` before any operational/financial write.
@@ -29,7 +29,6 @@ Thread: https://ampcode.com/threads/T-019f0759-389e-70e8-b4b8-15b6136bf4ea
 - **Learnings for future iterations:**
   - detekt was previously unrunnable (invalid config: `formatting` ruleset without plugin). Fixed by adding `detekt-formatting` in root subprojects; then cleared ~20 pre-existing MagicNumber/ReturnCount/MatchingDeclarationName issues across auth/logging/database/model files. detekt is now a real, green gate for all future stories.
   - `active_user_capabilities` columns: user_id, capability_id, context_type, context_id, priority, source_type (no `code`); join `capability` on id to filter by code.
-  - No DB available locally; clock-in/financial integration tests in later stories will need a Postgres (docker compose in docker/) — not runnable in this sandbox.
 ---
 
 ## Sat Jun 27 2026 - US-002
@@ -59,7 +58,6 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-0faeafe7a657
   - AuditLogRepository.record nests into the caller's open Exposed transaction (Exposed reuses the connection unless nested transactions are enabled), so audit + mutation are atomic when record is called inside the same transaction {} block.
   - GLOBAL capabilities: pass CapabilityContextType.GLOBAL + CapabilityService.GLOBAL_CONTEXT_ID. NOTE: role_capability seeds are NOT materialized into user_capability, and active_user_capabilities only reads user_capability — so capability checks only pass for users with explicit user_capability rows. A role->user_capability materialization step is still missing and will be needed for end-to-end auth (likely a future story / seeding concern).
   - detekt MatchingDeclarationName: file name must equal the single top-level declaration name (had to rename AuditLog.kt -> AuditAction.kt).
-  - No Postgres/Docker in sandbox, so the PRD's "integration tests for user deactivation" can't run here; wrote DB-free unit tests for the pure helpers (jsonField escaping, GLOBAL_CONTEXT_ID = nil UUID). The deactivate orchestration (capability gate, DB update+audit, DenyList) needs a Postgres-backed integration test when DB is available.
 ---
 
 ## Sun Jul 12 2026 - US-003 Postgres verification
@@ -127,5 +125,17 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000007
   - Clock-out uses `Table.update({ whereClause })` with combined conditions via `and` and `clockOut.isNull()` guard to ensure only null clock_out rows are updated. The same read-after-update pattern (select by id after update) is used.
   - `findById` with `singleOrNull` + `.toAttendance()` pattern works for repository lookups.
   - For idempotent reads (already clocked out), return the existing record without audit log — only log the actual UPDATE mutation.
-  - `isRelief` lives in `branch_day_assignment`, not `attendance` — need to query separately via `branchDayAssignmentIsRelief(branchDayId, userId)`.
+   - `isRelief` lives in `branch_day_assignment`, not `attendance` — need to query separately via `branchDayAssignmentIsRelief(branchDayId, userId)`.
+---
+
+## Sun Jul 12 2026 - US-008
+Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000008
+- Implemented relief access request endpoint: POST /api/relief-access/request body: { requestId, branchDayId, targetUserId }.
+- Validates target user has active clock-in on branch day (throws 400 if not), validates requester has is_relief=true in branch_day_assignment (throws 403 if not), persists request as PENDING via idempotent insertIgnore.
+- Files changed: repository/model/ReliefStatus.kt (new enum), repository/model/ReliefAccess.kt (new data class + Exposed Table), repository/ReliefAccessRepository.kt (new), service/ReliefAccessService.kt (new), api/routes/ReliefAccessRoutes.kt (new), shared/.../dto/AttendanceDto.kt (added ReliefAccessRequest/Response DTOs), Main.kt (wired routes), scripts/ralph/prd.json (passes=true), scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Use `GrantReliefAccessTable` Exposed object with `customEnumeration` for `relief_status` PG enum via `PGobject`.
+  - `insertIgnore` with `insertedCount` works for idempotent inserts on `grant_relief_access` table.
+  - Reuse AttendanceTable DSL queries for active clock-in checks rather than raw SQL.
 ---
