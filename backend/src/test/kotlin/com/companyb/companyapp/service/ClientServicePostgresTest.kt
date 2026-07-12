@@ -4,8 +4,10 @@ import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -24,6 +26,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ClientServicePostgresTest {
@@ -194,6 +197,257 @@ class ClientServicePostgresTest {
         assertFalse(results.any { it.id == clientAId })
     }
 
+    @Test
+    fun `update client succeeds with EDIT_BRANCH_DATA capability`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+
+        val updated =
+            ClientService.update(
+                callerId = callerId,
+                clientId = clientAId,
+                firstName = "Jane",
+                lastName = "Smith",
+                middleName = null,
+                suffix = null,
+                phoneNumber = "1112223333",
+                address = "456 Oak St",
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+
+        assertEquals("Jane", updated.firstName)
+        assertEquals("Smith", updated.lastName)
+        assertEquals("1112223333", updated.phoneNumber)
+        assertEquals("456 Oak St", updated.address)
+        val persisted = persistedClient(clientAId)
+        assertEquals("Jane", persisted.firstName)
+        assertEquals("Smith", persisted.lastName)
+        assertTrue(auditEntryCount(clientAId) >= 2L)
+    }
+
+    @Test
+    fun `update client fails without EDIT_BRANCH_DATA capability`() {
+        createClient(callerId, clientAId)
+
+        assertFailsWith<ForbiddenResponse> {
+            ClientService.update(
+                callerId = callerId,
+                clientId = clientAId,
+                firstName = "Jane",
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update client returns 404 for non-existent client`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+
+        assertFailsWith<NotFoundResponse> {
+            ClientService.update(
+                callerId = callerId,
+                clientId = UUID.randomUUID(),
+                firstName = "Jane",
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update client rejects invalid gender`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+
+        assertFailsWith<BadRequestResponse> {
+            ClientService.update(
+                callerId = callerId,
+                clientId = clientAId,
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = "X",
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update client rejects blank first name`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+
+        assertFailsWith<BadRequestResponse> {
+            ClientService.update(
+                callerId = callerId,
+                clientId = clientAId,
+                firstName = "   ",
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update client rejects partial blood pressure`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+
+        assertFailsWith<BadRequestResponse> {
+            ClientService.update(
+                callerId = callerId,
+                clientId = clientAId,
+                firstName = null,
+                lastName = null,
+                middleName = null,
+                suffix = null,
+                phoneNumber = null,
+                address = null,
+                gender = null,
+                age = null,
+                systolicBp = 120.toShort(),
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update client writes audit log`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+
+        ClientService.update(
+            callerId = callerId,
+            clientId = clientAId,
+            firstName = "UpdatedFirst",
+            lastName = "UpdatedLast",
+            middleName = null,
+            suffix = null,
+            phoneNumber = null,
+            address = null,
+            gender = null,
+            age = null,
+            systolicBp = null,
+            diastolicBp = null,
+            medicalConditions = null,
+        )
+
+        val auditCount = auditEntryCount(clientAId)
+        assertTrue(auditCount >= 2L)
+    }
+
+    @Test
+    fun `anonymize client nullifies PII and retains age and gender`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        val age = 35
+        val gender = "F"
+        createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang", age = age, gender = gender)
+
+        ClientService.anonymize(callerId, clientAId)
+
+        val persisted = persistedClient(clientAId)
+        assertEquals("", persisted.firstName)
+        assertEquals("", persisted.lastName)
+        assertNull(persisted.middleName)
+        assertNull(persisted.suffix)
+        assertNull(persisted.phoneNumber)
+        assertEquals("", persisted.address)
+        assertNull(persisted.medicalConditions)
+        assertNull(persisted.systolicBp)
+        assertNull(persisted.diastolicBp)
+        assertEquals(gender, persisted.gender)
+        assertEquals(age, persisted.age)
+        assertNotNull(persisted.deletedAt)
+    }
+
+    @Test
+    fun `anonymize client fails without EDIT_BRANCH_DATA capability`() {
+        createClient(callerId, clientAId)
+
+        assertFailsWith<ForbiddenResponse> {
+            ClientService.anonymize(callerId, clientAId)
+        }
+    }
+
+    @Test
+    fun `anonymize client returns 404 for non-existent client`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+
+        assertFailsWith<NotFoundResponse> {
+            ClientService.anonymize(callerId, UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `anonymize client is excluded from search results`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId, firstName = "Searchable", lastName = "Client")
+
+        ClientService.anonymize(callerId, clientAId)
+
+        val results = ClientService.search("Searchable")
+        assertTrue(results.none { it.id == clientAId })
+    }
+
+    @Test
+    fun `anonymize client still returned by direct findById`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+
+        ClientService.anonymize(callerId, clientAId)
+
+        val found = ClientService.findById(clientAId)
+        assertEquals(clientAId, found.id)
+        assertEquals("", found.firstName)
+    }
+
+    @Test
+    fun `anonymize already anonymized client returns 404`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+        ClientService.anonymize(callerId, clientAId)
+
+        assertFailsWith<NotFoundResponse> {
+            ClientService.anonymize(callerId, clientAId)
+        }
+    }
+
     @Suppress("LongParameterList")
     private fun createClient(
         callerId: UUID,
@@ -274,6 +528,7 @@ class ClientServicePostgresTest {
         clientIds: List<UUID>,
     ) {
         transaction {
+            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
             AuditLogTable.deleteWhere {
                 (AuditLogTable.changedBy eq userId) or
                     (AuditLogTable.recordId eq clientIds[0]) or

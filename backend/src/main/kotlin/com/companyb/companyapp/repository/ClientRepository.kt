@@ -11,6 +11,8 @@ import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -85,6 +87,107 @@ object ClientRepository {
         transaction {
             findByIdInTransaction(id)
         }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
+
+    @Suppress("LongParameterList", "CyclomaticComplexMethod")
+    fun update(
+        clientId: UUID,
+        firstName: String?,
+        lastName: String?,
+        middleName: String?,
+        suffix: String?,
+        phoneNumber: String?,
+        address: String?,
+        gender: String?,
+        age: Int?,
+        systolicBp: Short?,
+        diastolicBp: Short?,
+        medicalConditions: String?,
+        changedBy: UUID,
+    ): Client? =
+        transaction {
+            val old = findByIdInTransaction(clientId) ?: return@transaction null
+
+            val updatedCount =
+                ClientTable.update({ ClientTable.id eq clientId }) {
+                    if (firstName != null) it[ClientTable.firstName] = firstName
+                    if (lastName != null) it[ClientTable.lastName] = lastName
+                    if (middleName != null) it[ClientTable.middleName] = middleName
+                    if (suffix != null) it[ClientTable.suffix] = suffix
+                    if (phoneNumber != null) it[ClientTable.phoneNumber] = phoneNumber
+                    if (address != null) it[ClientTable.address] = address
+                    if (gender != null) it[ClientTable.gender] = gender
+                    if (age != null) it[ClientTable.age] = age
+                    if (systolicBp != null) it[ClientTable.systolicBp] = systolicBp
+                    if (diastolicBp != null) it[ClientTable.diastolicBp] = diastolicBp
+                    if (medicalConditions != null) it[ClientTable.medicalConditions] = medicalConditions
+                }
+            val updated = findByIdInTransaction(clientId) ?: return@transaction null
+
+            if (updatedCount > 0) {
+                AuditLogRepository.record(
+                    tableName = ClientTable.tableName,
+                    recordId = clientId,
+                    action = AuditAction.UPDATE,
+                    changedBy = changedBy,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "firstName" to old.firstName,
+                            "lastName" to old.lastName,
+                        ),
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "firstName" to updated.firstName,
+                            "lastName" to updated.lastName,
+                        ),
+                )
+            }
+            updated
+        }
+
+    fun anonymize(
+        clientId: UUID,
+        changedBy: UUID,
+    ): Boolean =
+        transaction {
+            val old = findByIdInTransaction(clientId) ?: return@transaction false
+            val now = OffsetDateTime.now()
+
+            val updatedCount =
+                ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
+                    it[ClientTable.deletedAt] = now
+                    it[ClientTable.firstName] = ""
+                    it[ClientTable.lastName] = ""
+                    it[ClientTable.middleName] = null
+                    it[ClientTable.suffix] = null
+                    it[ClientTable.phoneNumber] = null
+                    it[ClientTable.address] = ""
+                    it[ClientTable.medicalConditions] = null
+                    it[ClientTable.systolicBp] = null
+                    it[ClientTable.diastolicBp] = null
+                }
+
+            if (updatedCount > 0) {
+                AuditLogRepository.record(
+                    tableName = ClientTable.tableName,
+                    recordId = clientId,
+                    action = AuditAction.UPDATE,
+                    changedBy = changedBy,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "firstName" to old.firstName,
+                            "lastName" to old.lastName,
+                            "deletedAt" to (old.deletedAt?.toString() ?: "null"),
+                        ),
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "firstName" to "",
+                            "lastName" to "",
+                            "deletedAt" to now.toString(),
+                        ),
+                )
+            }
+            updatedCount > 0
+        }
 
     fun search(query: String): List<Client> =
         transaction {

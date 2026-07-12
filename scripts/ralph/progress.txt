@@ -2,6 +2,23 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Sun Jul 12 2026 - US-012
+Thread: unavailable
+- Implemented client update (PATCH /api/clients/{clientId}) and anonymize (POST /api/clients/{clientId}/anonymize) endpoints.
+- PATCH validates EDIT_BRANCH_DATA capability (GLOBAL context), applies partial updates for provided fields, validates gender/bp/blank-name rules, writes audit log with old/new first/last name.
+- Anonymize requires EDIT_BRANCH_DATA capability, sets deleted_at=now(), nullifies all PII (firstName, lastName, middleName, suffix, phoneNumber, address, medicalConditions, systolicBp, diastolicBp) while retaining age and gender. Returns 404 if already anonymized (deletedAt already set). Writes audit log.
+- Added UpdateClientRequest DTO to shared module, grantEditBranchData to DatabaseTestHelper.
+- Added 11 integration tests covering: successful update, forbidden without capability, 404 not found, invalid gender, blank first name, partial BP rejection, audit log writing, PII nullification, anonymize without capability, anonymize non-existent, search exclusion after anonymize, findById still works for anonymized, idempotent anonymize returns 404.
+- Files changed: shared/.../dto/ClientDto.kt, repository/ClientRepository.kt, service/ClientService.kt, api/routes/ClientRoutes.kt, test/.../DatabaseTestHelper.kt, test/.../ClientServicePostgresTest.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 105 tests).
+- **Learnings for future iterations:**
+  - ClientRepository.update uses Exposed DSL `update({ whereClause }) { conditional setters }` for partial updates — works well with nullable parameters for each field.
+  - `auditLog` table may have FK to `app_user.changed_by` — always clean up `user_capability` and `audit_log` before `app_user` in integration test cleanup to avoid FK violations.
+  - `UserCapabilityTable` has FK to `AppUserTable.id` — delete from `UserCapabilityTable` FIRST in cleanup.
+  - `isNull()` on Exposed columns needs `org.jetbrains.exposed.sql.isNull` import in the file where it's used.
+  - Detekt CyclomaticComplexMethod threshold is 15 — the `update` repository method with 11 conditional branches hits exactly 15, needs `@Suppress("CyclomaticComplexMethod")`.
+---
+
 ## Codebase Patterns
 - Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
 - Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.
