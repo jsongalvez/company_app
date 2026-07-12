@@ -79,6 +79,7 @@ Only update AGENTS.md if you have **genuinely reusable knowledge** that would he
 - Do NOT commit broken code
 - Keep changes focused and minimal
 - Follow existing code patterns
+- **Don't forget integration tests** — each story's `verification` field often requires integration tests (Postgres-backed). Unit tests alone are not sufficient. Check `verification` before coding and ensure every acceptance criterion has test coverage.
 
 ## Browser Testing (Required for Frontend Stories)
 

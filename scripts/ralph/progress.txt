@@ -32,6 +32,24 @@ Thread: unavailable
   - PG enum columns for `session_type` use `customEnumeration` with PGobject pattern matching the existing convention.
   - The branch table has a UNIQUE constraint on `(branch_type, name)` — test branch names must be unique (e.g., include UUID suffix) to avoid collisions.
 ---
+## Sun Jul 12 2026 - US-013
+Thread: unavailable
+- Implemented session create endpoint: POST /api/sessions body: { id, clientId, branchId, isWalkIn, requestedPractitionerId, finalPrice, remarks, otherConcerns, bookedAt, nextAppointmentDate }.
+- Added pure-function SessionTypeAlgorithm: computeSessionType(branchType, priorNonMedicalMissionCount) with branching logic (MEDICAL_MISSION, PROVINCIAL_FIRST, REGULAR, SECOND_SESSION, SUBSEQUENT).
+- SessionService.create: checks EDIT_BRANCH_DATA capability (GLOBAL), validates branch exists, idempotent check (returns existing session if same UUID), guards against duplicate PENDING sessions via hasActivePendingSession (409 Conflict), resolves/creates branch_day, counts prior non-MM sessions, snapshots base_price from active session_base_rate, inserts session with audit log.
+- SessionTable Exposed model with customEnumeration for session_type and session_status PG enums, left join with active_session_voids view for prior session counting.
+- Created files: shared/.../dto/SessionDto.kt, backend/.../repository/model/Session.kt (+ ActiveSessionVoidsView.kt), backend/.../repository/SessionRepository.kt, backend/.../service/SessionService.kt, backend/.../api/routes/SessionRoutes.kt, backend/.../service/SessionTypeAlgorithmTest.kt, backend/.../service/SessionServicePostgresTest.kt.
+- Modified: Main.kt (wired SessionRoutes), scripts/ralph/prd.json (US-013 passes=true).
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 126 tests).
+- **Learnings for future iterations:**
+  - Exposed `deleteAll()` is available as extension function via `org.jetbrains.exposed.sql.deleteAll`.
+  - Exposed `customEnumeration` must be called inline inside the `Table` object body, not from a companion/top-level function.
+  - `insertIgnore` with `ON CONFLICT (id) DO NOTHING` only handles PK conflicts, NOT partial unique indexes — pre-checking in the service layer plus the PK idempotent check before the guard is the correct pattern.
+  - `Query.forUpdate()` is not available in Exposed 0.61.0 — rely on unique indexes + pre-checks for concurrency instead.
+  - Exposed `close()` on ResultRow needs explicit type param `this.get<EnumType>(column)` when column uses `customEnumeration`.
+  - ktlint requires enum entries on separate lines.
+  - For tests with PENDING guard, use `transaction { Table.update({ ... }) { it[status] = ... } }` to change status before creating a second session for the same client.
+---
 ## Codebase Patterns
 - Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
 - Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.

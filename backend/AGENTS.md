@@ -153,6 +153,14 @@ that binds via `PGobject(type = "jsonb")`. New JSONB columns should reuse this t
 val myJsonCol = registerColumn("my_json_col", JsonBColumnType()).nullable()
 ```
 
+## Sessions
+
+Session create (`POST /api/sessions`) uses an idempotent PK lookup first (`SessionRepository.findById`) to handle retries with the same UUID before checking the PENDING guard (`hasActivePendingSession`). This prevents `ConflictResponse` for idempotent retries.
+
+The `computeSessionType` pure function is extracted from the service so it can be unit-tested without a database. The prior session count excludes MEDICAL_MISSION sessions and voided sessions (via `active_session_voids` view LEFT JOIN).
+
+For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Exposed `Query.forUpdate()` is not available; rely on unique indexes + pre-checks.
+
 ## Clock-in / Attendance
 
 Clock-in (`POST /api/attendance/clock-in`) is open to all authenticated users (no capability gate).
