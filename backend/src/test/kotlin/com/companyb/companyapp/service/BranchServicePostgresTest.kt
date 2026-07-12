@@ -1,9 +1,21 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
-import org.jetbrains.exposed.sql.TextColumnType
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.or
+import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 import kotlin.test.AfterTest
@@ -24,14 +36,14 @@ class BranchServicePostgresTest {
 
     @BeforeTest
     fun setUp() {
-        ensureDatabase()
+        DatabaseTestHelper.ensureDatabase()
         deleteTestRows(callerId, branchIds)
         insertUser(callerId)
     }
 
     @AfterTest
     fun tearDown() {
-        if (isDatabaseReady()) {
+        if (DatabaseTestHelper.isDatabaseReady()) {
             deleteTestRows(callerId, branchIds)
         }
     }
@@ -51,7 +63,7 @@ class BranchServicePostgresTest {
         assertEquals(BranchType.CLINIC, persistedBranchType(clinicId))
         assertEquals(BranchType.PROVINCIAL_TOUR, persistedBranchType(provincialTourId))
         assertEquals(BranchType.MEDICAL_MISSION, persistedBranchType(medicalMissionId))
-        assertEquals(1, auditEntryCount(clinicId))
+        assertEquals(1L, auditEntryCount(clinicId))
         assertEquals("Main Clinic", auditNewName(clinicId))
     }
 
@@ -66,7 +78,7 @@ class BranchServicePostgresTest {
         assertFalse(duplicate.created)
         assertEquals("Main Clinic", duplicate.branch.name)
         assertEquals(BranchType.CLINIC, duplicate.branch.branchType)
-        assertEquals(1, auditEntryCount(clinicId))
+        assertEquals(1L, auditEntryCount(clinicId))
     }
 
     @Test
@@ -76,11 +88,11 @@ class BranchServicePostgresTest {
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 
         val found = BranchService.findById(medicalMissionId)
-        val branchIds = BranchService.findAll().map { it.id }.toSet()
+        val allBranchIds = BranchService.findAll().map { it.id }.toSet()
 
         assertEquals("Free Mission", found.name)
-        assertTrue(clinicId in branchIds)
-        assertTrue(medicalMissionId in branchIds)
+        assertTrue(clinicId in allBranchIds)
+        assertTrue(medicalMissionId in allBranchIds)
     }
 
     @Test
@@ -90,135 +102,87 @@ class BranchServicePostgresTest {
         }
 
         assertFalse(branchExists(clinicId))
-        assertEquals(0, auditEntryCount(clinicId))
+        assertEquals(0L, auditEntryCount(clinicId))
     }
 
     private fun insertUser(userId: UUID) {
-        execSql(
-            """
-            INSERT INTO app_user (id, username, password_hash, status, email, display_name)
-            VALUES (?::uuid, ?, ?, 'ACTIVE', ?, ?)
-            """.trimIndent(),
-            userId.toString(),
-            "branch-caller-$userId",
-            "test-password-hash",
-            "branch-caller-$userId@example.test",
-            "Branch Caller",
+        DatabaseTestHelper.insertUser(
+            id = userId,
+            username = "branch-caller-$userId",
+            passwordHash = "test-password-hash",
+            email = "${userId.toString().take(8)}@t.st",
+            displayName = "Branch Caller",
         )
     }
 
     private fun grantManageUsers(userId: UUID) {
-        execSql(
-            """
-            INSERT INTO user_capability
-                (user_id, capability_id, context_type, context_id, source_type, source_id, priority)
-            SELECT ?::uuid, c.id, 'GLOBAL'::capability_context_type, ?::uuid,
-                   'SYSTEM'::capability_source_type, ?::uuid, 100
-            FROM capability c
-            WHERE c.code = 'MANAGE_USERS'
-            """.trimIndent(),
-            userId.toString(),
-            CapabilityService.GLOBAL_CONTEXT_ID.toString(),
-            sourceId.toString(),
-        )
+        DatabaseTestHelper.grantManageUsers(userId, sourceId)
     }
 
     private fun persistedBranchType(branchId: UUID): BranchType =
-        querySingle(
-            "SELECT branch_type::text FROM branch WHERE id = ?::uuid",
-            branchId.toString(),
-        ) { BranchType.valueOf(it.getString(1)) }
+        transaction {
+            BranchTable
+                .selectAll()
+                .where { BranchTable.id eq branchId }
+                .single()[BranchTable.branchType]
+        }
 
     private fun branchExists(branchId: UUID): Boolean =
-        querySingle(
-            "SELECT EXISTS (SELECT 1 FROM branch WHERE id = ?::uuid)",
-            branchId.toString(),
-        ) { it.getBoolean(1) }
+        transaction {
+            BranchTable
+                .selectAll()
+                .where { BranchTable.id eq branchId }
+                .empty()
+                .not()
+        }
 
-    private fun auditEntryCount(branchId: UUID): Int =
-        querySingle(
-            """
-            SELECT count(*)::int
-            FROM audit_log
-            WHERE table_name = 'branch'
-              AND record_id = ?::uuid
-            """.trimIndent(),
-            branchId.toString(),
-        ) { it.getInt(1) }
+    private fun auditEntryCount(branchId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where { (AuditLogTable.auditTableName eq "branch") and (AuditLogTable.recordId eq branchId) }
+                .count()
+        }
 
     private fun auditNewName(branchId: UUID): String =
-        querySingle(
-            """
-            SELECT new_value->>'name'
-            FROM audit_log
-            WHERE table_name = 'branch'
-              AND record_id = ?::uuid
-            ORDER BY changed_at DESC
-            LIMIT 1
-            """.trimIndent(),
-            branchId.toString(),
-        ) { it.getString(1) }
+        transaction {
+            val row =
+                AuditLogTable
+                    .selectAll()
+                    .where { (AuditLogTable.auditTableName eq "branch") and (AuditLogTable.recordId eq branchId) }
+                    .orderBy(AuditLogTable.changedAt to SortOrder.DESC)
+                    .limit(1)
+                    .single()
+            extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
+        }
 
     private fun deleteTestRows(
         userId: UUID,
         branchIds: List<UUID>,
     ) {
-        val firstBranchId = branchIds[0].toString()
-        val secondBranchId = branchIds[1].toString()
-        val thirdBranchId = branchIds[2].toString()
-        execSql(
-            """
-            DELETE FROM audit_log
-            WHERE changed_by = ?::uuid
-               OR record_id IN (?::uuid, ?::uuid, ?::uuid)
-            """.trimIndent(),
-            userId.toString(),
-            firstBranchId,
-            secondBranchId,
-            thirdBranchId,
-        )
-        execSql("DELETE FROM user_capability WHERE user_id = ?::uuid", userId.toString())
-        execSql(
-            "DELETE FROM branch WHERE id IN (?::uuid, ?::uuid, ?::uuid)",
-            firstBranchId,
-            secondBranchId,
-            thirdBranchId,
-        )
-        execSql("DELETE FROM app_user WHERE id = ?::uuid", userId.toString())
+        transaction {
+            AuditLogTable.deleteWhere {
+                (AuditLogTable.changedBy eq userId) or (AuditLogTable.recordId eq branchIds[0]) or
+                    (AuditLogTable.recordId eq branchIds[1]) or (AuditLogTable.recordId eq branchIds[2])
+            }
+            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
+            BranchTable.deleteWhere {
+                (BranchTable.id eq branchIds[0]) or (BranchTable.id eq branchIds[1]) or
+                    (BranchTable.id eq branchIds[2])
+            }
+            AppUserTable.deleteWhere { AppUserTable.id eq userId }
+        }
     }
 
     private companion object {
-        private var databaseReady = false
+        private val json = Json
 
-        fun ensureDatabase() {
-            if (!databaseReady) {
-                DatabaseConfig.runMigrations()
-                DatabaseConfig.runExposed()
-                databaseReady = true
-            }
+        private fun extractJsonField(
+            jsonString: String,
+            field: String,
+        ): String {
+            val jsonElement = json.parseToJsonElement(jsonString)
+            return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
         }
-
-        fun isDatabaseReady(): Boolean = databaseReady
-
-        fun execSql(
-            sql: String,
-            vararg args: String,
-        ) {
-            transaction {
-                exec(sql, args = args.map { TextColumnType() to it })
-            }
-        }
-
-        fun <T> querySingle(
-            sql: String,
-            vararg args: String,
-            transform: (java.sql.ResultSet) -> T,
-        ): T =
-            transaction {
-                exec(sql, args = args.map { TextColumnType() to it }) { rs ->
-                    check(rs.next()) { "Expected one row for query: $sql" }
-                    transform(rs)
-                }
-            } ?: error("Query did not return a result: $sql")
     }
 }
