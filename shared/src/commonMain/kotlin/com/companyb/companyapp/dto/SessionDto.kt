@@ -17,6 +17,12 @@ data class CreateSessionRequest(
 )
 
 @Serializable
+data class UpdateSessionStatusRequest(
+    val status: String,
+    val version: Int,
+)
+
+@Serializable
 data class SessionResponse(
     val id: String,
     val clientId: String,

@@ -499,7 +499,7 @@
         "Integration tests for status transitions and optimistic locking pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-015",

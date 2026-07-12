@@ -17,6 +17,7 @@ import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.leftJoin
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -125,6 +126,37 @@ object SessionRepository {
             logger.info {
                 "[CREATE-SESSION] Session ${it.session.id} created=${it.created}"
             }
+        }
+
+    fun updateStatus(
+        sessionId: UUID,
+        oldStatus: SessionStatus,
+        newStatus: SessionStatus,
+        expectedVersion: Int,
+        changedBy: UUID,
+    ): Session =
+        transaction {
+            SessionTable.update({
+                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+            }) {
+                it[SessionTable.sessionStatus] = newStatus
+                it[SessionTable.version] = expectedVersion + 1
+            }
+
+            val session =
+                findByIdInTransaction(sessionId)
+                    ?: error("Session $sessionId not found after status update")
+
+            AuditLogRepository.record(
+                tableName = SessionTable.tableName,
+                recordId = session.id,
+                action = AuditAction.UPDATE,
+                changedBy = changedBy,
+                oldValue = AuditLogRepository.jsonField("sessionStatus", oldStatus.name),
+                newValue = AuditLogRepository.jsonField("sessionStatus", newStatus.name),
+            )
+
+            session
         }
 
     fun findById(id: UUID): Session? =

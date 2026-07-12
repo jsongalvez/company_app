@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
+import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
@@ -44,6 +45,7 @@ class SessionServicePostgresTest {
     private val branchId = UUID.randomUUID()
     private val rateId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
+    private val walkInSessionId = UUID.randomUUID()
 
     @BeforeTest
     fun setUp() {
@@ -196,6 +198,71 @@ class SessionServicePostgresTest {
         assertEquals(SessionType.REGULAR.name, clinicResult.session.sessionType)
     }
 
+    @Test
+    fun `update status from PENDING to COMPLETED succeeds and increments version`() {
+        createSession(callerId, sessionId)
+
+        val updated = SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
+
+        assertEquals("COMPLETED", updated.sessionStatus)
+        assertEquals(2, updated.version)
+        assertEquals(2L, auditEntryCount(sessionId))
+    }
+
+    @Test
+    fun `update status with wrong version throws 409`() {
+        createSession(callerId, sessionId)
+
+        assertFailsWith<ConflictResponse> {
+            SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 99)
+        }
+    }
+
+    @Test
+    fun `update status for non-existent session throws 404`() {
+        assertFailsWith<NotFoundResponse> {
+            SessionService.updateStatus(callerId, UUID.randomUUID(), SessionStatus.COMPLETED, 1)
+        }
+    }
+
+    @Test
+    fun `update status without EDIT_BRANCH_DATA throws 403`() {
+        createSession(callerId, sessionId)
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            SessionService.updateStatus(otherCaller, sessionId, SessionStatus.COMPLETED, 1)
+        }
+    }
+
+    @Test
+    fun `walk-in session cannot transition to NO_SHOW`() {
+        createSession(callerId, walkInSessionId, isWalkIn = true)
+
+        assertFailsWith<BadRequestResponse> {
+            SessionService.updateStatus(callerId, walkInSessionId, SessionStatus.NO_SHOW, 1)
+        }
+    }
+
+    @Test
+    fun `walk-in session cannot transition to CANCELLED`() {
+        createSession(callerId, walkInSessionId, isWalkIn = true)
+
+        assertFailsWith<BadRequestResponse> {
+            SessionService.updateStatus(callerId, walkInSessionId, SessionStatus.CANCELLED, 1)
+        }
+    }
+
+    @Test
+    fun `update status writes audit log entry`() {
+        createSession(callerId, sessionId)
+
+        SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
+
+        assertEquals(2L, auditEntryCount(sessionId))
+    }
+
     @Suppress("LongParameterList")
     private fun createSession(
         callerId: UUID,
@@ -287,7 +354,8 @@ class SessionServicePostgresTest {
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
             AuditLogTable.deleteWhere {
                 (AuditLogTable.changedBy eq callerId) or
-                    (AuditLogTable.recordId eq sessionId)
+                    (AuditLogTable.recordId eq sessionId) or
+                    (AuditLogTable.recordId eq walkInSessionId)
             }
             SessionTable.deleteAll()
             SessionBaseRateTable.deleteAll()

@@ -161,6 +161,8 @@ The `computeSessionType` pure function is extracted from the service so it can b
 
 For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Exposed `Query.forUpdate()` is not available; rely on unique indexes + pre-checks.
 
+Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLogRepository.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
+
 ## Clock-in / Attendance
 
 Clock-in (`POST /api/attendance/clock-in`) is open to all authenticated users (no capability gate).

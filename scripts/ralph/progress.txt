@@ -50,6 +50,24 @@ Thread: unavailable
   - ktlint requires enum entries on separate lines.
   - For tests with PENDING guard, use `transaction { Table.update({ ... }) { it[status] = ... } }` to change status before creating a second session for the same client.
 ---
+## Sun Jul 12 2026 - US-014
+Thread: unavailable
+- Implemented session status update endpoint: PATCH /api/sessions/{sessionId}/status body: { status, version }.
+- SessionService.updateStatus: looks up session (404 if missing), checks version against session.version for optimistic locking (409 Conflict on mismatch), gates EDIT_BRANCH_DATA capability, calls BranchDayService.assertEditable on the session's branch day, validates walk-in sessions cannot transition to NO_SHOW or CANCELLED (400 Bad Request), then delegates to repository.
+- SessionRepository.updateStatus: uses Exposed DSL `update` with combined `(id eq sessionId) and (version eq expectedVersion)` WHERE clause to atomically check version and set new status + version increment. Writes audit log with old/new sessionStatus values.
+- Added UpdateSessionStatusRequest DTO to shared module.
+- Wired PATCH route in SessionRoutes.kt (no Main.kt change needed — SessionRoutes already registered).
+- Added 7 integration tests covering: PENDING→COMPLETED (version bump + audit), version mismatch (409), session not found (404), forbidden without capability (403), walk-in→NO_SHOW (400), walk-in→CANCELLED (400), audit entry written on update.
+- Files changed: shared/.../dto/SessionDto.kt, repository/SessionRepository.kt, service/SessionService.kt, api/routes/SessionRoutes.kt, test/.../SessionServicePostgresTest.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Session `version` column can be incremented inside Exposed `update` block by setting `it[version] = expectedVersion + 1` (the WHERE clause already confirmed the current version matches, so this is safe).
+  - Exposed DSL `update` needs `import org.jetbrains.exposed.sql.update` and works with combined conditions via `(col1 eq val1) and (col2 eq val2)` in the predicate lambda.
+  - `AuditLogRepository.record` must be called inside the `transaction {}` block that performs the mutation (not outside) so the audit row commits atomically with the change.
+  - The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — check this in the service layer for a cleaner error message before hitting the DB constraint.
+  - `SessionService.updateStatus` returns `Session` (not `SessionCreateResult`) since the operation is always a mutation — no idempotent read path needed.
+---
+
 ## Codebase Patterns
 - Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
 - Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.

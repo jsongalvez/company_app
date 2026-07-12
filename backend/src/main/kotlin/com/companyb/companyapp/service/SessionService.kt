@@ -7,8 +7,11 @@ import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateResult
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.Session
+import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
@@ -117,5 +120,54 @@ object SessionService {
         }
 
         return result
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun updateStatus(
+        callerId: UUID,
+        sessionId: UUID,
+        newStatus: SessionStatus,
+        expectedVersion: Int,
+    ): Session {
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+
+        if (session.version != expectedVersion) {
+            throw ConflictResponse("Session version mismatch")
+        }
+
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to update session status")
+        }
+
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+
+        if (session.isWalkIn && newStatus in setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)) {
+            throw BadRequestResponse("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
+        }
+
+        val oldStatus = SessionStatus.valueOf(session.sessionStatus)
+
+        val updated =
+            SessionRepository.updateStatus(
+                sessionId = sessionId,
+                oldStatus = oldStatus,
+                newStatus = newStatus,
+                expectedVersion = expectedVersion,
+                changedBy = callerId,
+            )
+
+        logger.info {
+            "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
+                " from ${session.sessionStatus} to ${newStatus.name}"
+        }
+
+        return updated
     }
 }

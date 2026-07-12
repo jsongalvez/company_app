@@ -2,7 +2,9 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.dto.SessionResponse
+import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.repository.model.Session
+import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.service.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -69,6 +71,23 @@ object SessionRoutes {
 
             context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
             context.json(result.session.toResponse())
+        }
+
+        config.routes.patch("/api/sessions/{sessionId}/status") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val request = context.bodyAsClass<UpdateSessionStatusRequest>()
+
+            val newStatus =
+                runCatching { SessionStatus.valueOf(request.status.uppercase()) }
+                    .getOrElse { throw BadRequestResponse("Invalid session status: ${request.status}") }
+
+            val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version)
+
+            context.status(HttpStatus.OK)
+            context.json(updated.toResponse())
         }
     }
 
