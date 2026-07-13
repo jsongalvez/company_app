@@ -1,12 +1,16 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.CreateSessionRequest
+import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UnvoidSessionRequest
+import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.repository.model.Session
+import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.SessionService
@@ -130,6 +134,73 @@ object SessionRoutes {
             context.status(HttpStatus.OK)
             context.json(sessionVoid.toResponse())
         }
+
+        config.routes.post("/api/sessions/{sessionId}/practitioners") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val request = context.bodyAsClass<AddPractitionerRequest>()
+
+            val practitionerId =
+                runCatching { UUID.fromString(request.practitionerId) }
+                    .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
+            val id =
+                runCatching { UUID.fromString(request.id) }
+                    .getOrElse { throw BadRequestResponse("Invalid id") }
+
+            val result =
+                SessionService.addPractitioner(
+                    callerId = callerId,
+                    id = id,
+                    sessionId = sessionId,
+                    practitionerId = practitionerId,
+                    remarks = request.remarks,
+                )
+
+            context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
+            context.json(result.practitioner.toResponse())
+        }
+
+        config.routes.patch("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val practitionerId =
+                runCatching { UUID.fromString(context.pathParam("practitionerId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
+            val request = context.bodyAsClass<UpdatePractitionerRemarksRequest>()
+
+            val updated =
+                SessionService.updatePractitionerRemarks(
+                    callerId = callerId,
+                    sessionId = sessionId,
+                    practitionerId = practitionerId,
+                    remarks = request.remarks,
+                )
+
+            context.status(HttpStatus.OK)
+            context.json(updated.toResponse())
+        }
+
+        config.routes.delete("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val practitionerId =
+                runCatching { UUID.fromString(context.pathParam("practitionerId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
+
+            SessionService.removePractitioner(
+                callerId = callerId,
+                sessionId = sessionId,
+                practitionerId = practitionerId,
+            )
+
+            context.status(HttpStatus.NO_CONTENT)
+        }
     }
 
     private fun Session.toResponse(): SessionResponse =
@@ -160,5 +231,14 @@ object SessionRoutes {
             unvoidedAt = unvoidedAt?.toString(),
             unvoidedBy = unvoidedBy?.toString(),
             unvoidedReason = unvoidedReason,
+        )
+
+    private fun SessionPractitioner.toResponse(): SessionPractitionerResponse =
+        SessionPractitionerResponse(
+            id = id.toString(),
+            sessionId = sessionId.toString(),
+            practitionerId = practitionerId.toString(),
+            remarks = remarks,
+            slotAtTime = slotAtTime.toInt(),
         )
 }

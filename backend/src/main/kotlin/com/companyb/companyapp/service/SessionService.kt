@@ -2,14 +2,19 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateResult
+import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
+import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.VoidResult
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Session
+import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
@@ -254,4 +259,118 @@ object SessionService {
 
         return updated
     }
+
+    private fun checkEditBranchData(callerId: UUID) {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
+        }
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun addPractitioner(
+        callerId: UUID,
+        id: UUID,
+        sessionId: UUID,
+        practitionerId: UUID,
+        remarks: String?,
+    ): AddPractitionerResult {
+        checkEditBranchData(callerId)
+
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+
+        val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
+        if (existing != null) {
+            logger.info { "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)" }
+            return AddPractitionerResult(existing, false)
+        }
+
+        val branchDay =
+            BranchDayRepository.findById(session.branchDayId)
+                ?: throw NotFoundResponse("Branch day not found")
+
+        val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchDay.branchId, practitionerId)
+        val slotAtTime = assignment?.slot ?: DEFAULT_SLOT
+
+        val result =
+            SessionPractitionerRepository.add(
+                id = id,
+                sessionId = sessionId,
+                practitionerId = practitionerId,
+                slotAtTime = slotAtTime,
+                remarks = remarks,
+                changedBy = callerId,
+            )
+
+        logger.info { "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime" }
+
+        return result
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun updatePractitionerRemarks(
+        callerId: UUID,
+        sessionId: UUID,
+        practitionerId: UUID,
+        remarks: String?,
+    ): SessionPractitioner {
+        checkEditBranchData(callerId)
+
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+
+        val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
+        if (existing == null) {
+            throw NotFoundResponse("Practitioner not found in session")
+        }
+
+        val updated =
+            SessionPractitionerRepository.updateRemarks(
+                sessionId = sessionId,
+                practitionerId = practitionerId,
+                remarks = remarks,
+                changedBy = callerId,
+            ) ?: throw NotFoundResponse("Practitioner not found in session")
+
+        logger.info {
+            "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
+                "practitioner $practitionerId in session $sessionId"
+        }
+
+        return updated
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun removePractitioner(
+        callerId: UUID,
+        sessionId: UUID,
+        practitionerId: UUID,
+    ) {
+        checkEditBranchData(callerId)
+
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+
+        val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
+        if (existing == null) {
+            throw NotFoundResponse("Practitioner not found in session")
+        }
+
+        SessionPractitionerRepository.remove(
+            sessionId = sessionId,
+            practitionerId = practitionerId,
+            changedBy = callerId,
+        )
+
+        logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
+    }
+
+    private const val DEFAULT_SLOT: Short = 999
 }

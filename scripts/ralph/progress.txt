@@ -91,6 +91,30 @@ Thread: unavailable
   - `SessionService.updateStatus` returns `Session` (not `SessionCreateResult`) since the operation is always a mutation — no idempotent read path needed.
 ---
 
+## Tue Jul 14 2026 - US-016
+Thread: unavailable
+- Implemented session practitioner management endpoints: POST /api/sessions/{sessionId}/practitioners, PATCH /api/sessions/{sessionId}/practitioners/{practitionerId}, DELETE /api/sessions/{sessionId}/practitioners/{practitionerId}.
+- Created SessionPractitioner data class + SessionPractitionerTable Exposed model for the existing session_practitioner table.
+- SessionPractitionerRepository.add: uses insertIgnore for idempotent add (handles session_id+practitioner_id UNIQUE constraint), snapshots slot_at_time from active UserBranchAssignment, increments session.version, writes audit log.
+- SessionPractitionerRepository.updateRemarks: updates remarks column, increments session.version, writes audit log.
+- SessionPractitionerRepository.remove: deletes row, increments session.version, writes audit log.
+- SessionService.addPractitioner: checks EDIT_BRANCH_DATA capability (GLOBAL), validates session exists, calls assertEditable on branch day, snapshots slot from UserBranchAssignmentRepository.findActiveByBranchAndUser (defaults to 999 if no assignment).
+- SessionService.updatePractitionerRemarks: checks EDIT_BRANCH_DATA, validates practitioner exists in session, delegates to repository.
+- SessionService.removePractitioner: checks EDIT_BRANCH_DATA, validates practitioner exists, delegates to repository.
+- SessionRoutes: added POST/PATCH/DELETE routes for session practitioner management with DTO parsing.
+- Added AddPractitionerRequest, UpdatePractitionerRemarksRequest, SessionPractitionerResponse DTOs to shared module.
+- Added 8 integration tests covering: add snapshots slot + audit, duplicate add idempotent, add without capability (403), add non-existent session (404), update remarks + version increment, update non-existent practitioner (404), remove + version increment, remove non-existent practitioner (404).
+- Files changed: repository/model/SessionPractitioner.kt (new), repository/SessionPractitionerRepository.kt (new), service/SessionService.kt, api/routes/SessionRoutes.kt, shared/.../dto/SessionDto.kt, test/.../SessionServicePostgresTest.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 150 tests).
+- **Learnings for future iterations:**
+  - session_practitioner has UNIQUE (session_id, practitioner_id), so re-adding uses insertIgnore with idempotent pattern.
+  - Slot at time is snapshotted from the practitioner's active user_branch_assignment at the session's branch. If no assignment exists, use a default slot (999).
+  - Version increment on the session table uses read-then-write: select current version first, then update to currentVersion + 1. Column arithmetic (SessionTable.version + 1) is not supported in Exposed's update DSL.
+  - When directly inserting into Exposed tables with FKs (.references()), use the repository's insertIgnore wrapper rather than a raw `Table.insert {}` in tests to avoid Postgres subquery issues.
+  - deleteTestRows cleanup must clear SessionPractitionerTable and UserBranchAssignmentTable before other tables to avoid FK violations.
+  - Session version increments atomically with each practitioner mutation (add, update remarks, remove).
+---
+
 ## Codebase Patterns
 - Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
 - Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.

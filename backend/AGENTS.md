@@ -163,6 +163,8 @@ For concurrency, the partial unique index `idx_client_one_pending_session` is th
 
 Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLogRepository.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
 
+Session practitioner management (`POST/PATCH/DELETE /api/sessions/{sessionId}/practitioners`) uses the `session_practitioner` table (UNIQUE on session_id + practitioner_id) with `insertIgnore` for idempotent adds. When adding a practitioner, `slot_at_time` is snapshotted from the user's active `user_branch_assignment` at the session's branch (defaults to 999 if no assignment exists). Each practitioner mutation (add, update remarks, remove) atomically increments `session.version` using a read-then-write pattern (`select version then update to version + 1`). All mutations gate on `EDIT_BRANCH_DATA` capability and call `BranchDayService.assertEditable`.
+
 ## Clock-in / Attendance
 
 Clock-in (`POST /api/attendance/clock-in`) is open to all authenticated users (no capability gate).

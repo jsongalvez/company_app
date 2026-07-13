@@ -62,3 +62,24 @@ data class SessionResponse(
     val nextAppointmentDate: String?,
     val version: Int,
 )
+
+@Serializable
+data class AddPractitionerRequest(
+    val id: String,
+    val practitionerId: String,
+    val remarks: String? = null,
+)
+
+@Serializable
+data class UpdatePractitionerRemarksRequest(
+    val remarks: String? = null,
+)
+
+@Serializable
+data class SessionPractitionerResponse(
+    val id: String,
+    val sessionId: String,
+    val practitionerId: String,
+    val remarks: String?,
+    val slotAtTime: Int,
+)

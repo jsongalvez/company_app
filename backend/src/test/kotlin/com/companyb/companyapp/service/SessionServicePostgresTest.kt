@@ -2,15 +2,20 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.SessionPractitionerRepository
+import com.companyb.companyapp.repository.SessionRepository
+import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
+import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
@@ -47,6 +52,8 @@ class SessionServicePostgresTest {
     private val rateId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val walkInSessionId = UUID.randomUUID()
+    private val practitionerId = UUID.randomUUID()
+    private val practitionerSessionId = UUID.randomUUID()
 
     @BeforeTest
     fun setUp() {
@@ -58,6 +65,8 @@ class SessionServicePostgresTest {
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         DatabaseTestHelper.grantVoidSession(callerId, sourceId)
         insertSessionBaseRate()
+        insertUser(practitionerId)
+        insertAssignment(practitionerId)
     }
 
     @AfterTest
@@ -361,6 +370,162 @@ class SessionServicePostgresTest {
         assertEquals(2L, auditEntryCount(sessionId))
     }
 
+    @Test
+    fun `add practitioner snapshots slot and writes audit`() {
+        createSession(callerId, practitionerSessionId)
+        val requestId = UUID.randomUUID()
+
+        val result =
+            SessionService.addPractitioner(
+                callerId = callerId,
+                id = requestId,
+                sessionId = practitionerSessionId,
+                practitionerId = practitionerId,
+                remarks = "Test remarks",
+            )
+
+        assertTrue(result.created)
+        assertEquals(practitionerId, result.practitioner.practitionerId)
+        assertEquals(1, result.practitioner.slotAtTime.toInt())
+        assertEquals("Test remarks", result.practitioner.remarks)
+        assertEquals(1L, auditEntryCount(practitionerSessionId))
+    }
+
+    @Test
+    fun `add practitioner returns existing on duplicate`() {
+        createSession(callerId, practitionerSessionId)
+        val requestId = UUID.randomUUID()
+
+        val first =
+            SessionService.addPractitioner(
+                callerId = callerId,
+                id = requestId,
+                sessionId = practitionerSessionId,
+                practitionerId = practitionerId,
+                remarks = null,
+            )
+        val duplicate =
+            SessionService.addPractitioner(
+                callerId = callerId,
+                id = requestId,
+                sessionId = practitionerSessionId,
+                practitionerId = practitionerId,
+                remarks = null,
+            )
+
+        assertTrue(first.created)
+        assertFalse(duplicate.created)
+        assertEquals(first.practitioner.id, duplicate.practitioner.id)
+    }
+
+    @Test
+    fun `add practitioner requires EDIT_BRANCH_DATA capability`() {
+        createSession(callerId, practitionerSessionId)
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+        insertAssignment(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            SessionService.addPractitioner(
+                callerId = otherCaller,
+                id = UUID.randomUUID(),
+                sessionId = practitionerSessionId,
+                practitionerId = practitionerId,
+                remarks = null,
+            )
+        }
+    }
+
+    @Test
+    fun `add practitioner throws 404 for non-existent session`() {
+        assertFailsWith<NotFoundResponse> {
+            SessionService.addPractitioner(
+                callerId = callerId,
+                id = UUID.randomUUID(),
+                sessionId = UUID.randomUUID(),
+                practitionerId = practitionerId,
+                remarks = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update practitioner remarks succeeds and increments session version`() {
+        createSession(callerId, practitionerSessionId)
+        SessionService.addPractitioner(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            sessionId = practitionerSessionId,
+            practitionerId = practitionerId,
+            remarks = "Initial remarks",
+        )
+
+        val updated =
+            SessionService.updatePractitionerRemarks(
+                callerId = callerId,
+                sessionId = practitionerSessionId,
+                practitionerId = practitionerId,
+                remarks = "Updated remarks",
+            )
+
+        assertEquals("Updated remarks", updated.remarks)
+
+        val session = SessionRepository.findById(practitionerSessionId)!!
+        assertEquals(3, session.version)
+    }
+
+    @Test
+    fun `update practitioner remarks throws 404 for non-existent practitioner in session`() {
+        createSession(callerId, practitionerSessionId)
+
+        assertFailsWith<NotFoundResponse> {
+            SessionService.updatePractitionerRemarks(
+                callerId = callerId,
+                sessionId = practitionerSessionId,
+                practitionerId = UUID.randomUUID(),
+                remarks = "Some remarks",
+            )
+        }
+    }
+
+    @Test
+    fun `remove practitioner succeeds and increments session version`() {
+        createSession(callerId, practitionerSessionId)
+        SessionService.addPractitioner(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            sessionId = practitionerSessionId,
+            practitionerId = practitionerId,
+            remarks = null,
+        )
+
+        SessionService.removePractitioner(
+            callerId = callerId,
+            sessionId = practitionerSessionId,
+            practitionerId = practitionerId,
+        )
+
+        val practitioners =
+            SessionPractitionerRepository.findBySessionId(practitionerSessionId)
+        assertTrue(practitioners.isEmpty())
+
+        val session = SessionRepository.findById(practitionerSessionId)!!
+        assertEquals(3, session.version)
+    }
+
+    @Test
+    fun `remove practitioner throws 404 for non-existent practitioner in session`() {
+        createSession(callerId, practitionerSessionId)
+
+        assertFailsWith<NotFoundResponse> {
+            SessionService.removePractitioner(
+                callerId = callerId,
+                sessionId = practitionerSessionId,
+                practitionerId = UUID.randomUUID(),
+            )
+        }
+    }
+
     @Suppress("LongParameterList")
     private fun createSession(
         callerId: UUID,
@@ -390,6 +555,16 @@ class SessionServicePostgresTest {
             passwordHash = "test-password-hash",
             email = "${userId.toString().take(8)}@t.st",
             displayName = "Session Caller",
+        )
+    }
+
+    private fun insertAssignment(userId: UUID) {
+        UserBranchAssignmentRepository.create(
+            id = UUID.randomUUID(),
+            userId = userId,
+            branchId = branchId,
+            slot = 1,
+            assignedBy = callerId,
         )
     }
 
@@ -449,11 +624,14 @@ class SessionServicePostgresTest {
 
     private fun deleteTestRows() {
         transaction {
+            SessionPractitionerTable.deleteAll()
+            UserBranchAssignmentTable.deleteAll()
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
             AuditLogTable.deleteWhere {
                 (AuditLogTable.changedBy eq callerId) or
                     (AuditLogTable.recordId eq sessionId) or
-                    (AuditLogTable.recordId eq walkInSessionId)
+                    (AuditLogTable.recordId eq walkInSessionId) or
+                    (AuditLogTable.recordId eq practitionerSessionId)
             }
             SessionVoidTable.deleteAll()
             SessionTable.deleteAll()
@@ -461,7 +639,7 @@ class SessionServicePostgresTest {
             ClientTable.deleteAll()
             BranchDayTable.deleteAll()
             BranchTable.deleteAll()
-            AppUserTable.deleteWhere { AppUserTable.id eq callerId }
+            AppUserTable.deleteWhere { (AppUserTable.id eq callerId) or (AppUserTable.id eq practitionerId) }
         }
     }
 }

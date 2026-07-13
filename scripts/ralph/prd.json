@@ -555,7 +555,7 @@
         "Integration tests for practitioner slot snapshotting pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-017",
