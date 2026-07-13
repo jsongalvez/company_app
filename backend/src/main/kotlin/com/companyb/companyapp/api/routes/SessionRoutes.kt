@@ -1,7 +1,10 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.dto.AddPractitionerRequest
+import com.companyb.companyapp.dto.AddSessionConcernRequest
+import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
+import com.companyb.companyapp.dto.PromoteConcernRequest
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
@@ -9,10 +12,12 @@ import com.companyb.companyapp.dto.UnvoidSessionRequest
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
+import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionVoid
+import com.companyb.companyapp.service.ConcernService
 import com.companyb.companyapp.service.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -201,6 +206,64 @@ object SessionRoutes {
 
             context.status(HttpStatus.NO_CONTENT)
         }
+
+        config.routes.get("/api/concerns") { context ->
+            val concerns = ConcernService.listAll()
+            context.json(concerns.map { it.toResponse() })
+        }
+
+        config.routes.get("/api/sessions/{sessionId}/concerns") { context ->
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+
+            val concerns = ConcernService.getForSession(sessionId)
+            context.json(concerns.map { it.toResponse() })
+        }
+
+        config.routes.post("/api/sessions/{sessionId}/concerns") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val request = context.bodyAsClass<AddSessionConcernRequest>()
+
+            val concernId =
+                runCatching { UUID.fromString(request.concernId) }
+                    .getOrElse { throw BadRequestResponse("Invalid concern id") }
+
+            ConcernService.addToSession(callerId, sessionId, concernId)
+            context.status(HttpStatus.NO_CONTENT)
+        }
+
+        config.routes.delete("/api/sessions/{sessionId}/concerns/{concernId}") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val concernId =
+                runCatching { UUID.fromString(context.pathParam("concernId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid concern id") }
+
+            ConcernService.removeFromSession(callerId, sessionId, concernId)
+            context.status(HttpStatus.NO_CONTENT)
+        }
+
+        config.routes.post("/api/sessions/{sessionId}/promote-concern") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val request = context.bodyAsClass<PromoteConcernRequest>()
+
+            if (request.label.isBlank()) {
+                throw BadRequestResponse("label must not be blank")
+            }
+
+            val concern = ConcernService.promoteConcern(callerId, sessionId, request.label)
+            context.status(HttpStatus.CREATED)
+            context.json(concern.toResponse())
+        }
     }
 
     private fun Session.toResponse(): SessionResponse =
@@ -240,5 +303,13 @@ object SessionRoutes {
             practitionerId = practitionerId.toString(),
             remarks = remarks,
             slotAtTime = slotAtTime.toInt(),
+        )
+
+    private fun Concern.toResponse(): ConcernResponse =
+        ConcernResponse(
+            id = id.toString(),
+            label = label,
+            createdBy = createdBy?.toString(),
+            createdAt = createdAt?.toString(),
         )
 }

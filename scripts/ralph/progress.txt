@@ -302,5 +302,30 @@ Thread: unavailable
   - Use `insert` (not `insertIgnore`) for user_capability rows — there's no expected conflict and we always want a new row. `insertIgnore` is reserved for idempotent inserts with client-generated PKs.
   - Medical mission delegate assign creates a permanent (valid_to=NULL) EDIT_BRANCH_DATA grant scoped to the mission branch; revoke expires it immediately (valid_to=now()).
   - Priority 20 ensures MEDICAL_MISSION_DELEGATE grants outrank RELIEF_ACCESS (priority 10) in active_user_capabilities ordering.
-  - The medical_mission_delegate table in V1 lacked branch_id — added via V3 migration. Future FK-sensitive stories should check the schema first.
+   - The medical_mission_delegate table in V1 lacked branch_id — added via V3 migration. Future FK-sensitive stories should check the schema first.
+---
+
+## Tue Jul 14 2026 - US-017
+Thread: unavailable
+- Implemented session concerns endpoints: GET /api/concerns (list all concerns), GET /api/sessions/{sessionId}/concerns, POST /api/sessions/{sessionId}/concerns, DELETE /api/sessions/{sessionId}/concerns/{concernId}, POST /api/sessions/{sessionId}/promote-concern.
+- Created Concern data class + ConcernTable + SessionConcernTable Exposed models for the existing concern and session_concern tables.
+- ConcernRepository: findAll, findById, create (idempotent insertIgnore), addToSession (insertIgnore join table), removeFromSession (deleteWhere), getConcernsForSession (innerJoin).
+- ConcernService: listAll (no gate, all authenticated users), addToSession/removeFromSession (EDIT_BRANCH_DATA gate + assertEditable), promoteConcern (creates concern + links to session + nullifies session.otherConcerns in single flow).
+- SessionRepository: added updateOtherConcerns method to clear session.other_concerns when promoting a concern, with audit logging.
+- ConcernRoutes added to SessionRoutes.kt (all routes registered there; no Main.kt changes needed since SessionRoutes is already wired).
+- Added ConcernDto.kt to shared module: ConcernResponse, AddSessionConcernRequest, PromoteConcernRequest.
+- Added 13 integration tests covering: list concerns, add to session (success/audit/idempotent/403/404), remove from session (success/audit/403/404), promote concern (creates+links+nullifies, discoverable, 403, audit).
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 163 tests).
+- **Learnings for future iterations:**
+  - Concern and session_concern tables exist in V1 schema but had no Exposed models — created ConcernTable (id, label, createdBy, createdAt) and SessionConcernTable (sessionId, concernId) with appropriate PK definitions.
+  - The concern table has created_by REFERENCES app_user(id) — use insertIgnore for idempotent concern creation, set createdBy only on actual insert.
+  - Promote concern nullifies session.other_concerns — the session_concern table is the normalized alternative to the free-text field.
+  - `eq` needs explicit import as `org.jetbrains.exposed.sql.SqlExpressionBuilder.eq` when used inside `deleteWhere` blocks (same pattern as SessionServicePostgresTest).
+  - Inner join in Exposed: `Table.join(otherTable, JoinType.INNER, thisColumn, otherColumn)` — import `org.jetbrains.exposed.sql.JoinType`.
+  - Audit entries for session_concern join table use sessionId as the recordId.
+  - Cleanup order: SessionConcernTable before SessionTable, ConcernTable before AppUserTable (FK constraint concern.created_by references app_user.id).
+- Files changed: 7 files total
+  - NEW: backend/.../repository/model/Concern.kt, backend/.../repository/ConcernRepository.kt, backend/.../service/ConcernService.kt, shared/.../dto/ConcernDto.kt, backend/.../test/.../service/ConcernServicePostgresTest.kt
+  - MODIFIED: backend/.../repository/SessionRepository.kt, backend/.../api/routes/SessionRoutes.kt
+- Updated prd.json (US-017 passes=true), progress.txt
 ---

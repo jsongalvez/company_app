@@ -581,7 +581,7 @@
         "Integration tests for concern promotion pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-018",

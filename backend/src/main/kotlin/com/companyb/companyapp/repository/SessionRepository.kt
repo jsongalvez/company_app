@@ -164,6 +164,29 @@ object SessionRepository {
             findByIdInTransaction(id)
         }
 
+    fun updateOtherConcerns(
+        sessionId: UUID,
+        otherConcerns: String?,
+        changedBy: UUID,
+    ) {
+        transaction {
+            val session = findByIdInTransaction(sessionId) ?: error("Session $sessionId not found")
+
+            SessionTable.update({ SessionTable.id eq sessionId }) {
+                it[SessionTable.otherConcerns] = otherConcerns
+            }
+
+            AuditLogRepository.record(
+                tableName = SessionTable.tableName,
+                recordId = session.id,
+                action = AuditAction.UPDATE,
+                changedBy = changedBy,
+                oldValue = AuditLogRepository.jsonField("otherConcerns", session.otherConcerns ?: ""),
+                newValue = AuditLogRepository.jsonField("otherConcerns", otherConcerns ?: ""),
+            )
+        }
+    }
+
     private fun findByIdInTransaction(id: UUID): Session? =
         SessionTable
             .selectAll()
