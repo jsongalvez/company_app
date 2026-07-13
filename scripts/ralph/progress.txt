@@ -2,6 +2,29 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Tue Jul 14 2026 - US-015
+Thread: unavailable
+- Implemented session void (POST /api/sessions/{sessionId}/void) and unvoid (POST /api/sessions/{sessionId}/unvoid) endpoints.
+- Created SessionVoid data class + SessionVoidTable Exposed model for the existing session_void table.
+- SessionVoidRepository.void: uses insertIgnore for idempotent void creation (handles session_id UNIQUE constraint), writes audit log on insert.
+- SessionVoidRepository.unvoid: updates unvoided_at/unvoided_by/unvoided_reason where unvoided_at IS NULL, writes audit log.
+- SessionService.voidSession: checks VOID_SESSION capability (GLOBAL context), validates session exists (404 if not), returns existing if already voided (idempotent), calls assertEditable on branch day.
+- SessionService.unvoidSession: checks VOID_SESSION capability, validates session exists, returns existing if already unvoided (idempotent), throws 404 if not voided at all, calls assertEditable.
+- SessionRoutes: added POST /api/sessions/{sessionId}/void and POST /api/sessions/{sessionId}/unvoid routes with request body parsing.
+- Added VoidSessionRequest, UnvoidSessionRequest, SessionVoidResponse DTOs to shared module.
+- Added grantVoidSession to DatabaseTestHelper.
+- Added 10 integration tests covering: void creates record, duplicate idempotent void, void without capability (403), void non-existent session (404), unvoid sets fields, unvoid idempotent, unvoid non-voided (404), unvoid without capability (403), unvoid non-existent session (404).
+- Files changed: shared/.../dto/SessionDto.kt, repository/model/SessionVoid.kt (new), repository/SessionVoidRepository.kt (new), service/SessionService.kt, api/routes/SessionRoutes.kt, test/.../DatabaseTestHelper.kt, test/.../SessionServicePostgresTest.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 136 tests).
+- **Learnings for future iterations:**
+  - The session_void table has a UNIQUE constraint on session_id, so a session can only have one void row. Unvoiding is done by setting unvoided_at/unvoided_by/unvoided_reason on the same row (the unvoid_logic CHECK enforces all three or none).
+  - VOID_SESSION capability is seeded in V2 and scoped to BRANCH in comments, but checked with GLOBAL context for consistency with other session endpoints (EDIT_BRANCH_DATA pattern).
+  - When creating a new Exposed Table for an existing DB table, use `object TableName : Table("actual_table_name")` with `uuid()` for UUID columns and `text()` for TEXT columns.
+  - For idempotent void, use insertIgnore with insertedCount check; for idempotent unvoid, check unvoidedAt != null and return existing.
+  - SessionVoidTable and SessionVoidRepository follow the same pattern as other repository/model pairs, with `findByIdInTransaction` and `toSessionVoid()` helpers.
+  - Always add new table deletions in test cleanup (SessionVoidTable.deleteAll()) to avoid FK violations across test runs.
+---
+
 ## Sun Jul 12 2026 - US-012
 Thread: unavailable
 - Implemented client update (PATCH /api/clients/{clientId}) and anonymize (POST /api/clients/{clientId}/anonymize) endpoints.

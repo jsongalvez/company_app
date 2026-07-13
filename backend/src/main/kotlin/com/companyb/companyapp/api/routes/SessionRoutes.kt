@@ -2,9 +2,13 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.dto.SessionResponse
+import com.companyb.companyapp.dto.SessionVoidResponse
+import com.companyb.companyapp.dto.UnvoidSessionRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
+import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionStatus
+import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -89,6 +93,43 @@ object SessionRoutes {
             context.status(HttpStatus.OK)
             context.json(updated.toResponse())
         }
+
+        config.routes.post("/api/sessions/{sessionId}/void") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val request = context.bodyAsClass<VoidSessionRequest>()
+
+            val voidId =
+                runCatching { UUID.fromString(request.id) }
+                    .getOrElse { throw BadRequestResponse("Invalid void id") }
+            if (request.voidReason.isBlank()) {
+                throw BadRequestResponse("voidReason must not be blank")
+            }
+
+            val result = SessionService.voidSession(callerId, sessionId, voidId, request.voidReason)
+
+            context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
+            context.json(result.sessionVoid.toResponse())
+        }
+
+        config.routes.post("/api/sessions/{sessionId}/unvoid") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val sessionId =
+                runCatching { UUID.fromString(context.pathParam("sessionId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val request = context.bodyAsClass<UnvoidSessionRequest>()
+
+            if (request.unvoidedReason.isBlank()) {
+                throw BadRequestResponse("unvoidedReason must not be blank")
+            }
+
+            val sessionVoid = SessionService.unvoidSession(callerId, sessionId, request.unvoidedReason)
+
+            context.status(HttpStatus.OK)
+            context.json(sessionVoid.toResponse())
+        }
     }
 
     private fun Session.toResponse(): SessionResponse =
@@ -107,5 +148,17 @@ object SessionRoutes {
             bookedAt = bookedAt?.toString(),
             nextAppointmentDate = nextAppointmentDate?.toString(),
             version = version,
+        )
+
+    private fun SessionVoid.toResponse(): SessionVoidResponse =
+        SessionVoidResponse(
+            id = id.toString(),
+            sessionId = sessionId.toString(),
+            voidedAt = voidedAt.toString(),
+            voidedBy = voidedBy.toString(),
+            voidReason = voidReason,
+            unvoidedAt = unvoidedAt?.toString(),
+            unvoidedBy = unvoidedBy?.toString(),
+            unvoidedReason = unvoidedReason,
         )
 }

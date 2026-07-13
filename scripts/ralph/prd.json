@@ -527,7 +527,7 @@
         "Integration tests for session voiding and un-voiding pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-016",

@@ -10,6 +10,7 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
@@ -55,6 +56,7 @@ class SessionServicePostgresTest {
         insertBranch(branchId)
         insertClient(clientId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        DatabaseTestHelper.grantVoidSession(callerId, sourceId)
         insertSessionBaseRate()
     }
 
@@ -255,6 +257,102 @@ class SessionServicePostgresTest {
     }
 
     @Test
+    fun `void session creates void record and writes audit`() {
+        createSession(callerId, sessionId)
+        val voidId = UUID.randomUUID()
+
+        val result = SessionService.voidSession(callerId, sessionId, voidId, "Customer request")
+
+        assertTrue(result.created)
+        assertEquals(sessionId, result.sessionVoid.sessionId)
+        assertEquals("Customer request", result.sessionVoid.voidReason)
+        assertEquals(callerId, result.sessionVoid.voidedBy)
+    }
+
+    @Test
+    fun `void session returns existing on duplicate`() {
+        createSession(callerId, sessionId)
+        val voidId = UUID.randomUUID()
+
+        val first = SessionService.voidSession(callerId, sessionId, voidId, "Customer request")
+        val duplicate = SessionService.voidSession(callerId, sessionId, voidId, "Customer request")
+
+        assertTrue(first.created)
+        assertFalse(duplicate.created)
+        assertEquals(first.sessionVoid.id, duplicate.sessionVoid.id)
+    }
+
+    @Test
+    fun `void session requires VOID_SESSION capability`() {
+        createSession(callerId, sessionId)
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            SessionService.voidSession(otherCaller, sessionId, UUID.randomUUID(), "Customer request")
+        }
+    }
+
+    @Test
+    fun `void session throws 404 for non-existent session`() {
+        assertFailsWith<NotFoundResponse> {
+            SessionService.voidSession(callerId, UUID.randomUUID(), UUID.randomUUID(), "Customer request")
+        }
+    }
+
+    @Test
+    fun `unvoid session sets unvoided fields`() {
+        createSession(callerId, sessionId)
+        SessionService.voidSession(callerId, sessionId, UUID.randomUUID(), "Customer request")
+
+        val result = SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
+
+        assertNotNull(result.unvoidedAt)
+        assertEquals(callerId, result.unvoidedBy)
+        assertEquals("Resolved in error", result.unvoidedReason)
+    }
+
+    @Test
+    fun `unvoid session is idempotent`() {
+        createSession(callerId, sessionId)
+        SessionService.voidSession(callerId, sessionId, UUID.randomUUID(), "Customer request")
+
+        val first = SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
+        val duplicate = SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
+
+        assertEquals(first.id, duplicate.id)
+        assertEquals(first.unvoidedAt, duplicate.unvoidedAt)
+    }
+
+    @Test
+    fun `unvoid session throws 404 for non-voided session`() {
+        createSession(callerId, sessionId)
+
+        assertFailsWith<NotFoundResponse> {
+            SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
+        }
+    }
+
+    @Test
+    fun `unvoid session requires VOID_SESSION capability`() {
+        createSession(callerId, sessionId)
+        SessionService.voidSession(callerId, sessionId, UUID.randomUUID(), "Customer request")
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            SessionService.unvoidSession(otherCaller, sessionId, "Resolved in error")
+        }
+    }
+
+    @Test
+    fun `void session throws 404 for non-existent session on unvoid`() {
+        assertFailsWith<NotFoundResponse> {
+            SessionService.unvoidSession(callerId, UUID.randomUUID(), "Resolved in error")
+        }
+    }
+
+    @Test
     fun `update status writes audit log entry`() {
         createSession(callerId, sessionId)
 
@@ -357,6 +455,7 @@ class SessionServicePostgresTest {
                     (AuditLogTable.recordId eq sessionId) or
                     (AuditLogTable.recordId eq walkInSessionId)
             }
+            SessionVoidTable.deleteAll()
             SessionTable.deleteAll()
             SessionBaseRateTable.deleteAll()
             ClientTable.deleteAll()

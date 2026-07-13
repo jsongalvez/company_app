@@ -23,6 +23,29 @@ data class UpdateSessionStatusRequest(
 )
 
 @Serializable
+data class VoidSessionRequest(
+    val id: String,
+    val voidReason: String,
+)
+
+@Serializable
+data class UnvoidSessionRequest(
+    val unvoidedReason: String,
+)
+
+@Serializable
+data class SessionVoidResponse(
+    val id: String,
+    val sessionId: String,
+    val voidedAt: String,
+    val voidedBy: String,
+    val voidReason: String,
+    val unvoidedAt: String? = null,
+    val unvoidedBy: String? = null,
+    val unvoidedReason: String? = null,
+)
+
+@Serializable
 data class SessionResponse(
     val id: String,
     val clientId: String,

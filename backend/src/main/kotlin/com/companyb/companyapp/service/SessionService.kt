@@ -6,10 +6,13 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateResult
 import com.companyb.companyapp.repository.SessionRepository
+import com.companyb.companyapp.repository.SessionVoidRepository
+import com.companyb.companyapp.repository.VoidResult
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.SessionVoid
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
@@ -25,7 +28,21 @@ object SessionService {
     private val logger = KotlinLogging.logger {}
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
+    private fun checkVoidSession(callerId: UUID) {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = VOID_SESSION,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            throw ForbiddenResponse("VOID_SESSION capability required")
+        }
+    }
+
     private const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
+    private const val VOID_SESSION = "VOID_SESSION"
     private const val ZERO = "0"
 
     @Suppress("ReturnCount", "ThrowsCount")
@@ -167,6 +184,73 @@ object SessionService {
             "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
                 " from ${session.sessionStatus} to ${newStatus.name}"
         }
+
+        return updated
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun voidSession(
+        callerId: UUID,
+        sessionId: UUID,
+        voidId: UUID,
+        voidReason: String,
+    ): VoidResult {
+        checkVoidSession(callerId)
+
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+
+        val existing = SessionVoidRepository.findBySessionId(sessionId)
+        if (existing != null) {
+            if (existing.unvoidedAt == null) {
+                logger.info { "[VOID-SESSION] Session $sessionId already voided, returning existing (idempotent)" }
+                return VoidResult(existing, false)
+            }
+        }
+
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+
+        val result =
+            SessionVoidRepository.void(
+                id = voidId,
+                sessionId = sessionId,
+                voidReason = voidReason,
+                voidedBy = callerId,
+            )
+
+        logger.info { "[VOID-SESSION] Session $sessionId voided" }
+
+        return result
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun unvoidSession(
+        callerId: UUID,
+        sessionId: UUID,
+        unvoidedReason: String,
+    ): SessionVoid {
+        checkVoidSession(callerId)
+
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+
+        val sessionVoid =
+            SessionVoidRepository.findBySessionId(sessionId)
+                ?: throw NotFoundResponse("Session is not voided")
+
+        if (sessionVoid.unvoidedAt != null) {
+            logger.info { "[UNVOID-SESSION] Session $sessionId already unvoided, returning existing (idempotent)" }
+            return sessionVoid
+        }
+
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+
+        val updated =
+            SessionVoidRepository.unvoid(
+                sessionVoidId = sessionVoid.id,
+                unvoidedBy = callerId,
+                unvoidedReason = unvoidedReason,
+            ) ?: throw NotFoundResponse("Session void record not found after unvoid")
+
+        logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
 
         return updated
     }

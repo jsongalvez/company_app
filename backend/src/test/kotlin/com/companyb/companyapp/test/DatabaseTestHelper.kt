@@ -116,6 +116,29 @@ object DatabaseTestHelper {
         }
     }
 
+    fun grantVoidSession(
+        userId: UUID,
+        sourceId: UUID,
+    ) {
+        transaction {
+            val capId =
+                CapabilityTable
+                    .selectAll()
+                    .where { CapabilityTable.code eq "VOID_SESSION" }
+                    .single()[CapabilityTable.id]
+
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = userId
+                it[UserCapabilityTable.capabilityId] = capId
+                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
+                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
+                it[UserCapabilityTable.sourceId] = sourceId
+                it[UserCapabilityTable.priority] = 100
+            }
+        }
+    }
+
     fun grantAssignDelegate(
         userId: UUID,
         sourceId: UUID,
