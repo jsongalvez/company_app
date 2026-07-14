@@ -1062,7 +1062,7 @@
     {
       "id": "US-036",
       "title": "Shared HTTP client and token store (commonMain)",
-      "description": "As a developer, I need a shared Ktor HTTP client in commonMain that attaches the JWT to every request and handles retry so that all platforms share one networking layer.",
+      "description": "As a developer, I need a shared Ktor HTTP client (3.x) in commonMain that attaches the JWT to every request, handles retry, and delegates token storage to platform-specific secure stores — so that all platforms share one networking layer.",
       "type": "integration",
       "priorityHint": 36,
       "dependsOn": [
@@ -1078,20 +1078,24 @@
         "US-029"
       ],
       "requirements": [
-        "Add shared Ktor client with content negotiation (JSON) and authorization headers",
-        "Raise de-auth events on 401 returns to redirect UI",
-        "Support automatic retries up to 3 times on network failure (safe via UUID keys)",
-        "Write expect/actual interfaces for platform secure storage"
+        "Add Ktor 3.x client libraries to gradle/libs.versions.toml and composeApp/build.gradle.kts: ktor-client-core, ktor-client-content-negotiation, ktor-serialization-kotlinx-json, ktor-client-auth, ktor-client-logging, and platform engines (ktor-client-okhttp for Android, ktor-client-darwin for iOS, ktor-client-cio for Desktop/JVM).",
+        "Create ApiClient.kt in composeApp/src/commonMain/.../network/ configuring the Ktor HttpClient with plugins: ContentNegotiation (kotlinx.serialization JSON), Auth (bearer token loaded from TokenStore), HttpRequestRetry (3 retries on network/server errors, safe with UUID idempotency keys), HttpResponseValidator (check 401 → call onDeAuth callback).",
+        "Create TokenStore.kt expect interface in commonMain with save(token) / getToken(): String? / clear() methods.",
+        "Implement actual TokenStore per platform: Android — EncryptedSharedPreferences; iOS — Keychain via NSUserDefaults wrapper (or Security framework); Desktop — file in user home directory (~/.companyapp/token).",
+        "Register a top-level onDeAuth callback (or Channel/MutableSharedFlow) that ViewModels observe to navigate to login on 401.",
+        "Set BASE_URL for the client (from platform-specific config or hardcoded for now — defaults to http://10.0.2.2:3023 for Android emulator, http://localhost:3023 for everything else)."
       ],
       "acceptanceCriteria": [
-        "Ktor client successfully signs requests with active token",
-        "Retries network timeouts safely without duplicating database records"
+        "Ktor client successfully signs requests with active token from secure store",
+        "Retries network timeouts safely without duplicating database records (idempotent UUID keys)",
+        "401 response triggers de-auth navigation on each platform",
+        "KMP compilation succeeds for JVM (Desktop), Android, and iOS targets"
       ],
       "verification": [
         "KMP compilation for JVM, Android, and iOS targets succeeds",
         "Unit tests for client retry and token stores pass"
       ],
-      "notes": "",
+      "notes": "Ktor 3.x was chosen over alternatives (OkHttp KMP wrapper, custom expect/actual engines) because it is the only first-party KMP HTTP client with built-in plugins for auth, retry, content negotiation, and response validation — all in commonMain. Platform engines: OkHttp (Android, mature), Darwin (iOS, delegates to NSURLSession), CIO (Desktop/JVM, pure Kotlin). Pin version via ktorVersion in libs.versions.toml. Do NOT add ktor-server dependencies — client only.",
       "passes": false
     },
     {
