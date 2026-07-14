@@ -345,22 +345,58 @@ the `jmh { }` block. Override per-benchmark with `@Warmup` / `@Measurement` anno
 
 ### JFR (JDK Flight Recorder) — zero-instrumentation profiling
 
-Available on any JVM >= 11. Run the backend with recording enabled:
+No extra dependencies — JFR is built into the JVM (>= 11). Two Gradle tasks are wired in
+`backend/build.gradle.kts`:
 
 ```bash
-./gradlew :backend:run -Dorg.gradle.jvmargs="-XX:StartFlightRecording=filename=recording.jfr"
+# Standard recording (CPU, lock contention, I/O)
+./gradlew :backend:runWithJfr
+
+# Allocation-profiling recording (also captures object allocations)
+./gradlew :backend:runWithJfrAllocation
 ```
 
-Then analyze with JDK Mission Control (`jmc`) or `jfr view` to find allocation hotspots, lock
-contention, and CPU bottlenecks without code changes.
+Both write the recording to `logs/recording.jfr` / `logs/recording-alloc.jfr`.
 
-### HTTP-level load testing
+Analyze recordings with:
+- **JDK Mission Control** (`jmc`) — install separately (OpenJDK or Azul builds)
+- **`jfr view`** — built into JDK 21+: `jfr view logs/recording.jfr`
+- **Async Profiler converter**: `java -jar converter.jar jfr2flame recording.jfr flamegraph.html`
 
-For end-to-end API regression checks, use **k6** (external tool, not wired into the build):
+Key things to look for in JFR:
+- **Hot Methods** tab → CPU-bound methods (sort by self time)
+- **Allocations** tab (only with `allocation` profile) → object creation hotspots
+- **Java Monitor Blocked** events → lock contention
+- **Socket I/O** events → database/network bottlenecks
+
+### HTTP-level load testing (k6)
+
+A baseline k6 script lives at `scripts/load-test/baseline.js`. It hits the public and
+authenticated API endpoints in a staged ramp-up pattern.
+
+Prerequisite: install k6 (`brew install k6`, `apt install k6`, or download from k6.io).
 
 ```bash
-k6 run scripts/load-test/baseline.js
+# Against local dev server (requires a registered user in the DB)
+TEST_USERNAME=owner TEST_PASSWORD=pass \
+  k6 run scripts/load-test/baseline.js
+
+# Against a remote server
+API_BASE_URL=https://api.example.com TEST_USERNAME=owner TEST_PASSWORD=pass \
+  k6 run scripts/load-test/baseline.js
 ```
 
-Track median/p95/p99 latencies across runs to catch regressions in the HTTP layer (serialization,
-JDBC, connection pooling) that unit-level benchmarks won't reveal.
+The baseline enforces these thresholds (edit `options.thresholds` in the script to adjust):
+- `branches_latency`: p95 < 500ms
+- `clients_search_latency`: p95 < 1000ms
+- `sessions_latency`: p95 < 1000ms
+- `errors`: rate < 5%
+
+**Adding a new endpoint to the baseline** — edit `scripts/load-test/baseline.js`:
+1. Add a `Trend` metric for the endpoint's latency
+2. Add a threshold in `options.thresholds`
+3. Add the `http.get`/`http.post` call in the `default` function
+4. Run `k6 run` to establish a baseline p95, then tighten the threshold
+
+Remember: k6 tests the full HTTP stack — serialization, Javalin routing, JDBC, connection
+pooling, and auth middleware. Regressions here won't show up in JMH benchmarks.

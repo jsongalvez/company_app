@@ -67,3 +67,27 @@ jmh {
     fork = 1
     threads = 1
 }
+
+tasks.register<JavaExec>("runWithJfr") {
+    group = "profiling"
+    description = "Runs the backend with JDK Flight Recorder enabled"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.projectDir
+    jvmArgs = listOf(
+        "-XX:StartFlightRecording=filename=${rootProject.projectDir}/logs/recording.jfr",
+        "-XX:FlightRecorderOptions=stackdepth=256",
+    )
+}
+
+tasks.register<JavaExec>("runWithJfrAllocation") {
+    group = "profiling"
+    description = "Runs the backend with JFR + allocation profiling"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = application.mainClass
+    workingDir = rootProject.projectDir
+    jvmArgs = listOf(
+        "-XX:StartFlightRecording=filename=${rootProject.projectDir}/logs/recording-alloc.jfr,settings=profile",
+        "-XX:FlightRecorderOptions=stackdepth=256",
+    )
+}
