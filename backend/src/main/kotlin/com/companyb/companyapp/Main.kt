@@ -2,6 +2,7 @@ package com.companyb.companyapp
 
 import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
+import com.companyb.companyapp.api.routes.AuditLogRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
 import com.companyb.companyapp.api.routes.BranchRoutes
@@ -102,6 +103,7 @@ fun initializeJavalin() {
             NotificationRoutes.register(config)
             MonthlyRemittanceSummaryRoutes.register(config)
             RemittanceRoutes.register(config)
+            AuditLogRoutes.register(config)
             ExportRoutes.register(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
