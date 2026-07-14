@@ -794,6 +794,28 @@ Thread: unavailable
    - When using `customEnumeration` with a `.default()` value (like status = DRAFT), the default must match the PG enum type exactly.
 ---
 
+## Wed Jul 15 2026 - US-052
+Thread: unavailable
+- Implemented logout endpoint: POST /api/auth/logout
+- Added AuthRoutes.logout(config) — registers protected POST /api/auth/logout, extracts userId from JWT attribute, calls DenyList.deny(userId), returns 200 OK.
+- Wired AuthRoutes.logout in Main.kt.
+- Added AuthServicePostgresTest with 3 integration tests: logout invalidates token, logout is idempotent, logout invalidates all tokens for user.
+- DenyList auto-eviction (24h) was already tested in DenyListTest.
+- Files changed:
+  - MODIFIED: backend/.../api/routes/AuthRoutes.kt (added logout method)
+  - MODIFIED: backend/.../Main.kt (wired AuthRoutes.logout)
+  - NEW: backend/.../service/AuthServicePostgresTest.kt
+  - MODIFIED: scripts/ralph/prd.json (US-052 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Logout is a thin route handler — no service layer needed, just DenyList.deny(userId) directly in the route.
+  - Protected routes under /api/* have JWT verified by the before("/api/*") middleware before the handler runs — the handler receives userId via context.attribute<String>("userId").
+  - Integration tests for logout/token rejection use JwtService.generateToken + JwtService.verifyToken with a real DB user (UserRepository.authorize checks ACTIVE status).
+  - DenyList.clear() must be called in setUp/tearDown to avoid cross-test pollution.
+  - The route returns 200 OK with no body — no DTO needed.
+---
+
 ## Codebase Patterns
 - Use `sql<number>` template for aggregations
 - Always use `IF NOT EXISTS` for migrations

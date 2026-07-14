@@ -1480,7 +1480,7 @@
         "Integration tests for logout and token rejection pass"
       ],
       "notes": "Reuses DenyList.deny(userId) built in US-001. Since deny list is keyed by userId (not jti), logout invalidates ALL tokens for the user across all devices — acceptable for a single-session business app. Same auto-eviction behavior as user deactivation (24h expiry).",
-      "passes": false
+      "passes": true
     }
   ]
 }

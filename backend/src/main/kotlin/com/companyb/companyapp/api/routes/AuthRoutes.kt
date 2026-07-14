@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.mapping.toErrorResponse
+import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
@@ -10,6 +11,7 @@ import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import java.util.UUID
 
 object AuthRoutes {
     fun login(context: JavalinConfig) {
@@ -36,6 +38,14 @@ object AuthRoutes {
                     context.status(HttpStatus.UNAUTHORIZED)
                 }
             }
+        }
+    }
+
+    fun logout(config: JavalinConfig) {
+        config.routes.post("/api/auth/logout") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            DenyList.deny(callerId)
+            context.status(HttpStatus.OK)
         }
     }
 
