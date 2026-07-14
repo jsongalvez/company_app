@@ -169,7 +169,7 @@ object RemittanceService {
 
         val line =
             try {
-                RemittanceLineRepository.softDeleteLine(lineId, callerId, remittance.version)
+                RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version)
                     ?: throw NotFoundResponse("Remittance line not found")
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {

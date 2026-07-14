@@ -93,6 +93,7 @@ object RemittanceLineRepository {
     @Suppress("LongMethod")
     fun softDeleteLine(
         lineId: UUID,
+        remittanceId: UUID,
         deletedBy: UUID,
         expectedVersion: Int,
     ): RemittanceLine? =
@@ -100,14 +101,13 @@ object RemittanceLineRepository {
             val existing =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq lineId }
-                    .singleOrNull() ?: return@transaction null
+                    .where {
+                        (RemittanceLineTable.id eq lineId) and (RemittanceLineTable.remittanceId eq remittanceId)
+                    }.singleOrNull() ?: return@transaction null
 
             if (existing[RemittanceLineTable.deletedAt] != null) {
                 return@transaction existing.toRemittanceLine()
             }
-
-            val remittanceId = existing[RemittanceLineTable.remittanceId]
 
             val updated =
                 RemittanceLineTable
