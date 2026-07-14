@@ -13,6 +13,7 @@ import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.sql.update
 import java.time.LocalDate
 import java.util.UUID
 
@@ -24,6 +25,15 @@ data class RemittanceCreateResult(
 )
 
 object RemittanceRepository {
+    fun findById(id: UUID): Remittance? =
+        transaction {
+            RemittanceTable
+                .selectAll()
+                .where { RemittanceTable.id eq id }
+                .singleOrNull()
+                ?.toRemittance()
+        }
+
     @Suppress("LongParameterList")
     fun createDraft(
         id: UUID,

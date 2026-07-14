@@ -876,7 +876,7 @@
         "Integration tests for draft line edits and breakdowns pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-029",

@@ -238,6 +238,34 @@ Thread: https://ampcode.com/threads/T-019f076a-6d0b-741a-bccc-000000000000
   - Idempotent creation pattern: use `ON CONFLICT (id) DO NOTHING` + separate SELECT in same transaction, with `AuditLogRepository.record` only on actual insert.
 ---
 
+## Tue Jul 14 2026 - US-028
+Thread: unavailable
+- Implemented remittance line and day breakdown management endpoints: POST /api/remittances/{remittanceId}/lines, DELETE /api/remittances/{remittanceId}/lines/{lineId}, POST /api/remittances/{remittanceId}/day-breakdowns, GET /api/remittances/{remittanceId} (with line aggregates).
+- Created RemittanceLine data class + RemittanceLineTable Exposed model with customEnumeration for remittance_line_type PG enum (SESSION, PRODUCT_SALE), soft-delete support (deleted_by, deleted_at), and line_type_logic constraint enforcement.
+- Created RemittanceDayBreakdown data class + RemittanceDayBreakdownTable Exposed model for the existing remittance_day_breakdown join table.
+- RemittanceLineRepository.addLine: idempotent insert with atomic remittance version increment (version-based optimistic locking), audit logging.
+- RemittanceLineRepository.softDeleteLine: sets deleted_at/deleted_by with atomic version increment, idempotent on already-deleted lines.
+- RemittanceDayBreakdownRepository.addDayBreakdown: idempotent insert with UNIQUE (remittance_id, branch_day_id) constraint.
+- RemittanceRepository: added public findById and removed standalone incrementVersion (version increment is now atomic inside line repository methods).
+- RemittanceService.addLine/removeLine: gates on SUBMIT_REMITTANCE (GLOBAL context), validates DRAFT status, enforces line type constraints (SESSION requires sessionId and null productSaleId, PRODUCT_SALE vice versa), wraps version mismatch as ConflictResponse (409).
+- RemittanceService.addDayBreakdown: gates on SUBMIT_REMITTANCE, validates DRAFT status, validates branch day exists.
+- RemittanceService.getRemittance: loads remittance with non-deleted lines, day breakdowns, and total amount aggregate.
+- RemittanceRoutes: added 4 new endpoints under /api/remittances/{remittanceId}/*.
+- Added RemittanceDto.kt DTOs: CreateRemittanceLineRequest, RemittanceLineResponse, AddDayBreakdownRequest, RemittanceDayBreakdownResponse, RemittanceDetailResponse.
+- Added 24 integration tests covering: SESSION/PRODUCT_SALE line types, duplicate idempotency, capability gating, DRAFT-only validation, line type constraints, soft-delete, version increment, day breakdown uniqueness, aggregate total calculation, deleted line exclusion from totals, audit log writing.
+- Files changed: 9 files total
+  - NEW: repository/model/RemittanceLine.kt, repository/model/RemittanceDayBreakdown.kt, repository/RemittanceLineRepository.kt, repository/RemittanceDayBreakdownRepository.kt, test/.../RemittanceLineServicePostgresTest.kt
+  - MODIFIED: repository/RemittanceRepository.kt, service/RemittanceService.kt, shared/.../dto/RemittanceDto.kt, api/routes/RemittanceRoutes.kt
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Remittance line management uses atomic version increment: the line mutation and remittance version increment happen in the same transaction to avoid TOCTOU races.
+  - `insertIgnore` with `autoGenerate()` PK can cause SQL errors in Exposed 0.61.0 when setting the PK explicitly; prefer using repository methods (Repository.create) when available for inserts.
+  - The remittance_line table has a UNIQUE partial index on session_id WHERE deleted_at IS NULL — two non-deleted lines cannot reference the same session or product sale.
+  - Soft-delete on remittance_line follows the same pattern as expense: set deleted_by and deleted_at, don't remove the row.
+  - Day breakdown uniqueness is enforced by DB UNIQUE (remittance_id, branch_day_id) constraint AND service-level pre-check for cleaner error messages.
+  - When testing with inventory/branch_inventory, set up the card with the correct version by using BranchInventoryRepository.ensureCard + direct stock update, then pass the correct expectedVersion to sell.
+---
+
 ## Sun Jul 12 2026 - US-011
 Thread: unavailable
 - Implemented client create and search endpoints: POST /api/clients (idempotent create with bp_both_or_none validation), GET /api/clients?q= (fuzzy name + phone prefix search), GET /api/clients/{clientId} (retrieve by id).
