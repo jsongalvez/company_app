@@ -83,7 +83,22 @@ object ExpenseService {
             ?: throw io.javalin.http.NotFoundResponse("Expense not found")
     }
 
-    fun findByBranchDayId(branchDayId: UUID): List<Expense> {
+    @Suppress("ThrowsCount")
+    fun findByBranchDayId(
+        callerId: UUID,
+        branchDayId: UUID,
+    ): List<Expense> {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
+        }
+
         BranchDayRepository.findById(branchDayId)
             ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
 

@@ -71,7 +71,8 @@ object ExpenseRepository {
 
             ExpenseTable.update({ ExpenseTable.id eq expenseId }) {
                 it[ExpenseTable.deletedBy] = deletedBy
-                it[ExpenseTable.deletedAt] = java.time.OffsetDateTime.now()
+                it[ExpenseTable.deletedAt] =
+                    org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
             }
 
             val after =

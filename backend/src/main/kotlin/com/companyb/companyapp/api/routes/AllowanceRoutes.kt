@@ -46,9 +46,12 @@ object AllowanceRoutes {
 
         config.routes.get("/api/allowances") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val branchDayIdParam =
+                context.queryParam("branchDayId")
+                    ?: throw BadRequestResponse("branchDayId query param is required")
             val branchDayId =
-                runCatching { UUID.fromString(context.queryParam("branchDayId")!!) }
-                    .getOrElse { throw BadRequestResponse("Invalid or missing branchDayId query parameter") }
+                runCatching { UUID.fromString(branchDayIdParam) }
+                    .getOrElse { throw BadRequestResponse("Invalid branch day id") }
 
             val allowances = AllowanceService.findByBranchDayId(callerId, branchDayId)
             context.json(allowances.map { it.toResponse() })

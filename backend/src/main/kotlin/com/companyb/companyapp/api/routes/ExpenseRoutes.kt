@@ -66,6 +66,7 @@ object ExpenseRoutes {
         }
 
         config.routes.get("/api/expenses") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchDayIdParam =
                 context.queryParam("branchDayId")
                     ?: throw BadRequestResponse("branchDayId query param is required")
@@ -73,7 +74,7 @@ object ExpenseRoutes {
                 runCatching { UUID.fromString(branchDayIdParam) }
                     .getOrElse { throw BadRequestResponse("Invalid branch day id") }
 
-            val expenses = ExpenseService.findByBranchDayId(branchDayId)
+            val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)
 
             context.status(HttpStatus.OK)
             context.json(expenses.map { it.toResponse() })

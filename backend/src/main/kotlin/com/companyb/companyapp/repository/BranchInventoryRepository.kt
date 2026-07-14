@@ -17,7 +17,6 @@ import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
-import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -96,7 +95,8 @@ object BranchInventoryRepository {
                         it[InventoryMovementTable.reason] = InventoryMovementReason.RESTOCK
                         it[InventoryMovementTable.quantityChange] = quantity
                         it[InventoryMovementTable.movedBy] = movedBy
-                        it[InventoryMovementTable.movedAt] = OffsetDateTime.now()
+                        it[InventoryMovementTable.movedAt] =
+                            org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
                     }.insertedCount
 
             val movementRow =
@@ -197,7 +197,8 @@ object BranchInventoryRepository {
                 it[InventoryMovementTable.reason] = reason
                 it[InventoryMovementTable.quantityChange] = quantityChange
                 it[InventoryMovementTable.movedBy] = movedBy
-                it[InventoryMovementTable.movedAt] = OffsetDateTime.now()
+                it[InventoryMovementTable.movedAt] =
+                    org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
                 if (notes != null) {
                     it[InventoryMovementTable.notes] = notes
                 }

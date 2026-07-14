@@ -358,7 +358,7 @@ class ExpenseServicePostgresTest {
             notes = "Third",
         )
 
-        val expenses = ExpenseService.findByBranchDayId(branchDayId)
+        val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)
 
         assertEquals(3, expenses.size)
     }
@@ -366,7 +366,7 @@ class ExpenseServicePostgresTest {
     @Test
     fun `list expenses for non-existent branch day returns not found`() {
         assertFailsWith<NotFoundResponse> {
-            ExpenseService.findByBranchDayId(UUID.randomUUID())
+            ExpenseService.findByBranchDayId(callerId, UUID.randomUUID())
         }
     }
 
