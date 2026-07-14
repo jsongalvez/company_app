@@ -17,8 +17,11 @@ object CommissionEngineService {
     private const val COMMISSION_SCALE = 4
 
     @Suppress("ReturnCount")
-    fun recalculate(branchDayId: UUID) {
-        logger.info { "[COMMISSION-ENGINE] Recalculating commission for branchDay=$branchDayId" }
+    fun recalculate(
+        branchDayId: UUID,
+        force: Boolean = false,
+    ) {
+        logger.info { "[COMMISSION-ENGINE] Recalculating commission for branchDay=$branchDayId force=$force" }
 
         val branchDay = BranchDayRepository.findById(branchDayId)
         if (branchDay == null) {
@@ -32,8 +35,10 @@ object CommissionEngineService {
                 branchDay.date,
                 java.time.LocalDate.now(BranchDayService.manilaZone),
             )
-        if (effectiveStatus != DayStatus.OPEN) {
-            logger.info { "[COMMISSION-ENGINE] Branch day $branchDayId is $effectiveStatus, skipping recalculation" }
+        if (!force && effectiveStatus != DayStatus.OPEN) {
+            logger.info {
+                "[COMMISSION-ENGINE] Branch day $branchDayId is $effectiveStatus, skipping automatic recalculation"
+            }
             return
         }
 
