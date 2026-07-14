@@ -2,6 +2,29 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - US-038
+Thread: unavailable
+- Implemented Android app login screen with Compose Multiplatform UI.
+- Created LoginScreen composable in commonMain with username/password OutlinedTextFields, password visibility toggle, login button with loading state, error display, and register navigation link.
+- Created HomeScreen placeholder composable showing "Welcome to CompanyApp" and a logout button.
+- Updated App.kt with state-based navigation: checks token existence on start, shows LoginScreen when not logged in, HomeScreen when authenticated.
+- LoginScreen saves JWT to TokenStore on successful login via AuthViewModel.LoginResponse and navigates to HomeScreen.
+- Logout clears TokenStore and returns to LoginScreen.
+- LoginScreen supports keyboard actions (Next/Done) and disables inputs during loading.
+- Files changed:
+  - NEW: composeApp/src/commonMain/.../ui/screen/LoginScreen.kt
+  - NEW: composeApp/src/commonMain/.../ui/screen/HomeScreen.kt
+  - MODIFIED: composeApp/src/commonMain/.../App.kt
+- Quality: :composeApp:compileKotlinDesktop + :composeApp:compileDebugKotlinAndroid (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - collectAsState() in Compose Multiplatform requires explicit import `import androidx.compose.runtime.collectAsState` — it's in compose.runtime, not lifecycle-runtime-compose.
+  - TokenStore is injected into LoginScreen so the token can be saved immediately after successful login response.
+  - LaunchedEffect is the correct pattern for reacting to state changes (e.g., login success) in Compose, not snapshotFlow.
+  - Simple state-based navigation (isLoggedIn boolean) works well for apps with few screens — no NavHost needed yet.
+  - The ui/screen/ package under commonMain is the convention for screen-level composables.
+  - Platform-specific base URLs: Android emulator uses http://10.0.2.2:3023, Desktop/iOS use http://localhost:3023.
+---
+
 ## Wed Jul 15 2026 - US-037
 Thread: unavailable
 - Implemented shared ViewModels for all features in composeApp commonMain.
@@ -849,6 +872,10 @@ Thread: unavailable
   - DenyList.clear() must be called in setUp/tearDown to avoid cross-test pollution.
   - The route returns 200 OK with no body — no DTO needed.
 ---
+
+- Screen composables live in `composeApp/src/commonMain/.../ui/screen/` with `collectAsState()` imported from `androidx.compose.runtime`.
+- For simple state-based navigation (login/home), use a boolean `isLoggedIn` state in App.kt rather than a navigation library.
+- `LaunchedEffect(state)` is the idiomatic pattern for side effects on state changes (e.g., save token on login success).
 
 ## Codebase Patterns
 - Use `sql<number>` template for aggregations
