@@ -3,6 +3,7 @@
 ### Start here
 - install ktlint plugin
 - install detekt plugin
+- install k6: [download the binary](https://grafana.com/docs/k6/latest/set-up/install-k6/#download-the-k6-binary) and place it in your `PATH`
 
 #### One-Time Detekt Configuration
 - Go to Settings → Tools → detekt → Configuration file(s)

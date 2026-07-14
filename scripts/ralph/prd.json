@@ -1417,6 +1417,39 @@
       ],
       "notes": "",
       "passes": false
+    },
+    {
+      "id": "US-051",
+      "title": "k6 load testing for all API endpoints",
+      "description": "As a developer, I want k6 load test scripts covering all critical API paths so that I can validate performance and concurrency behavior before go-live.",
+      "type": "testing",
+      "priorityHint": 51,
+      "dependsOn": [
+        "US-029",
+        "US-032",
+        "US-033",
+        "US-034",
+        "US-035"
+      ],
+      "requirements": [
+        "Write k6 test scripts covering authentication (login), client CRUD, session lifecycle (create/update/void), session practitioner add/remove, clock-in/out, product sale, inventory restock, compensation, expense, remittance draft/submit, notification fetch, and daily/monthly report endpoints",
+        "Test concurrency guards: session booking races (HTTP 409 on idx_client_one_pending_session), optimistic locking version mismatches (HTTP 409 on versioned endpoints), duplicate UUID idempotency responses",
+        "Test authorization: inactive user deny list rejections (HTTP 401), insufficient capability (HTTP 403), EDIT_PAST_DAY gating on PAST/REMITTED days",
+        "Test serializable isolation with concurrent remittance submissions",
+        "Generate k6 summary output with percentile latencies and failure rates"
+      ],
+      "acceptanceCriteria": [
+        "All critical API paths have k6 scripts that execute against a running backend",
+        "Concurrency edge cases (409 conflicts, 403 rejections, 401 denials) produce correct HTTP status codes under load",
+        "Remittance submission handles concurrent serializable conflicts without data corruption",
+        "k6 summary shows p95/p99 latencies under acceptable thresholds"
+      ],
+      "verification": [
+        "All k6 scripts run successfully with k6 v2.x",
+        "Load test output confirms idempotency, locking, and auth behaviors hold under concurrent load"
+      ],
+      "notes": "Install k6 binary from https://grafana.com/docs/k6/latest/set-up/install-k6/. Run against local Docker Compose backend. k6 scripts live in tests/k6/.",
+      "passes": false
     }
   ]
 }
