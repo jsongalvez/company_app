@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
 import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
+import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.ProductCategoryRoutes
 import com.companyb.companyapp.api.routes.ProductRoutes
@@ -79,6 +80,7 @@ fun initializeJavalin() {
             ProductRoutes.register(config)
             BranchInventoryRoutes.register(config)
             ProductSaleRoutes.register(config)
+            CompensationRoutes.register(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }

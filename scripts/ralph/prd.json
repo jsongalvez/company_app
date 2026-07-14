@@ -747,7 +747,7 @@
         "Integration tests for compensation unique constraints pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-024",

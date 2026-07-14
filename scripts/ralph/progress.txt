@@ -2,6 +2,28 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Tue Jul 14 2026 - US-023
+Thread: unavailable
+- Implemented compensation assign endpoint (POST /api/compensation) and update endpoint (PATCH /api/compensation/{compensationId}).
+- Created Compensation data class + CompensationTable Exposed model for the existing compensation table.
+- CompensationRepository.create: idempotent insert with PK pre-check (returns existing if same UUID), pre-checks unique (user_id, paying_branch_day_id) via findByUserAndPayingDay and throws ConflictResponse (409) on duplicate, writes audit log on actual insert.
+- CompensationRepository.update: last-write-wins update of amount and note, writes audit log with old/new values.
+- CompensationService.create: gates on ASSIGN_COMPENSATION capability (GLOBAL context), validates non-negative amount, validates work/paying branch days exist (404 if not), checks unique constraint via repository.
+- CompensationService.update: gates on ASSIGN_COMPENSATION capability, validates non-negative amount, validates compensation exists (404 if not), delegates to repository.
+- CompensationRoutes: registered POST /api/compensation and PATCH /api/compensation/{compensationId} with UUID/BigDecimal parsing and response mapping.
+- Added grantAssignCompensation to DatabaseTestHelper.
+- Added CompenssationDto.kt (CreateCompensationRequest, UpdateCompensationRequest, CompensationResponse) to shared module.
+- Added 11 integration tests covering: create with all fields, create without note, idempotent duplicate, duplicate user+paying day (409), forbidden without capability (403), non-existent work/paying branch day (404), negative amount (400), update with new amount/note, update non-existent (404), update without capability (403), create/update audit log writing.
+- Files changed: shared/.../dto/CompensationDto.kt (new), repository/model/Compensation.kt (new), repository/CompensationRepository.kt (new), service/CompensationService.kt (new), api/routes/CompensationRoutes.kt (new), test/.../CompensationServicePostgresTest.kt (new), Main.kt, DatabaseTestHelper.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 231 tests).
+- **Learnings for future iterations:**
+  - compensation table uses a UNIQUE INDEX on (user_id, paying_branch_day_id) — pre-check in the service layer for a cleaner 409 error before hitting the DB constraint.
+  - Compensation uses numeric(10,2) for amount — use `decimal("amount", 10, 2)` in Exposed with BigDecimal, extract precision/scale as private const val for MagicNumber compliance.
+  - ASSIGN_COMPENSATION is scoped to BRANCH in V2 seed comment but checked with GLOBAL context for consistency with other endpoints (VOID_SESSION pattern).
+  - The CompensationRepository.create pattern: pre-check PK for idempotency, pre-check unique constraint, then insert with audit logging — follows the same read-before-write guard pattern as clock-in.
+  - Last-write-wins pattern for update: no version check, just direct update with audit logging of old/new values.
+---
+
 ## Tue Jul 14 2026 - US-015
 Thread: unavailable
 - Implemented session void (POST /api/sessions/{sessionId}/void) and unvoid (POST /api/sessions/{sessionId}/unvoid) endpoints.
