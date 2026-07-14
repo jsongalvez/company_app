@@ -848,7 +848,7 @@
         "Integration tests for draft creation pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-028",

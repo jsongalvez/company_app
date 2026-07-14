@@ -511,3 +511,24 @@ Thread: unavailable
   - The GET endpoint uses `context.queryParam("branchDayId")` to read query parameters — found via Context method, not a static import.
   - Follow the same pattern as compensation: CreateAllowanceRequest with String fields for UUID/BigDecimal, parsed in the route layer.
 ---
+
+## Tue Jul 14 2026 - US-027
+Thread: unavailable
+- Implemented remittance draft create endpoint: POST /api/remittances body: { id, type, branchId, method, dateRangeStart, dateRangeEnd }.
+- Created RemittanceType, RemittanceMethod, RemittanceStatus enums + Remittance data class + RemittanceTable Exposed model with customEnumeration for remittance_type, remittance_method, remittance_status PG enums.
+- RemittanceRepository.createDraft: idempotent PK pre-check (returns existing if same UUID), insertIgnore with audit log.
+- RemittanceService.createDraft: gates on SUBMIT_REMITTANCE capability (GLOBAL context), validates dateRangeEnd >= dateRangeStart (400), validates branch exists (404), sets submitted_date to today (Asia/Manila) and submitted_by to caller.
+- RemittanceRoutes: registered POST /api/remittances with UUID/RemittanceType/RemittanceMethod/LocalDate parsing and response mapping.
+- Added grantSubmitRemittance to DatabaseTestHelper.
+- Wired RemittanceRoutes in Main.kt.
+- Added 7 integration tests covering: create SESSION draft, create PRODUCT draft, idempotent duplicate, forbidden without capability (403), non-existent branch (404), reversed date range (400), audit log writing.
+- Files changed: shared/.../dto/RemittanceDto.kt (new), repository/model/Remittance.kt (new), repository/RemittanceRepository.kt (new), service/RemittanceService.kt (new), api/routes/RemittanceRoutes.kt (new), test/.../RemittanceServicePostgresTest.kt (new), test/.../DatabaseTestHelper.kt, Main.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - The remittance table has a `date` column for submitted_date — use Exposed `date()` column type (from exposed-java-time), returns `LocalDate`. This is the same pattern used for branch_day.date.
+  - The UNIQUE constraint `(branch_id, type, submitted_date)` is on the remittance table — drafts can still conflict on this if created on the same day for the same branch/type, but the idempotent PK pattern handles retries.
+  - The EXCLUDE constraint `no_remittance_overlap` only applies when `status = 'SUBMITTED'` — drafts bypass overlap checks entirely per PRD.
+  - SUBMIT_REMITTANCE capability follows the same GLOBAL-context pattern as ASSIGN_COMPENSATION and VOID_SESSION, even though the V2 seed comment says scope: BRANCH.
+  - LocalDate parsing in routes: use `LocalDate.parse(request.dateRangeStart)` — it parses ISO-8601 format (yyyy-MM-dd).
+  - When using `customEnumeration` with a `.default()` value (like status = DRAFT), the default must match the PG enum type exactly.
+---
