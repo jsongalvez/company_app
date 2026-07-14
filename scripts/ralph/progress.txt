@@ -463,3 +463,29 @@ Thread: unavailable
   - VIEW_BRANCH_DATA capability is scoped to BRANCH context in the seed — use `CapabilityContextType.BRANCH` with `branchId` as contextId for read endpoints.
   - ASSIGN_COMPENSATION is used for commission manual inclusion gating (consistent with US-023 pattern).
 ---
+
+## Tue Jul 14 2026 - US-025
+Thread: unavailable
+- Implemented Expense CRUD endpoints: POST /api/expenses (create with idempotent PK, EDIT_BRANCH_DATA gate, assertEditable), DELETE /api/expenses/{expenseId} (soft-delete with reason, EDIT_BRANCH_DATA gate, assertEditable), GET /api/expenses?branchDayId= (list expenses, validates branch day exists).
+- Created ExpenseCategory enum (PANTRY, COMMUNICATION, WATER, TRANSPORTATION, ELECTRICITY, RENTAL, OFFICE_SUPPLIES, FURNITURE_FIXTURES, MISCELLANEOUS) matching PG expense_category enum.
+- Created Expense data class + ExpenseTable Exposed model with customEnumeration for expense_category PG enum.
+- ExpenseRepository.create: idempotent PK pre-check (returns existing if same UUID), inserts with audit log.
+- ExpenseRepository.softDelete: sets deleted_by/deleted_at, writes audit log with old/new values and reason.
+- ExpenseRepository.findByBranchDayId: lists all expenses for a branch day (including soft-deleted), no filtering.
+- ExpenseService.create: gates on EDIT_BRANCH_DATA (GLOBAL context), validates amount > 0, idempotent check before assertEditable.
+- ExpenseService.softDelete: gates on EDIT_BRANCH_DATA, validates reason not blank, validates expense exists (404 if not), calls assertEditable on branch day.
+- ExpenseService.findByBranchDayId: validates branch day exists (404 if not), no capability gate (all authenticated users can list).
+- ExpenseRoutes: registered POST /api/expenses, DELETE /api/expenses/{expenseId}, GET /api/expenses?branchDayId= with UUID parsing and ExpenseCategory enum parsing.
+- Wired ExpenseRoutes in Main.kt.
+- Added ExpenseDto.kt (CreateExpenseRequest, DeleteExpenseRequest, ExpenseResponse) to shared module.
+- Added 13 integration tests covering: create with all fields, create without notes, idempotent duplicate, forbidden without capability, non-positive amount (400), non-existent branch day (404), audit log writing, soft delete succeeds, soft delete non-existent (404), soft delete without capability (403), soft delete without reason (400), soft delete audit log, list expenses returns all, list non-existent branch day (404).
+- Files changed: shared/.../dto/ExpenseDto.kt (new), repository/model/Expense.kt (new), repository/ExpenseRepository.kt (new), service/ExpenseService.kt (new), api/routes/ExpenseRoutes.kt (new), Main.kt (wired routes), test/.../ExpenseServicePostgresTest.kt (new), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 245 tests).
+- **Learnings for future iterations:**
+  - ExpenseCategory is a PG enum with values PANTRY, COMMUNICATION, WATER, TRANSPORTATION, ELECTRICITY, RENTAL, OFFICE_SUPPLIES, FURNITURE_FIXTURES, MISCELLANEOUS — define as Kotlin enum in the model file with customEnumeration pattern matching other PG enums.
+  - The expense table has a CHECK(amount > 0) constraint — validate in service layer for cleaner error before DB hit.
+  - Soft-delete pattern: set deleted_by and deleted_at columns, don't actually remove the row.
+  - ktlint requires each enum entry on its own line — use multiline format for enums with many entries.
+  - FindByBranchDayId uses `ExpenseTable.selectAll().where { ExpenseTable.branchDayId eq branchDayId }` — no soft-delete filtering, returns all rows.
+  - The POST endpoint validates ExpenseCategory from the request string via `ExpenseCategory.valueOf(request.category.uppercase())` in the route layer.
+---

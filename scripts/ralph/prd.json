@@ -799,7 +799,7 @@
         "Integration tests for expense CRUD and soft-deletion pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-026",
