@@ -154,6 +154,106 @@ object BranchInventoryRepository {
             }
         }
 
+    @Suppress("LongParameterList", "LongMethod")
+    fun recordMovement(
+        movementId: UUID,
+        branchId: UUID,
+        productId: UUID,
+        reason: InventoryMovementReason,
+        quantityChange: Int,
+        notes: String?,
+        branchDayId: UUID,
+        expectedVersion: Int,
+        movedBy: UUID,
+    ): InventoryMovement =
+        transaction {
+            val card =
+                findCardInTransaction(branchId, productId)
+                    ?: error("inventory card not found for branch=$branchId product=$productId")
+
+            if (card.version != expectedVersion) {
+                error("version_mismatch")
+            }
+
+            val updatedCount =
+                BranchInventoryTable.update({
+                    (BranchInventoryTable.branchId eq branchId) and
+                        (BranchInventoryTable.productId eq productId) and
+                        (BranchInventoryTable.version eq expectedVersion)
+                }) {
+                    it[BranchInventoryTable.currentStock] = card.currentStock + quantityChange
+                    it[BranchInventoryTable.version] = expectedVersion + 1
+                }
+
+            if (updatedCount == 0) {
+                error("version_mismatch")
+            }
+
+            InventoryMovementTable.insertIgnore {
+                it[InventoryMovementTable.id] = movementId
+                it[InventoryMovementTable.productId] = productId
+                it[InventoryMovementTable.branchId] = branchId
+                it[InventoryMovementTable.branchDayId] = branchDayId
+                it[InventoryMovementTable.reason] = reason
+                it[InventoryMovementTable.quantityChange] = quantityChange
+                it[InventoryMovementTable.movedBy] = movedBy
+                it[InventoryMovementTable.movedAt] = OffsetDateTime.now()
+                if (notes != null) {
+                    it[InventoryMovementTable.notes] = notes
+                }
+            }
+
+            val movementRow =
+                InventoryMovementTable
+                    .selectAll()
+                    .where { InventoryMovementTable.id eq movementId }
+                    .single()
+                    .toInventoryMovement()
+
+            val newCard =
+                findCardInTransaction(branchId, productId)
+                    ?: error("inventory card not found after movement")
+
+            AuditLogRepository.record(
+                tableName = BranchInventoryTable.tableName,
+                recordId = newCard.id,
+                action = AuditAction.UPDATE,
+                changedBy = movedBy,
+                oldValue =
+                    AuditLogRepository.jsonFields(
+                        "currentStock" to card.currentStock.toString(),
+                        "version" to card.version.toString(),
+                    ),
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "currentStock" to newCard.currentStock.toString(),
+                        "version" to newCard.version.toString(),
+                    ),
+            )
+
+            AuditLogRepository.record(
+                tableName = InventoryMovementTable.tableName,
+                recordId = movementRow.id,
+                action = AuditAction.INSERT,
+                changedBy = movedBy,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "productId" to productId.toString(),
+                        "branchId" to branchId.toString(),
+                        "branchDayId" to branchDayId.toString(),
+                        "reason" to reason.name,
+                        "quantityChange" to quantityChange.toString(),
+                        "notes" to (notes ?: ""),
+                    ),
+            )
+
+            movementRow
+        }.also {
+            logger.info {
+                "[RECORD-MOVEMENT] reason=$reason product=$productId branch=$branchId qty=$quantityChange"
+            }
+        }
+
     fun findCardInTransaction(
         branchId: UUID,
         productId: UUID,

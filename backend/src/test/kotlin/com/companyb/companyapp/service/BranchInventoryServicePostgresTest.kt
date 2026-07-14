@@ -6,13 +6,13 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -212,6 +212,254 @@ class BranchInventoryServicePostgresTest {
         assertFailsWith<NotFoundResponse> {
             BranchInventoryService.findByBranch(UUID.randomUUID())
         }
+    }
+
+    @Test
+    fun `recordMovement with TESTER decreases stock and logs movement`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        BranchInventoryService.restock(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            quantity = 10,
+            branchDayId = createBranchDay(branchId),
+        )
+
+        val branchDayId = createBranchDay(branchId)
+        val movement =
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.TESTER,
+                quantityChange = -2,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+
+        assertEquals(-2, movement.quantityChange)
+        assertEquals(InventoryMovementReason.TESTER, movement.reason)
+
+        val cards = BranchInventoryService.findByBranch(branchId)
+        assertEquals(8, cards[0].inventory.currentStock)
+        assertEquals(3, cards[0].inventory.version)
+    }
+
+    @Test
+    fun `recordMovement with SAMPLE decreases stock and logs movement`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        BranchInventoryService.restock(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            quantity = 10,
+            branchDayId = createBranchDay(branchId),
+        )
+
+        val branchDayId = createBranchDay(branchId)
+        val movement =
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.SAMPLE,
+                quantityChange = -3,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+
+        assertEquals(-3, movement.quantityChange)
+        assertEquals(InventoryMovementReason.SAMPLE, movement.reason)
+
+        val cards = BranchInventoryService.findByBranch(branchId)
+        assertEquals(7, cards[0].inventory.currentStock)
+    }
+
+    @Test
+    fun `recordMovement with MISSING decreases stock with notes`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        BranchInventoryService.restock(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            quantity = 10,
+            branchDayId = createBranchDay(branchId),
+        )
+
+        val branchDayId = createBranchDay(branchId)
+        val movement =
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.MISSING,
+                quantityChange = -1,
+                notes = "Lost during inventory count",
+                branchDayId = branchDayId,
+            )
+
+        assertEquals(-1, movement.quantityChange)
+        assertEquals("Lost during inventory count", movement.notes)
+
+        val cards = BranchInventoryService.findByBranch(branchId)
+        assertEquals(9, cards[0].inventory.currentStock)
+    }
+
+    @Test
+    fun `recordMovement with ADJUSTMENT positive increases stock`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        BranchInventoryService.restock(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            quantity = 10,
+            branchDayId = createBranchDay(branchId),
+        )
+
+        val branchDayId = createBranchDay(branchId)
+        val movement =
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.ADJUSTMENT,
+                quantityChange = 5,
+                notes = "Found extra stock",
+                branchDayId = branchDayId,
+            )
+
+        assertEquals(5, movement.quantityChange)
+
+        val cards = BranchInventoryService.findByBranch(branchId)
+        assertEquals(15, cards[0].inventory.currentStock)
+    }
+
+    @Test
+    fun `recordMovement with TESTER positive quantity returns bad request`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        val branchDayId = createBranchDay(branchId)
+
+        assertFailsWith<BadRequestResponse> {
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.TESTER,
+                quantityChange = 1,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        }
+    }
+
+    @Test
+    fun `recordMovement with MISSING blank notes returns bad request`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        val branchDayId = createBranchDay(branchId)
+
+        assertFailsWith<BadRequestResponse> {
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.MISSING,
+                quantityChange = -1,
+                notes = "",
+                branchDayId = branchDayId,
+            )
+        }
+    }
+
+    @Test
+    fun `recordMovement without MANAGE_PRODUCTS is forbidden`() {
+        val branchDayId = createBranchDay(branchId)
+
+        assertFailsWith<ForbiddenResponse> {
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                reason = InventoryMovementReason.TESTER,
+                quantityChange = -1,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        }
+    }
+
+    @Test
+    fun `recordMovement with non-existent branch returns not found`() {
+        grantManageProducts(callerId)
+        val branchDayId = createBranchDay(branchId)
+
+        assertFailsWith<NotFoundResponse> {
+            BranchInventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = UUID.randomUUID(),
+                productId = productId,
+                reason = InventoryMovementReason.TESTER,
+                quantityChange = -1,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        }
+    }
+
+    @Test
+    fun `recordMovement writes audit entries`() {
+        grantManageProducts(callerId)
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        BranchInventoryService.restock(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            quantity = 10,
+            branchDayId = createBranchDay(branchId),
+        )
+
+        val branchDayId = createBranchDay(branchId)
+        val movementId = UUID.randomUUID()
+
+        BranchInventoryService.recordMovement(
+            callerId = callerId,
+            movementId = movementId,
+            branchId = branchId,
+            productId = productId,
+            reason = InventoryMovementReason.TESTER,
+            quantityChange = -2,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+
+        val auditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.auditTableName eq BranchInventoryTable.tableName)
+                    }.count()
+            }
+        assertTrue(auditCount > 0)
     }
 
     private fun insertUser(userId: UUID) {

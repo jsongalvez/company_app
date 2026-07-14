@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.InventoryMovement
+import com.companyb.companyapp.repository.model.InventoryMovementReason
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
@@ -103,6 +104,84 @@ object BranchInventoryService {
             }
 
         return result.movement
+    }
+
+    @Suppress("ThrowsCount", "LongParameterList")
+    fun recordMovement(
+        callerId: UUID,
+        movementId: UUID,
+        branchId: UUID,
+        productId: UUID,
+        reason: InventoryMovementReason,
+        quantityChange: Int,
+        notes: String?,
+        branchDayId: UUID,
+    ): InventoryMovement {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = MANAGE_PRODUCTS,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to manage inventory")
+        }
+
+        when (reason) {
+            InventoryMovementReason.TESTER,
+            InventoryMovementReason.SAMPLE,
+            InventoryMovementReason.MISSING,
+            -> {
+                if (quantityChange >= 0) {
+                    throw BadRequestResponse("$reason movement must have a negative quantity change")
+                }
+            }
+
+            InventoryMovementReason.ADJUSTMENT -> {
+                // either sign allowed
+            }
+
+            else -> {
+                throw BadRequestResponse("Invalid movement reason for this endpoint")
+            }
+        }
+
+        if (reason == InventoryMovementReason.MISSING && notes.isNullOrBlank()) {
+            throw BadRequestResponse("Notes are required for MISSING movements")
+        }
+
+        if (BranchRepository.findById(branchId) == null) {
+            throw NotFoundResponse("Branch not found")
+        }
+
+        if (ProductRepository.findById(productId) == null) {
+            throw NotFoundResponse("Product not found")
+        }
+
+        BranchDayService.assertEditable(branchDayId, callerId)
+
+        val card = BranchInventoryRepository.ensureCard(branchId, productId)
+        val expectedVersion = card.version
+
+        return try {
+            BranchInventoryRepository.recordMovement(
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                reason = reason,
+                quantityChange = quantityChange,
+                notes = notes,
+                branchDayId = branchDayId,
+                expectedVersion = expectedVersion,
+                movedBy = callerId,
+            )
+        } catch (e: IllegalStateException) {
+            if (e.message == "version_mismatch") {
+                throw ConflictResponse("Inventory version mismatch")
+            }
+            throw e
+        }
     }
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> {

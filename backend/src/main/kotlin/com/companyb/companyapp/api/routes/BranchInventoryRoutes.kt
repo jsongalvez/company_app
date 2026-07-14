@@ -2,10 +2,12 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.dto.InventoryMovementRequest
 import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
+import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.service.BranchInventoryService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -17,7 +19,7 @@ object BranchInventoryRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val PRODUCT_ID_PARAM = "productId"
 
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
@@ -77,6 +79,41 @@ object BranchInventoryRoutes {
                 BranchInventoryService.findByBranch(branchId).map { it.toResponse() },
             )
         }
+
+        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/movement") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val branchId =
+                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
+                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val productId =
+                runCatching { UUID.fromString(context.pathParam(PRODUCT_ID_PARAM)) }
+                    .getOrElse { throw BadRequestResponse("Invalid product id") }
+            val request = context.bodyAsClass<InventoryMovementRequest>()
+            val movementId =
+                runCatching { UUID.fromString(request.movementId) }
+                    .getOrElse { throw BadRequestResponse("Invalid movement id") }
+            val branchDayId =
+                runCatching { UUID.fromString(request.branchDayId) }
+                    .getOrElse { throw BadRequestResponse("Invalid branch day id") }
+            val reason =
+                runCatching { InventoryMovementReason.valueOf(request.reason.uppercase()) }
+                    .getOrElse { throw BadRequestResponse("Invalid movement reason") }
+
+            val movement =
+                BranchInventoryService.recordMovement(
+                    callerId = callerId,
+                    movementId = movementId,
+                    branchId = branchId,
+                    productId = productId,
+                    reason = reason,
+                    quantityChange = request.quantityChange,
+                    notes = request.notes,
+                    branchDayId = branchDayId,
+                )
+
+            context.status(HttpStatus.CREATED)
+            context.json(movement.toResponse())
+        }
     }
 
     private fun InventoryMovement.toResponse(): InventoryMovementResponse =
@@ -89,7 +126,7 @@ object BranchInventoryRoutes {
             quantityChange = quantityChange,
             movedBy = movedBy.toString(),
             movedAt = movedAt.toString(),
-            notes = null,
+            notes = notes,
         )
 
     private fun BranchInventoryWithProduct.toResponse(): BranchInventoryResponse =

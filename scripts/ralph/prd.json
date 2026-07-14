@@ -719,7 +719,7 @@
         "Integration tests for inventory movements and checks pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-023",

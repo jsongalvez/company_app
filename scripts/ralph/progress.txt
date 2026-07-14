@@ -396,3 +396,21 @@ Thread: unavailable
   - detekt LongParameterList threshold is 6 — ProductService.create (6 params) and update (7 params) both need @Suppress("LongParameterList").
   - detekt ThrowsCount threshold is 2 — ProductRoutes.register needs @Suppress("ThrowsCount").
 ---
+
+## Tue Jul 14 2026 - US-022
+Thread: unavailable
+- Implemented non-sale inventory movement endpoint: POST /api/branches/{branchId}/inventory/{productId}/movement.
+- Added InventoryMovementRequest DTO to shared module with movementId, reason, quantityChange, notes, branchDayId, expectedVersion fields.
+- BranchInventoryRepository.recordMovement: version-based optimistic locking (checks expectedVersion, updates stock + increments version, throws version_mismatch on conflict), uses insertIgnore for idempotent movement creation, writes audit log for inventory card update and movement insert.
+- BranchInventoryService.recordMovement: gates on MANAGE_PRODUCTS capability (GLOBAL context), validates TESTER/SAMPLE/MISSING must have negative quantityChange (throws 400), mandates non-blank notes for MISSING (throws 400), allows ADJUSTMENT with either sign, validates branch/product exist (throws 404), calls assertEditable on branchDayId, ensures inventory card exists, delegates to repository with version handling (throws 409 on mismatch).
+- BranchInventoryRoutes: added POST movement route under /api/branches/{branchId}/inventory/{productId}/movement with UUID parsing for movementId/branchDayId and InventoryMovementReason enum parsing.
+- Updated InventoryMovement.toResponse() to emit actual notes field instead of hardcoded null.
+- Modified files: shared/.../dto/InventoryDto.kt, repository/BranchInventoryRepository.kt, service/BranchInventoryService.kt, api/routes/BranchInventoryRoutes.kt, test/.../BranchInventoryServicePostgresTest.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - The non-sale movement endpoint reuses the same version-based optimistic locking pattern as restock (read version, update WHERE version = expectedVersion, check update count).
+  - Movement sign validation per reason: TESTER/SAMPLE/MISSING must be negative, ADJUSTMENT allows either sign. Validate in the service layer before repository call.
+  - MISSING movements require mandatory non-blank notes; throw 400 if blank/null.
+  - InventoryMovementReason enum values are parsed from the request string in the route layer via `InventoryMovementReason.valueOf(request.reason.uppercase())` — uppercase is used for case-insensitivity.
+  - The InventoryMovementResponse.notes field was previously hardcoded to null in the route's `toResponse()` — now correctly maps the data class notes value.
+---

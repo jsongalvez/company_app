@@ -25,6 +25,16 @@ data class BranchInventoryResponse(
 )
 
 @Serializable
+data class InventoryMovementRequest(
+    val movementId: String,
+    val reason: String,
+    val quantityChange: Int,
+    val notes: String? = null,
+    val branchDayId: String,
+    val expectedVersion: Int,
+)
+
+@Serializable
 data class InventoryMovementResponse(
     val id: String,
     val productId: String,
