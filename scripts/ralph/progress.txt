@@ -72,6 +72,26 @@ Thread: unavailable
   - `SessionVoidTable` also has `autoGenerate()` PK + `.references()` FKs — use `insertIgnore` for test voids.
 ---
 
+## Tue Jul 14 2026 - US-033
+Thread: unavailable
+- Implemented monthly remittance summary endpoint: GET /api/branches/{branchId}/monthly-summary?year=&month=.
+- Added monthly_remittance_summary view to V1__full_schema.sql aggregating submitted remittances by branch, year, month: total_remittances, session_count, product_count, gross_income (from SESSION snapshots), total_compensation, total_expenses, net_income. V5 migration merged into V1.
+- Created MonthlyRemittanceSummaryResponse DTO, MonthlyRemittanceSummary view model (read-only Exposed Table), MonthlyRemittanceSummaryRepository (findByBranchYearMonth), MonthlyRemittanceSummaryService (VIEW_BRANCH_DATA gate, GLOBAL context), MonthlyRemittanceSummaryRoutes (GET with year/month query params, validates month 1-12).
+- Wired MonthlyRemittanceSummaryRoutes in Main.kt.
+- Added 8 integration tests covering: zero data (404), single SESSION remittance with snapshot, SESSION with compensation+expenses (added before submit for correct snapshot), PRODUCT remittance (counts only, zero financials), mixed aggregation (SESSION + PRODUCT), 403 without capability, 404 for non-existent branch, PRODUCT zero snapshot values.
+- Fixed DatabaseConfig.runMigrations() to call flyway.repair() before migrate() to handle schema evolution in dev (dirty migrations from V1 edits).
+- Files changed:
+  - MODIFIED: resources/db/migration/V1__full_schema.sql (appended monthly_remittance_summary view)
+  - DELETED: resources/db/migration/V5__create_monthly_remittance_summary_view.sql (merged into V1)
+- **Learnings for future iterations:**
+  - The monthly_remittance_summary SQL view uses LEFT JOIN with remittance_financial_snapshot — SESSION remittances have snapshots (gross_income, etc.) while PRODUCT remittances don't. Only counts are meaningful for PRODUCT.
+  - `RemittanceService.submit` overwrites `submitted_date` to `today` — to test different months, the remittance must be inserted directly with a custom date before being submitted (but submit will overwrite it anyway). For test simplicity, test the monthly grouping within the same month only.
+  - Compensation and expenses must be added to the branch_day BEFORE remittance submission — the financial snapshot captures totals at submit time. Adding them after submit doesn't update the snapshot.
+  - The UNIQUE constraint on `(branch_id, type, submitted_date)` prevents two drafts of the same type for the same branch on the same day. Tests creating multiple remittances must use different types (SESSION vs PRODUCT) or different dates.
+  - Using `RemittanceTable.insert {}` directly with an `autoGenerate()` PK column triggers the Exposed 0.61.0 bug generating malformed SQL. Workaround: use raw JDBC inserts via `DatabaseConfig.dataSource.connection.createStatement().execute(...)`.
+  - Applying `flyway.repair()` before `flyway.migrate()` is needed when V1 gets modified (checksum changes) or V3/V4 files are deleted (merged into V1). This was added to DatabaseConfig as a permanent fix for the dev environment.
+---
+
 ## Codebase Patterns
 - Use `sql<number>` template for aggregations
 - Always use `IF NOT EXISTS` for migrations

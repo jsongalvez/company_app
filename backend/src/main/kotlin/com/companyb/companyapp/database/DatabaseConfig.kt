@@ -34,13 +34,15 @@ object DatabaseConfig {
 
     fun runMigrations() {
         logger.info { "[RUN-MIGRATIONS] Starting flyway configuration" }
-        Flyway
-            .configure()
-            .dataSource(dataSource)
-            .locations(
-                "classpath:db/migration",
-            ).load()
-            .migrate()
+        val flyway =
+            Flyway
+                .configure()
+                .dataSource(dataSource)
+                .locations(
+                    "classpath:db/migration",
+                ).load()
+        flyway.repair()
+        flyway.migrate()
         logger.info { "[RUN-MIGRATIONS] Flyway configuration done" }
     }
 

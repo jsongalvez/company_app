@@ -1006,7 +1006,7 @@
         "Integration tests for monthly summaries pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-034",

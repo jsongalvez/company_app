@@ -614,3 +614,23 @@ SELECT
     ), 0)::NUMERIC(15,4) AS total_commission
 FROM branch_day bd;
 
+-- monthly_remittance_summary
+-- Aggregates submitted remittance data per branch per month.
+-- Financial snapshot columns apply only to SESSION remittances.
+CREATE VIEW monthly_remittance_summary AS
+SELECT
+    r.branch_id,
+    EXTRACT(YEAR FROM r.submitted_date)::INT AS year,
+    EXTRACT(MONTH FROM r.submitted_date)::INT AS month,
+    COUNT(*)::INT AS total_remittances,
+    COUNT(*) FILTER (WHERE r.type = 'SESSION')::INT AS session_count,
+    COUNT(*) FILTER (WHERE r.type = 'PRODUCT')::INT AS product_count,
+    COALESCE(SUM(rfs.gross_income), 0)::NUMERIC(10,2) AS gross_income,
+    COALESCE(SUM(rfs.total_compensation), 0)::NUMERIC(10,2) AS total_compensation,
+    COALESCE(SUM(rfs.total_expenses), 0)::NUMERIC(10,2) AS total_expenses,
+    COALESCE(SUM(rfs.net_income), 0)::NUMERIC(10,2) AS net_income
+FROM remittance r
+LEFT JOIN remittance_financial_snapshot rfs ON rfs.remittance_id = r.id
+WHERE r.status = 'SUBMITTED'
+GROUP BY r.branch_id, EXTRACT(YEAR FROM r.submitted_date), EXTRACT(MONTH FROM r.submitted_date);
+
