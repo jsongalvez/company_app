@@ -305,6 +305,30 @@ Thread: unavailable
    - The medical_mission_delegate table in V1 lacked branch_id — added via V3 migration. Future FK-sensitive stories should check the schema first.
 ---
 
+## Tue Jul 14 2026 - US-020
+Thread: unavailable
+- Implemented branch inventory management and restock endpoints: POST /api/branches/{branchId}/inventory (create inventory card, MANAGE_PRODUCTS gate), POST /api/branches/{branchId}/inventory/{productId}/restock (idempotent restock with optimistic locking and audit log), GET /api/branches/{branchId}/inventory (list stock counts with product names).
+- Created BranchInventory data class + BranchInventoryTable Exposed model for the existing branch_inventory table (UUID PK, branch_id FK, product_id FK, current_stock, version).
+- Created InventoryMovement data class + InventoryMovementTable Exposed model for the existing inventory_movement table (customEnumeration for inventory_movement_reason PG enum).
+- BranchInventoryRepository: ensureCard (idempotent UPSERT, returns existing card), restock (version-checked atomic stock update + movement insert + audit logs in single transaction), findByBranch (inner join with product for product_name).
+- BranchInventoryService: ensureCard (MANAGE_PRODUCTS on GLOBAL, validates branch/product exist), restock (MANAGE_PRODUCTS gate, assertEditable on branch_day, optimistic locking with ConflictResponse on version mismatch), findByBranch (validates branch exists).
+- BranchInventoryRoutes: wired POST + GET endpoints under /api/branches/{branchId}/inventory/*.
+- Added InventoryDto.kt to shared module: AddInventoryCardRequest, RestockRequest, BranchInventoryResponse, InventoryMovementResponse.
+- Wired BranchInventoryRoutes in Main.kt.
+- Added 11 integration tests covering: ensureCard creates card, ensureCard without capability (403), non-existent branch/product (404), restock increments stock + logs movement, restock without capability (403), negative quantity (400), non-existent branch (404), audit log writing, list by branch (empty), list by non-existent branch (404).
+- Files changed: shared/.../dto/InventoryDto.kt (new), backend/.../repository/model/Inventory.kt (new), backend/.../repository/BranchInventoryRepository.kt (new), backend/.../service/BranchInventoryService.kt (new), backend/.../api/routes/BranchInventoryRoutes.kt (new), backend/.../Main.kt, backend/.../test/.../BranchInventoryServicePostgresTest.kt (new), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 197 tests).
+- **Learnings for future iterations:**
+  - The branch_inventory table has UNIQUE (branch_id, product_id) — ensureCard checks for existing before insertIgnore.
+  - Optimistic locking on branch_inventory uses a version column. The restock method compares expectedVersion against the current version, then checks update count (0 means version mismatch).
+  - `findCardInTransaction` is a package-private helper that requires an active transaction context (called from inside transaction {} blocks only). Never call it from the service layer without a transaction wrapper.
+  - For version-based optimistic locking with Exposed, the pattern is: SELECT current version, then UPDATE WHERE version = expectedVersion. If updatedCount == 0, throw 409 Conflict.
+  - The innerJoin with ProductTable provides product_name in the inventory listing — follows the same pattern as other Exposed innerJoin usages.
+  - Audit logs are written inside the same transaction as the mutation so they commit atomically.
+  - Detekt `LongMethod` threshold is 60 — the restock repository method with audit logging hits it; suppress with @Suppress("LongMethod").
+  - ktlint requires multiline expression format: `val x = expression \n .chain()` not `val x = expression.chain()` when chaining.
+---
+
 ## Tue Jul 14 2026 - US-017
 Thread: unavailable
 - Implemented session concerns endpoints: GET /api/concerns (list all concerns), GET /api/sessions/{sessionId}/concerns, POST /api/sessions/{sessionId}/concerns, DELETE /api/sessions/{sessionId}/concerns/{concernId}, POST /api/sessions/{sessionId}/promote-concern.

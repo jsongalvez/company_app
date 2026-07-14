@@ -662,7 +662,7 @@
         "Integration tests for restocking and inventory locking pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-021",
