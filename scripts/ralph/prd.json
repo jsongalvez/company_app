@@ -1096,7 +1096,7 @@
         "Unit tests for client retry and token stores pass"
       ],
       "notes": "Ktor 3.x was chosen over alternatives (OkHttp KMP wrapper, custom expect/actual engines) because it is the only first-party KMP HTTP client with built-in plugins for auth, retry, content negotiation, and response validation — all in commonMain. Platform engines: OkHttp (Android, mature), Darwin (iOS, delegates to NSURLSession), CIO (Desktop/JVM, pure Kotlin). Pin version via ktorVersion in libs.versions.toml. Do NOT add ktor-server dependencies — client only.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-037",

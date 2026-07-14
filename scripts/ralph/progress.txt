@@ -137,7 +137,44 @@ Thread: unavailable
   - Test assertions must match the actual CSV output format (check headers and expected net income values).
 ---
 
-## Codebase Patterns
+## Tue Jul 14 2026 - US-036
+Thread: unavailable
+- Implemented shared Ktor 3.x HTTP client (ApiClient) and TokenStore (expect/actual) for composeApp/KMP.
+- Added Ktor 3.5.1 to gradle/libs.versions.toml with client modules: core, content-negotiation, serialization-kotlinx-json, auth, logging, and platform engines (okhttp, darwin, cio).
+- Updated composeApp/build.gradle.kts: added kotlin.serialization plugin, Ktor dependencies, desktop JVM target (jvm("desktop")), shared module dependency, android.security.crypto dependency, and compose.desktop application block.
+- Created TokenStore interface + expect fun createTokenStore() in commonMain network package.
+- Created ApiClient in commonMain with ContentNegotiation (kotlinx.json), Auth bearer (loads token from TokenStore, skips /auth/ paths), HttpRequestRetry (3 retries, server errors), DefaultRequest (base URL + JSON content type), and HttpResponseValidator (emits onUnauthorized on 401).
+- Created Android TokenStore actual using EncryptedSharedPreferences (with SharedPreferences fallback) + AndroidAppContext holder + defaultBaseUrl="http://10.0.2.2:3023".
+- Created iOS TokenStore actual using NSUserDefaults + defaultBaseUrl="http://localhost:3023".
+- Created Desktop TokenStore actual using ~/.companyapp/token file + defaultBaseUrl="http://localhost:3023".
+- Created Desktop Main.kt for compose desktop entry point (Window + App()).
+- Created Platform.desktop.kt actual for the existing expect fun getPlatform().
+- Updated shared/build.gradle.kts: added iosSimulatorArm64 target for KMP dependency resolution.
+- Updated MainActivity.kt: initialized AndroidAppContext.context in onCreate.
+- Quality gate green: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL), :shared:compileKotlinIosSimulatorArm64 (BUILD SUCCESSFUL), :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- Files changed:
+  - MODIFIED: gradle/libs.versions.toml (Ktor 3.5.1 version + 8 library entries + security-crypto version + entry)
+  - MODIFIED: composeApp/build.gradle.kts (serialization plugin, desktop target, Ktor/shared/androidx deps, compose.desktop)
+  - MODIFIED: shared/build.gradle.kts (added iosSimulatorArm64 target)
+  - MODIFIED: composeApp/src/androidMain/kotlin/.../MainActivity.kt (AndroidAppContext init)
+  - NEW: composeApp/src/commonMain/kotlin/.../network/TokenStore.kt (interface + expect fun)
+  - NEW: composeApp/src/commonMain/kotlin/.../network/ApiClient.kt (Ktor HttpClient config)
+  - NEW: composeApp/src/androidMain/kotlin/.../network/TokenStore.android.kt (EncryptedSharedPreferences)
+  - NEW: composeApp/src/iosMain/kotlin/.../network/TokenStore.ios.kt (NSUserDefaults)
+  - NEW: composeApp/src/desktopMain/kotlin/.../network/TokenStore.desktop.kt (file-based)
+  - NEW: composeApp/src/desktopMain/kotlin/.../Main.kt (desktop entry point)
+  - NEW: composeApp/src/desktopMain/kotlin/.../Platform.desktop.kt (getPlatform actual)
+- **Learnings for future iterations:**
+  - Ktor 3.5.x API differences from 3.0.x: `retryOnServerErrors` takes Int (not Boolean), `defaultRequest` is installed via `install(DefaultRequest)`, `contentType` requires explicit import from `io.ktor.client.request`, `header()` needs its own import.
+  - Adding a JVM/desktop target to an existing KMP project requires actual declarations for all expect/expect fun declarations (e.g., getPlatform()).
+  - The `shared` module must include all iOS simulator targets that the composeApp has, otherwise KMP dependency resolution fails with "Unresolved platforms".
+  - Android EncryptedSharedPreferences from security-crypto needs try-catch fallback to regular SharedPreferences (MasterKey init may fail on some emulators/API levels).
+  - `DefaultRequest` plugin config replaces `defaultRequest {}` convenience function in Ktor 3.5.x.
+  - `sendWithoutRequest { !it.url.toString().contains("/auth/") }` works in Ktor 3.5.x for skipping token on auth endpoints.
+  - The `androidx.security:security-crypto` library requires `minSdk = 23` (we have 24, fine) but can still fail on older devices.
+  - Compose Desktop Main.kt needs `import androidx.compose.ui.window.*` and uses `application {}` + `Window {}` pattern.
+  - `compose.desktop {}` block in build.gradle.kts is required for desktop application configuration.
+---
 - Use `sql<number>` template for aggregations
 - Always use `IF NOT EXISTS` for migrations
 - Export types from actions.ts for UI components
@@ -732,3 +769,39 @@ Thread: unavailable
    - LocalDate parsing in routes: use `LocalDate.parse(request.dateRangeStart)` — it parses ISO-8601 format (yyyy-MM-dd).
    - When using `customEnumeration` with a `.default()` value (like status = DRAFT), the default must match the PG enum type exactly.
 ---
+
+## Codebase Patterns
+- Use `sql<number>` template for aggregations
+- Always use `IF NOT EXISTS` for migrations
+- Export types from actions.ts for UI components
+- **Before coding a story, read the relevant doc in `docs/`:**
+  - `docs/architecture_implementation_plan.md` — architecture decisions, module map, sequencing
+  - `docs/engine_specifications.md` — pseudocode + SQL for commission, delegate, and remittance engines
+  - `docs/business_requirements.md` — domain terminology, business rules, constraints
+  - `backend/src/main/resources/db/migration/V1__full_schema.sql` — authoritative schema (use this over any ERD)
+- Backend module: Kotlin (JVM) + Javalin + Exposed (DSL) + Flyway, package root `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repository` (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
+- Quality gate (run per backend change): `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`. ktlint auto-fix: `./gradlew :backend:ktlintFormat`.
+- Use `insert` for user_capability rows that always need a new row (no conflict expected); use `insertIgnore` for idempotent inserts with client-generated PKs.
+- Follow the `val authorized = CapabilityService.hasCapability(...)` / `if (!authorized) throw ForbiddenResponse(...)` pattern for all capability checks.
+- When revoking a delegate/access, update the associated `user_capability.valid_to = now()` to immediately expire the grant using Exposed DSL `update` with `and` conditions.
+- detekt `MagicNumber` is strict: extract any literal (column widths, pool sizes, durations) to a `private const val`. Constants are exempt via `ignoreConstantDeclaration`. `ReturnCount` max is 2 — match the existing pattern of `@Suppress("ReturnCount")` used in AuthService.
+- detekt requires the `detekt-formatting` plugin (wired in root `build.gradle.kts` `subprojects { dependencies { add("detektPlugins", ...) } }`) because `detekt.yml` enables the `formatting` ruleset.
+- Authorization MUST go through `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)` which queries the `active_user_capabilities` SQL view. Never check roles directly in business logic. The view already filters INACTIVE users and time windows.
+- For Postgres enum columns in raw SQL, bind params as text and cast in SQL (e.g. `?::capability_context_type`, `?::uuid`) via Exposed `transaction { exec(sql, args = listOf(TextColumnType() to value)) { rs -> ... } }`. Avoids Exposed PG-enum operator mismatches. This also applies to writes: Exposed `enumerationByName` binds varchar, so native enum updates need raw SQL casts like `SET status = ?::user_status`.
+- Immediate revocation: `DenyList` (in-memory `ConcurrentHashMap<UUID, Instant>`) is checked inside `JwtService.verifyToken` BEFORE the DB `authorize` call. Populated at startup via `DenyList.loadInactiveUsers()` in `Main.kt`. Entries auto-evict after 24h (JWT max expiry).
+- DB integration tests connect to a real Postgres instance via `DatabaseTestHelper.ensureDatabase()`. Run tests with `./gradlew :backend:test`.
+- Exposed needs `exposed-java-time` dependency for `timestampWithTimeZone`/`CurrentTimestampWithTimeZone`.
+- HTTP errors are signalled by throwing Javalin's built-in response exceptions from the service layer (`ForbiddenResponse`=403, `BadRequestResponse`=400, `NotFoundResponse`=404, `UnauthorizedResponse`=401). No custom exception hierarchy.
+- Day state is lazy: reuse `BranchDayService.evaluateStatus(status, date, today)` — an OPEN day with date < today(Asia/Manila) is treated as PAST without a DB write. Call `BranchDayService.assertEditable(branchDayId, userId, reason?)` before any operational/financial write.
+- For testable time logic, keep pure functions taking explicit `today`/inputs and have the public method fetch `LocalDate.now(zone)` then delegate (see BranchDayServiceTest, DenyListTest).
+- Protected (authenticated) routes MUST be registered under `/api/*` — only that path is guarded by the `before("/api/*")` filter which sets `context.attribute("userId", <jwt-subject String>)`. Public routes (auth) have no prefix. Read caller id with `UUID.fromString(context.attribute<String>("userId"))`. Register each route object in `Main.initializeJavalin`.
+- Audit logging: call `AuditLogRepository.record(tableName, recordId, action, changedBy, oldValue?, newValue?, reason?)` from inside the repository's `transaction {}` — it nests/joins the outer transaction so the audit row commits atomically with the change. Build JSON values with `AuditLogRepository.jsonField(key, value)`. `old_value`/`new_value` are JSONB bound as text with `?::jsonb`.
+- GLOBAL-scoped capability checks use `CapabilityService.GLOBAL_CONTEXT_ID` (nil all-zero UUID) as the contextId with `CapabilityContextType.GLOBAL`.
+- Kotlin file naming: detekt `MatchingDeclarationName` requires the file name to match its single top-level declaration (e.g. enum `AuditAction` must live in `AuditAction.kt`, not `AuditLog.kt`).
+- Ktor 3.5.x API notes: `retryOnServerErrors` takes Int, `defaultRequest` is installed via `install(DefaultRequest)`, `contentType`/`header` need explicit imports from `io.ktor.client.request`.
+- New desktop JVM target requires actual declarations for all expect declarations (getPlatform(), createTokenStore(), defaultBaseUrl).
+- `shared` module must include all iOS simulator targets that composeApp targets to resolve KMP dependency resolution.
+- Android EncryptedSharedPreferences needs try-catch fallback (regular SharedPreferences) as MasterKey may fail on some devices.
+- `sendWithoutRequest { !it.url.toString().contains("/auth/") }` skips bearer token on auth endpoints in Ktor 3.x.
+- Compose Desktop entry point: `fun main() = application { Window(...) { App() } }` with `WindowState` for size/position.
+- For KMP apps targeting desktop: `compose.desktop {}` block in build.gradle.kts + `desktopMain` source set + `compose.desktop.currentOs` dependency are required.

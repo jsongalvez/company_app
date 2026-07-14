@@ -8,6 +8,7 @@ kotlin {
     jvm()
     androidTarget()
     iosArm64()
+    iosSimulatorArm64()
 
     sourceSets {
         androidMain.dependencies {
