@@ -2,6 +2,30 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - US-037
+Thread: unavailable
+- Implemented shared ViewModels for all features in composeApp commonMain.
+- Created UiState sealed class (Idle, Loading, Success<T>, Error) in composeApp/src/commonMain/.../viewmodel/UiState.kt.
+- Created 19 ViewModels covering all feature areas: AllowanceViewModel, AttendanceViewModel, AuditLogViewModel, AuthViewModel, BranchViewModel, ClientViewModel, CommissionViewModel, CompensationViewModel, DelegateViewModel, ExpenseViewModel, InventoryViewModel, NotificationViewModel, ProductSaleViewModel, ProductViewModel, ReliefAccessViewModel, RemittanceViewModel, ReportViewModel, SessionViewModel, UserViewModel.
+- Each ViewModel extends androidx.lifecycle.ViewModel, takes ApiClient as constructor param, exposes StateFlow<UiState<T>> state properties, and calls Ktor HTTP endpoints in viewModelScope coroutines.
+- Pattern: private val _state = MutableStateFlow<UiState<T>>(UiState.Idle), val state = _state.asStateFlow(), method wraps ApiClient call in UiState.Loading/Success/Error.
+- Added UiStateTest (5 tests: singleton, data, error, exhaustive sealed class) in commonTest.
+- Extended ComposeAppCommonTest with 2 UiState integration tests.
+- Files changed:
+  - NEW: composeApp/src/commonMain/.../viewmodel/UiState.kt + 19 ViewModel files
+  - NEW: composeApp/src/commonTest/.../viewmodel/UiStateTest.kt
+  - MODIFIED: composeApp/src/commonTest/.../ComposeAppCommonTest.kt, scripts/ralph/prd.json (US-037 passes=true), scripts/ralph/progress.txt
+- Quality gate green: :composeApp:compileKotlinDesktop + :composeApp:desktopTest (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - ViewModels in KMP commonMain use `androidx.lifecycle:lifecycle-viewmodel-compose` which is available across all KMP targets (Android, iOS, Desktop).
+  - ApiClient (Ktor) is the single dependency injected into ViewModels — no DI framework needed for now.
+  - Each ViewModel has dedicated StateFlows per operation (create, read, update, delete) rather than a single UI state data class.
+  - KMP ViewModels cannot easily be unit-tested without a mocking framework since ApiClient makes real HTTP calls via Ktor. The existing UiStateTest validates the state type itself.
+  - The `compose.desktop {}` block in build.gradle.kts enables `desktopTest` target for running common tests on JVM.
+  - KMP `commonTest` uses `kotlin.test` (not JUnit) — assertions are `assertEquals`, `assertIs<T>`, `assertTrue`.
+  - All ViewModels follow identical pattern: `MutableStateFlow<UiState<T>>` + `asStateFlow()` + `viewModelScope.launch` + try/catch wrapping ApiClient calls.
+---
+
 ## Tue Jul 14 2026 - US-032
 Thread: unavailable
 - Implemented daily sales summary endpoint: GET /api/branches/{branchId}/daily-summary?date=.

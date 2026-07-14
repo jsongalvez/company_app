@@ -1,0 +1,127 @@
+package com.companyb.companyapp.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.dto.CreateClientRequest
+import com.companyb.companyapp.dto.UpdateClientRequest
+import com.companyb.companyapp.network.ApiClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.isSuccess
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class ClientViewModel(
+    private val apiClient: ApiClient,
+) : ViewModel() {
+    private val _searchResults = MutableStateFlow<UiState<List<ClientResponse>>>(UiState.Idle)
+    val searchResults: StateFlow<UiState<List<ClientResponse>>> = _searchResults.asStateFlow()
+
+    private val _clientDetail = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
+    val clientDetail: StateFlow<UiState<ClientResponse>> = _clientDetail.asStateFlow()
+
+    private val _createClientState = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
+    val createClientState: StateFlow<UiState<ClientResponse>> = _createClientState.asStateFlow()
+
+    private val _updateClientState = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
+    val updateClientState: StateFlow<UiState<ClientResponse>> = _updateClientState.asStateFlow()
+
+    private val _anonymizeState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val anonymizeState: StateFlow<UiState<Unit>> = _anonymizeState.asStateFlow()
+
+    fun search(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            _searchResults.value = UiState.Loading
+            try {
+                val response = apiClient.httpClient.get("/api/clients?q=$query")
+                if (response.status.isSuccess()) {
+                    _searchResults.value = UiState.Success(response.body())
+                } else {
+                    _searchResults.value = UiState.Error("Search failed: ${response.status.value}")
+                }
+            } catch (e: Exception) {
+                _searchResults.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun loadClient(clientId: String) {
+        viewModelScope.launch {
+            _clientDetail.value = UiState.Loading
+            try {
+                val response = apiClient.httpClient.get("/api/clients/$clientId")
+                if (response.status.isSuccess()) {
+                    _clientDetail.value = UiState.Success(response.body())
+                } else {
+                    _clientDetail.value = UiState.Error("Failed: ${response.status.value}")
+                }
+            } catch (e: Exception) {
+                _clientDetail.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun createClient(request: CreateClientRequest) {
+        viewModelScope.launch {
+            _createClientState.value = UiState.Loading
+            try {
+                val response =
+                    apiClient.httpClient.post("/api/clients") {
+                        setBody(request)
+                    }
+                if (response.status.isSuccess()) {
+                    _createClientState.value = UiState.Success(response.body())
+                } else {
+                    _createClientState.value = UiState.Error("Failed: ${response.status.value}")
+                }
+            } catch (e: Exception) {
+                _createClientState.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun updateClient(
+        clientId: String,
+        request: UpdateClientRequest,
+    ) {
+        viewModelScope.launch {
+            _updateClientState.value = UiState.Loading
+            try {
+                val response =
+                    apiClient.httpClient.patch("/api/clients/$clientId") {
+                        setBody(request)
+                    }
+                if (response.status.isSuccess()) {
+                    _updateClientState.value = UiState.Success(response.body())
+                } else {
+                    _updateClientState.value = UiState.Error("Failed: ${response.status.value}")
+                }
+            } catch (e: Exception) {
+                _updateClientState.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun anonymizeClient(clientId: String) {
+        viewModelScope.launch {
+            _anonymizeState.value = UiState.Loading
+            try {
+                val response = apiClient.httpClient.post("/api/clients/$clientId/anonymize")
+                if (response.status.isSuccess()) {
+                    _anonymizeState.value = UiState.Success(Unit)
+                } else {
+                    _anonymizeState.value = UiState.Error("Failed: ${response.status.value}")
+                }
+            } catch (e: Exception) {
+                _anonymizeState.value = UiState.Error(e.message ?: "Unknown error")
+            }
+        }
+    }
+}

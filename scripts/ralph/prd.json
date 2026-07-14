@@ -1119,7 +1119,7 @@
         "Unit tests for ViewModels pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-038",
