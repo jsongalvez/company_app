@@ -400,3 +400,52 @@ The baseline enforces these thresholds (edit `options.thresholds` in the script 
 
 Remember: k6 tests the full HTTP stack — serialization, Javalin routing, JDBC, connection
 pooling, and auth middleware. Regressions here won't show up in JMH benchmarks.
+
+### Threshold tuning — when and how to adjust limits
+
+All tools (JMH, measureTimedValue, k6) have hardcoded thresholds. **Do not blindly raise a
+threshold to make a failing test pass.** Follow this decision tree:
+
+```
+Threshold violation detected
+│
+├─ JMH scores for the same hot path dropped >20%?
+│   → REAL REGRESSION. Fix the code, don't raise the threshold.
+│
+├─ JMH scores are stable but measureTimedValue/k6 fails?
+│   → Bottleneck is DB/networking. Profile with JFR to find the cause.
+│   → If it's an intentional new DB query or API call, raising is OK.
+│
+└─ Added a new feature that legitimately changes the work being measured?
+    → Raising is OK. Follow the adjustment procedure below.
+```
+
+**Adjustment procedure:**
+
+1. **JMH baseline** — Run `./gradlew :backend:jmh`. Compare against `backend/jmh-baselines.md`.
+   If scores changed, update the baseline file with new scores and note why in the commit message.
+
+2. **measureTimedValue threshold** — Run the test 5 times and take the p95. Double it for the
+   new threshold (to leave headroom). Update the threshold constant in the test file and update
+   `backend/jmh-baselines.md`.
+
+3. **k6 threshold** — Run k6 3 times and take the worst p95. Add a 50% buffer for the
+   new threshold. Update `options.thresholds` in `scripts/load-test/baseline.js` and the
+   table in `scripts/load-test/results/baseline-results.md`.
+
+4. **Commit message** — Include the tool, the old threshold, the new threshold, and a brief
+   justification. Example:
+   ```
+   perf: raise remittance submit threshold 15s→20s
+   
+   Added branch_day status batch update in submit path. JMH scores stable.
+   p95 from 5 runs: 13.2s → threshold set to 20s.
+   ```
+
+**Baseline reference files:**
+
+| File | What it tracks |
+|---|---|
+| `backend/jmh-baselines.md` | JMH scores + measureTimedValue + k6 thresholds (single source of truth) |
+| `scripts/load-test/results/baseline-results.md` | k6 threshold history and run instructions |
+| `scripts/load-test/results/latest.json` | k6 raw JSON output from last run (gitignored) |

@@ -37,3 +37,5 @@ node_modules/
 kls_database.db
 
 *.jfr
+scripts/load-test/results/*.json
+scripts/load-test/results/*.html
