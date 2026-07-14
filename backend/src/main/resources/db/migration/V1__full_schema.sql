@@ -1,4 +1,5 @@
 CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ----------------------------
 -- ENUMS
@@ -160,6 +161,7 @@ CREATE UNIQUE INDEX idx_one_grant_per_day ON grant_relief_access (requested_by, 
 CREATE TABLE medical_mission_delegate (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     target_user UUID        NOT NULL REFERENCES app_user(id),
+    branch_id   UUID        NOT NULL REFERENCES branch(id),
     assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     assigned_by UUID        NOT NULL REFERENCES app_user(id),
     ended_at    TIMESTAMPTZ
