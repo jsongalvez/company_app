@@ -1,5 +1,20 @@
 # Backend (Kotlin + Javalin + Exposed)
 
+## Core Documents
+
+Before coding, read the relevant doc(s) in `docs/`:
+
+| File | Use when |
+|------|----------|
+| `docs/architecture_implementation_plan.md` | You need architecture decisions, module map, or implementation sequence |
+| `docs/engine_specifications.md` | You need exact pseudocode or SQL for the commission, delegate, or remittance engines |
+| `docs/business_requirements.md` | You need domain terminology, business rules, or constraints |
+| `docs/design_specification.md` | You need the tech stack, repo structure, or deployment context |
+
+## Schema
+
+The authoritative schema is `backend/src/main/resources/db/migration/V1__full_schema.sql`.
+
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
 
