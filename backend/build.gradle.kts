@@ -38,6 +38,9 @@ dependencies {
     // BCrypt
     implementation(libs.bcrypt)
 
+    // PDF export
+    implementation(libs.openpdf)
+
     // Testing
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlin.testJunit)

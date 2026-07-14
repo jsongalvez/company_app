@@ -76,6 +76,15 @@ object BranchRepository {
                 .map { it.toBranch() }
         }.also { logger.info { "[FIND-BRANCHES] Fetched ${it.size} branch(es)" } }
 
+    fun findByType(branchType: BranchType): List<Branch> =
+        transaction {
+            BranchTable
+                .selectAll()
+                .where { BranchTable.branchType eq branchType }
+                .orderBy(BranchTable.name to SortOrder.ASC, BranchTable.id to SortOrder.ASC)
+                .map { it.toBranch() }
+        }.also { logger.info { "[FIND-BRANCHES-BY-TYPE] Fetched ${it.size} branch(es) of type $branchType" } }
+
     private fun findByIdInTransaction(id: UUID): Branch? =
         BranchTable
             .selectAll()

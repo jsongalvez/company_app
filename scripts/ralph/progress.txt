@@ -92,6 +92,26 @@ Thread: unavailable
   - Applying `flyway.repair()` before `flyway.migrate()` is needed when V1 gets modified (checksum changes) or V3/V4 files are deleted (merged into V1). This was added to DatabaseConfig as a permanent fix for the dev environment.
 ---
 
+## Tue Jul 14 2026 - US-034
+Thread: unavailable
+- Verified and fixed export endpoints (PDF and CSV) which were already implemented but had failing integration tests.
+- Fixed ExportServicePostgresTest data setup: findOrCreateBranchDay now checks for existing branch_day before inserting (prevents UNIQUE constraint violation on (branch_id, date)).
+- Fixed insertRemittance to include date_range_start, date_range_end, and submitted_by (NOT NULL constraints).
+- Fixed insertRemittanceLine to include sessionId (line_type_logic CHECK constraint requires SESSION lines to have session_id NOT NULL).
+- Fixed createSubmittedRemittanceForBranch to create client+session for remittance_line FK reference, with correct cleanup order for FK dependencies.
+- Fixed cleanup (deleteTestRows) to disable/enable the remittance_financial_snapshot immutability trigger before/after deleting snapshot rows, with proper FK-aware deletion order.
+- Fixed test assertions to match actual CSV output: branch-type exports show Net Income (not Gross Income), so assertions check net = gross - comp - exp values.
+- All 22 export integration tests pass: daily CSV/PDF, daily with session data, daily 403/404, monthly CSV/PDF/404, all-time CSV/PDF/404, provincial CSV/PDF/404, medical mission CSV/404, clinic type rejection, parseFormat validation, provincial with month filter.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (360 tests, BUILD SUCCESSFUL).
+- Files changed: only ExportServicePostgresTest.kt (test data setup and cleanup fixes).
+- **Learnings for future iterations:**
+  - The remittance_financial_snapshot immutability trigger (BEFORE DELETE OR UPDATE) must be disabled before deleting snapshot rows in test cleanup, then re-enabled after.
+  - Cleanup deletion order matters: RemittanceLineTable → RemittanceDayBreakdownTable → RemittanceTable → snapshot tables → SessionVoidTable → SessionTable → CompensationTable → ExpenseTable → ... → BranchDayTable → BranchTable. FK constraints enforce this order.
+  - branch_type exports (provincial, medical mission) only include Net Income in CSV, not Gross Income - the BranchTypeMonthlySummary data class only has netIncome.
+  - Use `testBranchIds` tracking pattern to clean up test-created branches that use random UUIDs.
+  - Test assertions must match the actual CSV output format (check headers and expected net income values).
+---
+
 ## Codebase Patterns
 - Use `sql<number>` template for aggregations
 - Always use `IF NOT EXISTS` for migrations

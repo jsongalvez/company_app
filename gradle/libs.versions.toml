@@ -30,6 +30,7 @@ kotlinx-serialization-json = "1.10.0"
 ktlint = "14.1.0"
 logback-classic = "1.5.32"
 material3 = "1.10.0-alpha05"
+openpdf = "2.2.2"
 postgresql = "42.7.10"
 
 [libraries]
@@ -51,6 +52,7 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json"}
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback-classic"}
+openpdf = { module = "com.github.librepdf:openpdf", version.ref = "openpdf" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
