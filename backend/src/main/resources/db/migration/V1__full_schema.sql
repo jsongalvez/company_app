@@ -557,3 +557,23 @@ WHERE au.status = 'ACTIVE'
   AND now() BETWEEN uc.valid_from AND COALESCE(uc.valid_to, 'infinity'::timestamptz)
 ORDER BY uc.user_id, uc.capability_id, uc.context_type, uc.context_id, uc.priority DESC;
 
+-- ----------------------------
+-- NOTIFICATIONS
+-- ----------------------------
+
+CREATE TABLE IF NOT EXISTS notification (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID        NOT NULL REFERENCES session(id),
+    user_id    UUID        NOT NULL REFERENCES app_user(id),
+    branch_id  UUID        NOT NULL REFERENCES branch(id),
+    is_read    BOOLEAN     NOT NULL DEFAULT false,
+    read_at    TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_unique
+    ON notification (session_id, user_id);
+
+CREATE INDEX IF NOT EXISTS idx_notification_unread
+    ON notification (user_id) WHERE is_read = false;
+
