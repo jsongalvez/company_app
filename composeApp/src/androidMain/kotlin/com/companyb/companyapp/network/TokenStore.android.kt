@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.companyb.companyapp.config.TOKEN_STORE_KEY
 
 actual fun createTokenStore(): TokenStore {
     val context = AndroidAppContext.context
@@ -16,7 +17,6 @@ object AndroidAppContext {
 }
 
 private const val PREFS_NAME = "companyapp_auth"
-private const val KEY_TOKEN = "jwt_token"
 
 class AndroidTokenStore(
     context: Context,
@@ -43,14 +43,12 @@ class AndroidTokenStore(
         }
 
     override fun saveToken(token: String) {
-        prefs.edit().putString(KEY_TOKEN, token).apply()
+        prefs.edit().putString(TOKEN_STORE_KEY, token).apply()
     }
 
-    override fun getToken(): String? = prefs.getString(KEY_TOKEN, null)
+    override fun getToken(): String? = prefs.getString(TOKEN_STORE_KEY, null)
 
     override fun clearToken() {
-        prefs.edit().remove(KEY_TOKEN).apply()
+        prefs.edit().remove(TOKEN_STORE_KEY).apply()
     }
 }
-
-actual val defaultBaseUrl: String = "http://10.0.2.2:3023"

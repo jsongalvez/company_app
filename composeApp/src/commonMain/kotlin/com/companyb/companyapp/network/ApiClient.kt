@@ -1,5 +1,7 @@
 package com.companyb.companyapp.network
 
+import com.companyb.companyapp.config.MAX_HTTP_RETRIES
+import com.companyb.companyapp.config.platformDefaultBaseUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.plugins.HttpRequestRetry
@@ -17,11 +19,9 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.json.Json
 
-expect val defaultBaseUrl: String
-
 class ApiClient(
     private val tokenStore: TokenStore,
-    baseUrl: String = defaultBaseUrl,
+    baseUrl: String = platformDefaultBaseUrl,
 ) {
     val onUnauthorized: MutableSharedFlow<Unit> = MutableSharedFlow(extraBufferCapacity = 1)
 
@@ -49,8 +49,8 @@ class ApiClient(
             }
 
             install(HttpRequestRetry) {
-                maxRetries = 3
-                retryOnServerErrors(3)
+                maxRetries = MAX_HTTP_RETRIES
+                retryOnServerErrors(MAX_HTTP_RETRIES)
             }
 
             install(DefaultRequest) {
