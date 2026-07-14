@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm")
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.jmh)
     application
 }
 
@@ -41,6 +42,10 @@ dependencies {
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlin.testJunit)
     testImplementation(libs.junit)
+
+    // JMH
+    jmh(libs.jmh.core)
+    jmhAnnotationProcessor(libs.jmh.annprocess)
 }
 
 application {
@@ -54,4 +59,11 @@ tasks.named<JavaExec>("run") {
 tasks.test {
     useJUnit()
     workingDir = rootProject.projectDir
+}
+
+jmh {
+    warmupIterations = 3
+    iterations = 5
+    fork = 1
+    threads = 1
 }

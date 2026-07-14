@@ -272,3 +272,95 @@ unit tests for pure-logic helpers; inject time through internal `*At(now: Instan
 
 Gradle backend tests run from the repo root (`tasks.test.workingDir = rootProject.projectDir`) so
 dotenv-kotlin can load the root `.env`.
+
+## Performance & benchmarking
+
+Adding a feature that touches a hot path? You **must** verify it didn't regress performance.
+
+### Quick regression check — `measureTimedValue`
+
+Drop timing assertions into existing `*PostgresTest.kt` or create a `*PerformanceTest.kt` in the
+same test source set. No extra dependencies:
+
+```kotlin
+import kotlin.time.measureTimedValue
+import kotlin.time.Duration.Companion.milliseconds
+
+val (result, duration) = measureTimedValue { service.computeSomething(input) }
+assertTrue(
+    duration < 500.milliseconds,
+    "Performance regression: computeSomething took $duration, expected < 500ms"
+)
+```
+
+Use generous thresholds initially; tighten them after a few runs establish a baseline.
+
+### Hot paths to guard
+
+These are the most performance-sensitive call paths — always add a timing assertion when
+modifying code in these areas:
+
+1. **`computeSessionType`** (`SessionTypeAlgorithm`) — pure function, fast, unit-testable
+2. **`CommissionService`** calculations — run per-session, high call volume
+3. **`BranchDayService.resolveOrCreate` / `evaluateStatus`** — called on every write
+4. **`RemittanceService`** — aggregation queries over large line sets
+5. **`HasCapability`** / `active_user_capabilities` view — checked on every API call
+
+### JMH microbenchmarks
+
+JMH is wired into the backend module via the `me.champeau.jmh` Gradle plugin. Benchmarks live
+under `backend/src/jmh/java/` (Java source set — JMH annotation processing is Java-only).
+
+Run all benchmarks:
+```bash
+./gradlew :backend:jmh
+```
+
+**Writing a new benchmark** — add a Java file under
+`backend/src/jmh/java/com/companyb/companyapp/benchmark/`. Kotlin `object` singletons and
+top-level functions are accessible from Java as `ClassName.INSTANCE` or `ClassNameKt`:
+
+```java
+package com.companyb.companyapp.benchmark;
+
+import com.companyb.companyapp.service.SomeService;
+import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.Blackhole;
+
+@State(Scope.Thread)
+@Fork(1)
+@Warmup(iterations = 3, time = 1)
+@Measurement(iterations = 5, time = 1)
+public class SomeBenchmark {
+
+    @Benchmark
+    public void myHotPath(Blackhole bh) {
+        bh.consume(SomeService.INSTANCE.someMethod(input));
+    }
+}
+```
+
+The Gradle config (warmup, iterations, fork, threads) is in `backend/build.gradle.kts` under
+the `jmh { }` block. Override per-benchmark with `@Warmup` / `@Measurement` annotations.
+
+### JFR (JDK Flight Recorder) — zero-instrumentation profiling
+
+Available on any JVM >= 11. Run the backend with recording enabled:
+
+```bash
+./gradlew :backend:run -Dorg.gradle.jvmargs="-XX:StartFlightRecording=filename=recording.jfr"
+```
+
+Then analyze with JDK Mission Control (`jmc`) or `jfr view` to find allocation hotspots, lock
+contention, and CPU bottlenecks without code changes.
+
+### HTTP-level load testing
+
+For end-to-end API regression checks, use **k6** (external tool, not wired into the build):
+
+```bash
+k6 run scripts/load-test/baseline.js
+```
+
+Track median/p95/p99 latencies across runs to catch regressions in the HTTP layer (serialization,
+JDBC, connection pooling) that unit-level benchmarks won't reveal.

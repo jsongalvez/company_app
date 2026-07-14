@@ -81,6 +81,7 @@ Only update AGENTS.md if you have **genuinely reusable knowledge** that would he
 - Keep changes focused and minimal
 - Follow existing code patterns
 - **Don't forget integration tests** — each story's `verification` field often requires integration tests (Postgres-backed). Unit tests alone are not sufficient. Check `verification` before coding and ensure every acceptance criterion has test coverage.
+- **Check for performance regressions** — if your change touches any hot path listed in `backend/AGENTS.md#performance--benchmarking`, add a `measureTimedValue` assertion to an existing or new test. Run `./gradlew :backend:test` and verify times are within reason. Use JFR (`-XX:StartFlightRecording`) for ad-hoc profiling if something looks suspicious.
 
 ## Browser Testing (Required for Frontend Stories)
 
