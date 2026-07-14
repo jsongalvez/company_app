@@ -2,6 +2,29 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Tue Jul 14 2026 - US-030
+Thread: unavailable
+- Implemented notification table migration (V3__create_notification_table.sql) with: id, session_id FK, user_id FK, branch_id FK, is_read, read_at, created_at; UNIQUE index on (session_id, user_id); partial index on (user_id) WHERE is_read = false.
+- Created Notification data class + NotificationTable Exposed model.
+- Created Role data class + RoleTable + UserRoleTable Exposed models for coordinator/role lookup.
+- Created NotificationRepository with insert(), findUnreadByUserId(), and markRead().
+- Created NextAppointmentScheduler with: targetDate() pure function (now + 2 days Manilla), nextRunDelayMs() for scheduling at 07:00 AM Manila, findUpcomingSessions() querying COMPLETED non-voided sessions by next_appointment_date, findActiveCoordinatorsForBranch() joining user_role + role (COORDINATOR/MANAGER) + active user_branch_assignment.
+- Scheduler wired in Main.kt via SingleThreadScheduledExecutor with daemon thread, initial delay calculated via nextRunDelayMs(), fixed-rate at 24-hour intervals with exception handling.
+- Added 12 tests (10 integration + 2 unit): creates notifications for coordinator, skips duplicates, ignores non-coordinator users, ignores unassigned coordinator, ignores wrong branch, notifies both coordinator and manager, excludes voided sessions, includes only COMPLETED, matches exact target date, targetDate pure func, nextRunDelayMs positive, nextRunDelayMs wraps to next day.
+- Files changed:
+  - NEW: resources/db/migration/V3__create_notification_table.sql, repository/model/Notification.kt, repository/model/Role.kt, repository/NotificationRepository.kt, service/NextAppointmentScheduler.kt, test/.../NextAppointmentSchedulerPostgresTest.kt
+  - MODIFIED: Main.kt (scheduler init + wiring), scripts/ralph/prd.json, scripts/ralph/progress.txt
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 322 tests).
+- **Learnings for future iterations:**
+  - Exposed 0.61.0 has a bug with `insert`/`insertIgnore` on tables with `autoGenerate()` PKs + `.references()` FKs — generates malformed SQL ("invalid reference to FROM-clause entry"). Workaround: use service-layer methods (e.g. SessionService.create) for test data setup rather than direct table inserts.
+  - The branch table has UNIQUE (branch_type, name) — test branch names must include a UUID suffix to avoid collisions across test classes.
+  - For tests using multiple sessions for the same client, create COMPLETED sessions first to avoid the PENDING session guard (idx_client_one_pending_session).
+  - The `role` and `user_role` tables exist in the schema but are not populated by any existing code path — tests must manually insert into user_role to test role-based queries.
+  - FK cleanup order matters: delete NotificationTable before SessionTable, SessionTable before BranchDayTable, BranchDayTable before BranchTable.
+  - `NextAppointmentScheduler.findActiveCoordinatorsForBranch` includes both COORDINATOR and MANAGER roles (MANAGER is a superset of COORDINATOR).
+  - `SessionVoidTable` also has `autoGenerate()` PK + `.references()` FKs — use `insertIgnore` for test voids.
+---
+
 ## Codebase Patterns
 - Use `sql<number>` template for aggregations
 - Always use `IF NOT EXISTS` for migrations

@@ -25,18 +25,24 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
+import com.companyb.companyapp.service.NextAppointmentScheduler
 import com.companyb.companyapp.utils.Helper
 import io.github.cdimascio.dotenv.dotenv
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import org.slf4j.MDC
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
 val dotenv = dotenv()
 private const val KB = 1024L
 private const val MAX_REQUEST_SIZE_KB = 64L
+private const val SCHEDULER_PERIOD_HOURS = 24L
 
 fun initializeJavalin() {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
@@ -117,6 +123,35 @@ fun initializeDenyList() {
     logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
 }
 
+fun initializeScheduler() {
+    val scheduler =
+        Executors.newSingleThreadScheduledExecutor { runnable ->
+            Thread(runnable, "notification-scheduler").apply { isDaemon = true }
+        }
+    val manilaZone = ZoneId.of("Asia/Manila")
+    val now = ZonedDateTime.now(manilaZone)
+    val initialDelayMs = NextAppointmentScheduler.nextRunDelayMs(now)
+
+    logger.info {
+        "[SCHEDULER] Scheduling notification task at 07:00 AM Manila (initial delay: ${initialDelayMs}ms)"
+    }
+
+    scheduler.scheduleAtFixedRate(
+        @Suppress("TooGenericExceptionCaught")
+        {
+            try {
+                val count = NextAppointmentScheduler.run()
+                logger.info { "[SCHEDULER] Created $count notifications" }
+            } catch (e: Exception) {
+                logger.error(e) { "[SCHEDULER] Notification task failed" }
+            }
+        },
+        initialDelayMs,
+        TimeUnit.HOURS.toMillis(SCHEDULER_PERIOD_HOURS),
+        TimeUnit.MILLISECONDS,
+    )
+}
+
 fun main() {
     RequestElapsedConverter.startRequest()
     DeltaTimeConverter.startRequest()
@@ -125,6 +160,7 @@ fun main() {
     initializeFlyway()
     initializeExposed()
     initializeDenyList()
+    initializeScheduler()
     initializeJavalin()
     val elapsed = RequestElapsedConverter.currentElapsedMs()
     logger.info { "[INITIALIZATION] Completed in $elapsed ms." }
