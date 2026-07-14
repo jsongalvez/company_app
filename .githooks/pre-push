@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+log() { echo "$(date '+%H:%M:%S') [pre-push] $*"; }
+
+# ----------------------------------------------------------------
+# 1. JMH full benchmark suite
+# ----------------------------------------------------------------
+log "Running JMH benchmarks..."
+if ! ./gradlew :backend:jmh --no-daemon 2>&1 | tee /tmp/company-app-jmh.log | tail -20; then
+    log "ERROR: JMH benchmarks failed. Fix before pushing."
+    exit 1
+fi
+log "JMH benchmarks passed."
+
+# ----------------------------------------------------------------
+# 2. Reminder: compare against baseline
+# ----------------------------------------------------------------
+log ""
+log "================================================================"
+log "  Compare JMH results against backend/jmh-baselines.md"
+log "  Run: bash scripts/check-baselines.sh /tmp/company-app-jmh.log"
+log "  If any score dropped >20%, fix the regression before pushing."
+log "  If the change is intentional, update the baseline and re-push."
+log "================================================================"
+log ""
+
+log "Pre-push checks passed."

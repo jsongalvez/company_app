@@ -18,8 +18,8 @@ log "Import optimization complete."
 # ----------------------------------------------------------------
 # 2. Quality gate
 # ----------------------------------------------------------------
-log "Running quality gate (detekt, ktlint, test)..."
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test --no-daemon 2>&1 | tail -5
+log "Running quality gate (detekt, ktlint, test, jmhClasses)..."
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses --no-daemon 2>&1 | tail -5
 log "Quality gate passed."
 
 # ----------------------------------------------------------------
