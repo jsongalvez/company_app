@@ -329,3 +329,29 @@ Thread: unavailable
   - MODIFIED: backend/.../repository/SessionRepository.kt, backend/.../api/routes/SessionRoutes.kt
 - Updated prd.json (US-017 passes=true), progress.txt
 ---
+
+## Tue Jul 14 2026 - US-019
+Thread: unavailable
+- Implemented product category and product CRUD endpoints.
+- ProductCategory: POST /api/product-categories (idempotent create with MANAGE_PRODUCTS gate), GET /api/product-categories (list all), GET /api/product-categories/{categoryId} (find by id).
+- Product: POST /api/products (idempotent create with MANAGE_PRODUCTS gate, validates category exists), GET /api/products (filters active only), GET /api/products/{productId}, PATCH /api/products/{productId} (partial update, supports deactivation).
+- Created ProductCategory data class + ProductCategoryTable Exposed model for the existing product_category table.
+- Created Product data class + ProductTable Exposed model for the existing product table (decimal(10,2) for unit_price and commission_amount).
+- ProductCategoryRepository/ProductRepository: insertIgnore for idempotent creates, update for product partial updates, findById/findAll/findAllActive queries.
+- ProductCategoryService/ProductService: MANAGE_PRODUCTS capability gate (GLOBAL context), validation (blank names, non-negative prices, category existence).
+- ProductCategoryRoutes/ProductRoutes: registered in Main.kt with POST/GET/PATCH endpoints, DTO parsing with error handling.
+- Added CreateProductCategoryRequest/ProductCategoryResponse to shared ProductCategoryDto.kt.
+- Added CreateProductRequest/UpdateProductRequest/ProductResponse to shared ProductDto.kt.
+- Added 5 integration tests for product categories (create, duplicate idempotent, list, findById, forbidden).
+- Added 6 integration tests for products (create with audit, duplicate idempotent, list active, findById, update with deactivation, forbidden, bad request for non-existent category).
+- Files changed: shared/.../dto/ProductCategoryDto.kt (new), shared/.../dto/ProductDto.kt (new), backend/.../repository/model/Product.kt (new), backend/.../repository/ProductCategoryRepository.kt (new), backend/.../repository/ProductRepository.kt (new), backend/.../service/ProductCategoryService.kt (new), backend/.../service/ProductService.kt (new), backend/.../api/routes/ProductCategoryRoutes.kt (new), backend/.../api/routes/ProductRoutes.kt (new), backend/.../test/.../ProductCategoryServicePostgresTest.kt (new), backend/.../test/.../ProductServicePostgresTest.kt (new), backend/.../Main.kt (register routes), scripts/ralph/prd.json (US-019 passes=true), scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Product table uses NUMERIC(10,2) for unit_price and commission_amount — use `decimal("col", 10, 2)` in Exposed with `BigDecimal` in data classes.
+  - The product_category.name has a UNIQUE constraint — `insertIgnore` handles idempotent inserts but the UNIQUE constraint on name will throw on duplicate names with different IDs.
+  - The product table has `is_active BOOLEAN NOT NULL DEFAULT true` — for deactivation, set isActive to false via PATCH.
+  - The `product.inventory` table (branch_inventory) references product and branch — to be created in US-020.
+  - When cleaning up integration tests, delete from ProductTable before ProductCategoryTable due to FK constraint.
+  - detekt LongParameterList threshold is 6 — ProductService.create (6 params) and update (7 params) both need @Suppress("LongParameterList").
+  - detekt ThrowsCount threshold is 2 — ProductRoutes.register needs @Suppress("ThrowsCount").
+---

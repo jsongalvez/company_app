@@ -634,7 +634,7 @@
         "Integration tests for product CRUD pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-020",
