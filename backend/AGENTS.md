@@ -33,6 +33,55 @@ the caller's id via `context.attribute("userId", ...)` (a `String` JWT subject).
 `UUID.fromString(context.attribute<String>("userId"))`. Wire each route object into
 `Main.initializeJavalin` alongside `AuthRoutes`.
 
+### Query parameter extraction
+
+Always use explicit null-check + throw, not `!!` inside `runCatching`:
+
+```kotlin
+// DO
+val param = context.queryParam("key") ?: throw BadRequestResponse("key is required")
+val id = runCatching { UUID.fromString(param) }.getOrElse { throw BadRequestResponse("Invalid key") }
+
+// DON'T
+val id = runCatching { UUID.fromString(context.queryParam("key")!!) }
+    .getOrElse { throw BadRequestResponse("Invalid or missing key") }
+```
+
+### Parent-child URL scoping (CRITICAL)
+
+When a REST URL embeds a parent resource ID (e.g.
+`/api/remittances/{remittanceId}/lines/{lineId}`), the service **must** verify the child belongs
+to that parent. Never resolve the parent only for existence/status checks while the child lookup
+operates on a different parent:
+
+```kotlin
+// WRONG — line can belong to remittance A while operating through remittance B's URL
+fun removeLine(callerId: UUID, remittanceId: UUID, lineId: UUID): Line {
+    val remittance = RemittanceRepository.findById(remittanceId) ?: throw NotFoundResponse(...)
+    // ... check remittance status ...
+    return RemittanceLineRepository.softDelete(lineId, callerId, remittance.version)
+}
+
+// CORRECT — pass parentId to repository and include it in the WHERE clause
+fun removeLine(callerId: UUID, remittanceId: UUID, lineId: UUID): Line {
+    val remittance = RemittanceRepository.findById(remittanceId) ?: throw NotFoundResponse(...)
+    // ... check remittance status ...
+    return RemittanceLineRepository.softDelete(lineId, remittanceId, callerId, remittance.version)
+}
+```
+
+In the repository, scope the lookup to the parent:
+
+```kotlin
+// WRONG
+val existing = Table.selectAll().where { Table.id eq lineId }.singleOrNull()
+
+// CORRECT
+val existing = Table.selectAll().where {
+    (Table.id eq lineId) and (Table.parentId eq parentId)
+}.singleOrNull()
+```
+
 ## Authorization
 
 All operational permission checks MUST go through
@@ -48,6 +97,11 @@ all-zero UUID).
 When inserting `user_capability` rows (e.g. for relief access grants or delegate assignments), use
 `CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")` to look up the capability ID, then use the
 Exposed DSL `UserCapabilityTable.insert {}` with `customEnumeration` columns (see below).
+
+**Read endpoints must also gate on capabilities.** If a write endpoint (POST/PATCH/DELETE) checks a
+capability, the corresponding read endpoint (GET) should check the same capability. Example:
+`ExpenseService.create` and `ExpenseService.softDelete` gate on `EDIT_BRANCH_DATA`, so
+`ExpenseService.findByBranchDayId` must also check `EDIT_BRANCH_DATA`.
 
 ## Audit logging
 
@@ -123,6 +177,14 @@ val row = SomeTable.selectAll().where { SomeTable.id eq id }.single()
 ⚠️ `defaultExpression(CurrentTimestampWithTimeZone)` does NOT work with `insertIgnore` — the
 expression is not emitted. Columns with a DEFAULT expression must be explicitly set in the
 `insertIgnore` block (e.g., `it[effectiveFrom] = OffsetDateTime.now(ZoneOffset.UTC)`).
+
+### Timestamp consistency
+
+Always use `org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone` (the DB server's
+clock) when writing timestamp values inside `transaction {}` blocks. Never use
+`java.time.OffsetDateTime.now()` or `java.time.LocalDateTime.now()` — JVM clock and DB clock may
+diverge (timezone, drift). The only exception is `insertIgnore` blocks where the default expression
+is suppressed and you must supply a value manually (use `OffsetDateTime.now(ZoneOffset.UTC)`).
 
 ### Query patterns
 
