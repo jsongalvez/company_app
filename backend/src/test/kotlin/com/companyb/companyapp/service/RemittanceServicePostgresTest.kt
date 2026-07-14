@@ -54,6 +54,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTimedValue
 
 class RemittanceServicePostgresTest {
     private val callerId = UUID.randomUUID()
@@ -246,7 +248,11 @@ class RemittanceServicePostgresTest {
 
         val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
 
-        val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
+        val (result, duration) =
+            measureTimedValue {
+                RemittanceService.submit(callerId, remittanceId, actualVersion)
+            }
+        assertTrue(duration < 15.seconds, "remittance submit regressed: took $duration")
 
         assertNotNull(result)
         assertEquals(RemittanceStatus.SUBMITTED, result.remittance.status)

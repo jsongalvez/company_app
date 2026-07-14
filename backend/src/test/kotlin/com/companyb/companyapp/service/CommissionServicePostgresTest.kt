@@ -42,6 +42,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTimedValue
 
 class CommissionServicePostgresTest {
     private val callerId = UUID.randomUUID()
@@ -208,14 +210,18 @@ class CommissionServicePostgresTest {
     fun `create triggers commission recalculation and creates split`() {
         val inclusionId = UUID.randomUUID()
 
-        CommissionManualInclusionService.create(
-            callerId = callerId,
-            id = inclusionId,
-            productSaleId = productSaleId,
-            userId = targetUserId,
-            isIncluded = true,
-            reason = null,
-        )
+        val (_, duration) =
+            measureTimedValue {
+                CommissionManualInclusionService.create(
+                    callerId = callerId,
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                )
+            }
+        assertTrue(duration < 5.seconds, "commission recalculation regressed: took $duration")
 
         val splits =
             CommissionSplitRepository.findByBranchDayId(branchDayId)

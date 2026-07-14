@@ -33,6 +33,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTimedValue
 
 class AttendanceServicePostgresTest {
     private val userId = UUID.randomUUID()
@@ -58,7 +60,11 @@ class AttendanceServicePostgresTest {
     fun `clockIn creates attendance and branch day assignment and writes audit`() {
         val attendanceId = UUID.randomUUID()
 
-        val result = AttendanceService.clockIn(attendanceId, branchId, userId)
+        val (result, duration) =
+            measureTimedValue {
+                AttendanceService.clockIn(attendanceId, branchId, userId)
+            }
+        assertTrue(duration < 5.seconds, "clockIn regressed: took $duration")
 
         assertTrue(result.created)
         assertEquals(attendanceId, result.id)

@@ -43,6 +43,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTimedValue
 
 class SessionServicePostgresTest {
     private val callerId = UUID.randomUUID()
@@ -78,7 +80,8 @@ class SessionServicePostgresTest {
 
     @Test
     fun `create session persists all fields and writes audit`() {
-        val result = createSession(callerId, sessionId)
+        val (result, duration) = measureTimedValue { createSession(callerId, sessionId) }
+        assertTrue(duration < 10.seconds, "session create regressed: took $duration")
 
         assertTrue(result.created)
         assertEquals(clientId, result.session.clientId)

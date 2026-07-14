@@ -16,6 +16,24 @@ object CommissionEngineService {
 
     private const val COMMISSION_SCALE = 4
 
+    /**
+     * Pure computation: splits total commission (amount x quantity) equally among
+     * [eligibleUserCount] users. Extracted so it can be unit-tested and benchmarked
+     * without a database.
+     */
+    fun splitCommission(
+        commissionAmount: BigDecimal,
+        quantity: Int,
+        eligibleUserCount: Int,
+    ): BigDecimal {
+        val total = commissionAmount.multiply(BigDecimal.valueOf(quantity.toLong()))
+        return total.divide(
+            BigDecimal.valueOf(eligibleUserCount.toLong()),
+            COMMISSION_SCALE,
+            RoundingMode.HALF_UP,
+        )
+    }
+
     @Suppress("ReturnCount")
     fun recalculate(
         branchDayId: UUID,
@@ -67,14 +85,7 @@ object CommissionEngineService {
             }
 
             if (eligibleUsers.isNotEmpty()) {
-                val totalCommission =
-                    sale.commissionAmountAtTime.multiply(BigDecimal.valueOf(sale.quantity.toLong()))
-                val perUser =
-                    totalCommission.divide(
-                        BigDecimal.valueOf(eligibleUsers.size.toLong()),
-                        COMMISSION_SCALE,
-                        RoundingMode.HALF_UP,
-                    )
+                val perUser = splitCommission(sale.commissionAmountAtTime, sale.quantity, eligibleUsers.size)
 
                 for (userId in eligibleUsers) {
                     accumulatedTotals.merge(userId, perUser, BigDecimal::add)
