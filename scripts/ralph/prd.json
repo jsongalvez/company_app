@@ -734,8 +734,9 @@
       "requirements": [
         "Expose POST /compensation body: { id, workBranchDayId, payingBranchDayId, userId, amount, note }",
         "Require ASSIGN_COMPENSATION capability",
+        "Call assertEditable on payingBranchDayId to enforce branch day state machine (OPEN/PAST/REMITTED)",
         "Enforce idx_compensation_unique: only one payout per user per paying branch day drawer",
-        "Expose PATCH /compensation/{compensationId} body: { amount, note } (last-write-wins)",
+        "Expose PATCH /compensation/{compensationId} body: { amount, note } (last-write-wins, also calls assertEditable)",
         "Write audit logs for inserts and updates"
       ],
       "acceptanceCriteria": [
@@ -762,6 +763,7 @@
       "requirements": [
         "Expose POST /commission-inclusions body: { id, productSaleId, userId, isIncluded, reason } (upserts over unique key)",
         "Recalculate daily commission split (Engine 1) upon successful commit",
+        "Expose POST /commission/recalculate/{branchDayId} requiring EDIT_PAST_DAY capability for manual re-runs on PAST/REMITTED days",
         "Expose GET /commission-splits/{branchDayId} returning daily splits"
       ],
       "acceptanceCriteria": [
