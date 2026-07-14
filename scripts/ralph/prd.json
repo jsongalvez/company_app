@@ -1450,6 +1450,33 @@
       ],
       "notes": "Install k6 binary from https://grafana.com/docs/k6/latest/set-up/install-k6/. Run against local Docker Compose backend. k6 scripts live in tests/k6/.",
       "passes": false
+    },
+    {
+      "id": "US-052",
+      "title": "Logout endpoint",
+      "description": "As any authenticated user, I want to log out so that my session token is immediately invalidated on all devices.",
+      "type": "authentication",
+      "priorityHint": 52,
+      "dependsOn": [
+        "US-001"
+      ],
+      "requirements": [
+        "Expose POST /api/auth/logout (authenticated, under /api/*, no capability gate)",
+        "Add the caller's userId to DenyList (in-memory ConcurrentHashMap, auto-evicts after 24h JWT max expiry)",
+        "All subsequent requests with any token for this user are rejected with HTTP 401",
+        "Idempotent: calling logout twice returns HTTP 200 both times",
+        "No database writes required"
+      ],
+      "acceptanceCriteria": [
+        "Logging out immediately invalidates the user's token — subsequent API requests return 401",
+        "DenyList entry auto-expires after 24h matching JWT max lifetime"
+      ],
+      "verification": [
+        "Kotlin compilation succeeds",
+        "Integration tests for logout and token rejection pass"
+      ],
+      "notes": "Reuses DenyList.deny(userId) built in US-001. Since deny list is keyed by userId (not jti), logout invalidates ALL tokens for the user across all devices — acceptable for a single-session business app. Same auto-eviction behavior as user deactivation (24h expiry).",
+      "passes": false
     }
   ]
 }
