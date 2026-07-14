@@ -4,8 +4,11 @@ import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -112,6 +115,20 @@ object AttendanceRepository {
                 .where { AttendanceTable.id eq attendanceId }
                 .single()
                 .toAttendance()
+        }
+
+    fun findUsersClockedInAt(
+        branchDayId: UUID,
+        atTime: OffsetDateTime,
+    ): List<UUID> =
+        transaction {
+            AttendanceTable
+                .selectAll()
+                .where {
+                    (AttendanceTable.branchDayId eq branchDayId) and
+                        (AttendanceTable.clockIn lessEq atTime) and
+                        (AttendanceTable.clockOut.isNull() or (AttendanceTable.clockOut greaterEq atTime))
+                }.map { it[AttendanceTable.userId] }
         }
 
     private fun org.jetbrains.exposed.sql.ResultRow.toAttendance(): Attendance =

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementReason
@@ -7,7 +8,9 @@ import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
+import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
@@ -152,6 +155,30 @@ object ProductSaleRepository {
     fun findById(id: UUID): ProductSale? =
         transaction {
             findByIdInTransaction(id)
+        }
+
+    fun findNonVoidedSalesByBranchDay(branchDayId: UUID): List<ProductSale> =
+        transaction {
+            ProductSaleTable
+                .join(
+                    SessionTable,
+                    JoinType.LEFT,
+                    ProductSaleTable.sessionId,
+                    SessionTable.id,
+                    false,
+                    null,
+                ).join(
+                    ActiveSessionVoidsView,
+                    JoinType.LEFT,
+                    SessionTable.id,
+                    ActiveSessionVoidsView.sessionId,
+                    false,
+                    null,
+                ).selectAll()
+                .where {
+                    (ProductSaleTable.branchDayId eq branchDayId) and
+                        (ActiveSessionVoidsView.sessionId.isNull())
+                }.map { it.toProductSale() }
         }
 
     private fun findByIdInTransaction(id: UUID): ProductSale? =

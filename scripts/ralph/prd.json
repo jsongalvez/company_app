@@ -773,7 +773,7 @@
         "Unit tests for commission recalculation overrides pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-025",

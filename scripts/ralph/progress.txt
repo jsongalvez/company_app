@@ -436,3 +436,30 @@ Thread: unavailable
   - InventoryMovementReason enum values are parsed from the request string in the route layer via `InventoryMovementReason.valueOf(request.reason.uppercase())` — uppercase is used for case-insensitivity.
   - The InventoryMovementResponse.notes field was previously hardcoded to null in the route's `toResponse()` — now correctly maps the data class notes value.
 ---
+
+## Tue Jul 14 2026 - US-024
+Thread: unavailable
+- Implemented commission manual inclusion (POST /api/commission-inclusions) with upsert over (product_sale_id, user_id) unique key and commission split read endpoint (GET /api/commission-splits/{branchDayId}).
+- Created CommissionManualInclusion data class + CommissionManualInclusionTable and CommissionSplit data class + CommissionSplitTable Exposed models.
+- CommissionManualInclusionRepository.upsert: checks existing by (product_sale_id, user_id), updates is_included/reason/assigned_by if found, inserts new row if not found, writes audit log for both INSERT and UPDATE paths.
+- CommissionSplitRepository.replaceForBranchDay: deletes all existing splits for a branch_day, then batch inserts new splits (used by the commission engine).
+- CommissionEngineService.recalculate: implements Engine 1 (commission recalculation) — guard on OPEN branch day, fetch non-voided product sales, find clocked-in users at sold_at time, apply manual inclusions/exclusions, split commission equally using BigDecimal with HALF_UP rounding, write per-user totals to commission_split.
+- CommissionManualInclusionService.create: ASSIGN_COMPENSATION capability gate (GLOBAL context), validates product sale exists, triggers CommissionEngineService.recalculate(sale.branchDayId) after upsert.
+- CommissionSplitService.getByBranchDayId: VIEW_BRANCH_DATA capability gate (BRANCH context).
+- Added grantCapability helper to DatabaseTestHelper (generic method for any capability code/context).
+- Added findNonVoidedSalesByBranchDay to ProductSaleRepository (LEFT JOIN with SessionTable + ActiveSessionVoidsView to exclude voided session sales).
+- Added findUsersClockedInAt to AttendanceRepository (finds users clocked in during a specific time window).
+- CommissionRoutes: registered POST /api/commission-inclusions and GET /api/commission-splits/{branchDayId} in Main.kt.
+- DTOs: CreateCommissionInclusionRequest, CommissionInclusionResponse, CommissionSplitResponse in shared module.
+- Added 11 integration tests covering: create with all fields, create without reason, create exclusion, upsert update, forbidden without capability, non-existent product sale (404), commission recalculation triggers split creation, get splits returns correct data, get splits forbidden without VIEW_BRANCH_DATA, get splits non-existent branch day (404), audit log writing.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 232 tests).
+- **Learnings for future iterations:**
+  - `commission_manual_inclusion` has UNIQUE (product_sale_id, user_id) — the upsert pattern checks existing by unique key first before insert/update decision.
+  - `commission_split` has UNIQUE (branch_day_id, user_id) — the engine replaces all splits for a day atomically (delete all + batch insert).
+  - Commission Engine 1: find all non-voided product sales for the branch_day, find clocked-in users at sold_at time, apply manual inclusions/exclusions, split commission_amount * quantity equally among eligible users using BigDecimal division with HALF_UP rounding, accumulate per-user totals.
+  - `leftJoin` on a `Table` with 3 args works via top-level extension function, but chaining another `leftJoin` on the resulting `Join` only supports the 1-arg infix form — use `join` with explicit `JoinType.LEFT` and 6 args instead.
+  - `isNull()` is a member of `ISqlExpressionBuilder` — available without explicit import inside `where { }` blocks.
+  - The `priority` column in `UserCapabilityTable` is `short` type — pass `.toShort()` when inserting.
+  - VIEW_BRANCH_DATA capability is scoped to BRANCH context in the seed — use `CapabilityContextType.BRANCH` with `branchId` as contextId for read endpoints.
+  - ASSIGN_COMPENSATION is used for commission manual inclusion gating (consistent with US-023 pattern).
+---

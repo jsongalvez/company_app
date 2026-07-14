@@ -184,4 +184,32 @@ object DatabaseTestHelper {
             }
         }
     }
+
+    @Suppress("LongParameterList")
+    fun grantCapability(
+        userId: UUID,
+        capabilityCode: String,
+        contextType: CapabilityContextType,
+        contextId: UUID,
+        sourceId: UUID,
+        priority: Int = 100,
+    ) {
+        transaction {
+            val capId =
+                CapabilityTable
+                    .selectAll()
+                    .where { CapabilityTable.code eq capabilityCode }
+                    .single()[CapabilityTable.id]
+
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = userId
+                it[UserCapabilityTable.capabilityId] = capId
+                it[UserCapabilityTable.contextType] = contextType
+                it[UserCapabilityTable.contextId] = contextId
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
+                it[UserCapabilityTable.sourceId] = sourceId
+                it[UserCapabilityTable.priority] = priority.toShort()
+            }
+        }
+    }
 }
