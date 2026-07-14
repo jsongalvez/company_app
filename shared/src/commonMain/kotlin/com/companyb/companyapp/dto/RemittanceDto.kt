@@ -64,6 +64,30 @@ data class RemittanceDayBreakdownResponse(
 )
 
 @Serializable
+data class SubmitRemittanceRequest(
+    val expectedVersion: Int,
+)
+
+@Serializable
+data class RemittanceSubmitResponse(
+    val id: String,
+    val type: String,
+    val status: String,
+    val branchId: String,
+    val method: String,
+    val submittedDate: String,
+    val submittedBy: String,
+    val dateRangeStart: String,
+    val dateRangeEnd: String,
+    val createdAt: String,
+    val version: Int,
+    val grossIncome: String,
+    val totalCompensation: String,
+    val totalExpenses: String,
+    val netIncome: String,
+)
+
+@Serializable
 data class RemittanceDetailResponse(
     val id: String,
     val type: String,

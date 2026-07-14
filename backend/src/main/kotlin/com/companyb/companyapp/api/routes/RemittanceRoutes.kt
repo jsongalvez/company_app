@@ -7,6 +7,9 @@ import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
 import com.companyb.companyapp.dto.RemittanceDetailResponse
 import com.companyb.companyapp.dto.RemittanceLineResponse
 import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.dto.RemittanceSubmitResponse
+import com.companyb.companyapp.dto.SubmitRemittanceRequest
+import com.companyb.companyapp.repository.RemittanceSubmissionResult
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceLine
@@ -162,6 +165,23 @@ object RemittanceRoutes {
             context.status(HttpStatus.CREATED)
             context.json(breakdown.toResponse())
         }
+
+        config.routes.post("/api/remittances/{remittanceId}/submit") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val remittanceId =
+                runCatching { UUID.fromString(context.pathParam("remittanceId")) }
+                    .getOrElse { throw BadRequestResponse("Invalid remittance id") }
+            val request = context.bodyAsClass<SubmitRemittanceRequest>()
+
+            val result =
+                RemittanceService.submit(
+                    callerId = callerId,
+                    remittanceId = remittanceId,
+                    expectedVersion = request.expectedVersion,
+                )
+
+            context.json(result.toSubmitResponse())
+        }
     }
 
     private fun Remittance.toResponse(): RemittanceResponse =
@@ -216,5 +236,24 @@ object RemittanceRoutes {
             lines = lines.map { it.toResponse() },
             totalAmount = totalAmount.toPlainString(),
             dayBreakdowns = dayBreakdowns.map { it.toResponse() },
+        )
+
+    private fun RemittanceSubmissionResult.toSubmitResponse(): RemittanceSubmitResponse =
+        RemittanceSubmitResponse(
+            id = remittance.id.toString(),
+            type = remittance.type.name,
+            status = remittance.status.name,
+            branchId = remittance.branchId.toString(),
+            method = remittance.method.name,
+            submittedDate = remittance.submittedDate.toString(),
+            submittedBy = remittance.submittedBy.toString(),
+            dateRangeStart = remittance.dateRangeStart.toString(),
+            dateRangeEnd = remittance.dateRangeEnd.toString(),
+            createdAt = remittance.createdAt.toString(),
+            version = remittance.version,
+            grossIncome = grossIncome.toPlainString(),
+            totalCompensation = totalCompensation.toPlainString(),
+            totalExpenses = totalExpenses.toPlainString(),
+            netIncome = netIncome.toPlainString(),
         )
 }

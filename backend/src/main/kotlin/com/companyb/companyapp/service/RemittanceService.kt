@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
 import com.companyb.companyapp.repository.RemittanceLineRepository
 import com.companyb.companyapp.repository.RemittanceRepository
+import com.companyb.companyapp.repository.RemittanceSubmissionResult
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
@@ -26,6 +27,60 @@ object RemittanceService {
     private val logger = KotlinLogging.logger {}
 
     private const val SUBMIT_REMITTANCE = "SUBMIT_REMITTANCE"
+
+    @Suppress("ThrowsCount", "ReturnCount")
+    fun submit(
+        callerId: UUID,
+        remittanceId: UUID,
+        expectedVersion: Int,
+    ): RemittanceSubmissionResult {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = SUBMIT_REMITTANCE,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            logger.warn { "[SUBMIT-REMITTANCE] User $callerId lacks $SUBMIT_REMITTANCE capability" }
+            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required")
+        }
+
+        val existing =
+            RemittanceRepository.findById(remittanceId)
+                ?: throw NotFoundResponse("Remittance not found")
+
+        if (existing.status != RemittanceStatus.DRAFT) {
+            throw BadRequestResponse("Can only submit DRAFT remittances")
+        }
+
+        if (existing.version != expectedVersion) {
+            throw ConflictResponse("Remittance version mismatch")
+        }
+
+        try {
+            val result =
+                RemittanceRepository.submit(
+                    remittanceId = remittanceId,
+                    expectedVersion = expectedVersion,
+                    callerId = callerId,
+                ) ?: throw NotFoundResponse("Remittance not found")
+
+            logger.info {
+                "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
+                    "Net=${result.netIncome}"
+            }
+            return result
+        } catch (e: IllegalStateException) {
+            if (e.message == "version_mismatch") {
+                throw ConflictResponse("Remittance version mismatch")
+            }
+            if (e.message == "not_draft") {
+                throw BadRequestResponse("Can only submit DRAFT remittances")
+            }
+            throw e
+        }
+    }
 
     @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
     fun createDraft(

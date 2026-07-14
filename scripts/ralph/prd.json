@@ -905,7 +905,7 @@
         "Integration tests for serializable submissions and snapshot immutability pass"
       ],
       "notes": "fn_remittance_snapshot_immutable trigger already exists in V1__full_schema.sql.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-030",

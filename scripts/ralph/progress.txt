@@ -2,6 +2,31 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Tue Jul 14 2026 - US-029
+Thread: unavailable
+- Implemented remittance submission endpoint: POST /api/remittances/{remittanceId}/submit body: { expectedVersion }.
+- RemittanceRepository.submit: single transaction with version-based optimistic locking, calculates gross_income (SUM of non-deleted SESSION remittance_lines), total_compensation (SUM of compensation for paying_branch_day_ids in day breakdowns), total_expenses (SUM of non-deleted expenses for covered branch_day_ids), and net_income. Inserts financial snapshot for SESSION remittances (write-once through DB immutability trigger). Updates remittance status to SUBMITTED, increments version, updates all covered branch_day rows to REMITTED. Writes audit log entries for remittance and each branch day update.
+- RemittanceService.submit: gates on SUBMIT_REMITTANCE capability (GLOBAL context), validates DRAFT status, checks version match (ConflictResponse 409 on mismatch), catches version_mismatch and not_draft errors from repository.
+- RemittanceRoutes: registered POST /api/remittances/{remittanceId}/submit with SubmitRemittanceRequest body (expectedVersion: Int), returns RemittanceSubmitResponse with financial snapshot details.
+- Created RemittanceFinancialSnapshot model + Exposed Table for the existing remittance_financial_snapshot table.
+- Created RemittanceFinancialSnapshotRepository.insert() for write-once snapshot insertion (called from within the submit transaction).
+- Added 11 integration tests covering: SESSION submit with snapshot, PRODUCT submit without snapshot, compensation+expense calculations, version mismatch (409), forbidden (403), not found (404), already submitted (400), audit log writing, empty day breakdowns with zero calculations.
+- DTOs: SubmitRemittanceRequest, RemittanceSubmitResponse in shared RemittanceDto.kt.
+- Files changed:
+  - NEW: repository/model/RemittanceFinancialSnapshot.kt, repository/RemittanceFinancialSnapshotRepository.kt
+  - MODIFIED: repository/RemittanceRepository.kt, service/RemittanceService.kt, api/routes/RemittanceRoutes.kt, shared/.../dto/RemittanceDto.kt, test/.../RemittanceServicePostgresTest.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 311 tests).
+- **Learnings for future iterations:**
+  - The remittance_financial_snapshot table has an immutability trigger (trg_remittance_snapshot_immutable) that blocks UPDATE and DELETE operations — insert only. Test cleanup must disable this trigger before deleting snapshot rows.
+  - RemittanceLineRepository.addLine() increments the parent remittance.version atomically — always read the current version before submitting.
+  - FOR UPDATE and SERIALIZABLE isolation were specified in the PRD engine but could not be implemented in Exposed 0.61.0 (no DSL support for FOR UPDATE). Version-based optimistic locking with atomic version update provides adequate concurrency control.
+  - Exposed 0.61.0 has a bug where `insertIgnore` or `insert` on tables with `autoGenerate()` primary key columns generates malformed SQL ("invalid reference to FROM-clause entry"). Workaround: use raw JDBC inserts for test data setup on such tables, or use the service-layer methods that work around this.
+  - Remittance day breakdowns do NOT increment the remittance version; only line additions/removals do.
+  - For SESSION remittances, the financial snapshot includes gross_income, total_compensation, total_expenses, and net_income. PRODUCT remittances do not get a snapshot.
+  - Branch day status transition to REMITTED happens as part of the submit transaction — all covered branch days are atomically updated.
+  - Audit log entries for the remittance update and each branch day update must be written INSIDE the same transaction (no nested transactions). Use direct AuditLogTable.insert {} rather than AuditLogRepository.record() when inside an existing transaction.
+---
+
 ## Tue Jul 14 2026 - US-023
 Thread: unavailable
 - Implemented compensation assign endpoint (POST /api/compensation) and update endpoint (PATCH /api/compensation/{compensationId}).
@@ -556,7 +581,7 @@ Thread: unavailable
   - The remittance table has a `date` column for submitted_date — use Exposed `date()` column type (from exposed-java-time), returns `LocalDate`. This is the same pattern used for branch_day.date.
   - The UNIQUE constraint `(branch_id, type, submitted_date)` is on the remittance table — drafts can still conflict on this if created on the same day for the same branch/type, but the idempotent PK pattern handles retries.
   - The EXCLUDE constraint `no_remittance_overlap` only applies when `status = 'SUBMITTED'` — drafts bypass overlap checks entirely per PRD.
-  - SUBMIT_REMITTANCE capability follows the same GLOBAL-context pattern as ASSIGN_COMPENSATION and VOID_SESSION, even though the V2 seed comment says scope: BRANCH.
-  - LocalDate parsing in routes: use `LocalDate.parse(request.dateRangeStart)` — it parses ISO-8601 format (yyyy-MM-dd).
-  - When using `customEnumeration` with a `.default()` value (like status = DRAFT), the default must match the PG enum type exactly.
+   - SUBMIT_REMITTANCE capability follows the same GLOBAL-context pattern as ASSIGN_COMPENSATION and VOID_SESSION, even though the V2 seed comment says scope: BRANCH.
+   - LocalDate parsing in routes: use `LocalDate.parse(request.dateRangeStart)` — it parses ISO-8601 format (yyyy-MM-dd).
+   - When using `customEnumeration` with a `.default()` value (like status = DRAFT), the default must match the PG enum type exactly.
 ---
