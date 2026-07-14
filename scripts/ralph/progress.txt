@@ -2,6 +2,33 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Tue Jul 14 2026 - US-032
+Thread: unavailable
+- Implemented daily sales summary endpoint: GET /api/branches/{branchId}/daily-summary?date=.
+- Added daily_sales_summary view to V1__full_schema.sql using correlated subqueries (avoiding cross-join issues) aggregating: gross_income (completed, non-voided sessions), total_compensation, total_expenses, total_product_sales, total_commission. V3 migration merged into V1.
+- Created DailySalesSummary data class + DailySalesSummaryView Exposed Table (read-only view model, no PK).
+- Created DailySalesSummaryRepository.findByBranchAndDate(branchId, date) querying the view with Exposed DSL.
+- Created DailySalesSummaryService.getDailySummary with VIEW_BRANCH_DATA capability gate (GLOBAL context) and branch existence validation.
+- Created DailySalesSummaryRoutes: GET /api/branches/{branchId}/daily-summary with date query param parsing (yyyy-MM-dd).
+- Added DailySalesSummaryResponse DTO to shared module with netIncome computed as grossIncome - totalCompensation - totalExpenses.
+- Wired DailySalesSummaryRoutes in Main.kt.
+- Added 12 integration tests covering: zero data returns all zeros, gross income from completed sessions, excludes non-completed, excludes voided, includes unvoided, total compensation with multiple users, total expenses excluding deleted, product sales, commission, net income calculation, 403 without capability, 404 for non-existent branch.
+- Files changed:
+  - NEW: shared/.../dto/DailySalesSummaryDto.kt, repository/model/DailySalesSummary.kt, repository/DailySalesSummaryRepository.kt, service/DailySalesSummaryService.kt, api/routes/DailySalesSummaryRoutes.kt, test/.../DailySalesSummaryServicePostgresTest.kt
+  - MODIFIED: resources/db/migration/V1__full_schema.sql (appended daily_sales_summary view)
+  - DELETED: resources/db/migration/V3__create_daily_sales_summary_view.sql (merged into V1)
+  - MODIFIED: Main.kt (import + wire DailySalesSummaryRoutes), scripts/ralph/prd.json (US-032 passes=true), scripts/ralph/progress.txt
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Daily sales summary uses a SQL view with correlated subqueries (one per aggregation) to avoid cross-join issues when multiple 1:N relationships exist on the same branch_day.
+  - The view is modeled as a read-only Exposed Table (no PK, no autoGenerate) and queried with standard selectAll().where().
+  - netIncome is computed in the repository layer (not the SQL view) by subtracting totalCompensation + totalExpenses from grossIncome.
+  - VIEW_BRANCH_DATA capability is used for read-only summary endpoints (same pattern as other read endpoints).
+  - BigDecimal comparison across different scales (NUMERIC(10,2) vs NUMERIC(15,4)) needs compareTo() instead of assertEquals() to avoid scale mismatch failures.
+  - Integration tests for summary aggregates need unique users per compensation row because of idx_compensation_unique constraint.
+  - The `toResponse()` mapping follows the same private extension function pattern as other routes.
+---
+
 ## Tue Jul 14 2026 - US-031
 Thread: unavailable
 - Implemented notification read endpoints: GET /api/notifications (listUnread for caller) and PATCH /api/notifications/{notificationId}/read (markRead).

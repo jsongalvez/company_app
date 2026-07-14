@@ -8,6 +8,7 @@ import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
 import com.companyb.companyapp.api.routes.CompensationRoutes
+import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.NotificationRoutes
@@ -93,6 +94,7 @@ fun initializeJavalin() {
             ProductSaleRoutes.register(config)
             CompensationRoutes.register(config)
             CommissionRoutes.register(config)
+            DailySalesSummaryRoutes.register(config)
             ExpenseRoutes.register(config)
             AllowanceRoutes.register(config)
             NotificationRoutes.register(config)

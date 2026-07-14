@@ -982,7 +982,7 @@
         "Integration tests for daily summary aggregates pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-033",

@@ -577,3 +577,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_unique
 CREATE INDEX IF NOT EXISTS idx_notification_unread
     ON notification (user_id) WHERE is_read = false;
 
+-- daily_sales_summary
+-- Aggregates daily financial data per branch day using correlated subqueries.
+CREATE VIEW daily_sales_summary AS
+SELECT
+    bd.id AS branch_day_id,
+    bd.branch_id,
+    bd.date,
+    COALESCE((
+        SELECT SUM(s.final_price)
+        FROM session s
+        LEFT JOIN active_session_voids sv ON sv.session_id = s.id
+        WHERE s.branch_day_id = bd.id
+          AND s.session_status = 'COMPLETED'
+          AND sv.id IS NULL
+    ), 0)::NUMERIC(10,2) AS gross_income,
+    COALESCE((
+        SELECT SUM(c.amount)
+        FROM compensation c
+        WHERE c.paying_branch_day_id = bd.id
+    ), 0)::NUMERIC(10,2) AS total_compensation,
+    COALESCE((
+        SELECT SUM(e.amount)
+        FROM expense e
+        WHERE e.branch_day_id = bd.id AND e.deleted_at IS NULL
+    ), 0)::NUMERIC(10,2) AS total_expenses,
+    COALESCE((
+        SELECT SUM(ps.total_amount_at_time)
+        FROM product_sale ps
+        WHERE ps.branch_day_id = bd.id
+    ), 0)::NUMERIC(10,2) AS total_product_sales,
+    COALESCE((
+        SELECT SUM(cs.amount)
+        FROM commission_split cs
+        WHERE cs.branch_day_id = bd.id
+    ), 0)::NUMERIC(15,4) AS total_commission
+FROM branch_day bd;
+
