@@ -47,6 +47,10 @@ application {
     mainClass = "com.companyb.companyapp.MainKt"
 }
 
+tasks.named<JavaExec>("run") {
+    workingDir = rootProject.projectDir
+}
+
 tasks.test {
     useJUnit()
     workingDir = rootProject.projectDir
