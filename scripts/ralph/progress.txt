@@ -489,3 +489,25 @@ Thread: unavailable
   - FindByBranchDayId uses `ExpenseTable.selectAll().where { ExpenseTable.branchDayId eq branchDayId }` — no soft-delete filtering, returns all rows.
   - The POST endpoint validates ExpenseCategory from the request string via `ExpenseCategory.valueOf(request.category.uppercase())` in the route layer.
 ---
+
+## Tue Jul 14 2026 - US-026
+Thread: unavailable
+- Implemented allowance assign endpoint (POST /api/allowances) and list endpoint (GET /api/allowances?branchDayId=).
+- Created Allowance data class + AllowanceTable Exposed model for the existing allowance table (id, branch_day_id, user_id, amount, assigned_by, assigned_at).
+- AllowanceRepository.create: idempotent insert with PK pre-check (returns existing if same UUID), writes audit log on actual insert.
+- AllowanceRepository.findByBranchDayId: lists all allowances for a given branch day.
+- AllowanceService.create: gates on ASSIGN_COMPENSATION capability (GLOBAL context), validates non-negative amount, validates branch day exists (404 if not).
+- AllowanceService.findByBranchDayId: gates on ASSIGN_COMPENSATION capability, returns allowances for branch day.
+- AllowanceRoutes: registered POST /api/allowances and GET /api/allowances?branchDayId= with UUID/BigDecimal parsing and response mapping.
+- Wired AllowanceRoutes in Main.kt.
+- Added AllowanceDto.kt (CreateAllowanceRequest, AllowanceResponse) to shared module.
+- Added 9 integration tests covering: create succeeds, idempotent duplicate, forbidden without capability (403), non-existent branch day (404), negative amount (400), findByBranchDayId returns allowances, findByBranchDayId empty list, findByBranchDayId without capability (403), audit log writing.
+- Files changed: shared/.../dto/AllowanceDto.kt (new), repository/model/Allowance.kt (new), repository/AllowanceRepository.kt (new), service/AllowanceService.kt (new), api/routes/AllowanceRoutes.kt (new), test/.../AllowanceServicePostgresTest.kt (new), Main.kt, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Quality gate green: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test (BUILD SUCCESSFUL, 254 tests).
+- **Learnings for future iterations:**
+  - The allowance table has no unique constraint on (branch_day_id, user_id), so multiple allowances can be assigned to the same user on the same branch day — no pre-conflict check needed unlike compensation.
+  - Allowance uses ASSIGN_COMPENSATION capability (same gate as compensation/commission inclusion) consistent with the PRD requirement.
+  - Allowance table has no note column (unlike compensation) — the DTO and model are simpler.
+  - The GET endpoint uses `context.queryParam("branchDayId")` to read query parameters — found via Context method, not a static import.
+  - Follow the same pattern as compensation: CreateAllowanceRequest with String fields for UUID/BigDecimal, parsed in the route layer.
+---

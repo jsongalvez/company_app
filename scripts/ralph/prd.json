@@ -823,7 +823,7 @@
         "Integration tests for allowances pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-027",

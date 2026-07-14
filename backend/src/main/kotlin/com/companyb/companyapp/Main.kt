@@ -1,5 +1,6 @@
 package com.companyb.companyapp
 
+import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
@@ -85,6 +86,7 @@ fun initializeJavalin() {
             CompensationRoutes.register(config)
             CommissionRoutes.register(config)
             ExpenseRoutes.register(config)
+            AllowanceRoutes.register(config)
         }.start(dotenv["APP_PORT"].toInt())
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
