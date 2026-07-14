@@ -46,6 +46,8 @@ object AttendanceService {
 
         logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
 
+        CommissionEngineService.recalculate(attendance.branchDayId)
+
         val isRelief = getIsRelief(attendance.branchDayId, attendance.userId)
         return AttendanceServiceResult(attendance, false, isRelief)
     }
@@ -105,6 +107,8 @@ object AttendanceService {
         logger.info {
             "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
         }
+
+        CommissionEngineService.recalculate(branchDay.id)
 
         return AttendanceServiceResult(attendance, wasCreated, isRelief)
     }

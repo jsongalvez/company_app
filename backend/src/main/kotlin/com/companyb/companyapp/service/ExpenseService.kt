@@ -77,7 +77,7 @@ object ExpenseService {
             ExpenseRepository.findById(expenseId)
                 ?: throw io.javalin.http.NotFoundResponse("Expense not found")
 
-        BranchDayService.assertEditable(expense.branchDayId, callerId)
+        BranchDayService.assertEditable(expense.branchDayId, callerId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId, reason)
             ?: throw io.javalin.http.NotFoundResponse("Expense not found")

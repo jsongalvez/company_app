@@ -108,7 +108,7 @@ object ProductSaleService {
                 }
             }
 
-        logger.info { "[PRODUCT-SALE] Commission recalculation triggered (stubbed) for branch_day=$branchDayId" }
+        CommissionEngineService.recalculate(branchDayId)
 
         return result
     }

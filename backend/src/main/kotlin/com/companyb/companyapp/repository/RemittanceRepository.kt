@@ -24,7 +24,9 @@ import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.sql.vendors.ForUpdateOption
 import java.math.BigDecimal
+import java.sql.Connection
 import java.time.LocalDate
 import java.util.UUID
 
@@ -106,17 +108,20 @@ object RemittanceRepository {
             .singleOrNull()
             ?.toRemittance()
 
+    private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
+
     @Suppress("LongMethod", "ReturnCount", "ComplexMethod", "LongParameterList")
     fun submit(
         remittanceId: UUID,
         expectedVersion: Int,
         callerId: UUID,
     ): RemittanceSubmissionResult? =
-        transaction {
+        transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
             val remittance =
                 RemittanceTable
                     .selectAll()
                     .where { RemittanceTable.id eq remittanceId }
+                    .forUpdate(ForUpdateOption.ForUpdate)
                     .singleOrNull() ?: return@transaction null
 
             if (remittance[RemittanceTable.version] != expectedVersion) {

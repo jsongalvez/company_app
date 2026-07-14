@@ -48,6 +48,8 @@ object CompensationService {
         BranchDayRepository.findById(payingBranchDayId)
             ?: throw NotFoundResponse("Paying branch day not found")
 
+        BranchDayService.assertEditable(payingBranchDayId, callerId)
+
         val existingByKey = CompensationRepository.findByUserAndPayingDay(userId, payingBranchDayId)
         if (existingByKey != null && existingByKey.id != id) {
             throw ConflictResponse("Compensation already exists for this user and paying branch day")
@@ -90,8 +92,11 @@ object CompensationService {
             throw BadRequestResponse("Amount must be non-negative")
         }
 
-        CompensationRepository.findById(compensationId)
-            ?: throw NotFoundResponse("Compensation not found")
+        val compensation =
+            CompensationRepository.findById(compensationId)
+                ?: throw NotFoundResponse("Compensation not found")
+
+        BranchDayService.assertEditable(compensation.payingBranchDayId, callerId)
 
         return CompensationRepository.update(compensationId, amount, note, callerId)
     }
