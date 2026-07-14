@@ -30,7 +30,7 @@ kotlinx-serialization-json = "1.10.0"
 ktlint = "14.1.0"
 logback-classic = "1.5.32"
 material3 = "1.10.0-alpha05"
-openpdf = "2.2.2"
+openpdf = "3.0.5"
 postgresql = "42.7.10"
 
 [libraries]
