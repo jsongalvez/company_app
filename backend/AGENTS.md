@@ -405,6 +405,24 @@ The baseline enforces these thresholds (edit `options.thresholds` in the script 
 Remember: k6 tests the full HTTP stack — serialization, Javalin routing, JDBC, connection
 pooling, and auth middleware. Regressions here won't show up in JMH benchmarks.
 
+A comprehensive k6 test suite also lives at `tests/k6/`. It covers all critical API paths
+with staged ramp-up, concurrency edge cases (409, idempotency), authz edge cases (401, 403),
+and concurrent remittance submission testing:
+
+```bash
+# Full load test (all endpoints, 5 VUs ramp-up)
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/full-suite.js
+
+# Concurrency edge cases (pending guard, version mismatch, idempotency)
+k6 run tests/k6/concurrency-test.js
+
+# Authz edge cases (invalid token, expired token, insufficient capability)
+LIMITED_USERNAME=limited LIMITED_PASSWORD=pass k6 run tests/k6/authz-test.js
+
+# Concurrent remittance submission (serializable isolation race)
+k6 run tests/k6/remittance-race-test.js
+```
+
 ### Threshold tuning — when and how to adjust limits
 
 All tools (JMH, measureTimedValue, k6) have hardcoded thresholds. **Do not blindly raise a

@@ -794,6 +794,40 @@ Thread: unavailable
    - When using `customEnumeration` with a `.default()` value (like status = DRAFT), the default must match the PG enum type exactly.
 ---
 
+## Wed Jul 15 2026 - US-051
+Thread: unavailable
+- Created k6 load test scripts in tests/k6/ covering all critical API paths.
+- helpers.js: shared constants (BASE_URL, uuid(), authHeaders()), 16 Trend metrics with labels, and threshold definitions for all endpoint groups.
+- full-suite.js: main load test with staged ramp-up (5 VUs), covering: auth (login/register/logout), branches CRUD, clients CRUD, session create/status update/void/unvoid, session practitioner management, product categories, products, inventory card creation/restock/movement, product sales, compensation, expenses, allowances, remittance draft/submit, notifications, and reports (daily/monthly summary).
+- concurrency-test.js: tests concurrency guards — session PENDING guard (409), optimistic locking version mismatch (409), duplicate UUID idempotency (200), and idempotent expense creation (200).
+- authz-test.js: tests authorization edge cases — invalid token (401), expired/malformed token (401), and insufficient capability (403) for limited users.
+- remittance-race-test.js: tests serializable isolation with concurrent remittance submissions — multiple VUs submit the same remittance simultaneously; winner gets 200, losers get 409.
+- All scripts validated with k6 v2.1.0 (parsed correctly, thresholds/metrics defined).
+- Files changed:
+  - NEW: tests/k6/helpers.js
+  - NEW: tests/k6/full-suite.js
+  - NEW: tests/k6/concurrency-test.js
+  - NEW: tests/k6/authz-test.js
+  - NEW: tests/k6/remittance-race-test.js
+  - MODIFIED: scripts/ralph/prd.json (US-051 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - k6 scripts use ES module imports (import/export); relative imports from other JS files in the same directory work with `import { ... } from "./file.js"`.
+  - k6 setup() runs once per test and passes data to default().
+  - Custom Trend metrics must be created at module level (not inside functions) for k6 to register them.
+  - Use `http.del()` for DELETE requests (k6 API, not `http.delete`).
+  - k6 expects all test files in tests/k6/ per PRD notes.
+  - Run with: `TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/full-suite.js`
+  - For remittance race test, run: `k6 run tests/k6/remittance-race-test.js`
+  - For authz test with a limited user: `LIMITED_USERNAME=limited LIMITED_PASSWORD=pass k6 run tests/k6/authz-test.js`
+- **Codebase Patterns:**
+  - k6 test scripts live in tests/k6/ with .js extension.
+  - Shared helpers (auth, UUID, base URL, metrics, thresholds) in helpers.js.
+  - Each script file uses its own Trend and Rate metrics, plus group-level tags for filtering.
+  - Thresholds are set at p(95) for each metric group and a global error rate < 5%.
+  - For concurrent remittance testing, the test creates one remittance draft in setup() and all VUs attempt to submit it simultaneously — only one succeeds, others get 409.
+---
+
 ## Wed Jul 15 2026 - US-052
 Thread: unavailable
 - Implemented logout endpoint: POST /api/auth/logout

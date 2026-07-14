@@ -1453,7 +1453,7 @@
         "Load test output confirms idempotency, locking, and auth behaviors hold under concurrent load"
       ],
       "notes": "Install k6 binary from https://grafana.com/docs/k6/latest/set-up/install-k6/. Run against local Docker Compose backend. k6 scripts live in tests/k6/.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-052",
