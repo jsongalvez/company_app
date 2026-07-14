@@ -955,7 +955,7 @@
         "Integration tests for notification reading pass"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-032",
