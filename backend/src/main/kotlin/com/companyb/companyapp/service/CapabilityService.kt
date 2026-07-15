@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
+import io.javalin.http.ForbiddenResponse
 import java.util.UUID
 
 /**
@@ -25,6 +26,18 @@ object CapabilityService {
         contextType: CapabilityContextType,
         contextId: UUID,
     ): Boolean = CapabilityRepository.hasCapability(userId, capabilityCode, contextType, contextId)
+
+    fun requireCapability(
+        userId: UUID,
+        capabilityCode: String,
+        contextType: CapabilityContextType,
+        contextId: UUID,
+        message: String = "$capabilityCode capability required",
+    ) {
+        if (!hasCapability(userId, capabilityCode, contextType, contextId)) {
+            throw ForbiddenResponse(message)
+        }
+    }
 
     fun getCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         CapabilityRepository.findCapabilitiesForUser(userId)

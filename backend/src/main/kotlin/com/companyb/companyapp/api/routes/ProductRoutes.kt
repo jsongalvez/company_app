@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.CreateProductRequest
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UpdateProductRequest
@@ -46,17 +47,13 @@ object ProductRoutes {
 
         config.routes.get("/api/products/{$PRODUCT_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val productId =
-                runCatching { UUID.fromString(context.pathParam(PRODUCT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid product id") }
+            val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             context.json(ProductService.findById(callerId, productId).toResponse())
         }
 
         config.routes.patch("/api/products/{$PRODUCT_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val productId =
-                runCatching { UUID.fromString(context.pathParam(PRODUCT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid product id") }
+            val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<UpdateProductRequest>()
             val categoryId =
                 request.productCategoryId?.let {

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.CreateProductCategoryRequest
 import com.companyb.companyapp.dto.ProductCategoryResponse
 import com.companyb.companyapp.repository.model.ProductCategory
@@ -38,9 +39,7 @@ object ProductCategoryRoutes {
 
         config.routes.get("/api/product-categories/{$CATEGORY_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val categoryId =
-                runCatching { UUID.fromString(context.pathParam(CATEGORY_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid category id") }
+            val categoryId = context.pathParamAsUuid(CATEGORY_ID_PARAM)
             context.json(ProductCategoryService.findById(callerId, categoryId).toResponse())
         }
     }

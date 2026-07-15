@@ -1,18 +1,16 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Concern
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ConcernService {
     private val logger = KotlinLogging.logger {}
-
-    private const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
 
     fun listAll(callerId: UUID): List<Concern> {
         checkEditBranchData(callerId)
@@ -108,15 +106,11 @@ object ConcernService {
     }
 
     private fun checkEditBranchData(callerId: UUID) {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
     }
 }

@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -57,14 +58,14 @@ class MonthlyRemittanceSummaryServicePostgresTest {
         insertClient()
         DatabaseTestHelper.grantCapability(
             userId = callerId,
-            capabilityCode = "VIEW_BRANCH_DATA",
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
             contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
         DatabaseTestHelper.grantCapability(
             userId = callerId,
-            capabilityCode = "SUBMIT_REMITTANCE",
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,

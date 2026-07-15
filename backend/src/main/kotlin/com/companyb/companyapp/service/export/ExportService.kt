@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.export
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ExportRepository
 import com.companyb.companyapp.repository.model.Branch
@@ -8,7 +9,6 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.time.LocalDate
 import java.time.Month
@@ -17,8 +17,6 @@ import java.util.UUID
 @Suppress("TooManyFunctions")
 object ExportService {
     private val logger = KotlinLogging.logger {}
-
-    private const val VIEW_BRANCH_DATA = "VIEW_BRANCH_DATA"
 
     fun exportDaily(
         callerId: UUID,
@@ -109,17 +107,12 @@ object ExportService {
         month: Int?,
         format: ExportFormat,
     ): ExportResult {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = VIEW_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[EXPORT] User $callerId lacks $VIEW_BRANCH_DATA capability" }
-            throw ForbiddenResponse("VIEW_BRANCH_DATA capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
 
         val typeName = branchTypeName(branchType)
         val summaries = fetchBranchTypeSummaries(branchType, year, month)
@@ -148,17 +141,12 @@ object ExportService {
         callerId: UUID,
         branchId: UUID,
     ): Branch {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = VIEW_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[EXPORT] User $callerId lacks $VIEW_BRANCH_DATA capability" }
-            throw ForbiddenResponse("VIEW_BRANCH_DATA capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
         return BranchRepository.findById(branchId)
             ?: throw NotFoundResponse("Branch not found")
     }

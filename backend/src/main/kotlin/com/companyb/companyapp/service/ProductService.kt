@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
@@ -7,7 +8,6 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -15,7 +15,6 @@ import java.util.UUID
 
 object ProductService {
     private val logger = KotlinLogging.logger {}
-    private const val MANAGE_PRODUCTS = "MANAGE_PRODUCTS"
     private const val PRICE_SCALE = 2
 
     @Suppress("LongParameterList", "ThrowsCount")
@@ -31,16 +30,13 @@ object ProductService {
         if (cleanName.isBlank()) {
             throw BadRequestResponse("Product name is required")
         }
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_PRODUCTS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to create products")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "MANAGE_PRODUCTS capability required to create products",
+        )
 
         val parsedPrice = parsePrice(unitPrice)
         val parsedCommission = parsePrice(commissionAmount)
@@ -54,17 +50,13 @@ object ProductService {
     }
 
     fun findAllActive(callerId: UUID): List<Product> {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_PRODUCTS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[FIND-PRODUCTS] User $callerId lacks $MANAGE_PRODUCTS capability" }
-            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to list products")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "MANAGE_PRODUCTS capability required to list products",
+        )
         return ProductRepository.findAllActive()
     }
 
@@ -72,17 +64,13 @@ object ProductService {
         callerId: UUID,
         productId: UUID,
     ): Product {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_PRODUCTS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[FIND-PRODUCT] User $callerId lacks $MANAGE_PRODUCTS capability" }
-            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to view products")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "MANAGE_PRODUCTS capability required to view products",
+        )
         return ProductRepository.findById(productId) ?: throw NotFoundResponse("Product not found")
     }
 
@@ -96,16 +84,13 @@ object ProductService {
         commissionAmount: String?,
         isActive: Boolean?,
     ): Product {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_PRODUCTS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to update products")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "MANAGE_PRODUCTS capability required to update products",
+        )
 
         if (name != null && name.trim().isBlank()) {
             throw BadRequestResponse("Product name cannot be blank")

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.repository.model.DailySalesSummary
 import com.companyb.companyapp.service.DailySalesSummaryService
@@ -14,9 +15,7 @@ object DailySalesSummaryRoutes {
     fun register(config: JavalinConfig) {
         config.routes.get("/api/branches/{branchId}/daily-summary") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam("branchId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid("branchId")
             val dateParam =
                 context.queryParam("date")
                     ?: throw BadRequestResponse("date query param is required")

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -21,8 +22,6 @@ import java.util.UUID
 
 object UserBranchAssignmentService {
     private val logger = KotlinLogging.logger {}
-
-    private const val MANAGE_USERS = "MANAGE_USERS"
 
     data class CreateResult(
         val assignment: UserBranchAssignment,
@@ -141,7 +140,7 @@ object UserBranchAssignmentService {
         val canManage =
             CapabilityService.hasCapability(
                 userId = callerId,
-                capabilityCode = MANAGE_USERS,
+                capabilityCode = CapabilityCodes.MANAGE_USERS,
                 contextType = CapabilityContextType.GLOBAL,
                 contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             )
@@ -224,15 +223,11 @@ object UserBranchAssignmentService {
     }
 
     private fun requireManageUsers(callerId: UUID) {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_USERS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("MANAGE_USERS capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_USERS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
     }
 }

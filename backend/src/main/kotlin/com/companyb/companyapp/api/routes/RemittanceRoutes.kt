@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
@@ -73,9 +74,7 @@ object RemittanceRoutes {
 
         config.routes.get("/api/remittances/{remittanceId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val remittanceId =
-                runCatching { UUID.fromString(context.pathParam("remittanceId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid remittance id") }
+            val remittanceId = context.pathParamAsUuid("remittanceId")
 
             val detail = RemittanceService.getRemittance(callerId, remittanceId)
             context.json(detail.toResponse())
@@ -83,9 +82,7 @@ object RemittanceRoutes {
 
         config.routes.post("/api/remittances/{remittanceId}/lines") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val remittanceId =
-                runCatching { UUID.fromString(context.pathParam("remittanceId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid remittance id") }
+            val remittanceId = context.pathParamAsUuid("remittanceId")
             val request = context.bodyAsClass<CreateRemittanceLineRequest>()
 
             val id =
@@ -129,12 +126,8 @@ object RemittanceRoutes {
 
         config.routes.delete("/api/remittances/{remittanceId}/lines/{lineId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val remittanceId =
-                runCatching { UUID.fromString(context.pathParam("remittanceId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid remittance id") }
-            val lineId =
-                runCatching { UUID.fromString(context.pathParam("lineId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid line id") }
+            val remittanceId = context.pathParamAsUuid("remittanceId")
+            val lineId = context.pathParamAsUuid("lineId")
 
             val line = RemittanceService.removeLine(callerId, remittanceId, lineId)
             context.json(line.toResponse())
@@ -142,9 +135,7 @@ object RemittanceRoutes {
 
         config.routes.post("/api/remittances/{remittanceId}/day-breakdowns") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val remittanceId =
-                runCatching { UUID.fromString(context.pathParam("remittanceId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid remittance id") }
+            val remittanceId = context.pathParamAsUuid("remittanceId")
             val request = context.bodyAsClass<AddDayBreakdownRequest>()
 
             val id =
@@ -168,9 +159,7 @@ object RemittanceRoutes {
 
         config.routes.post("/api/remittances/{remittanceId}/submit") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val remittanceId =
-                runCatching { UUID.fromString(context.pathParam("remittanceId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid remittance id") }
+            val remittanceId = context.pathParamAsUuid("remittanceId")
             val request = context.bodyAsClass<SubmitRemittanceRequest>()
 
             val result =

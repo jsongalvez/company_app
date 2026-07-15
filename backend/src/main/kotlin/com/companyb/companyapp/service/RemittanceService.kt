@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
@@ -17,7 +18,6 @@ import com.companyb.companyapp.repository.model.RemittanceType
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -25,8 +25,6 @@ import java.util.UUID
 
 object RemittanceService {
     private val logger = KotlinLogging.logger {}
-
-    private const val SUBMIT_REMITTANCE = "SUBMIT_REMITTANCE"
 
     @Suppress("ThrowsCount", "ReturnCount")
     fun submit(
@@ -38,20 +36,13 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = SUBMIT_REMITTANCE,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = existing.branchId,
-            )
-        if (!authorized) {
-            logger.warn {
-                "[SUBMIT-REMITTANCE] User $callerId lacks $SUBMIT_REMITTANCE" +
-                    " capability for branch ${existing.branchId}"
-            }
-            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required for this branch")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = existing.branchId,
+            message = "SUBMIT_REMITTANCE capability required for this branch",
+        )
 
         if (existing.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only submit DRAFT remittances")
@@ -95,20 +86,13 @@ object RemittanceService {
         dateRangeStart: LocalDate,
         dateRangeEnd: LocalDate,
     ): Remittance {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = SUBMIT_REMITTANCE,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = branchId,
-            )
-        if (!authorized) {
-            logger.warn {
-                "[CREATE-REMITTANCE-DRAFT] User $callerId lacks $SUBMIT_REMITTANCE" +
-                    " capability for branch $branchId"
-            }
-            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required for this branch")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            message = "SUBMIT_REMITTANCE capability required for this branch",
+        )
 
         if (dateRangeEnd.isBefore(dateRangeStart)) {
             throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
@@ -147,20 +131,13 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = SUBMIT_REMITTANCE,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = remittance.branchId,
-            )
-        if (!authorized) {
-            logger.warn {
-                "[ADD-REMITTANCE-LINE] User $callerId lacks $SUBMIT_REMITTANCE" +
-                    " capability for branch ${remittance.branchId}"
-            }
-            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required for this branch")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = remittance.branchId,
+            message = "SUBMIT_REMITTANCE capability required for this branch",
+        )
 
         if (remittance.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only add lines to DRAFT remittances")
@@ -215,20 +192,13 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = SUBMIT_REMITTANCE,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = remittance.branchId,
-            )
-        if (!authorized) {
-            logger.warn {
-                "[DELETE-REMITTANCE-LINE] User $callerId lacks $SUBMIT_REMITTANCE" +
-                    " capability for branch ${remittance.branchId}"
-            }
-            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required for this branch")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = remittance.branchId,
+            message = "SUBMIT_REMITTANCE capability required for this branch",
+        )
 
         if (remittance.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only delete lines from DRAFT remittances")
@@ -260,20 +230,13 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = SUBMIT_REMITTANCE,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = remittance.branchId,
-            )
-        if (!authorized) {
-            logger.warn {
-                "[ADD-REMITTANCE-BREAKDOWN] User $callerId lacks $SUBMIT_REMITTANCE" +
-                    " capability for branch ${remittance.branchId}"
-            }
-            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required for this branch")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = remittance.branchId,
+            message = "SUBMIT_REMITTANCE capability required for this branch",
+        )
 
         if (remittance.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only add day breakdowns to DRAFT remittances")
@@ -303,20 +266,13 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = SUBMIT_REMITTANCE,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = remittance.branchId,
-            )
-        if (!authorized) {
-            logger.warn {
-                "[GET-REMITTANCE] User $callerId lacks $SUBMIT_REMITTANCE" +
-                    " capability for branch ${remittance.branchId}"
-            }
-            throw ForbiddenResponse("SUBMIT_REMITTANCE capability required for this branch")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = remittance.branchId,
+            message = "SUBMIT_REMITTANCE capability required for this branch",
+        )
 
         val lines = RemittanceLineRepository.findByRemittanceId(remittanceId)
         val totalAmount = RemittanceLineRepository.sumAmountsByRemittanceId(remittanceId)

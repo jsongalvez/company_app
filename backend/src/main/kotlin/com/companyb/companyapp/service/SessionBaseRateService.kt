@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
@@ -7,7 +8,6 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.OffsetDateTime
@@ -16,7 +16,6 @@ import java.util.UUID
 
 object SessionBaseRateService {
     private val logger = KotlinLogging.logger {}
-    private const val MANAGE_PRODUCTS = "MANAGE_PRODUCTS"
     private const val FAR_FUTURE_YEAR = 9999
     private const val FAR_FUTURE_MONTH = 12
     private const val FAR_FUTURE_DAY = 31
@@ -45,16 +44,13 @@ object SessionBaseRateService {
         sessionType: SessionType,
         rate: String,
     ): SetRateResult {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_PRODUCTS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to set rates")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "MANAGE_PRODUCTS capability required to set rates",
+        )
 
         val rateAmount =
             runCatching { BigDecimal(rate).setScale(RATE_SCALE, RoundingMode.HALF_UP) }
@@ -74,17 +70,13 @@ object SessionBaseRateService {
         callerId: UUID,
         branchId: UUID,
     ): List<SessionBaseRate> {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = MANAGE_PRODUCTS,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[FIND-RATES] User $callerId lacks $MANAGE_PRODUCTS capability" }
-            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to view rates")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "MANAGE_PRODUCTS capability required to view rates",
+        )
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         return SessionBaseRateRepository.findActiveByBranch(branchId, now)
     }

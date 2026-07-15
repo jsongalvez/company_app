@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.CapabilityContextType
@@ -25,7 +26,6 @@ import java.util.UUID
 object BranchDayService {
     private val logger = KotlinLogging.logger {}
 
-    private const val EDIT_PAST_DAY = "EDIT_PAST_DAY"
     private const val DAY_BOUNDARY_HOUR = 4
     private const val ONE_DAY = 1L
 
@@ -55,7 +55,7 @@ object BranchDayService {
         val hasEditPastDay =
             CapabilityService.hasCapability(
                 userId = userId,
-                capabilityCode = EDIT_PAST_DAY,
+                capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
                 contextType = CapabilityContextType.BRANCH,
                 contextId = branchDay.branchId,
             )

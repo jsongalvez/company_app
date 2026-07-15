@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
 import com.companyb.companyapp.dto.SwapSlotsRequest
@@ -20,9 +21,7 @@ object UserBranchAssignmentRoutes {
     fun register(config: JavalinConfig) {
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/assignments") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<CreateAssignmentRequest>()
             val assignmentId =
                 runCatching { UUID.fromString(request.id) }
@@ -46,9 +45,7 @@ object UserBranchAssignmentRoutes {
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/assignments") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
             context.json(
                 UserBranchAssignmentService.findActiveByBranch(callerId, branchId).map { it.toResponse() },
@@ -57,12 +54,8 @@ object UserBranchAssignmentRoutes {
 
         config.routes.delete("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
-            val targetUserId =
-                runCatching { UUID.fromString(context.pathParam(USER_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid user id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
             UserBranchAssignmentService.remove(callerId, branchId, targetUserId)
             context.status(HttpStatus.NO_CONTENT)
@@ -70,12 +63,8 @@ object UserBranchAssignmentRoutes {
 
         config.routes.patch("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}/slot") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
-            val targetUserId =
-                runCatching { UUID.fromString(context.pathParam(USER_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid user id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
             val request = context.bodyAsClass<UpdateSlotRequest>()
 
             UserBranchAssignmentService.updateSlot(callerId, branchId, targetUserId, request.slot)
@@ -84,9 +73,7 @@ object UserBranchAssignmentRoutes {
 
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/slots/swap") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SwapSlotsRequest>()
             val userIdA =
                 runCatching { UUID.fromString(request.userIdA) }

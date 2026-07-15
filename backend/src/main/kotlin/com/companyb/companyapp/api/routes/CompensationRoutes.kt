@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateCompensationRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
@@ -52,9 +53,7 @@ object CompensationRoutes {
 
         config.routes.patch("/api/compensation/{compensationId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val compensationId =
-                runCatching { UUID.fromString(context.pathParam("compensationId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid compensation id") }
+            val compensationId = context.pathParamAsUuid("compensationId")
             val request = context.bodyAsClass<UpdateCompensationRequest>()
 
             val amount =

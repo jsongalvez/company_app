@@ -1,12 +1,15 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.DayStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
@@ -99,5 +102,24 @@ object CommissionEngineService {
             "[COMMISSION-ENGINE] Recalculated commission for branchDay=$branchDayId: " +
                 "${accumulatedTotals.size} users, ${sales.size} sales"
         }
+    }
+
+    fun manualRecalculate(
+        callerId: UUID,
+        branchDayId: UUID,
+    ) {
+        val branchDay =
+            BranchDayRepository.findById(branchDayId)
+                ?: throw NotFoundResponse("Branch day not found")
+
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchDay.branchId,
+            message = "EDIT_PAST_DAY capability required to manually recalculate commissions on PAST/REMITTED days",
+        )
+
+        recalculate(branchDayId, force = true)
     }
 }

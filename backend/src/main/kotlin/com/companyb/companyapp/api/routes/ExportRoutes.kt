@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.service.export.ExportService
 import io.javalin.config.JavalinConfig
@@ -34,7 +35,7 @@ object ExportRoutes {
 
     private fun handleDailyExport(context: io.javalin.http.Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
-        val branchId = parseBranchId(context.pathParam("branchId"))
+        val branchId = context.pathParamAsUuid("branchId")
         val dateParam =
             context.queryParam("date")
                 ?: throw BadRequestResponse("date query param is required")
@@ -49,7 +50,7 @@ object ExportRoutes {
 
     private fun handleMonthlyExport(context: io.javalin.http.Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
-        val branchId = parseBranchId(context.pathParam("branchId"))
+        val branchId = context.pathParamAsUuid("branchId")
         val year = parseRequiredInt(context, "year")
         val month = parseRequiredInt(context, "month")
         validateMonthRange(month)
@@ -61,7 +62,7 @@ object ExportRoutes {
 
     private fun handleAllTimeExport(context: io.javalin.http.Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
-        val branchId = parseBranchId(context.pathParam("branchId"))
+        val branchId = context.pathParamAsUuid("branchId")
         val format = ExportService.parseFormat(context.queryParam("format"))
 
         val result = ExportService.exportAllTime(callerId, branchId, format)
@@ -91,10 +92,6 @@ object ExportRoutes {
         context.header("Content-Disposition", "attachment; filename=\"${result.fileName}\"")
         context.result(result.bytes)
     }
-
-    private fun parseBranchId(branchIdParam: String): UUID =
-        runCatching { UUID.fromString(branchIdParam) }
-            .getOrElse { throw BadRequestResponse("Invalid branch id") }
 
     private fun parseRequiredInt(
         context: io.javalin.http.Context,

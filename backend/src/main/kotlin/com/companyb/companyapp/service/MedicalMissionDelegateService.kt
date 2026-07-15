@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
@@ -8,15 +9,12 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.InternalServerErrorResponse
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object MedicalMissionDelegateService {
     private val logger = KotlinLogging.logger {}
-
-    private const val ASSIGN_DELEGATE = "ASSIGN_DELEGATE"
 
     @Suppress("ThrowsCount")
     fun assignDelegate(
@@ -25,19 +23,15 @@ object MedicalMissionDelegateService {
         branchId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = ASSIGN_DELEGATE,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("ASSIGN_DELEGATE capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.ASSIGN_DELEGATE,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
 
         val capabilityId =
-            CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")
+            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA)
                 ?: throw InternalServerErrorResponse("EDIT_BRANCH_DATA capability not found")
 
         MedicalMissionDelegateRepository.assignWithCapability(
@@ -78,16 +72,12 @@ object MedicalMissionDelegateService {
             throw NotFoundResponse("Medical mission delegate not found")
         }
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = ASSIGN_DELEGATE,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("ASSIGN_DELEGATE capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.ASSIGN_DELEGATE,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
 
         MedicalMissionDelegateRepository.revokeWithCapability(delegateId)
 

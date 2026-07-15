@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.repository.model.Notification
 import com.companyb.companyapp.service.NotificationService
@@ -21,9 +22,7 @@ object NotificationRoutes {
 
         config.routes.patch("/api/notifications/{notificationId}/read") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val notificationId =
-                runCatching { UUID.fromString(context.pathParam("notificationId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid notification id") }
+            val notificationId = context.pathParamAsUuid("notificationId")
 
             val notification = NotificationService.markRead(callerId, notificationId)
 

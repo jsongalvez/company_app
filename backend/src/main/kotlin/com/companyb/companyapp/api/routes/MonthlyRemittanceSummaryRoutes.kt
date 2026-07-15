@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.repository.model.MonthlyRemittanceSummary
 import com.companyb.companyapp.service.MonthlyRemittanceSummaryService
@@ -16,9 +17,7 @@ object MonthlyRemittanceSummaryRoutes {
     fun register(config: JavalinConfig) {
         config.routes.get("/api/branches/{branchId}/monthly-summary") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam("branchId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid("branchId")
 
             val yearParam =
                 context.queryParam("year")

@@ -1,0 +1,13 @@
+package com.companyb.companyapp.domain
+
+object CapabilityCodes {
+    const val VIEW_BRANCH_DATA = "VIEW_BRANCH_DATA"
+    const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
+    const val EDIT_PAST_DAY = "EDIT_PAST_DAY"
+    const val VOID_SESSION = "VOID_SESSION"
+    const val SUBMIT_REMITTANCE = "SUBMIT_REMITTANCE"
+    const val ASSIGN_COMPENSATION = "ASSIGN_COMPENSATION"
+    const val MANAGE_PRODUCTS = "MANAGE_PRODUCTS"
+    const val MANAGE_USERS = "MANAGE_USERS"
+    const val ASSIGN_DELEGATE = "ASSIGN_DELEGATE"
+}

@@ -29,7 +29,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-022 — soft-deleted expenses + duplicate mapping | — | [ ] |
 | CR-023 — `!!` in runCatching + no-zone OffsetDateTime | — | [ ] |
 | CR-024 — audit in repo + snapshot transaction | — | [ ] |
-| CR-025 — magic strings + duplicated plumbing | — | [ ] |
+| CR-025 — magic strings + duplicated plumbing | — | [x] |
 | CR-026 — test anti-patterns | — | [ ] |
 | CR-027 — N+1 scheduler + notification table | — | [ ] |
 | CR-028 — business logic in route + fake DTOs | — | [ ] |

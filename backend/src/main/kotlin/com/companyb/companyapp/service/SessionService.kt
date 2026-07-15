@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -21,7 +22,6 @@ import com.companyb.companyapp.repository.model.SessionVoid
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -34,20 +34,14 @@ object SessionService {
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
     private fun checkVoidSession(callerId: UUID) {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = VOID_SESSION,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("VOID_SESSION capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.VOID_SESSION,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
     }
 
-    private const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
-    private const val VOID_SESSION = "VOID_SESSION"
     private const val ZERO = "0"
 
     @Suppress("ReturnCount", "ThrowsCount")
@@ -80,16 +74,13 @@ object SessionService {
         bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
     ): SessionCreateResult {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to create sessions")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to create sessions",
+        )
 
         val branchType =
             SessionRepository.getBranchType(branchId)
@@ -164,16 +155,13 @@ object SessionService {
             throw ConflictResponse("Session version mismatch")
         }
 
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to update session status")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to update session status",
+        )
 
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -268,16 +256,12 @@ object SessionService {
     }
 
     private fun checkEditBranchData(callerId: UUID) {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+        )
     }
 
     @Suppress("ReturnCount", "ThrowsCount")

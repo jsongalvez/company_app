@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -402,7 +403,7 @@ class DailySalesSummaryServicePostgresTest {
     private fun grantViewBranchData(userId: UUID) {
         DatabaseTestHelper.grantCapability(
             userId = userId,
-            capabilityCode = "VIEW_BRANCH_DATA",
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
             contextType = CapabilityContextType.GLOBAL,
             contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = userId,

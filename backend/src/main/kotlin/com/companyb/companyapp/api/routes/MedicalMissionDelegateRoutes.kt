@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AssignDelegateRequest
 import com.companyb.companyapp.dto.DelegateResponse
 import com.companyb.companyapp.service.MedicalMissionDelegateService
@@ -46,9 +47,7 @@ object MedicalMissionDelegateRoutes {
     fun revokeDelegate(config: JavalinConfig) {
         config.routes.delete("/api/delegates/{delegateId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val delegateId =
-                runCatching { UUID.fromString(context.pathParam("delegateId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid delegate id") }
+            val delegateId = context.pathParamAsUuid("delegateId")
 
             val result = MedicalMissionDelegateService.revokeDelegate(delegateId, callerId)
 

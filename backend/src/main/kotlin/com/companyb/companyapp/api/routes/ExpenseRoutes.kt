@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse
@@ -49,9 +50,7 @@ object ExpenseRoutes {
 
         config.routes.delete("/api/expenses/{expenseId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val expenseId =
-                runCatching { UUID.fromString(context.pathParam("expenseId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid expense id") }
+            val expenseId = context.pathParamAsUuid("expenseId")
             val request = context.bodyAsClass<DeleteExpenseRequest>()
 
             val expense =

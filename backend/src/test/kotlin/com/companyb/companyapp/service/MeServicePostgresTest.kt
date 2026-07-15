@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
@@ -85,8 +86,8 @@ class MeServicePostgresTest {
 
         val codes = capabilities.map { it.capabilityCode }.toSet()
         assertEquals(2, capabilities.size)
-        assertTrue("EDIT_BRANCH_DATA" in codes)
-        assertTrue("MANAGE_PRODUCTS" in codes)
+        assertTrue(CapabilityCodes.EDIT_BRANCH_DATA in codes)
+        assertTrue(CapabilityCodes.MANAGE_PRODUCTS in codes)
     }
 
     @Test

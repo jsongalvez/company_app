@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
@@ -47,7 +48,7 @@ object ReliefAccessService {
         }
 
         val capabilityId =
-            CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")
+            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA)
                 ?: throw InternalServerErrorResponse("EDIT_BRANCH_DATA capability not found")
 
         val branchDay =

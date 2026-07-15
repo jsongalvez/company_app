@@ -1,6 +1,7 @@
 package com.companyb.companyapp.test
 
 import com.companyb.companyapp.database.DatabaseConfig
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
@@ -56,7 +57,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "MANAGE_USERS" }
+                    .where { CapabilityTable.code eq CapabilityCodes.MANAGE_USERS }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {
@@ -79,7 +80,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "EDIT_BRANCH_DATA" }
+                    .where { CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {
@@ -102,7 +103,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "MANAGE_PRODUCTS" }
+                    .where { CapabilityTable.code eq CapabilityCodes.MANAGE_PRODUCTS }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {
@@ -125,7 +126,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "VOID_SESSION" }
+                    .where { CapabilityTable.code eq CapabilityCodes.VOID_SESSION }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {
@@ -148,7 +149,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "ASSIGN_COMPENSATION" }
+                    .where { CapabilityTable.code eq CapabilityCodes.ASSIGN_COMPENSATION }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {
@@ -171,7 +172,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "ASSIGN_DELEGATE" }
+                    .where { CapabilityTable.code eq CapabilityCodes.ASSIGN_DELEGATE }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {
@@ -195,7 +196,7 @@ object DatabaseTestHelper {
             val capId =
                 CapabilityTable
                     .selectAll()
-                    .where { CapabilityTable.code eq "SUBMIT_REMITTANCE" }
+                    .where { CapabilityTable.code eq CapabilityCodes.SUBMIT_REMITTANCE }
                     .single()[CapabilityTable.id]
 
             UserCapabilityTable.insert {

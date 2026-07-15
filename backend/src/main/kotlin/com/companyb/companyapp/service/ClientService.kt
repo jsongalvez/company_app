@@ -1,19 +1,18 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Client
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ClientService {
     private val logger = KotlinLogging.logger {}
     private val VALID_GENDERS = setOf("M", "F")
-    private const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
 
     @Suppress("LongParameterList", "ReturnCount", "ThrowsCount")
     fun create(
@@ -71,17 +70,13 @@ object ClientService {
         callerId: UUID,
         query: String,
     ): List<Client> {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[SEARCH-CLIENTS] User $callerId lacks $EDIT_BRANCH_DATA capability" }
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to search clients")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to search clients",
+        )
 
         val q = query.trim()
         if (q.isEmpty()) {
@@ -94,17 +89,13 @@ object ClientService {
         callerId: UUID,
         clientId: UUID,
     ): Client {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            logger.warn { "[FIND-CLIENT] User $callerId lacks $EDIT_BRANCH_DATA capability" }
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to view clients")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to view clients",
+        )
         return ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
     }
 
@@ -124,16 +115,13 @@ object ClientService {
         diastolicBp: Short?,
         medicalConditions: String?,
     ): Client {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to update clients")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to update clients",
+        )
 
         if (firstName != null && firstName.trim().isBlank()) {
             throw BadRequestResponse("First name cannot be blank")
@@ -175,16 +163,13 @@ object ClientService {
         callerId: UUID,
         clientId: UUID,
     ) {
-        val authorized =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            )
-        if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to anonymize clients")
-        }
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to anonymize clients",
+        )
 
         val updated = ClientRepository.anonymize(clientId, callerId)
         if (!updated) {

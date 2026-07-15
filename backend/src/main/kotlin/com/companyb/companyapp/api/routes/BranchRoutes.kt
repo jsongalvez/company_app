@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateBranchRequest
 import com.companyb.companyapp.repository.model.Branch
@@ -39,9 +40,7 @@ object BranchRoutes {
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             context.json(BranchService.findById(callerId, branchId).toResponse())
         }
     }

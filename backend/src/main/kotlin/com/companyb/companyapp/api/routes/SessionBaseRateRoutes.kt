@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.SetRateRequest
 import com.companyb.companyapp.repository.model.SessionBaseRate
@@ -17,9 +18,7 @@ object SessionBaseRateRoutes {
     fun register(config: JavalinConfig) {
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SetRateRequest>()
             val rateId =
                 runCatching { UUID.fromString(request.id) }
@@ -40,9 +39,7 @@ object SessionBaseRateRoutes {
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
             context.json(SessionBaseRateService.findActiveRates(callerId, branchId).map { it.toResponse() })
         }

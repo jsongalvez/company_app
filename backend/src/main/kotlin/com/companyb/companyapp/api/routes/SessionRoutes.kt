@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
@@ -88,9 +89,7 @@ object SessionRoutes {
 
         config.routes.patch("/api/sessions/{sessionId}/status") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
             val newStatus =
@@ -105,9 +104,7 @@ object SessionRoutes {
 
         config.routes.post("/api/sessions/{sessionId}/void") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<VoidSessionRequest>()
 
             val voidId =
@@ -125,9 +122,7 @@ object SessionRoutes {
 
         config.routes.post("/api/sessions/{sessionId}/unvoid") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<UnvoidSessionRequest>()
 
             if (request.unvoidedReason.isBlank()) {
@@ -142,9 +137,7 @@ object SessionRoutes {
 
         config.routes.post("/api/sessions/{sessionId}/practitioners") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<AddPractitionerRequest>()
 
             val practitionerId =
@@ -169,12 +162,8 @@ object SessionRoutes {
 
         config.routes.patch("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
-            val practitionerId =
-                runCatching { UUID.fromString(context.pathParam("practitionerId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
+            val practitionerId = context.pathParamAsUuid("practitionerId")
             val request = context.bodyAsClass<UpdatePractitionerRemarksRequest>()
 
             val updated =
@@ -191,12 +180,8 @@ object SessionRoutes {
 
         config.routes.delete("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
-            val practitionerId =
-                runCatching { UUID.fromString(context.pathParam("practitionerId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
+            val practitionerId = context.pathParamAsUuid("practitionerId")
 
             SessionService.removePractitioner(
                 callerId = callerId,
@@ -215,9 +200,7 @@ object SessionRoutes {
 
         config.routes.get("/api/sessions/{sessionId}/concerns") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
 
             val concerns = ConcernService.getForSession(callerId, sessionId)
             context.json(concerns.map { it.toResponse() })
@@ -225,9 +208,7 @@ object SessionRoutes {
 
         config.routes.post("/api/sessions/{sessionId}/concerns") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<AddSessionConcernRequest>()
 
             val concernId =
@@ -240,12 +221,8 @@ object SessionRoutes {
 
         config.routes.delete("/api/sessions/{sessionId}/concerns/{concernId}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
-            val concernId =
-                runCatching { UUID.fromString(context.pathParam("concernId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid concern id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
+            val concernId = context.pathParamAsUuid("concernId")
 
             ConcernService.removeFromSession(callerId, sessionId, concernId)
             context.status(HttpStatus.NO_CONTENT)
@@ -253,9 +230,7 @@ object SessionRoutes {
 
         config.routes.post("/api/sessions/{sessionId}/promote-concern") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val sessionId =
-                runCatching { UUID.fromString(context.pathParam("sessionId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
+            val sessionId = context.pathParamAsUuid("sessionId")
             val request = context.bodyAsClass<PromoteConcernRequest>()
 
             if (request.label.isBlank()) {

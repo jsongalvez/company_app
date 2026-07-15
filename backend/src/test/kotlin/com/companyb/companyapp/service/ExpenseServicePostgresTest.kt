@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -415,7 +416,7 @@ class ExpenseServicePostgresTest {
     private fun grantEditBranchData(userId: UUID) {
         DatabaseTestHelper.grantCapability(
             userId = userId,
-            capabilityCode = "EDIT_BRANCH_DATA",
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,

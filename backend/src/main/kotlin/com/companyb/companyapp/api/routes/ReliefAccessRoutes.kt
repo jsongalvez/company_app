@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.service.ReliefAccessService
@@ -14,9 +15,7 @@ object ReliefAccessRoutes {
     fun grantReliefAccess(config: JavalinConfig) {
         config.routes.patch("/api/relief-access/{requestId}/grant") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val requestId =
-                runCatching { UUID.fromString(context.pathParam("requestId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid request id") }
+            val requestId = context.pathParamAsUuid("requestId")
 
             val result = ReliefAccessService.grantAccess(requestId, callerId)
 
@@ -39,9 +38,7 @@ object ReliefAccessRoutes {
     fun denyReliefAccess(config: JavalinConfig) {
         config.routes.patch("/api/relief-access/{requestId}/deny") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val requestId =
-                runCatching { UUID.fromString(context.pathParam("requestId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid request id") }
+            val requestId = context.pathParamAsUuid("requestId")
 
             val result = ReliefAccessService.denyAccess(requestId, callerId)
 

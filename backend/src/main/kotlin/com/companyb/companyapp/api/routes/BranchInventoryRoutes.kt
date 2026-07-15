@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
@@ -23,9 +24,7 @@ object BranchInventoryRoutes {
     fun register(config: JavalinConfig) {
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<AddInventoryCardRequest>()
             val productId =
                 runCatching { UUID.fromString(request.productId) }
@@ -42,12 +41,8 @@ object BranchInventoryRoutes {
 
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/restock") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
-            val productId =
-                runCatching { UUID.fromString(context.pathParam(PRODUCT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid product id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<RestockRequest>()
             val movementId =
                 runCatching { UUID.fromString(request.id) }
@@ -72,9 +67,7 @@ object BranchInventoryRoutes {
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
             context.json(
                 BranchInventoryService.findByBranch(callerId, branchId).map { it.toResponse() },
@@ -83,12 +76,8 @@ object BranchInventoryRoutes {
 
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/movement") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId =
-                runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
-            val productId =
-                runCatching { UUID.fromString(context.pathParam(PRODUCT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid product id") }
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<InventoryMovementRequest>()
             val movementId =
                 runCatching { UUID.fromString(request.movementId) }

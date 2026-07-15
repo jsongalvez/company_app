@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.UpdateClientRequest
@@ -52,17 +53,13 @@ object ClientRoutes {
 
         config.routes.get("/api/clients/{$CLIENT_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val clientId =
-                runCatching { UUID.fromString(context.pathParam(CLIENT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid client id") }
+            val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
             context.json(ClientService.findById(callerId, clientId).toResponse())
         }
 
         config.routes.patch("/api/clients/{$CLIENT_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val clientId =
-                runCatching { UUID.fromString(context.pathParam(CLIENT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid client id") }
+            val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
             val request = context.bodyAsClass<UpdateClientRequest>()
 
             val updated =
@@ -88,9 +85,7 @@ object ClientRoutes {
 
         config.routes.post("/api/clients/{$CLIENT_ID_PARAM}/anonymize") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val clientId =
-                runCatching { UUID.fromString(context.pathParam(CLIENT_ID_PARAM)) }
-                    .getOrElse { throw BadRequestResponse("Invalid client id") }
+            val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
 
             ClientService.anonymize(callerId, clientId)
             context.status(HttpStatus.NO_CONTENT)

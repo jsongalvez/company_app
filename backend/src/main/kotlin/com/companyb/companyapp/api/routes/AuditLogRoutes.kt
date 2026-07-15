@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.service.AuditLogService
@@ -36,9 +37,7 @@ object AuditLogRoutes {
 
         config.routes.patch("/api/audit-log/{entryId}/acknowledge") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val entryId =
-                runCatching { UUID.fromString(context.pathParam("entryId")) }
-                    .getOrElse { throw BadRequestResponse("Invalid entry id") }
+            val entryId = context.pathParamAsUuid("entryId")
 
             val entry = AuditLogService.acknowledge(callerId, entryId)
 
