@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.SessionBaseRate
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import java.math.BigDecimal
@@ -14,6 +15,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 object SessionBaseRateService {
+    private val logger = KotlinLogging.logger {}
     private const val MANAGE_PRODUCTS = "MANAGE_PRODUCTS"
     private const val FAR_FUTURE_YEAR = 9999
     private const val FAR_FUTURE_MONTH = 12
@@ -68,7 +70,21 @@ object SessionBaseRateService {
         return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rateAmount, FAR_FUTURE)
     }
 
-    fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
+    fun findActiveRates(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<SessionBaseRate> {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = MANAGE_PRODUCTS,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            logger.warn { "[FIND-RATES] User $callerId lacks $MANAGE_PRODUCTS capability" }
+            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to view rates")
+        }
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         return SessionBaseRateRepository.findActiveByBranch(branchId, now)
     }

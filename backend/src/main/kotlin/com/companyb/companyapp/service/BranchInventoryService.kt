@@ -184,7 +184,21 @@ object BranchInventoryService {
         }
     }
 
-    fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> {
+    fun findByBranch(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<BranchInventoryWithProduct> {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = MANAGE_PRODUCTS,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            throw ForbiddenResponse("MANAGE_PRODUCTS capability required to view branch inventory")
+        }
+
         if (BranchRepository.findById(branchId) == null) {
             throw NotFoundResponse("Branch not found")
         }

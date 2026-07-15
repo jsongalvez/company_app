@@ -32,14 +32,16 @@ object ProductCategoryRoutes {
         }
 
         config.routes.get("/api/product-categories") { context ->
-            context.json(ProductCategoryService.findAll().map { it.toResponse() })
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            context.json(ProductCategoryService.findAll(callerId).map { it.toResponse() })
         }
 
         config.routes.get("/api/product-categories/{$CATEGORY_ID_PARAM}") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val categoryId =
                 runCatching { UUID.fromString(context.pathParam(CATEGORY_ID_PARAM)) }
                     .getOrElse { throw BadRequestResponse("Invalid category id") }
-            context.json(ProductCategoryService.findById(categoryId).toResponse())
+            context.json(ProductCategoryService.findById(callerId, categoryId).toResponse())
         }
     }
 

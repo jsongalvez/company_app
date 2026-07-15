@@ -87,8 +87,8 @@ class BranchServicePostgresTest {
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 
-        val found = BranchService.findById(medicalMissionId)
-        val allBranchIds = BranchService.findAll().map { it.id }.toSet()
+        val found = BranchService.findById(callerId, medicalMissionId)
+        val allBranchIds = BranchService.findAll(callerId).map { it.id }.toSet()
 
         assertEquals("Free Mission", found.name)
         assertTrue(clinicId in allBranchIds)
@@ -103,6 +103,26 @@ class BranchServicePostgresTest {
 
         assertFalse(branchExists(clinicId))
         assertEquals(0L, auditEntryCount(clinicId))
+    }
+
+    @Test
+    fun `findAll without MANAGE_USERS is forbidden`() {
+        assertFailsWith<ForbiddenResponse> {
+            BranchService.findAll(callerId)
+        }
+    }
+
+    @Test
+    fun `findById without MANAGE_USERS is forbidden`() {
+        grantManageUsers(callerId)
+        BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
+
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            BranchService.findById(otherCaller, clinicId)
+        }
     }
 
     private fun insertUser(userId: UUID) {

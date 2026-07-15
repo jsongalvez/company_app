@@ -33,14 +33,16 @@ object BranchRoutes {
         }
 
         config.routes.get("/api/branches") { context ->
-            context.json(BranchService.findAll().map { it.toResponse() })
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            context.json(BranchService.findAll(callerId).map { it.toResponse() })
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId =
                 runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
                     .getOrElse { throw BadRequestResponse("Invalid branch id") }
-            context.json(BranchService.findById(branchId).toResponse())
+            context.json(BranchService.findById(callerId, branchId).toResponse())
         }
     }
 

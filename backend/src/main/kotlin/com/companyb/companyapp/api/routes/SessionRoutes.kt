@@ -208,16 +208,18 @@ object SessionRoutes {
         }
 
         config.routes.get("/api/concerns") { context ->
-            val concerns = ConcernService.listAll()
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val concerns = ConcernService.listAll(callerId)
             context.json(concerns.map { it.toResponse() })
         }
 
         config.routes.get("/api/sessions/{sessionId}/concerns") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val sessionId =
                 runCatching { UUID.fromString(context.pathParam("sessionId")) }
                     .getOrElse { throw BadRequestResponse("Invalid session id") }
 
-            val concerns = ConcernService.getForSession(sessionId)
+            val concerns = ConcernService.getForSession(callerId, sessionId)
             context.json(concerns.map { it.toResponse() })
         }
 

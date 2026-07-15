@@ -4,12 +4,14 @@ import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Client
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ClientService {
+    private val logger = KotlinLogging.logger {}
     private val VALID_GENDERS = setOf("M", "F")
     private const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
 
@@ -65,7 +67,22 @@ object ClientService {
         )
     }
 
-    fun search(query: String): List<Client> {
+    fun search(
+        callerId: UUID,
+        query: String,
+    ): List<Client> {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            logger.warn { "[SEARCH-CLIENTS] User $callerId lacks $EDIT_BRANCH_DATA capability" }
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to search clients")
+        }
+
         val q = query.trim()
         if (q.isEmpty()) {
             throw BadRequestResponse("Search query is required")
@@ -73,8 +90,23 @@ object ClientService {
         return ClientRepository.search(q)
     }
 
-    fun findById(clientId: UUID): Client =
-        ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
+    fun findById(
+        callerId: UUID,
+        clientId: UUID,
+    ): Client {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) {
+            logger.warn { "[FIND-CLIENT] User $callerId lacks $EDIT_BRANCH_DATA capability" }
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required to view clients")
+        }
+        return ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
+    }
 
     @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "CyclomaticComplexMethod")
     fun update(

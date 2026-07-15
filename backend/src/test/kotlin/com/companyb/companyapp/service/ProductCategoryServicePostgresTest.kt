@@ -83,7 +83,7 @@ class ProductCategoryServicePostgresTest {
         ProductCategoryService.create(callerId, cat1Id, "Category A")
         ProductCategoryService.create(callerId, cat2Id, "Category B")
 
-        val all = ProductCategoryService.findAll()
+        val all = ProductCategoryService.findAll(callerId)
         val allIds = all.map { it.id }.toSet()
 
         assertTrue(cat1Id in allIds)
@@ -95,7 +95,7 @@ class ProductCategoryServicePostgresTest {
         grantManageProducts(callerId)
         ProductCategoryService.create(callerId, cat1Id, "Test Category")
 
-        val found = ProductCategoryService.findById(cat1Id)
+        val found = ProductCategoryService.findById(callerId, cat1Id)
 
         assertEquals("Test Category", found.name)
     }
@@ -108,6 +108,26 @@ class ProductCategoryServicePostgresTest {
 
         assertFalse(categoryExists(cat1Id))
         assertEquals(0L, auditEntryCount(cat1Id))
+    }
+
+    @Test
+    fun `findAll without MANAGE_PRODUCTS is forbidden`() {
+        assertFailsWith<ForbiddenResponse> {
+            ProductCategoryService.findAll(callerId)
+        }
+    }
+
+    @Test
+    fun `findById without MANAGE_PRODUCTS is forbidden`() {
+        grantManageProducts(callerId)
+        ProductCategoryService.create(callerId, cat1Id, "Test Category")
+
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            ProductCategoryService.findById(otherCaller, cat1Id)
+        }
     }
 
     private fun insertUser(userId: UUID) {

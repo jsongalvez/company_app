@@ -313,7 +313,7 @@ class UserBranchAssignmentServicePostgresTest {
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userBId, 5)
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
 
-        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
         assertEquals(2, assignments.size)
         assertEquals(userAId, assignments[0].userId)
@@ -330,10 +330,17 @@ class UserBranchAssignmentServicePostgresTest {
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
         UserBranchAssignmentService.remove(callerId, branchId, userBId)
 
-        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
         assertEquals(1, assignments.size)
         assertEquals(userAId, assignments[0].userId)
+    }
+
+    @Test
+    fun `findActiveByBranch without MANAGE_USERS is forbidden`() {
+        assertFailsWith<ForbiddenResponse> {
+            UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
+        }
     }
 
     private fun insertUser(

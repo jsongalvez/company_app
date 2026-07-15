@@ -71,12 +71,13 @@ object BranchInventoryRoutes {
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId =
                 runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
                     .getOrElse { throw BadRequestResponse("Invalid branch id") }
 
             context.json(
-                BranchInventoryService.findByBranch(branchId).map { it.toResponse() },
+                BranchInventoryService.findByBranch(callerId, branchId).map { it.toResponse() },
             )
         }
 

@@ -119,7 +119,7 @@ class ProductServicePostgresTest {
             commissionAmount = "20.00",
         )
 
-        val all = ProductService.findAllActive()
+        val all = ProductService.findAllActive(callerId)
         val allIds = all.map { it.id }.toSet()
 
         assertTrue(productId in allIds)
@@ -138,7 +138,7 @@ class ProductServicePostgresTest {
             commissionAmount = "25.00",
         )
 
-        val found = ProductService.findById(productId)
+        val found = ProductService.findById(callerId, productId)
         assertEquals("Test Product", found.name)
     }
 
@@ -182,6 +182,33 @@ class ProductServicePostgresTest {
                 unitPrice = "250.00",
                 commissionAmount = "25.00",
             )
+        }
+    }
+
+    @Test
+    fun `findAllActive without MANAGE_PRODUCTS is forbidden`() {
+        assertFailsWith<ForbiddenResponse> {
+            ProductService.findAllActive(callerId)
+        }
+    }
+
+    @Test
+    fun `findById without MANAGE_PRODUCTS is forbidden`() {
+        grantManageProducts(callerId)
+        ProductService.create(
+            callerId = callerId,
+            id = productId,
+            name = "Test Product",
+            productCategoryId = categoryId,
+            unitPrice = "250.00",
+            commissionAmount = "25.00",
+        )
+
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            ProductService.findById(otherCaller, productId)
         }
     }
 

@@ -214,8 +214,13 @@ object UserBranchAssignmentService {
         logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }
     }
 
-    fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =
-        UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    fun findActiveByBranch(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<UserBranchAssignment> {
+        requireManageUsers(callerId)
+        return UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    }
 
     private fun requireManageUsers(callerId: UUID) {
         val authorized =

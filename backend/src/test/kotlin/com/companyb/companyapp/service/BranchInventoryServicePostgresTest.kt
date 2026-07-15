@@ -64,7 +64,7 @@ class BranchInventoryServicePostgresTest {
 
         BranchInventoryService.ensureCard(callerId, branchId, productId)
 
-        val cards = BranchInventoryService.findByBranch(branchId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertEquals(1, cards.size)
         assertEquals(productId, cards[0].inventory.productId)
         assertEquals(0, cards[0].inventory.currentStock)
@@ -117,7 +117,7 @@ class BranchInventoryServicePostgresTest {
         assertEquals(10, movement.quantityChange)
         assertEquals("RESTOCK", movement.reason.name)
 
-        val cards = BranchInventoryService.findByBranch(branchId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertEquals(10, cards[0].inventory.currentStock)
         assertEquals(2, cards[0].inventory.version)
     }
@@ -203,14 +203,23 @@ class BranchInventoryServicePostgresTest {
 
     @Test
     fun `findByBranch returns empty for branch with no inventory`() {
-        val cards = BranchInventoryService.findByBranch(branchId)
+        grantManageProducts(callerId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertTrue(cards.isEmpty())
     }
 
     @Test
+    fun `findByBranch without MANAGE_PRODUCTS is forbidden`() {
+        assertFailsWith<ForbiddenResponse> {
+            BranchInventoryService.findByBranch(callerId, branchId)
+        }
+    }
+
+    @Test
     fun `findByBranch with non-existent branch returns not found`() {
+        grantManageProducts(callerId)
         assertFailsWith<NotFoundResponse> {
-            BranchInventoryService.findByBranch(UUID.randomUUID())
+            BranchInventoryService.findByBranch(callerId, UUID.randomUUID())
         }
     }
 
@@ -243,7 +252,7 @@ class BranchInventoryServicePostgresTest {
         assertEquals(-2, movement.quantityChange)
         assertEquals(InventoryMovementReason.TESTER, movement.reason)
 
-        val cards = BranchInventoryService.findByBranch(branchId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertEquals(8, cards[0].inventory.currentStock)
         assertEquals(3, cards[0].inventory.version)
     }
@@ -277,7 +286,7 @@ class BranchInventoryServicePostgresTest {
         assertEquals(-3, movement.quantityChange)
         assertEquals(InventoryMovementReason.SAMPLE, movement.reason)
 
-        val cards = BranchInventoryService.findByBranch(branchId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertEquals(7, cards[0].inventory.currentStock)
     }
 
@@ -310,7 +319,7 @@ class BranchInventoryServicePostgresTest {
         assertEquals(-1, movement.quantityChange)
         assertEquals("Lost during inventory count", movement.notes)
 
-        val cards = BranchInventoryService.findByBranch(branchId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertEquals(9, cards[0].inventory.currentStock)
     }
 
@@ -342,7 +351,7 @@ class BranchInventoryServicePostgresTest {
 
         assertEquals(5, movement.quantityChange)
 
-        val cards = BranchInventoryService.findByBranch(branchId)
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
         assertEquals(15, cards[0].inventory.currentStock)
     }
 

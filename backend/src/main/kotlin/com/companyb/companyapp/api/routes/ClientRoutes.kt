@@ -45,15 +45,17 @@ object ClientRoutes {
         }
 
         config.routes.get("/api/clients") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val query = context.queryParam("q") ?: throw BadRequestResponse("Query parameter 'q' is required")
-            context.json(ClientService.search(query).map { it.toResponse() })
+            context.json(ClientService.search(callerId, query).map { it.toResponse() })
         }
 
         config.routes.get("/api/clients/{$CLIENT_ID_PARAM}") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val clientId =
                 runCatching { UUID.fromString(context.pathParam(CLIENT_ID_PARAM)) }
                     .getOrElse { throw BadRequestResponse("Invalid client id") }
-            context.json(ClientService.findById(clientId).toResponse())
+            context.json(ClientService.findById(callerId, clientId).toResponse())
         }
 
         config.routes.patch("/api/clients/{$CLIENT_ID_PARAM}") { context ->

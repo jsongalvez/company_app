@@ -53,6 +53,7 @@ class AuditLogServicePostgresTest {
 
     @Test
     fun `findByTableAndRecord returns matching entries`() {
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
         insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
 
         val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
@@ -65,12 +66,23 @@ class AuditLogServicePostgresTest {
 
     @Test
     fun `findByTableAndRecord returns empty list for no matches`() {
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
         val entries = AuditLogService.findByTableAndRecord(callerId, "non_existent", UUID.randomUUID())
         assertTrue(entries.isEmpty())
     }
 
     @Test
+    fun `findByTableAndRecord without ASSIGN_COMPENSATION is forbidden`() {
+        insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
+
+        assertFailsWith<ForbiddenResponse> {
+            AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
+        }
+    }
+
+    @Test
     fun `findByTableAndRecord returns multiple entries ordered by changed_at desc`() {
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
         val entryId1 = UUID.randomUUID()
         val entryId2 = UUID.randomUUID()
         insertAuditEntryWithId(entryId1, recordId, tableName, AuditAction.INSERT, false)
@@ -83,6 +95,7 @@ class AuditLogServicePostgresTest {
 
     @Test
     fun `findFlagged returns only unacknowledged flagged entries`() {
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
         insertAuditEntry(UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
         insertAuditEntry(UUID.randomUUID(), "t2", AuditAction.UPDATE, false)
 
@@ -94,12 +107,22 @@ class AuditLogServicePostgresTest {
 
     @Test
     fun `findFlagged excludes acknowledged flagged entries`() {
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
         val entryId = UUID.randomUUID()
         insertAuditEntryWithId(entryId, UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
         acknowledgeEntryDirectly(entryId)
 
         val entries = AuditLogService.findFlagged(callerId)
         assertTrue(entries.none { it.id == entryId })
+    }
+
+    @Test
+    fun `findFlagged without ASSIGN_COMPENSATION is forbidden`() {
+        insertAuditEntry(UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
+
+        assertFailsWith<ForbiddenResponse> {
+            AuditLogService.findFlagged(callerId)
+        }
     }
 
     @Test

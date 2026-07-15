@@ -134,8 +134,9 @@ class ClientServicePostgresTest {
     @Test
     fun `find by id returns persisted client`() {
         createClient(callerId, clientAId)
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val found = ClientService.findById(clientAId)
+        val found = ClientService.findById(callerId, clientAId)
 
         assertEquals("John", found.firstName)
         assertEquals("Doe", found.lastName)
@@ -143,8 +144,18 @@ class ClientServicePostgresTest {
 
     @Test
     fun `find by id throws not found for missing client`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         assertFailsWith<NotFoundResponse> {
-            ClientService.findById(UUID.randomUUID())
+            ClientService.findById(callerId, UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `findById without EDIT_BRANCH_DATA is forbidden`() {
+        createClient(callerId, clientAId)
+
+        assertFailsWith<ForbiddenResponse> {
+            ClientService.findById(callerId, clientAId)
         }
     }
 
@@ -152,8 +163,9 @@ class ClientServicePostgresTest {
     fun `search matches by first name`() {
         createClient(callerId, clientAId, firstName = "John")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("John")
+        val results = ClientService.search(callerId, "John")
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
@@ -163,8 +175,9 @@ class ClientServicePostgresTest {
     fun `search matches by last name`() {
         createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("Doe")
+        val results = ClientService.search(callerId, "Doe")
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
@@ -174,8 +187,9 @@ class ClientServicePostgresTest {
     fun `search matches by phone prefix`() {
         createClient(callerId, clientAId, phoneNumber = "1234567890")
         createClient(callerId, clientBId, phoneNumber = "9876543210")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("1234")
+        val results = ClientService.search(callerId, "1234")
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
@@ -183,16 +197,27 @@ class ClientServicePostgresTest {
 
     @Test
     fun `search rejects empty query`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         assertFailsWith<BadRequestResponse> {
-            ClientService.search("   ")
+            ClientService.search(callerId, "   ")
+        }
+    }
+
+    @Test
+    fun `search without EDIT_BRANCH_DATA is forbidden`() {
+        createClient(callerId, clientAId, firstName = "John")
+
+        assertFailsWith<ForbiddenResponse> {
+            ClientService.search(callerId, "John")
         }
     }
 
     @Test
     fun `search is case-insensitive`() {
         createClient(callerId, clientAId, firstName = "John")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("john")
+        val results = ClientService.search(callerId, "john")
 
         assertTrue(results.any { it.id == clientAId })
     }
@@ -201,8 +226,9 @@ class ClientServicePostgresTest {
     fun `search supports typo tolerance with trigram similarity`() {
         createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("Jhn")
+        val results = ClientService.search(callerId, "Jhn")
 
         assertTrue(results.any { it.id == clientAId }, "Typo 'Jhn' should match 'John' via trigram similarity")
         assertFalse(results.any { it.id == clientBId })
@@ -212,8 +238,9 @@ class ClientServicePostgresTest {
     fun `search supports typo tolerance for multi-character typos`() {
         createClient(callerId, clientAId, firstName = "Maria", lastName = "Garcia")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("Mria")
+        val results = ClientService.search(callerId, "Mria")
 
         assertTrue(results.any { it.id == clientAId }, "Typo 'Mria' should match 'Maria' via trigram similarity")
         assertFalse(results.any { it.id == clientBId })
@@ -223,8 +250,9 @@ class ClientServicePostgresTest {
     fun `search ranks exact matches above fuzzy matches`() {
         createClient(callerId, clientAId, firstName = "Jon", lastName = "Smith")
         createClient(callerId, clientBId, firstName = "John", lastName = "Bravo")
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search("John")
+        val results = ClientService.search(callerId, "John")
 
         assertTrue(results.any { it.id == clientBId }, "Exact ILIKE match 'John' should match 'John Bravo'")
         assertTrue(results.any { it.id == clientAId }, "Fuzzy match 'Jon Smith' should match via trigram for 'John'")
@@ -455,7 +483,7 @@ class ClientServicePostgresTest {
 
         ClientService.anonymize(callerId, clientAId)
 
-        val results = ClientService.search("Searchable")
+        val results = ClientService.search(callerId, "Searchable")
         assertTrue(results.none { it.id == clientAId })
     }
 
@@ -466,7 +494,7 @@ class ClientServicePostgresTest {
 
         ClientService.anonymize(callerId, clientAId)
 
-        val found = ClientService.findById(clientAId)
+        val found = ClientService.findById(callerId, clientAId)
         assertEquals(clientAId, found.id)
         assertEquals("", found.firstName)
     }

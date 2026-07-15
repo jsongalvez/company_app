@@ -39,11 +39,12 @@ object SessionBaseRateRoutes {
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId =
                 runCatching { UUID.fromString(context.pathParam(BRANCH_ID_PARAM)) }
                     .getOrElse { throw BadRequestResponse("Invalid branch id") }
 
-            context.json(SessionBaseRateService.findActiveRates(branchId).map { it.toResponse() })
+            context.json(SessionBaseRateService.findActiveRates(callerId, branchId).map { it.toResponse() })
         }
     }
 

@@ -72,7 +72,7 @@ class ConcernServicePostgresTest {
 
     @Test
     fun `list concerns returns all concerns including system-seeded`() {
-        val concerns = ConcernService.listAll()
+        val concerns = ConcernService.listAll(callerId)
 
         assertTrue(concerns.isNotEmpty())
         val systemConcern = concerns.find { it.id == systemConcernId }
@@ -82,10 +82,20 @@ class ConcernServicePostgresTest {
     }
 
     @Test
+    fun `listAll without EDIT_BRANCH_DATA is forbidden`() {
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            ConcernService.listAll(otherCaller)
+        }
+    }
+
+    @Test
     fun `add concern to session succeeds and writes audit`() {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = ConcernService.getForSession(callerId, sessionId)
         assertEquals(1, concerns.size)
         assertEquals(systemConcernId, concerns[0].id)
 
@@ -104,7 +114,7 @@ class ConcernServicePostgresTest {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = ConcernService.getForSession(callerId, sessionId)
         assertEquals(1, concerns.size)
     }
 
@@ -138,7 +148,7 @@ class ConcernServicePostgresTest {
 
         ConcernService.removeFromSession(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = ConcernService.getForSession(callerId, sessionId)
         assertTrue(concerns.isEmpty())
 
         val auditCount =
@@ -181,7 +191,7 @@ class ConcernServicePostgresTest {
         assertEquals("Back Pain", promoted.label)
         assertEquals(callerId, promoted.createdBy)
 
-        val concerns = ConcernService.getForSession(promotedSessionId)
+        val concerns = ConcernService.getForSession(callerId, promotedSessionId)
         assertTrue(concerns.any { it.id == promoted.id })
 
         val session = SessionRepository.findById(promotedSessionId)!!
@@ -192,9 +202,19 @@ class ConcernServicePostgresTest {
     fun `promoted concern is discoverable in all concerns list`() {
         val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Neck Pain")
 
-        val allConcerns = ConcernService.listAll()
+        val allConcerns = ConcernService.listAll(callerId)
         assertTrue(allConcerns.any { it.id == promoted.id })
         assertNotNull(allConcerns.find { it.id == promoted.id }?.createdBy)
+    }
+
+    @Test
+    fun `getForSession without EDIT_BRANCH_DATA is forbidden`() {
+        val otherCaller = UUID.randomUUID()
+        insertUser(otherCaller)
+
+        assertFailsWith<ForbiddenResponse> {
+            ConcernService.getForSession(otherCaller, promotedSessionId)
+        }
     }
 
     @Test

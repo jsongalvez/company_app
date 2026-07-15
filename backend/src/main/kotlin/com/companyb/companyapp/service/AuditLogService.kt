@@ -16,11 +16,29 @@ object AuditLogService {
         tableName: String,
         recordId: UUID,
     ): List<AuditLogEntry> {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = "ASSIGN_COMPENSATION",
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) throw ForbiddenResponse("ASSIGN_COMPENSATION capability required to view audit entries")
+
         logger.info { "[AUDIT-LIST] $callerId fetching audit entries for $tableName/$recordId" }
         return AuditLogRepository.findByTableAndRecord(tableName, recordId)
     }
 
     fun findFlagged(callerId: UUID): List<AuditLogEntry> {
+        val authorized =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = "ASSIGN_COMPENSATION",
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!authorized) throw ForbiddenResponse("ASSIGN_COMPENSATION capability required to view flagged entries")
+
         logger.info { "[AUDIT-FLAGGED] $callerId fetching unacknowledged flagged entries" }
         return AuditLogRepository.findFlagged()
     }

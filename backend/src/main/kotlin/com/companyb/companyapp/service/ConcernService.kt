@@ -14,9 +14,16 @@ object ConcernService {
 
     private const val EDIT_BRANCH_DATA = "EDIT_BRANCH_DATA"
 
-    fun listAll(): List<Concern> = ConcernRepository.findAll()
+    fun listAll(callerId: UUID): List<Concern> {
+        checkEditBranchData(callerId)
+        return ConcernRepository.findAll()
+    }
 
-    fun getForSession(sessionId: UUID): List<Concern> {
+    fun getForSession(
+        callerId: UUID,
+        sessionId: UUID,
+    ): List<Concern> {
+        checkEditBranchData(callerId)
         SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         return ConcernRepository.getConcernsForSession(sessionId)
     }

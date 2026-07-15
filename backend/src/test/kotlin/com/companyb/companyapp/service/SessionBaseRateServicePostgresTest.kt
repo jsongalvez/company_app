@@ -99,7 +99,7 @@ class SessionBaseRateServicePostgresTest {
         assertTrue(first.created)
         assertTrue(second.created)
 
-        val activeRates = SessionBaseRateService.findActiveRates(branchId)
+        val activeRates = SessionBaseRateService.findActiveRates(callerId, branchId)
         assertEquals(1, activeRates.size)
         assertEquals("3000.00", activeRates[0].rate.toPlainString())
     }
@@ -111,7 +111,7 @@ class SessionBaseRateServicePostgresTest {
         SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
         SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, "2000.00")
 
-        val activeRates = SessionBaseRateService.findActiveRates(branchId)
+        val activeRates = SessionBaseRateService.findActiveRates(callerId, branchId)
 
         assertEquals(2, activeRates.size)
     }
@@ -131,8 +131,16 @@ class SessionBaseRateServicePostgresTest {
 
     @Test
     fun `find rates for branch with no rates returns empty`() {
-        val rates = SessionBaseRateService.findActiveRates(branchId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        val rates = SessionBaseRateService.findActiveRates(callerId, branchId)
         assertTrue(rates.isEmpty())
+    }
+
+    @Test
+    fun `findActiveRates without MANAGE_PRODUCTS is forbidden`() {
+        assertFailsWith<ForbiddenResponse> {
+            SessionBaseRateService.findActiveRates(callerId, branchId)
+        }
     }
 
     private fun insertUser(userId: UUID) {
