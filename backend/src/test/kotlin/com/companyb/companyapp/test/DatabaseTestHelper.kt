@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.CapabilityTable
+import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.CapabilityService
@@ -65,7 +66,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -88,7 +89,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -111,7 +112,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -134,7 +135,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -157,7 +158,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -180,7 +181,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -204,7 +205,7 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.contextId] = branchId
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = 100
+                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
             }
         }
     }
@@ -216,7 +217,7 @@ object DatabaseTestHelper {
         contextType: CapabilityContextType,
         contextId: UUID,
         sourceId: UUID,
-        priority: Int = 100,
+        priority: Int = GrantPriorities.DIRECT_GRANT.toInt(),
     ) {
         transaction {
             val capId =

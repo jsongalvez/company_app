@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
@@ -62,7 +63,7 @@ object ReliefAccessService {
             branchDayId = request.branchDayId,
             sourceId = requestId,
             validTo = validTo,
-            priority = 10,
+            priority = GrantPriorities.RELIEF_ACCESS,
         )
 
         val auditNewValue =

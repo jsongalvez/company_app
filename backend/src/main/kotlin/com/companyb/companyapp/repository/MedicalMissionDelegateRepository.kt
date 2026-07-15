@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
+import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
@@ -15,8 +16,6 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 object MedicalMissionDelegateRepository {
-    private const val DELEGATE_PRIORITY: Short = 20
-
     fun findById(id: UUID): MedicalMissionDelegate? =
         transaction {
             MedicalMissionDelegateTable
@@ -48,7 +47,7 @@ object MedicalMissionDelegateRepository {
                 it[UserCapabilityTable.contextId] = branchId
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
                 it[UserCapabilityTable.sourceId] = delegateId
-                it[UserCapabilityTable.priority] = DELEGATE_PRIORITY
+                it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
             }
         }
 

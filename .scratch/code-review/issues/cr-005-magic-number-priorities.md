@@ -19,3 +19,5 @@ Or better yet, a value type (see ADR-0003).
 
 **Priority:** low (detekt doesn't flag inside `DatabaseTestHelper` since test source set config may differ)
 **Story alignment:** US-009, US-010
+
+**Status:** ✅ done
