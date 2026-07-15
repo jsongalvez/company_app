@@ -27,7 +27,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-020 — assertEditable + expectedVersion | — | [x] |
 | CR-021 — commission recalc endpoint + net_income view | CR-013 | [ ] |
 | CR-022 — soft-deleted expenses + duplicate mapping | — | [ ] |
-| CR-023 — `!!` in runCatching + no-zone OffsetDateTime | — | [ ] |
+| CR-023 — `!!` in runCatching + no-zone OffsetDateTime | — | [x] |
 | CR-024 — audit in repo + snapshot transaction | — | [ ] |
 | CR-025 — magic strings + duplicated plumbing | — | [x] |
 | CR-026 — test anti-patterns | — | [ ] |

@@ -27,6 +27,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 
 object SessionService {
@@ -98,7 +99,7 @@ object SessionService {
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)
 
-        val now = OffsetDateTime.now()
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
         val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId, now)
         val basePrice =
             activeRates

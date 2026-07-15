@@ -18,3 +18,11 @@
 
 **Priority:** medium
 **Story alignment:** US-025 (Allowances)
+
+## Resolution
+
+**Part 1 (`!!` inside `runCatching`):** Already compliant. All `runCatching` blocks across route files wrap pure conversion logic (UUID.fromString, enum valueOf, BigDecimal) on already-null-checked values. No `!!` inside any `runCatching` block.
+
+**Part 2 (`OffsetDateTime.now()` without zone):** Fixed in `SessionService.kt:102` — changed `OffsetDateTime.now()` → `OffsetDateTime.now(ZoneOffset.UTC)`. `Instant.now()` in DenyList.kt and JwtService.kt did not need changes (Instant is always UTC).
+
+**Status:** ✅ done
