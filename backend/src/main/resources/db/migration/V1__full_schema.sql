@@ -190,6 +190,8 @@ CREATE TABLE client (
         OR (systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL)
     )
 );
+CREATE INDEX IF NOT EXISTS idx_client_first_name_trgm ON client USING gin (first_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_client_last_name_trgm ON client USING gin (last_name gin_trgm_ops);
 
 -- ----------------------------
 -- SESSIONS

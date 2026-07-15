@@ -1678,7 +1678,7 @@
         "Manual smoke test: search 'John Smith' on desktop, verify results appear"
       ],
       "notes": "Root cause: Kotlin string interpolation in get(\"/api/clients?q=$query\") does not URL-encode the query value. Ktor 3.x HttpRequestBuilder provides parameter(key, value) and URLBuilder.parameters.append() for this. ApiClient already sets defaultRequest { url(baseUrl) } so relative paths work with the builder.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-060",
@@ -1706,7 +1706,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "This is the single biggest UX win for search feel. The current pattern replaces the entire content area with a full-screen spinner on every UiState.Loading transition, which disorients the user. Instead, keep the results area stable and show a subtle cue that work is happening. The LaunchedEffect(query) with delay(300) pattern stays unchanged.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-061",
@@ -1734,7 +1734,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "The current empty state says just 'No clients found' with no context about what was searched. Adding the query to every state (success, empty, error) gives the user confidence their input was received and processed.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-062",
@@ -1762,7 +1762,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "The current idle message 'Type a name or phone number to search' is passive. 'Start typing to search' is more direct. The empty 'No clients found' tells the user nothing about what they typed.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-063",
@@ -1790,7 +1790,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "This is the companion to US-060 — US-060 keeps results visible, this adds a loading cue so the user knows work is happening. Together they replace the full-screen spinner pattern with a stable-results + subtle-indicator pattern.",
-      "passes": false
+      "passes": true
     }
   ]
 }

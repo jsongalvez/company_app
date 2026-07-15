@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -49,21 +50,28 @@ fun ClientSearchScreen(
     onBack: () -> Unit,
 ) {
     val searchResultsState by clientViewModel.searchResults.collectAsState()
+    val isSearching by clientViewModel.isSearching.collectAsState()
+    val searchError by clientViewModel.searchErrorMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var query by remember { mutableStateOf("") }
+
+    val hasPriorResults = searchResultsState is UiState.Success
+    val priorResults =
+        if (hasPriorResults) {
+            (searchResultsState as UiState.Success<List<ClientResponse>>).data
+        } else {
+            emptyList()
+        }
 
     LaunchedEffect(Unit) {
         logInfo("ClientSearchScreen", "composable entered (first composition)")
     }
 
-    LaunchedEffect(searchResultsState) {
-        when (val state = searchResultsState) {
-            is UiState.Error -> {
-                logInfo("ClientSearchScreen", "searchResultsState=Error: ${state.message}")
-                snackbarHostState.showSnackbar(state.message)
-            }
-
-            else -> {}
+    LaunchedEffect(searchError) {
+        val err = searchError
+        if (err != null) {
+            logInfo("ClientSearchScreen", "search error: $err")
+            snackbarHostState.showSnackbar(err)
         }
     }
 
@@ -72,6 +80,8 @@ fun ClientSearchScreen(
             delay(300)
             logInfo("ClientSearchScreen", "debounced search: query=$query")
             clientViewModel.search(query)
+        } else {
+            clientViewModel.clearSearch()
         }
     }
 
@@ -99,80 +109,108 @@ fun ClientSearchScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = { Text("Search clients by name or phone") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Search clients by name or phone") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                if (isSearching) {
+                    Spacer(Modifier.width(8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
 
-            when (val state = searchResultsState) {
-                is UiState.Idle -> {
-                    if (query.isBlank()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
+            val errorMessage = searchError
+
+            if (hasPriorResults && !isSearching && errorMessage == null) {
+                Text(
+                    text =
+                        if (priorResults.isNotEmpty()) {
+                            "${priorResults.size} results for \"$query\""
+                        } else {
+                            "No results for \"$query\". Try a different spelling."
+                        },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            if (errorMessage != null && hasPriorResults) {
+                Text(
+                    text = "Search failed for \"$query\"",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                when {
+                    query.isBlank() && !hasPriorResults && errorMessage == null -> {
+                        Text(
+                            text = "Start typing to search by name or phone",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    isSearching && !hasPriorResults -> {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(16.dp))
                             Text(
-                                text = "Type a name or phone number to search",
-                                style = MaterialTheme.typography.bodyLarge,
+                                text = "Searching...",
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                }
 
-                is UiState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                is UiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
+                    errorMessage != null && !hasPriorResults && !isSearching -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = state.message,
+                                text = "Search failed for \"$query\"",
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = errorMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(16.dp))
                             OutlinedButton(onClick = { clientViewModel.search(query) }) {
                                 Text("Retry")
                             }
                         }
                     }
-                }
 
-                is UiState.Success -> {
-                    val results = state.data
-                    if (results.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = "No clients found",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else {
+                    hasPriorResults && priorResults.isNotEmpty() -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            items(results) { client ->
+                            items(priorResults) { client ->
                                 ClientSearchResultCard(client = client)
                             }
                         }
+                    }
+
+                    else -> {
+                        // transition states: debounce waiting, empty results (header already visible)
                     }
                 }
             }

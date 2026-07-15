@@ -189,12 +189,12 @@ class ClientServicePostgresTest {
     }
 
     @Test
-    fun `search respects case sensitivity of LIKE`() {
+    fun `search is case-insensitive`() {
         createClient(callerId, clientAId, firstName = "John")
 
         val results = ClientService.search("john")
 
-        assertFalse(results.any { it.id == clientAId })
+        assertTrue(results.any { it.id == clientAId })
     }
 
     @Test

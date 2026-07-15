@@ -5,6 +5,11 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.sql.Column
+import org.jetbrains.exposed.sql.ComparisonOp
+import org.jetbrains.exposed.sql.Expression
+import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.QueryParameter
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
@@ -198,14 +203,24 @@ object ClientRepository {
                 .where {
                     (ClientTable.deletedAt.isNull()) and
                         (
-                            (ClientTable.firstName like namePattern) or
-                                (ClientTable.lastName like namePattern) or
+                            ilike(ClientTable.firstName, namePattern) or
+                                ilike(ClientTable.lastName, namePattern) or
                                 (ClientTable.phoneNumber like phonePattern)
                         )
                 }.orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
                 .limit(SEARCH_LIMIT)
                 .map { it.toClient() }
         }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s) for query '$query'" } }
+
+    private class ILikeOp(
+        expr1: Expression<*>,
+        expr2: Expression<*>,
+    ) : ComparisonOp(expr1, expr2, "ILIKE")
+
+    private fun ilike(
+        col: Column<String>,
+        pattern: String,
+    ): Op<Boolean> = ILikeOp(col, QueryParameter(pattern, col.columnType))
 
     private fun findByIdInTransaction(id: UUID): Client? =
         ClientTable

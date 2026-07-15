@@ -10,6 +10,7 @@ import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -25,6 +26,12 @@ class ClientViewModel(
     private val _searchResults = MutableStateFlow<UiState<List<ClientResponse>>>(UiState.Idle)
     val searchResults: StateFlow<UiState<List<ClientResponse>>> = _searchResults.asStateFlow()
 
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    private val _searchErrorMessage = MutableStateFlow<String?>(null)
+    val searchErrorMessage: StateFlow<String?> = _searchErrorMessage.asStateFlow()
+
     private val _clientDetail = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
     val clientDetail: StateFlow<UiState<ClientResponse>> = _clientDetail.asStateFlow()
 
@@ -37,24 +44,36 @@ class ClientViewModel(
     private val _anonymizeState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val anonymizeState: StateFlow<UiState<Unit>> = _anonymizeState.asStateFlow()
 
+    fun clearSearch() {
+        _searchResults.value = UiState.Idle
+        _searchErrorMessage.value = null
+        _isSearching.value = false
+    }
+
     fun search(query: String) {
         if (query.isBlank()) return
         logInfo("ClientVM", "search called: query=$query")
+        _isSearching.value = true
+        _searchErrorMessage.value = null
         viewModelScope.launch {
-            _searchResults.value = UiState.Loading
             try {
-                logInfo("ClientVM", "GET /api/clients?q=$query")
-                val response = apiClient.httpClient.get("/api/clients?q=$query")
+                logInfo("ClientVM", "GET /api/clients with parameter q=$query")
+                val response =
+                    apiClient.httpClient.get("/api/clients") {
+                        parameter("q", query)
+                    }
                 if (response.status.isSuccess()) {
                     logInfo("ClientVM", "search success")
                     _searchResults.value = UiState.Success(response.body())
                 } else {
                     logInfo("ClientVM", "search failed: status=${response.status.value}")
-                    _searchResults.value = UiState.Error("Search failed: ${response.status.value}")
+                    _searchErrorMessage.value = "Search failed: ${response.status.value}"
                 }
             } catch (e: Exception) {
                 logError("ClientVM", "search exception", e)
-                _searchResults.value = UiState.Error(e.message ?: "Unknown error")
+                _searchErrorMessage.value = e.message ?: "Unknown error"
+            } finally {
+                _isSearching.value = false
             }
         }
     }
