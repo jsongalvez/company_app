@@ -30,3 +30,43 @@ Thread: unavailable
   - MODIFIED: scripts/ralph/progress.txt
 - Quality: :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid (BUILD SUCCESSFUL).
 ---
+
+## Wed Jul 15 2026 - US-064 (Backend rolling file logging)
+Thread: unavailable
+- Added `<appender-ref ref="FILE"/>` under `<root>` in backend/src/main/resources/logback.xml (was defined but never wired — only STDOUT was active).
+- Added `logs/` to root .gitignore.
+- Verified: backend compiles, logs/app.log created with 31 lines of structured log output on startup.
+- Files changed:
+  - MODIFIED: backend/src/main/resources/logback.xml
+  - MODIFIED: .gitignore
+  - MODIFIED: scripts/ralph/prd.json (US-064 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :backend:compileKotlin (BUILD SUCCESSFUL), logs/app.log written and populated.
+---
+
+## Wed Jul 15 2026 - US-064/065 rework & implement (per-run file logging)
+Thread: unavailable
+- Reworked US-064 and US-065 from daily rolling → per-run semantics (simple FileAppender, append=false).
+- Backend: replaced RollingFileAppender with FileAppender (append=false) writing to logs/app.log. Each run starts fresh.
+- Desktop client: added FileAppender (append=false) writing to logs/client/app.log alongside existing STDOUT.
+- logs/ already git-ignored from previous work.
+- Files changed:
+  - MODIFIED: backend/src/main/resources/logback.xml (RollingFileAppender → FileAppender)
+  - MODIFIED: composeApp/src/desktopMain/resources/logback.xml (added FILE appender)
+  - MODIFIED: scripts/ralph/prd.json (US-064/065 updated for per-run, US-064 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :backend:compileKotlin :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL). Backend verified writing logs/app.log (11 lines).
+---
+
+## Wed Jul 15 2026 - US-065 fix: jvmArgs with absolute path for desktop logs
+Thread: unavailable
+- Root cause: Gradle run uses composeApp/ as workingDir, so relative logs/client/app.log landed in composeApp/logs/client/.
+- Fixed: composeApp/build.gradle.kts passes `-DcompanyApp.logDir=${rootProject.projectDir}/logs/client` as jvmArgs.
+- Fixed: logback.xml reads `${companyApp.logDir}/app.log` from system property — resolves to absolute project-root path regardless of working directory.
+- Verified: logs/client/app.log created at project root with 39 lines on desktop run.
+- Files changed:
+  - MODIFIED: composeApp/build.gradle.kts (added jvmArgs)
+  - MODIFIED: composeApp/src/desktopMain/resources/logback.xml (path → ${companyApp.logDir}/app.log)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL). Desktop run verified writing logs/client/app.log (39 lines).
+---

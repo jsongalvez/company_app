@@ -70,8 +70,10 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.companyb.companyapp.MainKt"
+        jvmArgs += "-DcompanyApp.logDir=${rootProject.projectDir}/logs/client"
     }
 }
+
 
 android {
     namespace = "com.companyb.companyapp"

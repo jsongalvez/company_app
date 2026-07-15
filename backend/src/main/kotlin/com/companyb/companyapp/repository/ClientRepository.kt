@@ -205,6 +205,7 @@ object ClientRepository {
                         (
                             ilike(ClientTable.firstName, namePattern) or
                                 ilike(ClientTable.lastName, namePattern) or
+                                ilike(ClientTable.middleName, namePattern) or
                                 (ClientTable.phoneNumber like phonePattern)
                         )
                 }.orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
@@ -217,10 +218,15 @@ object ClientRepository {
         expr2: Expression<*>,
     ) : ComparisonOp(expr1, expr2, "ILIKE")
 
-    private fun ilike(
-        col: Column<String>,
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : String?> ilike(
+        col: Column<T>,
         pattern: String,
-    ): Op<Boolean> = ILikeOp(col, QueryParameter(pattern, col.columnType))
+    ): Op<Boolean> =
+        ILikeOp(
+            col,
+            QueryParameter(pattern, col.columnType as org.jetbrains.exposed.sql.IColumnType<String>),
+        )
 
     private fun findByIdInTransaction(id: UUID): Client? =
         ClientTable

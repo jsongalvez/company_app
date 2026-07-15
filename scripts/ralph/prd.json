@@ -1791,6 +1791,62 @@
       ],
       "notes": "This is the companion to US-060 — US-060 keeps results visible, this adds a loading cue so the user knows work is happening. Together they replace the full-screen spinner pattern with a stable-results + subtle-indicator pattern.",
       "passes": true
+    },
+    {
+      "id": "US-064",
+      "title": "Add per-run file logging to backend",
+      "description": "As a developer, I want each backend run to produce its own log file on disk so that an agent or I can read the complete bounded log of a single run without sifting through other runs.",
+      "type": "logging",
+      "priorityHint": 64,
+      "dependsOn": [],
+      "requirements": [
+        "Replace backend's RollingFileAppender with a simple ch.qos.logback.core.FileAppender writing to logs/app.log",
+        "Set append=false so each run starts fresh — the file contains only the current run's log",
+        "Wire <appender-ref ref=\"FILE\"/> under <root> alongside STDOUT (already done)",
+        "Add logs/ to root .gitignore so generated log files are never committed (already done)",
+        "Verify the app starts and writes to logs/app.log with content from the current run only"
+      ],
+      "acceptanceCriteria": [
+        "Backend logs/app.log is created on each startup with entries from INFO+ level",
+        "A second run replaces logs/app.log entirely (no old-run content mixed in)",
+        "logs/ is git-ignored",
+        "Kotlin compilation succeeds"
+      ],
+      "verification": [
+        "Kotlin compilation succeeds",
+        "Start backend, verify logs/app.log contains only that run's log entries"
+      ],
+      "notes": "Per-run semantics: each ./gradlew :backend:run overwrites logs/app.log. For agent debugging this is ideal — the agent reads one file and sees a complete bounded run. If history is needed later, the agent can look at git history or CI artifacts.",
+      "passes": true
+    },
+    {
+      "id": "US-065",
+      "title": "Add per-run file logging to desktop client",
+      "description": "As a developer, I want each desktop client run to produce its own log file so that an agent or I can read a complete bounded log of a single client session.",
+      "type": "logging",
+      "priorityHint": 65,
+      "dependsOn": [
+        "US-053"
+      ],
+      "requirements": [
+        "In composeApp/src/desktopMain/resources/logback.xml, add a ch.qos.logback.core.FileAppender with file=${companyApp.logDir}/app.log (system property)",
+        "In composeApp/build.gradle.kts, add jvmArgs += \"-DcompanyApp.logDir=${rootProject.projectDir}/logs/client\" to the compose.desktop.application block",
+        "Set append=false so each run starts fresh",
+        "Encoder pattern: %d{HH:mm:ss.SSS} [%-5level] [%logger{0}] %msg%n (same as current stdout pattern, no color)",
+        "Wire the FILE appender as a second appender under <root> alongside STDOUT — both console and file output remain active"
+      ],
+      "acceptanceCriteria": [
+        "Desktop client logs/client/app.log is created at project root on launch with log entries at INFO+ level",
+        "A second client run replaces app.log entirely (no old-run content)",
+        "Console output still works alongside file output",
+        "Desktop build succeeds"
+      ],
+      "verification": [
+        "Desktop build succeeds",
+        "Start desktop client, verify logs/client/app.log exists with content"
+      ],
+      "notes": "Uses jvmArgs to pass absolute path as system property, so logs land in project-root logs/client/ regardless of Gradle working directory. Per-run semantics keep every agent debugging session reading a clean, bounded file.",
+      "passes": true
     }
   ]
 }
