@@ -63,6 +63,13 @@ All composeApp code uses `expect/actual Log` functions from `com.companyb.compan
 
 The pre-push hook runs JMH benchmarks. Regressions >20% from `backend/jmh-baselines.md` should be investigated before pushing. See `backend/AGENTS.md` for the full performance workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
 
+## Ticket tracking
+
+When completing a ticket via `/implements`:
+
+1. Append `**Status:** ✅ done` to the bottom of the ticket file.
+2. Mark `[x]` on the ticket's row in the corresponding `TRACKING.md` (`.scratch/*/issues/TRACKING.md`).
+
 ## Agent skills
 
 ### Issue tracker
