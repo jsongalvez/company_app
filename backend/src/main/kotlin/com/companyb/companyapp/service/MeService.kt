@@ -10,6 +10,8 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.sql.innerJoin
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -26,6 +28,9 @@ object MeService {
                         id = row[AppUserTable.id].toString(),
                         username = row[AppUserTable.username],
                         status = row[AppUserTable.status].name,
+                        createdAt =
+                            row[AppUserTable.createdAt]
+                                .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                     )
                 } ?: throw NotFoundResponse("User not found")
         }.also { logger.info { "[GET-ME] Fetched user $userId" } }

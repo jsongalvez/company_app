@@ -7,7 +7,7 @@ data class MeResponse(
     val id: String,
     val username: String,
     val status: String,
-    val createdAt: String? = null,
+    val createdAt: String,
 )
 
 @Serializable

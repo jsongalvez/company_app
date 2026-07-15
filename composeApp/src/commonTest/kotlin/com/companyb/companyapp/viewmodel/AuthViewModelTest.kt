@@ -1,49 +1,49 @@
 package com.companyb.companyapp.viewmodel
 
-import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.network.FakeTokenStore
-import com.companyb.companyapp.network.mockEngine
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
+import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.network.mockApiClient
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.assertIs
 
 class AuthViewModelTest {
     @Test
-    fun `loginSuccess via apiClient`() =
-        runTest {
-            val engine =
-                mockEngine(
+    fun loginSuccessTransitionsToSuccess() =
+        runBlocking {
+            val apiClient =
+                mockApiClient(
                     status = HttpStatusCode.OK,
                     body = """{"token": "fake-jwt"}""",
                 )
-            val apiClient = ApiClient(tokenStore = FakeTokenStore(), engine = engine)
-            val response =
-                apiClient.httpClient.post("/auth/login") {
-                    setBody("""{"username": "test", "password": "pass"}""")
-                }
-            assertEquals(HttpStatusCode.OK, response.status)
-            val body = response.bodyAsText()
-            assertTrue(body.contains("fake-jwt"))
+            val viewModel = AuthViewModel(apiClient, scope = this)
+
+            assertEquals(UiState.Idle, viewModel.loginState.value)
+
+            viewModel.login("test", "pass").join()
+
+            val state = viewModel.loginState.value
+            val success = assertIs<UiState.Success<LoginResponse>>(state)
+            assertEquals("fake-jwt", success.data.token)
         }
 
     @Test
-    fun `loginFailure via apiClient`() =
-        runTest {
-            val engine =
-                mockEngine(
+    fun loginFailureTransitionsToError() =
+        runBlocking {
+            val apiClient =
+                mockApiClient(
                     status = HttpStatusCode.Unauthorized,
                     body = """{"error": "invalid"}""",
                 )
-            val apiClient = ApiClient(tokenStore = FakeTokenStore(), engine = engine)
-            val response =
-                apiClient.httpClient.post("/auth/login") {
-                    setBody("""{"username": "test", "password": "wrong"}""")
-                }
-            assertEquals(HttpStatusCode.Unauthorized, response.status)
+            val viewModel = AuthViewModel(apiClient, scope = this)
+
+            assertEquals(UiState.Idle, viewModel.loginState.value)
+
+            viewModel.login("test", "wrong").join()
+
+            val state = viewModel.loginState.value
+            val error = assertIs<UiState.Error>(state)
+            assertEquals("Login failed: 401", error.message)
         }
 }

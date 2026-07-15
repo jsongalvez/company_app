@@ -9,6 +9,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
 
+fun mockApiClient(
+    status: HttpStatusCode = HttpStatusCode.OK,
+    body: String = "",
+): ApiClient =
+    ApiClient(
+        tokenStore = FakeTokenStore(),
+        engine = mockEngine(status, body),
+    )
+
 class FakeTokenStore : TokenStore {
     override fun getToken(): String? = null
 

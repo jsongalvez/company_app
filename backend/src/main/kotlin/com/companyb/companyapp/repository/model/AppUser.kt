@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
 import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 
 data class AppUser(
@@ -34,6 +35,9 @@ object AppUserTable : Table("app_user") {
         ).default(UserStatus.ACTIVE)
     val email = varchar("email", EMAIL_LENGTH).uniqueIndex()
     val displayName = varchar("display_name", DISPLAY_NAME_LENGTH).default("User")
+    val createdAt =
+        timestampWithTimeZone("created_at")
+            .defaultExpression(org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
 }

@@ -12,6 +12,8 @@ import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +21,9 @@ import kotlinx.coroutines.launch
 
 class AuthViewModel(
     private val apiClient: ApiClient,
+    private val scope: CoroutineScope? = null,
 ) : ViewModel() {
+    private val vmScope: CoroutineScope get() = scope ?: viewModelScope
     private val _loginState = MutableStateFlow<UiState<LoginResponse>>(UiState.Idle)
     val loginState: StateFlow<UiState<LoginResponse>> = _loginState.asStateFlow()
 
@@ -32,9 +36,9 @@ class AuthViewModel(
     fun login(
         username: String,
         password: String,
-    ) {
+    ): Job {
         logInfo("AuthVM", "login attempt for username=$username")
-        viewModelScope.launch {
+        return vmScope.launch {
             _loginState.value = UiState.Loading
             try {
                 val response =
@@ -63,7 +67,7 @@ class AuthViewModel(
         displayName: String,
     ) {
         logInfo("AuthVM", "register attempt for username=$username")
-        viewModelScope.launch {
+        vmScope.launch {
             _registerState.value = UiState.Loading
             try {
                 val response =
@@ -86,7 +90,7 @@ class AuthViewModel(
 
     fun logout() {
         logInfo("AuthVM", "logout attempt start")
-        viewModelScope.launch {
+        vmScope.launch {
             _loginState.value = UiState.Idle
             _logoutState.value = UiState.Loading
             try {
