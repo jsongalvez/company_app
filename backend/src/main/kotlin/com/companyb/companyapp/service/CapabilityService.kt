@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import java.util.UUID
@@ -24,4 +25,7 @@ object CapabilityService {
         contextType: CapabilityContextType,
         contextId: UUID,
     ): Boolean = CapabilityRepository.hasCapability(userId, capabilityCode, contextType, contextId)
+
+    fun getCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
+        CapabilityRepository.findCapabilitiesForUser(userId)
 }

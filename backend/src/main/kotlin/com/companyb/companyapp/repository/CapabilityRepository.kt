@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilityTable
@@ -45,4 +46,23 @@ object CapabilityRepository {
         }.also { granted ->
             logger.info { "[HAS-CAPABILITY] $capabilityCode ($contextType) granted=$granted" }
         }
+
+    fun findCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
+        transaction {
+            ActiveUserCapabilitiesView
+                .innerJoin(
+                    CapabilityTable,
+                    { ActiveUserCapabilitiesView.capabilityId },
+                    { CapabilityTable.id },
+                ).selectAll()
+                .where { ActiveUserCapabilitiesView.userId eq userId }
+                .map { row ->
+                    UserCapabilityResponse(
+                        capabilityCode = row[CapabilityTable.code],
+                        contextType = row[ActiveUserCapabilitiesView.contextType].name,
+                        contextId = row[ActiveUserCapabilitiesView.contextId].toString(),
+                        sourceType = row[ActiveUserCapabilitiesView.sourceType].name,
+                    )
+                }
+        }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }
 }

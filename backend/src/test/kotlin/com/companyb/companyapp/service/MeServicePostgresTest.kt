@@ -4,6 +4,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.DatabaseTestHelper
+import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
@@ -65,6 +66,13 @@ class MeServicePostgresTest {
         val unknownId = UUID.randomUUID()
         assertFailsWith<NotFoundResponse> {
             MeService.getMe(unknownId)
+        }
+    }
+
+    @Test
+    fun `getMe throws ForbiddenResponse for INACTIVE user`() {
+        assertFailsWith<ForbiddenResponse> {
+            MeService.getMe(inactiveUserId)
         }
     }
 
