@@ -34,7 +34,9 @@ data class ClientCreateResult(
 
 object ClientRepository {
     private const val SEARCH_LIMIT = 20
+    private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
     private const val FULL_NAME_CONCAT_WIDTH = 510
+    private const val SPACE_COLUMN_WIDTH = 1
 
     @Suppress("LongParameterList")
     fun create(
@@ -205,7 +207,7 @@ object ClientRepository {
             val tokens = query.split(" ").filter { it.isNotBlank() }
             val searchQuery = query.trim()
             val colType: org.jetbrains.exposed.sql.IColumnType<String> = ClientTable.firstName.columnType
-            val spaceLiteral = LiteralOp(VarCharColumnType(1), " ")
+            val spaceLiteral = LiteralOp(VarCharColumnType(SPACE_COLUMN_WIDTH), " ")
             val fullNameConcat =
                 CustomFunction(
                     "concat",
@@ -231,15 +233,8 @@ object ClientRepository {
                             val namePattern = "%$token%"
                             val phonePattern = "$token%"
                             val tokenParam = QueryParameter(token, colType)
-                            (
-                                trigramMatch(ClientTable.firstName, tokenParam) or
-                                    trigramMatch(ClientTable.lastName, tokenParam) or
-                                    trigramMatch(ClientTable.middleName, tokenParam) or
-                                    ilike(ClientTable.firstName, namePattern) or
-                                    ilike(ClientTable.lastName, namePattern) or
-                                    ilike(ClientTable.middleName, namePattern) or
-                                    (ClientTable.phoneNumber like phonePattern)
-                            )
+                            nameFieldMatch(tokenParam, namePattern) or
+                                (ClientTable.phoneNumber like phonePattern)
                         }
                     (ClientTable.deletedAt.isNull()) and
                         tokenConditions.reduce { acc, cond -> acc and cond }
@@ -250,36 +245,6 @@ object ClientRepository {
                 ).limit(SEARCH_LIMIT)
                 .map { it.toClient() }
         }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s) for query '$query'" } }
-
-    private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
-
-    private fun trigramMatch(
-        col: Expression<*>,
-        tokenParam: QueryParameter<String>,
-    ): Op<Boolean> {
-        val sim = similarity(col, tokenParam)
-        return sim greaterEq TRIGRAM_SIMILARITY_THRESHOLD
-    }
-
-    private fun similarity(
-        expr1: Expression<*>,
-        expr2: Expression<*>,
-    ): CustomFunction<Float> = CustomFunction("similarity", FloatColumnType(), expr1, expr2)
-
-    private class ILikeOp(
-        expr1: Expression<*>,
-        expr2: Expression<*>,
-    ) : ComparisonOp(expr1, expr2, "ILIKE")
-
-    @Suppress("UNCHECKED_CAST")
-    private fun <T : String?> ilike(
-        col: Column<T>,
-        pattern: String,
-    ): Op<Boolean> =
-        ILikeOp(
-            col,
-            QueryParameter(pattern, col.columnType as org.jetbrains.exposed.sql.IColumnType<String>),
-        )
 
     private fun findByIdInTransaction(id: UUID): Client? =
         ClientTable
@@ -305,3 +270,44 @@ object ClientRepository {
             deletedAt = this[ClientTable.deletedAt],
         )
 }
+
+private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
+
+private fun nameFieldMatch(
+    tokenParam: QueryParameter<String>,
+    namePattern: String,
+): Op<Boolean> =
+    trigramMatch(ClientTable.firstName, tokenParam) or
+        trigramMatch(ClientTable.lastName, tokenParam) or
+        trigramMatch(ClientTable.middleName, tokenParam) or
+        ilike(ClientTable.firstName, namePattern) or
+        ilike(ClientTable.lastName, namePattern) or
+        ilike(ClientTable.middleName, namePattern)
+
+private fun trigramMatch(
+    col: Expression<*>,
+    tokenParam: QueryParameter<String>,
+): Op<Boolean> {
+    val sim = similarity(col, tokenParam)
+    return sim greaterEq TRIGRAM_SIMILARITY_THRESHOLD
+}
+
+private fun similarity(
+    expr1: Expression<*>,
+    expr2: Expression<*>,
+): CustomFunction<Float> = CustomFunction("similarity", FloatColumnType(), expr1, expr2)
+
+private class ILikeOp(
+    expr1: Expression<*>,
+    expr2: Expression<*>,
+) : ComparisonOp(expr1, expr2, "ILIKE")
+
+@Suppress("UNCHECKED_CAST")
+private fun <T : String?> ilike(
+    col: Column<T>,
+    pattern: String,
+): Op<Boolean> =
+    ILikeOp(
+        col,
+        QueryParameter(pattern, col.columnType as org.jetbrains.exposed.sql.IColumnType<String>),
+    )
