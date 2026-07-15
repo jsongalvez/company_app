@@ -26,7 +26,7 @@ VALUES ('SUPERUSER'),
        ('COORDINATOR'),
        ('PRACTITIONER'),
        ('ACCOUNTANT'),
-       ('VIEWER');
+       ('ONBOARDING');
 
 
 -- -----------------------------------------------------------------------------
@@ -138,10 +138,4 @@ WHERE r.name = 'ACCOUNTANT'
   AND c.code = 'VIEW_BRANCH_DATA';
 
 
--- VIEWER — read-only, future use
-INSERT INTO role_capability (role_id, capability_id)
-SELECT r.id, c.id
-FROM role r,
-     capability c
-WHERE r.name = 'VIEWER'
-  AND c.code = 'VIEW_BRANCH_DATA';
+-- ONBOARDING — zero capabilities until assigned to a branch

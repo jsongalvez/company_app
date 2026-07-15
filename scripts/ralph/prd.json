@@ -18,7 +18,7 @@
       "COORDINATOR": "Handles finance/remittance for assigned branches. Sole editor of PAST/REMITTED records for their branch.",
       "PRACTITIONER": "Logs sessions, views clients, manages inventory. Full access to home branches and currently checked-in branch.",
       "ACCOUNTANT": "Read-only access to sales, product sales, and remittances for all branches.",
-      "VIEWER": "Read-only access. Reserved for future use."
+      "ONBOARDING": "Zero permissions. Freshly registered account — locked out until assigned to a branch."
     },
     "branchTypes": {
       "CLINIC": "Permanent physical clinic location.",

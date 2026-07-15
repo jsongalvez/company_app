@@ -33,7 +33,7 @@ Auth checks are always against **capabilities**, not role names directly. Roles 
 | `COORDINATOR` | Handles finance and remittance for assigned branch(es). Views assigned branches only. Sole editor of PAST and REMITTED records for their branch. Can work on clients. |
 | `PRACTITIONER` | Logs sessions, views clients, manages inventory. Views all home branches, plus any branch checked into that day. |
 | `ACCOUNTANT` | Read-only. Views sales of all branches. |
-| `VIEWER` | Read-only. Future use. |
+| `ONBOARDING` | Zero permissions. Freshly registered account — locked out until assigned to a branch. |
 
 There is no TEMPORARY role — relief access is a behavioral state managed by `grant_relief_access`, not a permanent role assignment.
 
