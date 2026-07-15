@@ -1481,6 +1481,30 @@
       ],
       "notes": "Reuses DenyList.deny(userId) built in US-001. Since deny list is keyed by userId (not jti), logout invalidates ALL tokens for the user across all devices — acceptable for a single-session business app. Same auto-eviction behavior as user deactivation (24h expiry).",
       "passes": true
+    },
+    {
+      "id": "US-053",
+      "title": "Desktop app — SLF4J provider for logging",
+      "description": "As a developer, I want the desktop app to have an SLF4J provider so that Ktor and other library logs are captured instead of showing 'No SLF4J providers were found' warnings.",
+      "type": "integration",
+      "priorityHint": 53,
+      "dependsOn": [
+        "US-036"
+      ],
+      "requirements": [
+        "Add an SLF4J implementation to the desktop dependency set (e.g., logback-classic or slf4j-simple) so SLF4J warnings are resolved and logs are emitted to stdout or a file.",
+        "Ensure the SLF4J provider version aligns with the slf4j-api version transitively pulled by ktor-client-cio or other Ktor modules."
+      ],
+      "acceptanceCriteria": [
+        "Desktop app launches without 'No SLF4J providers were found' warning",
+        "Ktor client HTTP logs and other library logs appear on stdout"
+      ],
+      "verification": [
+        "Desktop build succeeds",
+        "SLF4J warning no longer appears at launch"
+      ],
+      "notes": "The backend already uses logback-classic. For the desktop client, either logback-classic or the lighter slf4j-simple is acceptable. slf4j-simple (org.slf4j:slf4j-simple) requires zero config and logs to stderr by default.",
+      "passes": false
     }
   ]
 }

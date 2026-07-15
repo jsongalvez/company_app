@@ -2,6 +2,12 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - US-053 (added to PRD)
+Thread: unavailable
+- Added US-053 story: add SLF4J provider (logback-classic or slf4j-simple) to desktop dependencies so Ktor/Compose logs are captured instead of "No SLF4J providers were found" warnings at launch.
+- Files changed: scripts/ralph/prd.json, scripts/ralph/progress.txt
+---
+
 ## Wed Jul 15 2026 - US-039
 Thread: unavailable
 - Implemented Android home screen with branch selector and clock-in/out.
