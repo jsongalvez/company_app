@@ -56,7 +56,8 @@ class ApiClient(
                         token?.let { BearerTokens(it, "") }
                     }
                     sendWithoutRequest {
-                        !it.url.toString().contains("/auth/")
+                        val url = it.url.toString()
+                        url.endsWith("/auth/login") || url.endsWith("/auth/register")
                     }
                 }
             }

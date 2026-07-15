@@ -39,10 +39,20 @@ fun App() {
 
     val logoutState by authViewModel.logoutState.collectAsState()
     LaunchedEffect(logoutState) {
-        if (logoutState is UiState.Success) {
-            logInfo("App", "logoutState=Success, clearing token, setting isLoggedIn=false")
-            tokenStore.clearToken()
-            isLoggedIn = false
+        when (logoutState) {
+            is UiState.Success -> {
+                logInfo("App", "logoutState=Success, clearing token, setting isLoggedIn=false")
+                tokenStore.clearToken()
+                isLoggedIn = false
+            }
+
+            is UiState.Error -> {
+                logInfo("App", "logoutState=Error, clearing token anyway, setting isLoggedIn=false")
+                tokenStore.clearToken()
+                isLoggedIn = false
+            }
+
+            else -> {}
         }
     }
 

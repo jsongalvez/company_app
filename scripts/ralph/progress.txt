@@ -2,6 +2,28 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - Bugfix: logout-after-relogin (82b2ca1)
+Thread: unavailable
+- Fixed bug where logging out, re-logging in, then trying to logout again would fail with 401.
+- Root cause 1 (backend): DenyList entries survived re-login. Logout added user to deny list, but AuthService.login() never removed them, so the new token from re-login was immediately rejected by JwtService.verifyToken()'s DenyList check.
+- Root cause 2 (client): sendWithoutRequest blanket-excluded all /auth/ paths, including the protected /api/auth/logout endpoint, causing an unnecessary 401+retry cycle on every logout.
+- Root cause 3 (client): failed server logout did not clear the client-side token, trapping the user in a logged-in state.
+- Fixes:
+  - DenyList.kt: added allow(userId) method to remove a user from the deny list.
+  - AuthService.kt: call DenyList.allow(appUser.id) after successful login.
+  - ApiClient.kt: refined sendWithoutRequest to only exclude /auth/login and /auth/register using it.url.toString().endsWith() (Ktor 3.5.x URLBuilder has no encodedPath property).
+  - App.kt: clear token and set isLoggedIn=false on both logout Success and Error states.
+  - .githooks/pre-commit: added composeApp compilation check (compileKotlinDesktop + compileDebugKotlinAndroid) to prevent cross-target compilation errors from shipping.
+- Files changed:
+  - MODIFIED: backend/.../auth/DenyList.kt (@Suppress("TooManyFunctions") + allow method)
+  - MODIFIED: backend/.../service/AuthService.kt (import DenyList + call allow after login)
+  - MODIFIED: composeApp/.../network/ApiClient.kt (sendWithoutRequest refined)
+  - MODIFIED: composeApp/.../App.kt (logout clear token on Success and Error)
+  - MODIFIED: .githooks/pre-commit (added composeApp compilation step)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid (BUILD SUCCESSFUL).
+---
+
 ## Wed Jul 15 2026 - US-053 (added to PRD)
 Thread: unavailable
 - Added US-053 story: add SLF4J provider (logback-classic or slf4j-simple) to desktop dependencies so Ktor/Compose logs are captured instead of "No SLF4J providers were found" warnings at launch.

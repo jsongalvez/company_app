@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
  * they are older than [TOKEN_MAX_AGE] because any JWT that could belong to them
  * is guaranteed to have expired by then (JWT max expiry is 24h).
  */
+@Suppress("TooManyFunctions")
 object DenyList {
     private val logger = KotlinLogging.logger {}
 
@@ -27,6 +28,13 @@ object DenyList {
 
     /** Add a user to the deny list, blocking it immediately. */
     fun deny(userId: UUID) = denyAt(userId, Instant.now())
+
+    /** Remove a user from the deny list, restoring access immediately. */
+    fun allow(userId: UUID) {
+        denied.remove(userId)?.let {
+            logger.info { "[DENY-LIST] User ${userId.toString().maskUUID()} removed from deny list" }
+        }
+    }
 
     /** Returns true if the user is currently denied access. Expired entries are evicted lazily. */
     fun isDenied(userId: UUID): Boolean = isDeniedAt(userId, Instant.now())

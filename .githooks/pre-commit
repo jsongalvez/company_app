@@ -23,6 +23,13 @@ log "Running quality gate (detekt, ktlint, test, jmhClasses)..."
 log "Quality gate passed."
 
 # ----------------------------------------------------------------
+# 2b. ComposeApp compilation check (all targets)
+# ----------------------------------------------------------------
+log "Compiling composeApp (desktop + android)..."
+./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid --no-daemon 2>&1 | tail -5
+log "composeApp compilation passed."
+
+# ----------------------------------------------------------------
 # 3. Ensure Postgres is reachable
 # ----------------------------------------------------------------
 source .env 2>/dev/null || true
