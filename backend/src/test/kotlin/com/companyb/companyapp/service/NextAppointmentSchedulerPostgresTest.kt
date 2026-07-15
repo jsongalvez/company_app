@@ -5,14 +5,13 @@ import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -25,7 +24,6 @@ import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
@@ -53,8 +51,6 @@ class NextAppointmentSchedulerPostgresTest {
 
     private lateinit var branchDayId: UUID
 
-    private lateinit var coordinatorRoleId: UUID
-
     @BeforeTest
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
@@ -67,7 +63,6 @@ class NextAppointmentSchedulerPostgresTest {
         insertBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
         branchDayId = createBranchDay(branchId)
         insertClient(clientId)
-        coordinatorRoleId = getCoordinatorRoleId()
         grantEditBranchData(callerId)
     }
 
@@ -80,7 +75,7 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler creates notifications for coordinator with assignment`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -100,7 +95,7 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler skips if all notifications already exist`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -121,7 +116,6 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler does not notify non-coordinator users`() {
-        assignRole(nonCoordinatorId, "PRACTITIONER")
         insertUserBranchAssignment(nonCoordinatorId, branchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -132,7 +126,7 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler does not notify coordinator without active assignment`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
 
@@ -142,7 +136,7 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler does not notify coordinator assigned to different branch`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, otherBranchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -152,22 +146,21 @@ class NextAppointmentSchedulerPostgresTest {
     }
 
     @Test
-    fun `scheduler creates notifications for both coordinator and manager`() {
-        assignCoordinatorRole(coordinatorId)
-        val managerId = unassignedCoordinatorId
-        assignRole(managerId, "MANAGER")
+    fun `scheduler does not notify manager without coordinator capability`() {
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
+        val managerId = unassignedCoordinatorId
         insertUserBranchAssignment(managerId, branchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
 
         val count = NextAppointmentScheduler.run(fixedClock)
-        assertEquals(2, count)
+        assertEquals(1, count)
     }
 
     @Test
     fun `scheduler does not include voided sessions`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -179,7 +172,7 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler only includes COMPLETED sessions`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         val completedSessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -197,7 +190,7 @@ class NextAppointmentSchedulerPostgresTest {
 
     @Test
     fun `scheduler only matches exact target date`() {
-        assignCoordinatorRole(coordinatorId)
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
 
         createCompletedSessionWithAppointment(twoDaysFromNow())
@@ -353,39 +346,18 @@ class NextAppointmentSchedulerPostgresTest {
                 }.single()[BranchDayTable.id]
         }
 
-    private fun assignCoordinatorRole(userId: UUID) {
-        transaction {
-            UserRoleTable.insert {
-                it[UserRoleTable.userId] = userId
-                it[UserRoleTable.roleId] = coordinatorRoleId
-            }
-        }
-    }
-
-    private fun assignRole(
+    private fun grantReceiveNextAppointmentAlerts(
         userId: UUID,
-        roleName: String,
+        branchId: UUID,
     ) {
-        transaction {
-            val roleId =
-                RoleTable
-                    .selectAll()
-                    .where { RoleTable.name eq roleName }
-                    .single()[RoleTable.id]
-            UserRoleTable.insert {
-                it[UserRoleTable.userId] = userId
-                it[UserRoleTable.roleId] = roleId
-            }
-        }
+        DatabaseTestHelper.grantCapability(
+            userId = userId,
+            capabilityCode = "RECEIVE_NEXT_APPOINTMENT_ALERTS",
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
-
-    private fun getCoordinatorRoleId(): UUID =
-        transaction {
-            RoleTable
-                .selectAll()
-                .where { RoleTable.name eq "COORDINATOR" }
-                .single()[RoleTable.id]
-        }
 
     private fun insertUserBranchAssignment(
         userId: UUID,
@@ -411,7 +383,6 @@ class NextAppointmentSchedulerPostgresTest {
             NotificationTable.deleteAll()
             com.companyb.companyapp.repository.model.SessionVoidTable
                 .deleteAll()
-            UserRoleTable.deleteWhere { UserRoleTable.userId inList allTestUsers }
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId inList allTestUsers }
             UserBranchAssignmentTable.deleteWhere {
                 UserBranchAssignmentTable.userId inList allTestUsers

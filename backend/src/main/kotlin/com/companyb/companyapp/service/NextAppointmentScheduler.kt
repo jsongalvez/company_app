@@ -2,20 +2,20 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
+import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
 import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserRoleTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.innerJoin
 import org.jetbrains.exposed.sql.leftJoin
-import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
@@ -30,6 +30,7 @@ import java.util.UUID
 object NextAppointmentScheduler {
     private val logger = KotlinLogging.logger {}
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
+    private const val RECEIVE_NEXT_APPOINTMENT_ALERTS = "RECEIVE_NEXT_APPOINTMENT_ALERTS"
     private const val RUN_HOUR = 7
     private const val RUN_MINUTE = 0
     private const val DAYS_AHEAD = 2L
@@ -102,24 +103,23 @@ object NextAppointmentScheduler {
 
     internal fun findActiveCoordinatorsForBranch(branchId: UUID): List<UUID> =
         transaction {
-            val coordinatorRoleIds =
-                RoleTable
-                    .selectAll()
-                    .where {
-                        (RoleTable.name eq "COORDINATOR") or (RoleTable.name eq "MANAGER")
-                    }.map { it[RoleTable.id] }
-
             UserBranchAssignmentTable
                 .innerJoin(
-                    UserRoleTable,
+                    ActiveUserCapabilitiesView,
                     { UserBranchAssignmentTable.userId },
-                    { UserRoleTable.userId },
+                    { ActiveUserCapabilitiesView.userId },
+                ).innerJoin(
+                    CapabilityTable,
+                    { ActiveUserCapabilitiesView.capabilityId },
+                    { CapabilityTable.id },
                 ).select(
                     UserBranchAssignmentTable.userId,
                 ).where {
                     (UserBranchAssignmentTable.branchId eq branchId) and
                         (UserBranchAssignmentTable.endedAt.isNull()) and
-                        (UserRoleTable.roleId inList coordinatorRoleIds)
+                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
+                        (ActiveUserCapabilitiesView.contextId eq branchId) and
+                        (CapabilityTable.code eq RECEIVE_NEXT_APPOINTMENT_ALERTS)
                 }.withDistinct()
                 .map { it[UserBranchAssignmentTable.userId] }
         }
