@@ -18,6 +18,8 @@ local.properties
 
 captures
 
+**/*logDir_IS_UNDEFINED*/
+
 .externalNativeBuild
 
 .cxx

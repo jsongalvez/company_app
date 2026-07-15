@@ -4,6 +4,8 @@ import com.companyb.companyapp.config.MAX_HTTP_RETRIES
 import com.companyb.companyapp.config.platformDefaultBaseUrl
 import com.companyb.companyapp.util.logInfo
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpResponseValidator
@@ -25,11 +27,27 @@ import kotlinx.serialization.json.Json
 class ApiClient(
     private val tokenStore: TokenStore,
     baseUrl: String = platformDefaultBaseUrl,
+    engine: HttpClientEngine? = null,
 ) {
     val onUnauthorized: MutableSharedFlow<Unit> = MutableSharedFlow(extraBufferCapacity = 1)
 
-    val httpClient =
-        HttpClient {
+    val httpClient: HttpClient =
+        if (engine != null) {
+            HttpClient(engine) {
+                configure(tokenStore, baseUrl, onUnauthorized)
+            }
+        } else {
+            HttpClient {
+                configure(tokenStore, baseUrl, onUnauthorized)
+            }
+        }
+
+    companion object {
+        private fun HttpClientConfig<*>.configure(
+            tokenStore: TokenStore,
+            baseUrl: String,
+            onUnauthorized: MutableSharedFlow<Unit>,
+        ) {
             install(ContentNegotiation) {
                 json(
                     Json {
@@ -80,4 +98,5 @@ class ApiClient(
                 }
             }
         }
+    }
 }
