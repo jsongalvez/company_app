@@ -74,6 +74,10 @@ compose.desktop {
     }
 }
 
+tasks.withType<JavaExec>().configureEach {
+    if (name == "run") workingDir = rootProject.projectDir
+}
+
 
 android {
     namespace = "com.companyb.companyapp"

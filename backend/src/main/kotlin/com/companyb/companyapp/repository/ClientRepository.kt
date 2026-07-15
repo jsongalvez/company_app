@@ -196,18 +196,23 @@ object ClientRepository {
 
     fun search(query: String): List<Client> =
         transaction {
-            val namePattern = "%$query%"
-            val phonePattern = "$query%"
+            val tokens = query.split(" ").filter { it.isNotBlank() }
             ClientTable
                 .selectAll()
                 .where {
+                    val tokenConditions =
+                        tokens.map { token ->
+                            val namePattern = "%$token%"
+                            val phonePattern = "$token%"
+                            (
+                                ilike(ClientTable.firstName, namePattern) or
+                                    ilike(ClientTable.lastName, namePattern) or
+                                    ilike(ClientTable.middleName, namePattern) or
+                                    (ClientTable.phoneNumber like phonePattern)
+                            )
+                        }
                     (ClientTable.deletedAt.isNull()) and
-                        (
-                            ilike(ClientTable.firstName, namePattern) or
-                                ilike(ClientTable.lastName, namePattern) or
-                                ilike(ClientTable.middleName, namePattern) or
-                                (ClientTable.phoneNumber like phonePattern)
-                        )
+                        tokenConditions.reduce { acc, cond -> acc and cond }
                 }.orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
                 .limit(SEARCH_LIMIT)
                 .map { it.toClient() }

@@ -70,3 +70,56 @@ Thread: unavailable
   - MODIFIED: scripts/ralph/progress.txt
 - Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL). Desktop run verified writing logs/client/app.log (39 lines).
 ---
+
+## Wed Jul 15 2026 - Bugfix: search missing middle_name column
+Thread: unavailable
+- Root cause: Client name "dolores a vargas" was stored as first_name='dolores', last_name='a', middle_name='vargas'. The search only matched against first_name and last_name, so queries for the middle_name value ("vargas") returned zero results.
+- Fix: Added ilike(ClientTable.middleName, namePattern) to the search WHERE clause in ClientRepository.search().
+- Made ilike() helper generic <T : String?> to accept nullable Column<String?> (middle_name is nullable).
+- Added V3 migration (V3__client_middle_name_trgm.sql) with pg_trgm GIN index on middle_name for query performance.
+- Files changed:
+  - MODIFIED: backend/.../repository/ClientRepository.kt (added middle_name to search, generic ilike)
+  - NEW: backend/.../db/migration/V3__client_middle_name_trgm.sql
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses (BUILD SUCCESSFUL).
+---
+
+## Wed Jul 15 2026 - Feature: multi-token client search (AND semantics)
+Thread: unavailable
+- Root cause: Multi-word queries like "dolores vargas" or "dolores 0995300222" were treated as a single search pattern, never matching across multiple columns. Splitting into tokens and AND-ing them allows each token to independently match any column.
+- Fix: Search now splits the query into whitespace-delimited tokens. Each token is independently matched against first_name, last_name, middle_name (ILIKE %token%), and phone_number (LIKE token%). All tokens must match for a row to be included (AND semantics).
+- The token condition building happens inside the where {} block so `like` remains available via SqlExpressionBuilder receiver — no extra imports needed.
+- Examples:
+  - "dolores vargas" → token "dolores" matches first_name, token "vargas" matches middle_name → result found
+  - "dolores 0995300222" → token "dolores" matches first_name, token "0995300222" matches phone → result found
+  - "dolores" (single token) → behavior unchanged from before
+- Files changed:
+  - MODIFIED: backend/.../repository/ClientRepository.kt (tokenized search with AND semantics)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses (BUILD SUCCESSFUL).
+---
+
+## Wed Jul 15 2026 - Bugfix: desktop log dir fallback for IDE runs
+Thread: unavailable
+- Root cause: logback.xml uses ${companyApp.logDir} but jvmArgs in build.gradle.kts only apply to Gradle runs. IDE launches skip jvmArgs, so Logback resolves the undefined property to literal "companyApp.logDir_IS_UNDEFINED", creating composeApp/companyApp.logDir_IS_UNDEFINED/app.log.
+- Fix: Main.kt sets a fallback default (user.dir/logs/client) if the system property isn't already set by Gradle's jvmArgs, and creates the parent directory with mkdirs().
+- Deleted orphaned composeApp/companyApp.logDir_IS_UNDEFINED/ directory.
+- Files changed:
+  - MODIFIED: composeApp/src/desktopMain/.../Main.kt (fallback + mkdirs)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL).
+---
+
+## Wed Jul 15 2026 - Fix: unify client log path to repo-root logs/client/
+Thread: unavailable
+- Root cause: jvmArgs added workingDir=composeApp/ for the Gradle run task, so relative paths resolved to composeApp/logs/client/. AND the Main.kt fallback used bare user.dir which was composeApp/.
+- Fix:
+  - Added `tasks.withType<JavaExec>().configureEach { if (name == "run") workingDir = rootProject.projectDir }` in build.gradle.kts (same pattern as backend)
+  - Changed Main.kt fallback to detect project root by walking up from user.dir looking for .git/settings.gradle.kts markers
+  - Client logs now land in repo-root/logs/client/app.log from both Gradle and IDE runs
+- Files changed:
+  - MODIFIED: composeApp/build.gradle.kts (added workingDir for run task)
+  - MODIFIED: composeApp/src/desktopMain/.../Main.kt (project root detection)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL).
+---

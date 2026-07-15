@@ -8,7 +8,21 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 
-fun main() =
+private fun detectProjectRoot(dir: java.io.File): String {
+    val markers = listOf(".git", "settings.gradle.kts")
+    var current = dir
+    while (true) {
+        if (markers.any { java.io.File(current, it).exists() }) return current.absolutePath
+        current = current.parentFile ?: return dir.absolutePath
+    }
+}
+
+fun main() {
+    if (System.getProperty("companyApp.logDir") == null) {
+        val root = detectProjectRoot(java.io.File(System.getProperty("user.dir")))
+        System.setProperty("companyApp.logDir", "$root/logs/client")
+    }
+    java.io.File(System.getProperty("companyApp.logDir")).mkdirs()
     application {
         val windowState =
             rememberWindowState(
@@ -24,3 +38,4 @@ fun main() =
             App()
         }
     }
+}
