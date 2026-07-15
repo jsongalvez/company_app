@@ -48,6 +48,7 @@ import kotlinx.coroutines.delay
 fun ClientSearchScreen(
     clientViewModel: ClientViewModel,
     onBack: () -> Unit,
+    onClientSelected: (clientId: String) -> Unit = {},
 ) {
     val searchResultsState by clientViewModel.searchResults.collectAsState()
     val isSearching by clientViewModel.isSearching.collectAsState()
@@ -204,7 +205,10 @@ fun ClientSearchScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             items(priorResults) { client ->
-                                ClientSearchResultCard(client = client)
+                                ClientSearchResultCard(
+                                    client = client,
+                                    onClick = { onClientSelected(client.id) },
+                                )
                             }
                         }
                     }
@@ -219,7 +223,10 @@ fun ClientSearchScreen(
 }
 
 @Composable
-private fun ClientSearchResultCard(client: ClientResponse) {
+private fun ClientSearchResultCard(
+    client: ClientResponse,
+    onClick: () -> Unit = {},
+) {
     val fullName =
         buildString {
             append(client.firstName)
@@ -238,6 +245,7 @@ private fun ClientSearchResultCard(client: ClientResponse) {
         }
 
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors =
             CardDefaults.cardColors(

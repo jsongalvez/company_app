@@ -50,6 +50,7 @@ import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
+import com.companyb.companyapp.viewmodel.SessionViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -58,6 +59,10 @@ private sealed class Screen {
     data object Home : Screen()
 
     data object ClientSearch : Screen()
+
+    data class SessionCreate(
+        val clientId: String,
+    ) : Screen()
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalUuidApi::class)
@@ -118,6 +123,28 @@ fun HomeScreen(
     }
 
     when (currentScreen) {
+        is Screen.SessionCreate -> {
+            val sessionViewModel = remember { SessionViewModel(apiClient) }
+            val branchesList =
+                when (val state = branchesState) {
+                    is UiState.Success -> state.data
+                    else -> emptyList()
+                }
+            SessionCreateScreen(
+                clientId = (currentScreen as Screen.SessionCreate).clientId,
+                branches = branchesList,
+                sessionViewModel = sessionViewModel,
+                onBack = {
+                    logInfo("HomeScreen", "back from session create to client search")
+                    currentScreen = Screen.ClientSearch
+                },
+                onSessionCreated = {
+                    logInfo("HomeScreen", "session created, returning to client search")
+                    currentScreen = Screen.ClientSearch
+                },
+            )
+        }
+
         Screen.ClientSearch -> {
             val clientViewModel = remember { ClientViewModel(apiClient) }
             ClientSearchScreen(
@@ -125,6 +152,10 @@ fun HomeScreen(
                 onBack = {
                     logInfo("HomeScreen", "back from client search to home")
                     currentScreen = Screen.Home
+                },
+                onClientSelected = { clientId ->
+                    logInfo("HomeScreen", "client selected: $clientId, navigating to session create")
+                    currentScreen = Screen.SessionCreate(clientId)
                 },
             )
         }

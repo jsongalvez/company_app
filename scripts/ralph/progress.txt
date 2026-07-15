@@ -1148,3 +1148,20 @@ Thread: unavailable
   - MODIFIED: scripts/ralph/progress.txt
 - Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL).
 ---
+
+## Wed Jul 15 2026 - US-041
+Thread: unavailable
+- Implemented Android app session create screen.
+- Created SessionCreateScreen.kt: form with branch dropdown (ExposedDropdownMenu), isWalkIn toggle (Switch), finalPrice text field, remarks text area, nextAppointmentDate text field (YYYY-MM-DD), concerns checkboxes loaded from SessionViewModel.loadAllConcerns(), and Create Session submit button with loading state. Uses client-generated UUID keys for idempotency.
+- Added Screen.SessionCreate(clientId) sealed class to HomeScreen navigation.
+- HomeScreen renders SessionCreateScreen when currentScreen is SessionCreate, with branches list from loaded state.
+- ClientSearchScreen now accepts onClientSelected callback; tapping a client result card navigates to session create screen.
+- Pattern: follows existing ClientSearchScreen pattern (Scaffold + TopAppBar with back navigation, SnackbarHost for errors, UiState branching, isolated ViewModel creation per screen).
+- Files changed:
+  - NEW: composeApp/src/commonMain/.../ui/screen/SessionCreateScreen.kt
+  - MODIFIED: composeApp/src/commonMain/.../ui/screen/HomeScreen.kt (added Screen.SessionCreate + wiring)
+  - MODIFIED: composeApp/src/commonMain/.../ui/screen/ClientSearchScreen.kt (added onClientSelected callback)
+  - MODIFIED: scripts/ralph/prd.json (US-041 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:ktlintCheck :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid (BUILD SUCCESSFUL).
+---
