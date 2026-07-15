@@ -66,7 +66,7 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount")
+    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -101,11 +101,6 @@ object SessionService {
             return SessionCreateResult(existing, false)
         }
 
-        val hasActive = SessionRepository.hasActivePendingSession(clientId)
-        if (hasActive) {
-            throw ConflictResponse("Client already has an active PENDING session")
-        }
-
         val today = LocalDate.now(manilaZone)
         val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
@@ -121,21 +116,33 @@ object SessionService {
                 ?: BigDecimal(ZERO)
 
         val result =
-            SessionRepository.create(
-                id = id,
-                clientId = clientId,
-                branchDayId = branchDay.id,
-                requestedPractitionerId = requestedPractitionerId,
-                sessionType = sessionType,
-                isWalkIn = isWalkIn,
-                basePrice = basePrice,
-                finalPrice = finalPrice,
-                remarks = remarks,
-                otherConcerns = otherConcerns,
-                bookedAt = bookedAt,
-                nextAppointmentDate = nextAppointmentDate,
-                changedBy = callerId,
-            )
+            try {
+                SessionRepository.create(
+                    id = id,
+                    clientId = clientId,
+                    branchDayId = branchDay.id,
+                    requestedPractitionerId = requestedPractitionerId,
+                    sessionType = sessionType,
+                    isWalkIn = isWalkIn,
+                    basePrice = basePrice,
+                    finalPrice = finalPrice,
+                    remarks = remarks,
+                    otherConcerns = otherConcerns,
+                    bookedAt = bookedAt,
+                    nextAppointmentDate = nextAppointmentDate,
+                    changedBy = callerId,
+                )
+            } catch (e: IllegalStateException) {
+                when (e.message) {
+                    "client_already_has_pending_session" -> {
+                        throw ConflictResponse("Client already has an active PENDING session")
+                    }
+
+                    else -> {
+                        throw e
+                    }
+                }
+            }
 
         logger.info {
             "[CREATE-SESSION] Session ${result.session.id} created (type=$sessionType, branchType=$branchType)"

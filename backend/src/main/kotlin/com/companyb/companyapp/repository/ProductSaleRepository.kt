@@ -16,6 +16,7 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.sql.vendors.ForUpdateOption
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -43,6 +44,8 @@ object ProductSaleRepository {
                 logger.info { "[PRODUCT-SALE] Sale $id already exists, returning existing (idempotent)" }
                 return@transaction existing
             }
+
+            acquireInventoryLock(branchId, productId)
 
             val card =
                 BranchInventoryTable
@@ -180,6 +183,20 @@ object ProductSaleRepository {
                         (ActiveSessionVoidsView.sessionId.isNull())
                 }.map { it.toProductSale() }
         }
+
+    private fun acquireInventoryLock(
+        branchId: UUID,
+        productId: UUID,
+    ) {
+        // Row-level lock on branch_inventory to prevent TOCTOU races
+        // on concurrent stock checks during sales (CR-018 D2).
+        BranchInventoryTable
+            .selectAll()
+            .where {
+                (BranchInventoryTable.branchId eq branchId) and
+                    (BranchInventoryTable.productId eq productId)
+            }.forUpdate(ForUpdateOption.ForUpdate)
+    }
 
     private fun findByIdInTransaction(id: UUID): ProductSale? =
         ProductSaleTable

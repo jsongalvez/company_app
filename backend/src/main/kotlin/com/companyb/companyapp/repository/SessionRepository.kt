@@ -18,6 +18,7 @@ import org.jetbrains.exposed.sql.leftJoin
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.sql.vendors.ForUpdateOption
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -31,17 +32,6 @@ data class SessionCreateResult(
 )
 
 object SessionRepository {
-    fun hasActivePendingSession(clientId: UUID): Boolean =
-        transaction {
-            SessionTable
-                .selectAll()
-                .where {
-                    (SessionTable.clientId eq clientId) and
-                        (SessionTable.sessionStatus eq SessionStatus.PENDING)
-                }.empty()
-                .not()
-        }
-
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
         transaction {
             SessionTable
@@ -83,6 +73,12 @@ object SessionRepository {
         changedBy: UUID,
     ): SessionCreateResult =
         transaction {
+            acquireClientLock(clientId)
+            val hasActive = hasActivePendingSessionInTransaction(clientId)
+            if (hasActive) {
+                error("client_already_has_pending_session")
+            }
+
             val insertedCount =
                 SessionTable
                     .insertIgnore {
@@ -193,6 +189,23 @@ object SessionRepository {
             .where { SessionTable.id eq id }
             .singleOrNull()
             ?.toSession()
+
+    private fun acquireClientLock(clientId: UUID) {
+        // Row-level lock on client to serialize concurrent session creation (CR-018 C2).
+        ClientTable
+            .selectAll()
+            .where { ClientTable.id eq clientId }
+            .forUpdate(ForUpdateOption.ForUpdate)
+    }
+
+    private fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
+        SessionTable
+            .selectAll()
+            .where {
+                (SessionTable.clientId eq clientId) and
+                    (SessionTable.sessionStatus eq SessionStatus.PENDING)
+            }.empty()
+            .not()
 
     private fun org.jetbrains.exposed.sql.ResultRow.toSession(): Session =
         Session(

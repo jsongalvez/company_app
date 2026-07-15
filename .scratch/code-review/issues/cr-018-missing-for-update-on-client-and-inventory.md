@@ -21,3 +21,5 @@
 
 **Priority:** high
 **Story alignment:** US-012 (Session Create), US-027 (Product Sale)
+
+**Status:** ✅ done
