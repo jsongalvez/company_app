@@ -13,7 +13,9 @@ import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
 import com.companyb.companyapp.ui.screen.HomeScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
+import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
+import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
 @Composable
@@ -21,6 +23,8 @@ fun App() {
     val tokenStore: TokenStore = remember { createTokenStore() }
     val apiClient = remember { ApiClient(tokenStore) }
     val authViewModel = remember { AuthViewModel(apiClient) }
+    val branchViewModel = remember { BranchViewModel(apiClient) }
+    val attendanceViewModel = remember { AttendanceViewModel(apiClient) }
 
     var isLoggedIn by remember { mutableStateOf(false) }
     var isCheckingAuth by remember { mutableStateOf(true) }
@@ -44,6 +48,8 @@ fun App() {
         if (isLoggedIn) {
             HomeScreen(
                 authViewModel = authViewModel,
+                branchViewModel = branchViewModel,
+                attendanceViewModel = attendanceViewModel,
                 onLogout = {
                     tokenStore.clearToken()
                     isLoggedIn = false

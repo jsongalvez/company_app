@@ -2,6 +2,33 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - US-039
+Thread: unavailable
+- Implemented Android home screen with branch selector and clock-in/out.
+- Rewrote HomeScreen.kt from placeholder to full screen with TopAppBar (title + logout), LazyColumn branch list, branch cards with type badges, clock-in/out buttons, and quick navigation row (Clients/Sessions/Inventory — stub placeholders).
+- Updated App.kt to create BranchViewModel and AttendanceViewModel and pass them to HomeScreen.
+- Clock-in uses `kotlin.uuid.Uuid.random().toString()` for cross-platform client-generated UUID idempotency keys.
+- State management: tracks active attendance (`ClockInResponse?`) at composable level; shows "Clocked in" badge for active branch, "Clocked in elsewhere" for other branches when clocked in, disables clock-in when already clocked in elsewhere.
+- Error states shown via Snackbar (SnackbarHostState).
+- Loading states shown as CircularProgressIndicator on buttons.
+- Files changed:
+  - MODIFIED: composeApp/src/commonMain/.../App.kt (added ViewModel creation + passthrough)
+  - MODIFIED: composeApp/src/commonMain/.../ui/screen/HomeScreen.kt (complete rewrite)
+  - MODIFIED: scripts/ralph/prd.json (US-039 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop + :composeApp:compileDebugKotlinAndroid (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - Kotlin 2.3.10 has `kotlin.uuid.Uuid.random()` in stdlib for cross-platform UUID generation — use `@OptIn(ExperimentalUuidApi::class)` on the composable function.
+  - Scaffold + TopAppBar + LazyColumn is the standard pattern for compose App home screens with scrollable content.
+  - Track active clock-in as `mutableStateOf<ClockInResponse?>()` at the screen level — reset on clock-out success, set on clock-in success.
+  - Branch card shows three states: clocked in here (green/primary container + "Clock Out" button), clocked in elsewhere (disabled "Clock In" button + helper text), not clocked in (normal "Clock In" button).
+  - Use `ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)` for destructive actions (Clock Out).
+  - Quick navigation row uses `FilledTonalButton` with `Modifier.weight(1f)` for equal-width distribution.
+  - SnackbarHost is wired via Scaffold's `snackbarHost` parameter; show errors with `snackbarHostState.showSnackbar(message)`.
+  - LaunchedEffect reacts to state changes (clockInState, clockOutState) to update activeAttendance or show errors.
+  - When creating ViewModels in App.kt, create per `remember` to persist across recompositions within the same composable lifecycle.
+---
+
 ## Wed Jul 15 2026 - US-038
 Thread: unavailable
 - Implemented Android app login screen with Compose Multiplatform UI.
@@ -878,7 +905,8 @@ Thread: unavailable
 - `LaunchedEffect(state)` is the idiomatic pattern for side effects on state changes (e.g., save token on login success).
 
 ## Codebase Patterns
-- Use `sql<number>` template for aggregations
+- Kotlin 2.3.10: `kotlin.uuid.Uuid.random().toString()` for cross-platform UUID generation in commonMain (no external lib needed).
+- KMP compose app patterns: Scaffold + TopAppBar + LazyColumn for structured screens; ViewModels created in App.kt with `remember {}` and passed as params; simple boolean-based state navigation (no NavHost needed for MVP).
 - Always use `IF NOT EXISTS` for migrations
 - Export types from actions.ts for UI components
 - **Before coding a story, read the relevant doc in `docs/`:**
