@@ -50,7 +50,6 @@ class ApiClient(
 
             install(HttpRequestRetry) {
                 maxRetries = MAX_HTTP_RETRIES
-                retryOnServerErrors(MAX_HTTP_RETRIES)
             }
 
             install(DefaultRequest) {
