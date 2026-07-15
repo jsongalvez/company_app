@@ -139,7 +139,7 @@
         "Unit tests for hasCapability and deny list pass"
       ],
       "notes": "active_user_capabilities view is already defined in V1__full_schema.sql. contextType maps to capability_context_type enum.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-002",
@@ -165,7 +165,7 @@
         "Unit tests for resolveOrCreate and assertEditable pass"
       ],
       "notes": "4AM Manila boundary: branchDate.plusDays(1).atTime(4,0).atZone(ZoneId.of('Asia/Manila')). Called by every service before any financial or operational write.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-003",
@@ -193,7 +193,7 @@
         "Integration tests for user deactivation pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-004",
@@ -219,7 +219,7 @@
         "Integration tests for branch CRUD and idempotency pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-005",
@@ -249,7 +249,7 @@
         "Integration tests for slot swapping and assignments pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-006",
@@ -281,7 +281,7 @@
         "Integration tests for clock-in and relief computation pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-007",
@@ -308,7 +308,7 @@
         "Integration tests for clock-out and commission updates pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-008",
@@ -334,7 +334,7 @@
         "Integration tests for relief request validations pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-009",
@@ -360,7 +360,7 @@
         "Integration tests for relief grant/deny and capability expiration pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-010",
@@ -387,7 +387,7 @@
         "Integration tests for delegate transactions pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-011",
@@ -415,7 +415,7 @@
         "Integration tests for client fuzzy search and constraints pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-012",
@@ -440,7 +440,7 @@
         "Integration tests for client updates and anonymization pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-013",
@@ -471,7 +471,7 @@
         "Integration tests for concurrent session guard pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-014",
@@ -499,7 +499,7 @@
         "Integration tests for status transitions and optimistic locking pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-015",
@@ -527,7 +527,7 @@
         "Integration tests for session voiding and un-voiding pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-016",
@@ -555,7 +555,7 @@
         "Integration tests for practitioner slot snapshotting pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-017",
@@ -581,7 +581,7 @@
         "Integration tests for concern promotion pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-018",
@@ -608,7 +608,7 @@
         "Integration tests for base rate timeline validations pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-019",
@@ -634,7 +634,7 @@
         "Integration tests for product CRUD pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-020",
@@ -662,7 +662,7 @@
         "Integration tests for restocking and inventory locking pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-021",
@@ -692,7 +692,7 @@
         "Integration tests for product sales transactions and stock validations pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-022",
@@ -719,7 +719,7 @@
         "Integration tests for inventory movements and checks pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-023",
@@ -748,7 +748,7 @@
         "Integration tests for compensation unique constraints pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-024",
@@ -775,7 +775,7 @@
         "Unit tests for commission recalculation overrides pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-025",
@@ -801,7 +801,7 @@
         "Integration tests for expense CRUD and soft-deletion pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-026",
@@ -825,7 +825,7 @@
         "Integration tests for allowances pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-027",
@@ -850,7 +850,7 @@
         "Integration tests for draft creation pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-028",
@@ -878,7 +878,7 @@
         "Integration tests for draft line edits and breakdowns pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-029",
@@ -907,7 +907,7 @@
         "Integration tests for serializable submissions and snapshot immutability pass"
       ],
       "notes": "fn_remittance_snapshot_immutable trigger already exists in V1__full_schema.sql.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-030",
@@ -932,7 +932,7 @@
         "Unit tests for notification scheduler pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-031",
@@ -955,7 +955,7 @@
         "Integration tests for notification reading pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-032",
@@ -982,7 +982,7 @@
         "Integration tests for daily summary aggregates pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-033",
@@ -1006,7 +1006,7 @@
         "Integration tests for monthly summaries pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-034",
@@ -1032,7 +1032,7 @@
         "Integration tests for export formats and structures pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-035",
@@ -1057,7 +1057,7 @@
         "Integration tests for audit retrieval and acknowledgement pass"
       ],
       "notes": "ASSIGN_COMPENSATION capability is used for acknowledge gating (per the PRD). Read endpoints have no capability gate since audit trail is visible to all roles per design_specification.md.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-036",
@@ -1096,7 +1096,7 @@
         "Unit tests for client retry and token stores pass"
       ],
       "notes": "Ktor 3.x was chosen over alternatives (OkHttp KMP wrapper, custom expect/actual engines) because it is the only first-party KMP HTTP client with built-in plugins for auth, retry, content negotiation, and response validation — all in commonMain. Platform engines: OkHttp (Android, mature), Darwin (iOS, delegates to NSURLSession), CIO (Desktop/JVM, pure Kotlin). Pin version via ktorVersion in libs.versions.toml. Do NOT add ktor-server dependencies — client only.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-037",
@@ -1119,7 +1119,7 @@
         "Unit tests for ViewModels pass"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-038",
@@ -1142,7 +1142,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-039",
@@ -1165,7 +1165,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-040",
@@ -1187,7 +1187,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "notes": "",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-041",
@@ -1453,7 +1453,7 @@
         "Load test output confirms idempotency, locking, and auth behaviors hold under concurrent load"
       ],
       "notes": "Install k6 binary from https://grafana.com/docs/k6/latest/set-up/install-k6/. Run against local Docker Compose backend. k6 scripts live in tests/k6/.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-052",
@@ -1480,7 +1480,7 @@
         "Integration tests for logout and token rejection pass"
       ],
       "notes": "Reuses DenyList.deny(userId) built in US-001. Since deny list is keyed by userId (not jti), logout invalidates ALL tokens for the user across all devices — acceptable for a single-session business app. Same auto-eviction behavior as user deactivation (24h expiry).",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-053",
@@ -1504,7 +1504,7 @@
         "SLF4J warning no longer appears at launch"
       ],
       "notes": "The backend already uses logback-classic. For the desktop client, either logback-classic or the lighter slf4j-simple is acceptable. slf4j-simple (org.slf4j:slf4j-simple) requires zero config and logs to stderr by default.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-054",
@@ -1534,7 +1534,7 @@
         "Manual smoke test: run desktop app, verify log output on stdout"
       ],
       "notes": "expect fun pattern follows the same convention as expect fun createTokenStore() in TokenStore.kt and expect val platformDefaultBaseUrl in AppConfig.kt. Avoid expect object due to Kotlin/Native limitations. The logback.xml from backend/ can be partially reused — create a minimal logback.xml in composeApp/src/desktopMain/resources/ that logs to stdout at INFO level by default. No need for kotlin-logging (io.github.oshai) in composeApp — that library is JVM-only and the backend already uses it.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-055",
@@ -1563,7 +1563,7 @@
         "Run desktop app, perform login — verify request/response headers logged"
       ],
       "notes": "Ktor Logging plugin supports LogLevel.NONE, INFO, HEADERS, BODY, ALL. Use HEADERS (or a configurable level) to avoid logging sensitive JWT token bodies while still seeing request paths and response codes. The plugin is already in commonMain as implementation(libs.ktor.client.logging). The onUnauthorized SharedFlow in ApiClient.kt is currently never collected — logging here is critical to detect 401-triggered de-auth cycles.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-056",
@@ -1594,7 +1594,7 @@
         "Specifically verify logout produces logs showing: AuthVM logout start → POST /api/auth/logout → AuthVM logout success → App.kt logoutState=Success → clearToken → isLoggedIn=false → LoginScreen rendered"
       ],
       "notes": "This story is the critical piece for diagnosing the logout screen flash bug (US-060 will add screen-level logging to complete the picture). The stale loginState=Success bug in AuthViewModel (loginState is never reset after login success) will be immediately visible in logs when LoginScreen re-renders and sees the stale Success state — log messages will show LoginScreen calling onLoginSuccess despite no fresh login request. Do NOT fix the bug in this story — just add logging. Fix comes after diagnosis.",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-057",
@@ -1622,7 +1622,7 @@
         "KMP compilation for JVM, Android, and iOS targets succeeds"
       ],
       "notes": "Follow the pattern established in US-056 for AuthViewModel. If new ViewModels are added later, they should follow the same logging convention documented in AGENTS.md. The log tag naming convention: \"[Feature]VM\" (e.g., \"BranchVM\", \"AttendanceVM\").",
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-058",
@@ -1650,7 +1650,7 @@
         "Manual smoke test on desktop: reproduce logout flash → verify logs show the cycle: App.kt isLoggedIn=false → LoginScreen entered → LoginScreen sees loginState=Success → onLoginSuccess → App.kt isLoggedIn=true → HomeScreen entered → HomeScreen sees logoutState=Success → onLogout → App.kt isLoggedIn=false → (repeat)"
       ],
       "notes": "Once US-056 and US-058 are both implemented, the logout flash bug's full cycle will be visible in logs. The fix (resetting loginState to Idle after logout) should be a separate PRD or ad-hoc fix after diagnosis. The key log message that identifies the bug: 'LoginScreen: loginState=Success, triggering onLoginSuccess' appearing after 'App: isLoggedIn=false, showing LoginScreen' without any preceding 'AuthVM: login called'.",
-      "passes": true
+      "passes": false
     }
   ]
 }

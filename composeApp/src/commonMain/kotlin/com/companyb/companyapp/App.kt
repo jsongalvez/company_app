@@ -66,6 +66,7 @@ fun App() {
                 authViewModel = authViewModel,
                 branchViewModel = branchViewModel,
                 attendanceViewModel = attendanceViewModel,
+                apiClient = apiClient,
             )
         } else {
             LoginScreen(

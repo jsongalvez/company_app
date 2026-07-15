@@ -2,6 +2,28 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - US-040
+Thread: unavailable
+- Implemented Android client search screen with 300ms debounced search.
+- Created ClientSearchScreen.kt: search bar (OutlinedTextField), results list (LazyColumn with ClientSearchResultCard), all UiState handling (Idle hint, Loading spinner, Error snackbar/retry, Success with results/empty), back navigation via TopAppBar back button.
+- Wired navigation in HomeScreen.kt: added Screen sealed class (Home/ClientSearch), ClientViewModel parameter, onClientsClick callback from QuickNavRow, when(currentScreen) rendering.
+- Updated App.kt: instantiated ClientViewModel and passed to HomeScreen.
+- Pattern: follows existing LoginScreen/HomeScreen pattern (LaunchedEffect for side effects, SnackbarHost for errors, UiState branching, manual screen state without NavHost).
+- Files changed:
+  - NEW: composeApp/src/commonMain/.../ui/screen/ClientSearchScreen.kt
+  - MODIFIED: composeApp/src/commonMain/.../ui/screen/HomeScreen.kt
+  - MODIFIED: composeApp/src/commonMain/.../App.kt
+  - MODIFIED: scripts/ralph/prd.json (US-040 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop + :composeApp:compileDebugKotlinAndroid (BUILD SUCCESSFUL).
+- **Learnings for future iterations:**
+  - When using a sealed class for screen navigation in HomeScreen, the `currentScreen` mutableStateOf must be explicitly typed: `mutableStateOf<Screen>(Screen.Home)` instead of `mutableStateOf(Screen.Home)` — otherwise Kotlin infers the specific subtype `Screen.Home` and assignment of `Screen.ClientSearch` fails with type mismatch.
+  - Nullable properties from a different KMP module (e.g., `client.middleName: String?` from `shared`) cannot be smart-cast using `isNullOrBlank()` — assign to a local val first.
+  - `replaceAll` in idea_replace_text_in_file replaces ALL occurrences — use the `edit` tool with surrounding context for targeted single-line edits.
+  - The minimal nav pattern (sealed class + when in HomeScreen) is sufficient for 2-level depth; avoid NavHost until 3+ levels exist.
+  - ClientSearchScreen pattern: search bar at top, debounce via LaunchedEffect(query) with delay(300), results list below, empty state when query is blank (Idle) or no results (Success with empty list).
+---
+
 ## Wed Jul 15 2026 - Bugfix: logout-after-relogin (82b2ca1)
 Thread: unavailable
 - Fixed bug where logging out, re-logging in, then trying to logout again would fail with 401.

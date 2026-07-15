@@ -44,13 +44,21 @@ import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.ClockOutRequest
+import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchViewModel
+import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+
+private sealed class Screen {
+    data object Home : Screen()
+
+    data object ClientSearch : Screen()
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalUuidApi::class)
 @Composable
@@ -58,6 +66,7 @@ fun HomeScreen(
     authViewModel: AuthViewModel,
     branchViewModel: BranchViewModel,
     attendanceViewModel: AttendanceViewModel,
+    apiClient: ApiClient,
 ) {
     val branchesState by branchViewModel.branches.collectAsState()
     val clockInState by attendanceViewModel.clockInState.collectAsState()
@@ -67,6 +76,7 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var activeAttendance by remember { mutableStateOf<ClockInResponse?>(null) }
+    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
 
     LaunchedEffect(Unit) {
         logInfo("HomeScreen", "composable entered (first composition)")
@@ -107,81 +117,100 @@ fun HomeScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("CompanyApp") },
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                actions = {
-                    TextButton(
-                        onClick = {
-                            logInfo("HomeScreen", "logout button onClick")
-                            authViewModel.logout()
-                        },
-                        enabled = logoutState !is UiState.Loading,
-                    ) {
-                        Text("Logout")
-                    }
+    when (currentScreen) {
+        Screen.ClientSearch -> {
+            val clientViewModel = remember { ClientViewModel(apiClient) }
+            ClientSearchScreen(
+                clientViewModel = clientViewModel,
+                onBack = {
+                    logInfo("HomeScreen", "back from client search to home")
+                    currentScreen = Screen.Home
                 },
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { padding ->
-        when (val state = branchesState) {
-            is UiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
+        }
 
-            is UiState.Error -> {
-                Box(
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = state.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedButton(onClick = { branchViewModel.loadBranches() }) {
-                            Text("Retry")
+        Screen.Home -> {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text("CompanyApp") },
+                        colors =
+                            TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                        actions = {
+                            TextButton(
+                                onClick = {
+                                    logInfo("HomeScreen", "logout button onClick")
+                                    authViewModel.logout()
+                                },
+                                enabled = logoutState !is UiState.Loading,
+                            ) {
+                                Text("Logout")
+                            }
+                        },
+                    )
+                },
+                snackbarHost = { SnackbarHost(snackbarHostState) },
+            ) { padding ->
+                when (val state = branchesState) {
+                    is UiState.Loading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize().padding(padding),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
                         }
                     }
+
+                    is UiState.Error -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize().padding(padding),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = state.message,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                OutlinedButton(onClick = { branchViewModel.loadBranches() }) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
+                    }
+
+                    is UiState.Success -> {
+                        HomeScreenContent(
+                            branches = state.data,
+                            activeAttendance = activeAttendance,
+                            isClockingIn = clockInState is UiState.Loading,
+                            isClockingOut = clockOutState is UiState.Loading,
+                            onClockIn = { branchId ->
+                                attendanceViewModel.clockIn(
+                                    ClockInRequest(
+                                        id = Uuid.random().toString(),
+                                        branchId = branchId,
+                                    ),
+                                )
+                            },
+                            onClockOut = { attendanceId ->
+                                attendanceViewModel.clockOut(ClockOutRequest(attendanceId))
+                            },
+                            onClientsClick = {
+                                logInfo("HomeScreen", "clients button onClick")
+                                currentScreen = Screen.ClientSearch
+                            },
+                            modifier = Modifier.padding(padding),
+                        )
+                    }
+
+                    is UiState.Idle -> {}
                 }
             }
-
-            is UiState.Success -> {
-                HomeScreenContent(
-                    branches = state.data,
-                    activeAttendance = activeAttendance,
-                    isClockingIn = clockInState is UiState.Loading,
-                    isClockingOut = clockOutState is UiState.Loading,
-                    onClockIn = { branchId ->
-                        attendanceViewModel.clockIn(
-                            ClockInRequest(
-                                id = Uuid.random().toString(),
-                                branchId = branchId,
-                            ),
-                        )
-                    },
-                    onClockOut = { attendanceId ->
-                        attendanceViewModel.clockOut(ClockOutRequest(attendanceId))
-                    },
-                    modifier = Modifier.padding(padding),
-                )
-            }
-
-            is UiState.Idle -> {}
         }
     }
 }
@@ -194,6 +223,7 @@ private fun HomeScreenContent(
     isClockingOut: Boolean,
     onClockIn: (branchId: String) -> Unit,
     onClockOut: (attendanceId: String) -> Unit,
+    onClientsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -201,7 +231,7 @@ private fun HomeScreenContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            QuickNavRow()
+            QuickNavRow(onClientsClick = onClientsClick)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Branches",
@@ -226,13 +256,13 @@ private fun HomeScreenContent(
 }
 
 @Composable
-private fun QuickNavRow() {
+private fun QuickNavRow(onClientsClick: () -> Unit = {}) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         FilledTonalButton(
-            onClick = { /* TODO: navigate to client search */ },
+            onClick = onClientsClick,
             modifier = Modifier.weight(1f),
         ) {
             Text("Clients")
