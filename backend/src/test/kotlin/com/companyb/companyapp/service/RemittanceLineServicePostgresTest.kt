@@ -74,7 +74,7 @@ class RemittanceLineServicePostgresTest {
         deleteTestRows()
         insertUser(callerId)
         insertBranch(branchId)
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId)
+        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         insertClient(clientId)

@@ -65,8 +65,8 @@ class MonthlyRemittanceSummaryServicePostgresTest {
         DatabaseTestHelper.grantCapability(
             userId = callerId,
             capabilityCode = "SUBMIT_REMITTANCE",
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
             sourceId = sourceId,
         )
     }

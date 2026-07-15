@@ -188,6 +188,7 @@ object DatabaseTestHelper {
     fun grantSubmitRemittance(
         userId: UUID,
         sourceId: UUID,
+        branchId: UUID,
     ) {
         transaction {
             val capId =
@@ -199,8 +200,8 @@ object DatabaseTestHelper {
             UserCapabilityTable.insert {
                 it[UserCapabilityTable.userId] = userId
                 it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
+                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
+                it[UserCapabilityTable.contextId] = branchId
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
                 it[UserCapabilityTable.priority] = 100

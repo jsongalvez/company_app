@@ -181,12 +181,15 @@ class RemittanceServicePostgresTest {
 
     @Test
     fun `create draft with non-existent branch returns not found`() {
+        val nonexistentBranchId = UUID.randomUUID()
+        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
+
         assertFailsWith<NotFoundResponse> {
             RemittanceService.createDraft(
                 callerId = callerId,
                 id = UUID.randomUUID(),
                 type = RemittanceType.SESSION,
-                branchId = UUID.randomUUID(),
+                branchId = nonexistentBranchId,
                 method = RemittanceMethod.BANK_TRANSFER,
                 dateRangeStart = LocalDate.of(2026, 7, 1),
                 dateRangeEnd = LocalDate.of(2026, 7, 15),
@@ -446,7 +449,7 @@ class RemittanceServicePostgresTest {
     }
 
     private fun grantSubmitRemittance(userId: UUID) {
-        DatabaseTestHelper.grantSubmitRemittance(userId, sourceId)
+        DatabaseTestHelper.grantSubmitRemittance(userId, sourceId, branchId)
     }
 
     private fun revokeCapabilities() {

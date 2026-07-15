@@ -25,16 +25,23 @@ object ExpenseService {
         category: ExpenseCategory,
         notes: String?,
     ): Expense {
+        val branchDay =
+            BranchDayRepository.findById(branchDayId)
+                ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
+
         val authorized =
             CapabilityService.hasCapability(
                 userId = callerId,
                 capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+                contextType = CapabilityContextType.BRANCH,
+                contextId = branchDay.branchId,
             )
         if (!authorized) {
-            logger.warn { "[CREATE-EXPENSE] User $callerId lacks $EDIT_BRANCH_DATA capability" }
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
+            logger.warn {
+                "[CREATE-EXPENSE] User $callerId lacks $EDIT_BRANCH_DATA" +
+                    " capability for branch ${branchDay.branchId}"
+            }
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required for this branch")
         }
 
         val existing = ExpenseRepository.findById(id)
@@ -57,25 +64,32 @@ object ExpenseService {
         expenseId: UUID,
         reason: String,
     ): Expense {
+        val expense =
+            ExpenseRepository.findById(expenseId)
+                ?: throw io.javalin.http.NotFoundResponse("Expense not found")
+
+        val branchDay =
+            BranchDayRepository.findById(expense.branchDayId)
+                ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
+
         val authorized =
             CapabilityService.hasCapability(
                 userId = callerId,
                 capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+                contextType = CapabilityContextType.BRANCH,
+                contextId = branchDay.branchId,
             )
         if (!authorized) {
-            logger.warn { "[DELETE-EXPENSE] User $callerId lacks $EDIT_BRANCH_DATA capability" }
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
+            logger.warn {
+                "[DELETE-EXPENSE] User $callerId lacks $EDIT_BRANCH_DATA" +
+                    " capability for branch ${branchDay.branchId}"
+            }
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required for this branch")
         }
 
         if (reason.isBlank()) {
             throw BadRequestResponse("Reason is required for expense deletion")
         }
-
-        val expense =
-            ExpenseRepository.findById(expenseId)
-                ?: throw io.javalin.http.NotFoundResponse("Expense not found")
 
         BranchDayService.assertEditable(expense.branchDayId, callerId, reason)
 
@@ -88,19 +102,20 @@ object ExpenseService {
         callerId: UUID,
         branchDayId: UUID,
     ): List<Expense> {
+        val branchDay =
+            BranchDayRepository.findById(branchDayId)
+                ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
+
         val authorized =
             CapabilityService.hasCapability(
                 userId = callerId,
                 capabilityCode = EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.GLOBAL,
-                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+                contextType = CapabilityContextType.BRANCH,
+                contextId = branchDay.branchId,
             )
         if (!authorized) {
-            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required")
+            throw ForbiddenResponse("EDIT_BRANCH_DATA capability required for this branch")
         }
-
-        BranchDayRepository.findById(branchDayId)
-            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
 
         return ExpenseRepository.findByBranchDayId(branchDayId)
     }

@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
@@ -412,7 +413,13 @@ class ExpenseServicePostgresTest {
         }
 
     private fun grantEditBranchData(userId: UUID) {
-        DatabaseTestHelper.grantEditBranchData(userId, sourceId)
+        DatabaseTestHelper.grantCapability(
+            userId = userId,
+            capabilityCode = "EDIT_BRANCH_DATA",
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 
     private fun revokeCapabilities() {
