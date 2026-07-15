@@ -41,7 +41,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-034 — ApiClient config + speculative params | — | [ ] |
 | CR-035 — chunk2a duplicated patterns | — | [ ] |
 
-| CR-036 — quality gate effectiveness audit | — | [ ] |
+| CR-036 — quality gate effectiveness audit | — | [x] |
 
 ## Overlaps to merge or de-dupe
 
