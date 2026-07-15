@@ -12,6 +12,7 @@ import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
+import com.companyb.companyapp.api.routes.MeRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
 import com.companyb.companyapp.api.routes.NotificationRoutes
@@ -49,6 +50,7 @@ private const val KB = 1024L
 private const val MAX_REQUEST_SIZE_KB = 64L
 private const val SCHEDULER_PERIOD_HOURS = 24L
 
+@Suppress("LongMethod")
 fun initializeJavalin() {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
 
@@ -79,6 +81,8 @@ fun initializeJavalin() {
             AuthRoutes.login(config)
             AuthRoutes.register(config)
             AuthRoutes.logout(config)
+            MeRoutes.getMe(config)
+            MeRoutes.getCapabilities(config)
             AttendanceRoutes.clockIn(config)
             AttendanceRoutes.clockOut(config)
             BranchRoutes.register(config)
