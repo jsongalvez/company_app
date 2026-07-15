@@ -1651,6 +1651,146 @@
       ],
       "notes": "Once US-056 and US-058 are both implemented, the logout flash bug's full cycle will be visible in logs. The fix (resetting loginState to Idle after logout) should be a separate PRD or ad-hoc fix after diagnosis. The key log message that identifies the bug: 'LoginScreen: loginState=Success, triggering onLoginSuccess' appearing after 'App: isLoggedIn=false, showing LoginScreen' without any preceding 'AuthVM: login called'.",
       "passes": false
+    },
+    {
+      "id": "US-059",
+      "title": "Fix URL encoding for multi-word search queries",
+      "description": "As a user, I want to search for multi-word names like 'John Smith' or 'de la Cruz' and get results, so that names with spaces and special characters match correctly.",
+      "type": "bugfix",
+      "priorityHint": 59,
+      "dependsOn": [
+        "US-040"
+      ],
+      "requirements": [
+        "ClientViewModel.search() must use Ktor's type-safe query parameter API (HttpRequestBuilder.parameter() or URLBuilder.parameters.append()) instead of Kotlin string interpolation 'get(\"/api/clients?q=$query\")'",
+        "Multi-word queries with spaces must produce URL-encoded query strings (e.g. /api/clients?q=John%20Smith)",
+        "Phone numbers with dashes or parens must still match the phone prefix pattern on the backend",
+        "Backend ClientRepository.search() already supports firstName, lastName, and phoneNumber LIKE matching — no backend changes needed"
+      ],
+      "acceptanceCriteria": [
+        "Typing 'John Smith' sends GET /api/clients?q=John%20Smith (URL-encoded)",
+        "Typing 'de la Cruz' returns results matching across first and last names",
+        "Phone-only searches with punctuation (0917-555-1234) still produce correct results via the phone prefix LIKE pattern",
+        "Single-word queries still work identically to before"
+      ],
+      "verification": [
+        "KMP compilation for Desktop + Android succeeds",
+        "Manual smoke test: search 'John Smith' on desktop, verify results appear"
+      ],
+      "notes": "Root cause: Kotlin string interpolation in get(\"/api/clients?q=$query\") does not URL-encode the query value. Ktor 3.x HttpRequestBuilder provides parameter(key, value) and URLBuilder.parameters.append() for this. ApiClient already sets defaultRequest { url(baseUrl) } so relative paths work with the builder.",
+      "passes": false
+    },
+    {
+      "id": "US-060",
+      "title": "Keep previous search results visible during loading",
+      "description": "As a user, I want to see my previous results while a new search loads, so that the UI doesn't flash blank between keystrokes when I refine my query.",
+      "type": "enhancement",
+      "priorityHint": 60,
+      "dependsOn": [
+        "US-040"
+      ],
+      "requirements": [
+        "When a new search fires (after 300ms debounce), the previous search results must remain on screen — do not replace the content area with a full-screen CircularProgressIndicator",
+        "Add a subtle loading cue (small spinner or 'Searching...' text) near the search bar, not replacing the results area",
+        "Results update atomically when the new response arrives — no intermediate blank/empty state",
+        "If the user clears the search bar, results clear and idle state reappears"
+      ],
+      "acceptanceCriteria": [
+        "Typing 'Sm' then 'Smi' then 'Smith' keeps the previous result set visible until the new response arrives",
+        "No full-screen spinner flash between keystrokes",
+        "A small inline loading indicator appears near the search bar during network requests",
+        "After clearing the search bar, idle state shows and results are cleared"
+      ],
+      "verification": [
+        "KMP compilation for Desktop + Android succeeds",
+        "Verify in browser using dev-browser skill"
+      ],
+      "notes": "This is the single biggest UX win for search feel. The current pattern replaces the entire content area with a full-screen spinner on every UiState.Loading transition, which disorients the user. Instead, keep the results area stable and show a subtle cue that work is happening. The LaunchedEffect(query) with delay(300) pattern stays unchanged.",
+      "passes": false
+    },
+    {
+      "id": "US-061",
+      "title": "Add result count and search term header above results",
+      "description": "As a user, I want to see how many results matched and what I searched for, so that I know my query was processed correctly.",
+      "type": "enhancement",
+      "priorityHint": 61,
+      "dependsOn": [
+        "US-060"
+      ],
+      "requirements": [
+        "When results arrive, show 'N results for <query>' header above the results list",
+        "When zero results, show 'No results for <query>' with the actual query string",
+        "Header updates immediately when new search results arrive",
+        "Error state includes the query that failed"
+      ],
+      "acceptanceCriteria": [
+        "Searching 'Smith' shows '3 results for Smith' above 3 result cards",
+        "Searching 'xyzzy' shows 'No results for xyzzy' with suggestion to try different spelling",
+        "Searching a term with spaces shows the full query in the header",
+        "Error state shows 'Search failed for <query>' or similar contextual message"
+      ],
+      "verification": [
+        "KMP compilation for Desktop + Android succeeds",
+        "Verify in browser using dev-browser skill"
+      ],
+      "notes": "The current empty state says just 'No clients found' with no context about what was searched. Adding the query to every state (success, empty, error) gives the user confidence their input was received and processed.",
+      "passes": false
+    },
+    {
+      "id": "US-062",
+      "title": "Improve idle and empty state messaging",
+      "description": "As a user, I want meaningful prompts at every stage so that I know what the system expects and what happened.",
+      "type": "enhancement",
+      "priorityHint": 62,
+      "dependsOn": [
+        "US-060"
+      ],
+      "requirements": [
+        "Idle state (no query entered) shows 'Start typing to search by name or phone' instead of the passive 'Type a name or phone number to search'",
+        "Empty results state shows 'No results for <query>. Try a different spelling.' with the actual query",
+        "After the user clears the search bar, results clear and idle state reappears",
+        "Error state shows the query that failed so user doesn't need to retype"
+      ],
+      "acceptanceCriteria": [
+        "Idle prompt is action-oriented and tells the user what to do",
+        "Empty state includes the query and a suggestion",
+        "Clearing the search bar restores idle state with results cleared",
+        "Error state shows contextual message with the failed query"
+      ],
+      "verification": [
+        "KMP compilation for Desktop + Android succeeds",
+        "Verify in browser using dev-browser skill"
+      ],
+      "notes": "The current idle message 'Type a name or phone number to search' is passive. 'Start typing to search' is more direct. The empty 'No clients found' tells the user nothing about what they typed.",
+      "passes": false
+    },
+    {
+      "id": "US-063",
+      "title": "Add inline loading indicator near search bar",
+      "description": "As a user, I want a loading cue that doesn't interrupt my results view, so that I know the search is processing without losing visual context.",
+      "type": "enhancement",
+      "priorityHint": 63,
+      "dependsOn": [
+        "US-060"
+      ],
+      "requirements": [
+        "During a search request, show a small CircularProgressIndicator (18dp) near the search bar — NOT a full-screen replacement",
+        "Search bar trailing icon or adjacent text shows 'Searching...' while request is in flight",
+        "Indicator disappears when results, empty, or error state arrives",
+        "Search bar remains enabled and focused during loading (already fixed — cursor loss bug resolved)"
+      ],
+      "acceptanceCriteria": [
+        "A small spinner appears near the search bar during network requests",
+        "The results area below does not clear or flash during loading",
+        "Spinner disappears when response arrives",
+        "Search bar stays focused and accepts input throughout"
+      ],
+      "verification": [
+        "KMP compilation for Desktop + Android succeeds",
+        "Verify in browser using dev-browser skill"
+      ],
+      "notes": "This is the companion to US-060 — US-060 keeps results visible, this adds a loading cue so the user knows work is happening. Together they replace the full-screen spinner pattern with a stable-results + subtle-indicator pattern.",
+      "passes": false
     }
   ]
 }

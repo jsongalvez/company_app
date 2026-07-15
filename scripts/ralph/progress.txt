@@ -2,6 +2,20 @@
 Started: Sat Jun 27 12:27:08 PM PST 2026
 ---
 
+## Wed Jul 15 2026 - Bugfix: cursor loss + PRD for search improvements (US-059–063)
+Thread: unavailable
+- Fixed cursor loss on search bar: removed `enabled = searchResultsState !is UiState.Loading` from OutlinedTextField which was disabling the field during debounced searches, killing keyboard focus.
+- Created tasks/prd-client-search-improvements.md with 5 stories (US-059 – US-063) for search UX improvements: URL encoding fix, keep results visible during loading, result count header, better empty states, inline loading indicator.
+- Added US-059 through US-063 to scripts/ralph/prd.json in Ralph story format.
+- Root cause summary for US-059: `get("/api/clients?q=$query")` uses Kotlin string interpolation which does not URL-encode. Switch to `parameter("q", query)`.
+- Files changed:
+  - MODIFIED: composeApp/.../ui/screen/ClientSearchScreen.kt (removed `enabled` gating)
+  - NEW: tasks/prd-client-search-improvements.md
+  - MODIFIED: scripts/ralph/prd.json (added US-059–063)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL).
+---
+
 ## Wed Jul 15 2026 - US-040
 Thread: unavailable
 - Implemented Android client search screen with 300ms debounced search.

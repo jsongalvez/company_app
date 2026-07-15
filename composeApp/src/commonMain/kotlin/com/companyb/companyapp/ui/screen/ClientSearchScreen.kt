@@ -105,7 +105,6 @@ fun ClientSearchScreen(
                 label = { Text("Search clients by name or phone") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
-                enabled = searchResultsState !is UiState.Loading,
             )
 
             when (val state = searchResultsState) {
