@@ -1505,6 +1505,152 @@
       ],
       "notes": "The backend already uses logback-classic. For the desktop client, either logback-classic or the lighter slf4j-simple is acceptable. slf4j-simple (org.slf4j:slf4j-simple) requires zero config and logs to stderr by default.",
       "passes": true
+    },
+    {
+      "id": "US-054",
+      "title": "expect/actual Log functions for composeApp (all KMP targets)",
+      "description": "As a developer, I need zero-dependency logging functions that work on all KMP targets (JVM/Desktop, Android, iOS) so that every layer of the composeApp can emit traceable log output for debugging.",
+      "type": "logging",
+      "priorityHint": 54,
+      "dependsOn": [
+        "US-053"
+      ],
+      "requirements": [
+        "Create composeApp/src/commonMain/kotlin/com/companyb/companyapp/util/Log.kt with expect top-level functions: logDebug(tag: String, message: String), logInfo(tag: String, message: String), logWarn(tag: String, message: String), logError(tag: String, message: String, throwable: Throwable? = null).",
+        "Create composeApp/src/desktopMain/kotlin/com/companyb/companyapp/util/Log.desktop.kt: actual functions delegating to org.slf4j.LoggerFactory.getLogger(tag) (logback-classic already in desktopMain deps from US-053). Format: [HH:mm:ss.SSS] [LEVEL] [tag] message.",
+        "Create composeApp/src/androidMain/kotlin/com/companyb/companyapp/util/Log.android.kt: actual functions delegating to android.util.Log.d/i/w/e(tag, message) with throwable passed as third arg for Log.e.",
+        "Create composeApp/src/iosMain/kotlin/com/companyb/companyapp/util/Log.ios.kt: actual functions using println() with a prefix like \"[HH:mm:ss.SSS] [LEVEL] [tag] message\".",
+        "Add a private expect fun currentTimestamp(): String to format timestamps consistently (use java.time.Instant on JVM, platform epoch millis on Android/iOS).",
+        "Zero new Gradle dependencies — uses only existing libraries (slf4j-api on desktop, android.util.Log, kotlin stdlib println on iOS)."
+      ],
+      "acceptanceCriteria": [
+        "logInfo(\"Test\", \"hello\") compiles and runs on desktop (output via SLF4J/logback), Android (output via Logcat), and iOS (output via println)",
+        "Desktop log output includes timestamp, level, and tag",
+        "Android log output uses correct android.util.Log priority mapping (debug→DEBUG, info→INFO, warn→WARN, error→ERROR)",
+        "KMP compilation succeeds for JVM (Desktop), Android, and iOS targets"
+      ],
+      "verification": [
+        "KMP compilation for JVM, Android, and iOS targets succeeds",
+        "Manual smoke test: run desktop app, verify log output on stdout"
+      ],
+      "notes": "expect fun pattern follows the same convention as expect fun createTokenStore() in TokenStore.kt and expect val platformDefaultBaseUrl in AppConfig.kt. Avoid expect object due to Kotlin/Native limitations. The logback.xml from backend/ can be partially reused — create a minimal logback.xml in composeApp/src/desktopMain/resources/ that logs to stdout at INFO level by default. No need for kotlin-logging (io.github.oshai) in composeApp — that library is JVM-only and the backend already uses it.",
+      "passes": false
+    },
+    {
+      "id": "US-055",
+      "title": "Install Ktor Logging plugin + add logging to ApiClient",
+      "description": "As a developer, I want Ktor HTTP request/response logging enabled and ApiClient operations traced so that network issues (401 loops, retries, connection failures) are visible in logs.",
+      "type": "logging",
+      "priorityHint": 55,
+      "dependsOn": [
+        "US-036",
+        "US-054"
+      ],
+      "requirements": [
+        "In ApiClient.kt commonMain, install(Logging) plugin on the HttpClient with LogLevel.HEADERS (or BODY) — the ktor-client-logging library is already in commonMain deps.",
+        "Add logInfo/logError calls at key ApiClient points: (a) client initialization/config loaded, (b) 401 response detected before onUnauthorized emission, (c) retry attempt with attempt number and URL, (d) token loaded/not-found from TokenStore at request time.",
+        "Ensure Logging plugin respects platform-specific log output: on desktop it flows through SLF4J/logback, on Android through Logcat, on iOS through println."
+      ],
+      "acceptanceCriteria": [
+        "HTTP request method, URL, and status code appear in logs for every API call",
+        "401 responses are logged with the request URL that triggered them",
+        "Retry attempts are logged with attempt count and target URL",
+        "Desktop app shows HTTP request/response logs on stdout",
+        "KMP compilation succeeds for all targets"
+      ],
+      "verification": [
+        "KMP compilation for JVM, Android, and iOS targets succeeds",
+        "Run desktop app, perform login — verify request/response headers logged"
+      ],
+      "notes": "Ktor Logging plugin supports LogLevel.NONE, INFO, HEADERS, BODY, ALL. Use HEADERS (or a configurable level) to avoid logging sensitive JWT token bodies while still seeing request paths and response codes. The plugin is already in commonMain as implementation(libs.ktor.client.logging). The onUnauthorized SharedFlow in ApiClient.kt is currently never collected — logging here is critical to detect 401-triggered de-auth cycles.",
+      "passes": false
+    },
+    {
+      "id": "US-056",
+      "title": "Add logging to App.kt auth state machine, AuthViewModel, and TokenStore",
+      "description": "As a developer, I need the auth state machine fully traced with logs so that I can diagnose the logout screen flash bug and any future auth state transitions that cause unexpected UI behavior.",
+      "type": "logging",
+      "priorityHint": 56,
+      "dependsOn": [
+        "US-054",
+        "US-037"
+      ],
+      "requirements": [
+        "App.kt: Add logInfo calls at every auth state transition: (a) initial auth check result (hasToken=true/false), (b) LaunchedEffect(logoutState) detecting Success and setting isLoggedIn=false, (c) onLogout callback executing client-side cleanup, (d) onLoginSuccess callback setting isLoggedIn=true. Log the current isLoggedIn value before and after each transition.",
+        "AuthViewModel.kt: Add logInfo at (a) login attempt start with username (masked), (b) login success with userId from response, (c) login failure with status code, (d) logout attempt start, (e) logout success/failure, (f) register attempt start. Add logError on exceptions with stacktrace.",
+        "TokenStore.desktop.kt: Add logInfo at (a) saveToken (log token length, not content), (b) getToken (log found/not-found), (c) clearToken. Same for TokenStore.android.kt and TokenStore.ios.kt.",
+        "Use AuthViewModel's own tag (\"AuthVM\"), App.kt's own tag (\"App\"), and \"TokenStore\" tag for respective TokenStore implementations."
+      ],
+      "acceptanceCriteria": [
+        "Every auth state change in App.kt produces a log entry showing old→new isLoggedIn value",
+        "Every login/logout attempt in AuthVM produces start+result log pair",
+        "Token save/load/clear operations are logged with result (found/length/cleared)",
+        "KMP compilation succeeds for all targets",
+        "Running the desktop app and performing login→logout produces a traceable sequence of log messages from TokenStore→AuthVM→App.kt→LoginScreen/HomeScreen"
+      ],
+      "verification": [
+        "KMP compilation for JVM, Android, and iOS targets succeeds",
+        "Manual smoke test on desktop: login, then logout — verify log output shows complete auth chain without gaps",
+        "Specifically verify logout produces logs showing: AuthVM logout start → POST /api/auth/logout → AuthVM logout success → App.kt logoutState=Success → clearToken → isLoggedIn=false → LoginScreen rendered"
+      ],
+      "notes": "This story is the critical piece for diagnosing the logout screen flash bug (US-060 will add screen-level logging to complete the picture). The stale loginState=Success bug in AuthViewModel (loginState is never reset after login success) will be immediately visible in logs when LoginScreen re-renders and sees the stale Success state — log messages will show LoginScreen calling onLoginSuccess despite no fresh login request. Do NOT fix the bug in this story — just add logging. Fix comes after diagnosis.",
+      "passes": false
+    },
+    {
+      "id": "US-057",
+      "title": "Add logging to all remaining ViewModels (Branch, Attendance, Client, Session, etc.)",
+      "description": "As a developer, I want all ViewModels to emit trace logs for state transitions and API call outcomes so that bugs in any feature area can be diagnosed from log output.",
+      "type": "logging",
+      "priorityHint": 57,
+      "dependsOn": [
+        "US-054",
+        "US-037"
+      ],
+      "requirements": [
+        "For every ViewModel in composeApp/src/commonMain/.../viewmodel/: add logInfo at (a) method entry (e.g., \"loadBranches called\"), (b) API call start with endpoint path, (c) API call success/failure with status or error message, (d) StateFlow value transition (Idle→Loading→Success/Error).",
+        "Use a consistent tag per ViewModel: \"BranchVM\", \"AttendanceVM\", \"ClientVM\", \"SessionVM\", etc.",
+        "Add logError on every catch block with exception details.",
+        "ViewModels to cover: BranchViewModel, AttendanceViewModel, and any other ViewModels present in the viewmodel/ package."
+      ],
+      "acceptanceCriteria": [
+        "Each ViewModel method that makes an API call produces start+result log pair",
+        "State transitions (Idle→Loading, Loading→Success, Loading→Error) are logged",
+        "Exceptions are logged with full stacktrace via logError",
+        "KMP compilation succeeds for all targets"
+      ],
+      "verification": [
+        "KMP compilation for JVM, Android, and iOS targets succeeds"
+      ],
+      "notes": "Follow the pattern established in US-056 for AuthViewModel. If new ViewModels are added later, they should follow the same logging convention documented in AGENTS.md. The log tag naming convention: \"[Feature]VM\" (e.g., \"BranchVM\", \"AttendanceVM\").",
+      "passes": false
+    },
+    {
+      "id": "US-058",
+      "title": "Add logging to HomeScreen and LoginScreen composables",
+      "description": "As a developer, I need screen-level lifecycle logging so that UI navigation events (screen enter/exit, callback invocations) are visible in the log stream alongside ViewModel and network logs.",
+      "type": "logging",
+      "priorityHint": 58,
+      "dependsOn": [
+        "US-054",
+        "US-056"
+      ],
+      "requirements": [
+        "LoginScreen.kt: Add logInfo at (a) composable entry (first composition), (b) LaunchedEffect(loginState) detecting UiState.Success — log the userId from LoginResponse to identify whose stale state is triggering, (c) LaunchedEffect(loginState) detecting UiState.Error, (d) onLoginSuccess callback invocation, (e) login button onClick (with masked username).",
+        "HomeScreen.kt: Add logInfo at (a) composable entry, (b) LaunchedEffect(logoutState) detecting UiState.Success — log that onLogout callback is about to be called, (c) logout button onClick, (d) LaunchedEffect(any other states observed from ViewModels).",
+        "Use tags \"LoginScreen\" and \"HomeScreen\"."
+      ],
+      "acceptanceCriteria": [
+        "LoginScreen entry + state observation + callback invocations all produce log entries",
+        "HomeScreen entry + state observation + callback invocations all produce log entries",
+        "The stale loginState=Success trigger (root cause of the flash bug) is identifiable in logs: a line 'LoginScreen: loginState=Success, calling onLoginSuccess (stale?)' appearing immediately after a logout",
+        "KMP compilation succeeds for all targets"
+      ],
+      "verification": [
+        "KMP compilation for JVM, Android, and iOS targets succeeds",
+        "Manual smoke test on desktop: reproduce logout flash → verify logs show the cycle: App.kt isLoggedIn=false → LoginScreen entered → LoginScreen sees loginState=Success → onLoginSuccess → App.kt isLoggedIn=true → HomeScreen entered → HomeScreen sees logoutState=Success → onLogout → App.kt isLoggedIn=false → (repeat)"
+      ],
+      "notes": "Once US-056 and US-058 are both implemented, the logout flash bug's full cycle will be visible in logs. The fix (resetting loginState to Idle after logout) should be a separate PRD or ad-hoc fix after diagnosis. The key log message that identifies the bug: 'LoginScreen: loginState=Success, triggering onLoginSuccess (userId=xxx)' appearing after 'App: isLoggedIn=false, showing LoginScreen' without any preceding 'AuthVM: login called'.",
+      "passes": false
     }
   ]
 }
