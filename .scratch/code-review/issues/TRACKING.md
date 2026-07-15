@@ -40,8 +40,16 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-033 — Inter font + rounded/spacing scales | — | [ ] |
 | CR-034 — ApiClient config + speculative params | — | [ ] |
 | CR-035 — chunk2a duplicated patterns | — | [ ] |
-
 | CR-036 — quality gate effectiveness audit | — | [x] |
+<!-- NOTE: finish CR-001–035 (backend) before CR-037–043 (quality gates). -->
+<!-- Stricter gates add friction; backend fixes establish a clean baseline first. -->
+| CR-037 — health check on app boot test | — | [ ] |
+| CR-038 — wire check-baselines.sh into pre-push | — | [ ] |
+| CR-039 — replace jmhClasses with JMH run in pre-commit | — | [ ] |
+| CR-040 — wire k6 baseline into pre-push | CR-037 | [ ] |
+| CR-041 — shared module compilation + test step | — | [ ] |
+| CR-042 — iOS compilation target in pre-commit | — | [ ] |
+| CR-043 — scope ktlintFormat to staged files only | — | [ ] |
 
 ## Overlaps to merge or de-dupe
 
