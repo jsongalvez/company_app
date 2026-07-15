@@ -227,15 +227,16 @@ class CompensationServicePostgresTest {
     @Test
     fun `update compensation succeeds`() {
         val compId = UUID.randomUUID()
-        CompensationService.create(
-            callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = "Original note",
-        )
+        val created =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = "Original note",
+            )
 
         val updated =
             CompensationService.update(
@@ -243,10 +244,36 @@ class CompensationServicePostgresTest {
                 compensationId = compId,
                 amount = BigDecimal("2000.00"),
                 note = "Updated note",
+                expectedVersion = created.version,
             )
 
         assertEquals(0, BigDecimal("2000.00").compareTo(updated.amount))
         assertEquals("Updated note", updated.note)
+        assertEquals(created.version + 1, updated.version)
+    }
+
+    @Test
+    fun `update with wrong version returns conflict`() {
+        val compId = UUID.randomUUID()
+        CompensationService.create(
+            callerId = callerId,
+            id = compId,
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = null,
+        )
+
+        assertFailsWith<ConflictResponse> {
+            CompensationService.update(
+                callerId = callerId,
+                compensationId = compId,
+                amount = BigDecimal("2000.00"),
+                note = null,
+                expectedVersion = 999,
+            )
+        }
     }
 
     @Test
@@ -257,6 +284,7 @@ class CompensationServicePostgresTest {
                 compensationId = UUID.randomUUID(),
                 amount = BigDecimal("2000.00"),
                 note = null,
+                expectedVersion = 1,
             )
         }
     }
@@ -282,6 +310,7 @@ class CompensationServicePostgresTest {
                 compensationId = compId,
                 amount = BigDecimal("2000.00"),
                 note = null,
+                expectedVersion = 1,
             )
         }
     }
@@ -289,15 +318,16 @@ class CompensationServicePostgresTest {
     @Test
     fun `update with negative amount returns bad request`() {
         val compId = UUID.randomUUID()
-        CompensationService.create(
-            callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
-        )
+        val created =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
 
         assertFailsWith<BadRequestResponse> {
             CompensationService.update(
@@ -305,6 +335,7 @@ class CompensationServicePostgresTest {
                 compensationId = compId,
                 amount = BigDecimal("-500.00"),
                 note = null,
+                expectedVersion = created.version,
             )
         }
     }
@@ -338,21 +369,23 @@ class CompensationServicePostgresTest {
     @Test
     fun `update writes audit log entry`() {
         val compId = UUID.randomUUID()
-        CompensationService.create(
-            callerId = callerId,
-            id = compId,
-            workBranchDayId = workBranchDayId,
-            payingBranchDayId = payingBranchDayId,
-            userId = targetUserId,
-            amount = BigDecimal("1500.00"),
-            note = null,
-        )
+        val created =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
 
         CompensationService.update(
             callerId = callerId,
             compensationId = compId,
             amount = BigDecimal("2000.00"),
             note = "Updated",
+            expectedVersion = created.version,
         )
 
         val updateAuditCount =

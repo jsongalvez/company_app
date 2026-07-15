@@ -76,19 +76,29 @@ object CompensationRepository {
         compensationId: UUID,
         amount: BigDecimal,
         note: String?,
+        expectedVersion: Int,
         changedBy: UUID,
     ): Compensation =
         transaction {
             val before =
                 findByIdInTransaction(compensationId) ?: error("compensation not found for update $compensationId")
 
-            CompensationTable.update({ CompensationTable.id eq compensationId }) {
-                it[CompensationTable.amount] = amount
-                if (note != null) {
-                    it[CompensationTable.note] = note
-                } else {
-                    it[CompensationTable.note] = null
+            val updatedCount =
+                CompensationTable.update({
+                    (CompensationTable.id eq compensationId) and
+                        (CompensationTable.version eq expectedVersion)
+                }) {
+                    it[CompensationTable.amount] = amount
+                    if (note != null) {
+                        it[CompensationTable.note] = note
+                    } else {
+                        it[CompensationTable.note] = null
+                    }
+                    it[CompensationTable.version] = expectedVersion + 1
                 }
+
+            if (updatedCount == 0) {
+                error("version_mismatch")
             }
 
             val after =
@@ -152,5 +162,6 @@ object CompensationRepository {
             assignedBy = this[CompensationTable.assignedBy],
             assignedAt = this[CompensationTable.assignedAt],
             note = this[CompensationTable.note],
+            version = this[CompensationTable.version],
         )
 }

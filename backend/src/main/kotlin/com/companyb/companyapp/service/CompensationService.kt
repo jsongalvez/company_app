@@ -75,6 +75,7 @@ object CompensationService {
         compensationId: UUID,
         amount: BigDecimal,
         note: String?,
+        expectedVersion: Int,
     ): Compensation {
         val authorized =
             CapabilityService.hasCapability(
@@ -98,6 +99,13 @@ object CompensationService {
 
         BranchDayService.assertEditable(compensation.payingBranchDayId, callerId)
 
-        return CompensationRepository.update(compensationId, amount, note, callerId)
+        return try {
+            CompensationRepository.update(compensationId, amount, note, expectedVersion, callerId)
+        } catch (e: IllegalStateException) {
+            when (e.message) {
+                "version_mismatch" -> throw ConflictResponse("Compensation version mismatch")
+                else -> throw e
+            }
+        }
     }
 }

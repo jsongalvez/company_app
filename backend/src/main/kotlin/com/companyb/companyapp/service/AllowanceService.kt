@@ -43,6 +43,8 @@ object AllowanceService {
         BranchDayRepository.findById(branchDayId)
             ?: throw NotFoundResponse("Branch day not found")
 
+        BranchDayService.assertEditable(branchDayId, callerId)
+
         val result =
             AllowanceRepository.create(
                 id = id,

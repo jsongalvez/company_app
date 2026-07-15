@@ -19,3 +19,5 @@
 
 **Priority:** high
 **Story alignment:** cross-cutting — all mutating endpoints on OPEN/PAST/REMITTED days
+
+**Status:** ✅ done

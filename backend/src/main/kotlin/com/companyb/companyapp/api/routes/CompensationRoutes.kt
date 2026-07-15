@@ -67,6 +67,7 @@ object CompensationRoutes {
                     compensationId = compensationId,
                     amount = amount,
                     note = request.note,
+                    expectedVersion = request.expectedVersion,
                 )
 
             context.status(HttpStatus.OK)
@@ -84,5 +85,6 @@ object CompensationRoutes {
             assignedBy = assignedBy.toString(),
             assignedAt = assignedAt.toString(),
             note = note,
+            version = version,
         )
 }

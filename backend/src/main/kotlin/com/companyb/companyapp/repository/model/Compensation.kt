@@ -16,6 +16,7 @@ data class Compensation(
     val assignedBy: UUID,
     val assignedAt: OffsetDateTime,
     val note: String?,
+    val version: Int,
 )
 
 object CompensationTable : Table("compensation") {
@@ -30,6 +31,7 @@ object CompensationTable : Table("compensation") {
     val assignedBy = uuid("assigned_by")
     val assignedAt = timestampWithTimeZone("assigned_at").defaultExpression(CurrentTimestampWithTimeZone)
     val note = text("note").nullable()
+    val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
 }

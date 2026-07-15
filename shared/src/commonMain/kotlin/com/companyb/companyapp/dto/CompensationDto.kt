@@ -15,6 +15,7 @@ data class CreateCompensationRequest(
 @Serializable
 data class UpdateCompensationRequest(
     val amount: String,
+    val expectedVersion: Int,
     val note: String? = null,
 )
 
@@ -28,4 +29,5 @@ data class CompensationResponse(
     val assignedBy: String,
     val assignedAt: String,
     val note: String?,
+    val version: Int,
 )

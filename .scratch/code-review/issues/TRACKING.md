@@ -24,7 +24,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-017 — capability gates (all chunks) | — | [x] |
 | CR-018 — FOR UPDATE on client+inventory | — | [x] |
 | CR-019 — base rate gaps + PII + pricing | — | [ ] |
-| CR-020 — assertEditable + expectedVersion | — | [ ] |
+| CR-020 — assertEditable + expectedVersion | — | [x] |
 | CR-021 — commission recalc endpoint + net_income view | CR-013 | [ ] |
 | CR-022 — soft-deleted expenses + duplicate mapping | — | [ ] |
 | CR-023 — `!!` in runCatching + no-zone OffsetDateTime | — | [ ] |
