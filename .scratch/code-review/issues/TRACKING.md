@@ -6,7 +6,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 
 | Ticket | Blocked by | Status |
 |--------|-----------|--------|
-| CR-001 — runCatching on path params | — | [ ] |
+| CR-001 — runCatching on path params | — | [x] |
 | CR-002 — JVM clock in service/repo | — | [ ] |
 | CR-003 — audit logs not atomic | — | [ ] |
 | CR-004 — capability gates (chunk 1 only) | — | [ ] |

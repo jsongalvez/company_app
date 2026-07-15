@@ -10,3 +10,5 @@
 
 **Priority:** medium
 **Story alignment:** US-008, US-009
+
+**Status:** ✅ done
