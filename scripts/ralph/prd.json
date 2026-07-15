@@ -1534,7 +1534,7 @@
         "Manual smoke test: run desktop app, verify log output on stdout"
       ],
       "notes": "expect fun pattern follows the same convention as expect fun createTokenStore() in TokenStore.kt and expect val platformDefaultBaseUrl in AppConfig.kt. Avoid expect object due to Kotlin/Native limitations. The logback.xml from backend/ can be partially reused — create a minimal logback.xml in composeApp/src/desktopMain/resources/ that logs to stdout at INFO level by default. No need for kotlin-logging (io.github.oshai) in composeApp — that library is JVM-only and the backend already uses it.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-055",
@@ -1563,7 +1563,7 @@
         "Run desktop app, perform login — verify request/response headers logged"
       ],
       "notes": "Ktor Logging plugin supports LogLevel.NONE, INFO, HEADERS, BODY, ALL. Use HEADERS (or a configurable level) to avoid logging sensitive JWT token bodies while still seeing request paths and response codes. The plugin is already in commonMain as implementation(libs.ktor.client.logging). The onUnauthorized SharedFlow in ApiClient.kt is currently never collected — logging here is critical to detect 401-triggered de-auth cycles.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-056",
@@ -1594,7 +1594,7 @@
         "Specifically verify logout produces logs showing: AuthVM logout start → POST /api/auth/logout → AuthVM logout success → App.kt logoutState=Success → clearToken → isLoggedIn=false → LoginScreen rendered"
       ],
       "notes": "This story is the critical piece for diagnosing the logout screen flash bug (US-060 will add screen-level logging to complete the picture). The stale loginState=Success bug in AuthViewModel (loginState is never reset after login success) will be immediately visible in logs when LoginScreen re-renders and sees the stale Success state — log messages will show LoginScreen calling onLoginSuccess despite no fresh login request. Do NOT fix the bug in this story — just add logging. Fix comes after diagnosis.",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-057",
@@ -1622,7 +1622,7 @@
         "KMP compilation for JVM, Android, and iOS targets succeeds"
       ],
       "notes": "Follow the pattern established in US-056 for AuthViewModel. If new ViewModels are added later, they should follow the same logging convention documented in AGENTS.md. The log tag naming convention: \"[Feature]VM\" (e.g., \"BranchVM\", \"AttendanceVM\").",
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-058",
@@ -1649,8 +1649,8 @@
         "KMP compilation for JVM, Android, and iOS targets succeeds",
         "Manual smoke test on desktop: reproduce logout flash → verify logs show the cycle: App.kt isLoggedIn=false → LoginScreen entered → LoginScreen sees loginState=Success → onLoginSuccess → App.kt isLoggedIn=true → HomeScreen entered → HomeScreen sees logoutState=Success → onLogout → App.kt isLoggedIn=false → (repeat)"
       ],
-      "notes": "Once US-056 and US-058 are both implemented, the logout flash bug's full cycle will be visible in logs. The fix (resetting loginState to Idle after logout) should be a separate PRD or ad-hoc fix after diagnosis. The key log message that identifies the bug: 'LoginScreen: loginState=Success, triggering onLoginSuccess (userId=xxx)' appearing after 'App: isLoggedIn=false, showing LoginScreen' without any preceding 'AuthVM: login called'.",
-      "passes": false
+      "notes": "Once US-056 and US-058 are both implemented, the logout flash bug's full cycle will be visible in logs. The fix (resetting loginState to Idle after logout) should be a separate PRD or ad-hoc fix after diagnosis. The key log message that identifies the bug: 'LoginScreen: loginState=Success, triggering onLoginSuccess' appearing after 'App: isLoggedIn=false, showing LoginScreen' without any preceding 'AuthVM: login called'.",
+      "passes": true
     }
   ]
 }

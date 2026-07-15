@@ -268,6 +268,27 @@ Thread: unavailable
   - Compose Desktop Main.kt needs `import androidx.compose.ui.window.*` and uses `application {}` + `Window {}` pattern.
   - `compose.desktop {}` block in build.gradle.kts is required for desktop application configuration.
 ---
+## Wed Jul 15 2026 - US-054/055/056/057/058
+Thread: unavailable
+- Implemented full logging suite across composeApp:
+  - US-054: Created expect/actual Log functions (logDebug/logInfo/logWarn/logError) for all KMP targets. Desktop→SLF4J/logback, Android→android.util.Log, iOS→println with timestamps. Created logback.xml for desktop.
+  - US-055: Installed Ktor Logging plugin (LogLevel.HEADERS) in ApiClient. Added token load/found logging and 401 detection logging.
+  - US-056: Added logging to App.kt auth state machine (initial auth check, logout transitions, login callbacks), AuthViewModel (login/register/logout starts+results+exceptions), and all 3 TokenStore implementations (save/get/clear with token length/found status).
+  - US-057: Added logging to all 19 ViewModels: method entry, API call start, success/failure, and catch-block exceptions with consistent tags (e.g. "BranchVM", "AuthVM", "SessionVM").
+  - US-058: Added logging to LoginScreen (composable entry, loginState detection, login button onClick) and HomeScreen (composable entry, clockIn/Out state, logout button).
+- Files changed:
+  - NEW: composeApp/src/commonMain/.../util/Log.kt, composeApp/src/desktopMain/.../util/Log.desktop.kt, composeApp/src/androidMain/.../util/Log.android.kt, composeApp/src/iosMain/.../util/Log.ios.kt, composeApp/src/desktopMain/resources/logback.xml
+  - MODIFIED: composeApp/src/commonMain/.../network/ApiClient.kt, composeApp/src/commonMain/.../App.kt, composeApp/src/commonMain/.../viewmodel/AuthViewModel.kt, composeApp/src/commonMain/.../ui/screen/LoginScreen.kt, composeApp/src/commonMain/.../ui/screen/HomeScreen.kt, composeApp/src/desktopMain/.../network/TokenStore.desktop.kt, composeApp/src/androidMain/.../network/TokenStore.android.kt, composeApp/src/iosMain/.../network/TokenStore.ios.kt, all 19 ViewModels
+  - MODIFIED: scripts/ralph/prd.json (US-054/055/056/057/058 passes=true)
+- Quality: :composeApp:compileKotlinDesktop BUILD SUCCESSFUL.
+- **Learnings for future iterations:**
+  - expect/actual Log pattern: expect top-level functions in commonMain, actual implementations per platform target. Cannot use `private expect fun` — expect declarations cannot be private.
+  - Ktor 3.x HttpResponseValidator's `response.request.url.encodedPath` may not compile — use simpler log messages without URL path extraction.
+  - Desktop Log uses SLF4J/logback-classic with logback.xml in desktopMain/resources/ for stdout formatting.
+  - iOS Log uses NSDateFormatter for timestamps (not java.time).
+  - Android Log delegates to android.util.Log.d/i/w/e with throwable as third arg.
+  - Consistent log tag naming: "[Feature]VM" for ViewModels, screen name for screens, "TokenStore" for token store, "ApiClient" for Ktor client.
+  - LoginResponse only has `token: String` field (no userId). Log messages referencing userId must be removed.
 - Use `sql<number>` template for aggregations
 - Always use `IF NOT EXISTS` for migrations
 - Export types from actions.ts for UI components

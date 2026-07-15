@@ -15,6 +15,8 @@ import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.util.logError
+import com.companyb.companyapp.util.logInfo
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -58,19 +60,24 @@ class SessionViewModel(
     val concernResult: StateFlow<UiState<Unit>> = _concernResult.asStateFlow()
 
     fun createSession(request: CreateSessionRequest) {
+        logInfo("SessionVM", "createSession called")
         viewModelScope.launch {
             _sessionResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "POST /api/sessions")
                 val response =
                     apiClient.httpClient.post("/api/sessions") {
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "createSession success")
                     _sessionResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "createSession failed: status=${response.status.value}")
                     _sessionResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "createSession exception", e)
                 _sessionResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -80,19 +87,24 @@ class SessionViewModel(
         sessionId: String,
         request: UpdateSessionStatusRequest,
     ) {
+        logInfo("SessionVM", "updateStatus called: sessionId=$sessionId")
         viewModelScope.launch {
             _statusUpdateResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "PATCH /api/sessions/$sessionId/status")
                 val response =
                     apiClient.httpClient.patch("/api/sessions/$sessionId/status") {
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "updateStatus success")
                     _statusUpdateResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "updateStatus failed: status=${response.status.value}")
                     _statusUpdateResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "updateStatus exception", e)
                 _statusUpdateResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -102,19 +114,24 @@ class SessionViewModel(
         sessionId: String,
         request: VoidSessionRequest,
     ) {
+        logInfo("SessionVM", "voidSession called: sessionId=$sessionId")
         viewModelScope.launch {
             _voidResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "POST /api/sessions/$sessionId/void")
                 val response =
                     apiClient.httpClient.post("/api/sessions/$sessionId/void") {
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "voidSession success")
                     _voidResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "voidSession failed: status=${response.status.value}")
                     _voidResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "voidSession exception", e)
                 _voidResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -124,35 +141,45 @@ class SessionViewModel(
         sessionId: String,
         request: UnvoidSessionRequest,
     ) {
+        logInfo("SessionVM", "unvoidSession called: sessionId=$sessionId")
         viewModelScope.launch {
             _unvoidResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "POST /api/sessions/$sessionId/unvoid")
                 val response =
                     apiClient.httpClient.post("/api/sessions/$sessionId/unvoid") {
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "unvoidSession success")
                     _unvoidResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "unvoidSession failed: status=${response.status.value}")
                     _unvoidResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "unvoidSession exception", e)
                 _unvoidResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
     fun loadSessionPractitioners(sessionId: String) {
+        logInfo("SessionVM", "loadSessionPractitioners called: sessionId=$sessionId")
         viewModelScope.launch {
             _practitioners.value = UiState.Loading
             try {
+                logInfo("SessionVM", "GET /api/sessions/$sessionId/practitioners")
                 val response = apiClient.httpClient.get("/api/sessions/$sessionId/practitioners")
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "loadSessionPractitioners success")
                     _practitioners.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "loadSessionPractitioners failed: status=${response.status.value}")
                     _practitioners.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "loadSessionPractitioners exception", e)
                 _practitioners.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -162,19 +189,24 @@ class SessionViewModel(
         sessionId: String,
         request: AddPractitionerRequest,
     ) {
+        logInfo("SessionVM", "addPractitioner called: sessionId=$sessionId")
         viewModelScope.launch {
             _practitionerResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "POST /api/sessions/$sessionId/practitioners")
                 val response =
                     apiClient.httpClient.post("/api/sessions/$sessionId/practitioners") {
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "addPractitioner success")
                     _practitionerResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "addPractitioner failed: status=${response.status.value}")
                     _practitionerResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "addPractitioner exception", e)
                 _practitionerResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -185,9 +217,11 @@ class SessionViewModel(
         practitionerId: String,
         request: UpdatePractitionerRemarksRequest,
     ) {
+        logInfo("SessionVM", "updatePractitionerRemarks called: sessionId=$sessionId, practitionerId=$practitionerId")
         viewModelScope.launch {
             _practitionerResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "PATCH /api/sessions/$sessionId/practitioners/$practitionerId")
                 val response =
                     apiClient.httpClient.patch(
                         "/api/sessions/$sessionId/practitioners/$practitionerId",
@@ -195,11 +229,14 @@ class SessionViewModel(
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "updatePractitionerRemarks success")
                     _practitionerResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "updatePractitionerRemarks failed: status=${response.status.value}")
                     _practitionerResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "updatePractitionerRemarks exception", e)
                 _practitionerResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -209,14 +246,17 @@ class SessionViewModel(
         sessionId: String,
         practitionerId: String,
     ) {
+        logInfo("SessionVM", "removePractitioner called: sessionId=$sessionId, practitionerId=$practitionerId")
         viewModelScope.launch {
             _practitionerResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "DELETE /api/sessions/$sessionId/practitioners/$practitionerId")
                 val response =
                     apiClient.httpClient.delete(
                         "/api/sessions/$sessionId/practitioners/$practitionerId",
                     )
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "removePractitioner success")
                     _practitionerResult.value =
                         UiState.Success(
                             SessionPractitionerResponse(
@@ -228,41 +268,53 @@ class SessionViewModel(
                             ),
                         )
                 } else {
+                    logInfo("SessionVM", "removePractitioner failed: status=${response.status.value}")
                     _practitionerResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "removePractitioner exception", e)
                 _practitionerResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
     fun loadAllConcerns() {
+        logInfo("SessionVM", "loadAllConcerns called")
         viewModelScope.launch {
             _concerns.value = UiState.Loading
             try {
+                logInfo("SessionVM", "GET /api/concerns")
                 val response = apiClient.httpClient.get("/api/concerns")
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "loadAllConcerns success")
                     _concerns.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "loadAllConcerns failed: status=${response.status.value}")
                     _concerns.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "loadAllConcerns exception", e)
                 _concerns.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
     fun loadSessionConcerns(sessionId: String) {
+        logInfo("SessionVM", "loadSessionConcerns called: sessionId=$sessionId")
         viewModelScope.launch {
             _sessionConcerns.value = UiState.Loading
             try {
+                logInfo("SessionVM", "GET /api/sessions/$sessionId/concerns")
                 val response = apiClient.httpClient.get("/api/sessions/$sessionId/concerns")
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "loadSessionConcerns success")
                     _sessionConcerns.value = UiState.Success(response.body())
                 } else {
+                    logInfo("SessionVM", "loadSessionConcerns failed: status=${response.status.value}")
                     _sessionConcerns.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "loadSessionConcerns exception", e)
                 _sessionConcerns.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -272,19 +324,24 @@ class SessionViewModel(
         sessionId: String,
         request: AddSessionConcernRequest,
     ) {
+        logInfo("SessionVM", "addSessionConcern called: sessionId=$sessionId")
         viewModelScope.launch {
             _concernResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "POST /api/sessions/$sessionId/concerns")
                 val response =
                     apiClient.httpClient.post("/api/sessions/$sessionId/concerns") {
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "addSessionConcern success")
                     _concernResult.value = UiState.Success(Unit)
                 } else {
+                    logInfo("SessionVM", "addSessionConcern failed: status=${response.status.value}")
                     _concernResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "addSessionConcern exception", e)
                 _concernResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -294,19 +351,24 @@ class SessionViewModel(
         sessionId: String,
         concernId: String,
     ) {
+        logInfo("SessionVM", "removeSessionConcern called: sessionId=$sessionId, concernId=$concernId")
         viewModelScope.launch {
             _concernResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "DELETE /api/sessions/$sessionId/concerns/$concernId")
                 val response =
                     apiClient.httpClient.delete(
                         "/api/sessions/$sessionId/concerns/$concernId",
                     )
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "removeSessionConcern success")
                     _concernResult.value = UiState.Success(Unit)
                 } else {
+                    logInfo("SessionVM", "removeSessionConcern failed: status=${response.status.value}")
                     _concernResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "removeSessionConcern exception", e)
                 _concernResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -316,9 +378,11 @@ class SessionViewModel(
         sessionId: String,
         request: PromoteConcernRequest,
     ) {
+        logInfo("SessionVM", "promoteConcern called: sessionId=$sessionId")
         viewModelScope.launch {
             _concernResult.value = UiState.Loading
             try {
+                logInfo("SessionVM", "POST /api/sessions/$sessionId/promote-concern")
                 val response =
                     apiClient.httpClient.post(
                         "/api/sessions/$sessionId/promote-concern",
@@ -326,11 +390,14 @@ class SessionViewModel(
                         setBody(request)
                     }
                 if (response.status.isSuccess()) {
+                    logInfo("SessionVM", "promoteConcern success")
                     _concernResult.value = UiState.Success(Unit)
                 } else {
+                    logInfo("SessionVM", "promoteConcern failed: status=${response.status.value}")
                     _concernResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("SessionVM", "promoteConcern exception", e)
                 _concernResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }

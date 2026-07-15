@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
@@ -47,11 +48,20 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     val loginState by authViewModel.loginState.collectAsState()
 
+    LaunchedEffect(Unit) {
+        logInfo("LoginScreen", "composable entered (first composition)")
+    }
+
     LaunchedEffect(loginState) {
         when (val state = loginState) {
             is UiState.Success<LoginResponse> -> {
+                logInfo("LoginScreen", "loginState=Success, calling onLoginSuccess")
                 tokenStore.saveToken(state.data.token)
                 onLoginSuccess()
+            }
+
+            is UiState.Error -> {
+                logInfo("LoginScreen", "loginState=Error: ${state.message}")
             }
 
             else -> {}
@@ -120,7 +130,10 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { authViewModel.login(username, password) },
+            onClick = {
+                logInfo("LoginScreen", "login button onClick: username=$username")
+                authViewModel.login(username, password)
+            },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             enabled =
                 username.isNotBlank() &&

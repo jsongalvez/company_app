@@ -44,6 +44,7 @@ import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.ClockOutRequest
+import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchViewModel
@@ -68,6 +69,7 @@ fun HomeScreen(
     var activeAttendance by remember { mutableStateOf<ClockInResponse?>(null) }
 
     LaunchedEffect(Unit) {
+        logInfo("HomeScreen", "composable entered (first composition)")
         if (branchesState is UiState.Idle) {
             branchViewModel.loadBranches()
         }
@@ -76,10 +78,12 @@ fun HomeScreen(
     LaunchedEffect(clockInState) {
         when (val state = clockInState) {
             is UiState.Success -> {
+                logInfo("HomeScreen", "clockInState=Success")
                 activeAttendance = state.data
             }
 
             is UiState.Error -> {
+                logInfo("HomeScreen", "clockInState=Error: ${state.message}")
                 snackbarHostState.showSnackbar(state.message)
             }
 
@@ -90,10 +94,12 @@ fun HomeScreen(
     LaunchedEffect(clockOutState) {
         when (val state = clockOutState) {
             is UiState.Success -> {
+                logInfo("HomeScreen", "clockOutState=Success")
                 activeAttendance = null
             }
 
             is UiState.Error -> {
+                logInfo("HomeScreen", "clockOutState=Error: ${state.message}")
                 snackbarHostState.showSnackbar(state.message)
             }
 
@@ -112,7 +118,10 @@ fun HomeScreen(
                     ),
                 actions = {
                     TextButton(
-                        onClick = { authViewModel.logout() },
+                        onClick = {
+                            logInfo("HomeScreen", "logout button onClick")
+                            authViewModel.logout()
+                        },
                         enabled = logoutState !is UiState.Loading,
                     ) {
                         Text("Logout")

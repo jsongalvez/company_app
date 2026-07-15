@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.util.logError
+import com.companyb.companyapp.util.logInfo
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
@@ -23,35 +25,45 @@ class NotificationViewModel(
     val markReadResult: StateFlow<UiState<NotificationResponse>> = _markReadResult.asStateFlow()
 
     fun loadUnreadNotifications() {
+        logInfo("NotificationVM", "loadUnreadNotifications called")
         viewModelScope.launch {
             _notifications.value = UiState.Loading
+            logInfo("NotificationVM", "GET /api/notifications")
             try {
                 val response = apiClient.httpClient.get("/api/notifications")
                 if (response.status.isSuccess()) {
+                    logInfo("NotificationVM", "loadUnreadNotifications success")
                     _notifications.value = UiState.Success(response.body())
                 } else {
+                    logInfo("NotificationVM", "loadUnreadNotifications failed: status=${response.status.value}")
                     _notifications.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("NotificationVM", "loadUnreadNotifications exception", e)
                 _notifications.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
     }
 
     fun markRead(notificationId: String) {
+        logInfo("NotificationVM", "markRead called")
         viewModelScope.launch {
             _markReadResult.value = UiState.Loading
+            logInfo("NotificationVM", "PATCH /api/notifications/$notificationId/read")
             try {
                 val response =
                     apiClient.httpClient.patch(
                         "/api/notifications/$notificationId/read",
                     )
                 if (response.status.isSuccess()) {
+                    logInfo("NotificationVM", "markRead success")
                     _markReadResult.value = UiState.Success(response.body())
                 } else {
+                    logInfo("NotificationVM", "markRead failed: status=${response.status.value}")
                     _markReadResult.value = UiState.Error("Failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
+                logError("NotificationVM", "markRead exception", e)
                 _markReadResult.value = UiState.Error(e.message ?: "Unknown error")
             }
         }

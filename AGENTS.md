@@ -49,6 +49,16 @@ After `bash scripts/setup-hooks.sh`:
 - ktlint + detekt applied to all subprojects via root `build.gradle.kts` `subprojects {}`. Detekt config: `config/detekt/detekt.yml`. Plugin: `detekt-formatting`.
 - EditorConfig: 4-space indent, 120-char max line for Kotlin, no-wildcard-imports disabled.
 
+## composeApp logging convention
+
+All composeApp code uses `expect/actual Log` functions from `com.companyb.companyapp.util`:
+- `logDebug(tag, message)`, `logInfo(tag, message)`, `logWarn(tag, message)`, `logError(tag, message, throwable?)`
+- Desktop → SLF4J/logback, Android → android.util.Log, iOS → println with timestamp prefix.
+- **Tag naming**: `"[Feature]VM"` for ViewModels (e.g. `"BranchVM"`, `"SessionVM"`), screen name for composables (`"LoginScreen"`, `"HomeScreen"`), `"TokenStore"`, `"ApiClient"`.
+- **Where to log**: method entry, API call start (with endpoint path), success/failure, and catch blocks.
+- `logError` must be used in every `catch` block with the exception as the third arg.
+- New ViewModels/screens must follow this convention.
+
 ## Performance
 
 The pre-push hook runs JMH benchmarks. Regressions >20% from `backend/jmh-baselines.md` should be investigated before pushing. See `backend/AGENTS.md` for the full performance workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).

@@ -13,6 +13,7 @@ import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
 import com.companyb.companyapp.ui.screen.HomeScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
+import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchViewModel
@@ -30,17 +31,22 @@ fun App() {
     var isCheckingAuth by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        isLoggedIn = tokenStore.getToken() != null
+        val hasToken = tokenStore.getToken() != null
+        logInfo("App", "Initial auth check: hasToken=$hasToken")
+        isLoggedIn = hasToken
         isCheckingAuth = false
     }
 
     val logoutState by authViewModel.logoutState.collectAsState()
     LaunchedEffect(logoutState) {
         if (logoutState is UiState.Success) {
+            logInfo("App", "logoutState=Success, clearing token, setting isLoggedIn=false")
             tokenStore.clearToken()
             isLoggedIn = false
         }
     }
+
+    logInfo("App", "isLoggedIn=$isLoggedIn, isCheckingAuth=$isCheckingAuth")
 
     if (isCheckingAuth) return
 
@@ -55,7 +61,10 @@ fun App() {
             LoginScreen(
                 authViewModel = authViewModel,
                 tokenStore = tokenStore,
-                onLoginSuccess = { isLoggedIn = true },
+                onLoginSuccess = {
+                    logInfo("App", "onLoginSuccess called, setting isLoggedIn=true")
+                    isLoggedIn = true
+                },
                 onRegisterClick = { /* TODO: navigate to register screen */ },
             )
         }

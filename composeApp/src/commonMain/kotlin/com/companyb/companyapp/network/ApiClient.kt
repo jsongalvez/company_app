@@ -2,6 +2,7 @@ package com.companyb.companyapp.network
 
 import com.companyb.companyapp.config.MAX_HTTP_RETRIES
 import com.companyb.companyapp.config.platformDefaultBaseUrl
+import com.companyb.companyapp.util.logInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.plugins.HttpRequestRetry
@@ -10,6 +11,8 @@ import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.header
 import io.ktor.client.request.url
 import io.ktor.http.ContentType
@@ -37,10 +40,20 @@ class ApiClient(
                 )
             }
 
+            install(Logging) {
+                level = LogLevel.HEADERS
+            }
+
             install(Auth) {
                 bearer {
                     loadTokens {
-                        tokenStore.getToken()?.let { BearerTokens(it, "") }
+                        val token = tokenStore.getToken()
+                        if (token != null) {
+                            logInfo("ApiClient", "Token loaded (length=${token.length})")
+                        } else {
+                            logInfo("ApiClient", "Token not found in store")
+                        }
+                        token?.let { BearerTokens(it, "") }
                     }
                     sendWithoutRequest {
                         !it.url.toString().contains("/auth/")
@@ -60,6 +73,7 @@ class ApiClient(
             HttpResponseValidator {
                 validateResponse { response ->
                     if (response.status == HttpStatusCode.Unauthorized) {
+                        logInfo("ApiClient", "401 detected (HTTP 401)")
                         onUnauthorized.tryEmit(Unit)
                     }
                 }
