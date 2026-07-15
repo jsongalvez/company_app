@@ -50,10 +50,6 @@ fun App() {
                 authViewModel = authViewModel,
                 branchViewModel = branchViewModel,
                 attendanceViewModel = attendanceViewModel,
-                onLogout = {
-                    tokenStore.clearToken()
-                    isLoggedIn = false
-                },
             )
         } else {
             LoginScreen(

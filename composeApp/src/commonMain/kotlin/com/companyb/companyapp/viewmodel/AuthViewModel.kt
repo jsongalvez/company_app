@@ -76,6 +76,7 @@ class AuthViewModel(
 
     fun logout() {
         viewModelScope.launch {
+            _loginState.value = UiState.Idle
             _logoutState.value = UiState.Loading
             try {
                 val response = apiClient.httpClient.post("/api/auth/logout")

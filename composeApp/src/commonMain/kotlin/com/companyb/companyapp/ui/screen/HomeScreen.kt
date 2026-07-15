@@ -57,7 +57,6 @@ fun HomeScreen(
     authViewModel: AuthViewModel,
     branchViewModel: BranchViewModel,
     attendanceViewModel: AttendanceViewModel,
-    onLogout: () -> Unit,
 ) {
     val branchesState by branchViewModel.branches.collectAsState()
     val clockInState by attendanceViewModel.clockInState.collectAsState()
@@ -99,12 +98,6 @@ fun HomeScreen(
             }
 
             else -> {}
-        }
-    }
-
-    LaunchedEffect(logoutState) {
-        if (logoutState is UiState.Success) {
-            onLogout()
         }
     }
 
