@@ -223,7 +223,7 @@ fun HomeScreen(
                             onClockIn = { branchId ->
                                 attendanceViewModel.clockIn(
                                     ClockInRequest(
-                                        id = Uuid.random().toString(),
+                                        attendanceId = Uuid.random().toString(),
                                         branchId = branchId,
                                     ),
                                 )

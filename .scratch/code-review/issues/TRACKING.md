@@ -12,7 +12,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-004 — capability gates (chunk 1 only) | — | [ ] |
 | CR-005 — magic number priorities | — | [x] |
 | CR-006 — commission recalc on clock-in/out | — | [ ] |
-| CR-007 — ClockInRequest field name | — | [ ] |
+| CR-007 — ClockInRequest field name | — | [x] |
 | CR-008 — TOCTOU race | — | [ ] |
 | CR-009 — deduplicate test helpers | — | [ ] |
 | CR-011 — GLOBAL→BRANCH context | — | [x] |

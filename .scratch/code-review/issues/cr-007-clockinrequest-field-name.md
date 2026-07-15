@@ -10,3 +10,5 @@
 
 **Priority:** low
 **Story alignment:** US-006
+
+**Status:** ✅ done

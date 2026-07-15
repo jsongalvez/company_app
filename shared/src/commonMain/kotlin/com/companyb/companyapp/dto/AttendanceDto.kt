@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ClockInRequest(
-    val id: String,
+    val attendanceId: String,
     val branchId: String,
 )
 

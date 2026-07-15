@@ -46,7 +46,7 @@ object AttendanceRoutes {
             val request = context.bodyAsClass<ClockInRequest>()
 
             val attendanceId =
-                runCatching { UUID.fromString(request.id) }
+                runCatching { UUID.fromString(request.attendanceId) }
                     .getOrElse { throw BadRequestResponse("Invalid attendance id") }
             val branchId =
                 runCatching { UUID.fromString(request.branchId) }
