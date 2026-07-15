@@ -1,6 +1,5 @@
 package com.companyb.companyapp
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -13,6 +12,7 @@ import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
 import com.companyb.companyapp.ui.screen.HomeScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
+import com.companyb.companyapp.ui.theme.LinearTheme
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
@@ -60,7 +60,7 @@ fun App() {
 
     if (isCheckingAuth) return
 
-    MaterialTheme {
+    LinearTheme {
         if (isLoggedIn) {
             HomeScreen(
                 authViewModel = authViewModel,
