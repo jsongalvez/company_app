@@ -1504,7 +1504,7 @@
         "SLF4J warning no longer appears at launch"
       ],
       "notes": "The backend already uses logback-classic. For the desktop client, either logback-classic or the lighter slf4j-simple is acceptable. slf4j-simple (org.slf4j:slf4j-simple) requires zero config and logs to stderr by default.",
-      "passes": false
+      "passes": true
     }
   ]
 }

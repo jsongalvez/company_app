@@ -8,6 +8,19 @@ Thread: unavailable
 - Files changed: scripts/ralph/prd.json, scripts/ralph/progress.txt
 ---
 
+## Wed Jul 15 2026 - US-053
+Thread: unavailable
+- Added slf4j-simple 2.0.16 to desktop dependencies so Ktor/Compose logs are captured instead of "No SLF4J providers were found" warnings at launch.
+- Chose slf4j-simple (lightweight, zero config) over logback-classic per PRD notes.
+- Added version to gradle/libs.versions.toml and dependency to composeApp/build.gradle.kts desktopMain block.
+- Files changed:
+  - MODIFIED: gradle/libs.versions.toml (added slf4j-simple library + version)
+  - MODIFIED: composeApp/build.gradle.kts (added implementation(libs.slf4j.simple) to desktopMain)
+  - MODIFIED: scripts/ralph/prd.json (US-053 passes=true)
+  - MODIFIED: scripts/ralph/progress.txt
+- Quality: :composeApp:compileKotlinDesktop (BUILD SUCCESSFUL).
+---
+
 ## Wed Jul 15 2026 - US-039
 Thread: unavailable
 - Implemented Android home screen with branch selector and clock-in/out.
