@@ -7,7 +7,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | Ticket | Blocked by | Status |
 |--------|-----------|--------|
 | CR-001 — runCatching on path params | — | [x] |
-| CR-002 — JVM clock in service/repo | — | [ ] |
+| CR-002 — JVM clock in service/repo | — | [x] |
 | CR-003 — audit logs not atomic | — | [ ] |
 | CR-004 — capability gates (chunk 1 only) | — | [ ] |
 | CR-005 — magic number priorities | — | [x] |
@@ -20,7 +20,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-013 — commission recalc verification | CR-006 | [ ] |
 | CR-014 — pg_trgm ILIKE search | — | [x] |
 | CR-015 — ViewModel boilerplate | — | [ ] |
-| CR-016 — JVM clock (all chunks) | — | [ ] |
+| CR-016 — JVM clock (all chunks) | — | [x] |
 | CR-017 — capability gates (all chunks) | — | [x] |
 | CR-018 — FOR UPDATE on client+inventory | — | [x] |
 | CR-019 — base rate gaps + PII + pricing | — | [ ] |

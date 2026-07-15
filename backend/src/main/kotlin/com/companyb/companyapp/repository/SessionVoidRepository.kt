@@ -6,10 +6,10 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
-import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -86,7 +86,7 @@ object SessionVoidRepository {
             SessionVoidTable.update({
                 (SessionVoidTable.id eq sessionVoidId) and (SessionVoidTable.unvoidedAt.isNull())
             }) {
-                it[SessionVoidTable.unvoidedAt] = OffsetDateTime.now()
+                it[SessionVoidTable.unvoidedAt] = CurrentTimestampWithTimeZone
                 it[SessionVoidTable.unvoidedBy] = unvoidedBy
                 it[SessionVoidTable.unvoidedReason] = unvoidedReason
             }

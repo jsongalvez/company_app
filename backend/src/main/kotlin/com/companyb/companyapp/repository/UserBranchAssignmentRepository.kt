@@ -7,10 +7,10 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
-import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -76,13 +76,10 @@ object UserBranchAssignmentRepository {
                 ?.toAssignment()
         }.also { logger.info { "[FIND-ASSIGNMENT-BY-ID] id=${id.toString().maskUUID()} found=${it != null}" } }
 
-    fun setEndedAt(
-        id: UUID,
-        endedAt: OffsetDateTime,
-    ) {
+    fun setEndedAt(id: UUID) {
         transaction {
             UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
-                it[UserBranchAssignmentTable.endedAt] = endedAt
+                it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
             }
         }
         logger.info { "[SET-ENDED-AT] Assignment ${id.toString().maskUUID()}" }

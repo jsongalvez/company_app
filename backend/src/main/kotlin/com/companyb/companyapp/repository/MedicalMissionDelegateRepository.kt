@@ -9,10 +9,10 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
-import java.time.OffsetDateTime
 import java.util.UUID
 
 object MedicalMissionDelegateRepository {
@@ -55,7 +55,7 @@ object MedicalMissionDelegateRepository {
         transaction {
             MedicalMissionDelegateTable
                 .update({ MedicalMissionDelegateTable.id eq delegateId }) {
-                    it[MedicalMissionDelegateTable.endedAt] = OffsetDateTime.now()
+                    it[MedicalMissionDelegateTable.endedAt] = CurrentTimestampWithTimeZone
                 }
 
             UserCapabilityTable
@@ -63,7 +63,7 @@ object MedicalMissionDelegateRepository {
                     (UserCapabilityTable.sourceId eq delegateId) and
                         (UserCapabilityTable.validTo.isNull())
                 }) {
-                    it[UserCapabilityTable.validTo] = OffsetDateTime.now()
+                    it[UserCapabilityTable.validTo] = CurrentTimestampWithTimeZone
                 }
         }
 

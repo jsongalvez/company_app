@@ -9,6 +9,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -57,7 +58,7 @@ object ReliefAccessRepository {
                 .update({ GrantReliefAccessTable.id eq requestId }) {
                     it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
                     it[GrantReliefAccessTable.grantedBy] = grantedBy
-                    it[GrantReliefAccessTable.grantedAt] = OffsetDateTime.now()
+                    it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
                 }
             UserCapabilityTable.insert {
                 it[UserCapabilityTable.userId] = userId

@@ -13,6 +13,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -107,7 +108,7 @@ object ProductSaleRepository {
                 it[InventoryMovementTable.reason] = InventoryMovementReason.SALE
                 it[InventoryMovementTable.quantityChange] = -quantity
                 it[InventoryMovementTable.movedBy] = handledBy
-                it[InventoryMovementTable.movedAt] = OffsetDateTime.now()
+                it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
             }
 
             val sale =

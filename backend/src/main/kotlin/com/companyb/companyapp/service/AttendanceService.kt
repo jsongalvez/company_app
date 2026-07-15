@@ -11,6 +11,7 @@ import io.javalin.http.NotFoundResponse
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 
 object AttendanceService {
@@ -33,8 +34,8 @@ object AttendanceService {
             return AttendanceServiceResult(existing, false, isRelief)
         }
 
-        val now = OffsetDateTime.now()
-        val attendance = AttendanceRepository.clockOut(attendanceId, now)
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        val attendance = AttendanceRepository.clockOut(attendanceId)
 
         AuditLogRepository.record(
             tableName = AttendanceTable.tableName,
@@ -76,7 +77,6 @@ object AttendanceService {
         val isRelief = existingAssignment == null
 
         val branchDayAssignmentId = UUID.randomUUID()
-        val now = OffsetDateTime.now()
 
         val (attendance, wasCreated) =
             AttendanceRepository.clockIn(
@@ -84,7 +84,6 @@ object AttendanceService {
                 branchDayId = branchDay.id,
                 userId = callerId,
                 markedBy = callerId,
-                clockIn = now,
                 branchDayAssignmentId = branchDayAssignmentId,
                 isRelief = isRelief,
             )

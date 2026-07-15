@@ -8,11 +8,13 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -39,7 +41,6 @@ object AttendanceRepository {
         branchDayId: UUID,
         userId: UUID,
         markedBy: UUID,
-        clockIn: OffsetDateTime,
         branchDayAssignmentId: UUID,
         isRelief: Boolean,
     ): Pair<Attendance, Boolean> =
@@ -51,7 +52,8 @@ object AttendanceRepository {
                         it[AttendanceTable.branchDayId] = branchDayId
                         it[AttendanceTable.userId] = userId
                         it[AttendanceTable.markedBy] = markedBy
-                        it[AttendanceTable.clockIn] = clockIn
+                        // defaultExpression suppressed by insertIgnore
+                        it[AttendanceTable.clockIn] = OffsetDateTime.now(ZoneOffset.UTC)
                     }.insertedCount
             val isNew = insertedCount > 0
 
@@ -100,14 +102,11 @@ object AttendanceRepository {
                 ?.toAttendance()
         }
 
-    fun clockOut(
-        attendanceId: UUID,
-        clockOut: OffsetDateTime,
-    ): Attendance =
+    fun clockOut(attendanceId: UUID): Attendance =
         transaction {
             AttendanceTable
                 .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
-                    it[AttendanceTable.clockOut] = clockOut
+                    it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
                 }
 
             AttendanceTable

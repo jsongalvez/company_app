@@ -16,6 +16,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 object UserBranchAssignmentService {
@@ -106,8 +107,8 @@ object UserBranchAssignmentService {
             UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
                 ?: throw NotFoundResponse("Active assignment not found")
 
-        val now = OffsetDateTime.now()
-        UserBranchAssignmentRepository.setEndedAt(assignment.id, now)
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        UserBranchAssignmentRepository.setEndedAt(assignment.id)
 
         val auditOldValue =
             AuditLogRepository.jsonFields(

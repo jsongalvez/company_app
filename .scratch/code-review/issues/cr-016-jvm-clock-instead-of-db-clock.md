@@ -23,3 +23,5 @@ Multiple service and repository methods use `java.time.OffsetDateTime.now()` ins
 
 **Priority:** medium
 **Story alignment:** cross-cutting — affects audit accuracy on all writes
+
+**Status:** ✅ done

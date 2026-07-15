@@ -18,11 +18,13 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.VarCharColumnType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
+import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -163,11 +165,10 @@ object ClientRepository {
     ): Boolean =
         transaction {
             val old = findByIdInTransaction(clientId) ?: return@transaction false
-            val now = OffsetDateTime.now()
 
             val updatedCount =
                 ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
-                    it[ClientTable.deletedAt] = now
+                    it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone
                     it[ClientTable.firstName] = ""
                     it[ClientTable.lastName] = ""
                     it[ClientTable.middleName] = null
@@ -195,7 +196,7 @@ object ClientRepository {
                         AuditLogRepository.jsonFields(
                             "firstName" to "",
                             "lastName" to "",
-                            "deletedAt" to now.toString(),
+                            "deletedAt" to OffsetDateTime.now(ZoneOffset.UTC).toString(),
                         ),
                 )
             }
