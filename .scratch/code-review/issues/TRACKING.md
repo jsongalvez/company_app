@@ -41,6 +41,8 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-034 — ApiClient config + speculative params | — | [ ] |
 | CR-035 — chunk2a duplicated patterns | — | [ ] |
 
+| CR-036 — quality gate effectiveness audit | — | [ ] |
+
 ## Overlaps to merge or de-dupe
 
 - **CR-032 / CR-034** both mention "MeService duplicates capability query" — check if 032 already covered it
