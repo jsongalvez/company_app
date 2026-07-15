@@ -7,10 +7,15 @@ import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.Column
 import org.jetbrains.exposed.sql.ComparisonOp
+import org.jetbrains.exposed.sql.CustomFunction
 import org.jetbrains.exposed.sql.Expression
+import org.jetbrains.exposed.sql.FloatColumnType
+import org.jetbrains.exposed.sql.LiteralOp
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.QueryParameter
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
+import org.jetbrains.exposed.sql.VarCharColumnType
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
 import org.jetbrains.exposed.sql.or
@@ -29,6 +34,7 @@ data class ClientCreateResult(
 
 object ClientRepository {
     private const val SEARCH_LIMIT = 20
+    private const val FULL_NAME_CONCAT_WIDTH = 510
 
     @Suppress("LongParameterList")
     fun create(
@@ -197,6 +203,26 @@ object ClientRepository {
     fun search(query: String): List<Client> =
         transaction {
             val tokens = query.split(" ").filter { it.isNotBlank() }
+            val searchQuery = query.trim()
+            val colType: org.jetbrains.exposed.sql.IColumnType<String> = ClientTable.firstName.columnType
+            val spaceLiteral = LiteralOp(VarCharColumnType(1), " ")
+            val fullNameConcat =
+                CustomFunction(
+                    "concat",
+                    VarCharColumnType(FULL_NAME_CONCAT_WIDTH),
+                    ClientTable.firstName,
+                    spaceLiteral,
+                    ClientTable.lastName,
+                )
+            val simScore =
+                similarity(
+                    fullNameConcat,
+                    LiteralOp(
+                        VarCharColumnType(searchQuery.length),
+                        searchQuery,
+                    ),
+                )
+
             ClientTable
                 .selectAll()
                 .where {
@@ -204,8 +230,12 @@ object ClientRepository {
                         tokens.map { token ->
                             val namePattern = "%$token%"
                             val phonePattern = "$token%"
+                            val tokenParam = QueryParameter(token, colType)
                             (
-                                ilike(ClientTable.firstName, namePattern) or
+                                trigramMatch(ClientTable.firstName, tokenParam) or
+                                    trigramMatch(ClientTable.lastName, tokenParam) or
+                                    trigramMatch(ClientTable.middleName, tokenParam) or
+                                    ilike(ClientTable.firstName, namePattern) or
                                     ilike(ClientTable.lastName, namePattern) or
                                     ilike(ClientTable.middleName, namePattern) or
                                     (ClientTable.phoneNumber like phonePattern)
@@ -213,10 +243,28 @@ object ClientRepository {
                         }
                     (ClientTable.deletedAt.isNull()) and
                         tokenConditions.reduce { acc, cond -> acc and cond }
-                }.orderBy(ClientTable.lastName to SortOrder.ASC, ClientTable.firstName to SortOrder.ASC)
-                .limit(SEARCH_LIMIT)
+                }.orderBy(
+                    simScore to SortOrder.DESC,
+                    ClientTable.lastName to SortOrder.ASC,
+                    ClientTable.firstName to SortOrder.ASC,
+                ).limit(SEARCH_LIMIT)
                 .map { it.toClient() }
         }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s) for query '$query'" } }
+
+    private const val TRIGRAM_SIMILARITY_THRESHOLD = 0.2f
+
+    private fun trigramMatch(
+        col: Expression<*>,
+        tokenParam: QueryParameter<String>,
+    ): Op<Boolean> {
+        val sim = similarity(col, tokenParam)
+        return sim greaterEq TRIGRAM_SIMILARITY_THRESHOLD
+    }
+
+    private fun similarity(
+        expr1: Expression<*>,
+        expr2: Expression<*>,
+    ): CustomFunction<Float> = CustomFunction("similarity", FloatColumnType(), expr1, expr2)
 
     private class ILikeOp(
         expr1: Expression<*>,

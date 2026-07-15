@@ -198,6 +198,40 @@ class ClientServicePostgresTest {
     }
 
     @Test
+    fun `search supports typo tolerance with trigram similarity`() {
+        createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
+        createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
+
+        val results = ClientService.search("Jhn")
+
+        assertTrue(results.any { it.id == clientAId }, "Typo 'Jhn' should match 'John' via trigram similarity")
+        assertFalse(results.any { it.id == clientBId })
+    }
+
+    @Test
+    fun `search supports typo tolerance for multi-character typos`() {
+        createClient(callerId, clientAId, firstName = "Maria", lastName = "Garcia")
+        createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
+
+        val results = ClientService.search("Mria")
+
+        assertTrue(results.any { it.id == clientAId }, "Typo 'Mria' should match 'Maria' via trigram similarity")
+        assertFalse(results.any { it.id == clientBId })
+    }
+
+    @Test
+    fun `search ranks exact matches above fuzzy matches`() {
+        createClient(callerId, clientAId, firstName = "Jon", lastName = "Smith")
+        createClient(callerId, clientBId, firstName = "John", lastName = "Bravo")
+
+        val results = ClientService.search("John")
+
+        assertTrue(results.any { it.id == clientBId }, "Exact ILIKE match 'John' should match 'John Bravo'")
+        assertTrue(results.any { it.id == clientAId }, "Fuzzy match 'Jon Smith' should match via trigram for 'John'")
+        assertEquals(clientBId, results.first().id, "Exact match should rank first")
+    }
+
+    @Test
     fun `update client succeeds with EDIT_BRANCH_DATA capability`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         createClient(callerId, clientAId)
