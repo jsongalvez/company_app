@@ -62,3 +62,17 @@ All composeApp code uses `expect/actual Log` functions from `com.companyb.compan
 ## Performance
 
 The pre-push hook runs JMH benchmarks. Regressions >20% from `backend/jmh-baselines.md` should be investigated before pushing. See `backend/AGENTS.md` for the full performance workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `jsongalvez/company_app`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
