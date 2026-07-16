@@ -10,13 +10,14 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 object ReliefAccessRepository {
@@ -56,21 +57,45 @@ object ReliefAccessRepository {
         validTo: OffsetDateTime?,
         priority: Short,
         requestedBy: UUID,
-    ): Unit =
+    ): ReliefAccess? =
         transaction {
+            GrantReliefAccessTable
+                .selectAll()
+                .where {
+                    (GrantReliefAccessTable.requestedBy eq requestedBy) and
+                        (GrantReliefAccessTable.branchDayId eq branchDayId)
+                }.forUpdate(ForUpdateOption.ForUpdate)
+                .toList()
+
+            val existingGrant =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where {
+                        (GrantReliefAccessTable.requestedBy eq requestedBy) and
+                            (GrantReliefAccessTable.branchDayId eq branchDayId) and
+                            (GrantReliefAccessTable.requestStatus eq ReliefStatus.GRANTED)
+                    }.singleOrNull()
+                    ?.toReliefAccess()
+
+            if (existingGrant != null) {
+                return@transaction existingGrant
+            }
+
             GrantReliefAccessTable
                 .update({ GrantReliefAccessTable.id eq requestId }) {
                     it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
                     it[GrantReliefAccessTable.grantedBy] = grantedBy
                     it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
                 }
-            UserCapabilityTable.insert {
+
+            UserCapabilityTable.insertIgnore {
                 it[UserCapabilityTable.userId] = userId
                 it[UserCapabilityTable.capabilityId] = capabilityId
                 it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
                 it[UserCapabilityTable.contextId] = branchDayId
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
                 it[UserCapabilityTable.sourceId] = sourceId
+                it[UserCapabilityTable.validFrom] = OffsetDateTime.now(ZoneOffset.UTC)
                 it[UserCapabilityTable.validTo] = validTo
                 it[UserCapabilityTable.priority] = priority
             }
@@ -88,6 +113,12 @@ object ReliefAccessRepository {
                         "requestedBy" to requestedBy.toString(),
                     ),
             )
+
+            GrantReliefAccessTable
+                .selectAll()
+                .where { GrantReliefAccessTable.id eq requestId }
+                .single()
+                .toReliefAccess()
         }
 
     fun deny(

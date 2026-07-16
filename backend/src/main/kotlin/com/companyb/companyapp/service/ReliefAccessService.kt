@@ -34,16 +34,6 @@ object ReliefAccessService {
             throw ForbiddenResponse("Only the target user can grant this request")
         }
 
-        val existingGrant =
-            ReliefAccessRepository.findByRequestedByAndBranchDayId(
-                request.requestedBy,
-                request.branchDayId,
-                ReliefStatus.GRANTED,
-            )
-        if (existingGrant != null) {
-            return existingGrant
-        }
-
         val capabilityId =
             CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA)
                 ?: throw InternalServerErrorResponse("EDIT_BRANCH_DATA capability not found")
@@ -53,21 +43,29 @@ object ReliefAccessService {
                 ?: throw NotFoundResponse("Branch day not found")
         val validTo = BranchDayService.expirationUtc(branchDay.date)
 
-        ReliefAccessRepository.grantWithCapability(
-            requestId = requestId,
-            grantedBy = callerId,
-            userId = request.requestedBy,
-            capabilityId = capabilityId,
-            branchDayId = request.branchDayId,
-            sourceId = requestId,
-            validTo = validTo,
-            priority = GrantPriorities.RELIEF_ACCESS,
-            requestedBy = request.requestedBy,
-        )
+        val result =
+            ReliefAccessRepository.grantWithCapability(
+                requestId = requestId,
+                grantedBy = callerId,
+                userId = request.requestedBy,
+                capabilityId = capabilityId,
+                branchDayId = request.branchDayId,
+                sourceId = requestId,
+                validTo = validTo,
+                priority = GrantPriorities.RELIEF_ACCESS,
+                requestedBy = request.requestedBy,
+            ) ?: throw InternalServerErrorResponse("Grant failed: relief access request not found in transaction")
 
-        logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
+        if (result.id == requestId) {
+            logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
+        } else {
+            logger.info {
+                "[RELIEF-ACCESS-GRANT] Duplicate grant: " +
+                    "returning existing ${result.id} for request $requestId"
+            }
+        }
 
-        return ReliefAccessRepository.findById(requestId)!!
+        return result
     }
 
     @Suppress("ThrowsCount")
