@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
+import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.NotFoundResponse
@@ -23,8 +24,7 @@ object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
     ): AddPractitionerResult {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        val session = resolveSession(sessionId, callerId)
 
         val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
         if (existing != null) {
@@ -61,13 +61,8 @@ object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
     ): SessionPractitioner {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
-
-        val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
-        if (existing == null) {
-            throw NotFoundResponse("Practitioner not found in session")
-        }
+        resolveSession(sessionId, callerId)
+        requirePractitionerInSession(sessionId, practitionerId)
 
         val updated =
             SessionPractitionerRepository.updateRemarks(
@@ -91,13 +86,8 @@ object SessionPractitionerService {
         sessionId: UUID,
         practitionerId: UUID,
     ) {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
-
-        val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
-        if (existing == null) {
-            throw NotFoundResponse("Practitioner not found in session")
-        }
+        resolveSession(sessionId, callerId)
+        requirePractitionerInSession(sessionId, practitionerId)
 
         SessionPractitionerRepository.remove(
             sessionId = sessionId,
@@ -107,4 +97,20 @@ object SessionPractitionerService {
 
         logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
     }
+
+    private fun resolveSession(
+        sessionId: UUID,
+        callerId: UUID,
+    ): Session {
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        BranchDayService.assertEditable(session.branchDayId, callerId)
+        return session
+    }
+
+    private fun requirePractitionerInSession(
+        sessionId: UUID,
+        practitionerId: UUID,
+    ): SessionPractitioner =
+        SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
+            ?: throw NotFoundResponse("Practitioner not found in session")
 }
