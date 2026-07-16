@@ -50,6 +50,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-041 — shared module compilation + test step | — | [ ] |
 | CR-042 — iOS compilation target in pre-commit | — | [ ] |
 | CR-043 — scope ktlintFormat to staged files only | — | [ ] |
+| CR-044 — extract grantCapability delegation in DatabaseTestHelper | — | [x] |
 
 ## Overlaps to merge or de-dupe
 

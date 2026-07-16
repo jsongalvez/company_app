@@ -36,6 +36,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 object DatabaseTestHelper {
+    private const val TEST_CLIENT_AGE = 30
     private var databaseReady = false
 
     fun ensureDatabase() {
@@ -238,7 +239,7 @@ object DatabaseTestHelper {
                 it[ClientTable.firstName] = "Test"
                 it[ClientTable.lastName] = "Client"
                 it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
+                it[ClientTable.age] = TEST_CLIENT_AGE
             }
         }
         return id
