@@ -598,7 +598,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val catId = UUID.randomUUID()
         val prodId = UUID.randomUUID()
         val branchDayId = resolveBranchDay()
-        val conn = DatabaseTestHelper.testDataSource!!.connection
+        val conn = DatabaseTestHelper.requireTestDataSource().connection
         conn.createStatement().use { stmt ->
             stmt.execute("INSERT INTO product_category (id, name) VALUES ('$catId', 'Cat ${psId.toString().take(8)}')")
             stmt.execute(

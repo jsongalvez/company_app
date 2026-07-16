@@ -1,6 +1,5 @@
 package com.companyb.companyapp.test
 
-import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.database.dotenv
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -87,6 +86,14 @@ object DatabaseTestHelper {
     }
 
     fun isDatabaseReady(): Boolean = databaseReady
+
+    /**
+     * Returns the test [HikariDataSource], throwing if [ensureDatabase] has not been called.
+     * Prefer this over `testDataSource!!` to get a clear error message on misuse.
+     */
+    fun requireTestDataSource(): HikariDataSource =
+        testDataSource
+            ?: error("DatabaseTestHelper.ensureDatabase() has not been called — testDataSource is null")
 
     @Suppress("LongParameterList")
     fun insertUser(

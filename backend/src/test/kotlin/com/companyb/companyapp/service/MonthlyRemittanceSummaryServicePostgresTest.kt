@@ -349,7 +349,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val psId = UUID.randomUUID()
         val productCategoryId = UUID.randomUUID()
         val productId = UUID.randomUUID()
-        val conn = DatabaseTestHelper.testDataSource!!.connection
+        val conn = DatabaseTestHelper.requireTestDataSource().connection
         conn.createStatement().use { stmt ->
             stmt.execute(
                 "INSERT INTO product_category (id, name) VALUES ('$productCategoryId', 'Test Cat $psId')",
