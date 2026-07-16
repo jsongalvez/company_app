@@ -7,13 +7,29 @@ cd "$ROOT_DIR"
 log() { echo "$(date '+%H:%M:%S') [pre-commit] $*"; }
 
 # ----------------------------------------------------------------
-# 1. Optimize imports (auto-fix via ktlintFormat)
+# 1. Optimize imports (auto-fix via ktlintFormat, scoped to staged files)
 # ----------------------------------------------------------------
-log "Running ktlintFormat to optimize imports and fix formatting..."
-./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
-log "Re-staging auto-fixed files..."
-git add -u
-log "Import optimization complete."
+# Note: ktlint Gradle plugin (org.jlleitschuh.gradle.ktlint) doesn't support file-scoped
+# formatting. We use the standalone CLI instead, with project-wide fallback if unavailable.
+KT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(kt|kts)$' || true)
+
+if [ -z "$KT_FILES" ]; then
+    log "No staged Kotlin files — skipping ktlintFormat"
+elif command -v ktlint &>/dev/null; then
+    log "Formatting staged Kotlin file(s) with ktlint CLI..."
+    echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r ktlint --format 2>&1 | tail -3 || true
+    log "Re-staging formatted files..."
+    echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
+    log "Import optimization complete."
+else
+    # Fallback: project-wide formatting (slower, touches all tracked files).
+    # Tradeoff: preserves correctness but can sweep unrelated formatting into the commit.
+    # Install ktlint CLI (brew install ktlint) for staged-only formatting.
+    log "WARNING: 'ktlint' not on PATH. Falling back to project-wide ktlintFormat."
+    ./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
+    git add -u
+    log "Import optimization complete."
+fi
 
 # ----------------------------------------------------------------
 # 2. Quality gate

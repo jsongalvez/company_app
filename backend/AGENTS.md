@@ -22,7 +22,7 @@ Package root: `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repos
 
 The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
 
-1. **Formatting:** `./gradlew ktlintFormat` (auto-fixes imports, then re-stages)
+1. **Formatting:** ktlint scoped to staged `.kt`/`.kts` files via `ktlint --format` CLI (falls back to project-wide `./gradlew ktlintFormat` if CLI not on PATH)
 2. **Static analysis, tests & JMH benchmarks:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmh`
 3. **App boot verification:** Postgres must be reachable, then the app is started and confirmed listening on its port before the commit is allowed.
 

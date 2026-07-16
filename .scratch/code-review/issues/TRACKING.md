@@ -49,7 +49,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-040 — wire k6 baseline into pre-push | CR-037 | [ ] |
 | CR-041 — shared module compilation + test step | — | [x] |
 | CR-042 — iOS compilation target in pre-commit | — | [ ] |
-| CR-043 — scope ktlintFormat to staged files only | — | [ ] |
+| CR-043 — scope ktlintFormat to staged files only | — | [x] |
 | CR-044 — extract grantCapability delegation in DatabaseTestHelper | — | [x] |
 | CR-045 — scope SessionTable + ClientTable deleteAll() | — | [x] |
 | CR-046 — scope product-related deleteAll() | — | [x] |
