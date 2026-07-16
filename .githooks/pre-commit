@@ -23,7 +23,17 @@ log "Running quality gate (detekt, ktlint, test, jmhClasses)..."
 log "Quality gate passed."
 
 # ----------------------------------------------------------------
-# 2b. ComposeApp compilation check (all targets)
+# 2b. Test-data cleanliness check
+# ----------------------------------------------------------------
+log "Checking for test-data leaks..."
+if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
+    log "ERROR: Test-data leak detected. All test tables must be empty after the test suite."
+    exit 1
+fi
+log "Test-data cleanliness check passed."
+
+# ----------------------------------------------------------------
+# 2c. ComposeApp compilation check (all targets)
 # ----------------------------------------------------------------
 log "Compiling composeApp (desktop + android)..."
 ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid --no-daemon 2>&1 | tail -5

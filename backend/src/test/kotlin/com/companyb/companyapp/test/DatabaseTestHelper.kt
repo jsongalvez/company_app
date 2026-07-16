@@ -1,6 +1,7 @@
 package com.companyb.companyapp.test
 
 import com.companyb.companyapp.database.DatabaseConfig
+import com.companyb.companyapp.database.dotenv
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
@@ -23,12 +24,16 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.service.CapabilityService
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -40,12 +45,43 @@ import java.util.UUID
 
 object DatabaseTestHelper {
     private const val TEST_CLIENT_AGE = 30
+    private const val MAX_POOL_SIZE = 3
+    private const val MIN_IDLE = 3
+    private const val CONNECTION_TIMEOUT_MS = 30_000L
     private var databaseReady = false
+
+    @Volatile
+    var testDataSource: HikariDataSource? = null
+        private set
 
     fun ensureDatabase() {
         if (!databaseReady) {
-            DatabaseConfig.runMigrations()
-            DatabaseConfig.runExposed()
+            val dbName = dotenv["TEST_DB_NAME"] ?: "${dotenv["POSTGRES_DB"]}_test"
+            val ds =
+                HikariDataSource(
+                    HikariConfig().apply {
+                        dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
+                        addDataSourceProperty("user", dotenv["POSTGRES_USER"])
+                        addDataSourceProperty("password", dotenv["POSTGRES_PASSWORD"])
+                        addDataSourceProperty("databaseName", dbName)
+                        addDataSourceProperty("serverName", dotenv["DB_HOST"])
+                        addDataSourceProperty("portNumber", dotenv["DB_PORT"])
+                        maximumPoolSize = MAX_POOL_SIZE
+                        minimumIdle = MIN_IDLE
+                        connectionTimeout = CONNECTION_TIMEOUT_MS
+                    },
+                )
+            Flyway
+                .configure()
+                .dataSource(ds)
+                .locations("classpath:db/migration")
+                .load()
+                .apply {
+                    repair()
+                    migrate()
+                }
+            Database.connect(ds)
+            testDataSource = ds
             databaseReady = true
         }
     }

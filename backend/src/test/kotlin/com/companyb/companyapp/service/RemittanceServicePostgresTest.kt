@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
@@ -599,7 +598,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val catId = UUID.randomUUID()
         val prodId = UUID.randomUUID()
         val branchDayId = resolveBranchDay()
-        val conn = DatabaseConfig.dataSource.connection
+        val conn = DatabaseTestHelper.testDataSource!!.connection
         conn.createStatement().use { stmt ->
             stmt.execute("INSERT INTO product_category (id, name) VALUES ('$catId', 'Cat ${psId.toString().take(8)}')")
             stmt.execute(

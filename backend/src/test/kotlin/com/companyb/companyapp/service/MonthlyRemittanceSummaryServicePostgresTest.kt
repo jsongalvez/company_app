@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.RemittanceRepository
@@ -350,7 +349,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val psId = UUID.randomUUID()
         val productCategoryId = UUID.randomUUID()
         val productId = UUID.randomUUID()
-        val conn = DatabaseConfig.dataSource.connection
+        val conn = DatabaseTestHelper.testDataSource!!.connection
         conn.createStatement().use { stmt ->
             stmt.execute(
                 "INSERT INTO product_category (id, name) VALUES ('$productCategoryId', 'Test Cat $psId')",

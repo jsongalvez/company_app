@@ -7,7 +7,17 @@ cd "$ROOT_DIR"
 log() { echo "$(date '+%H:%M:%S') [pre-push] $*"; }
 
 # ----------------------------------------------------------------
-# 1. JMH full benchmark suite
+# 1. Test-data cleanliness check
+# ----------------------------------------------------------------
+log "Checking for test-data leaks..."
+if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
+    log "ERROR: Test-data leak detected before push."
+    exit 1
+fi
+log "Test-data cleanliness check passed."
+
+# ----------------------------------------------------------------
+# 2. JMH full benchmark suite
 # ----------------------------------------------------------------
 log "Running JMH benchmarks..."
 if ! ./gradlew :backend:jmh --no-daemon 2>&1 | tee /tmp/company-app-jmh.log | tail -20; then
