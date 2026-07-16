@@ -1,9 +1,11 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insertIgnore
@@ -34,7 +36,25 @@ object UserBranchAssignmentRepository {
                         it[UserBranchAssignmentTable.slot] = slot
                         it[UserBranchAssignmentTable.assignedBy] = assignedBy
                     }.insertedCount
-            insertedCount > 0
+            val created = insertedCount > 0
+
+            if (created) {
+                AuditLogRepository.record(
+                    tableName = UserBranchAssignmentTable.tableName,
+                    recordId = id,
+                    action = AuditAction.INSERT,
+                    changedBy = assignedBy,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "id" to id.toString(),
+                            "userId" to userId.toString(),
+                            "branchId" to branchId.toString(),
+                            "slot" to slot.toString(),
+                        ),
+                )
+            }
+
+            created
         }.also { created ->
             logger.info { "[CREATE-ASSIGNMENT] Assignment $id created=$created" }
         }
@@ -51,6 +71,19 @@ object UserBranchAssignmentRepository {
                     UserBranchAssignmentTable.userId to SortOrder.ASC,
                 ).map { it.toAssignment() }
         }.also { logger.info { "[FIND-ASSIGNMENTS-BY-BRANCH] Fetched ${it.size} active assignments" } }
+
+    fun findActiveByBranchAndUserInTransaction(
+        branchId: UUID,
+        userId: UUID,
+    ): UserBranchAssignment? =
+        UserBranchAssignmentTable
+            .selectAll()
+            .where {
+                (UserBranchAssignmentTable.branchId eq branchId) and
+                    (UserBranchAssignmentTable.userId eq userId) and
+                    (UserBranchAssignmentTable.endedAt.isNull())
+            }.singleOrNull()
+            ?.toAssignment()
 
     fun findActiveByBranchAndUser(
         branchId: UUID,
@@ -76,11 +109,23 @@ object UserBranchAssignmentRepository {
                 ?.toAssignment()
         }.also { logger.info { "[FIND-ASSIGNMENT-BY-ID] id=${id.toString().maskUUID()} found=${it != null}" } }
 
-    fun setEndedAt(id: UUID) {
+    fun setEndedAt(
+        id: UUID,
+        callerId: UUID,
+        oldValue: String,
+    ) {
         transaction {
             UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
                 it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
             }
+
+            AuditLogRepository.record(
+                tableName = UserBranchAssignmentTable.tableName,
+                recordId = id,
+                action = AuditAction.UPDATE,
+                changedBy = callerId,
+                oldValue = oldValue,
+            )
         }
         logger.info { "[SET-ENDED-AT] Assignment ${id.toString().maskUUID()}" }
     }
@@ -88,6 +133,8 @@ object UserBranchAssignmentRepository {
     fun updateSlot(
         id: UUID,
         slot: Short,
+        callerId: UUID,
+        oldSlot: Short,
     ) {
         transaction {
             UserBranchAssignmentTable.update({
@@ -96,6 +143,15 @@ object UserBranchAssignmentRepository {
             }) {
                 it[UserBranchAssignmentTable.slot] = slot
             }
+
+            AuditLogRepository.record(
+                tableName = UserBranchAssignmentTable.tableName,
+                recordId = id,
+                action = AuditAction.UPDATE,
+                changedBy = callerId,
+                oldValue = AuditLogRepository.jsonField("slot", oldSlot.toString()),
+                newValue = AuditLogRepository.jsonField("slot", slot.toString()),
+            )
         }
         logger.info { "[UPDATE-SLOT] Assignment ${id.toString().maskUUID()} slot=$slot" }
     }
@@ -119,6 +175,45 @@ object UserBranchAssignmentRepository {
             it[UserBranchAssignmentTable.slot] = slotA
         }
     }
+
+    @Suppress("LongParameterList")
+    fun swapSlots(
+        callerId: UUID,
+        branchId: UUID,
+        userIdA: UUID,
+        userIdB: UUID,
+    ): Pair<UserBranchAssignment, UserBranchAssignment> =
+        transaction {
+            val a =
+                findActiveByBranchAndUserInTransaction(branchId, userIdA)
+                    ?: throw NotFoundResponse("Active assignment not found for user A at this branch")
+            val b =
+                findActiveByBranchAndUserInTransaction(branchId, userIdB)
+                    ?: throw NotFoundResponse("Active assignment not found for user B at this branch")
+
+            val slotA = a.slot
+            val slotB = b.slot
+
+            swapSlotsInTransaction(a.id, slotA, b.id, slotB)
+
+            AuditLogRepository.record(
+                tableName = UserBranchAssignmentTable.tableName,
+                recordId = a.id,
+                action = AuditAction.UPDATE,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "userIdA" to userIdA.toString(),
+                        "oldSlotA" to slotA.toString(),
+                        "newSlotA" to slotB.toString(),
+                        "userIdB" to userIdB.toString(),
+                        "oldSlotB" to slotB.toString(),
+                        "newSlotB" to slotA.toString(),
+                    ),
+            )
+
+            a to b
+        }
 
     private fun org.jetbrains.exposed.sql.ResultRow.toAssignment(): UserBranchAssignment =
         UserBranchAssignment(

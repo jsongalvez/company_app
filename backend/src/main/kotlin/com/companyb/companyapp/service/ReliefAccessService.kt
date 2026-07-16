@@ -1,13 +1,10 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.ReliefAccessRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.GrantPriorities
-import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -65,21 +62,7 @@ object ReliefAccessService {
             sourceId = requestId,
             validTo = validTo,
             priority = GrantPriorities.RELIEF_ACCESS,
-        )
-
-        val auditNewValue =
-            AuditLogRepository.jsonFields(
-                "requestId" to requestId.toString(),
-                "branchDayId" to request.branchDayId.toString(),
-                "grantedBy" to callerId.toString(),
-                "requestedBy" to request.requestedBy.toString(),
-            )
-        AuditLogRepository.record(
-            tableName = GrantReliefAccessTable.tableName,
-            recordId = requestId,
-            action = AuditAction.UPDATE,
-            changedBy = callerId,
-            newValue = auditNewValue,
+            requestedBy = request.requestedBy,
         )
 
         logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
@@ -108,20 +91,7 @@ object ReliefAccessService {
             throw BadRequestResponse("Cannot deny a request that has already been granted")
         }
 
-        ReliefAccessRepository.deny(requestId)
-
-        val auditNewValue =
-            AuditLogRepository.jsonFields(
-                "requestId" to requestId.toString(),
-                "status" to "DENIED",
-            )
-        AuditLogRepository.record(
-            tableName = GrantReliefAccessTable.tableName,
-            recordId = requestId,
-            action = AuditAction.UPDATE,
-            changedBy = callerId,
-            newValue = auditNewValue,
-        )
+        ReliefAccessRepository.deny(requestId, callerId)
 
         logger.info { "[RELIEF-ACCESS-DENY] Request $requestId denied by $callerId" }
 
@@ -147,20 +117,6 @@ object ReliefAccessService {
 
         val (reliefAccess, wasCreated) =
             ReliefAccessRepository.insertRequest(requestId, branchDayId, callerId, targetUserId)
-
-        val auditNewValue =
-            AuditLogRepository.jsonFields(
-                "requestId" to requestId.toString(),
-                "branchDayId" to branchDayId.toString(),
-                "targetUserId" to targetUserId.toString(),
-            )
-        AuditLogRepository.record(
-            tableName = GrantReliefAccessTable.tableName,
-            recordId = requestId,
-            action = AuditAction.INSERT,
-            changedBy = callerId,
-            newValue = auditNewValue,
-        )
 
         logger.info {
             "[RELIEF-ACCESS-REQUEST] Request $requestId created " +

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantPriorities
@@ -49,9 +50,26 @@ object MedicalMissionDelegateRepository {
                 it[UserCapabilityTable.sourceId] = delegateId
                 it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
             }
+
+            AuditLogRepository.record(
+                tableName = MedicalMissionDelegateTable.tableName,
+                recordId = delegateId,
+                action = AuditAction.INSERT,
+                changedBy = assignedBy,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "delegateId" to delegateId.toString(),
+                        "targetUserId" to targetUserId.toString(),
+                        "branchId" to branchId.toString(),
+                        "assignedBy" to assignedBy.toString(),
+                    ),
+            )
         }
 
-    fun revokeWithCapability(delegateId: UUID): Unit =
+    fun revokeWithCapability(
+        delegateId: UUID,
+        callerId: UUID,
+    ): Unit =
         transaction {
             MedicalMissionDelegateTable
                 .update({ MedicalMissionDelegateTable.id eq delegateId }) {
@@ -65,6 +83,18 @@ object MedicalMissionDelegateRepository {
                 }) {
                     it[UserCapabilityTable.validTo] = CurrentTimestampWithTimeZone
                 }
+
+            AuditLogRepository.record(
+                tableName = MedicalMissionDelegateTable.tableName,
+                recordId = delegateId,
+                action = AuditAction.UPDATE,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "delegateId" to delegateId.toString(),
+                        "endedAt" to "now",
+                    ),
+            )
         }
 
     private fun org.jetbrains.exposed.sql.ResultRow.toMedicalMissionDelegate(): MedicalMissionDelegate =

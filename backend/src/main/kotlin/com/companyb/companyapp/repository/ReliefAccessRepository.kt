@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
@@ -52,6 +53,7 @@ object ReliefAccessRepository {
         sourceId: UUID,
         validTo: OffsetDateTime?,
         priority: Short,
+        requestedBy: UUID,
     ): Unit =
         transaction {
             GrantReliefAccessTable
@@ -70,15 +72,43 @@ object ReliefAccessRepository {
                 it[UserCapabilityTable.validTo] = validTo
                 it[UserCapabilityTable.priority] = priority
             }
+
+            AuditLogRepository.record(
+                tableName = GrantReliefAccessTable.tableName,
+                recordId = requestId,
+                action = AuditAction.UPDATE,
+                changedBy = grantedBy,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "requestId" to requestId.toString(),
+                        "branchDayId" to branchDayId.toString(),
+                        "grantedBy" to grantedBy.toString(),
+                        "requestedBy" to requestedBy.toString(),
+                    ),
+            )
         }
 
-    fun deny(requestId: UUID) =
-        transaction {
-            GrantReliefAccessTable
-                .update({ GrantReliefAccessTable.id eq requestId }) {
-                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
-                }
-        }
+    fun deny(
+        requestId: UUID,
+        callerId: UUID,
+    ) = transaction {
+        GrantReliefAccessTable
+            .update({ GrantReliefAccessTable.id eq requestId }) {
+                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+            }
+
+        AuditLogRepository.record(
+            tableName = GrantReliefAccessTable.tableName,
+            recordId = requestId,
+            action = AuditAction.UPDATE,
+            changedBy = callerId,
+            newValue =
+                AuditLogRepository.jsonFields(
+                    "requestId" to requestId.toString(),
+                    "status" to "DENIED",
+                ),
+        )
+    }
 
     fun insertRequest(
         id: UUID,
@@ -96,6 +126,21 @@ object ReliefAccessRepository {
                         it[GrantReliefAccessTable.targetUser] = targetUser
                     }.insertedCount
             val isNew = insertedCount > 0
+
+            if (isNew) {
+                AuditLogRepository.record(
+                    tableName = GrantReliefAccessTable.tableName,
+                    recordId = id,
+                    action = AuditAction.INSERT,
+                    changedBy = requestedBy,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "requestId" to id.toString(),
+                            "branchDayId" to branchDayId.toString(),
+                            "targetUserId" to targetUser.toString(),
+                        ),
+                )
+            }
 
             val row =
                 GrantReliefAccessTable

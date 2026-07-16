@@ -23,3 +23,5 @@
 
 **Priority:** critical
 **Story alignment:** US-003, US-005, US-006, US-007, US-008, US-009, US-010
+
+**Status:** ✅ done

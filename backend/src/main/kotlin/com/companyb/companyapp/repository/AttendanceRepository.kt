@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
@@ -43,6 +44,7 @@ object AttendanceRepository {
         markedBy: UUID,
         branchDayAssignmentId: UUID,
         isRelief: Boolean,
+        branchId: UUID,
     ): Pair<Attendance, Boolean> =
         transaction {
             val insertedCount =
@@ -76,6 +78,22 @@ object AttendanceRepository {
                     .single()
                     .toAttendance()
 
+            if (isNew) {
+                AuditLogRepository.record(
+                    tableName = AttendanceTable.tableName,
+                    recordId = attendanceId,
+                    action = AuditAction.INSERT,
+                    changedBy = markedBy,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "attendanceId" to attendanceId.toString(),
+                            "branchDayId" to branchDayId.toString(),
+                            "branchId" to branchId.toString(),
+                            "isRelief" to isRelief.toString(),
+                        ),
+                )
+            }
+
             attendance to isNew
         }
 
@@ -102,18 +120,32 @@ object AttendanceRepository {
                 ?.toAttendance()
         }
 
-    fun clockOut(attendanceId: UUID): Attendance =
+    fun clockOut(
+        attendanceId: UUID,
+        callerId: UUID,
+    ): Attendance =
         transaction {
             AttendanceTable
                 .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
                     it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
                 }
 
-            AttendanceTable
-                .selectAll()
-                .where { AttendanceTable.id eq attendanceId }
-                .single()
-                .toAttendance()
+            val attendance =
+                AttendanceTable
+                    .selectAll()
+                    .where { AttendanceTable.id eq attendanceId }
+                    .single()
+                    .toAttendance()
+
+            AuditLogRepository.record(
+                tableName = AttendanceTable.tableName,
+                recordId = attendanceId,
+                action = AuditAction.UPDATE,
+                changedBy = callerId,
+                newValue = AuditLogRepository.jsonField("clockOut", "now"),
+            )
+
+            attendance
         }
 
     fun findUsersClockedInAt(

@@ -8,7 +8,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 |--------|-----------|--------|
 | CR-001 — runCatching on path params | — | [x] |
 | CR-002 — JVM clock in service/repo | — | [x] |
-| CR-003 — audit logs not atomic | — | [ ] |
+| CR-003 — audit logs not atomic | — | [x] |
 | CR-004 — capability gates (chunk 1 only) | — | [ ] |
 | CR-005 — magic number priorities | — | [x] |
 | CR-006 — commission recalc on clock-in/out | — | [ ] |

@@ -1,17 +1,13 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.AttendanceRepository
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditAction
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.ConflictResponse
 import io.javalin.http.NotFoundResponse
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.UUID
 
 object AttendanceService {
@@ -34,16 +30,7 @@ object AttendanceService {
             return AttendanceServiceResult(existing, false, isRelief)
         }
 
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-        val attendance = AttendanceRepository.clockOut(attendanceId)
-
-        AuditLogRepository.record(
-            tableName = AttendanceTable.tableName,
-            recordId = attendanceId,
-            action = AuditAction.UPDATE,
-            changedBy = callerId,
-            newValue = AuditLogRepository.jsonField("clockOut", now.toString()),
-        )
+        val attendance = AttendanceRepository.clockOut(attendanceId, callerId)
 
         logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
 
@@ -86,22 +73,8 @@ object AttendanceService {
                 markedBy = callerId,
                 branchDayAssignmentId = branchDayAssignmentId,
                 isRelief = isRelief,
+                branchId = branchId,
             )
-
-        val auditNewValue =
-            AuditLogRepository.jsonFields(
-                "attendanceId" to attendanceId.toString(),
-                "branchDayId" to branchDay.id.toString(),
-                "branchId" to branchId.toString(),
-                "isRelief" to isRelief.toString(),
-            )
-        AuditLogRepository.record(
-            tableName = AttendanceTable.tableName,
-            recordId = attendanceId,
-            action = AuditAction.INSERT,
-            changedBy = callerId,
-            newValue = auditNewValue,
-        )
 
         logger.info {
             "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
