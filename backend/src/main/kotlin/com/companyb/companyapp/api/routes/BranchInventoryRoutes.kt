@@ -78,7 +78,6 @@ object BranchInventoryRoutes {
     }
 
     private fun handleGetInventory(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
         context.json(

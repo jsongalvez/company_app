@@ -36,13 +36,10 @@ object RemittanceRoutes {
             if (context.method() != io.javalin.http.HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
             val branchId = uuidOrThrow(request.branchId, "branch id")
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            com.companyb.companyapp.service.CapabilityService.requireCapability(
-                userId = callerId,
-                capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-                contextType = com.companyb.companyapp.repository.model.CapabilityContextType.BRANCH,
-                contextId = branchId,
-                message = "SUBMIT_REMITTANCE capability required for this branch",
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                branchId,
+                CapabilityCodes.SUBMIT_REMITTANCE,
             )
         }
 

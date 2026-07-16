@@ -12,7 +12,6 @@ import java.util.UUID
 object BranchService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("UnusedParameter")
     fun create(
         callerId: UUID,
         id: UUID,

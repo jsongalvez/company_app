@@ -40,9 +40,9 @@ All Group B services converted from GLOBAL to BRANCH scope:
   `POST …/promote-concern` — all resolve branch via `requireBranchCapabilityForSession`.
   `GET /api/concerns` stays GLOBAL (no branch context).
 - **BranchInventoryRoutes**: `MANAGE_PRODUCTS` on BRANCH via `requireBranchCapabilityForBranchId`.
-- **CompensationRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapabilityForBranchId`.
-- **ProductSaleRoutes**: `EDIT_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.
-- **AllowanceRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **CompensationRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapability` (resolves branch from `branchDayId` in body).
+- **ProductSaleRoutes**: `EDIT_BRANCH_DATA` on BRANCH via `requireBranchCapability` (resolves branch from `branchDayId` in body).
+- **AllowanceRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapability` (resolves branch from `branchDayId` in body).
 - **ExportRoutes** (per-branch): `VIEW_BRANCH_DATA` via `requireBranchCapabilityForBranchId`
   for `{branchId}/export/*`; branch-type exports (`/api/branches/export/*`) stay GLOBAL.
 - **DailySalesSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.

@@ -63,7 +63,6 @@ object AllowanceRoutes {
         }
 
         config.routes.get("/api/allowances") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchDayId = context.uuidFromQuery("branchDayId")
 
             val allowances = AllowanceService.findByBranchDayId(branchDayId)
