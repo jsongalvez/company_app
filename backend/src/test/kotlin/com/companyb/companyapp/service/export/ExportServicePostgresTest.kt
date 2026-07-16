@@ -76,7 +76,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Suppress("MaxLineLength")
     @AfterTest
-    fun cleanRemittanceData() {
+    override fun tearDownBase() {
         if (!DatabaseTestHelper.isDatabaseReady()) return
         DatabaseTestHelper.withSnapshotTriggerDisabled {
             for (bid in testBranchIds) {
@@ -112,6 +112,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
                 exec("DELETE FROM expense WHERE branch_day_id IN ($bdIds)")
                 exec("DELETE FROM branch_day WHERE branch_id = '$bid'")
             }
+            cleanTrackedRows()
         }
     }
 

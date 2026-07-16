@@ -73,13 +73,13 @@ abstract class BasePostgresTest {
     }
 
     @AfterTest
-    fun tearDownBase() {
+    open fun tearDownBase() {
         if (DatabaseTestHelper.isDatabaseReady()) {
             cleanTrackedRows()
         }
     }
 
-    private fun cleanTrackedRows() {
+    protected fun cleanTrackedRows() {
         val grouped = tracked.groupBy({ it.table to it.column }) { it.id }
         transaction {
             for (table in DELETION_ORDER) {
@@ -134,17 +134,7 @@ abstract class BasePostgresTest {
             )
 
         private val ALL_TABLES: Set<Table> =
-            FK_GRAPH.keys +
-                FK_GRAPH.values.flatten() +
-                setOf(
-                    ConcernTable,
-                    CapabilityTable,
-                    RoleTable,
-                    AppUserTable,
-                    ClientTable,
-                    BranchTable,
-                    ProductCategoryTable,
-                )
+            FK_GRAPH.keys + FK_GRAPH.values.flatten()
 
         val DELETION_ORDER: List<Table> by lazy { topologicalSort() }
 
@@ -155,7 +145,7 @@ abstract class BasePostgresTest {
             }
             for ((_, parents) in FK_GRAPH) {
                 for (parent in parents) {
-                    reverseEdgeCount[parent] = (reverseEdgeCount[parent] ?: 0) + 1
+                    reverseEdgeCount[parent] = reverseEdgeCount[parent]!! + 1
                 }
             }
             val result = mutableListOf<Table>()
