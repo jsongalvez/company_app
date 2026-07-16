@@ -337,7 +337,6 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
                 it[ProductTable.commissionAmount] = BigDecimal.ZERO
             }
             ProductSaleTable.insert {
-                it[ProductSaleTable.id] = UUID.randomUUID()
                 it[ProductSaleTable.branchDayId] = branchDayId
                 it[ProductSaleTable.productId] = productId
                 it[ProductSaleTable.productName] = "Test Product"
@@ -349,6 +348,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
                 it[ProductSaleTable.isWalkIn] = true
             }
         }
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
     }
 
     private fun insertCommissionSplit(

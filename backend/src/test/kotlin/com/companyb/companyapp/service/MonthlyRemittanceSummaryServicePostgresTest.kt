@@ -48,7 +48,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     private val clientId = UUID.randomUUID()
 
     override fun initTestData() {
-        enableSnapshotTrigger()
         DatabaseTestHelper.insertTestUser(callerId, "summary-caller")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${UUID.randomUUID()}")
@@ -79,9 +78,10 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @AfterTest
-    fun disableSnapshotForCleanup() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            disableSnapshotTrigger()
+    override fun tearDownBase() {
+        if (!DatabaseTestHelper.isDatabaseReady()) return
+        DatabaseTestHelper.withSnapshotTriggerDisabled {
+            cleanTrackedRows()
         }
     }
 
@@ -368,26 +368,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             )
         }
         conn.close()
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
         return psId
-    }
-
-    private fun disableSnapshotTrigger() {
-        val conn = DatabaseConfig.dataSource.connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "ALTER TABLE remittance_financial_snapshot DISABLE TRIGGER trg_remittance_snapshot_immutable",
-            )
-        }
-        conn.close()
-    }
-
-    private fun enableSnapshotTrigger() {
-        val conn = DatabaseConfig.dataSource.connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "ALTER TABLE remittance_financial_snapshot ENABLE TRIGGER trg_remittance_snapshot_immutable",
-            )
-        }
-        conn.close()
     }
 }

@@ -35,6 +35,7 @@ import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -101,9 +102,18 @@ class ExportServicePostgresTest : BasePostgresTest() {
                         ProductSaleTable.branchDayId inSubQuery branchDayIds
                     }
                 val clientIds =
-                    SessionTable.select(SessionTable.clientId).where {
-                        SessionTable.branchDayId inSubQuery branchDayIds
-                    }
+                    SessionTable
+                        .select(SessionTable.clientId)
+                        .where {
+                            SessionTable.branchDayId inSubQuery branchDayIds
+                        }.map { it[SessionTable.clientId] }
+                val compUserIds =
+                    CompensationTable
+                        .select(CompensationTable.userId)
+                        .where {
+                            (CompensationTable.workBranchDayId inSubQuery branchDayIds) or
+                                (CompensationTable.payingBranchDayId inSubQuery branchDayIds)
+                        }.map { it[CompensationTable.userId] }
 
                 RemittanceFinancialSnapshotTable.deleteWhere { remittanceId inSubQuery remittanceIds }
                 RemittanceDayBreakdownTable.deleteWhere { remittanceId inSubQuery remittanceIds }
@@ -119,13 +129,15 @@ class ExportServicePostgresTest : BasePostgresTest() {
                 SessionConcernTable.deleteWhere { sessionId inSubQuery sessionIds }
 
                 SessionTable.deleteWhere { branchDayId inSubQuery branchDayIds }
-                ClientTable.deleteWhere { id inSubQuery clientIds }
+                ClientTable.deleteWhere { id inList clientIds }
 
                 CompensationTable.deleteWhere {
                     (workBranchDayId inSubQuery branchDayIds) or (payingBranchDayId inSubQuery branchDayIds)
                 }
                 ExpenseTable.deleteWhere { branchDayId inSubQuery branchDayIds }
                 BranchDayTable.deleteWhere { branchId eq bid }
+
+                AppUserTable.deleteWhere { id inList compUserIds }
             }
             cleanTrackedRows()
         }

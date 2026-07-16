@@ -43,6 +43,7 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -72,6 +73,14 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @AfterTest
+    override fun tearDownBase() {
+        if (!DatabaseTestHelper.isDatabaseReady()) return
+        DatabaseTestHelper.withSnapshotTriggerDisabled {
+            cleanTrackedRows()
+        }
     }
 
     @Test
@@ -587,29 +596,27 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         if (productSaleCreated) return productSaleId!!
         ensureClientExists()
         val psId = UUID.randomUUID()
-        val productCategoryId = UUID.randomUUID()
-        val productId = UUID.randomUUID()
+        val catId = UUID.randomUUID()
+        val prodId = UUID.randomUUID()
         val branchDayId = resolveBranchDay()
         val conn = DatabaseConfig.dataSource.connection
         conn.createStatement().use { stmt ->
-            stmt.execute(
-                "INSERT INTO product_category (id, name) VALUES ('$productCategoryId', 'Cat ${psId.toString().take(
-                    8,
-                )}')",
-            )
+            stmt.execute("INSERT INTO product_category (id, name) VALUES ('$catId', 'Cat ${psId.toString().take(8)}')")
             stmt.execute(
                 "INSERT INTO product (id, name, product_category_id, unit_price, commission_amount) " +
-                    "VALUES ('$productId', 'Prod ${psId.toString().take(8)}', '$productCategoryId', 100.00, 10.00)",
+                    "VALUES ('$prodId', 'Prod ${psId.toString().take(8)}', '$catId', 100.00, 10.00)",
             )
             stmt.execute(
                 "INSERT INTO product_sale (id, branch_day_id, product_id, quantity, is_walk_in, " +
                     "client_id, handled_by, unit_price_at_time, " +
                     "total_amount_at_time, commission_amount_at_time, product_name) " +
-                    "VALUES ('$psId', '$branchDayId', '$productId', 1, true, " +
+                    "VALUES ('$psId', '$branchDayId', '$prodId', 1, true, " +
                     "'$clientId', '$callerId', 100.00, 100.00, 10.00, 'Test Product')",
             )
         }
         conn.close()
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, catId)
+        trackOwned(ProductTable, ProductTable.id, prodId)
         productSaleId = psId
         productSaleCreated = true
         return psId
@@ -662,27 +669,5 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                 it[ExpenseTable.createdBy] = callerId
             }
         }
-    }
-
-    @Suppress("UnusedPrivateMember")
-    private fun disableSnapshotTrigger() {
-        val conn = DatabaseConfig.dataSource.connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "ALTER TABLE remittance_financial_snapshot DISABLE TRIGGER trg_remittance_snapshot_immutable",
-            )
-        }
-        conn.close()
-    }
-
-    @Suppress("UnusedPrivateMember")
-    private fun enableSnapshotTrigger() {
-        val conn = DatabaseConfig.dataSource.connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "ALTER TABLE remittance_financial_snapshot ENABLE TRIGGER trg_remittance_snapshot_immutable",
-            )
-        }
-        conn.close()
     }
 }
