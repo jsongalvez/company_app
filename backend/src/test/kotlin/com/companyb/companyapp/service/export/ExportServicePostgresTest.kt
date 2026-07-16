@@ -10,6 +10,9 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.InventoryMovementTable
+import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -18,8 +21,11 @@ import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
+import com.companyb.companyapp.repository.model.SessionConcernTable
+import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -29,8 +35,12 @@ import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inSubQuery
+import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -80,37 +90,42 @@ class ExportServicePostgresTest : BasePostgresTest() {
         if (!DatabaseTestHelper.isDatabaseReady()) return
         DatabaseTestHelper.withSnapshotTriggerDisabled {
             for (bid in testBranchIds) {
-                val bdIds = "SELECT id FROM branch_day WHERE branch_id = '$bid'"
-                val remIds = "SELECT id FROM remittance WHERE branch_id = '$bid'"
-                exec("DELETE FROM remittance_financial_snapshot WHERE remittance_id IN ($remIds)")
-                exec("DELETE FROM remittance_day_breakdown WHERE remittance_id IN ($remIds)")
-                exec("DELETE FROM remittance_line WHERE remittance_id IN ($remIds)")
-                exec("DELETE FROM remittance WHERE branch_id = '$bid'")
-                exec(
-                    "DELETE FROM inventory_movement WHERE product_sale_id IN (SELECT id FROM product_sale WHERE branch_day_id IN ($bdIds))",
-                )
-                exec("DELETE FROM product_sale WHERE branch_day_id IN ($bdIds)")
-                exec(
-                    "DELETE FROM notification WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                )
-                exec(
-                    "DELETE FROM session_void WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                )
-                exec(
-                    "DELETE FROM session_practitioner WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                )
-                exec(
-                    "DELETE FROM session_concern WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                )
-                exec("DELETE FROM session WHERE branch_day_id IN ($bdIds)")
-                exec(
-                    "DELETE FROM client WHERE id IN (SELECT client_id FROM (SELECT client_id FROM session WHERE branch_day_id IN ($bdIds)) AS cids)",
-                )
-                exec(
-                    "DELETE FROM compensation WHERE work_branch_day_id IN ($bdIds) OR paying_branch_day_id IN ($bdIds)",
-                )
-                exec("DELETE FROM expense WHERE branch_day_id IN ($bdIds)")
-                exec("DELETE FROM branch_day WHERE branch_id = '$bid'")
+                val branchDayIds = BranchDayTable.select(BranchDayTable.id).where { BranchDayTable.branchId eq bid }
+                val remittanceIds = RemittanceTable.select(RemittanceTable.id).where { RemittanceTable.branchId eq bid }
+                val sessionIds =
+                    SessionTable.select(SessionTable.id).where {
+                        SessionTable.branchDayId inSubQuery branchDayIds
+                    }
+                val productSaleIds =
+                    ProductSaleTable.select(ProductSaleTable.id).where {
+                        ProductSaleTable.branchDayId inSubQuery branchDayIds
+                    }
+                val clientIds =
+                    SessionTable.select(SessionTable.clientId).where {
+                        SessionTable.branchDayId inSubQuery branchDayIds
+                    }
+
+                RemittanceFinancialSnapshotTable.deleteWhere { remittanceId inSubQuery remittanceIds }
+                RemittanceDayBreakdownTable.deleteWhere { remittanceId inSubQuery remittanceIds }
+                RemittanceLineTable.deleteWhere { remittanceId inSubQuery remittanceIds }
+                RemittanceTable.deleteWhere { branchId eq bid }
+
+                InventoryMovementTable.deleteWhere { productSaleId inSubQuery productSaleIds }
+                ProductSaleTable.deleteWhere { branchDayId inSubQuery branchDayIds }
+
+                NotificationTable.deleteWhere { sessionId inSubQuery sessionIds }
+                SessionVoidTable.deleteWhere { sessionId inSubQuery sessionIds }
+                SessionPractitionerTable.deleteWhere { sessionId inSubQuery sessionIds }
+                SessionConcernTable.deleteWhere { sessionId inSubQuery sessionIds }
+
+                SessionTable.deleteWhere { branchDayId inSubQuery branchDayIds }
+                ClientTable.deleteWhere { id inSubQuery clientIds }
+
+                CompensationTable.deleteWhere {
+                    (workBranchDayId inSubQuery branchDayIds) or (payingBranchDayId inSubQuery branchDayIds)
+                }
+                ExpenseTable.deleteWhere { branchDayId inSubQuery branchDayIds }
+                BranchDayTable.deleteWhere { branchId eq bid }
             }
             cleanTrackedRows()
         }
