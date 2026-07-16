@@ -362,20 +362,23 @@ object DatabaseTestHelper {
         return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
     }
 
+    private const val SNAPSHOT_TABLE = "remittance_financial_snapshot"
+    private const val SNAPSHOT_TRIGGER = "trg_remittance_snapshot_immutable"
+
     /**
      * Executes [block] inside an Exposed transaction with the remittance_financial_snapshot
      * trigger disabled. The trigger is session-level, so DDL + DML share the same connection.
      *
-     * Inside the block, use `connection` for raw JDBC or Exposed DSL for DML.
      * The trigger is re-enabled in a finally block after [block] completes.
+     * Raw DDL is unavoidable here — Exposed has no API for trigger management.
      */
     fun <T> withSnapshotTriggerDisabled(block: org.jetbrains.exposed.v1.jdbc.JdbcTransaction.() -> T): T =
         transaction {
-            exec("ALTER TABLE remittance_financial_snapshot DISABLE TRIGGER trg_remittance_snapshot_immutable")
+            exec("ALTER TABLE $SNAPSHOT_TABLE DISABLE TRIGGER $SNAPSHOT_TRIGGER")
             try {
                 block()
             } finally {
-                exec("ALTER TABLE remittance_financial_snapshot ENABLE TRIGGER trg_remittance_snapshot_immutable")
+                exec("ALTER TABLE $SNAPSHOT_TABLE ENABLE TRIGGER $SNAPSHOT_TRIGGER")
             }
         }
 }
