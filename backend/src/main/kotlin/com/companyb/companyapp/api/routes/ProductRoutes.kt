@@ -46,12 +46,10 @@ object ProductRoutes {
         }
 
         config.routes.get("/api/products") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             context.json(ProductService.findAllActive().map { it.toResponse() })
         }
 
         config.routes.get("/api/products/{$PRODUCT_ID_PARAM}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             context.json(ProductService.findById(productId).toResponse())
         }

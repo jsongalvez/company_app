@@ -60,13 +60,11 @@ object ClientRoutes {
     }
 
     private fun handleSearch(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val query = context.queryParam("q") ?: throw BadRequestResponse("Query parameter 'q' is required")
         context.json(ClientService.search(query).map { it.toResponse() })
     }
 
     private fun handleGetById(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
         context.json(ClientService.findById(clientId).toResponse())
     }

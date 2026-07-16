@@ -18,8 +18,10 @@ object ExportRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/export") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val branchId = context.pathParamAsUuid("branchId")
+            CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
+                branchId,
                 CapabilityCodes.VIEW_BRANCH_DATA,
             )
         }

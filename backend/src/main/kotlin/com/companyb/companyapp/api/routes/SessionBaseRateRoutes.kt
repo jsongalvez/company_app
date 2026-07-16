@@ -44,7 +44,6 @@ object SessionBaseRateRoutes {
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
             context.json(SessionBaseRateService.findActiveRates(branchId).map { it.toResponse() })

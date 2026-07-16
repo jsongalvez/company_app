@@ -15,8 +15,10 @@ object DailySalesSummaryRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/daily-summary") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val branchId = context.pathParamAsUuid("branchId")
+            CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
+                branchId,
                 CapabilityCodes.VIEW_BRANCH_DATA,
             )
         }

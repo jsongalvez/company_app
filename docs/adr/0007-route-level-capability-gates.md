@@ -28,9 +28,25 @@ delegate to `CapabilityService`.
 The service layer retains day-state assertions (`BranchDayService.assertEditable`) — it no
 longer performs capability checks.
 
-**Pilot scope:** ExpenseService routes only (`POST/GET /api/expenses`,
+**Pilot scope (completed):** ExpenseService routes only (`POST/GET /api/expenses`,
 `DELETE /api/expenses/{expenseId}`). Proves the pattern before wider rollout (see
 [#2](../../.scratch/issues/0002-collapse-capability-boilerplate/ISSUE.md)).
+
+**Full rollout (completed, [#7](../../.scratch/issues/0007-group-b-branch-scope/ISSUE.md)):**
+All Group B services converted from GLOBAL to BRANCH scope:
+
+- **SessionRoutes** (7 of 8 filters): `POST /api/sessions`, `PATCH /api/sessions/{sessionId}/status`,
+  `POST …/void`, `POST …/unvoid`, `POST …/practitioners`, `GET|POST|DELETE /api/sessions/{sessionId}/concerns`,
+  `POST …/promote-concern` — all resolve branch via `requireBranchCapabilityForSession`.
+  `GET /api/concerns` stays GLOBAL (no branch context).
+- **BranchInventoryRoutes**: `MANAGE_PRODUCTS` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **CompensationRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **ProductSaleRoutes**: `EDIT_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **AllowanceRoutes**: `ASSIGN_COMPENSATION` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **ExportRoutes** (per-branch): `VIEW_BRANCH_DATA` via `requireBranchCapabilityForBranchId`
+  for `{branchId}/export/*`; branch-type exports (`/api/branches/export/*`) stay GLOBAL.
+- **DailySalesSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.
+- **MonthlyRemittanceSummaryRoutes**: `VIEW_BRANCH_DATA` on BRANCH via `requireBranchCapabilityForBranchId`.
 
 **Filter registration pattern:**
 
@@ -58,9 +74,10 @@ config.routes.before("/api/expenses/{expenseId}") { context ->
   once per route path rather than per service method.
 - Adding a new expense route requires an explicit decision about capability gating
   (the before filter makes the requirement visible).
-- The `CapabilityFilter` utility is reusable for other services (SessionService,
-  ClientService, etc.) with the same `requireBranchCapability`/`requireBranchCapabilityForExpense`
-  pattern.
+- The `CapabilityFilter` utility provides a growing family of helpers:
+  `requireBranchCapability` (from branchDayId), `requireBranchCapabilityForExpense`,
+  `requireBranchCapabilityForRemittance`, `requireBranchCapabilityForBranchId` (from direct branch UUID),
+  `requireBranchCapabilityForSession` (from sessionId), and `requireGlobalCapability` for system-wide checks.
 
 **Negative:**
 - The DELETE filter looks up the expense and branch day to resolve the branch ID,

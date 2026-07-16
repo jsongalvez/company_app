@@ -41,12 +41,10 @@ object BranchRoutes {
         }
 
         config.routes.get("/api/branches") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             context.json(BranchService.findAll().map { it.toResponse() })
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             context.json(BranchService.findById(branchId).toResponse())
         }

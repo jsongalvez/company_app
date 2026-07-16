@@ -43,3 +43,4 @@ scripts/load-test/results/*.json
 scripts/load-test/results/*.html
 
 logs/
+**/.agents/handoffs/
