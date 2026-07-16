@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.repository.model.MonthlyRemittanceSummary
 import com.companyb.companyapp.service.MonthlyRemittanceSummaryService
@@ -15,6 +16,13 @@ object MonthlyRemittanceSummaryRoutes {
 
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/branches/{branchId}/monthly-summary") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+            )
+        }
+
         config.routes.get("/api/branches/{branchId}/monthly-summary") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid("branchId")

@@ -21,7 +21,6 @@ import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -129,14 +128,18 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create session requires EDIT_BRANCH_DATA capability`() {
+    fun `create session without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            createSession(otherCaller, sessionId)
-        }
+        val result = createSession(otherCaller, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertTrue(result.created)
     }
 
     @Test
@@ -278,7 +281,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `update status without EDIT_BRANCH_DATA throws 403`() {
+    fun `update status without EDIT_BRANCH_DATA is allowed at service layer`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
@@ -286,10 +289,12 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            SessionService.updateStatus(otherCaller, sessionId, SessionStatus.COMPLETED, 1)
-        }
+        val updated = SessionService.updateStatus(otherCaller, sessionId, SessionStatus.COMPLETED, 1)
+
+        assertEquals("COMPLETED", updated.sessionStatus)
+        assertEquals(2, updated.version)
     }
 
     @Test
@@ -349,7 +354,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `void session requires VOID_SESSION capability`() {
+    fun `void session without VOID_SESSION is allowed at service layer`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
@@ -357,10 +362,11 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            SessionService.voidSession(otherCaller, sessionId, UUID.randomUUID(), "Customer request")
-        }
+        val result = SessionService.voidSession(otherCaller, sessionId, UUID.randomUUID(), "Customer request")
+
+        assertTrue(result.created)
     }
 
     @Test
@@ -413,7 +419,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `unvoid session requires VOID_SESSION capability`() {
+    fun `unvoid session without VOID_SESSION is allowed at service layer`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
@@ -422,10 +428,11 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            SessionService.unvoidSession(otherCaller, sessionId, "Resolved in error")
-        }
+        val result = SessionService.unvoidSession(otherCaller, sessionId, "Resolved in error")
+
+        assertNotNull(result.unvoidedAt)
     }
 
     @Test
@@ -502,7 +509,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `add practitioner requires EDIT_BRANCH_DATA capability`() {
+    fun `add practitioner without EDIT_BRANCH_DATA is allowed at service layer`() {
         createSession(callerId, practitionerSessionId)
         trackOwned(SessionTable, SessionTable.id, practitionerSessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
@@ -510,9 +517,10 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
         insertAssignment(otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
+        val result =
             SessionService.addPractitioner(
                 callerId = otherCaller,
                 id = UUID.randomUUID(),
@@ -520,7 +528,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 practitionerId = practitionerId,
                 remarks = null,
             )
-        }
+
+        assertTrue(result.created)
     }
 
     @Test

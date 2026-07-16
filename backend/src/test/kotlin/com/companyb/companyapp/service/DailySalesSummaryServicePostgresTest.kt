@@ -19,7 +19,6 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -264,10 +263,15 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `throws 403 when lacking VIEW_BRANCH_DATA capability`() {
-        assertFailsWith<ForbiddenResponse> {
-            DailySalesSummaryService.getDailySummary(callerId, branchId, today)
-        }
+    fun `returns zero summary without VIEW_BRANCH_DATA capability`() {
+        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCompensation))
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalExpenses))
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.netIncome))
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalProductSales))
+        assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCommission))
     }
 
     @Test

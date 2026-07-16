@@ -9,7 +9,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -97,18 +96,22 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without ASSIGN_COMPENSATION is forbidden`() {
+    fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val allowanceId = UUID.randomUUID()
+        val allowance =
             AllowanceService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = allowanceId,
                 branchDayId = branchDayId,
                 userId = targetUserId,
                 amount = BigDecimal("500.00"),
             )
-        }
+
+        trackOwned(AllowanceTable, AllowanceTable.id, allowanceId)
+        assertNotNull(allowance)
+        assertEquals(targetUserId, allowance.userId)
     }
 
     @Test
@@ -174,12 +177,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findByBranchDayId without capability is forbidden`() {
+    fun `findByBranchDayId without capability is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
-            AllowanceService.findByBranchDayId(callerId, branchDayId)
-        }
+        val results = AllowanceService.findByBranchDayId(callerId, branchDayId)
+
+        assertTrue(results.isEmpty())
     }
 
     @Test

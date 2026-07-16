@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
@@ -23,6 +24,7 @@ import com.companyb.companyapp.service.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.math.BigDecimal
@@ -32,7 +34,73 @@ import java.util.UUID
 
 @Suppress("TooManyFunctions")
 object SessionRoutes {
+    @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/sessions") { context ->
+            if (context.method() != HandlerType.POST) return@before
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to create sessions",
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/status") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to update session status",
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/void") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.VOID_SESSION,
+                "VOID_SESSION capability required to manage session voids",
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/unvoid") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.VOID_SESSION,
+                "VOID_SESSION capability required to manage session voids",
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/practitioners") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage session practitioners",
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/concerns") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage concerns",
+            )
+        }
+
+        config.routes.before("/api/concerns") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage concerns",
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to promote concerns",
+            )
+        }
+
         config.routes.post("/api/sessions", ::handleCreateSession)
         config.routes.patch("/api/sessions/{sessionId}/status", ::handleUpdateStatus)
         config.routes.post("/api/sessions/{sessionId}/void", ::handleVoidSession)

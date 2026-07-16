@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductRequest
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UpdateProductRequest
@@ -15,8 +16,16 @@ import java.util.UUID
 object ProductRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
 
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/products") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_PRODUCTS,
+                "MANAGE_PRODUCTS capability required to manage products",
+            )
+        }
+
         config.routes.post("/api/products") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateProductRequest>()

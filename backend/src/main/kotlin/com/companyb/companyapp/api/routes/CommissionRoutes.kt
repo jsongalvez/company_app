@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CommissionInclusionResponse
 import com.companyb.companyapp.dto.CommissionSplitResponse
 import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
@@ -18,6 +19,27 @@ import java.util.UUID
 
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/commission-inclusions") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
+        config.routes.before("/api/commission-splits/{branchDayId}") { context ->
+            val branchDayId = context.pathParamAsUuid("branchDayId")
+            CapabilityFilter.requireBranchCapability(context, branchDayId, CapabilityCodes.VIEW_BRANCH_DATA)
+        }
+
+        config.routes.before("/api/commission/recalculate/{branchDayId}") { context ->
+            val branchDayId = context.pathParamAsUuid("branchDayId")
+            CapabilityFilter.requireBranchCapability(
+                context,
+                branchDayId,
+                CapabilityCodes.EDIT_PAST_DAY,
+            )
+        }
+
         config.routes.post("/api/commission-inclusions", ::handleCreateInclusion)
         config.routes.get("/api/commission-splits/{branchDayId}", ::handleGetSplits)
         config.routes.post("/api/commission/recalculate/{branchDayId}", ::handleRecalculate)

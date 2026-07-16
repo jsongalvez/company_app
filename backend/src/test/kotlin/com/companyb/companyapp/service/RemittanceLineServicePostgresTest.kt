@@ -31,7 +31,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -180,10 +179,11 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `add line without SUBMIT_REMITTANCE is forbidden`() {
+    fun `add line without SUBMIT_REMITTANCE is allowed at service layer`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
         trackOwned(AppUserTable, AppUserTable.id, otherUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUser)
         val remittance = createDraftRemittance()
         trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
@@ -191,7 +191,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         createSession()
         trackOwned(SessionTable, SessionTable.id, sessionId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val line =
             RemittanceService.addLine(
                 callerId = otherUser,
                 remittanceId = remittance.id,
@@ -201,7 +201,9 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 productSaleId = null,
                 amount = BigDecimal("1500.00"),
             )
-        }
+
+        assertNotNull(line)
+        assertEquals(RemittanceLineType.SESSION, line.type)
     }
 
     @Test
@@ -353,10 +355,11 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `delete line without SUBMIT_REMITTANCE is forbidden`() {
+    fun `delete line without SUBMIT_REMITTANCE is allowed at service layer`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
         trackOwned(AppUserTable, AppUserTable.id, otherUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUser)
         val remittance = createDraftRemittance()
         trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
@@ -375,9 +378,9 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("1500.00"),
         )
 
-        assertFailsWith<ForbiddenResponse> {
-            RemittanceService.removeLine(otherUser, remittance.id, lineId)
-        }
+        val deleted = RemittanceService.removeLine(otherUser, remittance.id, lineId)
+        assertNotNull(deleted)
+        assertNotNull(deleted.deletedAt)
     }
 
     @Test
@@ -428,23 +431,26 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `add day breakdown without capability is forbidden`() {
+    fun `add day breakdown without capability is allowed at service layer`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
         trackOwned(AppUserTable, AppUserTable.id, otherUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherUser)
         val remittance = createDraftRemittance()
         trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
-        assertFailsWith<ForbiddenResponse> {
+        val breakdown =
             RemittanceService.addDayBreakdown(
                 callerId = otherUser,
                 remittanceId = remittance.id,
                 id = UUID.randomUUID(),
                 branchDayId = branchDayId,
             )
-        }
+
+        assertNotNull(breakdown)
+        assertEquals(remittance.id, breakdown.remittanceId)
     }
 
     @Test
@@ -579,7 +585,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `get remittance without capability is forbidden`() {
+    fun `get remittance without capability is allowed at service layer`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "rl")
         trackOwned(AppUserTable, AppUserTable.id, otherUser)
@@ -588,9 +594,10 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
-        assertFailsWith<ForbiddenResponse> {
-            RemittanceService.getRemittance(otherUser, remittance.id)
-        }
+        val detail = RemittanceService.getRemittance(otherUser, remittance.id)
+
+        assertEquals(remittance.id, detail.remittance.id)
+        assertTrue(detail.lines.isEmpty())
     }
 
     @Test

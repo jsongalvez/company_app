@@ -3,7 +3,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.InternalServerErrorResponse
@@ -20,13 +19,6 @@ object MedicalMissionDelegateService {
         branchId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_DELEGATE,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
         val capabilityId =
             CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA)
                 ?: throw InternalServerErrorResponse("EDIT_BRANCH_DATA capability not found")
@@ -53,13 +45,6 @@ object MedicalMissionDelegateService {
         if (MedicalMissionDelegateRepository.findById(delegateId) == null) {
             throw NotFoundResponse("Medical mission delegate not found")
         }
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_DELEGATE,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
 
         MedicalMissionDelegateRepository.revokeWithCapability(delegateId, callerId)
 

@@ -10,7 +10,6 @@ import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -94,7 +93,8 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `assign without ASSIGN_DELEGATE capability fails with 403`() {
+    fun `assign without ASSIGN_DELEGATE is allowed at service layer`() {
+        val delegateId = UUID.randomUUID()
         val noCapCaller = UUID.randomUUID()
         DatabaseTestHelper.insertUser(
             id = noCapCaller,
@@ -105,10 +105,14 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         )
 
         trackOwned(AppUserTable, AppUserTable.id, noCapCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, noCapCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            MedicalMissionDelegateService.assignDelegate(UUID.randomUUID(), targetUserId, branchId, noCapCaller)
-        }
+        val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, noCapCaller)
+        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+
+        assertEquals(delegateId, result.id)
+        assertEquals(targetUserId, result.targetUser)
     }
 
     @Test
@@ -134,7 +138,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `revoke without ASSIGN_DELEGATE capability fails with 403`() {
+    fun `revoke without ASSIGN_DELEGATE is allowed at service layer`() {
         val delegateId = UUID.randomUUID()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
@@ -149,10 +153,13 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
             displayName = "No Capability",
         )
         trackOwned(AppUserTable, AppUserTable.id, noCapCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, noCapCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            MedicalMissionDelegateService.revokeDelegate(delegateId, noCapCaller)
-        }
+        val result = MedicalMissionDelegateService.revokeDelegate(delegateId, noCapCaller)
+
+        assertEquals(delegateId, result.id)
+        assertNotNull(result.endedAt)
+        assertTrue(delegateHasEndedAt(delegateId))
     }
 
     @Test

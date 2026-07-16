@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductSaleRequest
 import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.repository.model.ProductSale
@@ -13,6 +14,13 @@ import java.util.UUID
 object ProductSaleRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/product-sales") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
         config.routes.post("/api/product-sales") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateProductSaleRequest>()

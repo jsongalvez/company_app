@@ -22,7 +22,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -183,19 +182,23 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without ASSIGN_COMPENSATION is forbidden`() {
+    fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val inclusionId = UUID.randomUUID()
+        val inclusion =
             CommissionManualInclusionService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = inclusionId,
                 productSaleId = productSaleId,
                 userId = targetUserId,
                 isIncluded = true,
                 reason = null,
             )
-        }
+
+        trackOwned(CommissionManualInclusionTable, CommissionManualInclusionTable.userId, targetUserId)
+        assertNotNull(inclusion)
+        assertTrue(inclusion.isIncluded)
     }
 
     @Test
@@ -264,10 +267,11 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `get splits without VIEW_BRANCH_DATA is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
+    fun `get splits without VIEW_BRANCH_DATA is allowed at service layer`() {
+        val splits =
             CommissionSplitService.getByBranchDayId(callerId, branchDayId)
-        }
+
+        assertTrue(splits.isEmpty())
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
+import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.service.CapabilityService
 import io.javalin.http.Context
@@ -25,6 +26,26 @@ import java.util.UUID
  * ```
  */
 object CapabilityFilter {
+    /**
+     * Enforces [capabilityCode] on [CapabilityContextType.GLOBAL] with the nil UUID.
+     *
+     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
+     */
+    fun requireGlobalCapability(
+        context: Context,
+        capabilityCode: String,
+        message: String? = null,
+    ) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = capabilityCode,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = message ?: "$capabilityCode capability required",
+        )
+    }
+
     /**
      * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] for the given [branchDayId].
      * Resolves the branch from the branch day and calls [CapabilityService.requireCapability].
@@ -65,6 +86,31 @@ object CapabilityFilter {
                 .findById(expenseId)
                 ?: throw NotFoundResponse("Expense not found")
         requireBranchCapability(context, expense.branchDayId, capabilityCode)
+    }
+
+    /**
+     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
+     * from a remittance record.
+     *
+     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
+     * Throws [NotFoundResponse] (404) if the remittance does not exist.
+     */
+    fun requireBranchCapabilityForRemittance(
+        context: Context,
+        remittanceId: UUID,
+        capabilityCode: String = CapabilityCodes.SUBMIT_REMITTANCE,
+    ) {
+        val remittance =
+            RemittanceRepository.findById(remittanceId)
+                ?: throw NotFoundResponse("Remittance not found")
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = capabilityCode,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = remittance.branchId,
+            message = "$capabilityCode capability required for this branch",
+        )
     }
 
     /**

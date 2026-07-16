@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CreateProductCategoryRequest
 import com.companyb.companyapp.dto.ProductCategoryResponse
 import com.companyb.companyapp.repository.model.ProductCategory
@@ -15,6 +16,14 @@ object ProductCategoryRoutes {
     private const val CATEGORY_ID_PARAM = "categoryId"
 
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/product-categories") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_PRODUCTS,
+                "MANAGE_PRODUCTS capability required to manage product categories",
+            )
+        }
+
         config.routes.post("/api/product-categories") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateProductCategoryRequest>()

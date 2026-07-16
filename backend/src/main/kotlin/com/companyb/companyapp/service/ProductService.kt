@@ -1,10 +1,8 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -30,13 +28,6 @@ object ProductService {
         if (cleanName.isBlank()) {
             throw BadRequestResponse("Product name is required")
         }
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to create products",
-        )
 
         val parsedPrice = parsePrice(unitPrice)
         val parsedCommission = parsePrice(commissionAmount)
@@ -49,30 +40,14 @@ object ProductService {
         return ProductRepository.create(id, cleanName, productCategoryId, parsedPrice, parsedCommission, callerId)
     }
 
-    fun findAllActive(callerId: UUID): List<Product> {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to list products",
-        )
-        return ProductRepository.findAllActive()
-    }
+    @Suppress("UnusedParameter")
+    fun findAllActive(callerId: UUID): List<Product> = ProductRepository.findAllActive()
 
+    @Suppress("UnusedParameter")
     fun findById(
         callerId: UUID,
         productId: UUID,
-    ): Product {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to view products",
-        )
-        return ProductRepository.findById(productId) ?: throw NotFoundResponse("Product not found")
-    }
+    ): Product = ProductRepository.findById(productId) ?: throw NotFoundResponse("Product not found")
 
     @Suppress("LongParameterList", "ThrowsCount")
     fun update(
@@ -84,14 +59,6 @@ object ProductService {
         commissionAmount: String?,
         isActive: Boolean?,
     ): Product {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to update products",
-        )
-
         if (name != null && name.trim().isBlank()) {
             throw BadRequestResponse("Product name cannot be blank")
         }

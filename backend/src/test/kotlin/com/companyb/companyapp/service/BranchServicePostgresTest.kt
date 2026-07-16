@@ -7,7 +7,6 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -17,7 +16,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -96,38 +94,37 @@ class BranchServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without MANAGE_USERS is forbidden and does not insert branch`() {
-        assertFailsWith<ForbiddenResponse> {
-            BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
-        }
+    fun `create without MANAGE_USERS is allowed at service layer`() {
+        val newBranchId = UUID.randomUUID()
+        val result = BranchService.create(callerId, newBranchId, "New Branch", BranchType.CLINIC)
+        trackOwned(BranchTable, BranchTable.id, newBranchId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
-        assertFalse(branchExists(clinicId))
-        assertEquals(0L, auditEntryCount(clinicId))
+        assertTrue(result.created)
+        assertTrue(branchExists(newBranchId))
+        assertEquals(1L, auditEntryCount(newBranchId))
     }
 
     @Test
-    fun `findAll without MANAGE_USERS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            BranchService.findAll(callerId)
-        }
+    fun `findAll without MANAGE_USERS is allowed at service layer`() {
+        BranchService.findAll(callerId)
     }
 
     @Test
-    fun `findById without MANAGE_USERS is forbidden`() {
+    fun `findById without MANAGE_USERS is allowed at service layer`() {
+        val newBranchId = UUID.randomUUID()
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-
-        BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
+        BranchService.create(callerId, newBranchId, "Find Branch", BranchType.CLINIC)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(BranchTable, BranchTable.id, clinicId)
+        trackOwned(BranchTable, BranchTable.id, newBranchId)
 
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            BranchService.findById(otherCaller, clinicId)
-        }
+        val found = BranchService.findById(otherCaller, newBranchId)
+        assertEquals("Find Branch", found.name)
     }
 
     private fun persistedBranchType(branchId: UUID): BranchType =

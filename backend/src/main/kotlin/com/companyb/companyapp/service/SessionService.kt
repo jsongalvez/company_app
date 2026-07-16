@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -13,7 +12,6 @@ import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.VoidResult
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionStatus
@@ -34,15 +32,6 @@ import java.util.UUID
 object SessionService {
     private val logger = KotlinLogging.logger {}
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
-
-    private fun checkVoidSession(callerId: UUID) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VOID_SESSION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-    }
 
     private const val ZERO = "0"
 
@@ -76,8 +65,6 @@ object SessionService {
         bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
     ): SessionCreateResult {
-        requireCreateSessionCapability(callerId)
-
         val branchType =
             SessionRepository.getBranchType(branchId)
                 ?: throw NotFoundResponse("Branch not found")
@@ -132,16 +119,6 @@ object SessionService {
         return result
     }
 
-    private fun requireCreateSessionCapability(callerId: UUID) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to create sessions",
-        )
-    }
-
     private fun computeBasePrice(
         branchId: UUID,
         sessionType: SessionType,
@@ -166,14 +143,6 @@ object SessionService {
         if (session.version != expectedVersion) {
             throw ConflictResponse("Session version mismatch")
         }
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to update session status",
-        )
 
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -207,8 +176,6 @@ object SessionService {
         voidId: UUID,
         voidReason: String,
     ): VoidResult {
-        checkVoidSession(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
 
         val existing = SessionVoidRepository.findBySessionId(sessionId)
@@ -240,8 +207,6 @@ object SessionService {
         sessionId: UUID,
         unvoidedReason: String,
     ): SessionVoid {
-        checkVoidSession(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
 
         val sessionVoid =
@@ -267,15 +232,6 @@ object SessionService {
         return updated
     }
 
-    private fun checkEditBranchData(callerId: UUID) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-    }
-
     @Suppress("ReturnCount", "ThrowsCount")
     fun addPractitioner(
         callerId: UUID,
@@ -284,8 +240,6 @@ object SessionService {
         practitionerId: UUID,
         remarks: String?,
     ): AddPractitionerResult {
-        checkEditBranchData(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -324,8 +278,6 @@ object SessionService {
         practitionerId: UUID,
         remarks: String?,
     ): SessionPractitioner {
-        checkEditBranchData(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -356,8 +308,6 @@ object SessionService {
         sessionId: UUID,
         practitionerId: UUID,
     ) {
-        checkEditBranchData(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.assertEditable(session.branchDayId, callerId)
 

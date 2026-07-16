@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.UpdateClientRequest
@@ -17,6 +18,14 @@ object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/clients") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                "EDIT_BRANCH_DATA capability required to manage clients",
+            )
+        }
+
         config.routes.post("/api/clients", ::handleCreate)
         config.routes.get("/api/clients", ::handleSearch)
         config.routes.get("/api/clients/{$CLIENT_ID_PARAM}", ::handleGetById)

@@ -1,10 +1,8 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.AllowanceRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.model.Allowance
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.NotFoundResponse
@@ -22,13 +20,6 @@ object AllowanceService {
         userId: UUID,
         amount: BigDecimal,
     ): Allowance {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
         if (amount < BigDecimal.ZERO) {
             throw BadRequestResponse("Amount must be non-negative")
         }
@@ -50,17 +41,9 @@ object AllowanceService {
         return result.allowance
     }
 
+    @Suppress("UnusedParameter")
     fun findByBranchDayId(
         callerId: UUID,
         branchDayId: UUID,
-    ): List<Allowance> {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
-        return AllowanceRepository.findByBranchDayId(branchDayId)
-    }
+    ): List<Allowance> = AllowanceRepository.findByBranchDayId(branchDayId)
 }

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateCompensationRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
@@ -16,6 +17,13 @@ import java.util.UUID
 object CompensationRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/compensation") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
         config.routes.post("/api/compensation") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateCompensationRequest>()

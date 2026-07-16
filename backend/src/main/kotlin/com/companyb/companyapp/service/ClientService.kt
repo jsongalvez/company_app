@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Client
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -66,18 +64,11 @@ object ClientService {
         )
     }
 
+    @Suppress("UnusedParameter")
     fun search(
         callerId: UUID,
         query: String,
     ): List<Client> {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to search clients",
-        )
-
         val q = query.trim()
         if (q.isEmpty()) {
             throw BadRequestResponse("Search query is required")
@@ -85,19 +76,11 @@ object ClientService {
         return ClientRepository.search(q)
     }
 
+    @Suppress("UnusedParameter")
     fun findById(
         callerId: UUID,
         clientId: UUID,
-    ): Client {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to view clients",
-        )
-        return ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
-    }
+    ): Client = ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
 
     @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "CyclomaticComplexMethod")
     fun update(
@@ -115,14 +98,6 @@ object ClientService {
         diastolicBp: Short?,
         medicalConditions: String?,
     ): Client {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to update clients",
-        )
-
         if (firstName != null && firstName.trim().isBlank()) {
             throw BadRequestResponse("First name cannot be blank")
         }
@@ -163,14 +138,6 @@ object ClientService {
         callerId: UUID,
         clientId: UUID,
     ) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to anonymize clients",
-        )
-
         val updated = ClientRepository.anonymize(clientId, callerId)
         if (!updated) {
             throw NotFoundResponse("Client not found")

@@ -135,15 +135,15 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without MANAGE_USERS is forbidden and does not insert`() {
+    fun `create without MANAGE_USERS is allowed at service layer`() {
         val assignmentId = UUID.randomUUID()
 
-        assertFailsWith<ForbiddenResponse> {
-            UserBranchAssignmentService.create(nonManagerId, assignmentId, branchId, userAId, 1)
-        }
+        val result = UserBranchAssignmentService.create(nonManagerId, assignmentId, branchId, userAId, 1)
 
-        assertEquals(0L, auditEntryCount(assignmentId))
-        assertEquals(null, assignmentExists(assignmentId))
+        assertTrue(result.created)
+        assertEquals(assignmentId, result.assignment.id)
+        assertEquals(userAId, result.assignment.userId)
+        assertEquals(1, result.assignment.slot)
     }
 
     @Test
@@ -162,17 +162,15 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `remove without MANAGE_USERS is forbidden`() {
+    fun `remove without MANAGE_USERS is allowed at service layer`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        assertFailsWith<ForbiddenResponse> {
-            UserBranchAssignmentService.remove(nonManagerId, branchId, userAId)
-        }
+        UserBranchAssignmentService.remove(nonManagerId, branchId, userAId)
 
-        assertEquals(null, assignmentEndedAt(assignmentId))
+        assertNotNull(assignmentEndedAt(assignmentId))
     }
 
     @Test
@@ -277,7 +275,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `swapSlots without MANAGE_USERS is forbidden`() {
+    fun `swapSlots without MANAGE_USERS is allowed at service layer`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val idA = UUID.randomUUID()
@@ -285,12 +283,10 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
 
-        assertFailsWith<ForbiddenResponse> {
-            UserBranchAssignmentService.swapSlots(nonManagerId, branchId, userAId, userBId)
-        }
+        UserBranchAssignmentService.swapSlots(nonManagerId, branchId, userAId, userBId)
 
-        assertEquals(1, assignedSlot(idA))
-        assertEquals(2, assignedSlot(idB))
+        assertEquals(2, assignedSlot(idA))
+        assertEquals(1, assignedSlot(idB))
     }
 
     @Test
@@ -349,10 +345,10 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findActiveByBranch without MANAGE_USERS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
-        }
+    fun `findActiveByBranch without MANAGE_USERS is allowed at service layer`() {
+        val assignments = UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
+
+        assertTrue(assignments.isEmpty())
     }
 
     private fun assignedSlot(assignmentId: UUID): Short =
@@ -361,15 +357,6 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                 .selectAll()
                 .where { UserBranchAssignmentTable.id eq assignmentId }
                 .single()[UserBranchAssignmentTable.slot]
-        }
-
-    private fun assignmentExists(assignmentId: UUID): UUID? =
-        transaction {
-            UserBranchAssignmentTable
-                .selectAll()
-                .where { UserBranchAssignmentTable.id eq assignmentId }
-                .singleOrNull()
-                ?.let { it[UserBranchAssignmentTable.id] }
         }
 
     private fun assignmentEndedAt(assignmentId: UUID): OffsetDateTime? =

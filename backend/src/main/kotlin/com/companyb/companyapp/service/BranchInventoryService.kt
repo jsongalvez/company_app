@@ -1,11 +1,9 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.InventoryMovementReason
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -17,20 +15,12 @@ import java.util.UUID
 object BranchInventoryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "UnusedParameter")
     fun ensureCard(
         callerId: UUID,
         branchId: UUID,
         productId: UUID,
     ) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to manage inventory",
-        )
-
         if (BranchRepository.findById(branchId) == null) {
             throw NotFoundResponse("Branch not found")
         }
@@ -52,14 +42,6 @@ object BranchInventoryService {
         quantity: Int,
         branchDayId: UUID,
     ): InventoryMovement {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to manage inventory",
-        )
-
         if (quantity <= 0) {
             throw BadRequestResponse("Restock quantity must be positive")
         }
@@ -109,14 +91,6 @@ object BranchInventoryService {
         notes: String?,
         branchDayId: UUID,
     ): InventoryMovement {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to manage inventory",
-        )
-
         when (reason) {
             InventoryMovementReason.TESTER,
             InventoryMovementReason.SAMPLE,
@@ -173,18 +147,11 @@ object BranchInventoryService {
         }
     }
 
+    @Suppress("UnusedParameter")
     fun findByBranch(
         callerId: UUID,
         branchId: UUID,
     ): List<BranchInventoryWithProduct> {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to view branch inventory",
-        )
-
         if (BranchRepository.findById(branchId) == null) {
             throw NotFoundResponse("Branch not found")
         }

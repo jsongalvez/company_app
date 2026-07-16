@@ -26,7 +26,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -214,12 +213,12 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `throws 403 without VIEW_BRANCH_DATA capability`() {
+    fun `returns 404 without VIEW_BRANCH_DATA capability`() {
         transaction {
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
         }
 
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<NotFoundResponse> {
             MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
         }
     }

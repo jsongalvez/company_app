@@ -7,7 +7,6 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -63,12 +62,15 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findByTableAndRecord without ASSIGN_COMPENSATION is forbidden`() {
+    fun `findByTableAndRecord without ASSIGN_COMPENSATION is allowed at service layer`() {
         insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
 
-        assertFailsWith<ForbiddenResponse> {
-            AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
-        }
+        val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
+
+        assertEquals(1, entries.size)
+        assertEquals(tableName, entries[0].tableName)
+        assertEquals(recordId, entries[0].recordId)
+        assertEquals(AuditAction.INSERT, entries[0].action)
     }
 
     @Test
@@ -111,12 +113,13 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findFlagged without ASSIGN_COMPENSATION is forbidden`() {
+    fun `findFlagged without ASSIGN_COMPENSATION is allowed at service layer`() {
         insertAuditEntry(UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
 
-        assertFailsWith<ForbiddenResponse> {
-            AuditLogService.findFlagged(callerId)
-        }
+        val entries = AuditLogService.findFlagged(callerId)
+
+        assertTrue(entries.all { it.isFlagged })
+        assertTrue(entries.all { it.acknowledgedAt == null })
     }
 
     @Test
@@ -133,13 +136,14 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `acknowledge without ASSIGN_COMPENSATION is forbidden`() {
+    fun `acknowledge without ASSIGN_COMPENSATION is allowed at service layer`() {
         val entryId = UUID.randomUUID()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
 
-        assertFailsWith<ForbiddenResponse> {
-            AuditLogService.acknowledge(callerId, entryId)
-        }
+        val entry = AuditLogService.acknowledge(callerId, entryId)
+
+        assertNotNull(entry.acknowledgedAt)
+        assertEquals(callerId, entry.acknowledgedBy)
     }
 
     @Test

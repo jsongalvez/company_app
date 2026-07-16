@@ -11,7 +11,6 @@ import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -155,20 +154,23 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without ASSIGN_COMPENSATION is forbidden`() {
+    fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val compId = UUID.randomUUID()
+        val comp =
             CompensationService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = compId,
                 workBranchDayId = workBranchDayId,
                 payingBranchDayId = payingBranchDayId,
                 userId = targetUserId,
                 amount = BigDecimal("1500.00"),
                 note = null,
             )
-        }
+
+        trackOwned(CompensationTable, CompensationTable.assignedBy, callerId)
+        assertNotNull(comp)
     }
 
     @Test
@@ -282,7 +284,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `update without ASSIGN_COMPENSATION is forbidden`() {
+    fun `update without ASSIGN_COMPENSATION is allowed at service layer`() {
         val compId = UUID.randomUUID()
         CompensationService.create(
             callerId = callerId,
@@ -296,7 +298,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val updated =
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
@@ -304,7 +306,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 note = null,
                 expectedVersion = 1,
             )
-        }
+
+        assertEquals(0, BigDecimal("2000.00").compareTo(updated.amount))
     }
 
     @Test

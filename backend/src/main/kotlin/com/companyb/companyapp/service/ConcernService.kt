@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Concern
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.NotFoundResponse
@@ -12,16 +10,14 @@ import java.util.UUID
 object ConcernService {
     private val logger = KotlinLogging.logger {}
 
-    fun listAll(callerId: UUID): List<Concern> {
-        checkEditBranchData(callerId)
-        return ConcernRepository.findAll()
-    }
+    @Suppress("UnusedParameter")
+    fun listAll(callerId: UUID): List<Concern> = ConcernRepository.findAll()
 
+    @Suppress("UnusedParameter")
     fun getForSession(
         callerId: UUID,
         sessionId: UUID,
     ): List<Concern> {
-        checkEditBranchData(callerId)
         SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         return ConcernRepository.getConcernsForSession(sessionId)
     }
@@ -32,8 +28,6 @@ object ConcernService {
         sessionId: UUID,
         concernId: UUID,
     ) {
-        checkEditBranchData(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -54,8 +48,6 @@ object ConcernService {
         sessionId: UUID,
         concernId: UUID,
     ) {
-        checkEditBranchData(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -76,8 +68,6 @@ object ConcernService {
         sessionId: UUID,
         label: String,
     ): Concern {
-        checkEditBranchData(callerId)
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.assertEditable(session.branchDayId, callerId)
 
@@ -103,14 +93,5 @@ object ConcernService {
         logger.info { "[PROMOTE-CONCERN] Promoted concern '$label' for session $sessionId, cleared other_concerns" }
 
         return concern
-    }
-
-    private fun checkEditBranchData(callerId: UUID) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
     }
 }

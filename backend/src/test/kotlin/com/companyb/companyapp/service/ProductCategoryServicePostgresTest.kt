@@ -7,7 +7,6 @@ import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -17,7 +16,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -109,39 +107,37 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without MANAGE_PRODUCTS is forbidden and does not insert category`() {
-        assertFailsWith<ForbiddenResponse> {
-            ProductCategoryService.create(callerId, cat1Id, cat1Name)
-        }
+    fun `create without MANAGE_PRODUCTS is allowed at service layer`() {
+        val newCatId = UUID.randomUUID()
+        val result = ProductCategoryService.create(callerId, newCatId, "New Category")
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
-        assertFalse(categoryExists(cat1Id))
-        assertEquals(0L, auditEntryCount(cat1Id))
+        assertTrue(result.created)
+        assertTrue(categoryExists(newCatId))
+        assertEquals(1L, auditEntryCount(newCatId))
     }
 
     @Test
-    fun `findAll without MANAGE_PRODUCTS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            ProductCategoryService.findAll(callerId)
-        }
+    fun `findAll without MANAGE_PRODUCTS is allowed at service layer`() {
+        ProductCategoryService.findAll(callerId)
     }
 
     @Test
-    fun `findById without MANAGE_PRODUCTS is forbidden`() {
+    fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
+        val newCatId = UUID.randomUUID()
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-
-        ProductCategoryService.create(callerId, cat1Id, cat1Name)
-
+        ProductCategoryService.create(callerId, newCatId, "Find Category")
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
 
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ProductCategoryService.findById(otherCaller, cat1Id)
-        }
+        val found = ProductCategoryService.findById(otherCaller, newCatId)
+        assertEquals("Find Category", found.name)
     }
 
     private fun persistedCategory(categoryId: UUID): ProductCategory? =

@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.DenyList
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.UserRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
@@ -16,21 +14,10 @@ import java.util.UUID
 object UserService {
     private val logger = KotlinLogging.logger {}
 
-    /**
-     * @throws ForbiddenResponse if [callerId] lacks MANAGE_USERS on the GLOBAL context.
-     * @throws NotFoundResponse if [targetUserId] does not exist.
-     */
     fun deactivate(
         callerId: UUID,
         targetUserId: UUID,
     ) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_USERS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_USERS capability required to deactivate users",
-        )
         val updated = UserRepository.deactivate(targetUserId, callerId)
         if (!updated) {
             throw NotFoundResponse("User not found")

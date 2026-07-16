@@ -1,13 +1,11 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
 import com.companyb.companyapp.repository.RemittanceLineRepository
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.RemittanceSubmissionResult
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceLine
@@ -35,14 +33,6 @@ object RemittanceService {
         val existing =
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = existing.branchId,
-            message = "SUBMIT_REMITTANCE capability required for this branch",
-        )
 
         if (existing.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only submit DRAFT remittances")
@@ -86,14 +76,6 @@ object RemittanceService {
         dateRangeStart: LocalDate,
         dateRangeEnd: LocalDate,
     ): Remittance {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchId,
-            message = "SUBMIT_REMITTANCE capability required for this branch",
-        )
-
         if (dateRangeEnd.isBefore(dateRangeStart)) {
             throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
         }
@@ -130,14 +112,6 @@ object RemittanceService {
         val remittance =
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = remittance.branchId,
-            message = "SUBMIT_REMITTANCE capability required for this branch",
-        )
 
         if (remittance.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only add lines to DRAFT remittances")
@@ -192,14 +166,6 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = remittance.branchId,
-            message = "SUBMIT_REMITTANCE capability required for this branch",
-        )
-
         if (remittance.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only delete lines from DRAFT remittances")
         }
@@ -230,14 +196,6 @@ object RemittanceService {
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
 
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = remittance.branchId,
-            message = "SUBMIT_REMITTANCE capability required for this branch",
-        )
-
         if (remittance.status != RemittanceStatus.DRAFT) {
             throw BadRequestResponse("Can only add day breakdowns to DRAFT remittances")
         }
@@ -257,7 +215,7 @@ object RemittanceService {
         return breakdown
     }
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    @Suppress("ThrowsCount", "ReturnCount", "UnusedParameter")
     fun getRemittance(
         callerId: UUID,
         remittanceId: UUID,
@@ -265,14 +223,6 @@ object RemittanceService {
         val remittance =
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = remittance.branchId,
-            message = "SUBMIT_REMITTANCE capability required for this branch",
-        )
 
         val lines = RemittanceLineRepository.findByRemittanceId(remittanceId)
         val totalAmount = RemittanceLineRepository.sumAmountsByRemittanceId(remittanceId)

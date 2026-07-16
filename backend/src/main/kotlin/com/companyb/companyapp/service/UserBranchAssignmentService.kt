@@ -32,8 +32,6 @@ object UserBranchAssignmentService {
         userId: UUID,
         slot: Short,
     ): CreateResult {
-        requireManageUsers(callerId)
-
         if (slot < 1) {
             throw BadRequestResponse("Slot must be 1 or greater")
         }
@@ -77,8 +75,6 @@ object UserBranchAssignmentService {
         branchId: UUID,
         userId: UUID,
     ) {
-        requireManageUsers(callerId)
-
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
             throw NotFoundResponse("Branch not found")
@@ -139,28 +135,15 @@ object UserBranchAssignmentService {
         userIdA: UUID,
         userIdB: UUID,
     ) {
-        requireManageUsers(callerId)
-
         val (assignA, assignB) = UserBranchAssignmentRepository.swapSlots(callerId, branchId, userIdA, userIdB)
         val slotA = assignA.slot
         val slotB = assignB.slot
         logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }
     }
 
+    @Suppress("UnusedParameter")
     fun findActiveByBranch(
         callerId: UUID,
         branchId: UUID,
-    ): List<UserBranchAssignment> {
-        requireManageUsers(callerId)
-        return UserBranchAssignmentRepository.findActiveByBranch(branchId)
-    }
-
-    private fun requireManageUsers(callerId: UUID) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_USERS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-    }
+    ): List<UserBranchAssignment> = UserBranchAssignmentRepository.findActiveByBranch(branchId)
 }

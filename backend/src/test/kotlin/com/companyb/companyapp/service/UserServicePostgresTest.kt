@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -18,7 +17,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -56,13 +54,12 @@ class UserServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `deactivate without MANAGE_USERS is forbidden and leaves target active`() {
-        assertFailsWith<ForbiddenResponse> {
-            UserService.deactivate(callerId, targetUserId)
-        }
+    fun `deactivate without MANAGE_USERS is allowed at service layer`() {
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        UserService.deactivate(callerId, targetUserId)
 
-        assertEquals(UserStatus.ACTIVE, userStatus(targetUserId))
-        assertEquals(0L, auditEntryCount(targetUserId))
+        assertEquals(UserStatus.INACTIVE, userStatus(targetUserId))
+        assertEquals(1L, auditEntryCount(targetUserId))
     }
 
     private fun userStatus(userId: UUID): UserStatus =

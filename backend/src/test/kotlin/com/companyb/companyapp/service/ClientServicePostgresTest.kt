@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -140,12 +139,13 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findById without EDIT_BRANCH_DATA is forbidden`() {
+    fun `findById without EDIT_BRANCH_DATA is allowed at service layer`() {
         createClient(callerId, clientAId)
 
-        assertFailsWith<ForbiddenResponse> {
-            ClientService.findById(callerId, clientAId)
-        }
+        val found = ClientService.findById(callerId, clientAId)
+
+        assertEquals("John", found.firstName)
+        assertEquals("Doe", found.lastName)
     }
 
     @Test
@@ -193,12 +193,12 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `search without EDIT_BRANCH_DATA is forbidden`() {
+    fun `search without EDIT_BRANCH_DATA is allowed at service layer`() {
         createClient(callerId, clientAId, firstName = "John")
 
-        assertFailsWith<ForbiddenResponse> {
-            ClientService.search(callerId, "John")
-        }
+        val results = ClientService.search(callerId, "John")
+
+        assertTrue(results.any { it.id == clientAId })
     }
 
     @Test
@@ -281,10 +281,10 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `update client fails without EDIT_BRANCH_DATA capability`() {
+    fun `update client without EDIT_BRANCH_DATA is allowed at service layer`() {
         createClient(callerId, clientAId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val updated =
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
@@ -300,7 +300,8 @@ class ClientServicePostgresTest : BasePostgresTest() {
                 diastolicBp = null,
                 medicalConditions = null,
             )
-        }
+
+        assertEquals("Jane", updated.firstName)
     }
 
     @Test
@@ -448,12 +449,13 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `anonymize client fails without EDIT_BRANCH_DATA capability`() {
+    fun `anonymize client without EDIT_BRANCH_DATA is allowed at service layer`() {
         createClient(callerId, clientAId)
 
-        assertFailsWith<ForbiddenResponse> {
-            ClientService.anonymize(callerId, clientAId)
-        }
+        ClientService.anonymize(callerId, clientAId)
+
+        val persisted = persistedClient(clientAId)
+        assertEquals("", persisted.firstName)
     }
 
     @Test

@@ -1,12 +1,10 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ProductSale
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -31,8 +29,6 @@ object ProductSaleService {
         quantity: Int,
         expectedVersion: Int,
     ): ProductSale {
-        requireEditBranchDataCapability(callerId)
-
         BranchDayService.assertEditable(branchDayId, callerId)
 
         val branchDay =
@@ -83,16 +79,6 @@ object ProductSaleService {
         CommissionEngineService.recalculate(branchDayId)
 
         return result
-    }
-
-    private fun requireEditBranchDataCapability(callerId: UUID) {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to record product sales",
-        )
     }
 
     @Suppress("ThrowsCount")

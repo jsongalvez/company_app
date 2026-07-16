@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -177,34 +176,38 @@ class ProductServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without MANAGE_PRODUCTS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
+    fun `create without MANAGE_PRODUCTS is allowed at service layer`() {
+        val newProductId = UUID.randomUUID()
+        val result =
             ProductService.create(
                 callerId = callerId,
-                id = productId,
-                name = "Test Product",
+                id = newProductId,
+                name = "New Product",
                 productCategoryId = categoryId,
                 unitPrice = "250.00",
                 commissionAmount = "25.00",
             )
-        }
+
+        assertTrue(result.created)
+        assertEquals("New Product", result.product.name)
+        trackOwned(ProductTable, ProductTable.id, newProductId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
-    fun `findAllActive without MANAGE_PRODUCTS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            ProductService.findAllActive(callerId)
-        }
+    fun `findAllActive without MANAGE_PRODUCTS is allowed at service layer`() {
+        ProductService.findAllActive(callerId)
     }
 
     @Test
-    fun `findById without MANAGE_PRODUCTS is forbidden`() {
+    fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
+        val newProductId = UUID.randomUUID()
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
             callerId = callerId,
-            id = productId,
-            name = "Test Product",
+            id = newProductId,
+            name = "Find Product",
             productCategoryId = categoryId,
             unitPrice = "250.00",
             commissionAmount = "25.00",
@@ -214,10 +217,9 @@ class ProductServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ProductService.findById(otherCaller, productId)
-        }
-        trackOwned(ProductTable, ProductTable.id, productId)
+        val found = ProductService.findById(otherCaller, newProductId)
+        assertEquals("Find Product", found.name)
+        trackOwned(ProductTable, ProductTable.id, newProductId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 

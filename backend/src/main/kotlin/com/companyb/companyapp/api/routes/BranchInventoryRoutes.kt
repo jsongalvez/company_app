@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
@@ -22,6 +23,13 @@ object BranchInventoryRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
 
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/branches/{branchId}/inventory") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_PRODUCTS,
+            )
+        }
+
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleEnsureCard)
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/restock", ::handleRestock)
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleGetInventory)

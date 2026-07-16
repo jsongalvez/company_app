@@ -28,7 +28,6 @@ import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -179,10 +178,10 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create draft without SUBMIT_REMITTANCE is forbidden`() {
+    fun `create draft without SUBMIT_REMITTANCE is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -192,7 +191,12 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                 dateRangeStart = LocalDate.of(2026, 7, 1),
                 dateRangeEnd = LocalDate.of(2026, 7, 15),
             )
-        }
+
+        assertNotNull(remittance)
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittance.id)
     }
 
     @Test
@@ -393,7 +397,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `submit without SUBMIT_REMITTANCE capability is forbidden`() {
+    fun `submit without SUBMIT_REMITTANCE is allowed at service layer`() {
         val remittanceId = UUID.randomUUID()
         createDraftRemittance(remittanceId)
         DatabaseTestHelper.revokeAllCapabilities(callerId)
@@ -403,9 +407,10 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        assertFailsWith<ForbiddenResponse> {
-            RemittanceService.submit(callerId, remittanceId, 1)
-        }
+        val result = RemittanceService.submit(callerId, remittanceId, 1)
+
+        assertNotNull(result)
+        assertEquals(RemittanceStatus.SUBMITTED, result.remittance.status)
     }
 
     @Test

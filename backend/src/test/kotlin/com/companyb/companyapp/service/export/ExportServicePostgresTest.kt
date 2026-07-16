@@ -31,7 +31,6 @@ import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -192,7 +191,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `daily export throws 403 without capability`() {
+    fun `daily export returns CSV without capability`() {
         val otherUserId = UUID.randomUUID()
         DatabaseTestHelper.insertUser(
             id = otherUserId,
@@ -202,9 +201,10 @@ class ExportServicePostgresTest : BasePostgresTest() {
             displayName = "No Cap User",
         )
         trackOwned(AppUserTable, AppUserTable.id, otherUserId)
-        assertFailsWith<ForbiddenResponse> {
-            ExportService.exportDaily(otherUserId, branchId, today, ExportFormat.CSV)
-        }
+        val result = ExportService.exportDaily(otherUserId, branchId, today, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("Gross Income"))
+        assertTrue(csv.contains("0.00"))
     }
 
     @Test

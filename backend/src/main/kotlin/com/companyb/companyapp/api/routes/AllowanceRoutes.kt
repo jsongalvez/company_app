@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.CreateAllowanceRequest
 import com.companyb.companyapp.repository.model.Allowance
@@ -14,6 +15,13 @@ import java.util.UUID
 object AllowanceRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/allowances") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
         config.routes.post("/api/allowances") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateAllowanceRequest>()

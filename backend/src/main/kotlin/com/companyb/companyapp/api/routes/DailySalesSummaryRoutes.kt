@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.repository.model.DailySalesSummary
 import com.companyb.companyapp.service.DailySalesSummaryService
@@ -13,6 +14,13 @@ import java.util.UUID
 object DailySalesSummaryRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/branches/{branchId}/daily-summary") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+            )
+        }
+
         config.routes.get("/api/branches/{branchId}/daily-summary") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid("branchId")

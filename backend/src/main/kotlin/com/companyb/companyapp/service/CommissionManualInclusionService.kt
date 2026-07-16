@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -22,13 +20,6 @@ object CommissionManualInclusionService {
         isIncluded: Boolean,
         reason: String?,
     ): CommissionManualInclusion {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
         val sale =
             ProductSaleRepository.findById(productSaleId)
                 ?: throw NotFoundResponse("Product sale not found")

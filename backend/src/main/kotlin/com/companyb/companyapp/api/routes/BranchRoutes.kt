@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateBranchRequest
 import com.companyb.companyapp.repository.model.Branch
@@ -15,6 +16,14 @@ object BranchRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/branches") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_USERS,
+                "MANAGE_USERS capability required to manage branches",
+            )
+        }
+
         config.routes.post("/api/branches") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateBranchRequest>()

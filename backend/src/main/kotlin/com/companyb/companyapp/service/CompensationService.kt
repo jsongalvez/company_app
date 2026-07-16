@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Compensation
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -25,13 +23,6 @@ object CompensationService {
         amount: BigDecimal,
         note: String?,
     ): Compensation {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
         if (amount < BigDecimal.ZERO) {
             throw BadRequestResponse("Amount must be non-negative")
         }
@@ -70,13 +61,6 @@ object CompensationService {
         note: String?,
         expectedVersion: Int,
     ): Compensation {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
         if (amount < BigDecimal.ZERO) {
             throw BadRequestResponse("Amount must be non-negative")
         }

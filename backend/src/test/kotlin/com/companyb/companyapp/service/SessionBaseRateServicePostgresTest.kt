@@ -10,7 +10,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -56,10 +55,15 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `set rate without MANAGE_PRODUCTS throws forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
-        }
+    fun `set rate without MANAGE_PRODUCTS is allowed at service layer`() {
+        val newRateId = UUID.randomUUID()
+        val result = SessionBaseRateService.setRate(callerId, newRateId, branchId, SessionType.REGULAR, "2500.00")
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, newRateId)
+
+        assertTrue(result.created)
+        assertEquals(SessionType.REGULAR, result.rate.sessionType)
+        assertEquals("2500.00", result.rate.rate.toPlainString())
+        assertEquals(branchId, result.rate.branchId)
     }
 
     @Test
@@ -139,10 +143,10 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findActiveRates without MANAGE_PRODUCTS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            SessionBaseRateService.findActiveRates(callerId, branchId)
-        }
+    fun `findActiveRates without MANAGE_PRODUCTS is allowed at service layer`() {
+        val rates = SessionBaseRateService.findActiveRates(callerId, branchId)
+
+        assertTrue(rates.isEmpty())
     }
 
     private fun auditEntryCount(rateId: UUID): Long =

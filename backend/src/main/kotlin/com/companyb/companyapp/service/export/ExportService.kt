@@ -1,12 +1,9 @@
 package com.companyb.companyapp.service.export
 
 import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ExportRepository
 import com.companyb.companyapp.repository.model.Branch
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.NotFoundResponse
@@ -100,6 +97,7 @@ object ExportService {
         return buildResult(title, headers, rows, format, "all-time-remittance-${branch.name}")
     }
 
+    @Suppress("UnusedParameter")
     fun exportByBranchType(
         callerId: UUID,
         branchType: BranchType,
@@ -107,13 +105,6 @@ object ExportService {
         month: Int?,
         format: ExportFormat,
     ): ExportResult {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-
         val typeName = branchTypeName(branchType)
         val summaries = fetchBranchTypeSummaries(branchType, year, month)
 
@@ -137,19 +128,13 @@ object ExportService {
             else -> throw BadRequestResponse("format query param is required (csv or pdf)")
         }
 
+    @Suppress("UnusedParameter")
     private fun authorizeAndFindBranch(
         callerId: UUID,
         branchId: UUID,
-    ): Branch {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-        )
-        return BranchRepository.findById(branchId)
+    ): Branch =
+        BranchRepository.findById(branchId)
             ?: throw NotFoundResponse("Branch not found")
-    }
 
     private fun buildResult(
         title: String,

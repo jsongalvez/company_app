@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
@@ -31,6 +32,27 @@ import java.util.UUID
 @Suppress("TooManyFunctions")
 object RemittanceRoutes {
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/remittances") { context ->
+            if (context.method() != io.javalin.http.HandlerType.POST) return@before
+            val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
+            val branchId =
+                runCatching { UUID.fromString(request.branchId) }
+                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            com.companyb.companyapp.service.CapabilityService.requireCapability(
+                userId = callerId,
+                capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+                contextType = com.companyb.companyapp.repository.model.CapabilityContextType.BRANCH,
+                contextId = branchId,
+                message = "SUBMIT_REMITTANCE capability required for this branch",
+            )
+        }
+
+        config.routes.before("/api/remittances/{remittanceId}") { context ->
+            val remittanceId = context.pathParamAsUuid("remittanceId")
+            CapabilityFilter.requireBranchCapabilityForRemittance(context, remittanceId)
+        }
+
         config.routes.post("/api/remittances", ::handleCreateDraft)
         config.routes.get("/api/remittances/{remittanceId}", ::handleGetRemittance)
         config.routes.post("/api/remittances/{remittanceId}/lines", ::handleAddLine)

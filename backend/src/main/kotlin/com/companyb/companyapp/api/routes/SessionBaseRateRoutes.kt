@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.RateResponse
 import com.companyb.companyapp.dto.SetRateRequest
 import com.companyb.companyapp.repository.model.SessionBaseRate
@@ -16,6 +17,13 @@ object SessionBaseRateRoutes {
 
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/branches/{branchId}/rates") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_PRODUCTS,
+            )
+        }
+
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)

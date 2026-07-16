@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.service.AuditLogService
@@ -12,6 +13,13 @@ import java.util.UUID
 object AuditLogRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
+        config.routes.before("/api/audit-log") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
         config.routes.get("/api/audit-log") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val tableName = context.queryParam("tableName") ?: throw BadRequestResponse("tableName is required")

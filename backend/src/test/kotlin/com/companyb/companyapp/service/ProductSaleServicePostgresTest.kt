@@ -16,7 +16,6 @@ import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -118,10 +117,10 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `sell without EDIT_BRANCH_DATA is forbidden`() {
+    fun `sell without EDIT_BRANCH_DATA is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val sale =
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -133,7 +132,10 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                 quantity = 1,
                 expectedVersion = 1,
             )
-        }
+
+        assertNotNull(sale)
+        assertEquals(1, sale.quantity)
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
     }
 
     @Test

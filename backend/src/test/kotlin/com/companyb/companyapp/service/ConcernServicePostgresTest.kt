@@ -14,7 +14,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -81,14 +80,14 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `listAll without EDIT_BRANCH_DATA is forbidden`() {
+    fun `listAll without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ConcernService.listAll(otherCaller)
-        }
+        val concerns = ConcernService.listAll(otherCaller)
+
+        assertTrue(concerns.isNotEmpty())
     }
 
     @Test
@@ -119,14 +118,17 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `add concern requires EDIT_BRANCH_DATA`() {
+    fun `add concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ConcernService.addToSession(otherCaller, sessionId, systemConcernId)
-        }
+        ConcernService.addToSession(otherCaller, sessionId, systemConcernId)
+
+        val concerns = ConcernService.getForSession(callerId, sessionId)
+        assertEquals(1, concerns.size)
+        assertEquals(systemConcernId, concerns[0].id)
     }
 
     @Test
@@ -165,15 +167,17 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `remove concern requires EDIT_BRANCH_DATA`() {
+    fun `remove concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
-        }
+        ConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
+
+        val concerns = ConcernService.getForSession(callerId, sessionId)
+        assertTrue(concerns.isEmpty())
     }
 
     @Test
@@ -212,25 +216,29 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getForSession without EDIT_BRANCH_DATA is forbidden`() {
+    fun `getForSession without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ConcernService.getForSession(otherCaller, promotedSessionId)
-        }
+        val concerns = ConcernService.getForSession(otherCaller, promotedSessionId)
+
+        assertTrue(concerns.isEmpty())
     }
 
     @Test
-    fun `promote concern requires EDIT_BRANCH_DATA`() {
+    fun `promote concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        assertFailsWith<ForbiddenResponse> {
-            ConcernService.promoteConcern(otherCaller, promotedSessionId, "Shoulder Pain")
-        }
+        val promoted = ConcernService.promoteConcern(otherCaller, promotedSessionId, "Shoulder Pain")
+        trackOwned(ConcernTable, ConcernTable.id, promoted.id)
+
+        assertNotNull(promoted)
+        assertEquals("Shoulder Pain", promoted.label)
+        assertEquals(otherCaller, promoted.createdBy)
     }
 
     @Test

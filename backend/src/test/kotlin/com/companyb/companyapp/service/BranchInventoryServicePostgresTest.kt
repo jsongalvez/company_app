@@ -13,7 +13,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -61,10 +60,16 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `ensureCard without MANAGE_PRODUCTS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            BranchInventoryService.ensureCard(callerId, branchId, productId)
-        }
+    fun `ensureCard without MANAGE_PRODUCTS is allowed at service layer`() {
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
+        assertEquals(1, cards.size)
+        assertEquals(productId, cards[0].inventory.productId)
+        assertEquals(0, cards[0].inventory.currentStock)
+        assertEquals(1, cards[0].inventory.version)
     }
 
     @Test
@@ -119,11 +124,12 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `restock without MANAGE_PRODUCTS is forbidden`() {
+    fun `restock without MANAGE_PRODUCTS is allowed at service layer`() {
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val movement =
             BranchInventoryService.restock(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),
@@ -132,7 +138,11 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
                 quantity = 10,
                 branchDayId = branchDayId,
             )
-        }
+
+        assertEquals(10, movement.quantityChange)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -216,10 +226,10 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `findByBranch without MANAGE_PRODUCTS is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
-            BranchInventoryService.findByBranch(callerId, branchId)
-        }
+    fun `findByBranch without MANAGE_PRODUCTS is allowed at service layer`() {
+        val cards = BranchInventoryService.findByBranch(callerId, branchId)
+
+        assertTrue(cards.isEmpty())
     }
 
     @Test
@@ -430,11 +440,20 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `recordMovement without MANAGE_PRODUCTS is forbidden`() {
+    fun `recordMovement without MANAGE_PRODUCTS is allowed at service layer`() {
+        BranchInventoryService.ensureCard(callerId, branchId, productId)
+        BranchInventoryService.restock(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            quantity = 10,
+            branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId),
+        )
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val movement =
             BranchInventoryService.recordMovement(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),
@@ -445,7 +464,11 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
                 notes = null,
                 branchDayId = branchDayId,
             )
-        }
+
+        assertEquals(-1, movement.quantityChange)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test

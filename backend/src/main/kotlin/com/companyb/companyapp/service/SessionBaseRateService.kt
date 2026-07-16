@@ -1,10 +1,8 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -44,14 +42,6 @@ object SessionBaseRateService {
         sessionType: SessionType,
         rate: String,
     ): SetRateResult {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to set rates",
-        )
-
         val rateAmount =
             runCatching { BigDecimal(rate).setScale(RATE_SCALE, RoundingMode.HALF_UP) }
                 .getOrElse { throw BadRequestResponse("Invalid rate amount: $rate") }
@@ -66,17 +56,11 @@ object SessionBaseRateService {
         return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rateAmount, FAR_FUTURE)
     }
 
+    @Suppress("UnusedParameter")
     fun findActiveRates(
         callerId: UUID,
         branchId: UUID,
     ): List<SessionBaseRate> {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "MANAGE_PRODUCTS capability required to view rates",
-        )
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         return SessionBaseRateRepository.findActiveByBranch(branchId, now)
     }
