@@ -707,9 +707,9 @@ class RemittanceLineServicePostgresTest {
             ProductSaleTable.deleteAll()
             ProductTable.deleteAll()
             ProductCategoryTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
             SessionBaseRateTable.deleteAll()
-            ClientTable.deleteAll()
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             BranchDayTable.deleteAll()
             BranchTable.deleteWhere { BranchTable.id eq branchId }
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }

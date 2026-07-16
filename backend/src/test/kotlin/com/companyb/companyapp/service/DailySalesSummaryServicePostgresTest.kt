@@ -42,6 +42,7 @@ class DailySalesSummaryServicePostgresTest {
     private val callerId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
     private val branchDayId = UUID.randomUUID()
+    private val clientId = UUID.randomUUID()
     private val today = LocalDate.now(ZoneId.of("Asia/Manila"))
 
     @BeforeTest
@@ -352,8 +353,8 @@ class DailySalesSummaryServicePostgresTest {
     private fun deleteTestRows() {
         transaction {
             SessionVoidTable.deleteAll()
-            SessionTable.deleteAll()
-            ClientTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             CommissionSplitTable.deleteAll()
             ProductSaleTable.deleteAll()
             ProductTable.deleteAll()

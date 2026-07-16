@@ -371,8 +371,8 @@ class ProductSaleServicePostgresTest {
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
             InventoryMovementTable.deleteAll()
             ProductSaleTable.deleteAll()
-            SessionTable.deleteAll()
-            ClientTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             BranchInventoryTable.deleteWhere {
                 (BranchInventoryTable.branchId eq branchId)
             }

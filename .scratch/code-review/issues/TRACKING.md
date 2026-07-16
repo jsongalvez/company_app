@@ -9,9 +9,9 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-001 — runCatching on path params | — | [x] |
 | CR-002 — JVM clock in service/repo | — | [x] |
 | CR-003 — audit logs not atomic | — | [x] |
-| CR-004 — capability gates (chunk 1 only) | — | [ ] |
+| CR-004 — capability gates (chunk 1 only) | — | [x] |
 | CR-005 — magic number priorities | — | [x] |
-| CR-006 — commission recalc on clock-in/out | — | [ ] |
+| CR-006 — commission recalc on clock-in/out | — | [x] |
 | CR-007 — ClockInRequest field name | — | [x] |
 | CR-008 — TOCTOU race | — | [x] |
 | CR-009 — deduplicate test helpers | — | [x] |
@@ -51,7 +51,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-042 — iOS compilation target in pre-commit | — | [ ] |
 | CR-043 — scope ktlintFormat to staged files only | — | [ ] |
 | CR-044 — extract grantCapability delegation in DatabaseTestHelper | — | [x] |
-| CR-045 — scope SessionTable + ClientTable deleteAll() | — | [ ] |
+| CR-045 — scope SessionTable + ClientTable deleteAll() | — | [x] |
 | CR-046 — scope product-related deleteAll() | — | [ ] |
 | CR-047 — scope remaining shared-table deleteAll() | — | [ ] |
 | CR-048 — remaining ThrowsCount suppressions | — | ❌ wontfix |

@@ -55,6 +55,7 @@ class ExportServicePostgresTest {
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
     private val branchDayId = UUID.randomUUID()
+    private val clientId = UUID.randomUUID()
     private val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
     private val testBranchIds = mutableListOf(branchId)
 
@@ -502,13 +503,13 @@ class ExportServicePostgresTest {
             RemittanceDayBreakdownTable.deleteAll()
             RemittanceTable.deleteAll()
             SessionVoidTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
             CompensationTable.deleteAll()
             ExpenseTable.deleteAll()
             ProductSaleTable.deleteAll()
             ProductTable.deleteAll()
             ProductCategoryTable.deleteAll()
-            ClientTable.deleteAll()
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             for (bid in testBranchIds) {
                 BranchDayTable.deleteWhere { BranchDayTable.branchId eq bid }
             }

@@ -614,7 +614,7 @@ class RemittanceServicePostgresTest {
             ExpenseTable.deleteWhere { ExpenseTable.createdBy eq callerId }
             RemittanceTable.deleteAll()
             ProductSaleTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
             ClientTable.deleteWhere { ClientTable.id eq clientId }
             ProductTable.deleteAll()
             ProductCategoryTable.deleteAll()

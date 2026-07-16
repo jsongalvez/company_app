@@ -374,7 +374,7 @@ class MonthlyRemittanceSummaryServicePostgresTest {
             RemittanceDayBreakdownTable.deleteAll()
             RemittanceLineTable.deleteAll()
             RemittanceTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
             ProductSaleTable.deleteAll()
             ProductTable.deleteAll()
             ProductCategoryTable.deleteAll()

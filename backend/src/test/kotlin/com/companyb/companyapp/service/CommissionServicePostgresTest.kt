@@ -10,6 +10,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.InventoryMovementTable
@@ -51,6 +52,7 @@ class CommissionServicePostgresTest {
     private val branchId = UUID.randomUUID()
     private val categoryId = UUID.randomUUID()
     private val productId = UUID.randomUUID()
+    private val clientId = UUID.randomUUID()
 
     private lateinit var branchDayId: UUID
     private lateinit var productSaleId: UUID
@@ -380,7 +382,8 @@ class CommissionServicePostgresTest {
             }
             InventoryMovementTable.deleteAll()
             ProductSaleTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             BranchInventoryTable.deleteWhere { BranchInventoryTable.branchId eq branchId }
             BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
             ProductTable.deleteWhere { ProductTable.id eq productId }

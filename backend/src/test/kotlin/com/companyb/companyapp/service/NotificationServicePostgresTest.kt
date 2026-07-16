@@ -36,6 +36,7 @@ class NotificationServicePostgresTest {
     private val otherUserId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
     private val sessionId = UUID.randomUUID()
+    private val clientId = UUID.randomUUID()
 
     @BeforeTest
     fun setUp() {
@@ -175,7 +176,7 @@ class NotificationServicePostgresTest {
         transaction {
             NotificationTable.deleteAll()
             SessionVoidTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
             UserRoleTable.deleteWhere { UserRoleTable.userId inList allTestUsers }
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId inList allTestUsers }
             UserBranchAssignmentTable.deleteWhere {
@@ -188,7 +189,7 @@ class NotificationServicePostgresTest {
                 BranchDayTable.branchId eq branchId
             }
             BranchTable.deleteWhere { BranchTable.id eq branchId }
-            ClientTable.deleteAll()
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             AppUserTable.deleteWhere { AppUserTable.id inList allTestUsers }
         }
     }

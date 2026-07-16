@@ -18,6 +18,7 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -295,9 +296,15 @@ class ConcernServicePostgresTest {
     private fun deleteTestRows() {
         transaction {
             SessionConcernTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere {
+                SessionTable.clientId inList
+                    listOf(this@ConcernServicePostgresTest.clientId, promotedClientId)
+            }
             SessionBaseRateTable.deleteAll()
-            ClientTable.deleteAll()
+            ClientTable.deleteWhere {
+                ClientTable.id inList
+                    listOf(this@ConcernServicePostgresTest.clientId, promotedClientId)
+            }
             BranchDayTable.deleteAll()
             BranchTable.deleteAll()
             ConcernTable.deleteAll()

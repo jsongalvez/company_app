@@ -13,3 +13,5 @@
 **Priority:** medium
 **Blocked by:** Commission service implementation (US-024)
 **Story alignment:** US-006, US-007
+
+**Status:** ✅ done

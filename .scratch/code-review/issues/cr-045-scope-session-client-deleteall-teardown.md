@@ -22,3 +22,5 @@
 - `SessionServicePostgresTest.kt` (SessionTable, ClientTable)
 - `RemittanceLineServicePostgresTest.kt` (SessionTable, ClientTable)
 - `ExportServicePostgresTest.kt` (SessionTable, ClientTable)
+
+**Status:** ✅ done

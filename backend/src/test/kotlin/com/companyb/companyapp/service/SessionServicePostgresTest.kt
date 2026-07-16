@@ -602,9 +602,9 @@ class SessionServicePostgresTest {
                     (AuditLogTable.recordId eq practitionerSessionId)
             }
             SessionVoidTable.deleteAll()
-            SessionTable.deleteAll()
+            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
             SessionBaseRateTable.deleteAll()
-            ClientTable.deleteAll()
+            ClientTable.deleteWhere { ClientTable.id eq clientId }
             BranchDayTable.deleteAll()
             BranchTable.deleteAll()
             AppUserTable.deleteWhere { (AppUserTable.id eq callerId) or (AppUserTable.id eq practitionerId) }
