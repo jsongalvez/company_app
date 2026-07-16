@@ -15,8 +15,12 @@ object ProductSaleRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/product-sales") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            if (context.method() != io.javalin.http.HandlerType.POST) return@before
+            val request = context.bodyAsClass<CreateProductSaleRequest>()
+            val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
+            CapabilityFilter.requireBranchCapability(
                 context,
+                branchDayId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
         }

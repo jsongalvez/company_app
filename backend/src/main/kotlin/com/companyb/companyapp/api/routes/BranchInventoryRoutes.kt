@@ -24,8 +24,10 @@ object BranchInventoryRoutes {
 
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/inventory") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
+                branchId,
                 CapabilityCodes.MANAGE_PRODUCTS,
             )
         }

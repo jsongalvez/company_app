@@ -16,8 +16,24 @@ object AllowanceRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/allowances") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val branchDayId =
+                when (context.method()) {
+                    io.javalin.http.HandlerType.POST -> {
+                        val request = context.bodyAsClass<CreateAllowanceRequest>()
+                        uuidOrThrow(request.branchDayId, "branch day id")
+                    }
+
+                    io.javalin.http.HandlerType.GET -> {
+                        context.uuidFromQuery("branchDayId")
+                    }
+
+                    else -> {
+                        return@before
+                    }
+                }
+            CapabilityFilter.requireBranchCapability(
                 context,
+                branchDayId,
                 CapabilityCodes.ASSIGN_COMPENSATION,
             )
         }

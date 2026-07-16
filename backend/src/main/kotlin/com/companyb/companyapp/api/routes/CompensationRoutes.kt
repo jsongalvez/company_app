@@ -15,11 +15,36 @@ import java.math.BigDecimal
 import java.util.UUID
 
 object CompensationRoutes {
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/compensation") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val branchDayId =
+                when (context.method()) {
+                    io.javalin.http.HandlerType.POST -> {
+                        val request = context.bodyAsClass<CreateCompensationRequest>()
+                        uuidOrThrow(request.workBranchDayId, "work branch day id")
+                    }
+
+                    else -> {
+                        return@before
+                    }
+                }
+            CapabilityFilter.requireBranchCapability(
                 context,
+                branchDayId,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
+        config.routes.before("/api/compensation/{compensationId}") { context ->
+            val compensationId = context.pathParamAsUuid("compensationId")
+            val compensation =
+                com.companyb.companyapp.repository.CompensationRepository
+                    .findById(compensationId)
+                    ?: throw io.javalin.http.NotFoundResponse("Compensation not found")
+            CapabilityFilter.requireBranchCapability(
+                context,
+                compensation.workBranchDayId,
                 CapabilityCodes.ASSIGN_COMPENSATION,
             )
         }

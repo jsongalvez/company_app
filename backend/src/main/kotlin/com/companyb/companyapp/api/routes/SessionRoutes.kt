@@ -38,50 +38,57 @@ object SessionRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before("/api/sessions") { context ->
             if (context.method() != HandlerType.POST) return@before
-            CapabilityFilter.requireGlobalCapability(
+            val request = context.bodyAsClass<CreateSessionRequest>()
+            val branchId = uuidOrThrow(request.branchId, "branch id")
+            CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
+                branchId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to create sessions",
             )
         }
 
         config.routes.before("/api/sessions/{sessionId}/status") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
                 context,
+                sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to update session status",
             )
         }
 
         config.routes.before("/api/sessions/{sessionId}/void") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
                 context,
+                sessionId,
                 CapabilityCodes.VOID_SESSION,
-                "VOID_SESSION capability required to manage session voids",
             )
         }
 
         config.routes.before("/api/sessions/{sessionId}/unvoid") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
                 context,
+                sessionId,
                 CapabilityCodes.VOID_SESSION,
-                "VOID_SESSION capability required to manage session voids",
             )
         }
 
         config.routes.before("/api/sessions/{sessionId}/practitioners") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
                 context,
+                sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage session practitioners",
             )
         }
 
         config.routes.before("/api/sessions/{sessionId}/concerns") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
                 context,
+                sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to manage concerns",
             )
         }
 
@@ -94,10 +101,11 @@ object SessionRoutes {
         }
 
         config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
                 context,
+                sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                "EDIT_BRANCH_DATA capability required to promote concerns",
             )
         }
 

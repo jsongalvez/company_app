@@ -3,6 +3,7 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.RemittanceRepository
+import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.service.CapabilityService
 import io.javalin.http.Context
@@ -111,6 +112,45 @@ object CapabilityFilter {
             contextId = remittance.branchId,
             message = "$capabilityCode capability required for this branch",
         )
+    }
+
+    /**
+     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] for the given [branchId].
+     * Does not require a branch day — use when the branch UUID is directly available.
+     *
+     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
+     */
+    fun requireBranchCapabilityForBranchId(
+        context: Context,
+        branchId: UUID,
+        capabilityCode: String,
+    ) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = capabilityCode,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            message = "$capabilityCode capability required for this branch",
+        )
+    }
+
+    /**
+     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
+     * from a session record.
+     *
+     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
+     * Throws [NotFoundResponse] (404) if the session does not exist.
+     */
+    fun requireBranchCapabilityForSession(
+        context: Context,
+        sessionId: UUID,
+        capabilityCode: String,
+    ) {
+        val session =
+            SessionRepository.findById(sessionId)
+                ?: throw NotFoundResponse("Session not found")
+        requireBranchCapability(context, session.branchDayId, capabilityCode)
     }
 
     /**
