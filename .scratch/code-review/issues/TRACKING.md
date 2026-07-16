@@ -44,7 +44,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 <!-- NOTE: finish CR-001–035 (backend) before CR-037–043 (quality gates). -->
 <!-- Stricter gates add friction; backend fixes establish a clean baseline first. -->
 | CR-037 — health check on app boot test | — | [x] |
-| CR-038 — wire check-baselines.sh into pre-push | — | [ ] |
+| CR-038 — wire check-baselines.sh into pre-push | — | [x] |
 | CR-039 — replace jmhClasses with JMH run in pre-commit | — | [ ] |
 | CR-040 — wire k6 baseline into pre-push | CR-037 | [ ] |
 | CR-041 — shared module compilation + test step | — | [ ] |

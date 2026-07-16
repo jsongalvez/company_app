@@ -18,3 +18,5 @@ Add one line to `.githooks/pre-push` calling `bash scripts/check-baselines.sh /t
 None — can start immediately.
 
 ## Status: ready-for-agent
+
+**Status:** ✅ done

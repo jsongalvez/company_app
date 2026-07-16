@@ -27,15 +27,13 @@ fi
 log "JMH benchmarks passed."
 
 # ----------------------------------------------------------------
-# 2. Reminder: compare against baseline
+# 2. Baseline comparison
 # ----------------------------------------------------------------
-log ""
-log "================================================================"
-log "  Compare JMH results against backend/jmh-baselines.md"
-log "  Run: bash scripts/check-baselines.sh /tmp/company-app-jmh.log"
-log "  If any score dropped >20%, fix the regression before pushing."
-log "  If the change is intentional, update the baseline and re-push."
-log "================================================================"
-log ""
+log "Comparing JMH results against baseline..."
+if ! bash scripts/check-baselines.sh /tmp/company-app-jmh.log 2>&1 | tail -20; then
+    log "ERROR: JMH score regression >20% detected."
+    exit 1
+fi
+log "Baseline comparison passed."
 
 log "Pre-push checks passed."
