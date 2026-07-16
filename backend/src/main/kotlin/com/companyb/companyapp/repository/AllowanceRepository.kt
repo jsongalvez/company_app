@@ -5,10 +5,11 @@ import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceTable
 import com.companyb.companyapp.repository.model.AuditAction
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -82,7 +83,7 @@ object AllowanceRepository {
             .singleOrNull()
             ?.toAllowance()
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toAllowance(): Allowance =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toAllowance(): Allowance =
         Allowance(
             id = this[AllowanceTable.id],
             branchDayId = this[AllowanceTable.branchDayId],

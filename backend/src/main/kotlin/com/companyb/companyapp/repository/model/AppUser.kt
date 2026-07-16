@@ -1,7 +1,9 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 
 data class AppUser(
@@ -18,7 +20,7 @@ object AppUserTable : Table("app_user") {
     private const val EMAIL_LENGTH = 50
     private const val DISPLAY_NAME_LENGTH = 50
 
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val username = varchar("username", USERNAME_LENGTH).uniqueIndex()
     val passwordHash = varchar("password_hash", PASSWORD_HASH_LENGTH)
     val status =
@@ -37,7 +39,7 @@ object AppUserTable : Table("app_user") {
     val displayName = varchar("display_name", DISPLAY_NAME_LENGTH).default("User")
     val createdAt =
         timestampWithTimeZone("created_at")
-            .defaultExpression(org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone)
+            .defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
 }

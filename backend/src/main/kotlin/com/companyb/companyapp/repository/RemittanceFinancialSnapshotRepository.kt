@@ -2,9 +2,9 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -31,7 +31,7 @@ object RemittanceFinancialSnapshotRepository {
         return row.toSnapshot()
     }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toSnapshot(): RemittanceFinancialSnapshot =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toSnapshot(): RemittanceFinancialSnapshot =
         RemittanceFinancialSnapshot(
             remittanceId = this[RemittanceFinancialSnapshotTable.remittanceId],
             grossIncome = this[RemittanceFinancialSnapshotTable.grossIncome],

@@ -10,9 +10,10 @@ import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.CapabilityService
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object DatabaseTestHelper {

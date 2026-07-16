@@ -1,9 +1,10 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.javatime.date
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.date
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -39,7 +40,7 @@ data class Remittance(
 )
 
 object RemittanceTable : Table("remittance") {
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val type =
         customEnumeration<RemittanceType>(
             name = "type",
@@ -64,7 +65,7 @@ object RemittanceTable : Table("remittance") {
                 obj
             },
         ).default(RemittanceStatus.DRAFT)
-    val branchId = uuid("branch_id")
+    val branchId = javaUUID("branch_id")
     val method =
         customEnumeration<RemittanceMethod>(
             name = "method",
@@ -78,7 +79,7 @@ object RemittanceTable : Table("remittance") {
             },
         )
     val submittedDate = date("submitted_date")
-    val submittedBy = uuid("submitted_by")
+    val submittedBy = javaUUID("submitted_by")
     val dateRangeStart = date("date_range_start")
     val dateRangeEnd = date("date_range_end")
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)

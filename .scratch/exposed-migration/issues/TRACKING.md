@@ -8,9 +8,9 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 
 | Ticket | Blocked by | Status |
 |--------|-----------|--------|
-| EM-01 — Bump Exposed + mechanical import migration | — | [ ] |
-| EM-02 — Manual API fixes (enum, UUID, transaction, custom column) | EM-01 | [ ] |
-| EM-03 — Full test suite verification + docs update | EM-01, EM-02 | [ ] |
+| EM-01 — Bump Exposed + mechanical import migration | — | [x] |
+| EM-02 — Manual API fixes (enum, UUID, transaction, custom column) | EM-01 | [x] |
+| EM-03 — Full test suite verification + docs update | EM-01, EM-02 | [x] |
 
 ## To mark done
 

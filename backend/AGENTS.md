@@ -152,11 +152,26 @@ context (contextId = `branch_day.branch_id`).
 
 **All database access MUST use the Exposed DSL.** Raw SQL (`exec()`, `TransactionManager.current().exec()`, `TextColumnType` binds) is forbidden in repositories. The codebase was migrated away from raw SQL in favor of type-safe DSL queries.
 
+Note: `Transaction` is now abstract in Exposed 1.3.1. Inside `transaction {}` blocks, the receiver is `JdbcTransaction`. Methods like `exec()`, `connection`, `db`, and `rollback()` live on `JdbcTransaction`.
+
+### Import conventions (Exposed 1.3.1)
+
+All imports use the `org.jetbrains.exposed.v1.*` package prefix:
+- Core types & top-level functions: `org.jetbrains.exposed.v1.core.*`
+- JDBC-specific (transaction, selectAll, insert, etc.): `org.jetbrains.exposed.v1.jdbc.*`
+- Java-time column types: `org.jetbrains.exposed.v1.javatime.*`
+- ForUpdateOption: `org.jetbrains.exposed.v1.core.vendors.ForUpdateOption`
+
+Top-level operator functions (`eq`, `and`, `or`, `isNull`, `greaterEq`, etc.) are in
+`org.jetbrains.exposed.v1.core.*`. They **must be imported explicitly** — they are no longer
+available via `SqlExpressionBuilder` receiver in `where {}` blocks.
+
 ### Table & view definitions
 
 - Every table and view needs an Exposed `Table` / `object` in `repository/model/`.
 - Views (e.g. `ActiveUserCapabilitiesView`) are modeled as `Table` objects with the view name; they are read-only — never insert/update/delete against them.
 - Add `exposed-java-time` for `timestampWithTimeZone` / `CurrentTimestampWithTimeZone`.
+- Use `javaUUID()` (not `uuid()`) for `java.util.UUID` columns. Import `org.jetbrains.exposed.v1.core.java.javaUUID`.
 
 ### PostgreSQL native enums
 
@@ -199,7 +214,7 @@ expression is not emitted. Columns with a DEFAULT expression must be explicitly 
 
 ### Timestamp consistency
 
-Always use `org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone` (the DB server's
+Always use `org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone` (the DB server's
 clock) when writing timestamp values inside `transaction {}` blocks. Never use
 `java.time.OffsetDateTime.now()` or `java.time.LocalDateTime.now()` — JVM clock and DB clock may
 diverge (timezone, drift). The only exception is `insertIgnore` blocks where the default expression
@@ -224,6 +239,7 @@ is suppressed and you must supply a value manually (use `OffsetDateTime.now(Zone
 - ❌ Manual `ResultSet` row mapping with `getString()`/`getObject()`
 - ❌ `enumerationByName` for Postgres enum columns
 - ❌ SQL casts in strings (`?::uuid`, `?::jsonb`, `?::branch_type`)
+- ❌ Using `uuid()` for `java.util.UUID` columns (use `javaUUID()` instead)
 
 ### JSONB columns
 

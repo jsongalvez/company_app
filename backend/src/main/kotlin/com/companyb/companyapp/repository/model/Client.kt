@@ -1,7 +1,8 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -24,7 +25,7 @@ data class Client(
 private const val PHONE_COLUMN_WIDTH = 20
 
 object ClientTable : Table("client") {
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val firstName = text("first_name")
     val lastName = text("last_name")
     val middleName = text("middle_name").nullable()

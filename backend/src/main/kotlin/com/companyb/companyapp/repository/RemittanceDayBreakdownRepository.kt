@@ -5,11 +5,11 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -75,7 +75,7 @@ object RemittanceDayBreakdownRepository {
                 .map { it.toRemittanceDayBreakdown() }
         }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toRemittanceDayBreakdown(): RemittanceDayBreakdown =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittanceDayBreakdown(): RemittanceDayBreakdown =
         RemittanceDayBreakdown(
             id = this[RemittanceDayBreakdownTable.id],
             remittanceId = this[RemittanceDayBreakdownTable.remittanceId],

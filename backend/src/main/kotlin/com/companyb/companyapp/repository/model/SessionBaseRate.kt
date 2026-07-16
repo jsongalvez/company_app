@@ -1,9 +1,10 @@
 package com.companyb.companyapp.repository.model
 
 import com.companyb.companyapp.domain.SessionType
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.time.OffsetDateTime
@@ -23,9 +24,9 @@ object SessionBaseRateTable : Table("session_base_rate") {
     private const val RATE_PRECISION = 10
     private const val RATE_SCALE = 2
 
-    val id = uuid("id").autoGenerate()
-    val setBy = uuid("set_by").references(AppUserTable.id)
-    val branchId = uuid("branch_id").references(BranchTable.id)
+    val id = javaUUID("id").autoGenerate()
+    val setBy = javaUUID("set_by").references(AppUserTable.id)
+    val branchId = javaUUID("branch_id").references(BranchTable.id)
     val sessionType =
         customEnumeration<SessionType>(
             name = "session_type",

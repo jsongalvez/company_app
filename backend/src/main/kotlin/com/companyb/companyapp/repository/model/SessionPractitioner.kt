@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID
 
 data class SessionPractitioner(
@@ -12,9 +13,9 @@ data class SessionPractitioner(
 )
 
 object SessionPractitionerTable : Table("session_practitioner") {
-    val id = uuid("id").autoGenerate()
-    val sessionId = uuid("session_id").references(SessionTable.id)
-    val practitionerId = uuid("practitioner_id").references(AppUserTable.id)
+    val id = javaUUID("id").autoGenerate()
+    val sessionId = javaUUID("session_id").references(SessionTable.id)
+    val practitionerId = javaUUID("practitioner_id").references(AppUserTable.id)
     val remarks = text("remarks").nullable()
     val slotAtTime = short("slot_at_time")
 

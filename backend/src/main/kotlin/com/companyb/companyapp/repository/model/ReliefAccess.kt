@@ -1,7 +1,8 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -17,9 +18,9 @@ data class ReliefAccess(
 )
 
 object GrantReliefAccessTable : Table("grant_relief_access") {
-    val id = uuid("id").autoGenerate()
-    val branchDayId = uuid("branch_day_id").references(BranchDayTable.id)
-    val requestedBy = uuid("requested_by").references(AppUserTable.id)
+    val id = javaUUID("id").autoGenerate()
+    val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
+    val requestedBy = javaUUID("requested_by").references(AppUserTable.id)
     val requestStatus =
         customEnumeration<ReliefStatus>(
             name = "request_status",
@@ -32,8 +33,8 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
                 obj
             },
         ).default(ReliefStatus.PENDING)
-    val targetUser = uuid("target_user").references(AppUserTable.id)
-    val grantedBy = uuid("granted_by").references(AppUserTable.id).nullable()
+    val targetUser = javaUUID("target_user").references(AppUserTable.id)
+    val grantedBy = javaUUID("granted_by").references(AppUserTable.id).nullable()
     val grantedAt = timestampWithTimeZone("granted_at").nullable()
 
     override val primaryKey = PrimaryKey(id)

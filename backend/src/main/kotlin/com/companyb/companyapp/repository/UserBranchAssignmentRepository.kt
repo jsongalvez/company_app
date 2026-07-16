@@ -6,13 +6,15 @@ import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.NotFoundResponse
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -215,7 +217,7 @@ object UserBranchAssignmentRepository {
             a to b
         }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toAssignment(): UserBranchAssignment =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignment(): UserBranchAssignment =
         UserBranchAssignment(
             id = this[UserBranchAssignmentTable.id],
             userId = this[UserBranchAssignmentTable.userId],

@@ -1,8 +1,9 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.time.OffsetDateTime
 
@@ -24,9 +25,9 @@ enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, 
 enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM }
 
 object UserCapabilityTable : Table("user_capability") {
-    val id = uuid("id").autoGenerate()
-    val userId = uuid("user_id").references(AppUserTable.id)
-    val capabilityId = uuid("capability_id").references(CapabilityTable.id)
+    val id = javaUUID("id").autoGenerate()
+    val userId = javaUUID("user_id").references(AppUserTable.id)
+    val capabilityId = javaUUID("capability_id").references(CapabilityTable.id)
     val contextType =
         customEnumeration<CapabilityContextType>(
             name = "context_type",
@@ -39,7 +40,7 @@ object UserCapabilityTable : Table("user_capability") {
                 obj
             },
         )
-    val contextId = uuid("context_id")
+    val contextId = javaUUID("context_id")
     val validFrom = timestampWithTimeZone("valid_from").defaultExpression(CurrentTimestampWithTimeZone)
     val validTo = timestampWithTimeZone("valid_to").nullable()
     val sourceType =
@@ -54,7 +55,7 @@ object UserCapabilityTable : Table("user_capability") {
                 obj
             },
         )
-    val sourceId = uuid("source_id")
+    val sourceId = javaUUID("source_id")
     val priority = short("priority").default(0)
 
     override val primaryKey = PrimaryKey(id)

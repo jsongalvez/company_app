@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID
 
 data class RemittanceDayBreakdown(
@@ -10,9 +11,9 @@ data class RemittanceDayBreakdown(
 )
 
 object RemittanceDayBreakdownTable : Table("remittance_day_breakdown") {
-    val id = uuid("id")
-    val remittanceId = uuid("remittance_id").references(RemittanceTable.id)
-    val branchDayId = uuid("branch_day_id").references(BranchDayTable.id)
+    val id = javaUUID("id")
+    val remittanceId = javaUUID("remittance_id").references(RemittanceTable.id)
+    val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
 
     override val primaryKey = PrimaryKey(id)
 }

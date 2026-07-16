@@ -2,7 +2,7 @@ package com.companyb.companyapp.api.routes
 
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 object HealthRoutes {
     fun register(config: JavalinConfig) {

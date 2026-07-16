@@ -1,11 +1,12 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.postgresql.util.PGobject
 
 object ActiveUserCapabilitiesView : Table("active_user_capabilities") {
-    val userId = uuid("user_id")
-    val capabilityId = uuid("capability_id")
+    val userId = javaUUID("user_id")
+    val capabilityId = javaUUID("capability_id")
     val contextType =
         customEnumeration<CapabilityContextType>(
             name = "context_type",
@@ -18,7 +19,7 @@ object ActiveUserCapabilitiesView : Table("active_user_capabilities") {
                 obj
             },
         )
-    val contextId = uuid("context_id")
+    val contextId = javaUUID("context_id")
     val priority = short("priority")
     val sourceType =
         customEnumeration<CapabilitySourceType>(

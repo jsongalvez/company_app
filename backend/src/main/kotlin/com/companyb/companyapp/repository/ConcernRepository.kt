@@ -4,13 +4,13 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
-import org.jetbrains.exposed.sql.JoinType
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object ConcernRepository {
@@ -151,7 +151,7 @@ object ConcernRepository {
             .singleOrNull()
             ?.toConcern()
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toConcern(): Concern =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toConcern(): Concern =
         Concern(
             id = this[ConcernTable.id],
             label = this[ConcernTable.label],

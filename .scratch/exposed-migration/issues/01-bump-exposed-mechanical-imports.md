@@ -10,9 +10,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] Update `gradle/libs.versions.toml`: `exposed = "1.3.1"`
-- [ ] Update `backend/build.gradle.kts` artifact coordinates if needed (`exposed-core` → new coordinates)
-- [ ] Run Claude Code migration skill or apply mechanical import renames manually
-- [ ] Fix `SqlExpressionBuilder` lambda blocks: add `import org.jetbrains.exposed.v1.core.*` (or individual imports) to every file with `where`, `having`, `update`, `Case`, `Op.build` usages
-- [ ] Fix `ForUpdateOption` import paths (moved to vendor packages)
-- [ ] Compilation passes: `./gradlew :backend:compileKotlin`
+- [x] Update `gradle/libs.versions.toml`: `exposed = "1.3.1"`
+- [x] Update `backend/build.gradle.kts` artifact coordinates if needed (`exposed-core` → new coordinates)
+- [x] Run Claude Code migration skill or apply mechanical import renames manually
+- [x] Fix `SqlExpressionBuilder` lambda blocks: add `import org.jetbrains.exposed.v1.core.*` (or individual imports) to every file with `where`, `having`, `update`, `Case`, `Op.build` usages
+- [x] Fix `ForUpdateOption` import paths (moved to vendor packages)
+- [x] Compilation passes: `./gradlew :backend:compileKotlin`
+
+**Status:** ✅ done

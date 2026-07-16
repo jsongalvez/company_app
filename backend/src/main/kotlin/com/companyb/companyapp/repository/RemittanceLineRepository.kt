@@ -7,12 +7,14 @@ import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -114,7 +116,7 @@ object RemittanceLineRepository {
                     .update({ RemittanceLineTable.id eq lineId and RemittanceLineTable.deletedAt.isNull() }) {
                         it[RemittanceLineTable.deletedBy] = deletedBy
                         it[RemittanceLineTable.deletedAt] =
-                            org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
+                            CurrentTimestampWithTimeZone
                     }
 
             if (updated == 0) return@transaction null
@@ -176,7 +178,7 @@ object RemittanceLineRepository {
                 .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
         }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toRemittanceLine(): RemittanceLine =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittanceLine(): RemittanceLine =
         RemittanceLine(
             id = this[RemittanceLineTable.id],
             remittanceId = this[RemittanceLineTable.remittanceId],

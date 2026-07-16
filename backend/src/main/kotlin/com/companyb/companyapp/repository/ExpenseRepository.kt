@@ -6,12 +6,13 @@ import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -72,7 +73,7 @@ object ExpenseRepository {
             ExpenseTable.update({ ExpenseTable.id eq expenseId }) {
                 it[ExpenseTable.deletedBy] = deletedBy
                 it[ExpenseTable.deletedAt] =
-                    org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
+                    CurrentTimestampWithTimeZone
             }
 
             val after =
@@ -121,7 +122,7 @@ object ExpenseRepository {
             .singleOrNull()
             ?.toExpense()
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toExpense(): Expense =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toExpense(): Expense =
         Expense(
             id = this[ExpenseTable.id],
             branchDayId = this[ExpenseTable.branchDayId],

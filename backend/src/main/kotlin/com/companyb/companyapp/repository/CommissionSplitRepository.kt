@@ -3,11 +3,11 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.repository.model.CommissionSplit
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -45,7 +45,7 @@ object CommissionSplitRepository {
         }
     }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toCommissionSplit(): CommissionSplit =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toCommissionSplit(): CommissionSplit =
         CommissionSplit(
             id = this[CommissionSplitTable.id],
             branchDayId = this[CommissionSplitTable.branchDayId],

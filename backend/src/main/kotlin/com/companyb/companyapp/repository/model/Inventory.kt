@@ -1,8 +1,9 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -35,9 +36,9 @@ data class BranchInventoryWithProduct(
 )
 
 object BranchInventoryTable : Table("branch_inventory") {
-    val id = uuid("id").autoGenerate()
-    val branchId = uuid("branch_id")
-    val productId = uuid("product_id")
+    val id = javaUUID("id").autoGenerate()
+    val branchId = javaUUID("branch_id")
+    val productId = javaUUID("product_id")
     val currentStock = integer("current_stock").default(0)
     val version = integer("version").default(1)
 
@@ -45,11 +46,11 @@ object BranchInventoryTable : Table("branch_inventory") {
 }
 
 object InventoryMovementTable : Table("inventory_movement") {
-    val id = uuid("id").autoGenerate()
-    val productId = uuid("product_id")
-    val productSaleId = uuid("product_sale_id").nullable()
-    val branchId = uuid("branch_id")
-    val branchDayId = uuid("branch_day_id")
+    val id = javaUUID("id").autoGenerate()
+    val productId = javaUUID("product_id")
+    val productSaleId = javaUUID("product_sale_id").nullable()
+    val branchId = javaUUID("branch_id")
+    val branchDayId = javaUUID("branch_day_id")
     val reason =
         customEnumeration<InventoryMovementReason>(
             name = "reason",
@@ -63,7 +64,7 @@ object InventoryMovementTable : Table("inventory_movement") {
             },
         )
     val quantityChange = integer("quantity_change")
-    val movedBy = uuid("moved_by")
+    val movedBy = javaUUID("moved_by")
     val movedAt = timestampWithTimeZone("moved_at").defaultExpression(CurrentTimestampWithTimeZone)
     val notes = text("notes").nullable()
 

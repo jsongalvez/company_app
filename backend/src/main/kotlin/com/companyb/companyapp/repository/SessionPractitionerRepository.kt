@@ -5,14 +5,14 @@ import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.deleteWhere
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -204,7 +204,7 @@ object SessionPractitionerRepository {
                 ?.toSessionPractitioner()
         }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toSessionPractitioner(): SessionPractitioner =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toSessionPractitioner(): SessionPractitioner =
         SessionPractitioner(
             id = this[SessionPractitionerTable.id],
             sessionId = this[SessionPractitionerTable.sessionId],

@@ -3,10 +3,11 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
 
@@ -38,7 +39,7 @@ object BranchDayRepository {
                 ?.toBranchDay()
         }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toBranchDay(): BranchDay =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchDay(): BranchDay =
         BranchDay(
             id = this[BranchDayTable.id],
             branchId = this[BranchDayTable.branchId],

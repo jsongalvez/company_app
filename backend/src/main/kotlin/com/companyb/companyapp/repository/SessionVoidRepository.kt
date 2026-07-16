@@ -4,12 +4,14 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -120,7 +122,7 @@ object SessionVoidRepository {
             ?.toSessionVoid()
 
     @Suppress("ReturnCount")
-    private fun org.jetbrains.exposed.sql.ResultRow.toSessionVoid(): SessionVoid {
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toSessionVoid(): SessionVoid {
         val unvoidedAt = this[SessionVoidTable.unvoidedAt]
         val unvoidedBy = this[SessionVoidTable.unvoidedBy]
         val unvoidedReason = this[SessionVoidTable.unvoidedReason]

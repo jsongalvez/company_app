@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -19,7 +20,7 @@ data class Product(
 )
 
 object ProductCategoryTable : Table("product_category") {
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val name = text("name")
 
     override val primaryKey = PrimaryKey(id)
@@ -29,9 +30,9 @@ object ProductTable : Table("product") {
     private const val PRECISION = 10
     private const val SCALE = 2
 
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val name = text("name")
-    val productCategoryId = uuid("product_category_id").references(ProductCategoryTable.id)
+    val productCategoryId = javaUUID("product_category_id").references(ProductCategoryTable.id)
     val isActive = bool("is_active").default(true)
     val unitPrice = decimal("unit_price", PRECISION, SCALE)
     val commissionAmount = decimal("commission_amount", PRECISION, SCALE)

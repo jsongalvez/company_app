@@ -5,24 +5,27 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.Column
-import org.jetbrains.exposed.sql.ComparisonOp
-import org.jetbrains.exposed.sql.CustomFunction
-import org.jetbrains.exposed.sql.Expression
-import org.jetbrains.exposed.sql.FloatColumnType
-import org.jetbrains.exposed.sql.LiteralOp
-import org.jetbrains.exposed.sql.Op
-import org.jetbrains.exposed.sql.QueryParameter
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
-import org.jetbrains.exposed.sql.VarCharColumnType
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.or
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.Column
+import org.jetbrains.exposed.v1.core.ComparisonOp
+import org.jetbrains.exposed.v1.core.CustomFunction
+import org.jetbrains.exposed.v1.core.Expression
+import org.jetbrains.exposed.v1.core.FloatColumnType
+import org.jetbrains.exposed.v1.core.LiteralOp
+import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.QueryParameter
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.VarCharColumnType
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.like
+import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -207,7 +210,7 @@ object ClientRepository {
         transaction {
             val tokens = query.split(" ").filter { it.isNotBlank() }
             val searchQuery = query.trim()
-            val colType: org.jetbrains.exposed.sql.IColumnType<String> = ClientTable.firstName.columnType
+            val colType: org.jetbrains.exposed.v1.core.IColumnType<String> = ClientTable.firstName.columnType
             val spaceLiteral = LiteralOp(VarCharColumnType(SPACE_COLUMN_WIDTH), " ")
             val fullNameConcat =
                 CustomFunction(
@@ -254,7 +257,7 @@ object ClientRepository {
             .singleOrNull()
             ?.let { it.toClient() }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toClient(): Client =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toClient(): Client =
         Client(
             id = this[ClientTable.id],
             firstName = this[ClientTable.firstName],
@@ -310,5 +313,5 @@ private fun <T : String?> ilike(
 ): Op<Boolean> =
     ILikeOp(
         col,
-        QueryParameter(pattern, col.columnType as org.jetbrains.exposed.sql.IColumnType<String>),
+        QueryParameter(pattern, col.columnType as org.jetbrains.exposed.v1.core.IColumnType<String>),
     )

@@ -5,10 +5,11 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -78,7 +79,7 @@ object ProductCategoryRepository {
             .singleOrNull()
             ?.let { it.toProductCategory() }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toProductCategory(): ProductCategory =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toProductCategory(): ProductCategory =
         ProductCategory(
             id = this[ProductCategoryTable.id],
             name = this[ProductCategoryTable.name],

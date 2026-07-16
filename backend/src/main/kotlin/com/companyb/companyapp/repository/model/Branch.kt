@@ -1,7 +1,8 @@
 package com.companyb.companyapp.repository.model
 
 import com.companyb.companyapp.domain.BranchType
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.postgresql.util.PGobject
 import java.util.UUID
 
@@ -12,7 +13,7 @@ data class Branch(
 )
 
 object BranchTable : Table("branch") {
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val branchType =
         customEnumeration<BranchType>(
             name = "branch_type",

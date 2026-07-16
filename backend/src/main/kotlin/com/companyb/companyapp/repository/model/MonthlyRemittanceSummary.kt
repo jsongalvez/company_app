@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -21,7 +22,7 @@ private const val FINANCIAL_PRECISION = 10
 private const val FINANCIAL_SCALE = 2
 
 object MonthlyRemittanceSummaryView : Table("monthly_remittance_summary") {
-    val branchId = uuid("branch_id")
+    val branchId = javaUUID("branch_id")
     val year = integer("year")
     val month = integer("month")
     val totalRemittances = integer("total_remittances")

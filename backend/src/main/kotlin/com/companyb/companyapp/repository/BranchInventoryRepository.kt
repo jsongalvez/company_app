@@ -10,13 +10,15 @@ import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.innerJoin
-import org.jetbrains.exposed.sql.insertIgnore
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -96,7 +98,7 @@ object BranchInventoryRepository {
                         it[InventoryMovementTable.quantityChange] = quantity
                         it[InventoryMovementTable.movedBy] = movedBy
                         it[InventoryMovementTable.movedAt] =
-                            org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
+                            CurrentTimestampWithTimeZone
                     }.insertedCount
 
             val movementRow =
@@ -198,7 +200,7 @@ object BranchInventoryRepository {
                 it[InventoryMovementTable.quantityChange] = quantityChange
                 it[InventoryMovementTable.movedBy] = movedBy
                 it[InventoryMovementTable.movedAt] =
-                    org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
+                    CurrentTimestampWithTimeZone
                 if (notes != null) {
                     it[InventoryMovementTable.notes] = notes
                 }
@@ -285,7 +287,7 @@ object BranchInventoryRepository {
                 }
         }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toBranchInventory(): BranchInventory =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchInventory(): BranchInventory =
         BranchInventory(
             id = this[BranchInventoryTable.id],
             branchId = this[BranchInventoryTable.branchId],
@@ -294,7 +296,7 @@ object BranchInventoryRepository {
             version = this[BranchInventoryTable.version],
         )
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toInventoryMovement(): InventoryMovement =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toInventoryMovement(): InventoryMovement =
         InventoryMovement(
             id = this[InventoryMovementTable.id],
             productId = this[InventoryMovementTable.productId],

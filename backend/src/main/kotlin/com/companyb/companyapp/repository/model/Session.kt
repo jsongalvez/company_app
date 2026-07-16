@@ -1,10 +1,11 @@
 package com.companyb.companyapp.repository.model
 
 import com.companyb.companyapp.domain.SessionType
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.javatime.date
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.date
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -40,10 +41,10 @@ private const val PRECISION = 10
 private const val SCALE = 2
 
 object SessionTable : Table("session") {
-    val id = uuid("id").autoGenerate()
-    val clientId = uuid("client_id").references(ClientTable.id)
-    val branchDayId = uuid("branch_day_id").references(BranchDayTable.id)
-    val requestedPractitionerId = uuid("requested_practitioner_id").references(AppUserTable.id).nullable()
+    val id = javaUUID("id").autoGenerate()
+    val clientId = javaUUID("client_id").references(ClientTable.id)
+    val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
+    val requestedPractitionerId = javaUUID("requested_practitioner_id").references(AppUserTable.id).nullable()
     val sessionType =
         customEnumeration<SessionType>(
             name = "session_type",

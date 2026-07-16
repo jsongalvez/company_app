@@ -3,6 +3,7 @@ package com.companyb.companyapp.auth
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.between
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID

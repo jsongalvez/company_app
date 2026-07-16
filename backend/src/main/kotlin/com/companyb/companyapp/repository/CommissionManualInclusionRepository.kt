@@ -5,11 +5,12 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -142,7 +143,7 @@ object CommissionManualInclusionRepository {
             }.singleOrNull()
             ?.toCommissionManualInclusion()
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toCommissionManualInclusion(): CommissionManualInclusion =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toCommissionManualInclusion(): CommissionManualInclusion =
         CommissionManualInclusion(
             id = this[CommissionManualInclusionTable.id],
             productSaleId = this[CommissionManualInclusionTable.productSaleId],

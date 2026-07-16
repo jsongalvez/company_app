@@ -4,11 +4,14 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Notification
 import com.companyb.companyapp.repository.model.NotificationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.selectAll
-import org.jetbrains.exposed.sql.transactions.transaction
-import org.jetbrains.exposed.sql.update
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -42,7 +45,7 @@ object NotificationRepository {
             NotificationTable
                 .selectAll()
                 .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
-                .orderBy(NotificationTable.createdAt, org.jetbrains.exposed.sql.SortOrder.DESC)
+                .orderBy(NotificationTable.createdAt, SortOrder.DESC)
                 .map { it.toNotification() }
         }.also { logger.info { "[FIND-UNREAD] $it.size unread notifications for user $userId" } }
 
@@ -58,7 +61,7 @@ object NotificationRepository {
 
             NotificationTable.update({ NotificationTable.id eq notificationId }) {
                 it[isRead] = true
-                it[readAt] = org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
+                it[readAt] = CurrentTimestampWithTimeZone
             }
 
             NotificationTable
@@ -68,7 +71,7 @@ object NotificationRepository {
                 .toNotification()
         }.also { logger.info { "[MARK-READ] Notification ${notificationId.toString().maskUUID()} read=${it != null}" } }
 
-    private fun org.jetbrains.exposed.sql.ResultRow.toNotification(): Notification =
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toNotification(): Notification =
         Notification(
             id = this[NotificationTable.id],
             sessionId = this[NotificationTable.sessionId],

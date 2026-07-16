@@ -11,9 +11,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object UserBranchAssignmentService {

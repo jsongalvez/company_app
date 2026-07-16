@@ -1,15 +1,16 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.ColumnType
-import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+import org.jetbrains.exposed.v1.core.ColumnType
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
 
 object AuditLogTable : Table("audit_log") {
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val auditTableName = text("table_name")
-    val recordId = uuid("record_id")
+    val recordId = javaUUID("record_id")
     val action =
         customEnumeration<AuditAction>(
             name = "action",
@@ -22,13 +23,13 @@ object AuditLogTable : Table("audit_log") {
                 obj
             },
         )
-    val changedBy = uuid("changed_by").references(AppUserTable.id)
+    val changedBy = javaUUID("changed_by").references(AppUserTable.id)
     val changedAt = timestampWithTimeZone("changed_at").defaultExpression(CurrentTimestampWithTimeZone)
     val oldValue = registerColumn("old_value", JsonBColumnType()).nullable()
     val newValue = registerColumn("new_value", JsonBColumnType()).nullable()
     val isFlagged = bool("is_flagged").default(false)
     val reason = text("reason").nullable()
-    val acknowledgedBy = uuid("acknowledged_by").references(AppUserTable.id).nullable()
+    val acknowledgedBy = javaUUID("acknowledged_by").references(AppUserTable.id).nullable()
     val acknowledgedAt = timestampWithTimeZone("acknowledged_at").nullable()
 
     override val primaryKey = PrimaryKey(id)

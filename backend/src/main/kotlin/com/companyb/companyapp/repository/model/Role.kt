@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository.model
 
-import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID
 
 data class Role(
@@ -9,15 +10,15 @@ data class Role(
 )
 
 object RoleTable : Table("role") {
-    val id = uuid("id").autoGenerate()
+    val id = javaUUID("id").autoGenerate()
     val name = text("name")
 
     override val primaryKey = PrimaryKey(id)
 }
 
 object UserRoleTable : Table("user_role") {
-    val userId = uuid("user_id").references(AppUserTable.id)
-    val roleId = uuid("role_id").references(RoleTable.id)
+    val userId = javaUUID("user_id").references(AppUserTable.id)
+    val roleId = javaUUID("role_id").references(RoleTable.id)
 
     override val primaryKey = PrimaryKey(userId, roleId)
 }
