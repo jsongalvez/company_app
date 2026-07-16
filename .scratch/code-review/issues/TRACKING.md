@@ -63,6 +63,35 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 - **CR-002 / CR-016** both are "JVM clock" — CR-002 is chunk-1 only, CR-016 covers remaining chunks. If you did both, mark both.
 - **CR-004 / CR-017** both are "capability gates" — CR-004 is chunk-1 only, CR-017 covers remaining chunks.
 
+## GH Issues
+
+Unresolved tickets migrated to GitHub Issues (2026-07-17):
+
+| CR Ticket | GH Issue |
+|-----------|----------|
+| CR-013 | [#8](https://github.com/jsongalvez/company_app/issues/8) |
+| CR-015 | [#9](https://github.com/jsongalvez/company_app/issues/9) |
+| CR-019 | [#10](https://github.com/jsongalvez/company_app/issues/10) |
+| CR-021 | [#11](https://github.com/jsongalvez/company_app/issues/11) |
+| CR-024 | [#12](https://github.com/jsongalvez/company_app/issues/12) |
+| CR-026 | [#13](https://github.com/jsongalvez/company_app/issues/13) |
+| CR-027 | [#14](https://github.com/jsongalvez/company_app/issues/14) |
+| CR-028 | [#15](https://github.com/jsongalvez/company_app/issues/15) |
+| CR-029 | [#16](https://github.com/jsongalvez/company_app/issues/16) |
+| CR-031 | [#17](https://github.com/jsongalvez/company_app/issues/17) |
+| CR-033 | [#18](https://github.com/jsongalvez/company_app/issues/18) |
+| CR-034 | [#19](https://github.com/jsongalvez/company_app/issues/19) |
+| CR-035 | [#20](https://github.com/jsongalvez/company_app/issues/20) |
+| CR-038 | [#21](https://github.com/jsongalvez/company_app/issues/21) |
+| CR-039 | [#22](https://github.com/jsongalvez/company_app/issues/22) |
+| CR-040 | [#23](https://github.com/jsongalvez/company_app/issues/23) |
+| CR-041 | [#24](https://github.com/jsongalvez/company_app/issues/24) |
+| CR-042 | [#25](https://github.com/jsongalvez/company_app/issues/25) |
+| CR-043 | [#26](https://github.com/jsongalvez/company_app/issues/26) |
+| CR-046 | [#27](https://github.com/jsongalvez/company_app/issues/27) |
+| CR-047 | [#28](https://github.com/jsongalvez/company_app/issues/28) |
+| CR-049 | [#29](https://github.com/jsongalvez/company_app/issues/29) |
+
 ## To mark done
 
 Append `\n**Status:** ✅ done` to the bottom of the ticket file, then check `[x]` above.
