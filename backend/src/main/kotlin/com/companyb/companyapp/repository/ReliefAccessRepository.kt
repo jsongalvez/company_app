@@ -20,6 +20,18 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
+data class GrantWithCapabilityParams(
+    val requestId: UUID,
+    val grantedBy: UUID,
+    val userId: UUID,
+    val capabilityId: UUID,
+    val branchDayId: UUID,
+    val sourceId: UUID,
+    val validTo: OffsetDateTime?,
+    val priority: Short,
+    val requestedBy: UUID,
+)
+
 object ReliefAccessRepository {
     fun findById(id: UUID): ReliefAccess? =
         transaction {
@@ -46,24 +58,13 @@ object ReliefAccessRepository {
                 ?.toReliefAccess()
         }
 
-    @Suppress("LongParameterList")
-    fun grantWithCapability(
-        requestId: UUID,
-        grantedBy: UUID,
-        userId: UUID,
-        capabilityId: UUID,
-        branchDayId: UUID,
-        sourceId: UUID,
-        validTo: OffsetDateTime?,
-        priority: Short,
-        requestedBy: UUID,
-    ): ReliefAccess? =
+    fun grantWithCapability(params: GrantWithCapabilityParams): ReliefAccess? =
         transaction {
             GrantReliefAccessTable
                 .selectAll()
                 .where {
-                    (GrantReliefAccessTable.requestedBy eq requestedBy) and
-                        (GrantReliefAccessTable.branchDayId eq branchDayId)
+                    (GrantReliefAccessTable.requestedBy eq params.requestedBy) and
+                        (GrantReliefAccessTable.branchDayId eq params.branchDayId)
                 }.forUpdate(ForUpdateOption.ForUpdate)
                 .toList()
 
@@ -71,8 +72,8 @@ object ReliefAccessRepository {
                 GrantReliefAccessTable
                     .selectAll()
                     .where {
-                        (GrantReliefAccessTable.requestedBy eq requestedBy) and
-                            (GrantReliefAccessTable.branchDayId eq branchDayId) and
+                        (GrantReliefAccessTable.requestedBy eq params.requestedBy) and
+                            (GrantReliefAccessTable.branchDayId eq params.branchDayId) and
                             (GrantReliefAccessTable.requestStatus eq ReliefStatus.GRANTED)
                     }.singleOrNull()
                     ?.toReliefAccess()
@@ -82,41 +83,41 @@ object ReliefAccessRepository {
             }
 
             GrantReliefAccessTable
-                .update({ GrantReliefAccessTable.id eq requestId }) {
+                .update({ GrantReliefAccessTable.id eq params.requestId }) {
                     it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
-                    it[GrantReliefAccessTable.grantedBy] = grantedBy
+                    it[GrantReliefAccessTable.grantedBy] = params.grantedBy
                     it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
                 }
 
             UserCapabilityTable.insertIgnore {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capabilityId
+                it[UserCapabilityTable.userId] = params.userId
+                it[UserCapabilityTable.capabilityId] = params.capabilityId
                 it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
-                it[UserCapabilityTable.contextId] = branchDayId
+                it[UserCapabilityTable.contextId] = params.branchDayId
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
-                it[UserCapabilityTable.sourceId] = sourceId
+                it[UserCapabilityTable.sourceId] = params.sourceId
                 it[UserCapabilityTable.validFrom] = OffsetDateTime.now(ZoneOffset.UTC)
-                it[UserCapabilityTable.validTo] = validTo
-                it[UserCapabilityTable.priority] = priority
+                it[UserCapabilityTable.validTo] = params.validTo
+                it[UserCapabilityTable.priority] = params.priority
             }
 
             AuditLogRepository.record(
                 tableName = GrantReliefAccessTable.tableName,
-                recordId = requestId,
+                recordId = params.requestId,
                 action = AuditAction.UPDATE,
-                changedBy = grantedBy,
+                changedBy = params.grantedBy,
                 newValue =
                     AuditLogRepository.jsonFields(
-                        "requestId" to requestId.toString(),
-                        "branchDayId" to branchDayId.toString(),
-                        "grantedBy" to grantedBy.toString(),
-                        "requestedBy" to requestedBy.toString(),
+                        "requestId" to params.requestId.toString(),
+                        "branchDayId" to params.branchDayId.toString(),
+                        "grantedBy" to params.grantedBy.toString(),
+                        "requestedBy" to params.requestedBy.toString(),
                     ),
             )
 
             GrantReliefAccessTable
                 .selectAll()
-                .where { GrantReliefAccessTable.id eq requestId }
+                .where { GrantReliefAccessTable.id eq params.requestId }
                 .single()
                 .toReliefAccess()
         }

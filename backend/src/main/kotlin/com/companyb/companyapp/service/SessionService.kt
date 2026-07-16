@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.SessionBaseRateRepository
+import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
@@ -79,19 +80,21 @@ object SessionService {
         val result =
             try {
                 SessionRepository.create(
-                    id = id,
-                    clientId = clientId,
-                    branchDayId = branchDay.id,
-                    requestedPractitionerId = requestedPractitionerId,
-                    sessionType = sessionType,
-                    isWalkIn = isWalkIn,
-                    basePrice = basePrice,
-                    finalPrice = finalPrice,
-                    remarks = remarks,
-                    otherConcerns = otherConcerns,
-                    bookedAt = bookedAt,
-                    nextAppointmentDate = nextAppointmentDate,
-                    changedBy = callerId,
+                    SessionCreateParams(
+                        id = id,
+                        clientId = clientId,
+                        branchDayId = branchDay.id,
+                        requestedPractitionerId = requestedPractitionerId,
+                        sessionType = sessionType,
+                        isWalkIn = isWalkIn,
+                        basePrice = basePrice,
+                        finalPrice = finalPrice,
+                        remarks = remarks,
+                        otherConcerns = otherConcerns,
+                        bookedAt = bookedAt,
+                        nextAppointmentDate = nextAppointmentDate,
+                        changedBy = callerId,
+                    ),
                 )
             } catch (e: IllegalStateException) {
                 when (e.message) {

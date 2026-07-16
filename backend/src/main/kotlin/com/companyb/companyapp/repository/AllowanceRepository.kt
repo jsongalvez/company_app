@@ -21,7 +21,6 @@ data class AllowanceCreateResult(
 )
 
 object AllowanceRepository {
-    @Suppress("LongParameterList")
     fun create(
         id: UUID,
         branchDayId: UUID,

@@ -29,6 +29,22 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class SessionCreateParams(
+    val id: UUID,
+    val clientId: UUID,
+    val branchDayId: UUID,
+    val requestedPractitionerId: UUID?,
+    val sessionType: SessionType,
+    val isWalkIn: Boolean,
+    val basePrice: BigDecimal,
+    val finalPrice: BigDecimal,
+    val remarks: String?,
+    val otherConcerns: String?,
+    val bookedAt: OffsetDateTime?,
+    val nextAppointmentDate: LocalDate?,
+    val changedBy: UUID,
+)
+
 data class SessionCreateResult(
     val session: Session,
     val created: Boolean,
@@ -59,25 +75,10 @@ object SessionRepository {
                 ?.let { it[BranchTable.branchType] }
         }
 
-    @Suppress("LongParameterList")
-    fun create(
-        id: UUID,
-        clientId: UUID,
-        branchDayId: UUID,
-        requestedPractitionerId: UUID?,
-        sessionType: SessionType,
-        isWalkIn: Boolean,
-        basePrice: BigDecimal,
-        finalPrice: BigDecimal,
-        remarks: String?,
-        otherConcerns: String?,
-        bookedAt: OffsetDateTime?,
-        nextAppointmentDate: LocalDate?,
-        changedBy: UUID,
-    ): SessionCreateResult =
+    fun create(params: SessionCreateParams): SessionCreateResult =
         transaction {
-            acquireClientLock(clientId)
-            val hasActive = hasActivePendingSessionInTransaction(clientId)
+            acquireClientLock(params.clientId)
+            val hasActive = hasActivePendingSessionInTransaction(params.clientId)
             if (hasActive) {
                 error("client_already_has_pending_session")
             }
@@ -85,38 +86,43 @@ object SessionRepository {
             val insertedCount =
                 SessionTable
                     .insertIgnore {
-                        it[SessionTable.id] = id
-                        it[SessionTable.clientId] = clientId
-                        it[SessionTable.branchDayId] = branchDayId
-                        if (requestedPractitionerId != null) {
-                            it[SessionTable.requestedPractitionerId] = requestedPractitionerId
+                        it[SessionTable.id] = params.id
+                        it[SessionTable.clientId] = params.clientId
+                        it[SessionTable.branchDayId] = params.branchDayId
+                        if (params.requestedPractitionerId != null) {
+                            it[SessionTable.requestedPractitionerId] = params.requestedPractitionerId
                         }
-                        it[SessionTable.sessionType] = sessionType
-                        it[SessionTable.isWalkIn] = isWalkIn
-                        it[SessionTable.basePrice] = basePrice
-                        it[SessionTable.finalPrice] = finalPrice
-                        if (remarks != null) it[SessionTable.remarks] = remarks
-                        if (otherConcerns != null) it[SessionTable.otherConcerns] = otherConcerns
-                        if (bookedAt != null) it[SessionTable.bookedAt] = bookedAt
-                        if (nextAppointmentDate != null) it[SessionTable.nextAppointmentDate] = nextAppointmentDate
+                        it[SessionTable.sessionType] = params.sessionType
+                        it[SessionTable.isWalkIn] = params.isWalkIn
+                        it[SessionTable.basePrice] = params.basePrice
+                        it[SessionTable.finalPrice] = params.finalPrice
+                        if (params.remarks != null) it[SessionTable.remarks] = params.remarks
+                        if (params.otherConcerns != null) it[SessionTable.otherConcerns] = params.otherConcerns
+                        if (params.bookedAt != null) it[SessionTable.bookedAt] = params.bookedAt
+                        if (params.nextAppointmentDate !=
+                            null
+                        ) {
+                            it[SessionTable.nextAppointmentDate] = params.nextAppointmentDate
+                        }
                     }.insertedCount
             val created = insertedCount > 0
             val session =
-                findByIdInTransaction(id) ?: error("session row not found after idempotent insert for $id")
+                findByIdInTransaction(params.id)
+                    ?: error("session row not found after idempotent insert for ${params.id}")
 
             if (created) {
                 AuditLogRepository.record(
                     tableName = SessionTable.tableName,
                     recordId = session.id,
                     action = AuditAction.INSERT,
-                    changedBy = changedBy,
+                    changedBy = params.changedBy,
                     newValue =
                         AuditLogRepository.jsonFields(
                             "id" to session.id.toString(),
                             "clientId" to session.clientId.toString(),
                             "branchDayId" to session.branchDayId.toString(),
-                            "sessionType" to sessionType.name,
-                            "finalPrice" to finalPrice.toPlainString(),
+                            "sessionType" to params.sessionType.name,
+                            "finalPrice" to params.finalPrice.toPlainString(),
                         ),
                 )
             }

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.AttendanceRepository
+import com.companyb.companyapp.repository.ClockInParams
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.ConflictResponse
@@ -67,13 +68,15 @@ object AttendanceService {
 
         val (attendance, wasCreated) =
             AttendanceRepository.clockIn(
-                attendanceId = attendanceId,
-                branchDayId = branchDay.id,
-                userId = callerId,
-                markedBy = callerId,
-                branchDayAssignmentId = branchDayAssignmentId,
-                isRelief = isRelief,
-                branchId = branchId,
+                ClockInParams(
+                    attendanceId = attendanceId,
+                    branchDayId = branchDay.id,
+                    userId = callerId,
+                    markedBy = callerId,
+                    branchDayAssignmentId = branchDayAssignmentId,
+                    isRelief = isRelief,
+                    branchId = branchId,
+                ),
             )
 
         logger.info {

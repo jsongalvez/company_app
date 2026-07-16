@@ -20,6 +20,16 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
+data class ClockInParams(
+    val attendanceId: UUID,
+    val branchDayId: UUID,
+    val userId: UUID,
+    val markedBy: UUID,
+    val branchDayAssignmentId: UUID,
+    val isRelief: Boolean,
+    val branchId: UUID,
+)
+
 private val logger = KotlinLogging.logger {}
 
 object AttendanceRepository {
@@ -38,24 +48,15 @@ object AttendanceRepository {
                 .not()
         }
 
-    @Suppress("LongParameterList")
-    fun clockIn(
-        attendanceId: UUID,
-        branchDayId: UUID,
-        userId: UUID,
-        markedBy: UUID,
-        branchDayAssignmentId: UUID,
-        isRelief: Boolean,
-        branchId: UUID,
-    ): Pair<Attendance, Boolean> =
+    fun clockIn(params: ClockInParams): Pair<Attendance, Boolean> =
         transaction {
             val insertedCount =
                 AttendanceTable
                     .insertIgnore {
-                        it[AttendanceTable.id] = attendanceId
-                        it[AttendanceTable.branchDayId] = branchDayId
-                        it[AttendanceTable.userId] = userId
-                        it[AttendanceTable.markedBy] = markedBy
+                        it[AttendanceTable.id] = params.attendanceId
+                        it[AttendanceTable.branchDayId] = params.branchDayId
+                        it[AttendanceTable.userId] = params.userId
+                        it[AttendanceTable.markedBy] = params.markedBy
                         // defaultExpression suppressed by insertIgnore
                         it[AttendanceTable.clockIn] = OffsetDateTime.now(ZoneOffset.UTC)
                     }.insertedCount
@@ -63,35 +64,35 @@ object AttendanceRepository {
 
             if (isNew) {
                 BranchDayAssignmentTable.insertIgnore {
-                    it[BranchDayAssignmentTable.id] = branchDayAssignmentId
-                    it[BranchDayAssignmentTable.branchDayId] = branchDayId
-                    it[BranchDayAssignmentTable.userId] = userId
-                    it[BranchDayAssignmentTable.isRelief] = isRelief
+                    it[BranchDayAssignmentTable.id] = params.branchDayAssignmentId
+                    it[BranchDayAssignmentTable.branchDayId] = params.branchDayId
+                    it[BranchDayAssignmentTable.userId] = params.userId
+                    it[BranchDayAssignmentTable.isRelief] = params.isRelief
                 }
-                logger.info { "[CLOCK-IN] Inserted attendance $attendanceId (relief=$isRelief)" }
+                logger.info { "[CLOCK-IN] Inserted attendance ${params.attendanceId} (relief=${params.isRelief})" }
             } else {
-                logger.info { "[CLOCK-IN] Attendance $attendanceId already exists, returning existing" }
+                logger.info { "[CLOCK-IN] Attendance ${params.attendanceId} already exists, returning existing" }
             }
 
             val attendance =
                 AttendanceTable
                     .selectAll()
-                    .where { AttendanceTable.id eq attendanceId }
+                    .where { AttendanceTable.id eq params.attendanceId }
                     .single()
                     .toAttendance()
 
             if (isNew) {
                 AuditLogRepository.record(
                     tableName = AttendanceTable.tableName,
-                    recordId = attendanceId,
+                    recordId = params.attendanceId,
                     action = AuditAction.INSERT,
-                    changedBy = markedBy,
+                    changedBy = params.markedBy,
                     newValue =
                         AuditLogRepository.jsonFields(
-                            "attendanceId" to attendanceId.toString(),
-                            "branchDayId" to branchDayId.toString(),
-                            "branchId" to branchId.toString(),
-                            "isRelief" to isRelief.toString(),
+                            "attendanceId" to params.attendanceId.toString(),
+                            "branchDayId" to params.branchDayId.toString(),
+                            "branchId" to params.branchId.toString(),
+                            "isRelief" to params.isRelief.toString(),
                         ),
                 )
             }

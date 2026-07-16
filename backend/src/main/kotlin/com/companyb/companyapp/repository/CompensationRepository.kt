@@ -16,45 +16,47 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class CompensationCreateParams(
+    val id: UUID,
+    val workBranchDayId: UUID,
+    val payingBranchDayId: UUID,
+    val userId: UUID,
+    val amount: BigDecimal,
+    val assignedBy: UUID,
+    val note: String?,
+)
+
 data class CompensationCreateResult(
     val compensation: Compensation,
     val created: Boolean,
 )
 
 object CompensationRepository {
-    @Suppress("LongParameterList")
-    fun create(
-        id: UUID,
-        workBranchDayId: UUID,
-        payingBranchDayId: UUID,
-        userId: UUID,
-        amount: BigDecimal,
-        assignedBy: UUID,
-        note: String?,
-    ): CompensationCreateResult =
+    fun create(params: CompensationCreateParams): CompensationCreateResult =
         transaction {
-            val existing = findByIdInTransaction(id)
+            val existing = findByIdInTransaction(params.id)
             if (existing != null) {
                 return@transaction CompensationCreateResult(existing, created = false)
             }
 
             CompensationTable.insert {
-                it[CompensationTable.id] = id
-                it[CompensationTable.workBranchDayId] = workBranchDayId
-                it[CompensationTable.payingBranchDayId] = payingBranchDayId
-                it[CompensationTable.userId] = userId
-                it[CompensationTable.amount] = amount
-                it[CompensationTable.assignedBy] = assignedBy
-                if (note != null) it[CompensationTable.note] = note
+                it[CompensationTable.id] = params.id
+                it[CompensationTable.workBranchDayId] = params.workBranchDayId
+                it[CompensationTable.payingBranchDayId] = params.payingBranchDayId
+                it[CompensationTable.userId] = params.userId
+                it[CompensationTable.amount] = params.amount
+                it[CompensationTable.assignedBy] = params.assignedBy
+                if (params.note != null) it[CompensationTable.note] = params.note
             }
 
-            val created = findByIdInTransaction(id) ?: error("compensation not found after insert for $id")
+            val created =
+                findByIdInTransaction(params.id) ?: error("compensation not found after insert for ${params.id}")
 
             AuditLogRepository.record(
                 tableName = CompensationTable.tableName,
                 recordId = created.id,
                 action = AuditAction.INSERT,
-                changedBy = assignedBy,
+                changedBy = params.assignedBy,
                 newValue =
                     AuditLogRepository.jsonFields(
                         "id" to created.id.toString(),
@@ -72,7 +74,6 @@ object CompensationRepository {
             }
         }
 
-    @Suppress("LongParameterList")
     fun update(
         compensationId: UUID,
         amount: BigDecimal,

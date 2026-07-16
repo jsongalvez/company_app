@@ -23,6 +23,28 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class RestockParams(
+    val movementId: UUID,
+    val branchId: UUID,
+    val productId: UUID,
+    val quantity: Int,
+    val branchDayId: UUID,
+    val expectedVersion: Int,
+    val movedBy: UUID,
+)
+
+data class RecordMovementParams(
+    val movementId: UUID,
+    val branchId: UUID,
+    val productId: UUID,
+    val reason: InventoryMovementReason,
+    val quantityChange: Int,
+    val notes: String?,
+    val branchDayId: UUID,
+    val expectedVersion: Int,
+    val movedBy: UUID,
+)
+
 data class RestockResult(
     val movement: InventoryMovement,
     val updatedStock: Int,
@@ -54,27 +76,18 @@ object BranchInventoryRepository {
             }
         }
 
-    @Suppress("LongParameterList")
-    fun restock(
-        movementId: UUID,
-        branchId: UUID,
-        productId: UUID,
-        quantity: Int,
-        branchDayId: UUID,
-        expectedVersion: Int,
-        movedBy: UUID,
-    ): RestockResult =
+    fun restock(params: RestockParams): RestockResult =
         transaction {
-            val card = requireCardForUpdate(branchId, productId, expectedVersion)
+            val card = requireCardForUpdate(params.branchId, params.productId, params.expectedVersion)
 
             val updatedCount =
                 BranchInventoryTable.update({
-                    (BranchInventoryTable.branchId eq branchId) and
-                        (BranchInventoryTable.productId eq productId) and
-                        (BranchInventoryTable.version eq expectedVersion)
+                    (BranchInventoryTable.branchId eq params.branchId) and
+                        (BranchInventoryTable.productId eq params.productId) and
+                        (BranchInventoryTable.version eq params.expectedVersion)
                 }) {
-                    it[BranchInventoryTable.currentStock] = card.currentStock + quantity
-                    it[BranchInventoryTable.version] = expectedVersion + 1
+                    it[BranchInventoryTable.currentStock] = card.currentStock + params.quantity
+                    it[BranchInventoryTable.version] = params.expectedVersion + 1
                 }
 
             if (updatedCount == 0) {
@@ -84,13 +97,13 @@ object BranchInventoryRepository {
             val insertedCount =
                 InventoryMovementTable
                     .insertIgnore {
-                        it[InventoryMovementTable.id] = movementId
-                        it[InventoryMovementTable.productId] = productId
-                        it[InventoryMovementTable.branchId] = branchId
-                        it[InventoryMovementTable.branchDayId] = branchDayId
+                        it[InventoryMovementTable.id] = params.movementId
+                        it[InventoryMovementTable.productId] = params.productId
+                        it[InventoryMovementTable.branchId] = params.branchId
+                        it[InventoryMovementTable.branchDayId] = params.branchDayId
                         it[InventoryMovementTable.reason] = InventoryMovementReason.RESTOCK
-                        it[InventoryMovementTable.quantityChange] = quantity
-                        it[InventoryMovementTable.movedBy] = movedBy
+                        it[InventoryMovementTable.quantityChange] = params.quantity
+                        it[InventoryMovementTable.movedBy] = params.movedBy
                         it[InventoryMovementTable.movedAt] =
                             CurrentTimestampWithTimeZone
                     }.insertedCount
@@ -98,23 +111,23 @@ object BranchInventoryRepository {
             val movementRow =
                 InventoryMovementTable
                     .selectAll()
-                    .where { InventoryMovementTable.id eq movementId }
+                    .where { InventoryMovementTable.id eq params.movementId }
                     .single()
                     .toInventoryMovement()
 
             val newCard =
-                findCardInTransaction(branchId, productId)
+                findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found after restock")
 
             writeRestockAuditLogs(
                 insertedCount,
                 card,
                 newCard,
-                movedBy,
-                productId,
-                branchId,
-                branchDayId,
-                quantity,
+                params.movedBy,
+                params.productId,
+                params.branchId,
+                params.branchDayId,
+                params.quantity,
                 movementRow,
             )
 
@@ -124,7 +137,8 @@ object BranchInventoryRepository {
             )
         }.also {
             logger.info {
-                "[RESTOCK] Restocked product=$productId branch=$branchId qty=$quantity stock=${it.updatedStock}"
+                "[RESTOCK] Restocked product=${params.productId} " +
+                    "branch=${params.branchId} qty=${params.quantity} stock=${it.updatedStock}"
             }
         }
 
@@ -175,29 +189,18 @@ object BranchInventoryRepository {
         }
     }
 
-    @Suppress("LongParameterList")
-    fun recordMovement(
-        movementId: UUID,
-        branchId: UUID,
-        productId: UUID,
-        reason: InventoryMovementReason,
-        quantityChange: Int,
-        notes: String?,
-        branchDayId: UUID,
-        expectedVersion: Int,
-        movedBy: UUID,
-    ): InventoryMovement =
+    fun recordMovement(params: RecordMovementParams): InventoryMovement =
         transaction {
-            val card = requireCardForUpdate(branchId, productId, expectedVersion)
+            val card = requireCardForUpdate(params.branchId, params.productId, params.expectedVersion)
 
             val updatedCount =
                 BranchInventoryTable.update({
-                    (BranchInventoryTable.branchId eq branchId) and
-                        (BranchInventoryTable.productId eq productId) and
-                        (BranchInventoryTable.version eq expectedVersion)
+                    (BranchInventoryTable.branchId eq params.branchId) and
+                        (BranchInventoryTable.productId eq params.productId) and
+                        (BranchInventoryTable.version eq params.expectedVersion)
                 }) {
-                    it[BranchInventoryTable.currentStock] = card.currentStock + quantityChange
-                    it[BranchInventoryTable.version] = expectedVersion + 1
+                    it[BranchInventoryTable.currentStock] = card.currentStock + params.quantityChange
+                    it[BranchInventoryTable.version] = params.expectedVersion + 1
                 }
 
             if (updatedCount == 0) {
@@ -205,47 +208,48 @@ object BranchInventoryRepository {
             }
 
             InventoryMovementTable.insertIgnore {
-                it[InventoryMovementTable.id] = movementId
-                it[InventoryMovementTable.productId] = productId
-                it[InventoryMovementTable.branchId] = branchId
-                it[InventoryMovementTable.branchDayId] = branchDayId
-                it[InventoryMovementTable.reason] = reason
-                it[InventoryMovementTable.quantityChange] = quantityChange
-                it[InventoryMovementTable.movedBy] = movedBy
+                it[InventoryMovementTable.id] = params.movementId
+                it[InventoryMovementTable.productId] = params.productId
+                it[InventoryMovementTable.branchId] = params.branchId
+                it[InventoryMovementTable.branchDayId] = params.branchDayId
+                it[InventoryMovementTable.reason] = params.reason
+                it[InventoryMovementTable.quantityChange] = params.quantityChange
+                it[InventoryMovementTable.movedBy] = params.movedBy
                 it[InventoryMovementTable.movedAt] =
                     CurrentTimestampWithTimeZone
-                if (notes != null) {
-                    it[InventoryMovementTable.notes] = notes
+                if (params.notes != null) {
+                    it[InventoryMovementTable.notes] = params.notes
                 }
             }
 
             val movementRow =
                 InventoryMovementTable
                     .selectAll()
-                    .where { InventoryMovementTable.id eq movementId }
+                    .where { InventoryMovementTable.id eq params.movementId }
                     .single()
                     .toInventoryMovement()
 
             val newCard =
-                findCardInTransaction(branchId, productId)
+                findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found after movement")
 
             writeMovementAuditLogs(
                 card,
                 newCard,
-                movedBy,
-                productId,
-                branchId,
-                branchDayId,
-                reason,
-                quantityChange,
-                notes,
+                params.movedBy,
+                params.productId,
+                params.branchId,
+                params.branchDayId,
+                params.reason,
+                params.quantityChange,
+                params.notes,
                 movementRow,
             )
             movementRow
         }.also {
             logger.info {
-                "[RECORD-MOVEMENT] reason=$reason product=$productId branch=$branchId qty=$quantityChange"
+                "[RECORD-MOVEMENT] reason=${params.reason} product=${params.productId} " +
+                    "branch=${params.branchId} qty=${params.quantityChange}"
             }
         }
 

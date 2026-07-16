@@ -33,6 +33,17 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class CreateDraftParams(
+    val id: UUID,
+    val type: RemittanceType,
+    val branchId: UUID,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
+    val submittedDate: LocalDate,
+    val submittedBy: UUID,
+)
+
 data class RemittanceCreateResult(
     val remittance: Remittance,
     val created: Boolean,
@@ -49,41 +60,32 @@ object RemittanceRepository {
                 ?.toRemittance()
         }
 
-    @Suppress("LongParameterList")
-    fun createDraft(
-        id: UUID,
-        type: RemittanceType,
-        branchId: UUID,
-        method: RemittanceMethod,
-        dateRangeStart: LocalDate,
-        dateRangeEnd: LocalDate,
-        submittedDate: LocalDate,
-        submittedBy: UUID,
-    ): RemittanceCreateResult =
+    fun createDraft(params: CreateDraftParams): RemittanceCreateResult =
         transaction {
-            val existing = findByIdInTransaction(id)
+            val existing = findByIdInTransaction(params.id)
             if (existing != null) {
                 return@transaction RemittanceCreateResult(existing, created = false)
             }
 
             RemittanceTable.insertIgnore {
-                it[RemittanceTable.id] = id
-                it[RemittanceTable.type] = type
-                it[RemittanceTable.branchId] = branchId
-                it[RemittanceTable.method] = method
-                it[RemittanceTable.dateRangeStart] = dateRangeStart
-                it[RemittanceTable.dateRangeEnd] = dateRangeEnd
-                it[RemittanceTable.submittedDate] = submittedDate
-                it[RemittanceTable.submittedBy] = submittedBy
+                it[RemittanceTable.id] = params.id
+                it[RemittanceTable.type] = params.type
+                it[RemittanceTable.branchId] = params.branchId
+                it[RemittanceTable.method] = params.method
+                it[RemittanceTable.dateRangeStart] = params.dateRangeStart
+                it[RemittanceTable.dateRangeEnd] = params.dateRangeEnd
+                it[RemittanceTable.submittedDate] = params.submittedDate
+                it[RemittanceTable.submittedBy] = params.submittedBy
             }
 
-            val created = findByIdInTransaction(id) ?: error("remittance not found after insert for $id")
+            val created =
+                findByIdInTransaction(params.id) ?: error("remittance not found after insert for ${params.id}")
 
             AuditLogRepository.record(
                 tableName = RemittanceTable.tableName,
                 recordId = created.id,
                 action = AuditAction.INSERT,
-                changedBy = submittedBy,
+                changedBy = params.submittedBy,
                 newValue =
                     AuditLogRepository.jsonFields(
                         "id" to created.id.toString(),

@@ -20,7 +20,6 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object UserBranchAssignmentRepository {
-    @Suppress("LongParameterList")
     fun create(
         id: UUID,
         userId: UUID,
@@ -178,7 +177,6 @@ object UserBranchAssignmentRepository {
         }
     }
 
-    @Suppress("LongParameterList")
     fun swapSlots(
         callerId: UUID,
         branchId: UUID,

@@ -36,7 +36,6 @@ object SessionVoidRepository {
                 ?.toSessionVoid()
         }
 
-    @Suppress("LongParameterList")
     fun void(
         id: UUID,
         sessionId: UUID,

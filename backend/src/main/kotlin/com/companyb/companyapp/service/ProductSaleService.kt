@@ -4,6 +4,7 @@ import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.ProductSale
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -56,17 +57,19 @@ object ProductSaleService {
         val result =
             try {
                 ProductSaleRepository.sell(
-                    id = id,
-                    branchDayId = branchDayId,
-                    sessionId = sessionId,
-                    clientId = clientId,
-                    isWalkIn = isWalkIn,
-                    productId = productId,
-                    branchId = branchDay.branchId,
-                    quantity = quantity,
-                    expectedVersion = expectedVersion,
-                    handledBy = callerId,
-                    product = product,
+                    SellProductParams(
+                        id = id,
+                        branchDayId = branchDayId,
+                        sessionId = sessionId,
+                        clientId = clientId,
+                        isWalkIn = isWalkIn,
+                        productId = productId,
+                        branchId = branchDay.branchId,
+                        quantity = quantity,
+                        expectedVersion = expectedVersion,
+                        handledBy = callerId,
+                        product = product,
+                    ),
                 )
             } catch (e: IllegalStateException) {
                 when (e.message) {

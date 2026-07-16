@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
+import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.ReliefAccess
@@ -45,15 +46,17 @@ object ReliefAccessService {
 
         val result =
             ReliefAccessRepository.grantWithCapability(
-                requestId = requestId,
-                grantedBy = callerId,
-                userId = request.requestedBy,
-                capabilityId = capabilityId,
-                branchDayId = request.branchDayId,
-                sourceId = requestId,
-                validTo = validTo,
-                priority = GrantPriorities.RELIEF_ACCESS,
-                requestedBy = request.requestedBy,
+                GrantWithCapabilityParams(
+                    requestId = requestId,
+                    grantedBy = callerId,
+                    userId = request.requestedBy,
+                    capabilityId = capabilityId,
+                    branchDayId = request.branchDayId,
+                    sourceId = requestId,
+                    validTo = validTo,
+                    priority = GrantPriorities.RELIEF_ACCESS,
+                    requestedBy = request.requestedBy,
+                ),
             ) ?: throw InternalServerErrorResponse("Grant failed: relief access request not found in transaction")
 
         if (result.id == requestId) {

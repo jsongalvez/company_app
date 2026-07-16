@@ -3,6 +3,8 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
+import com.companyb.companyapp.repository.RecordMovementParams
+import com.companyb.companyapp.repository.RestockParams
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.InventoryMovementReason
@@ -61,13 +63,15 @@ object BranchInventoryService {
         val result =
             try {
                 BranchInventoryRepository.restock(
-                    movementId = movementId,
-                    branchId = branchId,
-                    productId = productId,
-                    quantity = quantity,
-                    branchDayId = branchDayId,
-                    expectedVersion = expectedVersion,
-                    movedBy = callerId,
+                    RestockParams(
+                        movementId = movementId,
+                        branchId = branchId,
+                        productId = productId,
+                        quantity = quantity,
+                        branchDayId = branchDayId,
+                        expectedVersion = expectedVersion,
+                        movedBy = callerId,
+                    ),
                 )
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
@@ -128,15 +132,17 @@ object BranchInventoryService {
 
         return try {
             BranchInventoryRepository.recordMovement(
-                movementId = movementId,
-                branchId = branchId,
-                productId = productId,
-                reason = reason,
-                quantityChange = quantityChange,
-                notes = notes,
-                branchDayId = branchDayId,
-                expectedVersion = expectedVersion,
-                movedBy = callerId,
+                RecordMovementParams(
+                    movementId = movementId,
+                    branchId = branchId,
+                    productId = productId,
+                    reason = reason,
+                    quantityChange = quantityChange,
+                    notes = notes,
+                    branchDayId = branchDayId,
+                    expectedVersion = expectedVersion,
+                    movedBy = callerId,
+                ),
             )
         } catch (e: IllegalStateException) {
             if (e.message == "version_mismatch") {

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.BranchDayRepository
+import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.model.Compensation
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -41,13 +42,15 @@ object CompensationService {
 
         val result =
             CompensationRepository.create(
-                id,
-                workBranchDayId,
-                payingBranchDayId,
-                userId,
-                amount,
-                callerId,
-                note,
+                CompensationCreateParams(
+                    id = id,
+                    workBranchDayId = workBranchDayId,
+                    payingBranchDayId = payingBranchDayId,
+                    userId = userId,
+                    amount = amount,
+                    assignedBy = callerId,
+                    note = note,
+                ),
             )
         logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
         return result.compensation

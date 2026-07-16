@@ -25,85 +25,94 @@ import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
 
+data class SellProductParams(
+    val id: UUID,
+    val branchDayId: UUID,
+    val sessionId: UUID?,
+    val clientId: UUID?,
+    val isWalkIn: Boolean,
+    val productId: UUID,
+    val branchId: UUID,
+    val quantity: Int,
+    val expectedVersion: Int,
+    val handledBy: UUID,
+    val product: Product,
+)
+
 private val logger = KotlinLogging.logger {}
 
 object ProductSaleRepository {
-    @Suppress("LongParameterList")
-    fun sell(
-        id: UUID,
-        branchDayId: UUID,
-        sessionId: UUID?,
-        clientId: UUID?,
-        isWalkIn: Boolean,
-        productId: UUID,
-        branchId: UUID,
-        quantity: Int,
-        expectedVersion: Int,
-        handledBy: UUID,
-        product: Product,
-    ): ProductSale =
+    @Suppress("LongMethod")
+    fun sell(params: SellProductParams): ProductSale =
         transaction {
-            val existing = findByIdInTransaction(id)
+            val existing = findByIdInTransaction(params.id)
             if (existing != null) {
-                logger.info { "[PRODUCT-SALE] Sale $id already exists, returning existing (idempotent)" }
+                logger.info { "[PRODUCT-SALE] Sale ${params.id} already exists, returning existing (idempotent)" }
                 return@transaction existing
             }
 
-            acquireInventoryLock(branchId, productId)
+            acquireInventoryLock(params.branchId, params.productId)
 
             val card =
                 BranchInventoryTable
                     .selectAll()
                     .where {
-                        (BranchInventoryTable.branchId eq branchId) and
-                            (BranchInventoryTable.productId eq productId)
+                        (BranchInventoryTable.branchId eq params.branchId) and
+                            (BranchInventoryTable.productId eq params.productId)
                     }.singleOrNull()
-                    ?: error("inventory card not found for branch=$branchId product=$productId")
+                    ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
 
             val (oldStock, oldVersion, newStock) =
                 decrementInventoryStock(
                     card,
-                    branchId,
-                    productId,
-                    quantity,
-                    expectedVersion,
+                    params.branchId,
+                    params.productId,
+                    params.quantity,
+                    params.expectedVersion,
                 )
 
-            val totalAmount = product.unitPrice * BigDecimal.valueOf(quantity.toLong())
+            val totalAmount = params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong())
 
             insertProductSaleRow(
-                id,
-                branchDayId,
-                sessionId,
-                clientId,
-                isWalkIn,
-                productId,
-                product,
-                handledBy,
-                quantity,
+                params.id,
+                params.branchDayId,
+                params.sessionId,
+                params.clientId,
+                params.isWalkIn,
+                params.productId,
+                params.product,
+                params.handledBy,
+                params.quantity,
                 totalAmount,
             )
 
-            insertSaleInventoryMovement(id, productId, branchId, branchDayId, quantity, handledBy)
+            insertSaleInventoryMovement(
+                params.id,
+                params.productId,
+                params.branchId,
+                params.branchDayId,
+                params.quantity,
+                params.handledBy,
+            )
 
             val sale =
-                findByIdInTransaction(id)
-                    ?: error("product sale not found after insert for $id")
+                findByIdInTransaction(params.id)
+                    ?: error("product sale not found after insert for ${params.id}")
 
             writeSaleAuditLogs(
                 sale = sale,
-                handledBy = handledBy,
+                handledBy = params.handledBy,
                 inventoryCardId = card[BranchInventoryTable.id],
                 oldStock = oldStock,
                 oldVersion = oldVersion,
                 newStock = newStock,
-                newVersion = expectedVersion + 1,
+                newVersion = params.expectedVersion + 1,
             )
             sale
         }.also {
             logger.info {
-                "[PRODUCT-SALE] Sale $id created " +
-                    "product=$productId branch=$branchId qty=$quantity " +
+                "[PRODUCT-SALE] Sale ${params.id} created " +
+                    "product=${params.productId} branch=${params.branchId} qty=${params.quantity} " +
                     "total=${it.totalAmountAtTime}"
             }
         }

@@ -1,7 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
+import com.companyb.companyapp.repository.ClientUpdateParams
 import com.companyb.companyapp.repository.model.Client
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -48,19 +50,21 @@ object ClientService {
         }
 
         return ClientRepository.create(
-            id = id,
-            firstName = cleanFirst,
-            lastName = cleanLast,
-            middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
-            suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
-            phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
-            address = address?.trim()?.takeIf { it.isNotEmpty() } ?: "N/A",
-            gender = gender,
-            age = age,
-            systolicBp = systolicBp,
-            diastolicBp = diastolicBp,
-            medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
-            changedBy = callerId,
+            ClientCreateParams(
+                id = id,
+                firstName = cleanFirst,
+                lastName = cleanLast,
+                middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
+                suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
+                phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
+                address = address?.trim()?.takeIf { it.isNotEmpty() } ?: "N/A",
+                gender = gender,
+                age = age,
+                systolicBp = systolicBp,
+                diastolicBp = diastolicBp,
+                medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
+                changedBy = callerId,
+            ),
         )
     }
 
@@ -110,19 +114,21 @@ object ClientService {
 
         val updated =
             ClientRepository.update(
-                clientId = clientId,
-                firstName = firstName?.trim()?.takeIf { it.isNotEmpty() },
-                lastName = lastName?.trim()?.takeIf { it.isNotEmpty() },
-                middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
-                suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
-                phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
-                address = address?.trim()?.takeIf { it.isNotEmpty() },
-                gender = gender,
-                age = age,
-                systolicBp = systolicBp,
-                diastolicBp = diastolicBp,
-                medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
-                changedBy = callerId,
+                ClientUpdateParams(
+                    clientId = clientId,
+                    firstName = firstName?.trim()?.takeIf { it.isNotEmpty() },
+                    lastName = lastName?.trim()?.takeIf { it.isNotEmpty() },
+                    middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
+                    suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
+                    phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
+                    address = address?.trim()?.takeIf { it.isNotEmpty() },
+                    gender = gender,
+                    age = age,
+                    systolicBp = systolicBp,
+                    diastolicBp = diastolicBp,
+                    medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
+                    changedBy = callerId,
+                ),
             )
         return updated ?: throw NotFoundResponse("Client not found")
     }

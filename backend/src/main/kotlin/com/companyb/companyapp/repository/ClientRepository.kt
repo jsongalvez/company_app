@@ -32,6 +32,38 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class ClientCreateParams(
+    val id: UUID,
+    val firstName: String,
+    val lastName: String,
+    val middleName: String?,
+    val suffix: String?,
+    val phoneNumber: String?,
+    val address: String,
+    val gender: String,
+    val age: Int,
+    val systolicBp: Short?,
+    val diastolicBp: Short?,
+    val medicalConditions: String?,
+    val changedBy: UUID,
+)
+
+data class ClientUpdateParams(
+    val clientId: UUID,
+    val firstName: String?,
+    val lastName: String?,
+    val middleName: String?,
+    val suffix: String?,
+    val phoneNumber: String?,
+    val address: String?,
+    val gender: String?,
+    val age: Int?,
+    val systolicBp: Short?,
+    val diastolicBp: Short?,
+    val medicalConditions: String?,
+    val changedBy: UUID,
+)
+
 data class ClientCreateResult(
     val client: Client,
     val created: Boolean,
@@ -43,49 +75,39 @@ object ClientRepository {
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
-    @Suppress("LongParameterList")
-    fun create(
-        id: UUID,
-        firstName: String,
-        lastName: String,
-        middleName: String?,
-        suffix: String?,
-        phoneNumber: String?,
-        address: String,
-        gender: String,
-        age: Int,
-        systolicBp: Short?,
-        diastolicBp: Short?,
-        medicalConditions: String?,
-        changedBy: UUID,
-    ): ClientCreateResult =
+    fun create(params: ClientCreateParams): ClientCreateResult =
         transaction {
             val insertedCount =
                 ClientTable
                     .insertIgnore {
-                        it[ClientTable.id] = id
-                        it[ClientTable.firstName] = firstName
-                        it[ClientTable.lastName] = lastName
-                        if (middleName != null) it[ClientTable.middleName] = middleName
-                        if (suffix != null) it[ClientTable.suffix] = suffix
-                        if (phoneNumber != null) it[ClientTable.phoneNumber] = phoneNumber
-                        it[ClientTable.address] = address
-                        it[ClientTable.gender] = gender
-                        it[ClientTable.age] = age
-                        if (systolicBp != null) it[ClientTable.systolicBp] = systolicBp
-                        if (diastolicBp != null) it[ClientTable.diastolicBp] = diastolicBp
-                        if (medicalConditions != null) it[ClientTable.medicalConditions] = medicalConditions
+                        it[ClientTable.id] = params.id
+                        it[ClientTable.firstName] = params.firstName
+                        it[ClientTable.lastName] = params.lastName
+                        if (params.middleName != null) it[ClientTable.middleName] = params.middleName
+                        if (params.suffix != null) it[ClientTable.suffix] = params.suffix
+                        if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
+                        it[ClientTable.address] = params.address
+                        it[ClientTable.gender] = params.gender
+                        it[ClientTable.age] = params.age
+                        if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
+                        if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
+                        if (params.medicalConditions !=
+                            null
+                        ) {
+                            it[ClientTable.medicalConditions] = params.medicalConditions
+                        }
                     }.insertedCount
             val created = insertedCount > 0
             val client =
-                findByIdInTransaction(id) ?: error("client row not found after idempotent insert for $id")
+                findByIdInTransaction(params.id)
+                    ?: error("client row not found after idempotent insert for ${params.id}")
 
             if (created) {
                 AuditLogRepository.record(
                     tableName = ClientTable.tableName,
                     recordId = client.id,
                     action = AuditAction.INSERT,
-                    changedBy = changedBy,
+                    changedBy = params.changedBy,
                     newValue =
                         AuditLogRepository.jsonFields(
                             "id" to client.id.toString(),
@@ -106,47 +128,33 @@ object ClientRepository {
             findByIdInTransaction(id)
         }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
 
-    @Suppress("LongParameterList", "CyclomaticComplexMethod")
-    fun update(
-        clientId: UUID,
-        firstName: String?,
-        lastName: String?,
-        middleName: String?,
-        suffix: String?,
-        phoneNumber: String?,
-        address: String?,
-        gender: String?,
-        age: Int?,
-        systolicBp: Short?,
-        diastolicBp: Short?,
-        medicalConditions: String?,
-        changedBy: UUID,
-    ): Client? =
+    @Suppress("CyclomaticComplexMethod")
+    fun update(params: ClientUpdateParams): Client? =
         transaction {
-            val old = findByIdInTransaction(clientId) ?: return@transaction null
+            val old = findByIdInTransaction(params.clientId) ?: return@transaction null
 
             val updatedCount =
-                ClientTable.update({ ClientTable.id eq clientId }) {
-                    if (firstName != null) it[ClientTable.firstName] = firstName
-                    if (lastName != null) it[ClientTable.lastName] = lastName
-                    if (middleName != null) it[ClientTable.middleName] = middleName
-                    if (suffix != null) it[ClientTable.suffix] = suffix
-                    if (phoneNumber != null) it[ClientTable.phoneNumber] = phoneNumber
-                    if (address != null) it[ClientTable.address] = address
-                    if (gender != null) it[ClientTable.gender] = gender
-                    if (age != null) it[ClientTable.age] = age
-                    if (systolicBp != null) it[ClientTable.systolicBp] = systolicBp
-                    if (diastolicBp != null) it[ClientTable.diastolicBp] = diastolicBp
-                    if (medicalConditions != null) it[ClientTable.medicalConditions] = medicalConditions
+                ClientTable.update({ ClientTable.id eq params.clientId }) {
+                    if (params.firstName != null) it[ClientTable.firstName] = params.firstName
+                    if (params.lastName != null) it[ClientTable.lastName] = params.lastName
+                    if (params.middleName != null) it[ClientTable.middleName] = params.middleName
+                    if (params.suffix != null) it[ClientTable.suffix] = params.suffix
+                    if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
+                    if (params.address != null) it[ClientTable.address] = params.address
+                    if (params.gender != null) it[ClientTable.gender] = params.gender
+                    if (params.age != null) it[ClientTable.age] = params.age
+                    if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
+                    if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
+                    if (params.medicalConditions != null) it[ClientTable.medicalConditions] = params.medicalConditions
                 }
-            val updated = findByIdInTransaction(clientId) ?: return@transaction null
+            val updated = findByIdInTransaction(params.clientId) ?: return@transaction null
 
             if (updatedCount > 0) {
                 AuditLogRepository.record(
                     tableName = ClientTable.tableName,
-                    recordId = clientId,
+                    recordId = params.clientId,
                     action = AuditAction.UPDATE,
-                    changedBy = changedBy,
+                    changedBy = params.changedBy,
                     oldValue =
                         AuditLogRepository.jsonFields(
                             "firstName" to old.firstName,

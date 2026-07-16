@@ -1,7 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.repository.AddLineParams
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
+import com.companyb.companyapp.repository.CreateDraftParams
 import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
 import com.companyb.companyapp.repository.RemittanceLineRepository
 import com.companyb.companyapp.repository.RemittanceRepository
@@ -86,14 +88,16 @@ object RemittanceService {
         val today = LocalDate.now(BranchDayService.manilaZone)
         val result =
             RemittanceRepository.createDraft(
-                id = id,
-                type = type,
-                branchId = branchId,
-                method = method,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
-                submittedDate = today,
-                submittedBy = callerId,
+                CreateDraftParams(
+                    id = id,
+                    type = type,
+                    branchId = branchId,
+                    method = method,
+                    dateRangeStart = dateRangeStart,
+                    dateRangeEnd = dateRangeEnd,
+                    submittedDate = today,
+                    submittedBy = callerId,
+                ),
             )
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
         return result.remittance
@@ -136,14 +140,16 @@ object RemittanceService {
         val line =
             try {
                 RemittanceLineRepository.addLine(
-                    id = id,
-                    remittanceId = remittanceId,
-                    type = type,
-                    sessionId = sessionId,
-                    productSaleId = productSaleId,
-                    amount = amount,
-                    createdBy = callerId,
-                    expectedVersion = remittance.version,
+                    AddLineParams(
+                        id = id,
+                        remittanceId = remittanceId,
+                        type = type,
+                        sessionId = sessionId,
+                        productSaleId = productSaleId,
+                        amount = amount,
+                        createdBy = callerId,
+                        expectedVersion = remittance.version,
+                    ),
                 )
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {

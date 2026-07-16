@@ -18,45 +18,46 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.util.UUID
 
+data class AddLineParams(
+    val id: UUID,
+    val remittanceId: UUID,
+    val type: RemittanceLineType,
+    val sessionId: UUID?,
+    val productSaleId: UUID?,
+    val amount: BigDecimal,
+    val createdBy: UUID,
+    val expectedVersion: Int,
+)
+
 private val logger = KotlinLogging.logger {}
 
 object RemittanceLineRepository {
-    @Suppress("LongParameterList")
-    fun addLine(
-        id: UUID,
-        remittanceId: UUID,
-        type: RemittanceLineType,
-        sessionId: UUID?,
-        productSaleId: UUID?,
-        amount: BigDecimal,
-        createdBy: UUID,
-        expectedVersion: Int,
-    ): RemittanceLine =
+    fun addLine(params: AddLineParams): RemittanceLine =
         transaction {
             val existing =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq id }
+                    .where { RemittanceLineTable.id eq params.id }
                     .singleOrNull()
             if (existing != null) {
                 return@transaction existing.toRemittanceLine()
             }
 
             RemittanceLineTable.insertIgnore {
-                it[RemittanceLineTable.id] = id
-                it[RemittanceLineTable.remittanceId] = remittanceId
-                it[RemittanceLineTable.type] = type
-                it[RemittanceLineTable.sessionId] = sessionId
-                it[RemittanceLineTable.productSaleId] = productSaleId
-                it[RemittanceLineTable.amount] = amount
-                it[RemittanceLineTable.createdBy] = createdBy
+                it[RemittanceLineTable.id] = params.id
+                it[RemittanceLineTable.remittanceId] = params.remittanceId
+                it[RemittanceLineTable.type] = params.type
+                it[RemittanceLineTable.sessionId] = params.sessionId
+                it[RemittanceLineTable.productSaleId] = params.productSaleId
+                it[RemittanceLineTable.amount] = params.amount
+                it[RemittanceLineTable.createdBy] = params.createdBy
             }
 
             val versionUpdated =
                 RemittanceTable.update({
-                    (RemittanceTable.id eq remittanceId) and (RemittanceTable.version eq expectedVersion)
+                    (RemittanceTable.id eq params.remittanceId) and (RemittanceTable.version eq params.expectedVersion)
                 }) {
-                    it[RemittanceTable.version] = expectedVersion + 1
+                    it[RemittanceTable.version] = params.expectedVersion + 1
                 }
 
             if (versionUpdated == 0) {
@@ -66,11 +67,11 @@ object RemittanceLineRepository {
             val created =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq id }
+                    .where { RemittanceLineTable.id eq params.id }
                     .single()
                     .toRemittanceLine()
 
-            writeAddLineAuditLog(created, createdBy)
+            writeAddLineAuditLog(created, params.createdBy)
             created
         }.also { line ->
             logger.info {
