@@ -1,7 +1,7 @@
 package com.companyb.companyapp.auth
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.companyb.companyapp.dotenv
+import com.companyb.companyapp.database.dotenv
 
 object Password {
     private const val BCRYPT_COST = 12

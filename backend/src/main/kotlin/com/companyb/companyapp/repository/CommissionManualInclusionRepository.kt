@@ -17,7 +17,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object CommissionManualInclusionRepository {
-    @Suppress("LongParameterList", "LongMethod")
+    @Suppress("LongParameterList")
     fun upsert(
         id: UUID,
         productSaleId: UUID,
@@ -30,69 +30,9 @@ object CommissionManualInclusionRepository {
             val existing = findByProductSaleAndUserInTransaction(productSaleId, userId)
 
             if (existing != null) {
-                CommissionManualInclusionTable.update({
-                    CommissionManualInclusionTable.id eq existing.id
-                }) {
-                    it[CommissionManualInclusionTable.isIncluded] = isIncluded
-                    if (reason != null) {
-                        it[CommissionManualInclusionTable.reason] = reason
-                    } else {
-                        it[CommissionManualInclusionTable.reason] = null
-                    }
-                    it[CommissionManualInclusionTable.assignedBy] = assignedBy
-                }
-
-                val updated =
-                    findByIdInTransaction(existing.id)
-                        ?: error("commission_manual_inclusion not found after update for ${existing.id}")
-
-                AuditLogRepository.record(
-                    tableName = CommissionManualInclusionTable.tableName,
-                    recordId = updated.id,
-                    action = AuditAction.UPDATE,
-                    changedBy = assignedBy,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "isIncluded" to existing.isIncluded.toString(),
-                            "reason" to (existing.reason ?: "null"),
-                        ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "isIncluded" to updated.isIncluded.toString(),
-                            "reason" to (updated.reason ?: "null"),
-                        ),
-                )
-
-                updated
+                updateInclusion(existing, isIncluded, reason, assignedBy)
             } else {
-                CommissionManualInclusionTable.insert {
-                    it[CommissionManualInclusionTable.id] = id
-                    it[CommissionManualInclusionTable.productSaleId] = productSaleId
-                    it[CommissionManualInclusionTable.userId] = userId
-                    it[CommissionManualInclusionTable.isIncluded] = isIncluded
-                    if (reason != null) it[CommissionManualInclusionTable.reason] = reason
-                    it[CommissionManualInclusionTable.assignedBy] = assignedBy
-                }
-
-                val created =
-                    findByIdInTransaction(id)
-                        ?: error("commission_manual_inclusion not found after insert for $id")
-
-                AuditLogRepository.record(
-                    tableName = CommissionManualInclusionTable.tableName,
-                    recordId = created.id,
-                    action = AuditAction.INSERT,
-                    changedBy = assignedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to created.id.toString(),
-                            "productSaleId" to created.productSaleId.toString(),
-                            "userId" to created.userId.toString(),
-                            "isIncluded" to created.isIncluded.toString(),
-                        ),
-                )
-
-                created
+                insertInclusion(id, productSaleId, userId, isIncluded, reason, assignedBy)
             }
         }.also { result ->
             logger.info {
@@ -102,6 +42,87 @@ object CommissionManualInclusionRepository {
                     " isIncluded=${result.isIncluded}"
             }
         }
+
+    private fun updateInclusion(
+        existing: CommissionManualInclusion,
+        isIncluded: Boolean,
+        reason: String?,
+        assignedBy: UUID,
+    ): CommissionManualInclusion {
+        CommissionManualInclusionTable.update({
+            CommissionManualInclusionTable.id eq existing.id
+        }) {
+            it[CommissionManualInclusionTable.isIncluded] = isIncluded
+            if (reason != null) {
+                it[CommissionManualInclusionTable.reason] = reason
+            } else {
+                it[CommissionManualInclusionTable.reason] = null
+            }
+            it[CommissionManualInclusionTable.assignedBy] = assignedBy
+        }
+
+        val updated =
+            findByIdInTransaction(existing.id)
+                ?: error("commission_manual_inclusion not found after update for ${existing.id}")
+
+        AuditLogRepository.record(
+            tableName = CommissionManualInclusionTable.tableName,
+            recordId = updated.id,
+            action = AuditAction.UPDATE,
+            changedBy = assignedBy,
+            oldValue =
+                AuditLogRepository.jsonFields(
+                    "isIncluded" to existing.isIncluded.toString(),
+                    "reason" to (existing.reason ?: "null"),
+                ),
+            newValue =
+                AuditLogRepository.jsonFields(
+                    "isIncluded" to updated.isIncluded.toString(),
+                    "reason" to (updated.reason ?: "null"),
+                ),
+        )
+
+        return updated
+    }
+
+    @Suppress("LongParameterList")
+    private fun insertInclusion(
+        id: UUID,
+        productSaleId: UUID,
+        userId: UUID,
+        isIncluded: Boolean,
+        reason: String?,
+        assignedBy: UUID,
+    ): CommissionManualInclusion {
+        CommissionManualInclusionTable.insert {
+            it[CommissionManualInclusionTable.id] = id
+            it[CommissionManualInclusionTable.productSaleId] = productSaleId
+            it[CommissionManualInclusionTable.userId] = userId
+            it[CommissionManualInclusionTable.isIncluded] = isIncluded
+            if (reason != null) it[CommissionManualInclusionTable.reason] = reason
+            it[CommissionManualInclusionTable.assignedBy] = assignedBy
+        }
+
+        val created =
+            findByIdInTransaction(id)
+                ?: error("commission_manual_inclusion not found after insert for $id")
+
+        AuditLogRepository.record(
+            tableName = CommissionManualInclusionTable.tableName,
+            recordId = created.id,
+            action = AuditAction.INSERT,
+            changedBy = assignedBy,
+            newValue =
+                AuditLogRepository.jsonFields(
+                    "id" to created.id.toString(),
+                    "productSaleId" to created.productSaleId.toString(),
+                    "userId" to created.userId.toString(),
+                    "isIncluded" to created.isIncluded.toString(),
+                ),
+        )
+
+        return created
+    }
 
     fun findByProductSaleAndUser(
         productSaleId: UUID,

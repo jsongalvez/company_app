@@ -13,11 +13,13 @@ import com.companyb.companyapp.network.createTokenStore
 import com.companyb.companyapp.ui.screen.HomeScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.theme.LinearTheme
+import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun App() {
@@ -53,6 +55,18 @@ fun App() {
             }
 
             else -> {}
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        apiClient.onUnauthorized.collectLatest {
+            logInfo("App", "onUnauthorized received, clearing token, navigating to login")
+            try {
+                tokenStore.clearToken()
+            } catch (e: Exception) {
+                logError("App", "Failed to clear token on unauthorized", e)
+            }
+            isLoggedIn = false
         }
     }
 

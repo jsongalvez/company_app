@@ -11,61 +11,66 @@ import com.companyb.companyapp.service.CommissionManualInclusionService
 import com.companyb.companyapp.service.CommissionSplitService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.util.UUID
 
 object CommissionRoutes {
-    @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.post("/api/commission-inclusions") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
+        config.routes.post("/api/commission-inclusions", ::handleCreateInclusion)
+        config.routes.get("/api/commission-splits/{branchDayId}", ::handleGetSplits)
+        config.routes.post("/api/commission/recalculate/{branchDayId}", ::handleRecalculate)
+    }
 
-            val id =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid inclusion id") }
-            val productSaleId =
-                runCatching { UUID.fromString(request.productSaleId) }
-                    .getOrElse { throw BadRequestResponse("Invalid product sale id") }
-            val userId =
-                runCatching { UUID.fromString(request.userId) }
-                    .getOrElse { throw BadRequestResponse("Invalid user id") }
+    @Suppress("ThrowsCount")
+    private fun handleCreateInclusion(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
 
-            val inclusion =
-                CommissionManualInclusionService.create(
-                    callerId = callerId,
-                    id = id,
-                    productSaleId = productSaleId,
-                    userId = userId,
-                    isIncluded = request.isIncluded,
-                    reason = request.reason,
-                )
+        val id =
+            runCatching { UUID.fromString(request.id) }
+                .getOrElse { throw BadRequestResponse("Invalid inclusion id") }
+        val productSaleId =
+            runCatching { UUID.fromString(request.productSaleId) }
+                .getOrElse { throw BadRequestResponse("Invalid product sale id") }
+        val userId =
+            runCatching { UUID.fromString(request.userId) }
+                .getOrElse { throw BadRequestResponse("Invalid user id") }
 
-            context.status(HttpStatus.CREATED)
-            context.json(inclusion.toResponse())
-        }
+        val inclusion =
+            CommissionManualInclusionService.create(
+                callerId = callerId,
+                id = id,
+                productSaleId = productSaleId,
+                userId = userId,
+                isIncluded = request.isIncluded,
+                reason = request.reason,
+            )
 
-        config.routes.get("/api/commission-splits/{branchDayId}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchDayId = context.pathParamAsUuid("branchDayId")
+        context.status(HttpStatus.CREATED)
+        context.json(inclusion.toResponse())
+    }
 
-            val splits = CommissionSplitService.getByBranchDayId(callerId, branchDayId)
+    private fun handleGetSplits(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchDayId = context.pathParamAsUuid("branchDayId")
 
-            context.status(HttpStatus.OK)
-            context.json(splits.map { it.toResponse() })
-        }
+        val splits = CommissionSplitService.getByBranchDayId(callerId, branchDayId)
 
-        config.routes.post("/api/commission/recalculate/{branchDayId}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchDayId = context.pathParamAsUuid("branchDayId")
+        context.status(HttpStatus.OK)
+        context.json(splits.map { it.toResponse() })
+    }
 
-            CommissionEngineService.manualRecalculate(callerId, branchDayId)
+    private fun handleRecalculate(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchDayId = context.pathParamAsUuid("branchDayId")
 
-            val splits = CommissionSplitService.getByBranchDayId(callerId, branchDayId)
-            context.status(HttpStatus.OK)
-            context.json(splits.map { it.toResponse() })
-        }
+        CommissionEngineService.manualRecalculate(callerId, branchDayId)
+
+        val splits = CommissionSplitService.getByBranchDayId(callerId, branchDayId)
+        context.status(HttpStatus.OK)
+        context.json(splits.map { it.toResponse() })
     }
 
     private fun CommissionManualInclusion.toResponse(): CommissionInclusionResponse =

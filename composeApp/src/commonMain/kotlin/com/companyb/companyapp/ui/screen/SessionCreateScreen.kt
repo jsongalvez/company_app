@@ -243,9 +243,6 @@ fun SessionCreateScreen(
                 Button(
                     onClick = {
                         logInfo("SessionCreateScreen", "submit button onClick")
-                        if (selectedBranchId.isBlank()) {
-                            // Handled via branch dropdown validation
-                        }
                         sessionViewModel.createSession(
                             CreateSessionRequest(
                                 id = Uuid.random().toString(),

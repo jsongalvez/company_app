@@ -3,7 +3,7 @@ package com.companyb.companyapp.auth
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
-import com.companyb.companyapp.dotenv
+import com.companyb.companyapp.database.dotenv
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging

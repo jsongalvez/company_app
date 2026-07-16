@@ -6,7 +6,7 @@ Kotlin Multiplatform project: backend API server + Compose Multiplatform client 
 
 - `backend/` — Javalin + Exposed (Postgres) API server. **Read `backend/AGENTS.md` before touching any backend code.** It is the authority on backend conventions, database access, auth, testing, and performance.
 - `composeApp/` — Compose Multiplatform UI. Targets: Android, desktop (JVM), iOS.
-- `shared/` — Kotlin Multiplatform shared library (all targets). Serialization-only currently.
+- `shared/` — Kotlin Multiplatform shared library (all targets). Serialization, domain types, and route constants.
 
 All modules depend on `:shared`. The backend depends on nothing else beyond `:shared`.
 

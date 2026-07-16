@@ -19,7 +19,7 @@ object ProductSaleService {
 
     private const val MINIMUM_QUANTITY = 1
 
-    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList", "LongMethod", "CyclomaticComplexMethod")
+    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList", "CyclomaticComplexMethod")
     fun sell(
         callerId: UUID,
         id: UUID,
@@ -31,13 +31,7 @@ object ProductSaleService {
         quantity: Int,
         expectedVersion: Int,
     ): ProductSale {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to record product sales",
-        )
+        requireEditBranchDataCapability(callerId)
 
         BranchDayService.assertEditable(branchDayId, callerId)
 
@@ -61,25 +55,7 @@ object ProductSaleService {
             throw BadRequestResponse("Quantity must be at least 1")
         }
 
-        if (sessionId != null) {
-            if (clientId != null) {
-                throw BadRequestResponse("Session-linked sale must not have a clientId")
-            }
-            if (isWalkIn) {
-                throw BadRequestResponse("Session-linked sale must not be a walk-in")
-            }
-            if (SessionRepository.findById(sessionId) == null) {
-                throw NotFoundResponse("Session not found")
-            }
-        }
-
-        if (sessionId == null && clientId != null && !isWalkIn) {
-            throw BadRequestResponse("Walk-in sale with known client must set isWalkIn=true")
-        }
-
-        if (sessionId == null && clientId == null && !isWalkIn) {
-            throw BadRequestResponse("Anonymous sale must set isWalkIn=true")
-        }
+        validateSessionWalkInConstraints(sessionId, clientId, isWalkIn)
 
         val result =
             try {
@@ -107,5 +83,42 @@ object ProductSaleService {
         CommissionEngineService.recalculate(branchDayId)
 
         return result
+    }
+
+    private fun requireEditBranchDataCapability(callerId: UUID) {
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to record product sales",
+        )
+    }
+
+    @Suppress("ThrowsCount")
+    private fun validateSessionWalkInConstraints(
+        sessionId: UUID?,
+        clientId: UUID?,
+        isWalkIn: Boolean,
+    ) {
+        if (sessionId != null) {
+            if (clientId != null) {
+                throw BadRequestResponse("Session-linked sale must not have a clientId")
+            }
+            if (isWalkIn) {
+                throw BadRequestResponse("Session-linked sale must not be a walk-in")
+            }
+            if (SessionRepository.findById(sessionId) == null) {
+                throw NotFoundResponse("Session not found")
+            }
+        }
+
+        if (sessionId == null && clientId != null && !isWalkIn) {
+            throw BadRequestResponse("Walk-in sale with known client must set isWalkIn=true")
+        }
+
+        if (sessionId == null && clientId == null && !isWalkIn) {
+            throw BadRequestResponse("Anonymous sale must set isWalkIn=true")
+        }
     }
 }

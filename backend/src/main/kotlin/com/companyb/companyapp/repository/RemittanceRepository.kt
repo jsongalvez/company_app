@@ -38,6 +38,7 @@ data class RemittanceCreateResult(
     val created: Boolean,
 )
 
+@Suppress("TooManyFunctions")
 object RemittanceRepository {
     fun findById(id: UUID): Remittance? =
         transaction {
@@ -111,7 +112,7 @@ object RemittanceRepository {
 
     private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
 
-    @Suppress("LongMethod", "ReturnCount", "ComplexMethod", "LongParameterList")
+    @Suppress("ReturnCount", "ComplexMethod", "LongParameterList")
     fun submit(
         remittanceId: UUID,
         expectedVersion: Int,
@@ -145,61 +146,17 @@ object RemittanceRepository {
             val totalExpenses = calculateTotalExpenses(breakdownIds)
             val netIncome = grossIncome.subtract(totalCompensation).subtract(totalExpenses)
 
-            if (remittanceType == RemittanceType.SESSION) {
-                RemittanceFinancialSnapshotRepository.insert(
-                    remittanceId = remittanceId,
-                    grossIncome = grossIncome,
-                    totalCompensation = totalCompensation,
-                    totalExpenses = totalExpenses,
-                    netIncome = netIncome,
-                )
-            }
-
-            val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
-            val updated =
-                RemittanceTable.update({
-                    (RemittanceTable.id eq remittanceId) and
-                        (RemittanceTable.version eq expectedVersion)
-                }) {
-                    it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
-                    it[RemittanceTable.version] = expectedVersion + 1
-                    it[RemittanceTable.submittedDate] = today
-                    it[RemittanceTable.submittedBy] = callerId
-                }
-
-            if (updated == 0) {
-                error("version_mismatch")
-            }
-
-            for (bdId in breakdownIds) {
-                BranchDayTable.update({ BranchDayTable.id eq bdId }) {
-                    it[BranchDayTable.status] = DayStatus.REMITTED
-                }
-            }
-
-            val auditOldValue = AuditLogRepository.jsonField("status", "DRAFT")
-            val auditNewValue = AuditLogRepository.jsonField("status", "SUBMITTED")
-            AuditLogTable.insert {
-                it[AuditLogTable.auditTableName] = RemittanceTable.tableName
-                it[AuditLogTable.recordId] = remittanceId
-                it[AuditLogTable.action] = AuditAction.UPDATE
-                it[AuditLogTable.changedBy] = callerId
-                it[AuditLogTable.oldValue] = auditOldValue
-                it[AuditLogTable.newValue] = auditNewValue
-            }
-
-            val bdOldValue = AuditLogRepository.jsonField("status", "OPEN")
-            val bdNewValue = AuditLogRepository.jsonField("status", "REMITTED")
-            for (bdId in breakdownIds) {
-                AuditLogTable.insert {
-                    it[AuditLogTable.auditTableName] = BranchDayTable.tableName
-                    it[AuditLogTable.recordId] = bdId
-                    it[AuditLogTable.action] = AuditAction.UPDATE
-                    it[AuditLogTable.changedBy] = callerId
-                    it[AuditLogTable.oldValue] = bdOldValue
-                    it[AuditLogTable.newValue] = bdNewValue
-                }
-            }
+            writeFinancialSnapshot(
+                remittanceType,
+                remittanceId,
+                grossIncome,
+                totalCompensation,
+                totalExpenses,
+                netIncome,
+            )
+            updateRemittanceToSubmitted(remittanceId, expectedVersion, callerId)
+            updateBranchDayStatuses(breakdownIds)
+            writeSubmitAuditLogs(remittanceId, callerId, breakdownIds)
 
             val submitted =
                 findByIdInTransaction(remittanceId)
@@ -218,6 +175,86 @@ object RemittanceRepository {
                     " submitted=${result != null} gross=${result?.grossIncome}"
             }
         }
+
+    private fun updateRemittanceToSubmitted(
+        remittanceId: UUID,
+        expectedVersion: Int,
+        callerId: UUID,
+    ) {
+        val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
+        val updated =
+            RemittanceTable.update({
+                (RemittanceTable.id eq remittanceId) and
+                    (RemittanceTable.version eq expectedVersion)
+            }) {
+                it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
+                it[RemittanceTable.version] = expectedVersion + 1
+                it[RemittanceTable.submittedDate] = today
+                it[RemittanceTable.submittedBy] = callerId
+            }
+
+        if (updated == 0) {
+            error("version_mismatch")
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun writeFinancialSnapshot(
+        remittanceType: RemittanceType,
+        remittanceId: UUID,
+        grossIncome: BigDecimal,
+        totalCompensation: BigDecimal,
+        totalExpenses: BigDecimal,
+        netIncome: BigDecimal,
+    ) {
+        if (remittanceType == RemittanceType.SESSION) {
+            RemittanceFinancialSnapshotRepository.insert(
+                remittanceId = remittanceId,
+                grossIncome = grossIncome,
+                totalCompensation = totalCompensation,
+                totalExpenses = totalExpenses,
+                netIncome = netIncome,
+            )
+        }
+    }
+
+    private fun updateBranchDayStatuses(breakdownIds: List<UUID>) {
+        for (bdId in breakdownIds) {
+            BranchDayTable.update({ BranchDayTable.id eq bdId }) {
+                it[BranchDayTable.status] = DayStatus.REMITTED
+            }
+        }
+    }
+
+    private fun writeSubmitAuditLogs(
+        remittanceId: UUID,
+        callerId: UUID,
+        breakdownIds: List<UUID>,
+    ) {
+        val auditOldValue = AuditLogRepository.jsonField("status", "DRAFT")
+        val auditNewValue = AuditLogRepository.jsonField("status", "SUBMITTED")
+        AuditLogTable.insert {
+            it[AuditLogTable.auditTableName] = RemittanceTable.tableName
+            it[AuditLogTable.recordId] = remittanceId
+            it[AuditLogTable.action] = AuditAction.UPDATE
+            it[AuditLogTable.changedBy] = callerId
+            it[AuditLogTable.oldValue] = auditOldValue
+            it[AuditLogTable.newValue] = auditNewValue
+        }
+
+        val bdOldValue = AuditLogRepository.jsonField("status", "OPEN")
+        val bdNewValue = AuditLogRepository.jsonField("status", "REMITTED")
+        for (bdId in breakdownIds) {
+            AuditLogTable.insert {
+                it[AuditLogTable.auditTableName] = BranchDayTable.tableName
+                it[AuditLogTable.recordId] = bdId
+                it[AuditLogTable.action] = AuditAction.UPDATE
+                it[AuditLogTable.changedBy] = callerId
+                it[AuditLogTable.oldValue] = bdOldValue
+                it[AuditLogTable.newValue] = bdNewValue
+            }
+        }
+    }
 
     private fun calculateGrossIncome(remittanceId: UUID): BigDecimal =
         RemittanceLineTable

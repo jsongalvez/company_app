@@ -11,6 +11,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -27,7 +28,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object ProductSaleRepository {
-    @Suppress("LongParameterList", "LongMethod")
+    @Suppress("LongParameterList")
     fun sell(
         id: UUID,
         branchDayId: UUID,
@@ -59,96 +60,45 @@ object ProductSaleRepository {
                     }.singleOrNull()
                     ?: error("inventory card not found for branch=$branchId product=$productId")
 
-            if (card[BranchInventoryTable.currentStock] < quantity) {
-                error("insufficient_stock")
-            }
-
-            if (card[BranchInventoryTable.version] != expectedVersion) {
-                error("version_mismatch")
-            }
-
-            val oldStock = card[BranchInventoryTable.currentStock]
-            val oldVersion = card[BranchInventoryTable.version]
-            val newStock = oldStock - quantity
-
-            val updatedCount =
-                BranchInventoryTable.update({
-                    (BranchInventoryTable.branchId eq branchId) and
-                        (BranchInventoryTable.productId eq productId) and
-                        (BranchInventoryTable.version eq expectedVersion)
-                }) {
-                    it[BranchInventoryTable.currentStock] = newStock
-                    it[BranchInventoryTable.version] = expectedVersion + 1
-                }
-
-            if (updatedCount == 0) {
-                error("version_mismatch")
-            }
+            val (oldStock, oldVersion, newStock) =
+                decrementInventoryStock(
+                    card,
+                    branchId,
+                    productId,
+                    quantity,
+                    expectedVersion,
+                )
 
             val totalAmount = product.unitPrice * BigDecimal.valueOf(quantity.toLong())
 
-            ProductSaleTable.insert {
-                it[ProductSaleTable.id] = id
-                it[ProductSaleTable.branchDayId] = branchDayId
-                if (sessionId != null) it[ProductSaleTable.sessionId] = sessionId
-                if (clientId != null) it[ProductSaleTable.clientId] = clientId
-                it[ProductSaleTable.isWalkIn] = isWalkIn
-                it[ProductSaleTable.productId] = productId
-                it[ProductSaleTable.productName] = product.name
-                it[ProductSaleTable.handledBy] = handledBy
-                it[ProductSaleTable.quantity] = quantity
-                it[ProductSaleTable.unitPriceAtTime] = product.unitPrice
-                it[ProductSaleTable.totalAmountAtTime] = totalAmount
-                it[ProductSaleTable.commissionAmountAtTime] = product.commissionAmount
-            }
+            insertProductSaleRow(
+                id,
+                branchDayId,
+                sessionId,
+                clientId,
+                isWalkIn,
+                productId,
+                product,
+                handledBy,
+                quantity,
+                totalAmount,
+            )
 
-            InventoryMovementTable.insert {
-                it[InventoryMovementTable.productId] = productId
-                it[InventoryMovementTable.productSaleId] = id
-                it[InventoryMovementTable.branchId] = branchId
-                it[InventoryMovementTable.branchDayId] = branchDayId
-                it[InventoryMovementTable.reason] = InventoryMovementReason.SALE
-                it[InventoryMovementTable.quantityChange] = -quantity
-                it[InventoryMovementTable.movedBy] = handledBy
-                it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
-            }
+            insertSaleInventoryMovement(id, productId, branchId, branchDayId, quantity, handledBy)
 
             val sale =
                 findByIdInTransaction(id)
                     ?: error("product sale not found after insert for $id")
 
-            AuditLogRepository.record(
-                tableName = ProductSaleTable.tableName,
-                recordId = sale.id,
-                action = AuditAction.INSERT,
-                changedBy = handledBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to sale.id.toString(),
-                        "branchDayId" to sale.branchDayId.toString(),
-                        "productId" to sale.productId.toString(),
-                        "quantity" to sale.quantity.toString(),
-                        "totalAmount" to sale.totalAmountAtTime.toPlainString(),
-                    ),
+            writeSaleAuditLogs(
+                sale = sale,
+                handledBy = handledBy,
+                inventoryCardId = card[BranchInventoryTable.id],
+                oldStock = oldStock,
+                oldVersion = oldVersion,
+                newStock = newStock,
+                newVersion = expectedVersion + 1,
             )
-
-            AuditLogRepository.record(
-                tableName = BranchInventoryTable.tableName,
-                recordId = card[BranchInventoryTable.id],
-                action = AuditAction.UPDATE,
-                changedBy = handledBy,
-                oldValue =
-                    AuditLogRepository.jsonFields(
-                        "currentStock" to oldStock.toString(),
-                        "version" to oldVersion.toString(),
-                    ),
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "currentStock" to newStock.toString(),
-                        "version" to (expectedVersion + 1).toString(),
-                    ),
-            )
-
             sale
         }.also {
             logger.info {
@@ -157,6 +107,128 @@ object ProductSaleRepository {
                     "total=${it.totalAmountAtTime}"
             }
         }
+
+    private fun decrementInventoryStock(
+        card: ResultRow,
+        branchId: UUID,
+        productId: UUID,
+        quantity: Int,
+        expectedVersion: Int,
+    ): Triple<Int, Int, Int> {
+        val currentStock = card[BranchInventoryTable.currentStock]
+        if (currentStock < quantity) error("insufficient_stock")
+        if (card[BranchInventoryTable.version] != expectedVersion) error("version_mismatch")
+
+        val oldStock = currentStock
+        val oldVersion = card[BranchInventoryTable.version]
+        val newStock = oldStock - quantity
+
+        val updatedCount =
+            BranchInventoryTable.update({
+                (BranchInventoryTable.branchId eq branchId) and
+                    (BranchInventoryTable.productId eq productId) and
+                    (BranchInventoryTable.version eq expectedVersion)
+            }) {
+                it[BranchInventoryTable.currentStock] = newStock
+                it[BranchInventoryTable.version] = expectedVersion + 1
+            }
+
+        if (updatedCount == 0) error("version_mismatch")
+        return Triple(oldStock, oldVersion, newStock)
+    }
+
+    @Suppress("LongParameterList")
+    private fun insertProductSaleRow(
+        id: UUID,
+        branchDayId: UUID,
+        sessionId: UUID?,
+        clientId: UUID?,
+        isWalkIn: Boolean,
+        productId: UUID,
+        product: Product,
+        handledBy: UUID,
+        quantity: Int,
+        totalAmount: BigDecimal,
+    ) {
+        ProductSaleTable.insert {
+            it[ProductSaleTable.id] = id
+            it[ProductSaleTable.branchDayId] = branchDayId
+            if (sessionId != null) it[ProductSaleTable.sessionId] = sessionId
+            if (clientId != null) it[ProductSaleTable.clientId] = clientId
+            it[ProductSaleTable.isWalkIn] = isWalkIn
+            it[ProductSaleTable.productId] = productId
+            it[ProductSaleTable.productName] = product.name
+            it[ProductSaleTable.handledBy] = handledBy
+            it[ProductSaleTable.quantity] = quantity
+            it[ProductSaleTable.unitPriceAtTime] = product.unitPrice
+            it[ProductSaleTable.totalAmountAtTime] = totalAmount
+            it[ProductSaleTable.commissionAmountAtTime] = product.commissionAmount
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun insertSaleInventoryMovement(
+        saleId: UUID,
+        productId: UUID,
+        branchId: UUID,
+        branchDayId: UUID,
+        quantity: Int,
+        movedBy: UUID,
+    ) {
+        InventoryMovementTable.insert {
+            it[InventoryMovementTable.productId] = productId
+            it[InventoryMovementTable.productSaleId] = saleId
+            it[InventoryMovementTable.branchId] = branchId
+            it[InventoryMovementTable.branchDayId] = branchDayId
+            it[InventoryMovementTable.reason] = InventoryMovementReason.SALE
+            it[InventoryMovementTable.quantityChange] = -quantity
+            it[InventoryMovementTable.movedBy] = movedBy
+            it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
+        }
+    }
+
+    @Suppress("LongParameterList")
+    private fun writeSaleAuditLogs(
+        sale: ProductSale,
+        handledBy: UUID,
+        inventoryCardId: UUID,
+        oldStock: Int,
+        oldVersion: Int,
+        newStock: Int,
+        newVersion: Int,
+    ) {
+        AuditLogRepository.record(
+            tableName = ProductSaleTable.tableName,
+            recordId = sale.id,
+            action = AuditAction.INSERT,
+            changedBy = handledBy,
+            newValue =
+                AuditLogRepository.jsonFields(
+                    "id" to sale.id.toString(),
+                    "branchDayId" to sale.branchDayId.toString(),
+                    "productId" to sale.productId.toString(),
+                    "quantity" to sale.quantity.toString(),
+                    "totalAmount" to sale.totalAmountAtTime.toPlainString(),
+                ),
+        )
+
+        AuditLogRepository.record(
+            tableName = BranchInventoryTable.tableName,
+            recordId = inventoryCardId,
+            action = AuditAction.UPDATE,
+            changedBy = handledBy,
+            oldValue =
+                AuditLogRepository.jsonFields(
+                    "currentStock" to oldStock.toString(),
+                    "version" to oldVersion.toString(),
+                ),
+            newValue =
+                AuditLogRepository.jsonFields(
+                    "currentStock" to newStock.toString(),
+                    "version" to newVersion.toString(),
+                ),
+        )
+    }
 
     fun findById(id: UUID): ProductSale? =
         transaction {

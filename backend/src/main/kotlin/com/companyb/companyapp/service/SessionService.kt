@@ -30,6 +30,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
+@Suppress("TooManyFunctions")
 object SessionService {
     private val logger = KotlinLogging.logger {}
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
@@ -61,7 +62,7 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
+    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -75,13 +76,7 @@ object SessionService {
         bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
     ): SessionCreateResult {
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.GLOBAL,
-            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
-            message = "EDIT_BRANCH_DATA capability required to create sessions",
-        )
+        requireCreateSessionCapability(callerId)
 
         val branchType =
             SessionRepository.getBranchType(branchId)
@@ -99,13 +94,7 @@ object SessionService {
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)
 
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-        val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId, now)
-        val basePrice =
-            activeRates
-                .firstOrNull { it.sessionType == sessionType }
-                ?.rate
-                ?: BigDecimal(ZERO)
+        val basePrice = computeBasePrice(branchId, sessionType)
 
         val result =
             try {
@@ -141,6 +130,28 @@ object SessionService {
         }
 
         return result
+    }
+
+    private fun requireCreateSessionCapability(callerId: UUID) {
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = "EDIT_BRANCH_DATA capability required to create sessions",
+        )
+    }
+
+    private fun computeBasePrice(
+        branchId: UUID,
+        sessionType: SessionType,
+    ): BigDecimal {
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId, now)
+        return activeRates
+            .firstOrNull { it.sessionType == sessionType }
+            ?.rate
+            ?: BigDecimal(ZERO)
     }
 
     @Suppress("ReturnCount", "ThrowsCount")

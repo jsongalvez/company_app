@@ -22,3 +22,5 @@
 
 **Priority:** medium
 **Story alignment:** cross-cutting — composeApp navigation + security
+
+**Status:** ✅ done

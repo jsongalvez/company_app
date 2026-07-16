@@ -9,6 +9,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.service.UserBranchAssignmentService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.util.UUID
@@ -17,74 +18,79 @@ object UserBranchAssignmentRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val USER_ID_PARAM = "userId"
 
-    @Suppress("LongMethod", "ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/assignments") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            val request = context.bodyAsClass<CreateAssignmentRequest>()
-            val assignmentId =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid assignment id") }
-            val targetUserId =
-                runCatching { UUID.fromString(request.userId) }
-                    .getOrElse { throw BadRequestResponse("Invalid user id") }
+        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/assignments", ::handleCreateAssignment)
+        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/assignments", ::handleGetAssignments)
+        config.routes.delete("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}", ::handleRemoveAssignment)
+        config.routes.patch("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}/slot", ::handleUpdateSlot)
+        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/slots/swap", ::handleSwapSlots)
+    }
 
-            val result =
-                UserBranchAssignmentService.create(
-                    callerId = callerId,
-                    id = assignmentId,
-                    branchId = branchId,
-                    userId = targetUserId,
-                    slot = request.slot,
-                )
+    private fun handleCreateAssignment(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val request = context.bodyAsClass<CreateAssignmentRequest>()
+        val assignmentId =
+            runCatching { UUID.fromString(request.id) }
+                .getOrElse { throw BadRequestResponse("Invalid assignment id") }
+        val targetUserId =
+            runCatching { UUID.fromString(request.userId) }
+                .getOrElse { throw BadRequestResponse("Invalid user id") }
 
-            context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-            context.json(result.assignment.toResponse())
-        }
-
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/assignments") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-
-            context.json(
-                UserBranchAssignmentService.findActiveByBranch(callerId, branchId).map { it.toResponse() },
+        val result =
+            UserBranchAssignmentService.create(
+                callerId = callerId,
+                id = assignmentId,
+                branchId = branchId,
+                userId = targetUserId,
+                slot = request.slot,
             )
-        }
 
-        config.routes.delete("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
+        context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
+        context.json(result.assignment.toResponse())
+    }
 
-            UserBranchAssignmentService.remove(callerId, branchId, targetUserId)
-            context.status(HttpStatus.NO_CONTENT)
-        }
+    private fun handleGetAssignments(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
-        config.routes.patch("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}/slot") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
-            val request = context.bodyAsClass<UpdateSlotRequest>()
+        context.json(
+            UserBranchAssignmentService.findActiveByBranch(callerId, branchId).map { it.toResponse() },
+        )
+    }
 
-            UserBranchAssignmentService.updateSlot(callerId, branchId, targetUserId, request.slot)
-            context.status(HttpStatus.NO_CONTENT)
-        }
+    private fun handleRemoveAssignment(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/slots/swap") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
-            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            val request = context.bodyAsClass<SwapSlotsRequest>()
-            val userIdA =
-                runCatching { UUID.fromString(request.userIdA) }
-                    .getOrElse { throw BadRequestResponse("Invalid userIdA") }
-            val userIdB =
-                runCatching { UUID.fromString(request.userIdB) }
-                    .getOrElse { throw BadRequestResponse("Invalid userIdB") }
+        UserBranchAssignmentService.remove(callerId, branchId, targetUserId)
+        context.status(HttpStatus.NO_CONTENT)
+    }
 
-            UserBranchAssignmentService.swapSlots(callerId, branchId, userIdA, userIdB)
-            context.status(HttpStatus.NO_CONTENT)
-        }
+    private fun handleUpdateSlot(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
+        val request = context.bodyAsClass<UpdateSlotRequest>()
+
+        UserBranchAssignmentService.updateSlot(callerId, branchId, targetUserId, request.slot)
+        context.status(HttpStatus.NO_CONTENT)
+    }
+
+    private fun handleSwapSlots(context: Context) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val request = context.bodyAsClass<SwapSlotsRequest>()
+        val userIdA =
+            runCatching { UUID.fromString(request.userIdA) }
+                .getOrElse { throw BadRequestResponse("Invalid userIdA") }
+        val userIdB =
+            runCatching { UUID.fromString(request.userIdB) }
+                .getOrElse { throw BadRequestResponse("Invalid userIdB") }
+
+        UserBranchAssignmentService.swapSlots(callerId, branchId, userIdA, userIdB)
+        context.status(HttpStatus.NO_CONTENT)
     }
 
     private fun UserBranchAssignment.toResponse(): AssignmentResponse =

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.network
 
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.config.MAX_HTTP_RETRIES
 import com.companyb.companyapp.config.platformDefaultBaseUrl
 import com.companyb.companyapp.util.logInfo
@@ -75,7 +76,7 @@ class ApiClient(
                     }
                     sendWithoutRequest {
                         val url = it.url.toString()
-                        url.endsWith("/auth/login") || url.endsWith("/auth/register")
+                        url.endsWith(ApiRoutes.AUTH_LOGIN) || url.endsWith(ApiRoutes.AUTH_REGISTER)
                     }
                 }
             }
