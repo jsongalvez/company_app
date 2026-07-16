@@ -17,4 +17,4 @@ Add a `GET /health` endpoint to the app that runs `SELECT 1` against Postgres. T
 
 None — can start immediately.
 
-## Status: ready-for-agent
+## Status: ✅ done

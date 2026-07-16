@@ -109,6 +109,43 @@ fi
 log "App is running and listening on port $APP_PORT."
 
 # ----------------------------------------------------------------
+# 4b. Health check — verify app responds and Postgres is reachable
+# ----------------------------------------------------------------
+HEALTH_RETRIES=10
+HEALTH_DELAY=2
+APP_HOST="${APP_HOST:-localhost}"
+HEALTH_URL="http://$APP_HOST:$APP_PORT/health"
+HEALTH_OK=false
+HTTP_STATUS=""
+
+log "Checking /health endpoint (up to $HEALTH_RETRIES attempts, ${HEALTH_DELAY}s apart)..."
+for i in $(seq 1 $HEALTH_RETRIES); do
+    if ! kill -0 "$APP_PID" 2>/dev/null; then
+        log "ERROR: App process died during health check."
+        tail -20 /tmp/company-app-boot.log
+        kill "$APP_PID" 2>/dev/null || true
+        exit 1
+    fi
+    HTTP_STATUS=$(curl -s -o /tmp/company-app-health.json -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+    if [ "$HTTP_STATUS" = "200" ]; then
+        HEALTH_OK=true
+        break
+    fi
+    log "  Attempt $i/$HEALTH_RETRIES: HTTP $HTTP_STATUS (retrying in ${HEALTH_DELAY}s)..."
+    sleep "$HEALTH_DELAY"
+done
+
+if [ "$HEALTH_OK" = false ]; then
+    log "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
+    log "Last response body:"
+    cat /tmp/company-app-health.json 2>/dev/null || true
+    kill "$APP_PID" 2>/dev/null || true
+    exit 1
+fi
+
+log "Health check passed (HTTP 200)."
+
+# ----------------------------------------------------------------
 # 5. Cleanup: kill the app
 # ----------------------------------------------------------------
 log "Stopping app (PID $APP_PID)..."

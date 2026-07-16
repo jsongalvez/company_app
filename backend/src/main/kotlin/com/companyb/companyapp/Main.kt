@@ -12,6 +12,7 @@ import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
+import com.companyb.companyapp.api.routes.HealthRoutes
 import com.companyb.companyapp.api.routes.MeRoutes
 import com.companyb.companyapp.api.routes.MedicalMissionDelegateRoutes
 import com.companyb.companyapp.api.routes.MonthlyRemittanceSummaryRoutes
@@ -78,6 +79,7 @@ fun initializeJavalin() {
                 val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
                 context.attribute("userId", userId)
             }
+            HealthRoutes.register(config)
             AuthRoutes.login(config)
             AuthRoutes.register(config)
             AuthRoutes.logout(config)
