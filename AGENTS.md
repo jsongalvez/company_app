@@ -25,8 +25,14 @@ docker compose -f docker/docker-compose.yml down -v   # teardown + wipe data
 ./gradlew ktlintFormat
 ./gradlew ktlintCheck                 # check only
 
-# Backend quality gate (lint + detekt + test + JMH compilation)
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses
+# Backend quality gate (lint + detekt + test)
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test
+
+# JMH benchmarks + baseline check (runs actual benchmarks, not just compile)
+./gradlew :backend:jmh
+
+# Check JMH baselines against saved scores
+bash scripts/check-baselines.sh
 
 # Run backend (requires Postgres at DB_HOST:DB_PORT, workingDir = repo root for .env)
 ./gradlew :backend:run
@@ -39,7 +45,7 @@ docker compose -f docker/docker-compose.yml down -v   # teardown + wipe data
 
 After `bash scripts/setup-hooks.sh`:
 
-- **pre-commit** runs ktlintFormat (auto-fix + re-stage), then `:backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses`, verifies Postgres is reachable, and boots the app to confirm it starts. Commits are blocked if any step fails.
+- **pre-commit** runs ktlintFormat (auto-fix + re-stage), then `:backend:detekt :backend:ktlintCheck :backend:test`, runs full JMH benchmarks + baseline check, verifies Postgres is reachable, and boots the app to confirm it starts. Commits are blocked if any step fails.
 - **pre-push** runs full JMH suite and reminds you to compare against `backend/jmh-baselines.md` via `bash scripts/check-baselines.sh`.
 
 ## Configuration details

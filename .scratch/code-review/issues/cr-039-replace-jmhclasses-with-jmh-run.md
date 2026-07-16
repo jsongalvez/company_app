@@ -8,14 +8,10 @@ Change `.githooks/pre-commit` step 2 from `:backend:jmhClasses` to run actual JM
 
 ## Acceptance criteria
 
-- [ ] `.githooks/pre-commit` step 2 replaces `:backend:jmhClasses` with `./gradlew :backend:jmh --no-daemon`
-- [ ] JMH output is piped to `/tmp/company-app-jmh-precommit.log`
-- [ ] After JMH succeeds, `bash scripts/check-baselines.sh /tmp/company-app-jmh-precommit.log` is called
-- [ ] If baselines regressed >20%, commit is blocked with a clear error message pointing to the log file
-- [ ] Full JMH run time impact is documented (expected: ~30-60s additional pre-commit latency)
+- [x] `.githooks/pre-commit` step 2 replaces `:backend:jmhClasses` with `./gradlew :backend:jmh --no-daemon`
+- [x] JMH output is piped to `/tmp/company-app-jmh-precommit.log`
+- [x] After JMH succeeds, `bash scripts/check-baselines.sh /tmp/company-app-jmh-precommit.log` is called
+- [x] If baselines regressed >20%, commit is blocked with a clear error message pointing to the log file
+- [x] Full JMH run time impact is documented in pre-commit (expected ~30-60s additional latency)
 
-## Blocked by
-
-None — can start immediately.
-
-## Status: ready-for-agent
+## Status: ✅ done

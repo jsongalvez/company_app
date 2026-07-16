@@ -23,7 +23,7 @@ Package root: `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repos
 The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
 
 1. **Formatting:** `./gradlew ktlintFormat` (auto-fixes imports, then re-stages)
-2. **Static analysis, tests & JMH compilation:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses`
+2. **Static analysis, tests & JMH benchmarks:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmh`
 3. **App boot verification:** Postgres must be reachable, then the app is started and confirmed listening on its port before the commit is allowed.
 
 A pre-push hook (`.githooks/pre-push`) additionally runs the full JMH benchmark suite and
@@ -31,7 +31,7 @@ reminds you to compare against `backend/jmh-baselines.md` with `bash scripts/che
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
-To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmhClasses`
+To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmh` and then `bash scripts/check-baselines.sh`
 
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 
