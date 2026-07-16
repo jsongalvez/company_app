@@ -47,7 +47,7 @@ object SessionBaseRateRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
-            context.json(SessionBaseRateService.findActiveRates(callerId, branchId).map { it.toResponse() })
+            context.json(SessionBaseRateService.findActiveRates(branchId).map { it.toResponse() })
         }
     }
 

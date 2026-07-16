@@ -65,7 +65,7 @@ object UserBranchAssignmentRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
         context.json(
-            UserBranchAssignmentService.findActiveByBranch(callerId, branchId).map { it.toResponse() },
+            UserBranchAssignmentService.findActiveByBranch(branchId).map { it.toResponse() },
         )
     }
 

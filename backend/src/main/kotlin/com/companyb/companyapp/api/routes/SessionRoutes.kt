@@ -269,7 +269,7 @@ object SessionRoutes {
 
     private fun handleGetConcerns(context: Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
-        val concerns = ConcernService.listAll(callerId)
+        val concerns = ConcernService.listAll()
         context.json(concerns.map { it.toResponse() })
     }
 
@@ -277,7 +277,7 @@ object SessionRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val sessionId = context.pathParamAsUuid("sessionId")
 
-        val concerns = ConcernService.getForSession(callerId, sessionId)
+        val concerns = ConcernService.getForSession(sessionId)
         context.json(concerns.map { it.toResponse() })
     }
 

@@ -22,7 +22,6 @@ object DailySalesSummaryRoutes {
         }
 
         config.routes.get("/api/branches/{branchId}/daily-summary") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid("branchId")
             val dateParam =
                 context.queryParam("date")
@@ -31,7 +30,7 @@ object DailySalesSummaryRoutes {
                 runCatching { LocalDate.parse(dateParam) }
                     .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
 
-            val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, date)
+            val summary = DailySalesSummaryService.getDailySummary(branchId, date)
 
             context.status(HttpStatus.OK)
             context.json(summary.toResponse())

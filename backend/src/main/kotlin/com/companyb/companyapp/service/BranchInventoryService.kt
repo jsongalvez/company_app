@@ -15,9 +15,8 @@ import java.util.UUID
 object BranchInventoryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount", "UnusedParameter")
+    @Suppress("ThrowsCount")
     fun ensureCard(
-        callerId: UUID,
         branchId: UUID,
         productId: UUID,
     ) {
@@ -147,11 +146,7 @@ object BranchInventoryService {
         }
     }
 
-    @Suppress("UnusedParameter")
-    fun findByBranch(
-        callerId: UUID,
-        branchId: UUID,
-    ): List<BranchInventoryWithProduct> {
+    fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> {
         if (BranchRepository.findById(branchId) == null) {
             throw NotFoundResponse("Branch not found")
         }

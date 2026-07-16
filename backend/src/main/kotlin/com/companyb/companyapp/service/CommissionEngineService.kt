@@ -102,11 +102,7 @@ object CommissionEngineService {
         }
     }
 
-    @Suppress("UnusedParameter")
-    fun manualRecalculate(
-        callerId: UUID,
-        branchDayId: UUID,
-    ) {
+    fun manualRecalculate(branchDayId: UUID) {
         val branchDay =
             BranchDayRepository.findById(branchDayId)
                 ?: throw NotFoundResponse("Branch day not found")

@@ -99,7 +99,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertTrue(first.created)
         assertTrue(second.created)
 
-        val activeRates = SessionBaseRateService.findActiveRates(callerId, branchId)
+        val activeRates = SessionBaseRateService.findActiveRates(branchId)
         assertEquals(1, activeRates.size)
         assertEquals("3000.00", activeRates[0].rate.toPlainString())
     }
@@ -114,7 +114,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
 
-        val activeRates = SessionBaseRateService.findActiveRates(callerId, branchId)
+        val activeRates = SessionBaseRateService.findActiveRates(branchId)
 
         assertEquals(2, activeRates.size)
     }
@@ -138,13 +138,13 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     fun `find rates for branch with no rates returns empty`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val rates = SessionBaseRateService.findActiveRates(callerId, branchId)
+        val rates = SessionBaseRateService.findActiveRates(branchId)
         assertTrue(rates.isEmpty())
     }
 
     @Test
     fun `findActiveRates without MANAGE_PRODUCTS is allowed at service layer`() {
-        val rates = SessionBaseRateService.findActiveRates(callerId, branchId)
+        val rates = SessionBaseRateService.findActiveRates(branchId)
 
         assertTrue(rates.isEmpty())
     }

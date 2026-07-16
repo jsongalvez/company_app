@@ -86,7 +86,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns 404 when no remittance data exists for given month`() {
         assertFailsWith<NotFoundResponse> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
         }
     }
 
@@ -103,7 +103,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -156,7 +156,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -178,7 +178,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -203,7 +203,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem2Id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, rem2Id)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
 
         assertNotNull(summary)
         assertEquals(2, summary.totalRemittances)
@@ -219,14 +219,14 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         }
 
         assertFailsWith<NotFoundResponse> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
         }
     }
 
     @Test
     fun `throws 404 for non-existent branch`() {
         assertFailsWith<NotFoundResponse> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(callerId, UUID.randomUUID(), 2026, 7)
+            MonthlyRemittanceSummaryService.getMonthlySummary(UUID.randomUUID(), 2026, 7)
         }
     }
 
@@ -242,7 +242,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)

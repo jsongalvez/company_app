@@ -46,7 +46,6 @@ object BranchInventoryRoutes {
         val productId = uuidOrThrow(request.productId, "product id")
 
         BranchInventoryService.ensureCard(
-            callerId = callerId,
             branchId = branchId,
             productId = productId,
         )
@@ -81,7 +80,7 @@ object BranchInventoryRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
         context.json(
-            BranchInventoryService.findByBranch(callerId, branchId).map { it.toResponse() },
+            BranchInventoryService.findByBranch(branchId).map { it.toResponse() },
         )
     }
 

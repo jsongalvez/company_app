@@ -10,14 +10,9 @@ import java.util.UUID
 object ConcernService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("UnusedParameter")
-    fun listAll(callerId: UUID): List<Concern> = ConcernRepository.findAll()
+    fun listAll(): List<Concern> = ConcernRepository.findAll()
 
-    @Suppress("UnusedParameter")
-    fun getForSession(
-        callerId: UUID,
-        sessionId: UUID,
-    ): List<Concern> {
+    fun getForSession(sessionId: UUID): List<Concern> {
         SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         return ConcernRepository.getConcernsForSession(sessionId)
     }

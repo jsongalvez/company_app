@@ -56,11 +56,7 @@ object SessionBaseRateService {
         return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rateAmount, FAR_FUTURE)
     }
 
-    @Suppress("UnusedParameter")
-    fun findActiveRates(
-        callerId: UUID,
-        branchId: UUID,
-    ): List<SessionBaseRate> {
+    fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         return SessionBaseRateRepository.findActiveByBranch(branchId, now)
     }

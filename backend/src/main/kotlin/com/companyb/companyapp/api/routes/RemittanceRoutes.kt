@@ -106,7 +106,7 @@ object RemittanceRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val remittanceId = context.pathParamAsUuid("remittanceId")
 
-        val detail = RemittanceService.getRemittance(callerId, remittanceId)
+        val detail = RemittanceService.getRemittance(remittanceId)
         context.json(detail.toResponse())
     }
 

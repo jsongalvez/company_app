@@ -11,9 +11,8 @@ import java.util.UUID
 object DailySalesSummaryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount", "UnusedParameter")
+    @Suppress("ThrowsCount")
     fun getDailySummary(
-        callerId: UUID,
         branchId: UUID,
         date: LocalDate,
     ): DailySalesSummary {

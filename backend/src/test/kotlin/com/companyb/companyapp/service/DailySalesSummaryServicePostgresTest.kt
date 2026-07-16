@@ -62,7 +62,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCompensation))
@@ -99,7 +99,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("1500.00"),
         )
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(BigDecimal("4000.00"), summary.grossIncome)
     }
@@ -120,7 +120,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("2500.00"),
         )
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(BigDecimal.ZERO.setScale(2), summary.grossIncome)
     }
@@ -143,7 +143,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         )
         insertSessionVoid(sessionId)
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
     }
@@ -167,7 +167,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         insertSessionVoid(sessionId)
         unvoidSession(sessionId)
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(0, BigDecimal("2500.00").compareTo(summary.grossIncome))
     }
@@ -185,7 +185,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestCompensation(branchDayId, user1, BigDecimal("500.00"), assignedBy = callerId)
         DatabaseTestHelper.insertTestCompensation(branchDayId, user2, BigDecimal("300.00"), assignedBy = callerId)
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(BigDecimal("800.00"), summary.totalCompensation)
     }
@@ -200,7 +200,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("200.00"), deleted = false)
         DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("100.00"), deleted = true)
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(BigDecimal("200.00"), summary.totalExpenses)
     }
@@ -214,7 +214,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, userId)
         insertProductSale(branchDayId, userId, BigDecimal("300.00"))
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(BigDecimal("300.00"), summary.totalProductSales)
     }
@@ -228,7 +228,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, userId)
         insertCommissionSplit(branchDayId, userId, BigDecimal("150.0000"))
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(0, BigDecimal("150.0000").compareTo(summary.totalCommission))
     }
@@ -254,7 +254,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestCompensation(branchDayId, userId, BigDecimal("1000.00"), assignedBy = callerId)
         DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("500.00"), deleted = false)
 
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(BigDecimal("5000.00"), summary.grossIncome)
         assertEquals(BigDecimal("1000.00"), summary.totalCompensation)
@@ -264,7 +264,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns zero summary without VIEW_BRANCH_DATA capability`() {
-        val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
+        val summary = DailySalesSummaryService.getDailySummary(branchId, today)
 
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.grossIncome))
         assertEquals(0, BigDecimal.ZERO.compareTo(summary.totalCompensation))
@@ -281,7 +281,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         val fakeBranchId = UUID.randomUUID()
 
         assertFailsWith<NotFoundResponse> {
-            DailySalesSummaryService.getDailySummary(callerId, fakeBranchId, today)
+            DailySalesSummaryService.getDailySummary(fakeBranchId, today)
         }
     }
 

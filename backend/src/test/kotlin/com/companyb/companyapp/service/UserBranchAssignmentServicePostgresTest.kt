@@ -320,7 +320,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userBId, 5)
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
 
-        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
 
         assertEquals(2, assignments.size)
         assertEquals(userAId, assignments[0].userId)
@@ -338,7 +338,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
         UserBranchAssignmentService.remove(callerId, branchId, userBId)
 
-        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
 
         assertEquals(1, assignments.size)
         assertEquals(userAId, assignments[0].userId)
@@ -346,7 +346,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findActiveByBranch without MANAGE_USERS is allowed at service layer`() {
-        val assignments = UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
 
         assertTrue(assignments.isEmpty())
     }

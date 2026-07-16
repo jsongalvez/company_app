@@ -72,7 +72,7 @@ object CommissionRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchDayId = context.pathParamAsUuid("branchDayId")
 
-        val splits = CommissionSplitService.getByBranchDayId(callerId, branchDayId)
+        val splits = CommissionSplitService.getByBranchDayId(branchDayId)
 
         context.status(HttpStatus.OK)
         context.json(splits.map { it.toResponse() })
@@ -82,9 +82,9 @@ object CommissionRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchDayId = context.pathParamAsUuid("branchDayId")
 
-        CommissionEngineService.manualRecalculate(callerId, branchDayId)
+        CommissionEngineService.manualRecalculate(branchDayId)
 
-        val splits = CommissionSplitService.getByBranchDayId(callerId, branchDayId)
+        val splits = CommissionSplitService.getByBranchDayId(branchDayId)
         context.status(HttpStatus.OK)
         context.json(splits.map { it.toResponse() })
     }

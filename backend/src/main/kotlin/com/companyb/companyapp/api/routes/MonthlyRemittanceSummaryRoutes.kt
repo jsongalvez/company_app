@@ -24,7 +24,6 @@ object MonthlyRemittanceSummaryRoutes {
         }
 
         config.routes.get("/api/branches/{branchId}/monthly-summary") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid("branchId")
 
             val yearParam =
@@ -44,7 +43,7 @@ object MonthlyRemittanceSummaryRoutes {
                 throw BadRequestResponse("month must be between 1 and 12")
             }
 
-            val summary = MonthlyRemittanceSummaryService.getMonthlySummary(callerId, branchId, year, month)
+            val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, year, month)
 
             context.status(HttpStatus.OK)
             context.json(summary.toResponse())

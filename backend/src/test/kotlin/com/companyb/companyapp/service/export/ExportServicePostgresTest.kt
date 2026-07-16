@@ -144,7 +144,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export CSV returns valid CSV bytes`() {
-        val result = ExportService.exportDaily(callerId, branchId, today, ExportFormat.CSV)
+        val result = ExportService.exportDaily(branchId, today, ExportFormat.CSV)
         val csv = String(result.bytes, Charsets.UTF_8)
         assertTrue(csv.contains("Gross Income"))
         assertTrue(csv.contains("0.00"))
@@ -154,7 +154,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export PDF returns valid PDF bytes`() {
-        val result = ExportService.exportDaily(callerId, branchId, today, ExportFormat.PDF)
+        val result = ExportService.exportDaily(branchId, today, ExportFormat.PDF)
         val pdfStart = byteArrayOf(0x25, 0x50, 0x44, 0x46)
         assertContentEquals(pdfStart, result.bytes.take(4).toByteArray())
         assertEquals("application/pdf", result.contentType)
@@ -177,7 +177,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
             finalPrice = BigDecimal("2500.00"),
         )
         trackOwned(SessionTable, SessionTable.branchDayId, branchDayId)
-        val result = ExportService.exportDaily(callerId, branchId, today, ExportFormat.CSV)
+        val result = ExportService.exportDaily(branchId, today, ExportFormat.CSV)
         val csv = String(result.bytes, Charsets.UTF_8)
         assertTrue(csv.contains("2500.00"))
     }
@@ -186,7 +186,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     fun `daily export throws 404 for missing data`() {
         val missingDate = today.plusDays(100)
         assertFailsWith<NotFoundResponse> {
-            ExportService.exportDaily(callerId, branchId, missingDate, ExportFormat.CSV)
+            ExportService.exportDaily(branchId, missingDate, ExportFormat.CSV)
         }
     }
 
@@ -201,7 +201,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
             displayName = "No Cap User",
         )
         trackOwned(AppUserTable, AppUserTable.id, otherUserId)
-        val result = ExportService.exportDaily(otherUserId, branchId, today, ExportFormat.CSV)
+        val result = ExportService.exportDaily(branchId, today, ExportFormat.CSV)
         val csv = String(result.bytes, Charsets.UTF_8)
         assertTrue(csv.contains("Gross Income"))
         assertTrue(csv.contains("0.00"))
@@ -211,21 +211,21 @@ class ExportServicePostgresTest : BasePostgresTest() {
     fun `daily export throws 404 for non-existent branch`() {
         val missingBranch = UUID.randomUUID()
         assertFailsWith<NotFoundResponse> {
-            ExportService.exportDaily(callerId, missingBranch, today, ExportFormat.CSV)
+            ExportService.exportDaily(missingBranch, today, ExportFormat.CSV)
         }
     }
 
     @Test
     fun `monthly export throws 404 when no remittance data`() {
         assertFailsWith<NotFoundResponse> {
-            ExportService.exportMonthly(callerId, branchId, 2099, 1, ExportFormat.CSV)
+            ExportService.exportMonthly(branchId, 2099, 1, ExportFormat.CSV)
         }
     }
 
     @Test
     fun `monthly export CSV returns valid CSV bytes`() {
         createSubmittedRemittance(BigDecimal("5000.00"), BigDecimal("1000.00"), BigDecimal("500.00"))
-        val result = ExportService.exportMonthly(callerId, branchId, today.year, today.monthValue, ExportFormat.CSV)
+        val result = ExportService.exportMonthly(branchId, today.year, today.monthValue, ExportFormat.CSV)
         val csv = String(result.bytes, Charsets.UTF_8)
         assertTrue(csv.contains("Remittances"))
         assertTrue(csv.contains("5000.00"))
@@ -235,7 +235,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `monthly export PDF returns valid PDF bytes`() {
         createSubmittedRemittance(BigDecimal("3000.00"), BigDecimal("800.00"), BigDecimal("200.00"))
-        val result = ExportService.exportMonthly(callerId, branchId, today.year, today.monthValue, ExportFormat.PDF)
+        val result = ExportService.exportMonthly(branchId, today.year, today.monthValue, ExportFormat.PDF)
         val pdfStart = byteArrayOf(0x25, 0x50, 0x44, 0x46)
         assertContentEquals(pdfStart, result.bytes.take(4).toByteArray())
         assertEquals("application/pdf", result.contentType)
@@ -244,7 +244,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `all-time export CSV returns monthly data rows`() {
         createSubmittedRemittance(BigDecimal("5000.00"), BigDecimal("1000.00"), BigDecimal("500.00"))
-        val result = ExportService.exportAllTime(callerId, branchId, ExportFormat.CSV)
+        val result = ExportService.exportAllTime(branchId, ExportFormat.CSV)
         val csv = String(result.bytes, Charsets.UTF_8)
         assertTrue(csv.contains("Year"))
         assertTrue(csv.contains("Month"))
@@ -255,14 +255,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `all-time export throws 404 when no data`() {
         assertFailsWith<NotFoundResponse> {
-            ExportService.exportAllTime(callerId, branchId, ExportFormat.CSV)
+            ExportService.exportAllTime(branchId, ExportFormat.CSV)
         }
     }
 
     @Test
     fun `all-time export PDF returns valid PDF bytes`() {
         createSubmittedRemittance(BigDecimal("4000.00"), BigDecimal("900.00"), BigDecimal("300.00"))
-        val result = ExportService.exportAllTime(callerId, branchId, ExportFormat.PDF)
+        val result = ExportService.exportAllTime(branchId, ExportFormat.PDF)
         val pdfStart = byteArrayOf(0x25, 0x50, 0x44, 0x46)
         assertContentEquals(pdfStart, result.bytes.take(4).toByteArray())
         assertEquals("application/pdf", result.contentType)
@@ -290,7 +290,6 @@ class ExportServicePostgresTest : BasePostgresTest() {
             )
         val result =
             ExportService.exportByBranchType(
-                callerId,
                 BranchType.PROVINCIAL_TOUR,
                 null,
                 null,
@@ -320,7 +319,6 @@ class ExportServicePostgresTest : BasePostgresTest() {
             )
         val result =
             ExportService.exportByBranchType(
-                callerId,
                 BranchType.MEDICAL_MISSION,
                 null,
                 null,
@@ -335,7 +333,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `clinic branch type throws BadRequest for provincial export`() {
         assertFailsWith<BadRequestResponse> {
-            ExportService.exportByBranchType(callerId, BranchType.CLINIC, null, null, ExportFormat.CSV)
+            ExportService.exportByBranchType(BranchType.CLINIC, null, null, ExportFormat.CSV)
         }
     }
 
@@ -385,7 +383,6 @@ class ExportServicePostgresTest : BasePostgresTest() {
             )
         val result =
             ExportService.exportByBranchType(
-                callerId,
                 BranchType.PROVINCIAL_TOUR,
                 today.year,
                 today.monthValue,

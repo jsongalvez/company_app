@@ -511,7 +511,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             branchDayId = branchDayId,
         )
 
-        val detail = RemittanceService.getRemittance(callerId, remittance.id)
+        val detail = RemittanceService.getRemittance(remittance.id)
         assertEquals(remittance.id, detail.remittance.id)
         assertEquals(1, detail.lines.size)
         assertEquals(1, detail.dayBreakdowns.size)
@@ -553,7 +553,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("2000.00"),
         )
 
-        val detail = RemittanceService.getRemittance(callerId, remittance.id)
+        val detail = RemittanceService.getRemittance(remittance.id)
         assertEquals(BigDecimal("3000.00"), detail.totalAmount)
     }
 
@@ -579,7 +579,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.removeLine(callerId, remittance.id, lineId)
 
-        val detail = RemittanceService.getRemittance(callerId, remittance.id)
+        val detail = RemittanceService.getRemittance(remittance.id)
         assertEquals(0, detail.lines.size)
         assertEquals(BigDecimal.ZERO, detail.totalAmount)
     }
@@ -594,7 +594,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
-        val detail = RemittanceService.getRemittance(otherUser, remittance.id)
+        val detail = RemittanceService.getRemittance(remittance.id)
 
         assertEquals(remittance.id, detail.remittance.id)
         assertTrue(detail.lines.isEmpty())
@@ -603,7 +603,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get non-existent remittance returns not found`() {
         assertFailsWith<NotFoundResponse> {
-            RemittanceService.getRemittance(callerId, UUID.randomUUID())
+            RemittanceService.getRemittance(UUID.randomUUID())
         }
     }
 

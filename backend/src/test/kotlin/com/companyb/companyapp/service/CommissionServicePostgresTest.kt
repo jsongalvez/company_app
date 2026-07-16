@@ -258,7 +258,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val splits =
-            CommissionSplitService.getByBranchDayId(callerId, branchDayId)
+            CommissionSplitService.getByBranchDayId(branchDayId)
         assertTrue(splits.isNotEmpty())
 
         val targetSplit = splits.find { it.userId == targetUserId }
@@ -269,7 +269,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get splits without VIEW_BRANCH_DATA is allowed at service layer`() {
         val splits =
-            CommissionSplitService.getByBranchDayId(callerId, branchDayId)
+            CommissionSplitService.getByBranchDayId(branchDayId)
 
         assertTrue(splits.isEmpty())
     }
@@ -277,7 +277,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get splits with non-existent branch day returns not found`() {
         assertFailsWith<NotFoundResponse> {
-            CommissionSplitService.getByBranchDayId(callerId, UUID.randomUUID())
+            CommissionSplitService.getByBranchDayId(UUID.randomUUID())
         }
     }
 

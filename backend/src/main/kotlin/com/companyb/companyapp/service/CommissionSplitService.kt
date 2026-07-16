@@ -10,11 +10,7 @@ import java.util.UUID
 object CommissionSplitService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("UnusedParameter")
-    fun getByBranchDayId(
-        callerId: UUID,
-        branchDayId: UUID,
-    ): List<CommissionSplit> {
+    fun getByBranchDayId(branchDayId: UUID): List<CommissionSplit> {
         BranchDayRepository.findById(branchDayId)
             ?: throw NotFoundResponse("Branch day not found")
 

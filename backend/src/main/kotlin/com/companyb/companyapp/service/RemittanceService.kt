@@ -215,11 +215,8 @@ object RemittanceService {
         return breakdown
     }
 
-    @Suppress("ThrowsCount", "ReturnCount", "UnusedParameter")
-    fun getRemittance(
-        callerId: UUID,
-        remittanceId: UUID,
-    ): RemittanceDetail {
+    @Suppress("ThrowsCount", "ReturnCount")
+    fun getRemittance(remittanceId: UUID): RemittanceDetail {
         val remittance =
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")

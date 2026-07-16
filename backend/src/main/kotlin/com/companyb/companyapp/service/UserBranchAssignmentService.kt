@@ -141,9 +141,6 @@ object UserBranchAssignmentService {
         logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }
     }
 
-    @Suppress("UnusedParameter")
-    fun findActiveByBranch(
-        callerId: UUID,
-        branchId: UUID,
-    ): List<UserBranchAssignment> = UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =
+        UserBranchAssignmentRepository.findActiveByBranch(branchId)
 }

@@ -15,9 +15,7 @@ import java.util.UUID
 object ExportService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("UnusedParameter")
     fun exportDaily(
-        callerId: UUID,
         branchId: UUID,
         date: LocalDate,
         format: ExportFormat,
@@ -45,9 +43,7 @@ object ExportService {
         return buildResult(title, headers, rows, format, "daily-sales-${branch.name}-$date")
     }
 
-    @Suppress("UnusedParameter")
     fun exportMonthly(
-        callerId: UUID,
         branchId: UUID,
         year: Int,
         month: Int,
@@ -81,9 +77,7 @@ object ExportService {
         return buildResult(title, headers, rows, format, "monthly-remittance-${branch.name}-$year-$month")
     }
 
-    @Suppress("UnusedParameter")
     fun exportAllTime(
-        callerId: UUID,
         branchId: UUID,
         format: ExportFormat,
     ): ExportResult {
@@ -100,9 +94,7 @@ object ExportService {
         return buildResult(title, headers, rows, format, "all-time-remittance-${branch.name}")
     }
 
-    @Suppress("UnusedParameter")
     fun exportByBranchType(
-        callerId: UUID,
         branchType: BranchType,
         year: Int?,
         month: Int?,

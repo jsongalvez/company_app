@@ -70,7 +70,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list concerns returns all concerns including system-seeded`() {
-        val concerns = ConcernService.listAll(callerId)
+        val concerns = ConcernService.listAll()
 
         assertTrue(concerns.isNotEmpty())
         val systemConcern = concerns.find { it.id == systemConcernId }
@@ -85,7 +85,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        val concerns = ConcernService.listAll(otherCaller)
+        val concerns = ConcernService.listAll()
 
         assertTrue(concerns.isNotEmpty())
     }
@@ -94,7 +94,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     fun `add concern to session succeeds and writes audit`() {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(callerId, sessionId)
+        val concerns = ConcernService.getForSession(sessionId)
         assertEquals(1, concerns.size)
         assertEquals(systemConcernId, concerns[0].id)
 
@@ -113,7 +113,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(callerId, sessionId)
+        val concerns = ConcernService.getForSession(sessionId)
         assertEquals(1, concerns.size)
     }
 
@@ -126,7 +126,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
         ConcernService.addToSession(otherCaller, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(callerId, sessionId)
+        val concerns = ConcernService.getForSession(sessionId)
         assertEquals(1, concerns.size)
         assertEquals(systemConcernId, concerns[0].id)
     }
@@ -151,7 +151,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
         ConcernService.removeFromSession(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(callerId, sessionId)
+        val concerns = ConcernService.getForSession(sessionId)
         assertTrue(concerns.isEmpty())
 
         val auditCount =
@@ -176,7 +176,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
         ConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(callerId, sessionId)
+        val concerns = ConcernService.getForSession(sessionId)
         assertTrue(concerns.isEmpty())
     }
 
@@ -198,7 +198,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         assertEquals("Back Pain", promoted.label)
         assertEquals(callerId, promoted.createdBy)
 
-        val concerns = ConcernService.getForSession(callerId, promotedSessionId)
+        val concerns = ConcernService.getForSession(promotedSessionId)
         assertTrue(concerns.any { it.id == promoted.id })
 
         val session = SessionRepository.findById(promotedSessionId)!!
@@ -210,7 +210,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Neck Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
-        val allConcerns = ConcernService.listAll(callerId)
+        val allConcerns = ConcernService.listAll()
         assertTrue(allConcerns.any { it.id == promoted.id })
         assertNotNull(allConcerns.find { it.id == promoted.id }?.createdBy)
     }
@@ -221,7 +221,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        val concerns = ConcernService.getForSession(otherCaller, promotedSessionId)
+        val concerns = ConcernService.getForSession(promotedSessionId)
 
         assertTrue(concerns.isEmpty())
     }

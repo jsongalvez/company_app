@@ -48,7 +48,6 @@ object ExportRoutes {
     }
 
     private fun handleDailyExport(context: io.javalin.http.Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid("branchId")
         val dateParam =
             context.queryParam("date")
@@ -58,28 +57,26 @@ object ExportRoutes {
                 .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
         val format = ExportService.parseFormat(context.queryParam("format"))
 
-        val result = ExportService.exportDaily(callerId, branchId, date, format)
+        val result = ExportService.exportDaily(branchId, date, format)
         sendFileResponse(context, result)
     }
 
     private fun handleMonthlyExport(context: io.javalin.http.Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid("branchId")
         val year = parseRequiredInt(context, "year")
         val month = parseRequiredInt(context, "month")
         validateMonthRange(month)
         val format = ExportService.parseFormat(context.queryParam("format"))
 
-        val result = ExportService.exportMonthly(callerId, branchId, year, month, format)
+        val result = ExportService.exportMonthly(branchId, year, month, format)
         sendFileResponse(context, result)
     }
 
     private fun handleAllTimeExport(context: io.javalin.http.Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid("branchId")
         val format = ExportService.parseFormat(context.queryParam("format"))
 
-        val result = ExportService.exportAllTime(callerId, branchId, format)
+        val result = ExportService.exportAllTime(branchId, format)
         sendFileResponse(context, result)
     }
 
@@ -87,13 +84,12 @@ object ExportRoutes {
         context: io.javalin.http.Context,
         branchType: BranchType,
     ) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
         val year = context.queryParam("year")?.toIntOrNull()
         val month = context.queryParam("month")?.toIntOrNull()
         validateOptionalMonth(year, month)
         val format = ExportService.parseFormat(context.queryParam("format"))
 
-        val result = ExportService.exportByBranchType(callerId, branchType, year, month, format)
+        val result = ExportService.exportByBranchType(branchType, year, month, format)
         sendFileResponse(context, result)
     }
 
