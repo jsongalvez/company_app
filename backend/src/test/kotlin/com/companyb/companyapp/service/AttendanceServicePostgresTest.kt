@@ -12,9 +12,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ConflictResponse
 import io.javalin.http.NotFoundResponse
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -190,7 +187,7 @@ class AttendanceServicePostgresTest {
                     }.orderBy(AuditLogTable.changedAt to SortOrder.DESC)
                     .limit(1)
                     .single()
-            extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
+            DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
         }
 
     private fun deleteTestRows() {
@@ -207,18 +204,6 @@ class AttendanceServicePostgresTest {
             BranchTable.deleteWhere { BranchTable.id eq branchId }
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
             AppUserTable.deleteWhere { AppUserTable.id eq userId }
-        }
-    }
-
-    private companion object {
-        private val json = Json
-
-        private fun extractJsonField(
-            jsonString: String,
-            field: String,
-        ): String {
-            val jsonElement = json.parseToJsonElement(jsonString)
-            return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
         }
     }
 }

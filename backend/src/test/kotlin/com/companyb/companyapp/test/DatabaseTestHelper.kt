@@ -23,6 +23,9 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.service.CapabilityService
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -347,5 +350,15 @@ object DatabaseTestHelper {
         transaction {
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
         }
+    }
+
+    private val json = Json
+
+    fun extractJsonField(
+        jsonString: String,
+        field: String,
+    ): String {
+        val jsonElement = json.parseToJsonElement(jsonString)
+        return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
     }
 }

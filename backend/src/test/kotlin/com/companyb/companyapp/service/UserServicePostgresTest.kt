@@ -8,9 +8,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -99,8 +96,8 @@ class UserServicePostgresTest {
             AuditEntry(
                 action = row[AuditLogTable.action].name,
                 changedBy = row[AuditLogTable.changedBy].toString(),
-                oldStatus = extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "status"),
-                newStatus = extractJsonField(row[AuditLogTable.newValue] ?: "{}", "status"),
+                oldStatus = DatabaseTestHelper.extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "status"),
+                newStatus = DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "status"),
             )
         }
 
@@ -136,16 +133,4 @@ class UserServicePostgresTest {
         val oldStatus: String,
         val newStatus: String,
     )
-
-    private companion object {
-        private val json = Json
-
-        private fun extractJsonField(
-            jsonString: String,
-            field: String,
-        ): String {
-            val jsonElement = json.parseToJsonElement(jsonString)
-            return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
-        }
-    }
 }

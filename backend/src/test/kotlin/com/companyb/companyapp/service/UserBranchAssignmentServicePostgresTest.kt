@@ -9,9 +9,6 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -411,8 +408,8 @@ class UserBranchAssignmentServicePostgresTest {
 
             AssignmentAudit(
                 action = row[AuditLogTable.action].name,
-                oldSlot = extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "slot"),
-                newSlot = extractJsonField(row[AuditLogTable.newValue] ?: "{}", "slot"),
+                oldSlot = DatabaseTestHelper.extractJsonField(row[AuditLogTable.oldValue] ?: "{}", "slot"),
+                newSlot = DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "slot"),
             )
         }
 
@@ -435,18 +432,6 @@ class UserBranchAssignmentServicePostgresTest {
                 (AppUserTable.id eq ids[0]) or (AppUserTable.id eq ids[1]) or
                     (AppUserTable.id eq ids[2]) or (AppUserTable.id eq ids[3])
             }
-        }
-    }
-
-    private companion object {
-        private val json = Json
-
-        private fun extractJsonField(
-            jsonString: String,
-            field: String,
-        ): String {
-            val jsonElement = json.parseToJsonElement(jsonString)
-            return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
         }
     }
 }

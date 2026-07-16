@@ -9,9 +9,6 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -591,19 +588,6 @@ class ClientServicePostgresTest {
                 (ClientTable.id eq clientIds[0]) or (ClientTable.id eq clientIds[1])
             }
             AppUserTable.deleteWhere { AppUserTable.id eq userId }
-        }
-    }
-
-    private companion object {
-        private val json = Json
-
-        @Suppress("unused")
-        private fun extractJsonField(
-            jsonString: String,
-            field: String,
-        ): String {
-            val jsonElement = json.parseToJsonElement(jsonString)
-            return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
         }
     }
 }
