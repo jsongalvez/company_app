@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
@@ -21,12 +20,9 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
-import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -48,9 +44,9 @@ class ExpenseServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "expense-caller")
-        insertBranch(branchId, "Test Expense Branch")
-        branchDayId = createBranchDay(branchId)
+        DatabaseTestHelper.insertTestUser(callerId, "expense-caller")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Expense Branch")
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         grantEditBranchData(callerId)
     }
 
@@ -133,7 +129,7 @@ class ExpenseServicePostgresTest {
 
     @Test
     fun `create without EDIT_BRANCH_DATA is forbidden`() {
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             ExpenseService.create(
@@ -259,7 +255,7 @@ class ExpenseServicePostgresTest {
             notes = "Test",
         )
 
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             ExpenseService.softDelete(
@@ -373,47 +369,6 @@ class ExpenseServicePostgresTest {
         }
     }
 
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun createBranchDay(branchId: UUID): UUID =
-        transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
-            BranchDayTable.insertIgnore {
-                it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
-            }
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
-                }.single()[BranchDayTable.id]
-        }
-
     private fun grantEditBranchData(userId: UUID) {
         DatabaseTestHelper.grantCapability(
             userId = userId,
@@ -422,12 +377,6 @@ class ExpenseServicePostgresTest {
             contextId = branchId,
             sourceId = sourceId,
         )
-    }
-
-    private fun revokeCapabilities() {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-        }
     }
 
     private fun deleteTestRows() {

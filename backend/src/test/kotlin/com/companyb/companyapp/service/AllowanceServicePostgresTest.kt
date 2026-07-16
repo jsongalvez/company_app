@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AllowanceTable
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -18,12 +16,9 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
-import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -45,11 +40,11 @@ class AllowanceServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "allowance-caller")
-        insertUser(targetUserId, "allowance-target")
-        insertBranch(branchId, "Test Allowance Branch")
-        branchDayId = createBranchDay(branchId)
-        grantAssignCompensation(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "allowance-caller")
+        DatabaseTestHelper.insertTestUser(targetUserId, "allowance-target")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Allowance Branch")
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
     }
 
     @AfterTest
@@ -107,7 +102,7 @@ class AllowanceServicePostgresTest {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is forbidden`() {
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             AllowanceService.create(
@@ -181,7 +176,7 @@ class AllowanceServicePostgresTest {
 
     @Test
     fun `findByBranchDayId without capability is forbidden`() {
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             AllowanceService.findByBranchDayId(callerId, branchDayId)
@@ -210,57 +205,6 @@ class AllowanceServicePostgresTest {
                     }.count()
             }
         assertTrue(auditCount > 0)
-    }
-
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun createBranchDay(branchId: UUID): UUID =
-        transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
-            BranchDayTable.insertIgnore {
-                it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
-            }
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
-                }.single()[BranchDayTable.id]
-        }
-
-    private fun grantAssignCompensation(userId: UUID) {
-        DatabaseTestHelper.grantAssignCompensation(userId, sourceId)
-    }
-
-    private fun revokeCapabilities() {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-        }
     }
 
     private fun deleteTestRows() {

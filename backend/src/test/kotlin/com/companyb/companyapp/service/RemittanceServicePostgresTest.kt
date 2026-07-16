@@ -1,8 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.database.DatabaseConfig
-import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
@@ -39,7 +37,6 @@ import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -70,9 +67,9 @@ class RemittanceServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "remittance-caller")
-        insertBranch(branchId, "Test Remittance Branch ${UUID.randomUUID()}")
-        grantSubmitRemittance(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "remittance-caller")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${UUID.randomUUID()}")
+        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
     }
 
     @AfterTest
@@ -165,7 +162,7 @@ class RemittanceServicePostgresTest {
 
     @Test
     fun `create draft without SUBMIT_REMITTANCE is forbidden`() {
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             RemittanceService.createDraft(
@@ -348,7 +345,7 @@ class RemittanceServicePostgresTest {
     fun `submit without SUBMIT_REMITTANCE capability is forbidden`() {
         val remittanceId = UUID.randomUUID()
         createDraftRemittance(remittanceId)
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             RemittanceService.submit(callerId, remittanceId, 1)
@@ -421,42 +418,6 @@ class RemittanceServicePostgresTest {
         assertEquals(BigDecimal.ZERO, result.totalCompensation)
         assertEquals(BigDecimal.ZERO, result.totalExpenses)
         assertEquals(BigDecimal.ZERO, result.netIncome)
-    }
-
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun grantSubmitRemittance(userId: UUID) {
-        DatabaseTestHelper.grantSubmitRemittance(userId, sourceId, branchId)
-    }
-
-    private fun revokeCapabilities() {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-        }
     }
 
     private fun createDraftRemittance(remittanceId: UUID) {
@@ -544,15 +505,11 @@ class RemittanceServicePostgresTest {
         ensureClientExists()
         val sId = UUID.randomUUID()
         val branchDayId = resolveBranchDay()
-        val conn = DatabaseConfig.dataSource.connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "INSERT INTO session (id, client_id, branch_day_id, session_type, " +
-                    "is_walk_in, base_price, final_price) " +
-                    "VALUES ('$sId', '$clientId', '$branchDayId', 'REGULAR', false, 2500.00, 2500.00)",
-            )
-        }
-        conn.close()
+        DatabaseTestHelper.insertTestSession(
+            id = sId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+        )
         sessionId = sId
         sessionCreated = true
         return sId

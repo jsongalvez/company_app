@@ -38,8 +38,8 @@ class UserServicePostgresTest {
         DatabaseTestHelper.ensureDatabase()
         DenyList.clear()
         deleteTestRows(callerId, targetUserId)
-        insertUser(callerId, "caller")
-        insertUser(targetUserId, "target")
+        DatabaseTestHelper.insertTestUser(callerId, "caller")
+        DatabaseTestHelper.insertTestUser(targetUserId, "target")
     }
 
     @AfterTest
@@ -52,7 +52,7 @@ class UserServicePostgresTest {
 
     @Test
     fun `deactivate persists inactive status, writes audit log, and rejects existing token`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val targetToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
@@ -76,23 +76,6 @@ class UserServicePostgresTest {
 
         assertEquals(UserStatus.ACTIVE, userStatus(targetUserId))
         assertEquals(0L, auditEntryCount(targetUserId))
-    }
-
-    private fun insertUser(
-        id: UUID,
-        usernameSuffix: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = id,
-            username = "pgsql-$usernameSuffix-$id",
-            passwordHash = "test-password-hash",
-            email = "${id.toString().take(8)}@t.st",
-            displayName = "Postgres $usernameSuffix",
-        )
-    }
-
-    private fun grantManageUsers(userId: UUID) {
-        DatabaseTestHelper.grantManageUsers(userId, sourceId)
     }
 
     private fun userStatus(userId: UUID): UserStatus =

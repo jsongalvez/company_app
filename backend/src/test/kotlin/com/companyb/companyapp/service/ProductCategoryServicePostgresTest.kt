@@ -39,7 +39,7 @@ class ProductCategoryServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows(callerId, categoryIds)
-        insertUser(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "caller")
     }
 
     @AfterTest
@@ -51,7 +51,7 @@ class ProductCategoryServicePostgresTest {
 
     @Test
     fun `create persists category and writes audit row`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
 
         val result = ProductCategoryService.create(callerId, cat1Id, "  Test Category  ")
 
@@ -67,7 +67,7 @@ class ProductCategoryServicePostgresTest {
 
     @Test
     fun `duplicate client generated id returns existing category without extra audit`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         val first = ProductCategoryService.create(callerId, cat1Id, "Test Category")
 
         val duplicate = ProductCategoryService.create(callerId, cat1Id, "Changed Name")
@@ -80,7 +80,7 @@ class ProductCategoryServicePostgresTest {
 
     @Test
     fun `list returns all categories`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductCategoryService.create(callerId, cat1Id, "Category A")
         ProductCategoryService.create(callerId, cat2Id, "Category B")
 
@@ -93,7 +93,7 @@ class ProductCategoryServicePostgresTest {
 
     @Test
     fun `find by id returns persisted category`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductCategoryService.create(callerId, cat1Id, "Test Category")
 
         val found = ProductCategoryService.findById(callerId, cat1Id)
@@ -120,29 +120,15 @@ class ProductCategoryServicePostgresTest {
 
     @Test
     fun `findById without MANAGE_PRODUCTS is forbidden`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductCategoryService.create(callerId, cat1Id, "Test Category")
 
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "other")
 
         assertFailsWith<ForbiddenResponse> {
             ProductCategoryService.findById(otherCaller, cat1Id)
         }
-    }
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "cat-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Category Caller",
-        )
-    }
-
-    private fun grantManageProducts(userId: UUID) {
-        DatabaseTestHelper.grantManageProducts(userId, sourceId)
     }
 
     private fun persistedCategory(categoryId: UUID): ProductCategory? =

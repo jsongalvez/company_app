@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -12,7 +11,6 @@ import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -21,7 +19,6 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -56,15 +53,15 @@ class NextAppointmentSchedulerPostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "scheduler-caller")
-        insertUser(coordinatorId, "scheduler-coordinator")
-        insertUser(nonCoordinatorId, "scheduler-practitioner")
-        insertUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
-        insertBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
-        insertBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
-        branchDayId = createBranchDay(branchId)
-        insertClient(clientId)
-        grantEditBranchData(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "scheduler-caller")
+        DatabaseTestHelper.insertTestUser(coordinatorId, "scheduler-coordinator")
+        DatabaseTestHelper.insertTestUser(nonCoordinatorId, "scheduler-practitioner")
+        DatabaseTestHelper.insertTestUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        DatabaseTestHelper.insertTestClient(clientId)
+        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
     }
 
     @AfterTest
@@ -294,59 +291,6 @@ class NextAppointmentSchedulerPostgresTest {
         }
     }
 
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun insertClient(clientId: UUID) {
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = clientId
-                it[ClientTable.firstName] = "Test"
-                it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
-            }
-        }
-    }
-
-    private fun createBranchDay(branchId: UUID): UUID =
-        transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
-            BranchDayTable.insertIgnore {
-                it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
-            }
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
-                }.single()[BranchDayTable.id]
-        }
-
     private fun grantReceiveNextAppointmentAlerts(
         userId: UUID,
         branchId: UUID,
@@ -371,10 +315,6 @@ class NextAppointmentSchedulerPostgresTest {
             slot = 1,
             assignedBy = callerId,
         )
-    }
-
-    private fun grantEditBranchData(userId: UUID) {
-        DatabaseTestHelper.grantEditBranchData(userId, sourceId)
     }
 
     private fun deleteTestRows() {

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -46,9 +45,9 @@ class ReliefAccessServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(reliefUserId, "relief")
-        insertUser(targetUserId, "target")
-        insertBranch(branchId, branchName)
+        DatabaseTestHelper.insertTestUser(reliefUserId, "relief")
+        DatabaseTestHelper.insertTestUser(targetUserId, "target")
+        DatabaseTestHelper.insertTestBranch(branchId, branchName)
         insertBranchDay(branchDayId, branchId)
         insertBranchDayAssignment(reliefUserId, branchDayId, isRelief = true)
         insertAttendance(attendanceId, targetUserId, branchDayId)
@@ -88,7 +87,7 @@ class ReliefAccessServicePostgresTest {
     @Test
     fun `fails with 400 when target user has no active clock-in`() {
         val noClockInTarget = UUID.randomUUID()
-        insertUser(noClockInTarget, "no-clock")
+        DatabaseTestHelper.insertTestUser(noClockInTarget, "no-clock")
         val requestId = UUID.randomUUID()
 
         assertFailsWith<BadRequestResponse> {
@@ -99,7 +98,7 @@ class ReliefAccessServicePostgresTest {
     @Test
     fun `fails with 403 when requester is not a relief user`() {
         val nonReliefUser = UUID.randomUUID()
-        insertUser(nonReliefUser, "non-relief")
+        DatabaseTestHelper.insertTestUser(nonReliefUser, "non-relief")
         insertBranchDayAssignment(nonReliefUser, branchDayId, isRelief = false)
         val requestId = UUID.randomUUID()
 
@@ -138,7 +137,7 @@ class ReliefAccessServicePostgresTest {
     @Test
     fun `grant from non-target user fails with 403`() {
         val otherUser = UUID.randomUUID()
-        insertUser(otherUser, "other")
+        DatabaseTestHelper.insertTestUser(otherUser, "other")
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
@@ -194,7 +193,7 @@ class ReliefAccessServicePostgresTest {
     @Test
     fun `deny from non-target user fails with 403`() {
         val otherUser = UUID.randomUUID()
-        insertUser(otherUser, "other")
+        DatabaseTestHelper.insertTestUser(otherUser, "other")
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
@@ -236,32 +235,6 @@ class ReliefAccessServicePostgresTest {
                 }.empty()
                 .not()
         }
-
-    private fun insertUser(
-        id: UUID,
-        suffix: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = id,
-            username = "relief-$suffix-$id",
-            passwordHash = "test-password-hash",
-            email = "${id.toString().take(8)}@t.st",
-            displayName = "Relief $suffix",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
 
     private fun insertBranchDay(
         id: UUID,

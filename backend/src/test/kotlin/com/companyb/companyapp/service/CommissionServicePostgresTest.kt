@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -29,12 +28,10 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
-import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 import kotlin.test.AfterTest
@@ -62,17 +59,17 @@ class CommissionServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "commission-caller")
-        insertUser(targetUserId, "commission-target")
-        insertBranch(branchId, "Test Commission Branch")
-        insertCategory(categoryId, "Test Commission Category")
-        insertProduct(productId, "Commission Product", categoryId)
-        branchDayId = createBranchDay(branchId)
+        DatabaseTestHelper.insertTestUser(callerId, "commission-caller")
+        DatabaseTestHelper.insertTestUser(targetUserId, "commission-target")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Commission Branch")
+        DatabaseTestHelper.insertTestCategory(categoryId, "Test Commission Category")
+        DatabaseTestHelper.insertTestProduct(productId, "Commission Product", categoryId)
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         ensureInventoryCard(branchId, productId, 100)
-        grantEditBranchData(callerId)
+        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         productSaleId = createProductSale(branchDayId)
         insertClockIn(targetUserId, branchDayId)
-        grantAssignCompensation(callerId)
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
     }
 
     @AfterTest
@@ -180,7 +177,7 @@ class CommissionServicePostgresTest {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is forbidden`() {
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             CommissionManualInclusionService.create(
@@ -297,75 +294,6 @@ class CommissionServicePostgresTest {
         assertTrue(auditCount > 0)
     }
 
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun insertCategory(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            ProductCategoryTable.insertIgnore {
-                it[ProductCategoryTable.id] = id
-                it[ProductCategoryTable.name] = name
-            }
-        }
-    }
-
-    private fun insertProduct(
-        id: UUID,
-        name: String,
-        categoryId: UUID,
-    ) {
-        transaction {
-            ProductTable.insertIgnore {
-                it[ProductTable.id] = id
-                it[ProductTable.name] = name
-                it[ProductTable.productCategoryId] = categoryId
-                it[ProductTable.unitPrice] = BigDecimal("100.00")
-                it[ProductTable.commissionAmount] = BigDecimal("10.00")
-            }
-        }
-    }
-
-    private fun createBranchDay(branchId: UUID): UUID =
-        transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
-            BranchDayTable.insertIgnore {
-                it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
-            }
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
-                }.single()[BranchDayTable.id]
-        }
-
     private fun ensureInventoryCard(
         branchId: UUID,
         productId: UUID,
@@ -420,14 +348,6 @@ class CommissionServicePostgresTest {
         }
     }
 
-    private fun grantEditBranchData(userId: UUID) {
-        DatabaseTestHelper.grantEditBranchData(userId, sourceId)
-    }
-
-    private fun grantAssignCompensation(userId: UUID) {
-        DatabaseTestHelper.grantAssignCompensation(userId, sourceId)
-    }
-
     private fun grantViewBranchData(userId: UUID) {
         DatabaseTestHelper.grantCapability(
             userId = userId,
@@ -436,12 +356,6 @@ class CommissionServicePostgresTest {
             contextId = branchId,
             sourceId = sourceId,
         )
-    }
-
-    private fun revokeCapabilities() {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-        }
     }
 
     private fun deleteTestRows() {

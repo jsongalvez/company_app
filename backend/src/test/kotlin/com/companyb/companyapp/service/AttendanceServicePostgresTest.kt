@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -22,7 +21,6 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -46,8 +44,8 @@ class AttendanceServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(userId)
-        insertBranch(branchId, "Test Branch")
+        DatabaseTestHelper.insertTestUser(userId, "user")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Branch")
     }
 
     @AfterTest
@@ -108,7 +106,7 @@ class AttendanceServicePostgresTest {
 
     @Test
     fun `clockIn sets isRelief false when branch assignment exists`() {
-        grantManageUsers(userId)
+        DatabaseTestHelper.grantManageUsers(userId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(userId, assignmentId, branchId, userId, 1)
 
@@ -152,33 +150,6 @@ class AttendanceServicePostgresTest {
         assertFailsWith<NotFoundResponse> {
             AttendanceService.clockOut(unknownId, userId)
         }
-    }
-
-    private fun insertUser(id: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = id,
-            username = "att-$id",
-            passwordHash = "test-password-hash",
-            email = "${id.toString().take(8)}@t.st",
-            displayName = "Attendance User",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun grantManageUsers(userId: UUID) {
-        DatabaseTestHelper.grantManageUsers(userId, sourceId)
     }
 
     private fun branchDayAssignmentExists(attendanceId: UUID): UUID? =

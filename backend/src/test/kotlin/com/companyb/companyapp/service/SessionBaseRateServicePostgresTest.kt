@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -41,8 +40,8 @@ class SessionBaseRateServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId)
-        insertBranch(branchId, "Rate-Clinic-$branchId")
+        DatabaseTestHelper.insertTestUser(callerId, "rate-caller")
+        DatabaseTestHelper.insertTestBranch(branchId, name = "Rate-Clinic-$branchId")
     }
 
     @AfterTest
@@ -141,29 +140,6 @@ class SessionBaseRateServicePostgresTest {
     fun `findActiveRates without MANAGE_PRODUCTS is forbidden`() {
         assertFailsWith<ForbiddenResponse> {
             SessionBaseRateService.findActiveRates(callerId, branchId)
-        }
-    }
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "rate-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Rate Caller",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
         }
     }
 

@@ -62,13 +62,13 @@ class SessionServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId)
-        insertBranch(branchId)
-        insertClient(clientId)
+        DatabaseTestHelper.insertTestUser(callerId, "session-caller")
+        DatabaseTestHelper.insertTestBranch(branchId)
+        DatabaseTestHelper.insertTestClient(clientId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         DatabaseTestHelper.grantVoidSession(callerId, sourceId)
         insertSessionBaseRate()
-        insertUser(practitionerId)
+        DatabaseTestHelper.insertTestUser(practitionerId, "session-practitioner")
         insertAssignment(practitionerId)
     }
 
@@ -120,7 +120,7 @@ class SessionServicePostgresTest {
     @Test
     fun `create session requires EDIT_BRANCH_DATA capability`() {
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
 
         assertFailsWith<ForbiddenResponse> {
             createSession(otherCaller, sessionId)
@@ -152,8 +152,8 @@ class SessionServicePostgresTest {
     fun `medical mission branch always creates MEDICAL_MISSION session type`() {
         val mmBranchId = UUID.randomUUID()
         val mmClientId = UUID.randomUUID()
-        insertBranch(mmBranchId, BranchType.MEDICAL_MISSION)
-        insertClient(mmClientId)
+        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        DatabaseTestHelper.insertTestClient(mmClientId)
         val mmSessionId = UUID.randomUUID()
         val mmRateId = UUID.randomUUID()
         insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
@@ -179,7 +179,7 @@ class SessionServicePostgresTest {
     @Test
     fun `medical mission branch type not counted toward prior sessions`() {
         val mmBranchId = UUID.randomUUID()
-        insertBranch(mmBranchId, BranchType.MEDICAL_MISSION)
+        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
         insertSessionBaseRate(UUID.randomUUID(), mmBranchId, SessionType.MEDICAL_MISSION)
         val mmSessionId = UUID.randomUUID()
 
@@ -244,7 +244,7 @@ class SessionServicePostgresTest {
     fun `update status without EDIT_BRANCH_DATA throws 403`() {
         createSession(callerId, sessionId)
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
 
         assertFailsWith<ForbiddenResponse> {
             SessionService.updateStatus(otherCaller, sessionId, SessionStatus.COMPLETED, 1)
@@ -299,7 +299,7 @@ class SessionServicePostgresTest {
     fun `void session requires VOID_SESSION capability`() {
         createSession(callerId, sessionId)
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
 
         assertFailsWith<ForbiddenResponse> {
             SessionService.voidSession(otherCaller, sessionId, UUID.randomUUID(), "Customer request")
@@ -351,7 +351,7 @@ class SessionServicePostgresTest {
         createSession(callerId, sessionId)
         SessionService.voidSession(callerId, sessionId, UUID.randomUUID(), "Customer request")
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
 
         assertFailsWith<ForbiddenResponse> {
             SessionService.unvoidSession(otherCaller, sessionId, "Resolved in error")
@@ -426,7 +426,7 @@ class SessionServicePostgresTest {
     fun `add practitioner requires EDIT_BRANCH_DATA capability`() {
         createSession(callerId, practitionerSessionId)
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "session-other")
         insertAssignment(otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
@@ -552,16 +552,6 @@ class SessionServicePostgresTest {
         nextAppointmentDate = null,
     )
 
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "session-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Session Caller",
-        )
-    }
-
     private fun insertAssignment(userId: UUID) {
         UserBranchAssignmentRepository.create(
             id = UUID.randomUUID(),
@@ -570,32 +560,6 @@ class SessionServicePostgresTest {
             slot = 1,
             assignedBy = callerId,
         )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        branchType: BranchType = BranchType.CLINIC,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.branchType] = branchType
-                it[BranchTable.name] = "Test Branch $id"
-            }
-        }
-    }
-
-    private fun insertClient(clientId: UUID) {
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = clientId
-                it[ClientTable.firstName] = "Test"
-                it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
-                it[ClientTable.address] = "123 Test St"
-            }
-        }
     }
 
     private fun insertSessionBaseRate(

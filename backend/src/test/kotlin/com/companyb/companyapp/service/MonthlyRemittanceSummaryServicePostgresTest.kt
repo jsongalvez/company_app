@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.database.DatabaseConfig
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -11,7 +11,6 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -23,6 +22,7 @@ import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
+import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -31,7 +31,6 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -53,9 +52,9 @@ class MonthlyRemittanceSummaryServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "summary-caller")
-        insertBranch(branchId, "Monthly Summary Branch ${UUID.randomUUID()}")
-        insertClient()
+        DatabaseTestHelper.insertTestUser(callerId, "summary-caller")
+        DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${UUID.randomUUID()}")
+        DatabaseTestHelper.insertTestClient(clientId)
         DatabaseTestHelper.grantCapability(
             userId = callerId,
             capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
@@ -116,10 +115,19 @@ class MonthlyRemittanceSummaryServicePostgresTest {
         createDraftRemittance(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
-        addCompensation(branchDayId, BigDecimal("300.00"))
-        addExpense(branchDayId, BigDecimal("150.00"))
+        DatabaseTestHelper.insertTestCompensation(branchDayId, callerId, BigDecimal("300.00"), assignedBy = callerId)
+        DatabaseTestHelper.insertTestExpense(branchDayId, callerId, BigDecimal("150.00"))
 
-        val sId = createSession(branchDayId)
+        val sId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestSession(
+            id = sId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("2500.00"),
+            finalPrice = BigDecimal("2500.00"),
+        )
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
@@ -226,7 +234,16 @@ class MonthlyRemittanceSummaryServicePostgresTest {
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
-        val sId = createSession(branchDayId)
+        val sId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestSession(
+            id = sId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("2500.00"),
+            finalPrice = BigDecimal("2500.00"),
+        )
         RemittanceService.addLine(
             callerId = callerId,
             remittanceId = remittanceId,
@@ -296,21 +313,6 @@ class MonthlyRemittanceSummaryServicePostgresTest {
         return bd.id
     }
 
-    private fun createSession(branchDayId: UUID): UUID {
-        val sId = UUID.randomUUID()
-        val conn = DatabaseConfig.dataSource.connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "INSERT INTO session (id, client_id, branch_day_id, session_type, " +
-                    "is_walk_in, session_status, base_price, final_price, created_at) " +
-                    "VALUES ('$sId', '$clientId', '$branchDayId', " +
-                    "'REGULAR', false, 'COMPLETED', 2500.00, 2500.00, now())",
-            )
-        }
-        conn.close()
-        return sId
-    }
-
     private fun createProductSale(branchDayId: UUID): UUID {
         val psId = UUID.randomUUID()
         val productCategoryId = UUID.randomUUID()
@@ -334,75 +336,6 @@ class MonthlyRemittanceSummaryServicePostgresTest {
         }
         conn.close()
         return psId
-    }
-
-    private fun addCompensation(
-        branchDayId: UUID,
-        amount: BigDecimal,
-    ) {
-        transaction {
-            CompensationTable.insert {
-                it[CompensationTable.id] = UUID.randomUUID()
-                it[CompensationTable.workBranchDayId] = branchDayId
-                it[CompensationTable.payingBranchDayId] = branchDayId
-                it[CompensationTable.userId] = callerId
-                it[CompensationTable.amount] = amount
-                it[CompensationTable.assignedBy] = callerId
-            }
-        }
-    }
-
-    private fun addExpense(
-        branchDayId: UUID,
-        amount: BigDecimal,
-    ) {
-        transaction {
-            ExpenseTable.insert {
-                it[ExpenseTable.id] = UUID.randomUUID()
-                it[ExpenseTable.branchDayId] = branchDayId
-                it[ExpenseTable.amount] = amount
-                it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
-                it[ExpenseTable.createdBy] = callerId
-            }
-        }
-    }
-
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertClient() {
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = clientId
-                it[ClientTable.firstName] = "Test"
-                it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
-            }
-        }
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
     }
 
     private fun disableSnapshotTrigger() {

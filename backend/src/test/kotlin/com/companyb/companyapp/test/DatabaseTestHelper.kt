@@ -1,19 +1,38 @@
 package com.companyb.companyapp.test
 
 import com.companyb.companyapp.database.DatabaseConfig
+import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.CapabilityTable
+import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.repository.model.ExpenseCategory
+import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantPriorities
+import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.repository.model.SessionStatus
+import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
+import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.service.CapabilityService
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 
 object DatabaseTestHelper {
@@ -54,138 +73,78 @@ object DatabaseTestHelper {
         userId: UUID,
         sourceId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.MANAGE_USERS }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.MANAGE_USERS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     fun grantEditBranchData(
         userId: UUID,
         sourceId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.EDIT_BRANCH_DATA }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     fun grantManageProducts(
         userId: UUID,
         sourceId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.MANAGE_PRODUCTS }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.MANAGE_PRODUCTS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     fun grantVoidSession(
         userId: UUID,
         sourceId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.VOID_SESSION }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.VOID_SESSION,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     fun grantAssignCompensation(
         userId: UUID,
         sourceId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.ASSIGN_COMPENSATION }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.ASSIGN_COMPENSATION,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     fun grantAssignDelegate(
         userId: UUID,
         sourceId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.ASSIGN_DELEGATE }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.ASSIGN_DELEGATE,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     fun grantSubmitRemittance(
@@ -193,23 +152,13 @@ object DatabaseTestHelper {
         sourceId: UUID,
         branchId: UUID,
     ) {
-        transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq CapabilityCodes.SUBMIT_REMITTANCE }
-                    .single()[CapabilityTable.id]
-
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = userId
-                it[UserCapabilityTable.capabilityId] = capId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
-                it[UserCapabilityTable.contextId] = branchId
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                it[UserCapabilityTable.sourceId] = sourceId
-                it[UserCapabilityTable.priority] = GrantPriorities.DIRECT_GRANT
-            }
-        }
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
     }
 
     @Suppress("LongParameterList")
@@ -237,6 +186,165 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.sourceId] = sourceId
                 it[UserCapabilityTable.priority] = priority.toShort()
             }
+        }
+    }
+
+    fun insertTestUser(
+        id: UUID,
+        prefix: String,
+    ) {
+        insertUser(
+            id = id,
+            username = "$prefix-${id.toString().take(8)}",
+            passwordHash = "test-password-hash",
+            email = "${id.toString().take(8)}@t.st",
+            displayName = "Test $prefix",
+        )
+    }
+
+    fun insertTestBranch(
+        id: UUID,
+        name: String = "Test Branch ${id.toString().take(8)}",
+        branchType: BranchType = BranchType.CLINIC,
+    ) {
+        transaction {
+            BranchTable.insert {
+                it[BranchTable.id] = id
+                it[BranchTable.name] = name
+                it[BranchTable.branchType] = branchType
+            }
+        }
+    }
+
+    fun createBranchDayForToday(branchId: UUID): UUID =
+        transaction {
+            val today = LocalDate.now(BranchDayService.manilaZone)
+            BranchDayTable.insertIgnore {
+                it[BranchDayTable.branchId] = branchId
+                it[BranchDayTable.date] = today
+            }
+            BranchDayTable
+                .selectAll()
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date eq today)
+                }.single()[BranchDayTable.id]
+        }
+
+    fun insertTestClient(id: UUID = UUID.randomUUID()): UUID {
+        transaction {
+            ClientTable.insertIgnore {
+                it[ClientTable.id] = id
+                it[ClientTable.firstName] = "Test"
+                it[ClientTable.lastName] = "Client"
+                it[ClientTable.gender] = "M"
+                it[ClientTable.age] = 30
+            }
+        }
+        return id
+    }
+
+    fun insertTestCategory(
+        id: UUID,
+        name: String = "Test Category ${id.toString().take(8)}",
+    ) {
+        transaction {
+            ProductCategoryTable.insertIgnore {
+                it[ProductCategoryTable.id] = id
+                it[ProductCategoryTable.name] = name
+            }
+        }
+    }
+
+    @Suppress("LongParameterList")
+    fun insertTestProduct(
+        id: UUID,
+        name: String = "Test Product ${id.toString().take(8)}",
+        categoryId: UUID,
+        unitPrice: BigDecimal = BigDecimal("100.00"),
+        commissionAmount: BigDecimal = BigDecimal("10.00"),
+    ) {
+        transaction {
+            ProductTable.insertIgnore {
+                it[ProductTable.id] = id
+                it[ProductTable.name] = name
+                it[ProductTable.productCategoryId] = categoryId
+                it[ProductTable.unitPrice] = unitPrice
+                it[ProductTable.commissionAmount] = commissionAmount
+            }
+        }
+    }
+
+    @Suppress("LongParameterList")
+    fun insertTestSession(
+        id: UUID,
+        clientId: UUID,
+        branchDayId: UUID,
+        sessionType: SessionType = SessionType.REGULAR,
+        sessionStatus: SessionStatus = SessionStatus.PENDING,
+        isWalkIn: Boolean = false,
+        basePrice: BigDecimal = BigDecimal("2500.00"),
+        finalPrice: BigDecimal = BigDecimal("2500.00"),
+    ) {
+        transaction {
+            SessionTable.insertIgnore {
+                it[SessionTable.id] = id
+                it[SessionTable.clientId] = clientId
+                it[SessionTable.branchDayId] = branchDayId
+                it[SessionTable.sessionType] = sessionType
+                it[SessionTable.sessionStatus] = sessionStatus
+                it[SessionTable.isWalkIn] = isWalkIn
+                it[SessionTable.basePrice] = basePrice
+                it[SessionTable.finalPrice] = finalPrice
+            }
+        }
+    }
+
+    @Suppress("LongParameterList")
+    fun insertTestCompensation(
+        branchDayId: UUID,
+        userId: UUID,
+        amount: BigDecimal,
+        assignedBy: UUID,
+    ) {
+        transaction {
+            CompensationTable.insert {
+                it[CompensationTable.id] = UUID.randomUUID()
+                it[CompensationTable.workBranchDayId] = branchDayId
+                it[CompensationTable.payingBranchDayId] = branchDayId
+                it[CompensationTable.userId] = userId
+                it[CompensationTable.amount] = amount
+                it[CompensationTable.assignedBy] = assignedBy
+            }
+        }
+    }
+
+    @Suppress("LongParameterList")
+    fun insertTestExpense(
+        branchDayId: UUID,
+        userId: UUID,
+        amount: BigDecimal,
+        deleted: Boolean = false,
+    ) {
+        transaction {
+            ExpenseTable.insert {
+                it[ExpenseTable.id] = UUID.randomUUID()
+                it[ExpenseTable.branchDayId] = branchDayId
+                it[ExpenseTable.amount] = amount
+                it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
+                it[ExpenseTable.createdBy] = userId
+                it[ExpenseTable.notes] = "Test expense"
+                if (deleted) {
+                    it[ExpenseTable.deletedBy] = userId
+                    it[ExpenseTable.deletedAt] = CurrentTimestampWithTimeZone
+                }
+            }
+        }
+    }
+
+    fun revokeAllCapabilities(userId: UUID) {
+        transaction {
+            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
         }
     }
 }

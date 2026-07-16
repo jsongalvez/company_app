@@ -13,7 +13,6 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -37,8 +36,8 @@ class ProductServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows(callerId, productId, productId2, categoryId)
-        insertUser(callerId)
-        insertCategory(categoryId, "Test Category")
+        DatabaseTestHelper.insertTestUser(callerId, "caller")
+        DatabaseTestHelper.insertTestCategory(categoryId, "Test Category")
     }
 
     @AfterTest
@@ -50,7 +49,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `create persists product and writes audit row`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
 
         val result =
             ProductService.create(
@@ -72,7 +71,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `duplicate client generated id returns existing product without extra audit`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         val first =
             ProductService.create(
                 callerId = callerId,
@@ -102,7 +101,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `list returns active products`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -129,7 +128,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `find by id returns persisted product`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -145,7 +144,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `update persists changes and writes audit row`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -195,7 +194,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `findById without MANAGE_PRODUCTS is forbidden`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         ProductService.create(
             callerId = callerId,
             id = productId,
@@ -206,7 +205,7 @@ class ProductServicePostgresTest {
         )
 
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "other")
 
         assertFailsWith<ForbiddenResponse> {
             ProductService.findById(otherCaller, productId)
@@ -215,7 +214,7 @@ class ProductServicePostgresTest {
 
     @Test
     fun `create with non-existent category returns bad request`() {
-        grantManageProducts(callerId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
 
         assertFailsWith<BadRequestResponse> {
             ProductService.create(
@@ -227,32 +226,6 @@ class ProductServicePostgresTest {
                 commissionAmount = "25.00",
             )
         }
-    }
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "prod-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Product Caller",
-        )
-    }
-
-    private fun insertCategory(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            ProductCategoryTable.insertIgnore {
-                it[ProductCategoryTable.id] = id
-                it[ProductCategoryTable.name] = name
-            }
-        }
-    }
-
-    private fun grantManageProducts(userId: UUID) {
-        DatabaseTestHelper.grantManageProducts(userId, sourceId)
     }
 
     private fun auditEntryCount(productId: UUID): Long =

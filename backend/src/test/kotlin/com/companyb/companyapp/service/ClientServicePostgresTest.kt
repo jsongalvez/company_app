@@ -40,7 +40,7 @@ class ClientServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows(callerId, testIds)
-        insertUser(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "client-caller")
     }
 
     @AfterTest
@@ -542,16 +542,6 @@ class ClientServicePostgresTest {
             diastolicBp = diastolicBp,
             medicalConditions = medicalConditions,
         )
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "client-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Client Caller",
-        )
-    }
 
     private fun persistedClient(clientId: UUID): com.companyb.companyapp.repository.model.Client =
         transaction {

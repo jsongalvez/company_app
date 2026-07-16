@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -53,10 +52,10 @@ class ConcernServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId)
-        insertBranch(branchId)
-        insertClient(clientId)
-        insertClient(promotedClientId)
+        DatabaseTestHelper.insertTestUser(callerId, "concern-caller")
+        DatabaseTestHelper.insertTestBranch(branchId)
+        DatabaseTestHelper.insertTestClient(clientId)
+        DatabaseTestHelper.insertTestClient(promotedClientId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         insertSessionBaseRate()
         createSession(callerId, sessionId)
@@ -85,7 +84,7 @@ class ConcernServicePostgresTest {
     @Test
     fun `listAll without EDIT_BRANCH_DATA is forbidden`() {
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.listAll(otherCaller)
@@ -122,7 +121,7 @@ class ConcernServicePostgresTest {
     @Test
     fun `add concern requires EDIT_BRANCH_DATA`() {
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.addToSession(otherCaller, sessionId, systemConcernId)
@@ -168,7 +167,7 @@ class ConcernServicePostgresTest {
     fun `remove concern requires EDIT_BRANCH_DATA`() {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
@@ -211,7 +210,7 @@ class ConcernServicePostgresTest {
     @Test
     fun `getForSession without EDIT_BRANCH_DATA is forbidden`() {
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.getForSession(otherCaller, promotedSessionId)
@@ -221,7 +220,7 @@ class ConcernServicePostgresTest {
     @Test
     fun `promote concern requires EDIT_BRANCH_DATA`() {
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.promoteConcern(otherCaller, promotedSessionId, "Shoulder Pain")
@@ -265,42 +264,6 @@ class ConcernServicePostgresTest {
         bookedAt = null,
         nextAppointmentDate = null,
     )
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "concern-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Concern Caller",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        branchType: BranchType = BranchType.CLINIC,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.branchType] = branchType
-                it[BranchTable.name] = "Test Branch $id"
-            }
-        }
-    }
-
-    private fun insertClient(clientId: UUID) {
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = clientId
-                it[ClientTable.firstName] = "Test"
-                it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
-                it[ClientTable.address] = "123 Test St"
-            }
-        }
-    }
 
     private fun insertSessionBaseRate(
         id: UUID = rateId,

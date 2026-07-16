@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -19,12 +18,9 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
-import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -48,12 +44,12 @@ class CompensationServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "comp-caller")
-        insertUser(targetUserId, "comp-target")
-        insertBranch(branchId, "Test Compensation Branch")
-        workBranchDayId = createBranchDay(branchId)
-        payingBranchDayId = createBranchDay(branchId)
-        grantAssignCompensation(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "comp-caller")
+        DatabaseTestHelper.insertTestUser(targetUserId, "comp-target")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Compensation Branch")
+        workBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        payingBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
     }
 
     @AfterTest
@@ -165,7 +161,7 @@ class CompensationServicePostgresTest {
 
     @Test
     fun `create without ASSIGN_COMPENSATION is forbidden`() {
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             CompensationService.create(
@@ -303,7 +299,7 @@ class CompensationServicePostgresTest {
             note = null,
         )
 
-        revokeCapabilities()
+        DatabaseTestHelper.revokeAllCapabilities(callerId)
 
         assertFailsWith<ForbiddenResponse> {
             CompensationService.update(
@@ -400,57 +396,6 @@ class CompensationServicePostgresTest {
                     }.count()
             }
         assertTrue(updateAuditCount > 0)
-    }
-
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun createBranchDay(branchId: UUID): UUID =
-        transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
-            BranchDayTable.insertIgnore {
-                it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
-            }
-            BranchDayTable
-                .selectAll()
-                .where {
-                    (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
-                }.single()[BranchDayTable.id]
-        }
-
-    private fun grantAssignCompensation(userId: UUID) {
-        DatabaseTestHelper.grantAssignCompensation(userId, sourceId)
-    }
-
-    private fun revokeCapabilities() {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-        }
     }
 
     private fun deleteTestRows() {

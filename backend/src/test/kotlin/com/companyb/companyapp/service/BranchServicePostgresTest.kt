@@ -39,7 +39,7 @@ class BranchServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows(callerId, branchIds)
-        insertUser(callerId)
+        DatabaseTestHelper.insertTestUser(callerId, "caller")
     }
 
     @AfterTest
@@ -51,7 +51,7 @@ class BranchServicePostgresTest {
 
     @Test
     fun `create persists all branch types and writes audit row`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
 
         val clinic = BranchService.create(callerId, clinicId, " Main Clinic ", BranchType.CLINIC)
         val tour = BranchService.create(callerId, provincialTourId, "Cebu Tour", BranchType.PROVINCIAL_TOUR)
@@ -70,7 +70,7 @@ class BranchServicePostgresTest {
 
     @Test
     fun `duplicate client generated id returns existing branch without extra audit`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
 
         val duplicate = BranchService.create(callerId, clinicId, "Changed Name", BranchType.MEDICAL_MISSION)
@@ -84,7 +84,7 @@ class BranchServicePostgresTest {
 
     @Test
     fun `find by id and list return persisted branches`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 
@@ -115,29 +115,15 @@ class BranchServicePostgresTest {
 
     @Test
     fun `findById without MANAGE_USERS is forbidden`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
 
         val otherCaller = UUID.randomUUID()
-        insertUser(otherCaller)
+        DatabaseTestHelper.insertTestUser(otherCaller, "other")
 
         assertFailsWith<ForbiddenResponse> {
             BranchService.findById(otherCaller, clinicId)
         }
-    }
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "branch-caller-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Branch Caller",
-        )
-    }
-
-    private fun grantManageUsers(userId: UUID) {
-        DatabaseTestHelper.grantManageUsers(userId, sourceId)
     }
 
     private fun persistedBranchType(branchId: UUID): BranchType =

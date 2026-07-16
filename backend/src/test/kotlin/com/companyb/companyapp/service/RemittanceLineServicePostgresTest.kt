@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
@@ -38,8 +37,6 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -73,12 +70,12 @@ class RemittanceLineServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId)
-        insertBranch(branchId)
+        DatabaseTestHelper.insertTestUser(callerId, "rl")
+        DatabaseTestHelper.insertTestBranch(branchId)
         DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        insertClient(clientId)
+        DatabaseTestHelper.insertTestClient(clientId)
         insertSessionBaseRate()
         ensureBranchDay()
     }
@@ -173,7 +170,7 @@ class RemittanceLineServicePostgresTest {
     @Test
     fun `add line without SUBMIT_REMITTANCE is forbidden`() {
         val otherUser = UUID.randomUUID()
-        insertUser(otherUser)
+        DatabaseTestHelper.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
         createSession()
 
@@ -320,7 +317,7 @@ class RemittanceLineServicePostgresTest {
     @Test
     fun `delete line without SUBMIT_REMITTANCE is forbidden`() {
         val otherUser = UUID.randomUUID()
-        insertUser(otherUser)
+        DatabaseTestHelper.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
         createSession()
         val lineId = UUID.randomUUID()
@@ -384,7 +381,7 @@ class RemittanceLineServicePostgresTest {
     @Test
     fun `add day breakdown without capability is forbidden`() {
         val otherUser = UUID.randomUUID()
-        insertUser(otherUser)
+        DatabaseTestHelper.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
 
         assertFailsWith<ForbiddenResponse> {
@@ -515,7 +512,7 @@ class RemittanceLineServicePostgresTest {
     @Test
     fun `get remittance without capability is forbidden`() {
         val otherUser = UUID.randomUUID()
-        insertUser(otherUser)
+        DatabaseTestHelper.insertTestUser(otherUser, "rl")
         val remittance = createDraftRemittance()
 
         assertFailsWith<ForbiddenResponse> {
@@ -642,38 +639,6 @@ class RemittanceLineServicePostgresTest {
             }) {
                 it[BranchInventoryTable.currentStock] = 20
                 it[BranchInventoryTable.version] = card.version + 1
-            }
-        }
-    }
-
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "rl-${userId.toString().take(8)}",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User ${userId.toString().take(8)}",
-        )
-    }
-
-    private fun insertBranch(id: UUID) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = "Test Branch $id"
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun insertClient(id: UUID) {
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = id
-                it[ClientTable.firstName] = "John"
-                it[ClientTable.lastName] = "Doe"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
             }
         }
     }

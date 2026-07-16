@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -19,7 +18,6 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
@@ -46,11 +44,11 @@ class UserBranchAssignmentServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "caller")
-        insertUser(nonManagerId, "nonmgr")
-        insertUser(userAId, "usera")
-        insertUser(userBId, "userb")
-        insertBranch(branchId, "Test Branch")
+        DatabaseTestHelper.insertTestUser(callerId, "caller")
+        DatabaseTestHelper.insertTestUser(nonManagerId, "nonmgr")
+        DatabaseTestHelper.insertTestUser(userAId, "usera")
+        DatabaseTestHelper.insertTestUser(userBId, "userb")
+        DatabaseTestHelper.insertTestBranch(branchId, name = "Test Branch")
     }
 
     @AfterTest
@@ -62,7 +60,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `create persists assignment and writes audit row`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         val slot: Short = 3
 
@@ -81,7 +79,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `duplicate assignment id returns existing row without extra audit`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
@@ -96,7 +94,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `create with slot less than 1 throws BadRequest`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
 
         assertFailsWith<BadRequestResponse> {
@@ -106,7 +104,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `create with non-existent branch throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         val unknownBranchId = UUID.randomUUID()
 
@@ -117,7 +115,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `create with non-existent user throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         val unknownUserId = UUID.randomUUID()
 
@@ -128,7 +126,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `create when user already has active assignment at branch throws BadRequest`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val firstId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, firstId, branchId, userAId, 1)
 
@@ -152,7 +150,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `remove sets endedAt and writes audit row`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
@@ -166,7 +164,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `remove without MANAGE_USERS is forbidden`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
@@ -179,7 +177,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `remove with non-existent branch throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val unknownBranchId = UUID.randomUUID()
 
         assertFailsWith<NotFoundResponse> {
@@ -189,7 +187,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `remove with no active assignment throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
 
         assertFailsWith<NotFoundResponse> {
             UserBranchAssignmentService.remove(callerId, branchId, userAId)
@@ -198,7 +196,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `updateSlot by manager updates slot and writes audit`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
@@ -213,7 +211,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `updateSlot self-update allowed without MANAGE_USERS`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, nonManagerId, 2)
 
@@ -224,7 +222,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `updateSlot with slot less than 1 throws BadRequest`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
@@ -235,7 +233,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `updateSlot with no active assignment throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
 
         assertFailsWith<NotFoundResponse> {
             UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 1)
@@ -244,7 +242,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `updateSlot by non-manager for other user throws Forbidden`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
@@ -257,7 +255,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `swapSlots swaps slots and writes audit`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val idA = UUID.randomUUID()
         val idB = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 2)
@@ -272,7 +270,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `swapSlots without MANAGE_USERS is forbidden`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val idA = UUID.randomUUID()
         val idB = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
@@ -288,7 +286,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `swapSlots with missing assignment A throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val idB = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 1)
 
@@ -299,7 +297,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `swapSlots with missing assignment B throws NotFound`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         val idA = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
 
@@ -310,7 +308,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `findActiveByBranch returns active assignments sorted by slot`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userBId, 5)
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
 
@@ -325,7 +323,7 @@ class UserBranchAssignmentServicePostgresTest {
 
     @Test
     fun `findActiveByBranch excludes ended assignments`() {
-        grantManageUsers(callerId)
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
         val idB = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
@@ -342,36 +340,6 @@ class UserBranchAssignmentServicePostgresTest {
         assertFailsWith<ForbiddenResponse> {
             UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
         }
-    }
-
-    private fun insertUser(
-        id: UUID,
-        suffix: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = id,
-            username = "asgn-$suffix-$id",
-            passwordHash = "test-password-hash",
-            email = "${id.toString().take(8)}@t.st",
-            displayName = "Assignment $suffix",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
-    private fun grantManageUsers(userId: UUID) {
-        DatabaseTestHelper.grantManageUsers(userId, sourceId)
     }
 
     private fun assignedSlot(assignmentId: UUID): Short =

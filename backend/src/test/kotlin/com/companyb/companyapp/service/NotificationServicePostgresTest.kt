@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -16,19 +15,13 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.NotFoundResponse
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.math.BigDecimal
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -48,9 +41,9 @@ class NotificationServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId, "notification-caller")
-        insertUser(otherUserId, "notification-other")
-        insertBranch(branchId, "Test Branch ${branchId.toString().take(8)}")
+        DatabaseTestHelper.insertTestUser(callerId, "notification-caller")
+        DatabaseTestHelper.insertTestUser(otherUserId, "notification-other")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Branch ${branchId.toString().take(8)}")
         insertSession(sessionId, branchId)
     }
 
@@ -129,71 +122,19 @@ class NotificationServicePostgresTest {
         }
     }
 
-    private fun insertUser(
-        userId: UUID,
-        username: String,
-    ) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "$username-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Test User $username",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
     private fun insertSession(
         id: UUID,
         branchId: UUID,
     ) {
-        val today = LocalDate.now(ZoneId.of("Asia/Manila"))
-        val branchDayId =
-            transaction {
-                BranchDayTable.insertIgnore {
-                    it[BranchDayTable.branchId] = branchId
-                    it[BranchDayTable.date] = today
-                }
-                BranchDayTable
-                    .selectAll()
-                    .where {
-                        (BranchDayTable.branchId eq branchId) and
-                            (BranchDayTable.date eq today)
-                    }.single()[BranchDayTable.id]
-            }
-
-        val clientId = UUID.randomUUID()
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = clientId
-                it[ClientTable.firstName] = "Test"
-                it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
-            }
-            SessionTable.insert {
-                it[SessionTable.id] = id
-                it[SessionTable.clientId] = clientId
-                it[SessionTable.branchDayId] = branchDayId
-                it[SessionTable.sessionType] = SessionType.REGULAR
-                it[SessionTable.sessionStatus] = SessionStatus.COMPLETED
-                it[SessionTable.basePrice] = BigDecimal("2500.00")
-                it[SessionTable.finalPrice] = BigDecimal("2500.00")
-                it[SessionTable.isWalkIn] = false
-            }
-        }
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val clientId = DatabaseTestHelper.insertTestClient()
+        DatabaseTestHelper.insertTestSession(
+            id = id,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
     }
 
     private fun insertNotification(

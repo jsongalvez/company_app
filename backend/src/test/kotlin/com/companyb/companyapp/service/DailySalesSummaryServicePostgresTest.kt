@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -10,7 +9,6 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -22,13 +20,11 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
-import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
@@ -52,8 +48,8 @@ class DailySalesSummaryServicePostgresTest {
     fun setUp() {
         DatabaseTestHelper.ensureDatabase()
         deleteTestRows()
-        insertUser(callerId)
-        insertBranch(branchId, "Summary Test Branch")
+        DatabaseTestHelper.insertTestUser(callerId, "summary-user")
+        DatabaseTestHelper.insertTestBranch(branchId, "Summary Test Branch")
         insertBranchDay(branchDayId, branchId, today)
     }
 
@@ -81,8 +77,24 @@ class DailySalesSummaryServicePostgresTest {
     @Test
     fun `returns correct gross income from completed sessions`() {
         grantViewBranchData(callerId)
-        insertSession(branchDayId, SessionType.REGULAR, SessionStatus.COMPLETED, BigDecimal("2500.00"))
-        insertSession(branchDayId, SessionType.SUBSEQUENT, SessionStatus.COMPLETED, BigDecimal("1500.00"))
+        DatabaseTestHelper.insertTestSession(
+            id = UUID.randomUUID(),
+            clientId = DatabaseTestHelper.insertTestClient(),
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("2500.00"),
+            finalPrice = BigDecimal("2500.00"),
+        )
+        DatabaseTestHelper.insertTestSession(
+            id = UUID.randomUUID(),
+            clientId = DatabaseTestHelper.insertTestClient(),
+            branchDayId = branchDayId,
+            sessionType = SessionType.SUBSEQUENT,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("1500.00"),
+            finalPrice = BigDecimal("1500.00"),
+        )
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
 
@@ -92,7 +104,15 @@ class DailySalesSummaryServicePostgresTest {
     @Test
     fun `excludes non-completed sessions from gross income`() {
         grantViewBranchData(callerId)
-        insertSession(branchDayId, SessionType.REGULAR, SessionStatus.PENDING, BigDecimal("2500.00"))
+        DatabaseTestHelper.insertTestSession(
+            id = UUID.randomUUID(),
+            clientId = DatabaseTestHelper.insertTestClient(),
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.PENDING,
+            basePrice = BigDecimal("2500.00"),
+            finalPrice = BigDecimal("2500.00"),
+        )
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
 
@@ -103,12 +123,14 @@ class DailySalesSummaryServicePostgresTest {
     fun `excludes voided sessions from gross income`() {
         grantViewBranchData(callerId)
         val sessionId = UUID.randomUUID()
-        insertSession(
-            branchDayId,
-            SessionType.REGULAR,
-            SessionStatus.COMPLETED,
-            BigDecimal("2500.00"),
-            sessionId = sessionId,
+        DatabaseTestHelper.insertTestSession(
+            id = sessionId,
+            clientId = DatabaseTestHelper.insertTestClient(),
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("2500.00"),
+            finalPrice = BigDecimal("2500.00"),
         )
         insertSessionVoid(sessionId)
 
@@ -121,12 +143,14 @@ class DailySalesSummaryServicePostgresTest {
     fun `includes completed sessions that were unvoided`() {
         grantViewBranchData(callerId)
         val sessionId = UUID.randomUUID()
-        insertSession(
-            branchDayId,
-            SessionType.REGULAR,
-            SessionStatus.COMPLETED,
-            BigDecimal("2500.00"),
-            sessionId = sessionId,
+        DatabaseTestHelper.insertTestSession(
+            id = sessionId,
+            clientId = DatabaseTestHelper.insertTestClient(),
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("2500.00"),
+            finalPrice = BigDecimal("2500.00"),
         )
         insertSessionVoid(sessionId)
         unvoidSession(sessionId)
@@ -141,10 +165,10 @@ class DailySalesSummaryServicePostgresTest {
         grantViewBranchData(callerId)
         val user1 = UUID.randomUUID()
         val user2 = UUID.randomUUID()
-        insertUser(user1)
-        insertUser(user2)
-        insertCompensation(branchDayId, user1, BigDecimal("500.00"))
-        insertCompensation(branchDayId, user2, BigDecimal("300.00"))
+        DatabaseTestHelper.insertTestUser(user1, "summary-user")
+        DatabaseTestHelper.insertTestUser(user2, "summary-user")
+        DatabaseTestHelper.insertTestCompensation(branchDayId, user1, BigDecimal("500.00"), assignedBy = callerId)
+        DatabaseTestHelper.insertTestCompensation(branchDayId, user2, BigDecimal("300.00"), assignedBy = callerId)
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
 
@@ -155,9 +179,9 @@ class DailySalesSummaryServicePostgresTest {
     fun `returns correct total expenses excluding deleted`() {
         grantViewBranchData(callerId)
         val userId = UUID.randomUUID()
-        insertUser(userId)
-        insertExpense(branchDayId, BigDecimal("200.00"), userId, deleted = false)
-        insertExpense(branchDayId, BigDecimal("100.00"), userId, deleted = true)
+        DatabaseTestHelper.insertTestUser(userId, "summary-user")
+        DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("200.00"), deleted = false)
+        DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("100.00"), deleted = true)
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
 
@@ -168,7 +192,7 @@ class DailySalesSummaryServicePostgresTest {
     fun `returns correct product sales total`() {
         grantViewBranchData(callerId)
         val userId = UUID.randomUUID()
-        insertUser(userId)
+        DatabaseTestHelper.insertTestUser(userId, "summary-user")
         insertProductSale(branchDayId, userId, BigDecimal("300.00"))
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
@@ -180,7 +204,7 @@ class DailySalesSummaryServicePostgresTest {
     fun `returns correct commission total`() {
         grantViewBranchData(callerId)
         val userId = UUID.randomUUID()
-        insertUser(userId)
+        DatabaseTestHelper.insertTestUser(userId, "summary-user")
         insertCommissionSplit(branchDayId, userId, BigDecimal("150.0000"))
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
@@ -192,10 +216,18 @@ class DailySalesSummaryServicePostgresTest {
     fun `calculates net income correctly`() {
         grantViewBranchData(callerId)
         val userId = UUID.randomUUID()
-        insertUser(userId)
-        insertSession(branchDayId, SessionType.REGULAR, SessionStatus.COMPLETED, BigDecimal("5000.00"))
-        insertCompensation(branchDayId, userId, BigDecimal("1000.00"))
-        insertExpense(branchDayId, BigDecimal("500.00"), userId, deleted = false)
+        DatabaseTestHelper.insertTestUser(userId, "summary-user")
+        DatabaseTestHelper.insertTestSession(
+            id = UUID.randomUUID(),
+            clientId = DatabaseTestHelper.insertTestClient(),
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = BigDecimal("5000.00"),
+            finalPrice = BigDecimal("5000.00"),
+        )
+        DatabaseTestHelper.insertTestCompensation(branchDayId, userId, BigDecimal("1000.00"), assignedBy = callerId)
+        DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("500.00"), deleted = false)
 
         val summary = DailySalesSummaryService.getDailySummary(callerId, branchId, today)
 
@@ -222,29 +254,6 @@ class DailySalesSummaryServicePostgresTest {
         }
     }
 
-    private fun insertUser(userId: UUID) {
-        DatabaseTestHelper.insertUser(
-            id = userId,
-            username = "summary-user-$userId",
-            passwordHash = "test-password-hash",
-            email = "${userId.toString().take(8)}@t.st",
-            displayName = "Summary User",
-        )
-    }
-
-    private fun insertBranch(
-        id: UUID,
-        name: String,
-    ) {
-        transaction {
-            BranchTable.insert {
-                it[BranchTable.id] = id
-                it[BranchTable.name] = name
-                it[BranchTable.branchType] = BranchType.CLINIC
-            }
-        }
-    }
-
     private fun insertBranchDay(
         id: UUID,
         branchId: UUID,
@@ -255,36 +264,6 @@ class DailySalesSummaryServicePostgresTest {
                 it[BranchDayTable.id] = id
                 it[BranchDayTable.branchId] = branchId
                 it[BranchDayTable.date] = date
-            }
-        }
-    }
-
-    @Suppress("LongParameterList")
-    private fun insertSession(
-        branchDayId: UUID,
-        sessionType: SessionType = SessionType.REGULAR,
-        sessionStatus: SessionStatus = SessionStatus.COMPLETED,
-        finalPrice: BigDecimal = BigDecimal("2500.00"),
-        sessionId: UUID = UUID.randomUUID(),
-    ) {
-        val clientId = UUID.randomUUID()
-        transaction {
-            ClientTable.insert {
-                it[ClientTable.id] = clientId
-                it[ClientTable.firstName] = "Test"
-                it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
-                it[ClientTable.age] = 30
-            }
-            SessionTable.insert {
-                it[SessionTable.id] = sessionId
-                it[SessionTable.clientId] = clientId
-                it[SessionTable.branchDayId] = branchDayId
-                it[SessionTable.sessionType] = sessionType
-                it[SessionTable.sessionStatus] = sessionStatus
-                it[SessionTable.basePrice] = finalPrice
-                it[SessionTable.finalPrice] = finalPrice
-                it[SessionTable.isWalkIn] = false
             }
         }
     }
@@ -307,46 +286,6 @@ class DailySalesSummaryServicePostgresTest {
                 it[SessionVoidTable.unvoidedAt] = OffsetDateTime.now()
                 it[SessionVoidTable.unvoidedBy] = callerId
                 it[SessionVoidTable.unvoidedReason] = "Test unvoid"
-            }
-        }
-    }
-
-    private fun insertCompensation(
-        branchDayId: UUID,
-        userId: UUID,
-        amount: BigDecimal,
-    ) {
-        transaction {
-            CompensationTable.insert {
-                it[CompensationTable.id] = UUID.randomUUID()
-                it[CompensationTable.workBranchDayId] = branchDayId
-                it[CompensationTable.payingBranchDayId] = branchDayId
-                it[CompensationTable.userId] = userId
-                it[CompensationTable.amount] = amount
-                it[CompensationTable.assignedBy] = callerId
-            }
-        }
-    }
-
-    private fun insertExpense(
-        branchDayId: UUID,
-        amount: BigDecimal,
-        userId: UUID,
-        deleted: Boolean = false,
-    ) {
-        transaction {
-            val expenseId = UUID.randomUUID()
-            ExpenseTable.insert {
-                it[ExpenseTable.id] = expenseId
-                it[ExpenseTable.branchDayId] = branchDayId
-                it[ExpenseTable.amount] = amount
-                it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
-                it[ExpenseTable.createdBy] = userId
-                it[ExpenseTable.notes] = "Test expense"
-                if (deleted) {
-                    it[ExpenseTable.deletedBy] = userId
-                    it[ExpenseTable.deletedAt] = OffsetDateTime.now()
-                }
             }
         }
     }
