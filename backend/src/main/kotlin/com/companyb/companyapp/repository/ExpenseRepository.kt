@@ -8,6 +8,7 @@ import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -106,8 +107,10 @@ object ExpenseRepository {
         transaction {
             ExpenseTable
                 .selectAll()
-                .where { ExpenseTable.branchDayId eq branchDayId }
-                .map { it.toExpense() }
+                .where {
+                    (ExpenseTable.branchDayId eq branchDayId) and
+                        ExpenseTable.deletedAt.isNull()
+                }.map { it.toExpense() }
         }.also { logger.info { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
 
     fun findById(id: UUID): Expense? =

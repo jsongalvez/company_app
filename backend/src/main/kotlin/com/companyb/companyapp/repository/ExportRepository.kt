@@ -38,26 +38,13 @@ object ExportRepository {
 
     fun findByBranchType(branchType: BranchType): List<BranchTypeMonthlySummary> =
         transaction {
-            MonthlyRemittanceSummaryView
-                .innerJoin(BranchTable, { MonthlyRemittanceSummaryView.branchId }, { BranchTable.id })
-                .selectAll()
+            branchTypeSummaryQuery()
                 .where { BranchTable.branchType eq branchType }
                 .orderBy(
                     BranchTable.name to SortOrder.ASC,
                     MonthlyRemittanceSummaryView.year to SortOrder.ASC,
                     MonthlyRemittanceSummaryView.month to SortOrder.ASC,
-                ).map {
-                    BranchTypeMonthlySummary(
-                        branchId = it[MonthlyRemittanceSummaryView.branchId],
-                        branchName = it[BranchTable.name],
-                        year = it[MonthlyRemittanceSummaryView.year],
-                        month = it[MonthlyRemittanceSummaryView.month],
-                        totalRemittances = it[MonthlyRemittanceSummaryView.totalRemittances],
-                        sessionCount = it[MonthlyRemittanceSummaryView.sessionCount],
-                        productCount = it[MonthlyRemittanceSummaryView.productCount],
-                        netIncome = it[MonthlyRemittanceSummaryView.netIncome],
-                    )
-                }
+                ).map { it.toBranchTypeMonthlySummary() }
         }
 
     fun findByBranchTypeAndMonth(
@@ -66,27 +53,31 @@ object ExportRepository {
         month: Int,
     ): List<BranchTypeMonthlySummary> =
         transaction {
-            MonthlyRemittanceSummaryView
-                .innerJoin(BranchTable, { MonthlyRemittanceSummaryView.branchId }, { BranchTable.id })
-                .selectAll()
+            branchTypeSummaryQuery()
                 .where {
                     (BranchTable.branchType eq branchType) and
                         (MonthlyRemittanceSummaryView.year eq year) and
                         (MonthlyRemittanceSummaryView.month eq month)
                 }.orderBy(BranchTable.name to SortOrder.ASC)
-                .map {
-                    BranchTypeMonthlySummary(
-                        branchId = it[MonthlyRemittanceSummaryView.branchId],
-                        branchName = it[BranchTable.name],
-                        year = it[MonthlyRemittanceSummaryView.year],
-                        month = it[MonthlyRemittanceSummaryView.month],
-                        totalRemittances = it[MonthlyRemittanceSummaryView.totalRemittances],
-                        sessionCount = it[MonthlyRemittanceSummaryView.sessionCount],
-                        productCount = it[MonthlyRemittanceSummaryView.productCount],
-                        netIncome = it[MonthlyRemittanceSummaryView.netIncome],
-                    )
-                }
+                .map { it.toBranchTypeMonthlySummary() }
         }
+
+    private fun branchTypeSummaryQuery() =
+        MonthlyRemittanceSummaryView
+            .innerJoin(BranchTable, { MonthlyRemittanceSummaryView.branchId }, { BranchTable.id })
+            .selectAll()
+
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchTypeMonthlySummary() =
+        BranchTypeMonthlySummary(
+            branchId = this[MonthlyRemittanceSummaryView.branchId],
+            branchName = this[BranchTable.name],
+            year = this[MonthlyRemittanceSummaryView.year],
+            month = this[MonthlyRemittanceSummaryView.month],
+            totalRemittances = this[MonthlyRemittanceSummaryView.totalRemittances],
+            sessionCount = this[MonthlyRemittanceSummaryView.sessionCount],
+            productCount = this[MonthlyRemittanceSummaryView.productCount],
+            netIncome = this[MonthlyRemittanceSummaryView.netIncome],
+        )
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toMonthlyRemittanceSummary(): MonthlyRemittanceSummary {
         val gross = this[MonthlyRemittanceSummaryView.grossIncome]

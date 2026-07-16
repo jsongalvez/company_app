@@ -363,6 +363,40 @@ class ExpenseServicePostgresTest {
     }
 
     @Test
+    fun `list expenses excludes soft-deleted expenses`() {
+        val activeId = UUID.randomUUID()
+        val deletedId = UUID.randomUUID()
+
+        ExpenseService.create(
+            callerId = callerId,
+            id = activeId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("100.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = "Active expense",
+        )
+        ExpenseService.create(
+            callerId = callerId,
+            id = deletedId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = "Will be deleted",
+        )
+
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+        )
+
+        val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)
+
+        assertEquals(1, expenses.size)
+        assertEquals(activeId, expenses[0].id)
+    }
+
+    @Test
     fun `list expenses for non-existent branch day returns not found`() {
         assertFailsWith<NotFoundResponse> {
             ExpenseService.findByBranchDayId(callerId, UUID.randomUUID())
@@ -385,7 +419,7 @@ class ExpenseServicePostgresTest {
                 AuditLogTable.changedBy eq callerId
             }
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-            ExpenseTable.deleteAll()
+            ExpenseTable.deleteWhere { ExpenseTable.branchDayId eq branchDayId }
             BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
             BranchTable.deleteWhere { BranchTable.id eq branchId }
             AppUserTable.deleteWhere { AppUserTable.id eq callerId }

@@ -19,3 +19,5 @@
 
 **Priority:** medium
 **Story alignment:** US-022 (Expenses), US-034 (Exports)
+
+**Status:** ✅ done
