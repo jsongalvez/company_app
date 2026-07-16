@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service.export
 
-import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
@@ -79,50 +78,40 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @AfterTest
     fun cleanRemittanceData() {
         if (!DatabaseTestHelper.isDatabaseReady()) return
-        val conn = DatabaseConfig.dataSource.connection
-        try {
-            conn.createStatement().use { stmt ->
-                stmt.execute(
-                    "ALTER TABLE remittance_financial_snapshot DISABLE TRIGGER trg_remittance_snapshot_immutable",
-                )
-            }
+        DatabaseTestHelper.withSnapshotTriggerDisabled {
             for (bid in testBranchIds) {
                 val bdIds = "SELECT id FROM branch_day WHERE branch_id = '$bid'"
                 val remIds = "SELECT id FROM remittance WHERE branch_id = '$bid'"
-                conn.createStatement().use { stmt ->
-                    stmt.execute("DELETE FROM remittance_financial_snapshot WHERE remittance_id IN ($remIds)")
-                    stmt.execute("DELETE FROM remittance_day_breakdown WHERE remittance_id IN ($remIds)")
-                    stmt.execute("DELETE FROM remittance_line WHERE remittance_id IN ($remIds)")
-                    stmt.execute("DELETE FROM remittance WHERE branch_id = '$bid'")
-                    stmt.execute(
-                        "DELETE FROM inventory_movement WHERE product_sale_id IN (SELECT id FROM product_sale WHERE branch_day_id IN ($bdIds))",
-                    )
-                    stmt.execute("DELETE FROM product_sale WHERE branch_day_id IN ($bdIds)")
-                    stmt.execute(
-                        "DELETE FROM notification WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                    )
-                    stmt.execute(
-                        "DELETE FROM session_void WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                    )
-                    stmt.execute(
-                        "DELETE FROM session_practitioner WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                    )
-                    stmt.execute(
-                        "DELETE FROM session_concern WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
-                    )
-                    stmt.execute("DELETE FROM session WHERE branch_day_id IN ($bdIds)")
-                    stmt.execute(
-                        "DELETE FROM client WHERE id IN (SELECT client_id FROM (SELECT client_id FROM session WHERE branch_day_id IN ($bdIds)) AS cids)",
-                    )
-                    stmt.execute(
-                        "DELETE FROM compensation WHERE work_branch_day_id IN ($bdIds) OR paying_branch_day_id IN ($bdIds)",
-                    )
-                    stmt.execute("DELETE FROM expense WHERE branch_day_id IN ($bdIds)")
-                    stmt.execute("DELETE FROM branch_day WHERE branch_id = '$bid'")
-                }
+                exec("DELETE FROM remittance_financial_snapshot WHERE remittance_id IN ($remIds)")
+                exec("DELETE FROM remittance_day_breakdown WHERE remittance_id IN ($remIds)")
+                exec("DELETE FROM remittance_line WHERE remittance_id IN ($remIds)")
+                exec("DELETE FROM remittance WHERE branch_id = '$bid'")
+                exec(
+                    "DELETE FROM inventory_movement WHERE product_sale_id IN (SELECT id FROM product_sale WHERE branch_day_id IN ($bdIds))",
+                )
+                exec("DELETE FROM product_sale WHERE branch_day_id IN ($bdIds)")
+                exec(
+                    "DELETE FROM notification WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
+                )
+                exec(
+                    "DELETE FROM session_void WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
+                )
+                exec(
+                    "DELETE FROM session_practitioner WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
+                )
+                exec(
+                    "DELETE FROM session_concern WHERE session_id IN (SELECT id FROM session WHERE branch_day_id IN ($bdIds))",
+                )
+                exec("DELETE FROM session WHERE branch_day_id IN ($bdIds)")
+                exec(
+                    "DELETE FROM client WHERE id IN (SELECT client_id FROM (SELECT client_id FROM session WHERE branch_day_id IN ($bdIds)) AS cids)",
+                )
+                exec(
+                    "DELETE FROM compensation WHERE work_branch_day_id IN ($bdIds) OR paying_branch_day_id IN ($bdIds)",
+                )
+                exec("DELETE FROM expense WHERE branch_day_id IN ($bdIds)")
+                exec("DELETE FROM branch_day WHERE branch_id = '$bid'")
             }
-        } finally {
-            conn.close()
         }
     }
 
