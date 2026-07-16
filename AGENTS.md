@@ -14,7 +14,7 @@ All modules depend on `:shared`. The backend depends on nothing else beyond `:sh
 
 ```bash
 # One-time setup
-bash scripts/setup-hooks.sh          # installs git hooks (core.hooksPath = .githooks)
+bash scripts/setup-hooks.sh          # installs git hooks + ktlint CLI (for staged-only formatting)
 cp .env.example .env                  # then fill in values
 
 # Docker (Postgres 18)

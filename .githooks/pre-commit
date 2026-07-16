@@ -15,20 +15,31 @@ KT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(kt|kts)
 
 if [ -z "$KT_FILES" ]; then
     log "No staged Kotlin files — skipping ktlintFormat"
-elif command -v ktlint &>/dev/null; then
-    log "Formatting staged Kotlin file(s) with ktlint CLI..."
-    echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r ktlint --format 2>&1 | tail -3 || true
-    log "Re-staging formatted files..."
-    echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
-    log "Import optimization complete."
 else
-    # Fallback: project-wide formatting (slower, touches all tracked files).
-    # Tradeoff: preserves correctness but can sweep unrelated formatting into the commit.
-    # Install ktlint CLI (brew install ktlint) for staged-only formatting.
-    log "WARNING: 'ktlint' not on PATH. Falling back to project-wide ktlintFormat."
-    ./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
-    git add -u
-    log "Import optimization complete."
+    # Resolve ktlint command: PATH, then ~/.cache/company-app/ktlint (installed by setup-hooks.sh)
+    KTLINT_CMD=""
+    if command -v ktlint &>/dev/null; then
+        KTLINT_CMD="ktlint"
+    elif [ -x "$HOME/.cache/company-app/ktlint/1.8.0" ]; then
+        KTLINT_CMD="$HOME/.cache/company-app/ktlint/1.8.0"
+    fi
+
+    if [ -n "$KTLINT_CMD" ]; then
+        log "Formatting staged Kotlin file(s) with $KTLINT_CMD..."
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3 || true
+        log "Re-staging formatted files..."
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
+        log "Import optimization complete."
+    else
+        # Fallback: project-wide formatting (slower, touches all tracked files).
+        # Tradeoff: preserves correctness but can sweep unrelated formatting into the commit.
+        # Run scripts/setup-hooks.sh to install ktlint for staged-only formatting.
+        log "WARNING: ktlint not found. Falling back to project-wide ktlintFormat."
+        log "Run 'bash scripts/setup-hooks.sh' to install ktlint for staged-only formatting."
+        ./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
+        git add -u
+        log "Import optimization complete."
+    fi
 fi
 
 # ----------------------------------------------------------------
