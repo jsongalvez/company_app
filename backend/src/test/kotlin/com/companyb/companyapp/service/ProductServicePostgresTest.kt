@@ -114,7 +114,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
             commissionAmount = "20.00",
         )
 
-        val all = ProductService.findAllActive(callerId)
+        val all = ProductService.findAllActive()
         val allIds = all.map { it.id }.toSet()
 
         assertTrue(productId in allIds)
@@ -137,7 +137,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
             commissionAmount = "25.00",
         )
 
-        val found = ProductService.findById(callerId, productId)
+        val found = ProductService.findById(productId)
         assertEquals("Test Product", found.name)
         trackOwned(ProductTable, ProductTable.id, productId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
@@ -196,7 +196,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findAllActive without MANAGE_PRODUCTS is allowed at service layer`() {
-        ProductService.findAllActive(callerId)
+        ProductService.findAllActive()
     }
 
     @Test
@@ -217,7 +217,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        val found = ProductService.findById(otherCaller, newProductId)
+        val found = ProductService.findById(newProductId)
         assertEquals("Find Product", found.name)
         trackOwned(ProductTable, ProductTable.id, newProductId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)

@@ -25,15 +25,9 @@ object MedicalMissionDelegateRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<AssignDelegateRequest>()
 
-            val delegateId =
-                runCatching { UUID.fromString(request.delegateId) }
-                    .getOrElse { throw BadRequestResponse("Invalid delegate id") }
-            val targetUserId =
-                runCatching { UUID.fromString(request.targetUserId) }
-                    .getOrElse { throw BadRequestResponse("Invalid target user id") }
-            val branchId =
-                runCatching { UUID.fromString(request.branchId) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val delegateId = uuidOrThrow(request.delegateId, "delegate id")
+            val targetUserId = uuidOrThrow(request.targetUserId, "target user id")
+            val branchId = uuidOrThrow(request.branchId, "branch id")
 
             val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
 

@@ -25,25 +25,11 @@ object ProductSaleRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateProductSaleRequest>()
 
-            val id =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid sale id") }
-            val branchDayId =
-                runCatching { UUID.fromString(request.branchDayId) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch day id") }
-            val sessionId =
-                request.sessionId?.let {
-                    runCatching { UUID.fromString(it) }
-                        .getOrElse { throw BadRequestResponse("Invalid session id") }
-                }
-            val clientId =
-                request.clientId?.let {
-                    runCatching { UUID.fromString(it) }
-                        .getOrElse { throw BadRequestResponse("Invalid client id") }
-                }
-            val productId =
-                runCatching { UUID.fromString(request.productId) }
-                    .getOrElse { throw BadRequestResponse("Invalid product id") }
+            val id = uuidOrThrow(request.id, "sale id")
+            val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
+            val sessionId = request.sessionId?.let { uuidOrThrow(it, "session id") }
+            val clientId = request.clientId?.let { uuidOrThrow(it, "client id") }
+            val productId = uuidOrThrow(request.productId, "product id")
 
             val sale =
                 ProductSaleService.sell(

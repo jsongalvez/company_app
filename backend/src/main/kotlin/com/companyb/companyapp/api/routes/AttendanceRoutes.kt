@@ -18,9 +18,7 @@ object AttendanceRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<ClockOutRequest>()
 
-            val attendanceId =
-                runCatching { UUID.fromString(request.attendanceId) }
-                    .getOrElse { throw BadRequestResponse("Invalid attendance id") }
+            val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
 
             val result = AttendanceService.clockOut(attendanceId, callerId)
 
@@ -45,12 +43,8 @@ object AttendanceRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<ClockInRequest>()
 
-            val attendanceId =
-                runCatching { UUID.fromString(request.attendanceId) }
-                    .getOrElse { throw BadRequestResponse("Invalid attendance id") }
-            val branchId =
-                runCatching { UUID.fromString(request.branchId) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
+            val branchId = uuidOrThrow(request.branchId, "branch id")
 
             val result = AttendanceService.clockIn(attendanceId, branchId, callerId)
 

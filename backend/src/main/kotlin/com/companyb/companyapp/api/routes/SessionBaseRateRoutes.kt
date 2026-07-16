@@ -28,9 +28,7 @@ object SessionBaseRateRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SetRateRequest>()
-            val rateId =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid rate id") }
+            val rateId = uuidOrThrow(request.id, "rate id")
 
             val result =
                 SessionBaseRateService.setRate(

@@ -40,14 +40,10 @@ object ProductService {
         return ProductRepository.create(id, cleanName, productCategoryId, parsedPrice, parsedCommission, callerId)
     }
 
-    @Suppress("UnusedParameter")
-    fun findAllActive(callerId: UUID): List<Product> = ProductRepository.findAllActive()
+    fun findAllActive(): List<Product> = ProductRepository.findAllActive()
 
-    @Suppress("UnusedParameter")
-    fun findById(
-        callerId: UUID,
-        productId: UUID,
-    ): Product = ProductRepository.findById(productId) ?: throw NotFoundResponse("Product not found")
+    fun findById(productId: UUID): Product =
+        ProductRepository.findById(productId) ?: throw NotFoundResponse("Product not found")
 
     @Suppress("LongParameterList", "ThrowsCount")
     fun update(

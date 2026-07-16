@@ -28,18 +28,10 @@ object CompensationRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateCompensationRequest>()
 
-            val id =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid compensation id") }
-            val workBranchDayId =
-                runCatching { UUID.fromString(request.workBranchDayId) }
-                    .getOrElse { throw BadRequestResponse("Invalid work branch day id") }
-            val payingBranchDayId =
-                runCatching { UUID.fromString(request.payingBranchDayId) }
-                    .getOrElse { throw BadRequestResponse("Invalid paying branch day id") }
-            val userId =
-                runCatching { UUID.fromString(request.userId) }
-                    .getOrElse { throw BadRequestResponse("Invalid user id") }
+            val id = uuidOrThrow(request.id, "compensation id")
+            val workBranchDayId = uuidOrThrow(request.workBranchDayId, "work branch day id")
+            val payingBranchDayId = uuidOrThrow(request.payingBranchDayId, "paying branch day id")
+            val userId = uuidOrThrow(request.userId, "user id")
             val amount =
                 runCatching { BigDecimal(request.amount) }
                     .getOrElse { throw BadRequestResponse("Invalid amount") }

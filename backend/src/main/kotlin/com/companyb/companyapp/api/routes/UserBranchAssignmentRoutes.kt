@@ -44,12 +44,8 @@ object UserBranchAssignmentRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<CreateAssignmentRequest>()
-        val assignmentId =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid assignment id") }
-        val targetUserId =
-            runCatching { UUID.fromString(request.userId) }
-                .getOrElse { throw BadRequestResponse("Invalid user id") }
+        val assignmentId = uuidOrThrow(request.id, "assignment id")
+        val targetUserId = uuidOrThrow(request.userId, "user id")
 
         val result =
             UserBranchAssignmentService.create(
@@ -96,12 +92,8 @@ object UserBranchAssignmentRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<SwapSlotsRequest>()
-        val userIdA =
-            runCatching { UUID.fromString(request.userIdA) }
-                .getOrElse { throw BadRequestResponse("Invalid userIdA") }
-        val userIdB =
-            runCatching { UUID.fromString(request.userIdB) }
-                .getOrElse { throw BadRequestResponse("Invalid userIdB") }
+        val userIdA = uuidOrThrow(request.userIdA, "userIdA")
+        val userIdB = uuidOrThrow(request.userIdB, "userIdB")
 
         UserBranchAssignmentService.swapSlots(callerId, branchId, userIdA, userIdB)
         context.status(HttpStatus.NO_CONTENT)

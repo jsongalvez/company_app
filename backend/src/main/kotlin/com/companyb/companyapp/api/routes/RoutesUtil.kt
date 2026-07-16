@@ -7,3 +7,15 @@ import java.util.UUID
 fun Context.pathParamAsUuid(name: String): UUID =
     runCatching { UUID.fromString(this.pathParam(name)) }
         .getOrElse { throw BadRequestResponse("Invalid $name") }
+
+fun uuidOrThrow(
+    value: String,
+    name: String,
+): UUID =
+    runCatching { UUID.fromString(value) }
+        .getOrElse { throw BadRequestResponse("Invalid $name") }
+
+fun Context.uuidFromQuery(name: String): UUID {
+    val value = this.queryParam(name) ?: throw BadRequestResponse("$name query param is required")
+    return uuidOrThrow(value, name)
+}

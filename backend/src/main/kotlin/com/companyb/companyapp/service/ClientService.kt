@@ -64,11 +64,7 @@ object ClientService {
         )
     }
 
-    @Suppress("UnusedParameter")
-    fun search(
-        callerId: UUID,
-        query: String,
-    ): List<Client> {
+    fun search(query: String): List<Client> {
         val q = query.trim()
         if (q.isEmpty()) {
             throw BadRequestResponse("Search query is required")
@@ -76,11 +72,8 @@ object ClientService {
         return ClientRepository.search(q)
     }
 
-    @Suppress("UnusedParameter")
-    fun findById(
-        callerId: UUID,
-        clientId: UUID,
-    ): Client = ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
+    fun findById(clientId: UUID): Client =
+        ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
 
     @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "CyclomaticComplexMethod")
     fun update(

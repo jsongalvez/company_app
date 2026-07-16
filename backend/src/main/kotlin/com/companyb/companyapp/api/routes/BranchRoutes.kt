@@ -27,9 +27,7 @@ object BranchRoutes {
         config.routes.post("/api/branches") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateBranchRequest>()
-            val branchId =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = uuidOrThrow(request.id, "branch id")
             val result =
                 BranchService.create(
                     callerId = callerId,
@@ -44,13 +42,13 @@ object BranchRoutes {
 
         config.routes.get("/api/branches") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            context.json(BranchService.findAll(callerId).map { it.toResponse() })
+            context.json(BranchService.findAll().map { it.toResponse() })
         }
 
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
-            context.json(BranchService.findById(callerId, branchId).toResponse())
+            context.json(BranchService.findById(branchId).toResponse())
         }
     }
 

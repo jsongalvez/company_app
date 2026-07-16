@@ -50,15 +50,9 @@ object CommissionRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
 
-        val id =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid inclusion id") }
-        val productSaleId =
-            runCatching { UUID.fromString(request.productSaleId) }
-                .getOrElse { throw BadRequestResponse("Invalid product sale id") }
-        val userId =
-            runCatching { UUID.fromString(request.userId) }
-                .getOrElse { throw BadRequestResponse("Invalid user id") }
+        val id = uuidOrThrow(request.id, "inclusion id")
+        val productSaleId = uuidOrThrow(request.productSaleId, "product sale id")
+        val userId = uuidOrThrow(request.userId, "user id")
 
         val inclusion =
             CommissionManualInclusionService.create(

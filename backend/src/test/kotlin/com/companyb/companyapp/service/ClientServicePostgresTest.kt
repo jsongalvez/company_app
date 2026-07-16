@@ -124,7 +124,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientAId)
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val found = ClientService.findById(callerId, clientAId)
+        val found = ClientService.findById(clientAId)
 
         assertEquals("John", found.firstName)
         assertEquals("Doe", found.lastName)
@@ -134,7 +134,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `find by id throws not found for missing client`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         assertFailsWith<NotFoundResponse> {
-            ClientService.findById(callerId, UUID.randomUUID())
+            ClientService.findById(UUID.randomUUID())
         }
     }
 
@@ -142,7 +142,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `findById without EDIT_BRANCH_DATA is allowed at service layer`() {
         createClient(callerId, clientAId)
 
-        val found = ClientService.findById(callerId, clientAId)
+        val found = ClientService.findById(clientAId)
 
         assertEquals("John", found.firstName)
         assertEquals("Doe", found.lastName)
@@ -154,7 +154,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "John")
+        val results = ClientService.search("John")
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
@@ -166,7 +166,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "Doe")
+        val results = ClientService.search("Doe")
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
@@ -178,7 +178,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientBId, phoneNumber = "9876543210")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "1234")
+        val results = ClientService.search("1234")
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
@@ -188,7 +188,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search rejects empty query`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         assertFailsWith<BadRequestResponse> {
-            ClientService.search(callerId, "   ")
+            ClientService.search("   ")
         }
     }
 
@@ -196,7 +196,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search without EDIT_BRANCH_DATA is allowed at service layer`() {
         createClient(callerId, clientAId, firstName = "John")
 
-        val results = ClientService.search(callerId, "John")
+        val results = ClientService.search("John")
 
         assertTrue(results.any { it.id == clientAId })
     }
@@ -206,7 +206,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientAId, firstName = "John")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "john")
+        val results = ClientService.search("john")
 
         assertTrue(results.any { it.id == clientAId })
     }
@@ -217,7 +217,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "Jhn")
+        val results = ClientService.search("Jhn")
 
         assertTrue(results.any { it.id == clientAId }, "Typo 'Jhn' should match 'John' via trigram similarity")
         assertFalse(results.any { it.id == clientBId })
@@ -229,7 +229,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "Mria")
+        val results = ClientService.search("Mria")
 
         assertTrue(results.any { it.id == clientAId }, "Typo 'Mria' should match 'Maria' via trigram similarity")
         assertFalse(results.any { it.id == clientBId })
@@ -241,7 +241,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientBId, firstName = "John", lastName = "Bravo")
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        val results = ClientService.search(callerId, "John")
+        val results = ClientService.search("John")
 
         assertTrue(results.any { it.id == clientBId }, "Exact ILIKE match 'John' should match 'John Bravo'")
         assertTrue(results.any { it.id == clientAId }, "Fuzzy match 'Jon Smith' should match via trigram for 'John'")
@@ -474,7 +474,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
         ClientService.anonymize(callerId, clientAId)
 
-        val results = ClientService.search(callerId, "Searchable")
+        val results = ClientService.search("Searchable")
         assertTrue(results.none { it.id == clientAId })
     }
 
@@ -485,7 +485,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
         ClientService.anonymize(callerId, clientAId)
 
-        val found = ClientService.findById(callerId, clientAId)
+        val found = ClientService.findById(clientAId)
         assertEquals(clientAId, found.id)
         assertEquals("", found.firstName)
     }

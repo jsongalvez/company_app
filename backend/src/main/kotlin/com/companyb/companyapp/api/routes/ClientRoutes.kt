@@ -36,9 +36,7 @@ object ClientRoutes {
     private fun handleCreate(context: Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val request = context.bodyAsClass<CreateClientRequest>()
-        val clientId =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid client id") }
+        val clientId = uuidOrThrow(request.id, "client id")
 
         val result =
             ClientService.create(
@@ -64,13 +62,13 @@ object ClientRoutes {
     private fun handleSearch(context: Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val query = context.queryParam("q") ?: throw BadRequestResponse("Query parameter 'q' is required")
-        context.json(ClientService.search(callerId, query).map { it.toResponse() })
+        context.json(ClientService.search(query).map { it.toResponse() })
     }
 
     private fun handleGetById(context: Context) {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
-        context.json(ClientService.findById(callerId, clientId).toResponse())
+        context.json(ClientService.findById(clientId).toResponse())
     }
 
     private fun handleUpdate(context: Context) {

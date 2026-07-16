@@ -43,9 +43,7 @@ object BranchInventoryRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<AddInventoryCardRequest>()
-        val productId =
-            runCatching { UUID.fromString(request.productId) }
-                .getOrElse { throw BadRequestResponse("Invalid product id") }
+        val productId = uuidOrThrow(request.productId, "product id")
 
         BranchInventoryService.ensureCard(
             callerId = callerId,
@@ -61,12 +59,8 @@ object BranchInventoryRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
         val request = context.bodyAsClass<RestockRequest>()
-        val movementId =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid movement id") }
-        val branchDayId =
-            runCatching { UUID.fromString(request.branchDayId) }
-                .getOrElse { throw BadRequestResponse("Invalid branch day id") }
+        val movementId = uuidOrThrow(request.id, "movement id")
+        val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
 
         val movement =
             BranchInventoryService.restock(
@@ -97,12 +91,8 @@ object BranchInventoryRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
         val request = context.bodyAsClass<InventoryMovementRequest>()
-        val movementId =
-            runCatching { UUID.fromString(request.movementId) }
-                .getOrElse { throw BadRequestResponse("Invalid movement id") }
-        val branchDayId =
-            runCatching { UUID.fromString(request.branchDayId) }
-                .getOrElse { throw BadRequestResponse("Invalid branch day id") }
+        val movementId = uuidOrThrow(request.movementId, "movement id")
+        val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
         val reason =
             runCatching { InventoryMovementReason.valueOf(request.reason.uppercase()) }
                 .getOrElse { throw BadRequestResponse("Invalid movement reason") }

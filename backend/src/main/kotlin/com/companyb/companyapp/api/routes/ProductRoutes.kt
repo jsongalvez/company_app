@@ -29,12 +29,8 @@ object ProductRoutes {
         config.routes.post("/api/products") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateProductRequest>()
-            val productId =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid product id") }
-            val categoryId =
-                runCatching { UUID.fromString(request.productCategoryId) }
-                    .getOrElse { throw BadRequestResponse("Invalid product category id") }
+            val productId = uuidOrThrow(request.id, "product id")
+            val categoryId = uuidOrThrow(request.productCategoryId, "product category id")
             val result =
                 ProductService.create(
                     callerId = callerId,
@@ -51,24 +47,20 @@ object ProductRoutes {
 
         config.routes.get("/api/products") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            context.json(ProductService.findAllActive(callerId).map { it.toResponse() })
+            context.json(ProductService.findAllActive().map { it.toResponse() })
         }
 
         config.routes.get("/api/products/{$PRODUCT_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
-            context.json(ProductService.findById(callerId, productId).toResponse())
+            context.json(ProductService.findById(productId).toResponse())
         }
 
         config.routes.patch("/api/products/{$PRODUCT_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<UpdateProductRequest>()
-            val categoryId =
-                request.productCategoryId?.let {
-                    runCatching { UUID.fromString(it) }
-                        .getOrElse { throw BadRequestResponse("Invalid product category id") }
-                }
+            val categoryId = request.productCategoryId?.let { uuidOrThrow(it, "product category id") }
             val result =
                 ProductService.update(
                     callerId = callerId,

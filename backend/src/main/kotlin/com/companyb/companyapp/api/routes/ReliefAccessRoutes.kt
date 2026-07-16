@@ -63,15 +63,9 @@ object ReliefAccessRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<ReliefAccessRequest>()
 
-            val requestId =
-                runCatching { UUID.fromString(request.requestId) }
-                    .getOrElse { throw BadRequestResponse("Invalid request id") }
-            val branchDayId =
-                runCatching { UUID.fromString(request.branchDayId) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch day id") }
-            val targetUserId =
-                runCatching { UUID.fromString(request.targetUserId) }
-                    .getOrElse { throw BadRequestResponse("Invalid target user id") }
+            val requestId = uuidOrThrow(request.requestId, "request id")
+            val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
+            val targetUserId = uuidOrThrow(request.targetUserId, "target user id")
 
             val result = ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, callerId)
 

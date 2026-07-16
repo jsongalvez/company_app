@@ -163,7 +163,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         trackOwned(AllowanceTable, AllowanceTable.id, allowanceId1)
         trackOwned(AllowanceTable, AllowanceTable.id, allowanceId2)
 
-        val results = AllowanceService.findByBranchDayId(callerId, branchDayId)
+        val results = AllowanceService.findByBranchDayId(branchDayId)
 
         assertEquals(2, results.size)
         assertTrue(results.any { it.id == allowanceId1 })
@@ -172,7 +172,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranchDayId returns empty list for non-existent branch day`() {
-        val results = AllowanceService.findByBranchDayId(callerId, UUID.randomUUID())
+        val results = AllowanceService.findByBranchDayId(UUID.randomUUID())
         assertEquals(0, results.size)
     }
 
@@ -180,7 +180,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     fun `findByBranchDayId without capability is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        val results = AllowanceService.findByBranchDayId(callerId, branchDayId)
+        val results = AllowanceService.findByBranchDayId(branchDayId)
 
         assertTrue(results.isEmpty())
     }

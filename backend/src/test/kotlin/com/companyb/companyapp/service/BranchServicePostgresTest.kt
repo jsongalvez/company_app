@@ -85,8 +85,8 @@ class BranchServicePostgresTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         branchIds.forEach { trackOwned(BranchTable, BranchTable.id, it) }
 
-        val found = BranchService.findById(callerId, medicalMissionId)
-        val allBranchIds = BranchService.findAll(callerId).map { it.id }.toSet()
+        val found = BranchService.findById(medicalMissionId)
+        val allBranchIds = BranchService.findAll().map { it.id }.toSet()
 
         assertEquals("Free Mission", found.name)
         assertTrue(clinicId in allBranchIds)
@@ -107,7 +107,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findAll without MANAGE_USERS is allowed at service layer`() {
-        BranchService.findAll(callerId)
+        BranchService.findAll()
     }
 
     @Test
@@ -123,7 +123,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        val found = BranchService.findById(otherCaller, newBranchId)
+        val found = BranchService.findById(newBranchId)
         assertEquals("Find Branch", found.name)
     }
 

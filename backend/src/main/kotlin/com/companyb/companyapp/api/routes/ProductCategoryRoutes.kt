@@ -27,9 +27,7 @@ object ProductCategoryRoutes {
         config.routes.post("/api/product-categories") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateProductCategoryRequest>()
-            val categoryId =
-                runCatching { UUID.fromString(request.id) }
-                    .getOrElse { throw BadRequestResponse("Invalid category id") }
+            val categoryId = uuidOrThrow(request.id, "category id")
             val result =
                 ProductCategoryService.create(
                     callerId = callerId,
@@ -43,13 +41,13 @@ object ProductCategoryRoutes {
 
         config.routes.get("/api/product-categories") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
-            context.json(ProductCategoryService.findAll(callerId).map { it.toResponse() })
+            context.json(ProductCategoryService.findAll().map { it.toResponse() })
         }
 
         config.routes.get("/api/product-categories/{$CATEGORY_ID_PARAM}") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val categoryId = context.pathParamAsUuid(CATEGORY_ID_PARAM)
-            context.json(ProductCategoryService.findById(callerId, categoryId).toResponse())
+            context.json(ProductCategoryService.findById(categoryId).toResponse())
         }
     }
 

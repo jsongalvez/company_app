@@ -23,14 +23,9 @@ object ProductCategoryService {
         return ProductCategoryRepository.create(id, cleanName, callerId)
     }
 
-    @Suppress("UnusedParameter")
-    fun findAll(callerId: UUID): List<ProductCategory> = ProductCategoryRepository.findAll()
+    fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()
 
-    @Suppress("UnusedParameter")
-    fun findById(
-        callerId: UUID,
-        categoryId: UUID,
-    ): ProductCategory =
+    fun findById(categoryId: UUID): ProductCategory =
         ProductCategoryRepository.findById(categoryId)
             ?: throw NotFoundResponse("Product category not found")
 }

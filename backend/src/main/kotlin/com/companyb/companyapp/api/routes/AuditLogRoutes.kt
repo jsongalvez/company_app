@@ -24,9 +24,7 @@ object AuditLogRoutes {
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val tableName = context.queryParam("tableName") ?: throw BadRequestResponse("tableName is required")
             val recordIdParam = context.queryParam("recordId") ?: throw BadRequestResponse("recordId is required")
-            val recordId =
-                runCatching { UUID.fromString(recordIdParam) }
-                    .getOrElse { throw BadRequestResponse("Invalid recordId") }
+            val recordId = uuidOrThrow(recordIdParam, "recordId")
 
             val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
 

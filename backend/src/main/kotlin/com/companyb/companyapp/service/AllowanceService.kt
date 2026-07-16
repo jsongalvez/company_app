@@ -41,9 +41,5 @@ object AllowanceService {
         return result.allowance
     }
 
-    @Suppress("UnusedParameter")
-    fun findByBranchDayId(
-        callerId: UUID,
-        branchDayId: UUID,
-    ): List<Allowance> = AllowanceRepository.findByBranchDayId(branchDayId)
+    fun findByBranchDayId(branchDayId: UUID): List<Allowance> = AllowanceRepository.findByBranchDayId(branchDayId)
 }

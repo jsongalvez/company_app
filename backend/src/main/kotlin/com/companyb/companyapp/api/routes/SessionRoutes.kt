@@ -126,20 +126,11 @@ object SessionRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val request = context.bodyAsClass<CreateSessionRequest>()
 
-        val sessionId =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid session id") }
-        val clientId =
-            runCatching { UUID.fromString(request.clientId) }
-                .getOrElse { throw BadRequestResponse("Invalid client id") }
-        val branchId =
-            runCatching { UUID.fromString(request.branchId) }
-                .getOrElse { throw BadRequestResponse("Invalid branch id") }
+        val sessionId = uuidOrThrow(request.id, "session id")
+        val clientId = uuidOrThrow(request.clientId, "client id")
+        val branchId = uuidOrThrow(request.branchId, "branch id")
         val practitionerId =
-            request.requestedPractitionerId?.let {
-                runCatching { UUID.fromString(it) }
-                    .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
-            }
+            request.requestedPractitionerId?.let { uuidOrThrow(it, "practitioner id") }
         val finalPrice =
             runCatching { BigDecimal(request.finalPrice) }
                 .getOrElse { throw BadRequestResponse("Invalid final price") }
@@ -197,9 +188,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<VoidSessionRequest>()
 
-        val voidId =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid void id") }
+        val voidId = uuidOrThrow(request.id, "void id")
         if (request.voidReason.isBlank()) {
             throw BadRequestResponse("voidReason must not be blank")
         }
@@ -230,12 +219,8 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<AddPractitionerRequest>()
 
-        val practitionerId =
-            runCatching { UUID.fromString(request.practitionerId) }
-                .getOrElse { throw BadRequestResponse("Invalid practitioner id") }
-        val id =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid id") }
+        val practitionerId = uuidOrThrow(request.practitionerId, "practitioner id")
+        val id = uuidOrThrow(request.id, "id")
 
         val result =
             SessionService.addPractitioner(
@@ -301,9 +286,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<AddSessionConcernRequest>()
 
-        val concernId =
-            runCatching { UUID.fromString(request.concernId) }
-                .getOrElse { throw BadRequestResponse("Invalid concern id") }
+        val concernId = uuidOrThrow(request.concernId, "concern id")
 
         ConcernService.addToSession(callerId, sessionId, concernId)
         context.status(HttpStatus.NO_CONTENT)

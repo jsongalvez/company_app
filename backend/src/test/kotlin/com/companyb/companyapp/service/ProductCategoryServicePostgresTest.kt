@@ -84,7 +84,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         categoryIds.forEach { trackOwned(ProductCategoryTable, ProductCategoryTable.id, it) }
 
-        val all = ProductCategoryService.findAll(callerId)
+        val all = ProductCategoryService.findAll()
         val allIds = all.map { it.id }.toSet()
 
         assertTrue(cat1Id in allIds)
@@ -101,7 +101,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
-        val found = ProductCategoryService.findById(callerId, cat1Id)
+        val found = ProductCategoryService.findById(cat1Id)
 
         assertEquals(cat1Name, found.name)
     }
@@ -120,7 +120,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findAll without MANAGE_PRODUCTS is allowed at service layer`() {
-        ProductCategoryService.findAll(callerId)
+        ProductCategoryService.findAll()
     }
 
     @Test
@@ -136,7 +136,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        val found = ProductCategoryService.findById(otherCaller, newCatId)
+        val found = ProductCategoryService.findById(newCatId)
         assertEquals("Find Category", found.name)
     }
 

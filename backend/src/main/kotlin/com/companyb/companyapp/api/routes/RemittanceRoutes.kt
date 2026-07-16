@@ -35,9 +35,7 @@ object RemittanceRoutes {
         config.routes.before("/api/remittances") { context ->
             if (context.method() != io.javalin.http.HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
-            val branchId =
-                runCatching { UUID.fromString(request.branchId) }
-                    .getOrElse { throw BadRequestResponse("Invalid branch id") }
+            val branchId = uuidOrThrow(request.branchId, "branch id")
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             com.companyb.companyapp.service.CapabilityService.requireCapability(
                 userId = callerId,
@@ -66,9 +64,7 @@ object RemittanceRoutes {
         val callerId = UUID.fromString(context.attribute<String>("userId"))
         val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
 
-        val id =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid remittance id") }
+        val id = uuidOrThrow(request.id, "remittance id")
         val type =
             runCatching { RemittanceType.valueOf(request.type.uppercase()) }
                 .getOrElse {
@@ -76,9 +72,7 @@ object RemittanceRoutes {
                         "Invalid remittance type: must be SESSION or PRODUCT",
                     )
                 }
-        val branchId =
-            runCatching { UUID.fromString(request.branchId) }
-                .getOrElse { throw BadRequestResponse("Invalid branch id") }
+        val branchId = uuidOrThrow(request.branchId, "branch id")
         val method =
             runCatching { RemittanceMethod.valueOf(request.method.uppercase()) }
                 .getOrElse {
@@ -122,9 +116,7 @@ object RemittanceRoutes {
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val request = context.bodyAsClass<CreateRemittanceLineRequest>()
 
-        val id =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid line id") }
+        val id = uuidOrThrow(request.id, "line id")
         val type =
             runCatching { RemittanceLineType.valueOf(request.type.uppercase()) }
                 .getOrElse {
@@ -132,16 +124,8 @@ object RemittanceRoutes {
                         "Invalid remittance line type: must be SESSION or PRODUCT_SALE",
                     )
                 }
-        val sessionId =
-            request.sessionId?.let {
-                runCatching { UUID.fromString(it) }
-                    .getOrElse { throw BadRequestResponse("Invalid session id") }
-            }
-        val productSaleId =
-            request.productSaleId?.let {
-                runCatching { UUID.fromString(it) }
-                    .getOrElse { throw BadRequestResponse("Invalid product sale id") }
-            }
+        val sessionId = request.sessionId?.let { uuidOrThrow(it, "session id") }
+        val productSaleId = request.productSaleId?.let { uuidOrThrow(it, "product sale id") }
         val amount =
             runCatching { BigDecimal(request.amount) }
                 .getOrElse { throw BadRequestResponse("Invalid amount") }
@@ -175,12 +159,8 @@ object RemittanceRoutes {
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val request = context.bodyAsClass<AddDayBreakdownRequest>()
 
-        val id =
-            runCatching { UUID.fromString(request.id) }
-                .getOrElse { throw BadRequestResponse("Invalid day breakdown id") }
-        val branchDayId =
-            runCatching { UUID.fromString(request.branchDayId) }
-                .getOrElse { throw BadRequestResponse("Invalid branch day id") }
+        val id = uuidOrThrow(request.id, "day breakdown id")
+        val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
 
         val breakdown =
             RemittanceService.addDayBreakdown(

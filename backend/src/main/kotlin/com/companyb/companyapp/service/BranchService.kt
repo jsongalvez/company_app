@@ -26,12 +26,8 @@ object BranchService {
         return BranchRepository.create(id, cleanName, branchType, callerId)
     }
 
-    @Suppress("UnusedParameter")
-    fun findAll(callerId: UUID): List<Branch> = BranchRepository.findAll()
+    fun findAll(): List<Branch> = BranchRepository.findAll()
 
-    @Suppress("UnusedParameter")
-    fun findById(
-        callerId: UUID,
-        branchId: UUID,
-    ): Branch = BranchRepository.findById(branchId) ?: throw NotFoundResponse("Branch not found")
+    fun findById(branchId: UUID): Branch =
+        BranchRepository.findById(branchId) ?: throw NotFoundResponse("Branch not found")
 }
