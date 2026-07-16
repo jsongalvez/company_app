@@ -55,7 +55,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-046 — scope product-related deleteAll() | — | [x] |
 | CR-047 — scope remaining shared-table deleteAll() | — | [x] |
 | CR-048 — remaining ThrowsCount suppressions | — | ❌ wontfix |
-| CR-049 — audit LongParameterList suppressions | — | [ ] |
+| CR-049 — audit LongParameterList suppressions | — | [x] |
 
 ## Overlaps to merge or de-dupe
 
