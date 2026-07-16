@@ -54,6 +54,8 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-045 — scope SessionTable + ClientTable deleteAll() | — | [ ] |
 | CR-046 — scope product-related deleteAll() | — | [ ] |
 | CR-047 — scope remaining shared-table deleteAll() | — | [ ] |
+| CR-048 — remaining ThrowsCount suppressions | — | ❌ wontfix |
+| CR-049 — audit LongParameterList suppressions | — | [ ] |
 
 ## Overlaps to merge or de-dupe
 
