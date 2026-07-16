@@ -23,6 +23,8 @@ import kotlinx.coroutines.launch
 class ClientViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
+    private val handler = ApiCallHandler(viewModelScope, "ClientVM")
+
     private val _searchResults = MutableStateFlow<UiState<List<ClientResponse>>>(UiState.Idle)
     val searchResults: StateFlow<UiState<List<ClientResponse>>> = _searchResults.asStateFlow()
 
@@ -67,7 +69,7 @@ class ClientViewModel(
                     _searchResults.value = UiState.Success(response.body())
                 } else {
                     logInfo("ClientVM", "search failed: status=${response.status.value}")
-                    _searchErrorMessage.value = "Search failed: ${response.status.value}"
+                    _searchErrorMessage.value = "search failed: ${response.status.value}"
                 }
             } catch (e: Exception) {
                 logError("ClientVM", "search exception", e)
@@ -79,95 +81,55 @@ class ClientViewModel(
     }
 
     fun loadClient(clientId: String) {
-        logInfo("ClientVM", "loadClient called: clientId=$clientId")
-        viewModelScope.launch {
-            _clientDetail.value = UiState.Loading
-            try {
-                logInfo("ClientVM", "GET /api/clients/$clientId")
-                val response = apiClient.httpClient.get("/api/clients/$clientId")
-                if (response.status.isSuccess()) {
-                    logInfo("ClientVM", "loadClient success")
-                    _clientDetail.value = UiState.Success(response.body())
-                } else {
-                    logInfo("ClientVM", "loadClient failed: status=${response.status.value}")
-                    _clientDetail.value = UiState.Error("Failed: ${response.status.value}")
-                }
-            } catch (e: Exception) {
-                logError("ClientVM", "loadClient exception", e)
-                _clientDetail.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+        handler.launch(
+            state = _clientDetail,
+            operation = "loadClient",
+            endpoint = "GET /api/clients/$clientId",
+            entryMessage = "loadClient called: clientId=$clientId",
+            block = { apiClient.httpClient.get("/api/clients/$clientId") },
+            transform = { it.body() },
+        )
     }
 
     fun createClient(request: CreateClientRequest) {
-        logInfo("ClientVM", "createClient called")
-        viewModelScope.launch {
-            _createClientState.value = UiState.Loading
-            try {
-                logInfo("ClientVM", "POST /api/clients")
-                val response =
-                    apiClient.httpClient.post("/api/clients") {
-                        setBody(request)
-                    }
-                if (response.status.isSuccess()) {
-                    logInfo("ClientVM", "createClient success")
-                    _createClientState.value = UiState.Success(response.body())
-                } else {
-                    logInfo("ClientVM", "createClient failed: status=${response.status.value}")
-                    _createClientState.value = UiState.Error("Failed: ${response.status.value}")
+        handler.launch(
+            state = _createClientState,
+            operation = "createClient",
+            endpoint = "POST /api/clients",
+            block = {
+                apiClient.httpClient.post("/api/clients") {
+                    setBody(request)
                 }
-            } catch (e: Exception) {
-                logError("ClientVM", "createClient exception", e)
-                _createClientState.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+            },
+            transform = { it.body() },
+        )
     }
 
     fun updateClient(
         clientId: String,
         request: UpdateClientRequest,
     ) {
-        logInfo("ClientVM", "updateClient called: clientId=$clientId")
-        viewModelScope.launch {
-            _updateClientState.value = UiState.Loading
-            try {
-                logInfo("ClientVM", "PATCH /api/clients/$clientId")
-                val response =
-                    apiClient.httpClient.patch("/api/clients/$clientId") {
-                        setBody(request)
-                    }
-                if (response.status.isSuccess()) {
-                    logInfo("ClientVM", "updateClient success")
-                    _updateClientState.value = UiState.Success(response.body())
-                } else {
-                    logInfo("ClientVM", "updateClient failed: status=${response.status.value}")
-                    _updateClientState.value = UiState.Error("Failed: ${response.status.value}")
+        handler.launch(
+            state = _updateClientState,
+            operation = "updateClient",
+            endpoint = "PATCH /api/clients/$clientId",
+            entryMessage = "updateClient called: clientId=$clientId",
+            block = {
+                apiClient.httpClient.patch("/api/clients/$clientId") {
+                    setBody(request)
                 }
-            } catch (e: Exception) {
-                logError("ClientVM", "updateClient exception", e)
-                _updateClientState.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+            },
+            transform = { it.body() },
+        )
     }
 
     fun anonymizeClient(clientId: String) {
-        logInfo("ClientVM", "anonymizeClient called: clientId=$clientId")
-        viewModelScope.launch {
-            _anonymizeState.value = UiState.Loading
-            try {
-                logInfo("ClientVM", "POST /api/clients/$clientId/anonymize")
-                val response = apiClient.httpClient.post("/api/clients/$clientId/anonymize")
-                if (response.status.isSuccess()) {
-                    logInfo("ClientVM", "anonymizeClient success")
-                    _anonymizeState.value = UiState.Success(Unit)
-                } else {
-                    logInfo("ClientVM", "anonymizeClient failed: status=${response.status.value}")
-                    _anonymizeState.value = UiState.Error("Failed: ${response.status.value}")
-                }
-            } catch (e: Exception) {
-                logError("ClientVM", "anonymizeClient exception", e)
-                _anonymizeState.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+        handler.launchUnit(
+            state = _anonymizeState,
+            operation = "anonymizeClient",
+            endpoint = "POST /api/clients/$clientId/anonymize",
+            entryMessage = "anonymizeClient called: clientId=$clientId",
+            block = { apiClient.httpClient.post("/api/clients/$clientId/anonymize") },
+        )
     }
 }

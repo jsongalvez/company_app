@@ -19,7 +19,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-012 — scheduler queries roles | — | [x] |
 | CR-013 — commission recalc verification | CR-006 | [ ] |
 | CR-014 — pg_trgm ILIKE search | — | [x] |
-| CR-015 — ViewModel boilerplate | — | [ ] |
+| CR-015 — ViewModel boilerplate | — | [x] |
 | CR-016 — JVM clock (all chunks) | — | [x] |
 | CR-017 — capability gates (all chunks) | — | [x] |
 | CR-018 — FOR UPDATE on client+inventory | — | [x] |

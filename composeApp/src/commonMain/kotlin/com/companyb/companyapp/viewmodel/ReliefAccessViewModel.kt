@@ -5,21 +5,19 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.util.logError
-import com.companyb.companyapp.util.logInfo
 import io.ktor.client.call.body
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 class ReliefAccessViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
+    private val handler = ApiCallHandler(viewModelScope, "ReliefAccessVM")
+
     private val _requestState = MutableStateFlow<UiState<ReliefAccessResponse>>(UiState.Idle)
     val requestState: StateFlow<UiState<ReliefAccessResponse>> = _requestState.asStateFlow()
 
@@ -30,68 +28,36 @@ class ReliefAccessViewModel(
     val denyState: StateFlow<UiState<ReliefAccessResponse>> = _denyState.asStateFlow()
 
     fun requestAccess(request: ReliefAccessRequest) {
-        logInfo("ReliefAccessVM", "requestAccess called")
-        viewModelScope.launch {
-            _requestState.value = UiState.Loading
-            logInfo("ReliefAccessVM", "POST /api/relief-access/request")
-            try {
-                val response =
-                    apiClient.httpClient.post("/api/relief-access/request") {
-                        setBody(request)
-                    }
-                if (response.status.isSuccess()) {
-                    logInfo("ReliefAccessVM", "requestAccess success")
-                    _requestState.value = UiState.Success(response.body())
-                } else {
-                    logInfo("ReliefAccessVM", "requestAccess failed: status=${response.status.value}")
-                    _requestState.value = UiState.Error("Request failed: ${response.status.value}")
+        handler.launch(
+            state = _requestState,
+            operation = "requestAccess",
+            endpoint = "POST /api/relief-access/request",
+            block = {
+                apiClient.httpClient.post("/api/relief-access/request") {
+                    setBody(request)
                 }
-            } catch (e: Exception) {
-                logError("ReliefAccessVM", "requestAccess exception", e)
-                _requestState.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+            },
+            transform = { it.body() },
+        )
     }
 
     fun grantAccess(requestId: String) {
-        logInfo("ReliefAccessVM", "grantAccess called")
-        viewModelScope.launch {
-            _grantState.value = UiState.Loading
-            logInfo("ReliefAccessVM", "PATCH /api/relief-access/$requestId/grant")
-            try {
-                val response = apiClient.httpClient.patch("/api/relief-access/$requestId/grant")
-                if (response.status.isSuccess()) {
-                    logInfo("ReliefAccessVM", "grantAccess success")
-                    _grantState.value = UiState.Success(response.body())
-                } else {
-                    logInfo("ReliefAccessVM", "grantAccess failed: status=${response.status.value}")
-                    _grantState.value = UiState.Error("Grant failed: ${response.status.value}")
-                }
-            } catch (e: Exception) {
-                logError("ReliefAccessVM", "grantAccess exception", e)
-                _grantState.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+        handler.launch(
+            state = _grantState,
+            operation = "grantAccess",
+            endpoint = "PATCH /api/relief-access/$requestId/grant",
+            block = { apiClient.httpClient.patch("/api/relief-access/$requestId/grant") },
+            transform = { it.body() },
+        )
     }
 
     fun denyAccess(requestId: String) {
-        logInfo("ReliefAccessVM", "denyAccess called")
-        viewModelScope.launch {
-            _denyState.value = UiState.Loading
-            logInfo("ReliefAccessVM", "PATCH /api/relief-access/$requestId/deny")
-            try {
-                val response = apiClient.httpClient.patch("/api/relief-access/$requestId/deny")
-                if (response.status.isSuccess()) {
-                    logInfo("ReliefAccessVM", "denyAccess success")
-                    _denyState.value = UiState.Success(response.body())
-                } else {
-                    logInfo("ReliefAccessVM", "denyAccess failed: status=${response.status.value}")
-                    _denyState.value = UiState.Error("Deny failed: ${response.status.value}")
-                }
-            } catch (e: Exception) {
-                logError("ReliefAccessVM", "denyAccess exception", e)
-                _denyState.value = UiState.Error(e.message ?: "Unknown error")
-            }
-        }
+        handler.launch(
+            state = _denyState,
+            operation = "denyAccess",
+            endpoint = "PATCH /api/relief-access/$requestId/deny",
+            block = { apiClient.httpClient.patch("/api/relief-access/$requestId/deny") },
+            transform = { it.body() },
+        )
     }
 }
