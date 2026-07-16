@@ -5,36 +5,30 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class AuditLogServicePostgresTest {
+class AuditLogServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val recordId = UUID.randomUUID()
     private val tableName = "test_table"
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertUser(
             id = callerId,
             username = "audit-caller-$callerId",
@@ -42,18 +36,14 @@ class AuditLogServicePostgresTest {
             email = "${callerId.toString().take(8)}@t.st",
             displayName = "Test Audit Caller",
         )
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `findByTableAndRecord returns matching entries`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
 
         val entries = AuditLogService.findByTableAndRecord(callerId, tableName, recordId)
@@ -67,6 +57,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `findByTableAndRecord returns empty list for no matches`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val entries = AuditLogService.findByTableAndRecord(callerId, "non_existent", UUID.randomUUID())
         assertTrue(entries.isEmpty())
     }
@@ -83,6 +74,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `findByTableAndRecord returns multiple entries ordered by changed_at desc`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val entryId1 = UUID.randomUUID()
         val entryId2 = UUID.randomUUID()
         insertAuditEntryWithId(entryId1, recordId, tableName, AuditAction.INSERT, false)
@@ -96,6 +88,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `findFlagged returns only unacknowledged flagged entries`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         insertAuditEntry(UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
         insertAuditEntry(UUID.randomUUID(), "t2", AuditAction.UPDATE, false)
 
@@ -108,6 +101,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `findFlagged excludes acknowledged flagged entries`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val entryId = UUID.randomUUID()
         insertAuditEntryWithId(entryId, UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
         acknowledgeEntryDirectly(entryId)
@@ -128,6 +122,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `acknowledge marks entry as acknowledged`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val entryId = UUID.randomUUID()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
 
@@ -150,6 +145,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `acknowledge on non-existent entry returns not found`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         assertFailsWith<NotFoundResponse> {
             AuditLogService.acknowledge(callerId, UUID.randomUUID())
@@ -159,6 +155,7 @@ class AuditLogServicePostgresTest {
     @Test
     fun `acknowledge on already acknowledged entry returns not found`() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val entryId = UUID.randomUUID()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
         acknowledgeEntryDirectly(entryId)
@@ -206,19 +203,5 @@ class AuditLogServicePostgresTest {
 
     private fun acknowledgeEntryDirectly(entryId: UUID) {
         AuditLogRepository.acknowledge(entryId, callerId)
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq callerId)
-            }
-            UserCapabilityTable.deleteWhere {
-                (UserCapabilityTable.userId eq callerId)
-            }
-            AppUserTable.deleteWhere {
-                (AppUserTable.id eq callerId)
-            }
-        }
     }
 }

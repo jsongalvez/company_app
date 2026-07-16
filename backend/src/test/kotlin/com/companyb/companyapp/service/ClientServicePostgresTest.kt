@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
@@ -12,13 +13,9 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -27,24 +24,18 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class ClientServicePostgresTest {
+class ClientServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val clientAId = UUID.randomUUID()
     private val clientBId = UUID.randomUUID()
-    private val testIds = listOf(clientAId, clientBId)
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows(callerId, testIds)
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "client-caller")
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows(callerId, testIds)
-        }
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        trackOwned(ClientTable, ClientTable.id, clientAId)
+        trackOwned(ClientTable, ClientTable.id, clientBId)
     }
 
     @Test
@@ -572,22 +563,4 @@ class ClientServicePostgresTest {
                 .where { (AuditLogTable.auditTableName eq "client") and (AuditLogTable.recordId eq clientId) }
                 .count()
         }
-
-    private fun deleteTestRows(
-        userId: UUID,
-        clientIds: List<UUID>,
-    ) {
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq userId) or
-                    (AuditLogTable.recordId eq clientIds[0]) or
-                    (AuditLogTable.recordId eq clientIds[1])
-            }
-            ClientTable.deleteWhere {
-                (ClientTable.id eq clientIds[0]) or (ClientTable.id eq clientIds[1])
-            }
-            AppUserTable.deleteWhere { AppUserTable.id eq userId }
-        }
-    }
 }

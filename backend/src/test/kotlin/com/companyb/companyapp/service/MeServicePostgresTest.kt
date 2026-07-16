@@ -4,30 +4,22 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-class MeServicePostgresTest {
+class MeServicePostgresTest : BasePostgresTest() {
     private val userId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val inactiveUserId = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertUser(
             id = userId,
             username = "me-caller-$userId",
@@ -35,6 +27,7 @@ class MeServicePostgresTest {
             email = "${userId.toString().take(8)}@t.st",
             displayName = "Me Caller",
         )
+        trackOwned(AppUserTable, AppUserTable.id, userId)
         DatabaseTestHelper.insertUser(
             id = inactiveUserId,
             username = "inactive-$inactiveUserId",
@@ -43,13 +36,7 @@ class MeServicePostgresTest {
             displayName = "Inactive User",
             status = UserStatus.INACTIVE,
         )
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(AppUserTable, AppUserTable.id, inactiveUserId)
     }
 
     @Test
@@ -81,6 +68,7 @@ class MeServicePostgresTest {
     fun `getCapabilities returns capabilities for user with grants`() {
         DatabaseTestHelper.grantEditBranchData(userId, sourceId)
         DatabaseTestHelper.grantManageProducts(userId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
 
         val capabilities = MeService.getCapabilities(userId)
 
@@ -99,19 +87,9 @@ class MeServicePostgresTest {
     @Test
     fun `getCapabilities excludes inactive users`() {
         DatabaseTestHelper.grantEditBranchData(inactiveUserId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, inactiveUserId)
 
         val capabilities = MeService.getCapabilities(inactiveUserId)
         assertTrue(capabilities.isEmpty())
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            UserCapabilityTable.deleteWhere {
-                (UserCapabilityTable.userId eq userId) or (UserCapabilityTable.userId eq inactiveUserId)
-            }
-            AppUserTable.deleteWhere {
-                (AppUserTable.id eq userId) or (AppUserTable.id eq inactiveUserId)
-            }
-        }
     }
 }

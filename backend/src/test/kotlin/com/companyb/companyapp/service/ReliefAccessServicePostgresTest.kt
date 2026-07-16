@@ -6,34 +6,30 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class ReliefAccessServicePostgresTest {
+class ReliefAccessServicePostgresTest : BasePostgresTest() {
     private val reliefUserId = UUID.randomUUID()
     private val targetUserId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
@@ -41,23 +37,24 @@ class ReliefAccessServicePostgresTest {
     private val branchDayId = UUID.randomUUID()
     private val attendanceId = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(reliefUserId, "relief")
+        trackOwned(AppUserTable, AppUserTable.id, reliefUserId)
         DatabaseTestHelper.insertTestUser(targetUserId, "target")
+        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         DatabaseTestHelper.insertTestBranch(branchId, branchName)
+        trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
         insertBranchDayAssignment(reliefUserId, branchDayId, isRelief = true)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, branchDayId)
         insertAttendance(attendanceId, targetUserId, branchDayId)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, reliefUserId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, reliefUserId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
+        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.branchDayId, branchDayId)
     }
 
     @Test
@@ -88,6 +85,7 @@ class ReliefAccessServicePostgresTest {
     fun `fails with 400 when target user has no active clock-in`() {
         val noClockInTarget = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(noClockInTarget, "no-clock")
+        trackOwned(AppUserTable, AppUserTable.id, noClockInTarget)
         val requestId = UUID.randomUUID()
 
         assertFailsWith<BadRequestResponse> {
@@ -99,7 +97,9 @@ class ReliefAccessServicePostgresTest {
     fun `fails with 403 when requester is not a relief user`() {
         val nonReliefUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(nonReliefUser, "non-relief")
+        trackOwned(AppUserTable, AppUserTable.id, nonReliefUser)
         insertBranchDayAssignment(nonReliefUser, branchDayId, isRelief = false)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, branchDayId)
         val requestId = UUID.randomUUID()
 
         assertFailsWith<ForbiddenResponse> {
@@ -138,6 +138,7 @@ class ReliefAccessServicePostgresTest {
     fun `grant from non-target user fails with 403`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "other")
+        trackOwned(AppUserTable, AppUserTable.id, otherUser)
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
@@ -194,6 +195,7 @@ class ReliefAccessServicePostgresTest {
     fun `deny from non-target user fails with 403`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "other")
+        trackOwned(AppUserTable, AppUserTable.id, otherUser)
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
@@ -289,23 +291,4 @@ class ReliefAccessServicePostgresTest {
                 .empty()
                 .not()
         }
-
-    private fun deleteTestRows() {
-        transaction {
-            UserCapabilityTable.deleteWhere {
-                (UserCapabilityTable.userId eq reliefUserId) or (UserCapabilityTable.userId eq targetUserId)
-            }
-            GrantReliefAccessTable.deleteWhere { GrantReliefAccessTable.branchDayId eq branchDayId }
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq reliefUserId) or (AuditLogTable.changedBy eq targetUserId)
-            }
-            AttendanceTable.deleteWhere { AttendanceTable.branchDayId eq branchDayId }
-            BranchDayAssignmentTable.deleteWhere { BranchDayAssignmentTable.branchDayId eq branchDayId }
-            BranchDayTable.deleteWhere { BranchDayTable.id eq branchDayId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere {
-                (AppUserTable.id eq reliefUserId) or (AppUserTable.id eq targetUserId)
-            }
-        }
-    }
 }

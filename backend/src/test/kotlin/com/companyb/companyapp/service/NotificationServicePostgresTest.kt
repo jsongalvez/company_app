@@ -2,65 +2,75 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserRoleTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class NotificationServicePostgresTest {
+class NotificationServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val otherUserId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
     private val sessionId = UUID.randomUUID()
     private val clientId = UUID.randomUUID()
+    private lateinit var branchDayId: UUID
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "notification-caller")
         DatabaseTestHelper.insertTestUser(otherUserId, "notification-other")
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch ${branchId.toString().take(8)}")
-        insertSession(sessionId, branchId)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        DatabaseTestHelper.insertTestClient(clientId)
+        DatabaseTestHelper.insertTestSession(
+            id = sessionId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
+        trackOwned(AppUserTable, AppUserTable.id, otherUserId)
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
     }
 
     @Test
     fun `listUnread returns only unread notifications for caller`() {
         val session2Id = UUID.randomUUID()
-        insertSession(session2Id, branchId)
-        insertNotification(sessionId, callerId, branchId)
-        insertNotification(session2Id, callerId, branchId)
+        val client2Id = DatabaseTestHelper.insertTestClient()
+        val branchDay2Id = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.insertTestSession(
+            id = session2Id,
+            clientId = client2Id,
+            branchDayId = branchDay2Id,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        trackOwned(SessionTable, SessionTable.id, session2Id)
+        trackOwned(ClientTable, ClientTable.id, client2Id)
+
+        val n1 = insertNotification(sessionId, callerId, branchId)
+        val n2 = insertNotification(session2Id, callerId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, n1.id)
+        trackOwned(NotificationTable, NotificationTable.id, n2.id)
 
         val notifications = NotificationService.listUnread(callerId)
 
@@ -77,8 +87,10 @@ class NotificationServicePostgresTest {
 
     @Test
     fun `listUnread excludes notifications for other users`() {
-        insertNotification(sessionId, callerId, branchId)
-        insertNotification(sessionId, otherUserId, branchId)
+        val n1 = insertNotification(sessionId, callerId, branchId)
+        val n2 = insertNotification(sessionId, otherUserId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, n1.id)
+        trackOwned(NotificationTable, NotificationTable.id, n2.id)
 
         val notifications = NotificationService.listUnread(callerId)
 
@@ -89,6 +101,7 @@ class NotificationServicePostgresTest {
     @Test
     fun `markRead sets isRead and readAt on existing notification`() {
         val notification = insertNotification(sessionId, callerId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, notification.id)
 
         val result = NotificationService.markRead(callerId, notification.id)
 
@@ -99,6 +112,7 @@ class NotificationServicePostgresTest {
     @Test
     fun `marked notification is excluded from subsequent listUnread`() {
         val notification = insertNotification(sessionId, callerId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, notification.id)
 
         NotificationService.markRead(callerId, notification.id)
         val remaining = NotificationService.listUnread(callerId)
@@ -117,25 +131,11 @@ class NotificationServicePostgresTest {
     @Test
     fun `markRead throws 404 when notification belongs to another user`() {
         val notification = insertNotification(sessionId, otherUserId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, notification.id)
 
         assertFailsWith<NotFoundResponse> {
             NotificationService.markRead(callerId, notification.id)
         }
-    }
-
-    private fun insertSession(
-        id: UUID,
-        branchId: UUID,
-    ) {
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        val clientId = DatabaseTestHelper.insertTestClient()
-        DatabaseTestHelper.insertTestSession(
-            id = id,
-            clientId = clientId,
-            branchDayId = branchDayId,
-            sessionType = SessionType.REGULAR,
-            sessionStatus = SessionStatus.COMPLETED,
-        )
     }
 
     private fun insertNotification(
@@ -168,29 +168,6 @@ class NotificationServicePostgresTest {
                         createdAt = row[NotificationTable.createdAt],
                     )
                 }
-        }
-    }
-
-    private fun deleteTestRows() {
-        val allTestUsers = listOf(callerId, otherUserId)
-        transaction {
-            NotificationTable.deleteAll()
-            SessionVoidTable.deleteAll()
-            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
-            UserRoleTable.deleteWhere { UserRoleTable.userId inList allTestUsers }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId inList allTestUsers }
-            UserBranchAssignmentTable.deleteWhere {
-                UserBranchAssignmentTable.userId inList allTestUsers
-            }
-            AuditLogTable.deleteWhere {
-                AuditLogTable.changedBy inList allTestUsers
-            }
-            BranchDayTable.deleteWhere {
-                BranchDayTable.branchId eq branchId
-            }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            ClientTable.deleteWhere { ClientTable.id eq clientId }
-            AppUserTable.deleteWhere { AppUserTable.id inList allTestUsers }
         }
     }
 }

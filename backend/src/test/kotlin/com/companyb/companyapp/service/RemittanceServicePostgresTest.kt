@@ -25,6 +25,7 @@ import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
@@ -34,8 +35,6 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -44,8 +43,6 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -55,7 +52,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-class RemittanceServicePostgresTest {
+class RemittanceServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
@@ -63,20 +60,18 @@ class RemittanceServicePostgresTest {
     private var sessionId: UUID? = null
     private var productSaleId: UUID? = null
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-caller")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${UUID.randomUUID()}")
-        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
-    }
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
 
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${UUID.randomUUID()}")
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, branchId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -106,6 +101,11 @@ class RemittanceServicePostgresTest {
         assertEquals(dateRangeEnd, remittance.dateRangeEnd)
         assertEquals(callerId, remittance.submittedBy)
         assertEquals(1, remittance.version)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -126,6 +126,11 @@ class RemittanceServicePostgresTest {
             )
 
         assertEquals(RemittanceType.PRODUCT, remittance.type)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -158,6 +163,11 @@ class RemittanceServicePostgresTest {
 
         assertEquals(first.id, second.id)
         assertEquals(first.version, second.version)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -234,6 +244,11 @@ class RemittanceServicePostgresTest {
                     }.count()
             }
         assertTrue(auditCount > 0)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
     }
 
     @Test
@@ -246,6 +261,13 @@ class RemittanceServicePostgresTest {
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addSessionLine(remittanceId, lineId, BigDecimal("500.00"))
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(SessionTable, SessionTable.id, sessionId!!)
+        trackOwned(ClientTable, ClientTable.id, clientId)
 
         val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
 
@@ -288,6 +310,13 @@ class RemittanceServicePostgresTest {
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addProductLine(remittanceId, lineId, BigDecimal("200.00"))
 
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId!!)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+
         val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
 
         val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
@@ -320,6 +349,15 @@ class RemittanceServicePostgresTest {
         addCompensation(compId, branchDayId, BigDecimal("200.00"))
         addExpense(branchDayId, BigDecimal("150.00"))
 
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(SessionTable, SessionTable.id, sessionId!!)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        trackOwned(CompensationTable, CompensationTable.assignedBy, callerId)
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, callerId)
+
         val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
 
         val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
@@ -336,6 +374,11 @@ class RemittanceServicePostgresTest {
         val remittanceId = UUID.randomUUID()
         createDraftRemittance(remittanceId)
 
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+
         assertFailsWith<ConflictResponse> {
             RemittanceService.submit(callerId, remittanceId, 99)
         }
@@ -346,6 +389,11 @@ class RemittanceServicePostgresTest {
         val remittanceId = UUID.randomUUID()
         createDraftRemittance(remittanceId)
         DatabaseTestHelper.revokeAllCapabilities(callerId)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         assertFailsWith<ForbiddenResponse> {
             RemittanceService.submit(callerId, remittanceId, 1)
@@ -369,6 +417,14 @@ class RemittanceServicePostgresTest {
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addSessionLine(remittanceId, lineId, BigDecimal("100.00"))
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(SessionTable, SessionTable.id, sessionId!!)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+
         val v1 = RemittanceRepository.findById(remittanceId)!!.version
         RemittanceService.submit(callerId, remittanceId, v1)
 
@@ -387,6 +443,13 @@ class RemittanceServicePostgresTest {
         val branchDayId = resolveBranchDay()
         addDayBreakdown(remittanceId, breakdownId, branchDayId)
         addSessionLine(remittanceId, lineId, BigDecimal("300.00"))
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(SessionTable, SessionTable.id, sessionId!!)
+        trackOwned(ClientTable, ClientTable.id, clientId)
 
         RemittanceService.submit(callerId, remittanceId, 2)
 
@@ -410,6 +473,11 @@ class RemittanceServicePostgresTest {
     fun `submit with no day breakdowns succeeds with zero calculations`() {
         val remittanceId = UUID.randomUUID()
         createDraftRemittance(remittanceId)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
         val result = RemittanceService.submit(callerId, remittanceId, 1)
 
@@ -525,11 +593,13 @@ class RemittanceServicePostgresTest {
         val conn = DatabaseConfig.dataSource.connection
         conn.createStatement().use { stmt ->
             stmt.execute(
-                "INSERT INTO product_category (id, name) VALUES ('$productCategoryId', 'Test Cat ps')",
+                "INSERT INTO product_category (id, name) VALUES ('$productCategoryId', 'Cat ${psId.toString().take(
+                    8,
+                )}')",
             )
             stmt.execute(
                 "INSERT INTO product (id, name, product_category_id, unit_price, commission_amount) " +
-                    "VALUES ('$productId', 'Test Prod ps', '$productCategoryId', 100.00, 10.00)",
+                    "VALUES ('$productId', 'Prod ${psId.toString().take(8)}', '$productCategoryId', 100.00, 10.00)",
             )
             stmt.execute(
                 "INSERT INTO product_sale (id, branch_day_id, product_id, quantity, is_walk_in, " +
@@ -594,36 +664,7 @@ class RemittanceServicePostgresTest {
         }
     }
 
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere { (AuditLogTable.changedBy eq callerId) }
-            UserCapabilityTable.deleteWhere { (UserCapabilityTable.userId eq callerId) }
-        }
-        disableSnapshotTrigger()
-        try {
-            transaction {
-                RemittanceFinancialSnapshotTable.deleteAll()
-            }
-        } finally {
-            enableSnapshotTrigger()
-        }
-        transaction {
-            RemittanceDayBreakdownTable.deleteAll()
-            RemittanceLineTable.deleteAll()
-            CompensationTable.deleteWhere { CompensationTable.assignedBy eq callerId }
-            ExpenseTable.deleteWhere { ExpenseTable.createdBy eq callerId }
-            RemittanceTable.deleteAll()
-            ProductSaleTable.deleteAll()
-            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
-            ClientTable.deleteWhere { ClientTable.id eq clientId }
-            ProductTable.deleteAll()
-            ProductCategoryTable.deleteAll()
-            BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere { AppUserTable.id eq callerId }
-        }
-    }
-
+    @Suppress("UnusedPrivateMember")
     private fun disableSnapshotTrigger() {
         val conn = DatabaseConfig.dataSource.connection
         conn.createStatement().use { stmt ->
@@ -634,6 +675,7 @@ class RemittanceServicePostgresTest {
         conn.close()
     }
 
+    @Suppress("UnusedPrivateMember")
     private fun enableSnapshotTrigger() {
         val conn = DatabaseConfig.dataSource.connection
         conn.createStatement().use { stmt ->

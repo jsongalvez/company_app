@@ -5,19 +5,16 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -25,61 +22,69 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class ProductCategoryServicePostgresTest {
+class ProductCategoryServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val cat1Id = UUID.randomUUID()
     private val cat2Id = UUID.randomUUID()
     private val categoryIds = listOf(cat1Id, cat2Id)
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows(callerId, categoryIds)
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
     }
 
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows(callerId, categoryIds)
-        }
-    }
+    private val cat1Name = "Test Category $cat1Id"
+    private val cat2Name = "Test Category $cat2Id"
 
     @Test
     fun `create persists category and writes audit row`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val result = ProductCategoryService.create(callerId, cat1Id, "  Test Category  ")
+        val result = ProductCategoryService.create(callerId, cat1Id, "  $cat1Name  ")
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         assertTrue(result.created)
-        assertEquals("Test Category", result.category.name)
+        assertEquals(cat1Name, result.category.name)
 
         val persisted = persistedCategory(cat1Id)
         assertNotNull(persisted)
-        assertEquals("Test Category", persisted.name)
+        assertEquals(cat1Name, persisted.name)
         assertEquals(1L, auditEntryCount(cat1Id))
-        assertEquals("Test Category", auditNewName(cat1Id))
+        assertEquals(cat1Name, auditNewName(cat1Id))
     }
 
     @Test
     fun `duplicate client generated id returns existing category without extra audit`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        val first = ProductCategoryService.create(callerId, cat1Id, "Test Category")
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val duplicate = ProductCategoryService.create(callerId, cat1Id, "Changed Name")
+        val first = ProductCategoryService.create(callerId, cat1Id, cat1Name)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
+
+        val duplicate = ProductCategoryService.create(callerId, cat1Id, "Changed Name $cat1Id")
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         assertTrue(first.created)
         assertFalse(duplicate.created)
-        assertEquals("Test Category", duplicate.category.name)
+        assertEquals(cat1Name, duplicate.category.name)
         assertEquals(1L, auditEntryCount(cat1Id))
     }
 
     @Test
     fun `list returns all categories`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        ProductCategoryService.create(callerId, cat1Id, "Category A")
-        ProductCategoryService.create(callerId, cat2Id, "Category B")
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        ProductCategoryService.create(callerId, cat1Id, cat1Name)
+        ProductCategoryService.create(callerId, cat2Id, cat2Name)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        categoryIds.forEach { trackOwned(ProductCategoryTable, ProductCategoryTable.id, it) }
 
         val all = ProductCategoryService.findAll(callerId)
         val allIds = all.map { it.id }.toSet()
@@ -91,17 +96,22 @@ class ProductCategoryServicePostgresTest {
     @Test
     fun `find by id returns persisted category`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        ProductCategoryService.create(callerId, cat1Id, "Test Category")
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        ProductCategoryService.create(callerId, cat1Id, cat1Name)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         val found = ProductCategoryService.findById(callerId, cat1Id)
 
-        assertEquals("Test Category", found.name)
+        assertEquals(cat1Name, found.name)
     }
 
     @Test
     fun `create without MANAGE_PRODUCTS is forbidden and does not insert category`() {
         assertFailsWith<ForbiddenResponse> {
-            ProductCategoryService.create(callerId, cat1Id, "Test Category")
+            ProductCategoryService.create(callerId, cat1Id, cat1Name)
         }
 
         assertFalse(categoryExists(cat1Id))
@@ -118,10 +128,16 @@ class ProductCategoryServicePostgresTest {
     @Test
     fun `findById without MANAGE_PRODUCTS is forbidden`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        ProductCategoryService.create(callerId, cat1Id, "Test Category")
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        ProductCategoryService.create(callerId, cat1Id, cat1Name)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             ProductCategoryService.findById(otherCaller, cat1Id)
@@ -174,23 +190,4 @@ class ProductCategoryServicePostgresTest {
                     .single()
             DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
         }
-
-    private fun deleteTestRows(
-        userId: UUID,
-        categoryIds: List<UUID>,
-    ) {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq userId) or
-                    (AuditLogTable.recordId eq categoryIds[0]) or
-                    (AuditLogTable.recordId eq categoryIds[1])
-            }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
-            ProductCategoryTable.deleteWhere {
-                (ProductCategoryTable.id eq categoryIds[0]) or
-                    (ProductCategoryTable.id eq categoryIds[1])
-            }
-            AppUserTable.deleteWhere { AppUserTable.id eq userId }
-        }
-    }
 }

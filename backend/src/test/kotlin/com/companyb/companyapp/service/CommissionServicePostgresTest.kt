@@ -19,6 +19,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
@@ -26,17 +27,12 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -45,7 +41,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-class CommissionServicePostgresTest {
+class CommissionServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val targetUserId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -57,28 +53,37 @@ class CommissionServicePostgresTest {
     private lateinit var branchDayId: UUID
     private lateinit var productSaleId: UUID
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "commission-caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "commission-target")
+        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Commission Branch")
+        trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestCategory(categoryId, "Test Commission Category")
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
         DatabaseTestHelper.insertTestProduct(productId, "Commission Product", categoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         ensureInventoryCard(branchId, productId, 100)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
         productSaleId = createProductSale(branchDayId)
+        trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.branchId, branchId)
         insertClockIn(targetUserId, branchDayId)
+        trackOwned(AttendanceTable, AttendanceTable.userId, targetUserId)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, targetUserId)
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
+        trackOwned(CommissionSplitTable, CommissionSplitTable.branchDayId, branchDayId)
+        trackOwned(CommissionManualInclusionTable, CommissionManualInclusionTable.userId, targetUserId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        trackOwned(SessionTable, SessionTable.branchDayId, branchDayId)
     }
 
     @Test
@@ -247,6 +252,7 @@ class CommissionServicePostgresTest {
         )
 
         grantViewBranchData(callerId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val splits =
             CommissionSplitService.getByBranchDayId(callerId, branchDayId)
@@ -358,41 +364,5 @@ class CommissionServicePostgresTest {
             contextId = branchId,
             sourceId = sourceId,
         )
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq callerId) or
-                    (AuditLogTable.changedBy eq targetUserId)
-            }
-            UserCapabilityTable.deleteWhere {
-                (UserCapabilityTable.userId eq callerId) or
-                    (UserCapabilityTable.userId eq targetUserId)
-            }
-            CommissionSplitTable.deleteAll()
-            CommissionManualInclusionTable.deleteAll()
-            BranchDayAssignmentTable.deleteWhere {
-                (BranchDayAssignmentTable.userId eq callerId) or
-                    (BranchDayAssignmentTable.userId eq targetUserId)
-            }
-            AttendanceTable.deleteWhere {
-                (AttendanceTable.userId eq callerId) or
-                    (AttendanceTable.userId eq targetUserId)
-            }
-            InventoryMovementTable.deleteAll()
-            ProductSaleTable.deleteAll()
-            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
-            ClientTable.deleteWhere { ClientTable.id eq clientId }
-            BranchInventoryTable.deleteWhere { BranchInventoryTable.branchId eq branchId }
-            BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
-            ProductTable.deleteWhere { ProductTable.id eq productId }
-            ProductCategoryTable.deleteWhere { ProductCategoryTable.id eq categoryId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere {
-                (AppUserTable.id eq callerId) or
-                    (AppUserTable.id eq targetUserId)
-            }
-        }
     }
 }

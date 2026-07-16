@@ -7,55 +7,46 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class SessionBaseRateServicePostgresTest {
+class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
     private val rateId = UUID.randomUUID()
     private val rateId2 = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "rate-caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, name = "Rate-Clinic-$branchId")
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
     fun `set rate for branch creates rate and writes audit`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val result = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
 
         assertTrue(result.created)
         assertEquals(SessionType.REGULAR, result.rate.sessionType)
@@ -74,6 +65,7 @@ class SessionBaseRateServicePostgresTest {
     @Test
     fun `set rate with invalid amount throws bad request`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         assertFailsWith<BadRequestResponse> {
             SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "not-a-number")
@@ -83,6 +75,7 @@ class SessionBaseRateServicePostgresTest {
     @Test
     fun `set rate with negative amount throws bad request`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         assertFailsWith<BadRequestResponse> {
             SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "-100.00")
@@ -92,9 +85,12 @@ class SessionBaseRateServicePostgresTest {
     @Test
     fun `setting second rate for same branch and type deactivates first`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val first = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
         val second = SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.REGULAR, "3000.00")
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
 
         assertTrue(first.created)
         assertTrue(second.created)
@@ -107,9 +103,12 @@ class SessionBaseRateServicePostgresTest {
     @Test
     fun `find active rates returns only current rates`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
         SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, "2000.00")
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
 
         val activeRates = SessionBaseRateService.findActiveRates(callerId, branchId)
 
@@ -119,9 +118,11 @@ class SessionBaseRateServicePostgresTest {
     @Test
     fun `duplicate idempotent set rate returns existing row`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val first = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
         val duplicate = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "3000.00")
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
 
         assertTrue(first.created)
         assertFalse(duplicate.created)
@@ -132,6 +133,7 @@ class SessionBaseRateServicePostgresTest {
     @Test
     fun `find rates for branch with no rates returns empty`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val rates = SessionBaseRateService.findActiveRates(callerId, branchId)
         assertTrue(rates.isEmpty())
     }
@@ -152,22 +154,4 @@ class SessionBaseRateServicePostgresTest {
                         (AuditLogTable.recordId eq rateId)
                 }.count()
         }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq callerId) or
-                    (AuditLogTable.recordId eq rateId) or
-                    (AuditLogTable.recordId eq rateId2)
-            }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-            SessionBaseRateTable.deleteWhere {
-                (SessionBaseRateTable.branchId eq branchId) or
-                    (SessionBaseRateTable.id eq rateId) or
-                    (SessionBaseRateTable.id eq rateId2)
-            }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere { AppUserTable.id eq callerId }
-        }
-    }
 }

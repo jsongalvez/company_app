@@ -5,26 +5,23 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class BranchServicePostgresTest {
+class BranchServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val clinicId = UUID.randomUUID()
@@ -32,27 +29,22 @@ class BranchServicePostgresTest {
     private val medicalMissionId = UUID.randomUUID()
     private val branchIds = listOf(clinicId, provincialTourId, medicalMissionId)
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows(callerId, branchIds)
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows(callerId, branchIds)
-        }
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
     }
 
     @Test
     fun `create persists all branch types and writes audit row`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val clinic = BranchService.create(callerId, clinicId, " Main Clinic ", BranchType.CLINIC)
         val tour = BranchService.create(callerId, provincialTourId, "Cebu Tour", BranchType.PROVINCIAL_TOUR)
         val mission = BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        branchIds.forEach { trackOwned(BranchTable, BranchTable.id, it) }
 
         assertTrue(clinic.created)
         assertTrue(tour.created)
@@ -68,9 +60,14 @@ class BranchServicePostgresTest {
     @Test
     fun `duplicate client generated id returns existing branch without extra audit`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
         val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
+        trackOwned(BranchTable, BranchTable.id, clinicId)
 
         val duplicate = BranchService.create(callerId, clinicId, "Changed Name", BranchType.MEDICAL_MISSION)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         assertTrue(first.created)
         assertFalse(duplicate.created)
@@ -82,8 +79,13 @@ class BranchServicePostgresTest {
     @Test
     fun `find by id and list return persisted branches`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
+
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        branchIds.forEach { trackOwned(BranchTable, BranchTable.id, it) }
 
         val found = BranchService.findById(callerId, medicalMissionId)
         val allBranchIds = BranchService.findAll(callerId).map { it.id }.toSet()
@@ -113,10 +115,15 @@ class BranchServicePostgresTest {
     @Test
     fun `findById without MANAGE_USERS is forbidden`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
         BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(BranchTable, BranchTable.id, clinicId)
 
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             BranchService.findById(otherCaller, clinicId)
@@ -159,22 +166,4 @@ class BranchServicePostgresTest {
                     .single()
             DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "name")
         }
-
-    private fun deleteTestRows(
-        userId: UUID,
-        branchIds: List<UUID>,
-    ) {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq userId) or (AuditLogTable.recordId eq branchIds[0]) or
-                    (AuditLogTable.recordId eq branchIds[1]) or (AuditLogTable.recordId eq branchIds[2])
-            }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
-            BranchTable.deleteWhere {
-                (BranchTable.id eq branchIds[0]) or (BranchTable.id eq branchIds[1]) or
-                    (BranchTable.id eq branchIds[2])
-            }
-            AppUserTable.deleteWhere { AppUserTable.id eq userId }
-        }
-    }
 }

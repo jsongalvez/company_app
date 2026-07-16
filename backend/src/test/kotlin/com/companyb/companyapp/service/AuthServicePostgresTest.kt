@@ -4,37 +4,30 @@ import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-class AuthServicePostgresTest {
+class AuthServicePostgresTest : BasePostgresTest() {
     private val userId = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
+    override fun initTestData() {
         DenyList.clear()
-        deleteTestRows()
-        insertActiveUser(userId)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            DenyList.clear()
-            deleteTestRows()
-        }
+        val passwordHash = Password.create("test-password")
+        DatabaseTestHelper.insertUser(
+            id = userId,
+            username = "logout-test-$userId",
+            passwordHash = passwordHash,
+            email = "${userId.toString().take(8)}@logout-test.st",
+            displayName = "Logout Test User",
+            status = UserStatus.ACTIVE,
+        )
+        trackOwned(AppUserTable, AppUserTable.id, userId)
     }
 
     @Test
@@ -69,25 +62,5 @@ class AuthServicePostgresTest {
 
         assertNull(JwtService.verifyToken(token1))
         assertNull(JwtService.verifyToken(token2))
-    }
-
-    private fun insertActiveUser(id: UUID) {
-        val passwordHash = Password.create("test-password")
-        DatabaseTestHelper.insertUser(
-            id = id,
-            username = "logout-test-$id",
-            passwordHash = passwordHash,
-            email = "${id.toString().take(8)}@logout-test.st",
-            displayName = "Logout Test User",
-            status = UserStatus.ACTIVE,
-        )
-    }
-
-    private fun deleteTestRows() {
-        val allTestUsers = listOf(userId)
-        transaction {
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId inList allTestUsers }
-            AppUserTable.deleteWhere { AppUserTable.id inList allTestUsers }
-        }
     }
 }

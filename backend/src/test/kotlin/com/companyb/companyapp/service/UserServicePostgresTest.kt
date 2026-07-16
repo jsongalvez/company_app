@@ -6,50 +6,39 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class UserServicePostgresTest {
+class UserServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val targetUserId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
+    override fun initTestData() {
         DenyList.clear()
-        deleteTestRows(callerId, targetUserId)
         DatabaseTestHelper.insertTestUser(callerId, "caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "target")
-    }
-
-    @AfterTest
-    fun tearDown() {
-        DenyList.clear()
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows(callerId, targetUserId)
-        }
+        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
     }
 
     @Test
     fun `deactivate persists inactive status, writes audit log, and rejects existing token`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val targetToken = JwtService.generateToken(targetUserId.toString())
 
         UserService.deactivate(callerId, targetUserId)
@@ -63,6 +52,7 @@ class UserServicePostgresTest {
         assertEquals(callerId.toString(), auditEntry.changedBy)
         assertEquals("ACTIVE", auditEntry.oldStatus)
         assertEquals("INACTIVE", auditEntry.newStatus)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -108,24 +98,6 @@ class UserServicePostgresTest {
                 .where { (AuditLogTable.auditTableName eq "app_user") and (AuditLogTable.recordId eq userId) }
                 .count()
         }
-
-    private fun deleteTestRows(
-        firstUserId: UUID,
-        secondUserId: UUID,
-    ) {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq firstUserId) or (AuditLogTable.changedBy eq secondUserId) or
-                    (AuditLogTable.recordId eq firstUserId) or (AuditLogTable.recordId eq secondUserId)
-            }
-            UserCapabilityTable.deleteWhere {
-                (UserCapabilityTable.userId eq firstUserId) or (UserCapabilityTable.userId eq secondUserId)
-            }
-            AppUserTable.deleteWhere {
-                (AppUserTable.id eq firstUserId) or (AppUserTable.id eq secondUserId)
-            }
-        }
-    }
 
     private data class AuditEntry(
         val action: String,

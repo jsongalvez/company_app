@@ -9,6 +9,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ConflictResponse
 import io.javalin.http.NotFoundResponse
@@ -16,13 +17,9 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -32,24 +29,23 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
-class AttendanceServicePostgresTest {
+class AttendanceServicePostgresTest : BasePostgresTest() {
     private val userId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(userId, "user")
+        trackOwned(AppUserTable, AppUserTable.id, userId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch")
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
+        trackOwned(AttendanceTable, AttendanceTable.userId, userId)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, userId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.assignedBy, userId)
+        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.requestedBy, userId)
     }
 
     @Test
@@ -104,6 +100,7 @@ class AttendanceServicePostgresTest {
     @Test
     fun `clockIn sets isRelief false when branch assignment exists`() {
         DatabaseTestHelper.grantManageUsers(userId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(userId, assignmentId, branchId, userId, 1)
 
@@ -189,21 +186,4 @@ class AttendanceServicePostgresTest {
                     .single()
             DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
         }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere { AuditLogTable.changedBy eq userId }
-            GrantReliefAccessTable.deleteWhere { GrantReliefAccessTable.requestedBy eq userId }
-            AttendanceTable.deleteWhere { AttendanceTable.userId eq userId }
-            BranchDayAssignmentTable.deleteWhere { BranchDayAssignmentTable.userId eq userId }
-            UserBranchAssignmentTable.deleteWhere {
-                (UserBranchAssignmentTable.userId eq userId) or
-                    (UserBranchAssignmentTable.assignedBy eq userId)
-            }
-            BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
-            AppUserTable.deleteWhere { AppUserTable.id eq userId }
-        }
-    }
 }

@@ -10,6 +10,7 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ForbiddenResponse
@@ -17,15 +18,10 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -33,28 +29,25 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class ExpenseServicePostgresTest {
+class ExpenseServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
 
     private lateinit var branchDayId: UUID
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "expense-caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Expense Branch")
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
         grantEditBranchData(callerId)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
     }
 
     @Test
@@ -411,18 +404,5 @@ class ExpenseServicePostgresTest {
             contextId = branchId,
             sourceId = sourceId,
         )
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere {
-                AuditLogTable.changedBy eq callerId
-            }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-            ExpenseTable.deleteWhere { ExpenseTable.branchDayId eq branchDayId }
-            BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere { AppUserTable.id eq callerId }
-        }
     }
 }

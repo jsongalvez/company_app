@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
@@ -20,23 +21,18 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class ProductSaleServicePostgresTest {
+class ProductSaleServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
@@ -47,26 +43,30 @@ class ProductSaleServicePostgresTest {
 
     private lateinit var branchDayId: UUID
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
-        DatabaseTestHelper.insertTestUser(callerId, "user")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Sale Branch")
-        DatabaseTestHelper.insertTestCategory(categoryId, "Test Category")
-        DatabaseTestHelper.insertTestProduct(productId, "Test Product", categoryId)
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
-        ensureInventoryCard(branchId, productId, 20)
-    }
+    private val productName = "Sale Product ${UUID.randomUUID().toString().take(8)}"
 
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+    override fun initTestData() {
+        DatabaseTestHelper.insertTestUser(callerId, "user")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Sale Branch")
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        DatabaseTestHelper.insertTestCategory(categoryId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
+        DatabaseTestHelper.insertTestProduct(productId, productName, categoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.insertTestClient(clientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        trackOwned(SessionTable, SessionTable.clientId, clientId)
+        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        ensureInventoryCard(branchId, productId, 20)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.productId, productId)
     }
 
     @Test
@@ -86,10 +86,12 @@ class ProductSaleServicePostgresTest {
                 expectedVersion = 1,
             )
 
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
+
         assertNotNull(sale)
         assertEquals(saleId, sale.id)
         assertEquals(3, sale.quantity)
-        assertEquals("Test Product", sale.productName)
+        assertEquals(productName, sale.productName)
         assertEquals(0, BigDecimal("100.00").compareTo(sale.unitPriceAtTime))
         assertEquals(0, BigDecimal("300.00").compareTo(sale.totalAmountAtTime))
         assertEquals(0, BigDecimal("10.00").compareTo(sale.commissionAmountAtTime))
@@ -283,6 +285,8 @@ class ProductSaleServicePostgresTest {
                 expectedVersion = 1,
             )
 
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
+
         assertEquals(first.id, second.id)
         assertEquals(first.quantity, second.quantity)
 
@@ -314,6 +318,8 @@ class ProductSaleServicePostgresTest {
             expectedVersion = 1,
         )
 
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
+
         val auditCount =
             transaction {
                 AuditLogTable
@@ -343,6 +349,8 @@ class ProductSaleServicePostgresTest {
                 expectedVersion = 1,
             )
 
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
+
         assertNotNull(sale)
         assertTrue(sale.isWalkIn)
     }
@@ -359,28 +367,6 @@ class ProductSaleServicePostgresTest {
                 it[BranchInventoryTable.currentStock] = stock
                 it[BranchInventoryTable.version] = 1
             }
-        }
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq callerId) or
-                    (AuditLogTable.recordId eq productId)
-            }
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-            InventoryMovementTable.deleteAll()
-            ProductSaleTable.deleteAll()
-            SessionTable.deleteWhere { SessionTable.branchDayId eq branchDayId }
-            ClientTable.deleteWhere { ClientTable.id eq clientId }
-            BranchInventoryTable.deleteWhere {
-                (BranchInventoryTable.branchId eq branchId)
-            }
-            BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
-            ProductTable.deleteWhere { ProductTable.id eq productId }
-            ProductCategoryTable.deleteWhere { ProductCategoryTable.id eq categoryId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere { AppUserTable.id eq callerId }
         }
     }
 }

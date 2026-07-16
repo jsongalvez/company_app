@@ -12,16 +12,13 @@ import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -29,8 +26,6 @@ import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -38,7 +33,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class ConcernServicePostgresTest {
+class ConcernServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val clientId = UUID.randomUUID()
     private val sessionId = UUID.randomUUID()
@@ -49,26 +44,29 @@ class ConcernServicePostgresTest {
     private val promotedSessionId = UUID.randomUUID()
     private val promotedClientId = UUID.randomUUID()
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "concern-caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId)
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         DatabaseTestHelper.insertTestClient(clientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
         DatabaseTestHelper.insertTestClient(promotedClientId)
+        trackOwned(ClientTable, ClientTable.id, promotedClientId)
         DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         insertSessionBaseRate()
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
         createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
         createSession(callerId, promotedSessionId, clientId = promotedClientId)
+        trackOwned(SessionTable, SessionTable.id, promotedSessionId)
         insertSystemConcern()
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(ConcernTable, ConcernTable.id, systemConcernId)
+        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, sessionId)
+        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, promotedSessionId)
     }
 
     @Test
@@ -86,6 +84,7 @@ class ConcernServicePostgresTest {
     fun `listAll without EDIT_BRANCH_DATA is forbidden`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.listAll(otherCaller)
@@ -123,6 +122,7 @@ class ConcernServicePostgresTest {
     fun `add concern requires EDIT_BRANCH_DATA`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.addToSession(otherCaller, sessionId, systemConcernId)
@@ -169,6 +169,7 @@ class ConcernServicePostgresTest {
         ConcernService.addToSession(callerId, sessionId, systemConcernId)
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
@@ -187,6 +188,7 @@ class ConcernServicePostgresTest {
         ConcernService.addToSession(callerId, promotedSessionId, systemConcernId)
 
         val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Back Pain")
+        trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
         assertEquals("Back Pain", promoted.label)
@@ -202,6 +204,7 @@ class ConcernServicePostgresTest {
     @Test
     fun `promoted concern is discoverable in all concerns list`() {
         val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Neck Pain")
+        trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val allConcerns = ConcernService.listAll(callerId)
         assertTrue(allConcerns.any { it.id == promoted.id })
@@ -212,6 +215,7 @@ class ConcernServicePostgresTest {
     fun `getForSession without EDIT_BRANCH_DATA is forbidden`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.getForSession(otherCaller, promotedSessionId)
@@ -222,6 +226,7 @@ class ConcernServicePostgresTest {
     fun `promote concern requires EDIT_BRANCH_DATA`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
         assertFailsWith<ForbiddenResponse> {
             ConcernService.promoteConcern(otherCaller, promotedSessionId, "Shoulder Pain")
@@ -230,7 +235,8 @@ class ConcernServicePostgresTest {
 
     @Test
     fun `promote concern writes audit log`() {
-        ConcernService.promoteConcern(callerId, promotedSessionId, "Elbow Pain")
+        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Elbow Pain")
+        trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val auditCount =
             transaction {
@@ -290,32 +296,6 @@ class ConcernServicePostgresTest {
                 it[ConcernTable.id] = systemConcernId
                 it[ConcernTable.label] = "Knee Pain"
             }
-        }
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            SessionConcernTable.deleteAll()
-            SessionTable.deleteWhere {
-                SessionTable.clientId inList
-                    listOf(this@ConcernServicePostgresTest.clientId, promotedClientId)
-            }
-            SessionBaseRateTable.deleteAll()
-            ClientTable.deleteWhere {
-                ClientTable.id inList
-                    listOf(this@ConcernServicePostgresTest.clientId, promotedClientId)
-            }
-            BranchDayTable.deleteAll()
-            BranchTable.deleteAll()
-            ConcernTable.deleteAll()
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq callerId) or
-                    (AuditLogTable.recordId eq sessionId) or
-                    (AuditLogTable.recordId eq promotedSessionId) or
-                    (AuditLogTable.recordId eq systemConcernId)
-            }
-            AppUserTable.deleteWhere { AppUserTable.id eq callerId }
         }
     }
 }

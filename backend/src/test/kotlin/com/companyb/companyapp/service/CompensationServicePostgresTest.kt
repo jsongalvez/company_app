@@ -7,6 +7,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.ConflictResponse
@@ -15,15 +16,10 @@ import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -31,7 +27,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class CompensationServicePostgresTest {
+class CompensationServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val targetUserId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -40,23 +36,22 @@ class CompensationServicePostgresTest {
     private lateinit var workBranchDayId: UUID
     private lateinit var payingBranchDayId: UUID
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
+    override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "comp-caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "comp-target")
+        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Compensation Branch")
+        trackOwned(BranchTable, BranchTable.id, branchId)
         workBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         payingBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
-        }
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
+        trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
     }
 
     @Test
@@ -396,25 +391,5 @@ class CompensationServicePostgresTest {
                     }.count()
             }
         assertTrue(updateAuditCount > 0)
-    }
-
-    private fun deleteTestRows() {
-        transaction {
-            AuditLogTable.deleteWhere {
-                (AuditLogTable.changedBy eq callerId) or
-                    (AuditLogTable.changedBy eq targetUserId)
-            }
-            UserCapabilityTable.deleteWhere {
-                (UserCapabilityTable.userId eq callerId) or
-                    (UserCapabilityTable.userId eq targetUserId)
-            }
-            CompensationTable.deleteAll()
-            BranchDayTable.deleteWhere { BranchDayTable.branchId eq branchId }
-            BranchTable.deleteWhere { BranchTable.id eq branchId }
-            AppUserTable.deleteWhere {
-                (AppUserTable.id eq callerId) or
-                    (AppUserTable.id eq targetUserId)
-            }
-        }
     }
 }

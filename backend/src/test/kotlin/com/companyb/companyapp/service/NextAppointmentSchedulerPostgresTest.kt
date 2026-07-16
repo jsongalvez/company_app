@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
@@ -9,16 +10,13 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -29,13 +27,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class NextAppointmentSchedulerPostgresTest {
+class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val coordinatorId = UUID.randomUUID()
     private val nonCoordinatorId = UUID.randomUUID()
@@ -49,26 +45,37 @@ class NextAppointmentSchedulerPostgresTest {
 
     private lateinit var branchDayId: UUID
 
-    @BeforeTest
-    fun setUp() {
-        DatabaseTestHelper.ensureDatabase()
-        deleteTestRows()
-        DatabaseTestHelper.insertTestUser(callerId, "scheduler-caller")
-        DatabaseTestHelper.insertTestUser(coordinatorId, "scheduler-coordinator")
-        DatabaseTestHelper.insertTestUser(nonCoordinatorId, "scheduler-practitioner")
-        DatabaseTestHelper.insertTestUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
-        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
-        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
-    }
+    private val allTestUsers
+        get() = listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
 
-    @AfterTest
-    fun tearDown() {
-        if (DatabaseTestHelper.isDatabaseReady()) {
-            deleteTestRows()
+    override fun initTestData() {
+        DatabaseTestHelper.insertTestUser(callerId, "scheduler-caller")
+        trackOwned(AppUserTable, AppUserTable.id, callerId)
+        DatabaseTestHelper.insertTestUser(coordinatorId, "scheduler-coordinator")
+        trackOwned(AppUserTable, AppUserTable.id, coordinatorId)
+        DatabaseTestHelper.insertTestUser(nonCoordinatorId, "scheduler-practitioner")
+        trackOwned(AppUserTable, AppUserTable.id, nonCoordinatorId)
+        DatabaseTestHelper.insertTestUser(unassignedCoordinatorId, "scheduler-unassigned-coordinator")
+        trackOwned(AppUserTable, AppUserTable.id, unassignedCoordinatorId)
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Scheduler Branch ${branchId.toString().take(8)}")
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
+        DatabaseTestHelper.insertTestClient(clientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        DatabaseTestHelper.grantEditBranchData(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        allTestUsers.forEach { userId ->
+            trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
+            trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
+            trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
+            trackOwned(NotificationTable, NotificationTable.userId, userId)
         }
+        trackOwned(SessionTable, SessionTable.clientId, clientId)
+        trackOwned(SessionVoidTable, SessionVoidTable.voidedBy, callerId)
     }
 
     @Test
@@ -278,14 +285,14 @@ class NextAppointmentSchedulerPostgresTest {
 
     private fun voidSession(sessionId: UUID) {
         transaction {
-            com.companyb.companyapp.repository.model.SessionVoidTable.insertIgnore {
-                it[com.companyb.companyapp.repository.model.SessionVoidTable.id] =
+            SessionVoidTable.insertIgnore {
+                it[SessionVoidTable.id] =
                     UUID.randomUUID()
-                it[com.companyb.companyapp.repository.model.SessionVoidTable.sessionId] =
+                it[SessionVoidTable.sessionId] =
                     sessionId
-                it[com.companyb.companyapp.repository.model.SessionVoidTable.voidedBy] =
+                it[SessionVoidTable.voidedBy] =
                     callerId
-                it[com.companyb.companyapp.repository.model.SessionVoidTable.voidReason] =
+                it[SessionVoidTable.voidReason] =
                     "test void"
             }
         }
@@ -315,33 +322,5 @@ class NextAppointmentSchedulerPostgresTest {
             slot = 1,
             assignedBy = callerId,
         )
-    }
-
-    private fun deleteTestRows() {
-        val allTestUsers =
-            listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
-        transaction {
-            NotificationTable.deleteAll()
-            com.companyb.companyapp.repository.model.SessionVoidTable
-                .deleteAll()
-            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId inList allTestUsers }
-            UserBranchAssignmentTable.deleteWhere {
-                UserBranchAssignmentTable.userId inList allTestUsers
-            }
-            com.companyb.companyapp.repository.model.AuditLogTable.deleteWhere {
-                com.companyb.companyapp.repository.model.AuditLogTable.changedBy inList allTestUsers
-            }
-            SessionTable.deleteWhere { SessionTable.clientId eq clientId }
-            BranchDayTable.deleteWhere {
-                (BranchDayTable.branchId eq branchId) or
-                    (BranchDayTable.branchId eq otherBranchId)
-            }
-            BranchTable.deleteWhere {
-                (BranchTable.id eq branchId) or
-                    (BranchTable.id eq otherBranchId)
-            }
-            ClientTable.deleteWhere { ClientTable.id eq clientId }
-            AppUserTable.deleteWhere { AppUserTable.id inList allTestUsers }
-        }
     }
 }
