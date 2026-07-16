@@ -15,13 +15,14 @@ import java.util.UUID
 object ExportService {
     private val logger = KotlinLogging.logger {}
 
+    @Suppress("UnusedParameter")
     fun exportDaily(
         callerId: UUID,
         branchId: UUID,
         date: LocalDate,
         format: ExportFormat,
     ): ExportResult {
-        val branch = authorizeAndFindBranch(callerId, branchId)
+        val branch = findBranch(branchId)
 
         val summary =
             com.companyb.companyapp.repository.DailySalesSummaryRepository
@@ -44,6 +45,7 @@ object ExportService {
         return buildResult(title, headers, rows, format, "daily-sales-${branch.name}-$date")
     }
 
+    @Suppress("UnusedParameter")
     fun exportMonthly(
         callerId: UUID,
         branchId: UUID,
@@ -51,7 +53,7 @@ object ExportService {
         month: Int,
         format: ExportFormat,
     ): ExportResult {
-        val branch = authorizeAndFindBranch(callerId, branchId)
+        val branch = findBranch(branchId)
 
         val summary =
             com.companyb.companyapp.repository.MonthlyRemittanceSummaryRepository.findByBranchYearMonth(
@@ -79,12 +81,13 @@ object ExportService {
         return buildResult(title, headers, rows, format, "monthly-remittance-${branch.name}-$year-$month")
     }
 
+    @Suppress("UnusedParameter")
     fun exportAllTime(
         callerId: UUID,
         branchId: UUID,
         format: ExportFormat,
     ): ExportResult {
-        val branch = authorizeAndFindBranch(callerId, branchId)
+        val branch = findBranch(branchId)
 
         val summaries = ExportRepository.findAllTimeByBranch(branchId)
         if (summaries.isEmpty()) {
@@ -128,11 +131,7 @@ object ExportService {
             else -> throw BadRequestResponse("format query param is required (csv or pdf)")
         }
 
-    @Suppress("UnusedParameter")
-    private fun authorizeAndFindBranch(
-        callerId: UUID,
-        branchId: UUID,
-    ): Branch =
+    private fun findBranch(branchId: UUID): Branch =
         BranchRepository.findById(branchId)
             ?: throw NotFoundResponse("Branch not found")
 
