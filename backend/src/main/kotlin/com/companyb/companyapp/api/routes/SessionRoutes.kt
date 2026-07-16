@@ -20,6 +20,7 @@ import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
+import com.companyb.companyapp.service.SessionPractitionerService
 import com.companyb.companyapp.service.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -231,7 +232,7 @@ object SessionRoutes {
         val id = uuidOrThrow(request.id, "id")
 
         val result =
-            SessionService.addPractitioner(
+            SessionPractitionerService.addPractitioner(
                 callerId = callerId,
                 id = id,
                 sessionId = sessionId,
@@ -250,7 +251,7 @@ object SessionRoutes {
         val request = context.bodyAsClass<UpdatePractitionerRemarksRequest>()
 
         val updated =
-            SessionService.updatePractitionerRemarks(
+            SessionPractitionerService.updatePractitionerRemarks(
                 callerId = callerId,
                 sessionId = sessionId,
                 practitionerId = practitionerId,
@@ -266,7 +267,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val practitionerId = context.pathParamAsUuid("practitionerId")
 
-        SessionService.removePractitioner(
+        SessionPractitionerService.removePractitioner(
             callerId = callerId,
             sessionId = sessionId,
             practitionerId = practitionerId,
