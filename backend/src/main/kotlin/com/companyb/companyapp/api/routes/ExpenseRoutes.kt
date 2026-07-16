@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 
-import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse
@@ -9,14 +8,48 @@ import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.service.ExpenseService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.math.BigDecimal
 import java.util.UUID
 
 object ExpenseRoutes {
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
+        // --- Capability filters: enforce EDIT_BRANCH_DATA before the route handler runs ---
+
+        config.routes.before("/api/expenses") { context ->
+            val branchDayId =
+                when (context.method()) {
+                    HandlerType.POST -> {
+                        val request = context.bodyAsClass<CreateExpenseRequest>()
+                        runCatching { UUID.fromString(request.branchDayId) }
+                            .getOrElse { throw BadRequestResponse("Invalid branch day id") }
+                    }
+
+                    HandlerType.GET -> {
+                        val param =
+                            context.queryParam("branchDayId")
+                                ?: throw BadRequestResponse("branchDayId query param is required")
+                        runCatching { UUID.fromString(param) }
+                            .getOrElse { throw BadRequestResponse("Invalid branch day id") }
+                    }
+
+                    else -> {
+                        return@before
+                    }
+                }
+            CapabilityFilter.requireBranchCapability(context, branchDayId)
+        }
+
+        config.routes.before("/api/expenses/{expenseId}") { context ->
+            val expenseId = context.pathParamAsUuid("expenseId")
+            CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
+        }
+
+        // --- Route handlers ---
+
         config.routes.post("/api/expenses") { context ->
             val callerId = UUID.fromString(context.attribute<String>("userId"))
             val request = context.bodyAsClass<CreateExpenseRequest>()

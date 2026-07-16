@@ -1,0 +1,80 @@
+package com.companyb.companyapp.api.routes
+
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.repository.BranchDayRepository
+import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.service.CapabilityService
+import io.javalin.http.Context
+import io.javalin.http.NotFoundResponse
+import java.util.UUID
+
+/**
+ * Route-level capability enforcement via Javalin before filters.
+ *
+ * Moves capability checks from the service layer to the HTTP layer so that
+ * each route declares its authorization requirements upfront. The service
+ * layer retains day-state assertions (e.g. [com.companyb.companyapp.service.BranchDayService.assertEditable])
+ * but no longer performs capability checks.
+ *
+ * Usage in a route object's `register`:
+ * ```
+ * config.routes.before("/api/expenses") { context ->
+ *     val branchDayId = // extract from query / body / path
+ *     CapabilityFilter.requireBranchCapability(context, branchDayId)
+ * }
+ * ```
+ */
+object CapabilityFilter {
+    /**
+     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] for the given [branchDayId].
+     * Resolves the branch from the branch day and calls [CapabilityService.requireCapability].
+     *
+     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
+     * Throws [NotFoundResponse] (404) if the branch day does not exist.
+     */
+    fun requireBranchCapability(
+        context: Context,
+        branchDayId: UUID,
+        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+    ) {
+        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val branchId = resolveBranchIdFromBranchDay(branchDayId)
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = capabilityCode,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            message = "$capabilityCode capability required for this branch",
+        )
+    }
+
+    /**
+     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
+     * from an expense record.
+     *
+     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
+     * Throws [NotFoundResponse] (404) if the expense or branch day does not exist.
+     */
+    fun requireBranchCapabilityForExpense(
+        context: Context,
+        expenseId: UUID,
+        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+    ) {
+        val expense =
+            com.companyb.companyapp.repository.ExpenseRepository
+                .findById(expenseId)
+                ?: throw NotFoundResponse("Expense not found")
+        requireBranchCapability(context, expense.branchDayId, capabilityCode)
+    }
+
+    /**
+     * Resolves a [branchId] by looking up a branch day by [branchDayId].
+     * Throws [NotFoundResponse] (404) if the branch day does not exist.
+     */
+    fun resolveBranchIdFromBranchDay(branchDayId: UUID): UUID {
+        val branchDay =
+            BranchDayRepository.findById(branchDayId)
+                ?: throw NotFoundResponse("Branch day not found")
+        return branchDay.branchId
+    }
+}

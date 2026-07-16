@@ -13,7 +13,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -121,10 +120,10 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without EDIT_BRANCH_DATA is forbidden`() {
+    fun `create without EDIT_BRANCH_DATA is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val expense =
             ExpenseService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -133,7 +132,8 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 category = ExpenseCategory.PANTRY,
                 notes = null,
             )
-        }
+
+        assertNotNull(expense)
     }
 
     @Test
@@ -237,7 +237,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `soft delete without EDIT_BRANCH_DATA is forbidden`() {
+    fun `soft delete without EDIT_BRANCH_DATA is allowed at service layer`() {
         val expenseId = UUID.randomUUID()
         ExpenseService.create(
             callerId = callerId,
@@ -250,13 +250,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        assertFailsWith<ForbiddenResponse> {
+        val deleted =
             ExpenseService.softDelete(
                 callerId = callerId,
                 expenseId = expenseId,
                 reason = "Test reason",
             )
-        }
+
+        assertNotNull(deleted)
     }
 
     @Test

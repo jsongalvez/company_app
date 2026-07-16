@@ -1,9 +1,7 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -23,17 +21,8 @@ object ExpenseService {
         category: ExpenseCategory,
         notes: String?,
     ): Expense {
-        val branchDay =
-            BranchDayRepository.findById(branchDayId)
-                ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchDay.branchId,
-            message = "EDIT_BRANCH_DATA capability required for this branch",
-        )
+        BranchDayRepository.findById(branchDayId)
+            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
 
         val existing = ExpenseRepository.findById(id)
         if (existing != null) {
@@ -59,17 +48,8 @@ object ExpenseService {
             ExpenseRepository.findById(expenseId)
                 ?: throw io.javalin.http.NotFoundResponse("Expense not found")
 
-        val branchDay =
-            BranchDayRepository.findById(expense.branchDayId)
-                ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchDay.branchId,
-            message = "EDIT_BRANCH_DATA capability required for this branch",
-        )
+        BranchDayRepository.findById(expense.branchDayId)
+            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
 
         if (reason.isBlank()) {
             throw BadRequestResponse("Reason is required for expense deletion")
@@ -81,22 +61,13 @@ object ExpenseService {
             ?: throw io.javalin.http.NotFoundResponse("Expense not found")
     }
 
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "UnusedParameter")
     fun findByBranchDayId(
         callerId: UUID,
         branchDayId: UUID,
     ): List<Expense> {
-        val branchDay =
-            BranchDayRepository.findById(branchDayId)
-                ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
-
-        CapabilityService.requireCapability(
-            userId = callerId,
-            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-            contextType = CapabilityContextType.BRANCH,
-            contextId = branchDay.branchId,
-            message = "EDIT_BRANCH_DATA capability required for this branch",
-        )
+        BranchDayRepository.findById(branchDayId)
+            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
 
         return ExpenseRepository.findByBranchDayId(branchDayId)
     }
