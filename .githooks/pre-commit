@@ -33,7 +33,15 @@ fi
 log "Test-data cleanliness check passed."
 
 # ----------------------------------------------------------------
-# 2c. ComposeApp compilation check (all targets)
+# 2c. Shared module compilation check
+# ----------------------------------------------------------------
+log "Compiling shared module (JVM)..."
+# shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
+./gradlew :shared:compileKotlinJvm --no-daemon 2>&1 | tail -3
+log "Shared module compilation passed."
+
+# ----------------------------------------------------------------
+# 2d. ComposeApp compilation check (all targets)
 # ----------------------------------------------------------------
 log "Compiling composeApp (desktop + android)..."
 ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid --no-daemon 2>&1 | tail -5

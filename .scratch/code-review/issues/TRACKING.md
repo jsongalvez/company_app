@@ -47,13 +47,13 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-038 — wire check-baselines.sh into pre-push | — | [x] |
 | CR-039 — replace jmhClasses with JMH run in pre-commit | — | [ ] |
 | CR-040 — wire k6 baseline into pre-push | CR-037 | [ ] |
-| CR-041 — shared module compilation + test step | — | [ ] |
+| CR-041 — shared module compilation + test step | — | [x] |
 | CR-042 — iOS compilation target in pre-commit | — | [ ] |
 | CR-043 — scope ktlintFormat to staged files only | — | [ ] |
 | CR-044 — extract grantCapability delegation in DatabaseTestHelper | — | [x] |
 | CR-045 — scope SessionTable + ClientTable deleteAll() | — | [x] |
 | CR-046 — scope product-related deleteAll() | — | [ ] |
-| CR-047 — scope remaining shared-table deleteAll() | — | [ ] |
+| CR-047 — scope remaining shared-table deleteAll() | — | [x] |
 | CR-048 — remaining ThrowsCount suppressions | — | ❌ wontfix |
 | CR-049 — audit LongParameterList suppressions | — | [ ] |
 

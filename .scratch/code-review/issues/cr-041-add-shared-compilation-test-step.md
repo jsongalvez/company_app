@@ -18,3 +18,5 @@ Add a step to `.githooks/pre-commit` that explicitly compiles and tests the `:sh
 None — can start immediately.
 
 ## Status: ready-for-agent
+
+**Status:** ✅ done
