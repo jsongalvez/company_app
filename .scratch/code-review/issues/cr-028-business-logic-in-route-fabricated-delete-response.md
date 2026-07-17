@@ -20,3 +20,5 @@
 
 **Priority:** medium
 **Story alignment:** cross-cutting — all composeApp ViewModels + backend routes
+
+**Status:** ✅ done
