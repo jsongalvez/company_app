@@ -62,6 +62,7 @@ All composeApp code uses `expect/actual Log` functions from `com.companyb.compan
 - Desktop → SLF4J/logback, Android → android.util.Log, iOS → println with timestamp prefix.
 - **Tag naming**: `"[Feature]VM"` for ViewModels (e.g. `"BranchVM"`, `"SessionVM"`), screen name for composables (`"LoginScreen"`, `"HomeScreen"`), `"TokenStore"`, `"ApiClient"`.
 - **Where to log**: method entry, API call start (with endpoint path), success/failure, and catch blocks.
+- `logWarn`: handled business errors (HTTP 4xx responses, `UiState.Error` branches in screens — not exceptions).
 - `logError` must be used in every `catch` block with the exception as the third arg.
 - New ViewModels/screens must follow this convention.
 
