@@ -11,7 +11,7 @@ private val dateFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone
 
 private val loggers = ConcurrentHashMap<String, Logger>()
 
-private fun logger(tag: String): Logger = loggers.getOrPut(tag) { LoggerFactory.getLogger(tag) }
+private fun getLogger(tag: String): Logger = loggers.getOrPut(tag) { LoggerFactory.getLogger(tag) }
 
 private fun formatNow(): String = dateFormatter.format(Instant.now())
 
@@ -19,24 +19,24 @@ actual fun logDebug(
     tag: String,
     message: String,
 ) {
-    val l = logger(tag)
-    if (l.isDebugEnabled) l.debug("{}", message)
+    val logger = getLogger(tag)
+    if (logger.isDebugEnabled) logger.debug("{}", message)
 }
 
 actual fun logInfo(
     tag: String,
     message: String,
 ) {
-    val l = logger(tag)
-    if (l.isInfoEnabled) l.info("{}", message)
+    val logger = getLogger(tag)
+    if (logger.isInfoEnabled) logger.info("{}", message)
 }
 
 actual fun logWarn(
     tag: String,
     message: String,
 ) {
-    val l = logger(tag)
-    if (l.isWarnEnabled) l.warn("{}", message)
+    val logger = getLogger(tag)
+    if (logger.isWarnEnabled) logger.warn("{}", message)
 }
 
 actual fun logError(
@@ -44,11 +44,11 @@ actual fun logError(
     message: String,
     throwable: Throwable?,
 ) {
-    val l = logger(tag)
+    val logger = getLogger(tag)
     if (throwable != null) {
-        l.error(message, throwable)
+        logger.error(message, throwable)
     } else {
-        l.error("{}", message)
+        logger.error("{}", message)
     }
 }
 

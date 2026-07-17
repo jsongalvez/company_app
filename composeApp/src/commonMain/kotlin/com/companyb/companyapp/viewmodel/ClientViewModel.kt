@@ -73,7 +73,7 @@ class ClientViewModel(
                     _searchErrorMessage.value = "search failed: ${response.status.value}"
                 }
             } catch (e: Exception) {
-                logError("ClientVM", "search exception", e)
+                logError("ClientVM", "search exception for query=$query", e)
                 _searchErrorMessage.value = e.message ?: "Unknown error"
             } finally {
                 _isSearching.value = false

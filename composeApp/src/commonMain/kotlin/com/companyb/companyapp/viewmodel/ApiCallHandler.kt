@@ -36,7 +36,7 @@ class ApiCallHandler(
                     state.value = UiState.Error("$operation failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
-                logError(tag, "$operation exception", e)
+                logError(tag, "$operation exception on $endpoint", e)
                 state.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
