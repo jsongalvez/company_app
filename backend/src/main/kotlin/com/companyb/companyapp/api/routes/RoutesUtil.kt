@@ -2,6 +2,8 @@ package com.companyb.companyapp.api.routes
 
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.util.UUID
 
 fun Context.callerUuid(): UUID {
@@ -34,4 +36,18 @@ fun Context.uuidFromBody(key: String): UUID {
         node[key]?.let { (it as? kotlinx.serialization.json.JsonPrimitive)?.content }
             ?: throw BadRequestResponse("$key is required in request body")
     return uuidOrThrow(value, key)
+}
+
+@Suppress("MagicNumber")
+fun parseNonNegativeBigDecimal(
+    value: String,
+    name: String,
+    scale: Int = 2,
+    roundingMode: RoundingMode = RoundingMode.HALF_UP,
+): BigDecimal {
+    val result =
+        runCatching { BigDecimal(value).setScale(scale, roundingMode) }
+            .getOrElse { throw BadRequestResponse("Invalid $name amount: $value") }
+    if (result < BigDecimal.ZERO) throw BadRequestResponse("$name must be non-negative")
+    return result
 }

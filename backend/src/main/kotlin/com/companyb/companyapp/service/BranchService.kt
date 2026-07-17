@@ -16,7 +16,7 @@ object BranchService {
         id: UUID,
         name: String,
         branchType: BranchType,
-    ): BranchCreateResult = BranchRepository.create(id, name.trim(), branchType, callerId)
+    ): BranchCreateResult = BranchRepository.create(id, name, branchType, callerId)
 
     fun findAll(): List<Branch> = BranchRepository.findAll()
 

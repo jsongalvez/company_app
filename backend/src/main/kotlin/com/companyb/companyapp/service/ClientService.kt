@@ -27,15 +27,12 @@ object ClientService {
         systolicBp: Short?,
         diastolicBp: Short?,
         medicalConditions: String?,
-    ): ClientCreateResult {
-        val cleanFirst = firstName.trim()
-        val cleanLast = lastName.trim()
-
-        return ClientRepository.create(
+    ): ClientCreateResult =
+        ClientRepository.create(
             ClientCreateParams(
                 id = id,
-                firstName = cleanFirst,
-                lastName = cleanLast,
+                firstName = firstName,
+                lastName = lastName,
                 middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
                 suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
                 phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },
@@ -48,7 +45,6 @@ object ClientService {
                 changedBy = callerId,
             ),
         )
-    }
 
     fun search(query: String): List<Client> = ClientRepository.search(query.trim())
 

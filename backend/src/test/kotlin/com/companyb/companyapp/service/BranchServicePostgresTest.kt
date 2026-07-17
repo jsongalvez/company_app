@@ -37,7 +37,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val clinic = BranchService.create(callerId, clinicId, " Main Clinic ", BranchType.CLINIC)
+        val clinic = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         val tour = BranchService.create(callerId, provincialTourId, "Cebu Tour", BranchType.PROVINCIAL_TOUR)
         val mission = BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 

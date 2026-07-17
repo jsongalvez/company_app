@@ -14,7 +14,7 @@ object ProductCategoryService {
         callerId: UUID,
         id: UUID,
         name: String,
-    ): ProductCategoryCreateResult = ProductCategoryRepository.create(id, name.trim(), callerId)
+    ): ProductCategoryCreateResult = ProductCategoryRepository.create(id, name, callerId)
 
     fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()
 

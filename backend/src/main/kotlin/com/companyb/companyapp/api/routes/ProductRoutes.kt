@@ -11,13 +11,10 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.util.UUID
 
 object ProductRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
-    private const val PRICE_SCALE = 2
 
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
@@ -36,8 +33,8 @@ object ProductRoutes {
             val categoryId = uuidOrThrow(request.productCategoryId, "product category id")
             val name = request.name.trim()
             if (name.isBlank()) throw BadRequestResponse("Product name is required")
-            val unitPrice = parsePrice(request.unitPrice)
-            val commissionAmount = parsePrice(request.commissionAmount)
+            val unitPrice = parseNonNegativeBigDecimal(request.unitPrice, "price")
+            val commissionAmount = parseNonNegativeBigDecimal(request.commissionAmount, "commission")
             val result =
                 ProductService.create(
                     callerId = callerId,
@@ -70,8 +67,8 @@ object ProductRoutes {
                 throw BadRequestResponse("Product name cannot be blank")
             }
             val categoryId = request.productCategoryId?.let { uuidOrThrow(it, "product category id") }
-            val unitPrice = request.unitPrice?.let { parsePrice(it) }
-            val commissionAmount = request.commissionAmount?.let { parsePrice(it) }
+            val unitPrice = request.unitPrice?.let { parseNonNegativeBigDecimal(it, "price") }
+            val commissionAmount = request.commissionAmount?.let { parseNonNegativeBigDecimal(it, "commission amount") }
             val result =
                 ProductService.update(
                     callerId = callerId,
@@ -84,14 +81,6 @@ object ProductRoutes {
                 )
             context.json(result.toResponse())
         }
-    }
-
-    private fun parsePrice(value: String): BigDecimal {
-        val price =
-            runCatching { BigDecimal(value).setScale(PRICE_SCALE, RoundingMode.HALF_UP) }
-                .getOrElse { throw BadRequestResponse("Invalid price amount: $value") }
-        if (price < BigDecimal.ZERO) throw BadRequestResponse("Price must be non-negative")
-        return price
     }
 
     private fun Product.toResponse(): ProductResponse =

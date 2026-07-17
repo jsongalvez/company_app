@@ -40,7 +40,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val result = ProductCategoryService.create(callerId, cat1Id, "  $cat1Name  ")
+        val result = ProductCategoryService.create(callerId, cat1Id, cat1Name)
 
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)

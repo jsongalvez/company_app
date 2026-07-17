@@ -10,8 +10,6 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.util.UUID
 
 object SessionBaseRateRoutes {
@@ -31,10 +29,7 @@ object SessionBaseRateRoutes {
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SetRateRequest>()
             val rateId = uuidOrThrow(request.id, "rate id")
-            val rate =
-                runCatching { BigDecimal(request.rate).setScale(2, RoundingMode.HALF_UP) }
-                    .getOrElse { throw BadRequestResponse("Invalid rate amount: ${request.rate}") }
-            if (rate < BigDecimal.ZERO) throw BadRequestResponse("Rate must be non-negative")
+            val rate = parseNonNegativeBigDecimal(request.rate, "rate")
 
             val result =
                 SessionBaseRateService.setRate(
