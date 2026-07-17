@@ -27,7 +27,7 @@ object ProductRoutes {
         }
 
         config.routes.post("/api/products") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductRequest>()
             val productId = uuidOrThrow(request.id, "product id")
             val categoryId = uuidOrThrow(request.productCategoryId, "product category id")
@@ -55,7 +55,7 @@ object ProductRoutes {
         }
 
         config.routes.patch("/api/products/{$PRODUCT_ID_PARAM}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<UpdateProductRequest>()
             val categoryId = request.productCategoryId?.let { uuidOrThrow(it, "product category id") }

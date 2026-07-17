@@ -41,7 +41,7 @@ object AuthService {
         }
 
         val token: String = JwtService.generateToken(appUser.id)
-        DenyList.allow(UUID.fromString(appUser.id))
+        DenyList.allow(UUID.fromString(appUser.id)) // safe: appUser is null-checked above, .id is non-null String
         logger.info { "[LOGIN] User has logged in successfully " }
         return LoginResult.Success(token)
     }

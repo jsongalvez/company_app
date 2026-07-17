@@ -25,7 +25,7 @@ object SessionBaseRateRoutes {
         }
 
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SetRateRequest>()
             val rateId = uuidOrThrow(request.id, "rate id")

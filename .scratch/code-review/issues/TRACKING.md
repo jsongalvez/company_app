@@ -35,7 +35,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-028 — business logic in route + fake DTOs | — | [ ] |
 | CR-029 — composeApp errors-as-logInfo + logback regression | — | [x] |
 | CR-030 — onUnauthorized + dead code | — | [x] |
-| CR-031 — null-safety + LinearTheme tokens | — | [ ] |
+| CR-031 — null-safety + LinearTheme tokens | — | [x] |
 | CR-032 — MeService dup query + INACTIVE guard | — | [x] |
 | CR-033 — Inter font + rounded/spacing scales | — | [ ] |
 | CR-034 — ApiClient config + speculative params | — | [ ] |
@@ -78,7 +78,7 @@ Unresolved tickets migrated to GitHub Issues (2026-07-17):
 | CR-027 | [#14](https://github.com/jsongalvez/company_app/issues/14) |
 | CR-028 | [#15](https://github.com/jsongalvez/company_app/issues/15) |
 | CR-029 | [#16](https://github.com/jsongalvez/company_app/issues/16) |
-| CR-031 | [#17](https://github.com/jsongalvez/company_app/issues/17) |
+| CR-031 | [#17](https://github.com/jsongalvez/company_app/issues/17) | ✅ done |
 | CR-033 | [#18](https://github.com/jsongalvez/company_app/issues/18) |
 | CR-034 | [#19](https://github.com/jsongalvez/company_app/issues/19) |
 | CR-035 | [#20](https://github.com/jsongalvez/company_app/issues/20) |

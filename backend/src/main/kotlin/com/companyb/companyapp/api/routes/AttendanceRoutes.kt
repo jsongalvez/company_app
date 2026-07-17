@@ -15,7 +15,7 @@ object AttendanceRoutes {
     @Suppress("ThrowsCount")
     fun clockOut(config: JavalinConfig) {
         config.routes.post("/api/attendance/clock-out") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockOutRequest>()
 
             val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")
@@ -40,7 +40,7 @@ object AttendanceRoutes {
     @Suppress("ThrowsCount")
     fun clockIn(config: JavalinConfig) {
         config.routes.post("/api/attendance/clock-in") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockInRequest>()
 
             val attendanceId = uuidOrThrow(request.attendanceId, "attendance id")

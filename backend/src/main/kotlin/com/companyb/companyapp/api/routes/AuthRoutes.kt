@@ -43,7 +43,7 @@ object AuthRoutes {
 
     fun logout(config: JavalinConfig) {
         config.routes.post("/api/auth/logout") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             DenyList.deny(callerId)
             context.status(HttpStatus.OK)
         }

@@ -20,7 +20,7 @@ object UserRoutes {
         }
 
         config.routes.patch("/api/users/{$USER_ID_PARAM}/deactivate") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
             UserService.deactivate(callerId, targetUserId)

@@ -37,7 +37,7 @@ object CapabilityFilter {
         capabilityCode: String,
         message: String? = null,
     ) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         CapabilityService.requireCapability(
             userId = callerId,
             capabilityCode = capabilityCode,
@@ -59,7 +59,7 @@ object CapabilityFilter {
         branchDayId: UUID,
         capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
     ) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = resolveBranchIdFromBranchDay(branchDayId)
         CapabilityService.requireCapability(
             userId = callerId,
@@ -104,7 +104,7 @@ object CapabilityFilter {
         val remittance =
             RemittanceRepository.findById(remittanceId)
                 ?: throw NotFoundResponse("Remittance not found")
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         CapabilityService.requireCapability(
             userId = callerId,
             capabilityCode = capabilityCode,
@@ -125,7 +125,7 @@ object CapabilityFilter {
         branchId: UUID,
         capabilityCode: String,
     ) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         CapabilityService.requireCapability(
             userId = callerId,
             capabilityCode = capabilityCode,

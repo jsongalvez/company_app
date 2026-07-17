@@ -25,7 +25,7 @@ object BranchRoutes {
         }
 
         config.routes.post("/api/branches") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateBranchRequest>()
             val branchId = uuidOrThrow(request.id, "branch id")
             val result =

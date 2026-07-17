@@ -47,7 +47,7 @@ object CommissionRoutes {
 
     @Suppress("ThrowsCount")
     private fun handleCreateInclusion(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
 
         val id = uuidOrThrow(request.id, "inclusion id")

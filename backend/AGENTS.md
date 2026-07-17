@@ -49,7 +49,8 @@ Run the app: `./gradlew :backend:run` (requires Postgres at `DB_HOST:DB_PORT`).
 Register **public** routes (login/register) directly (e.g. `/auth/login`). Register **protected**
 routes under `/api/*` so the `config.routes.before("/api/*")` filter authenticates the JWT and sets
 the caller's id via `context.attribute("userId", ...)` (a `String` JWT subject). Read it back with
-`UUID.fromString(context.attribute<String>("userId"))`. Wire each route object into
+`context.callerUuid()` (defined in `RoutesUtil.kt` — uses `runCatching { UUID.fromString(...) }`
+with a null guard). Wire each route object into
 `Main.initializeJavalin` alongside `AuthRoutes`.
 
 ### Query parameter extraction

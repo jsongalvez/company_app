@@ -41,7 +41,7 @@ object UserBranchAssignmentRoutes {
     }
 
     private fun handleCreateAssignment(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<CreateAssignmentRequest>()
         val assignmentId = uuidOrThrow(request.id, "assignment id")
@@ -61,7 +61,7 @@ object UserBranchAssignmentRoutes {
     }
 
     private fun handleGetAssignments(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
         context.json(
@@ -70,7 +70,7 @@ object UserBranchAssignmentRoutes {
     }
 
     private fun handleRemoveAssignment(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
@@ -79,7 +79,7 @@ object UserBranchAssignmentRoutes {
     }
 
     private fun handleUpdateSlot(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
         val request = context.bodyAsClass<UpdateSlotRequest>()
@@ -89,7 +89,7 @@ object UserBranchAssignmentRoutes {
     }
 
     private fun handleSwapSlots(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<SwapSlotsRequest>()
         val userIdA = uuidOrThrow(request.userIdA, "userIdA")

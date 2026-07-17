@@ -21,7 +21,7 @@ object AuditLogRoutes {
         }
 
         config.routes.get("/api/audit-log") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val tableName = context.queryParam("tableName") ?: throw BadRequestResponse("tableName is required")
             val recordIdParam = context.queryParam("recordId") ?: throw BadRequestResponse("recordId is required")
             val recordId = uuidOrThrow(recordIdParam, "recordId")
@@ -33,7 +33,7 @@ object AuditLogRoutes {
         }
 
         config.routes.get("/api/audit-log/flagged") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
 
             val entries = AuditLogService.findFlagged(callerId)
 
@@ -42,7 +42,7 @@ object AuditLogRoutes {
         }
 
         config.routes.patch("/api/audit-log/{entryId}/acknowledge") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val entryId = context.pathParamAsUuid("entryId")
 
             val entry = AuditLogService.acknowledge(callerId, entryId)

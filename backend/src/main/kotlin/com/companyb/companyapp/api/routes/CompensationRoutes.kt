@@ -50,7 +50,7 @@ object CompensationRoutes {
         }
 
         config.routes.post("/api/compensation") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateCompensationRequest>()
 
             val id = uuidOrThrow(request.id, "compensation id")
@@ -77,7 +77,7 @@ object CompensationRoutes {
         }
 
         config.routes.patch("/api/compensation/{compensationId}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val compensationId = context.pathParamAsUuid("compensationId")
             val request = context.bodyAsClass<UpdateCompensationRequest>()
 

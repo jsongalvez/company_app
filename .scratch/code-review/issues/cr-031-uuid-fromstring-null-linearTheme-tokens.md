@@ -17,3 +17,5 @@
 
 **Priority:** medium
 **Story alignment:** US-055+ (composeApp rebuild)
+
+**Status:** ✅ done

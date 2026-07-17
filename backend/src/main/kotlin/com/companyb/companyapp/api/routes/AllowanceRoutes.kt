@@ -39,7 +39,7 @@ object AllowanceRoutes {
         }
 
         config.routes.post("/api/allowances") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateAllowanceRequest>()
 
             val id = uuidOrThrow(request.id, "allowance id")

@@ -34,7 +34,7 @@ object ClientRoutes {
     }
 
     private fun handleCreate(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateClientRequest>()
         val clientId = uuidOrThrow(request.id, "client id")
 
@@ -70,7 +70,7 @@ object ClientRoutes {
     }
 
     private fun handleUpdate(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
         val request = context.bodyAsClass<UpdateClientRequest>()
 
@@ -96,7 +96,7 @@ object ClientRoutes {
     }
 
     private fun handleAnonymize(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
 
         ClientService.anonymize(callerId, clientId)

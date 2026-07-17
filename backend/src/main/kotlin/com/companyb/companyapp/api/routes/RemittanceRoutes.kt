@@ -58,7 +58,7 @@ object RemittanceRoutes {
 
     @Suppress("ThrowsCount")
     private fun handleCreateDraft(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
 
         val id = uuidOrThrow(request.id, "remittance id")
@@ -100,7 +100,7 @@ object RemittanceRoutes {
     }
 
     private fun handleGetRemittance(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
 
         val detail = RemittanceService.getRemittance(remittanceId)
@@ -109,7 +109,7 @@ object RemittanceRoutes {
 
     @Suppress("ThrowsCount")
     private fun handleAddLine(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val request = context.bodyAsClass<CreateRemittanceLineRequest>()
 
@@ -143,7 +143,7 @@ object RemittanceRoutes {
     }
 
     private fun handleRemoveLine(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val lineId = context.pathParamAsUuid("lineId")
 
@@ -152,7 +152,7 @@ object RemittanceRoutes {
     }
 
     private fun handleAddDayBreakdown(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val request = context.bodyAsClass<AddDayBreakdownRequest>()
 
@@ -172,7 +172,7 @@ object RemittanceRoutes {
     }
 
     private fun handleSubmit(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val request = context.bodyAsClass<SubmitRemittanceRequest>()
 

@@ -46,7 +46,7 @@ object ExpenseRoutes {
         // --- Route handlers ---
 
         config.routes.post("/api/expenses") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateExpenseRequest>()
 
             val id = uuidOrThrow(request.id, "expense id")
@@ -73,7 +73,7 @@ object ExpenseRoutes {
         }
 
         config.routes.delete("/api/expenses/{expenseId}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val expenseId = context.pathParamAsUuid("expenseId")
             val request = context.bodyAsClass<DeleteExpenseRequest>()
 
@@ -89,7 +89,7 @@ object ExpenseRoutes {
         }
 
         config.routes.get("/api/expenses") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val branchDayId = context.uuidFromQuery("branchDayId")
 
             val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)

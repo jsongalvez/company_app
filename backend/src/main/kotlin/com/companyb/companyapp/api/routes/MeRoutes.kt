@@ -10,7 +10,7 @@ import java.util.UUID
 object MeRoutes {
     fun getMe(config: JavalinConfig) {
         config.routes.get("/api/me") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val response: MeResponse = MeService.getMe(callerId)
             context.status(HttpStatus.OK)
             context.json(response)
@@ -19,7 +19,7 @@ object MeRoutes {
 
     fun getCapabilities(config: JavalinConfig) {
         config.routes.get("/api/me/capabilities") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val response: List<UserCapabilityResponse> = MeService.getCapabilities(callerId)
             context.status(HttpStatus.OK)
             context.json(response)

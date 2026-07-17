@@ -99,6 +99,7 @@ object UserRepository {
         }.also { updated -> logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=$updated" } }
 
     fun authorize(id: String): Boolean {
+        // safe: id is non-null String; caller guards null before calling
         val userId = UUID.fromString(id)
         val authorized =
             transaction {

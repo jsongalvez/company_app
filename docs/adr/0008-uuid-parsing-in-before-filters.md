@@ -1,44 +1,58 @@
-# ADR-0008: UUID parsing in route before-filters must use `pathParamAsUuid`
+# ADR-0008: UUID parsing helpers in `RoutesUtil.kt`
 
 **Status:** Accepted
 **Date:** 2026-07-17
+**Updated:** 2026-07-17 (added `callerUuid()`)
 
 ## Context
 
-`ExpenseRoutes.kt` (introduced in ADR-0007) uses inline
-`runCatching { UUID.fromString(...) }.getOrElse { throw BadRequestResponse(...) }` blocks
-to parse UUIDs from request bodies and query parameters inside `config.routes.before` filters:
+Route handlers and before-filters frequently need to parse UUIDs from four sources:
+path parameters, query parameters, request body fields, and the authenticated user ID
+(context attribute). Each inline `UUID.fromString()` call is a null-safety hazard and a
+duplication of error-handling logic.
 
-```kotlin
-// ExpenseRoutes.kt:27-28 — anti-pattern
-runCatching { UUID.fromString(request.branchDayId) }
-    .getOrElse { throw BadRequestResponse("Invalid branch day id") }
-```
-
-The project already has `RoutesUtil.pathParamAsUuid` which encapsulates this pattern for
-path parameters. Body and query parameters lack an equivalent utility, but the raw
-`runCatching`/`UUID.fromString`/`getOrElse` triplet duplicates logic across every filter
-that needs to parse a UUID and makes it easy to get the error message format wrong.
+The original issue (ADR-0008 v1) targeted `runCatching { UUID.fromString(...) }` blocks
+in `ExpenseRoutes.kt`. The `callerUuid()` helper was added later when a security review
+(CR-031) found 60+ call sites passing a nullable `context.attribute<String>("userId")`
+directly to `UUID.fromString()` without a null guard.
 
 ## Decision
 
 1. **Do not** use `runCatching { UUID.fromString(...) }.getOrElse { throw BadRequestResponse(...) }`
    in before-filters or route handlers.
 
-2. Use `context.pathParamAsUuid(name)` for path parameters (already available via
-   `RoutesUtil.kt` extension).
+2. Use `context.pathParamAsUuid(name)` for path parameters.
 
-3. For body/query UUIDs, use a consistent helper (either an extension on `Context` or a
-   top-level function in `RoutesUtil.kt`) to keep the pattern DRY.
+3. For body/query UUIDs, use `uuidOrThrow(value, name)`, `uuidFromQuery(name)`, or
+   `uuidFromBody(key)` from `RoutesUtil.kt`.
+
+4. Use `context.callerUuid()` to extract the authenticated caller UUID from the `"userId"`
+   context attribute. This replaces the previous pattern of
+   `UUID.fromString(context.attribute<String>("userId"))` which could throw NPE if the
+   attribute was absent.
+
+5. The helpers return distinct error messages:
+   - `callerUuid()`: `"Missing authentication"` (attribute absent) vs `"Invalid user ID in authentication"` (malformed UUID)
+   - `pathParamAsUuid()`: `"Invalid <name>"`
+   - `uuidFromQuery()`: `"<name> query param is required"` (absent) vs `"Invalid <name>"` (malformed)
+
+## Rationale
+
+Centralising UUID parsing into helpers eliminates the null-safety gap at every call site
+and makes error messages consistent. The `callerUuid()` helper specifically was motivated
+by the auth attribute being typed as `String?` in Javalin's API — the helper is the single
+place where the null check and UUID validation happen.
 
 ## Refactor scope
 
-The anti-pattern currently appears in:
+The anti-pattern (inline `runCatching`/`UUID.fromString`) appeared in:
 
 - `ExpenseRoutes.kt:27-28` (body `branchDayId`)
 - `ExpenseRoutes.kt:35-36` (query param `branchDayId`)
-- The route handler bodies in `ExpenseRoutes.kt:60-62`, `105-107` (duplicated logic in
-  handlers after the filter)
+- Route handler bodies in `ExpenseRoutes.kt:60-62`, `105-107`
 
-See [#4](../../.scratch/issues/0004-refactor-uuid-parsing/ISSUE.md) for the tracked
+The `UUID.fromString(context.attribute<String>("userId"))` anti-pattern appeared in all
+24 route/filter files (~60 occurrences), all migrated to `context.callerUuid()`.
+
+See [#4](../../.scratch/issues/0004-refactor-uuid-parsing/ISSUE.md) for the original
 refactor work.

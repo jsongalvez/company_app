@@ -22,7 +22,7 @@ object MedicalMissionDelegateRoutes {
         }
 
         config.routes.post("/api/delegates") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<AssignDelegateRequest>()
 
             val delegateId = uuidOrThrow(request.delegateId, "delegate id")
@@ -55,7 +55,7 @@ object MedicalMissionDelegateRoutes {
         }
 
         config.routes.delete("/api/delegates/{delegateId}") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val delegateId = context.pathParamAsUuid("delegateId")
 
             val result = MedicalMissionDelegateService.revokeDelegate(delegateId, callerId)

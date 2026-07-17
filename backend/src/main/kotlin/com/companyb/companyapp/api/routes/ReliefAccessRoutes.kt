@@ -14,7 +14,7 @@ object ReliefAccessRoutes {
     @Suppress("ThrowsCount")
     fun grantReliefAccess(config: JavalinConfig) {
         config.routes.patch("/api/relief-access/{requestId}/grant") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
 
             val result = ReliefAccessService.grantAccess(requestId, callerId)
@@ -37,7 +37,7 @@ object ReliefAccessRoutes {
     @Suppress("ThrowsCount")
     fun denyReliefAccess(config: JavalinConfig) {
         config.routes.patch("/api/relief-access/{requestId}/deny") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
 
             val result = ReliefAccessService.denyAccess(requestId, callerId)
@@ -60,7 +60,7 @@ object ReliefAccessRoutes {
     @Suppress("ThrowsCount")
     fun requestReliefAccess(config: JavalinConfig) {
         config.routes.post("/api/relief-access/request") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<ReliefAccessRequest>()
 
             val requestId = uuidOrThrow(request.requestId, "request id")

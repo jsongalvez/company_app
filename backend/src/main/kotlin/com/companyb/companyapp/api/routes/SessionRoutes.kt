@@ -132,7 +132,7 @@ object SessionRoutes {
 
     @Suppress("ThrowsCount")
     private fun handleCreateSession(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateSessionRequest>()
 
         val sessionId = uuidOrThrow(request.id, "session id")
@@ -178,7 +178,7 @@ object SessionRoutes {
     }
 
     private fun handleUpdateStatus(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
@@ -193,7 +193,7 @@ object SessionRoutes {
     }
 
     private fun handleVoidSession(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<VoidSessionRequest>()
 
@@ -209,7 +209,7 @@ object SessionRoutes {
     }
 
     private fun handleUnvoidSession(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UnvoidSessionRequest>()
 
@@ -224,7 +224,7 @@ object SessionRoutes {
     }
 
     private fun handleAddPractitioner(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<AddPractitionerRequest>()
 
@@ -245,7 +245,7 @@ object SessionRoutes {
     }
 
     private fun handleUpdatePractitionerRemarks(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val practitionerId = context.pathParamAsUuid("practitionerId")
         val request = context.bodyAsClass<UpdatePractitionerRemarksRequest>()
@@ -263,7 +263,7 @@ object SessionRoutes {
     }
 
     private fun handleRemovePractitioner(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val practitionerId = context.pathParamAsUuid("practitionerId")
 
@@ -289,7 +289,7 @@ object SessionRoutes {
     }
 
     private fun handleAddSessionConcern(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<AddSessionConcernRequest>()
 
@@ -300,7 +300,7 @@ object SessionRoutes {
     }
 
     private fun handleRemoveSessionConcern(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val concernId = context.pathParamAsUuid("concernId")
 
@@ -309,7 +309,7 @@ object SessionRoutes {
     }
 
     private fun handlePromoteConcern(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<PromoteConcernRequest>()
 

@@ -61,12 +61,22 @@ object JwtService {
         return token
     }
 
+    @Suppress("ReturnCount")
     fun verifyToken(token: String): String? =
         try {
-            val subj = verifier.verify(token).subject
+            val subj =
+                verifier.verify(token).subject ?: return null.also {
+                    logger.warn { "[VERIFY-TOKEN] Token has no subject" }
+                }
+            val parsedId =
+                runCatching { UUID.fromString(subj) }
+                    .getOrElse {
+                        logger.warn { "[VERIFY-TOKEN] Invalid UUID in subject: ${subj.maskUUID()}" }
+                        return null
+                    }
             when {
                 // Deny list is checked in-memory before any database request.
-                DenyList.isDenied(UUID.fromString(subj)) -> {
+                DenyList.isDenied(parsedId) -> {
                     null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is on the deny list" } }
                 }
 

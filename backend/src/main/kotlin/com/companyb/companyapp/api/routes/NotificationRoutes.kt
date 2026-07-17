@@ -12,7 +12,7 @@ import java.util.UUID
 object NotificationRoutes {
     fun register(config: JavalinConfig) {
         config.routes.get("/api/notifications") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
 
             val notifications = NotificationService.listUnread(callerId)
 
@@ -21,7 +21,7 @@ object NotificationRoutes {
         }
 
         config.routes.patch("/api/notifications/{notificationId}/read") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val notificationId = context.pathParamAsUuid("notificationId")
 
             val notification = NotificationService.markRead(callerId, notificationId)

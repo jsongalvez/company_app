@@ -26,7 +26,7 @@ object ProductSaleRoutes {
         }
 
         config.routes.post("/api/product-sales") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductSaleRequest>()
 
             val id = uuidOrThrow(request.id, "sale id")

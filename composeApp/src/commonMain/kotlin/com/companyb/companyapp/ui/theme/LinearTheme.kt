@@ -1,12 +1,15 @@
 package com.companyb.companyapp.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val Canvas = Color(0xFF010102)
@@ -20,6 +23,24 @@ private val Ink = Color(0xFFF7F8F8)
 private val InkMuted = Color(0xFFD0D6E0)
 private val InkSubtle = Color(0xFF8A8F98)
 private val Hairline = Color(0xFF23252A)
+
+object CornerRadius {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 24.dp
+    val full = 999.dp
+}
+
+object Spacing {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 16.dp
+    val lg = 24.dp
+    val xl = 32.dp
+    val xxl = 48.dp
+}
 
 private val LinearFontFamily = FontFamily.SansSerif // Inter when bundled
 
@@ -69,6 +90,15 @@ private val LinearTypography =
             ),
     )
 
+private val LinearShapes =
+    Shapes(
+        extraSmall = RoundedCornerShape(CornerRadius.xs),
+        small = RoundedCornerShape(CornerRadius.sm),
+        medium = RoundedCornerShape(CornerRadius.md),
+        large = RoundedCornerShape(CornerRadius.lg),
+        extraLarge = RoundedCornerShape(CornerRadius.xl),
+    )
+
 private val LinearDarkColors =
     darkColorScheme(
         primary = Primary,
@@ -97,6 +127,7 @@ fun LinearTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = LinearDarkColors,
         typography = LinearTypography,
+        shapes = LinearShapes,
         content = content,
     )
 }

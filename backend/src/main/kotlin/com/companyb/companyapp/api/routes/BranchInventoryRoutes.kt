@@ -42,7 +42,7 @@ object BranchInventoryRoutes {
     }
 
     private fun handleEnsureCard(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<AddInventoryCardRequest>()
         val productId = uuidOrThrow(request.productId, "product id")
@@ -56,7 +56,7 @@ object BranchInventoryRoutes {
     }
 
     private fun handleRestock(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
         val request = context.bodyAsClass<RestockRequest>()
@@ -87,7 +87,7 @@ object BranchInventoryRoutes {
 
     @Suppress("ThrowsCount")
     private fun handleRecordMovement(context: Context) {
-        val callerId = UUID.fromString(context.attribute<String>("userId"))
+        val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
         val request = context.bodyAsClass<InventoryMovementRequest>()

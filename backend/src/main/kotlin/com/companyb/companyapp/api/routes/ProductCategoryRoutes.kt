@@ -25,7 +25,7 @@ object ProductCategoryRoutes {
         }
 
         config.routes.post("/api/product-categories") { context ->
-            val callerId = UUID.fromString(context.attribute<String>("userId"))
+            val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductCategoryRequest>()
             val categoryId = uuidOrThrow(request.id, "category id")
             val result =
