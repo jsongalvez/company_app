@@ -48,7 +48,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-039 — replace jmhClasses with JMH run in pre-commit | — | [x] |
 | CR-040 — wire k6 baseline into pre-push | CR-037 | [ ] |
 | CR-041 — shared module compilation + test step | — | [x] |
-| CR-042 — iOS compilation target in pre-commit | — | [ ] |
+| CR-042 — iOS compilation target in pre-commit | — | [x] |
 | CR-043 — scope ktlintFormat to staged files only | — | [x] |
 | CR-044 — extract grantCapability delegation in DatabaseTestHelper | — | [x] |
 | CR-045 — scope SessionTable + ClientTable deleteAll() | — | [x] |
@@ -86,7 +86,7 @@ Unresolved tickets migrated to GitHub Issues (2026-07-17):
 | CR-039 | [#22](https://github.com/jsongalvez/company_app/issues/22) |
 | CR-040 | [#23](https://github.com/jsongalvez/company_app/issues/23) |
 | CR-041 | [#24](https://github.com/jsongalvez/company_app/issues/24) |
-| CR-042 | [#25](https://github.com/jsongalvez/company_app/issues/25) |
+| CR-042 | [#25](https://github.com/jsongalvez/company_app/issues/25) | ✅ done |
 | CR-043 | [#26](https://github.com/jsongalvez/company_app/issues/26) |
 | CR-046 | [#27](https://github.com/jsongalvez/company_app/issues/27) |
 | CR-047 | [#28](https://github.com/jsongalvez/company_app/issues/28) |
