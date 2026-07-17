@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.model.Compensation
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -25,17 +25,17 @@ object CompensationService {
         note: String?,
     ): Compensation {
         if (amount < BigDecimal.ZERO) {
-            throw BadRequestResponse("Amount must be non-negative")
+            throw ValidationException("Amount must be non-negative")
         }
 
         BranchDayRepository.findById(workBranchDayId)
-            ?: throw NotFoundResponse("Work branch day not found")
+            ?: throw NotFoundException("Work branch day not found")
 
         BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId)
 
         val existingByKey = CompensationRepository.findByUserAndPayingDay(userId, payingBranchDayId)
         if (existingByKey != null && existingByKey.id != id) {
-            throw ConflictResponse("Compensation already exists for this user and paying branch day")
+            throw ConflictException("Compensation already exists for this user and paying branch day")
         }
 
         val result =
@@ -63,12 +63,12 @@ object CompensationService {
         expectedVersion: Int,
     ): Compensation {
         if (amount < BigDecimal.ZERO) {
-            throw BadRequestResponse("Amount must be non-negative")
+            throw ValidationException("Amount must be non-negative")
         }
 
         val compensation =
             CompensationRepository.findById(compensationId)
-                ?: throw NotFoundResponse("Compensation not found")
+                ?: throw NotFoundException("Compensation not found")
 
         BranchDayService.checkBranchDayEditable(callerId, compensation.payingBranchDayId)
 
@@ -76,7 +76,7 @@ object CompensationService {
             CompensationRepository.update(compensationId, amount, note, expectedVersion, callerId)
         } catch (e: IllegalStateException) {
             when (e.message) {
-                "version_mismatch" -> throw ConflictResponse("Compensation version mismatch")
+                "version_mismatch" -> throw ConflictException("Compensation version mismatch")
                 else -> throw e
             }
         }

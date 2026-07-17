@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
@@ -7,7 +8,6 @@ import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.DayStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
@@ -105,7 +105,7 @@ object CommissionEngineService {
     fun manualRecalculate(branchDayId: UUID) {
         val branchDay =
             BranchDayRepository.findById(branchDayId)
-                ?: throw NotFoundResponse("Branch day not found")
+                ?: throw NotFoundException("Branch day not found")
 
         recalculate(branchDayId, force = true)
     }

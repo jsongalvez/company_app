@@ -1,11 +1,11 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -186,10 +186,10 @@ object UserBranchAssignmentRepository {
         transaction {
             val a =
                 findActiveByBranchAndUserInTransaction(branchId, userIdA)
-                    ?: throw NotFoundResponse("Active assignment not found for user A at this branch")
+                    ?: throw NotFoundException("Active assignment not found for user A at this branch")
             val b =
                 findActiveByBranchAndUserInTransaction(branchId, userIdB)
-                    ?: throw NotFoundResponse("Active assignment not found for user B at this branch")
+                    ?: throw NotFoundException("Active assignment not found for user B at this branch")
 
             val slotA = a.slot
             val slotB = b.slot

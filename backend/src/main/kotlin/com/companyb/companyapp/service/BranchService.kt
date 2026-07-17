@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchCreateResult
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.Branch
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object BranchService {
@@ -20,7 +20,7 @@ object BranchService {
     ): BranchCreateResult {
         val cleanName = name.trim()
         if (cleanName.isBlank()) {
-            throw BadRequestResponse("Branch name is required")
+            throw ValidationException("Branch name is required")
         }
         return BranchRepository.create(id, cleanName, branchType, callerId)
     }
@@ -28,5 +28,5 @@ object BranchService {
     fun findAll(): List<Branch> = BranchRepository.findAll()
 
     fun findById(branchId: UUID): Branch =
-        BranchRepository.findById(branchId) ?: throw NotFoundResponse("Branch not found")
+        BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
 }

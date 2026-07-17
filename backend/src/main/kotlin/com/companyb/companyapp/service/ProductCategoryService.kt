@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryCreateResult
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.model.ProductCategory
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ProductCategoryService {
@@ -18,7 +18,7 @@ object ProductCategoryService {
     ): ProductCategoryCreateResult {
         val cleanName = name.trim()
         if (cleanName.isBlank()) {
-            throw BadRequestResponse("Category name is required")
+            throw ValidationException("Category name is required")
         }
         return ProductCategoryRepository.create(id, cleanName, callerId)
     }
@@ -27,5 +27,5 @@ object ProductCategoryService {
 
     fun findById(categoryId: UUID): ProductCategory =
         ProductCategoryRepository.findById(categoryId)
-            ?: throw NotFoundResponse("Product category not found")
+            ?: throw NotFoundException("Product category not found")
 }

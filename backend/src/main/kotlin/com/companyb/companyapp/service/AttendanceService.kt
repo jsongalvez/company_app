@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.ClockInParams
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -23,7 +23,7 @@ object AttendanceService {
     ): AttendanceServiceResult {
         val existing = AttendanceRepository.findById(attendanceId)
         if (existing == null) {
-            throw NotFoundResponse("Attendance record not found")
+            throw NotFoundException("Attendance record not found")
         }
 
         if (existing.clockOut != null) {
@@ -57,7 +57,7 @@ object AttendanceService {
 
         val activeClockIn = AttendanceRepository.hasActiveClockIn(callerId, branchDay.id)
         if (activeClockIn) {
-            throw ConflictResponse("User already has an active clock-in for this branch day")
+            throw ConflictException("User already has an active clock-in for this branch day")
         }
 
         val existingAssignment =

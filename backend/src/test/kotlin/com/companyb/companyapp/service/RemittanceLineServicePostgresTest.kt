@@ -1,6 +1,8 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductRepository
@@ -30,8 +32,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -214,7 +214,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add line to non-existent remittance returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = UUID.randomUUID(),
@@ -237,7 +237,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId)
         markRemittanceSubmitted(remittance.id)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
@@ -257,7 +257,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
@@ -277,7 +277,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.addLine(
                 callerId = callerId,
                 remittanceId = remittance.id,
@@ -328,7 +328,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             RemittanceService.removeLine(callerId, remittance.id, UUID.randomUUID())
         }
     }
@@ -355,7 +355,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         markRemittanceSubmitted(remittance.id)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.removeLine(callerId, remittance.id, lineId)
         }
     }
@@ -461,7 +461,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add day breakdown to non-existent remittance returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             RemittanceService.addDayBreakdown(
                 callerId = callerId,
                 remittanceId = UUID.randomUUID(),
@@ -479,7 +479,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
         markRemittanceSubmitted(remittance.id)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.addDayBreakdown(
                 callerId = callerId,
                 remittanceId = remittance.id,
@@ -608,7 +608,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `get non-existent remittance returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             RemittanceService.getRemittance(UUID.randomUUID())
         }
     }

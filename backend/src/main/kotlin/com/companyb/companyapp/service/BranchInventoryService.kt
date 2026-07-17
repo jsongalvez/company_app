@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
@@ -9,9 +12,6 @@ import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.InventoryMovementReason
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object BranchInventoryService {
@@ -23,11 +23,11 @@ object BranchInventoryService {
         productId: UUID,
     ) {
         if (BranchRepository.findById(branchId) == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
 
         if (ProductRepository.findById(productId) == null) {
-            throw NotFoundResponse("Product not found")
+            throw NotFoundException("Product not found")
         }
 
         BranchInventoryRepository.ensureCard(branchId, productId)
@@ -44,15 +44,15 @@ object BranchInventoryService {
         branchDayId: UUID,
     ): InventoryMovement {
         if (quantity <= 0) {
-            throw BadRequestResponse("Restock quantity must be positive")
+            throw ValidationException("Restock quantity must be positive")
         }
 
         if (BranchRepository.findById(branchId) == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
 
         if (ProductRepository.findById(productId) == null) {
-            throw NotFoundResponse("Product not found")
+            throw NotFoundException("Product not found")
         }
 
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
@@ -75,7 +75,7 @@ object BranchInventoryService {
                 )
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
-                    throw ConflictResponse("Inventory version mismatch")
+                    throw ConflictException("Inventory version mismatch")
                 }
                 throw e
             }
@@ -100,7 +100,7 @@ object BranchInventoryService {
             InventoryMovementReason.MISSING,
             -> {
                 if (quantityChange >= 0) {
-                    throw BadRequestResponse("$reason movement must have a negative quantity change")
+                    throw ValidationException("$reason movement must have a negative quantity change")
                 }
             }
 
@@ -109,20 +109,20 @@ object BranchInventoryService {
             }
 
             else -> {
-                throw BadRequestResponse("Invalid movement reason for this endpoint")
+                throw ValidationException("Invalid movement reason for this endpoint")
             }
         }
 
         if (reason == InventoryMovementReason.MISSING && notes.isNullOrBlank()) {
-            throw BadRequestResponse("Notes are required for MISSING movements")
+            throw ValidationException("Notes are required for MISSING movements")
         }
 
         if (BranchRepository.findById(branchId) == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
 
         if (ProductRepository.findById(productId) == null) {
-            throw NotFoundResponse("Product not found")
+            throw NotFoundException("Product not found")
         }
 
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
@@ -146,7 +146,7 @@ object BranchInventoryService {
             )
         } catch (e: IllegalStateException) {
             if (e.message == "version_mismatch") {
-                throw ConflictResponse("Inventory version mismatch")
+                throw ConflictException("Inventory version mismatch")
             }
             throw e
         }
@@ -154,7 +154,7 @@ object BranchInventoryService {
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> {
         if (BranchRepository.findById(branchId) == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
         return BranchInventoryRepository.findByBranch(branchId)
     }

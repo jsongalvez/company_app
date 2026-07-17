@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
-import io.javalin.http.ForbiddenResponse
 import java.util.UUID
 
 /**
@@ -35,7 +35,7 @@ object CapabilityService {
         message: String = "$capabilityCode capability required",
     ) {
         if (!hasCapability(userId, capabilityCode, contextType, contextId)) {
-            throw ForbiddenResponse(message)
+            throw ForbiddenException(message)
         }
     }
 

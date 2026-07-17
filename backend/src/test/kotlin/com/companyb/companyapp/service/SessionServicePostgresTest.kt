@@ -2,6 +2,9 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -19,9 +22,6 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -128,7 +128,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
         val secondSessionId = UUID.randomUUID()
 
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             createSession(callerId, secondSessionId)
         }
     }
@@ -152,7 +152,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     fun `create session throws 404 for non-existent branch`() {
         val unknownBranchId = UUID.randomUUID()
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionService.create(
                 callerId = callerId,
                 id = sessionId,
@@ -274,14 +274,14 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
 
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 99)
         }
     }
 
     @Test
     fun `update status for non-existent session throws 404`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionService.updateStatus(callerId, UUID.randomUUID(), SessionStatus.COMPLETED, 1)
         }
     }
@@ -310,7 +310,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, walkInSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, walkInSessionId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, walkInSessionId, SessionStatus.NO_SHOW, 1)
         }
     }
@@ -322,7 +322,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, walkInSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, walkInSessionId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, walkInSessionId, SessionStatus.CANCELLED, 1)
         }
     }
@@ -377,7 +377,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `void session throws 404 for non-existent session`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionService.voidSession(callerId, UUID.randomUUID(), UUID.randomUUID(), "Customer request")
         }
     }
@@ -419,7 +419,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
         }
     }
@@ -443,7 +443,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `void session throws 404 for non-existent session on unvoid`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionService.unvoidSession(callerId, UUID.randomUUID(), "Resolved in error")
         }
     }
@@ -540,7 +540,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add practitioner throws 404 for non-existent session`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionPractitionerService.addPractitioner(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -586,7 +586,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionPractitionerService.updatePractitionerRemarks(
                 callerId = callerId,
                 sessionId = practitionerSessionId,
@@ -631,7 +631,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             SessionPractitionerService.removePractitioner(
                 callerId = callerId,
                 sessionId = practitionerSessionId,

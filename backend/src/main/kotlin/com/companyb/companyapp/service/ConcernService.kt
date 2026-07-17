@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.Concern
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ConcernService {
@@ -14,7 +14,7 @@ object ConcernService {
     fun listAll(): List<Concern> = ConcernRepository.findAll()
 
     fun getForSession(sessionId: UUID): List<Concern> {
-        SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
         return ConcernRepository.getConcernsForSession(sessionId)
     }
 
@@ -24,10 +24,10 @@ object ConcernService {
         sessionId: UUID,
         concernId: UUID,
     ) {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
-        val concern = ConcernRepository.findById(concernId) ?: throw NotFoundResponse("Concern not found")
+        val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
         ConcernRepository.addToSession(
             sessionId = sessionId,
@@ -44,10 +44,10 @@ object ConcernService {
         sessionId: UUID,
         concernId: UUID,
     ) {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
-        val concern = ConcernRepository.findById(concernId) ?: throw NotFoundResponse("Concern not found")
+        val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
         ConcernRepository.removeFromSession(
             sessionId = sessionId,
@@ -66,10 +66,10 @@ object ConcernService {
         label: String,
     ): Concern {
         if (label.isBlank()) {
-            throw BadRequestResponse("label must not be blank")
+            throw ValidationException("label must not be blank")
         }
 
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern =

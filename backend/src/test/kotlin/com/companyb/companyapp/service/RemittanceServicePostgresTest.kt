@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
@@ -26,9 +29,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -204,7 +204,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val nonexistentBranchId = UUID.randomUUID()
         DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             RemittanceService.createDraft(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -219,7 +219,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft with reversed date range returns bad request`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.createDraft(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -391,7 +391,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             RemittanceService.submit(callerId, remittanceId, 99)
         }
     }
@@ -415,7 +415,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit non-existent remittance returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             RemittanceService.submit(callerId, UUID.randomUUID(), 1)
         }
     }
@@ -441,7 +441,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val v1 = RemittanceRepository.findById(remittanceId)!!.version
         RemittanceService.submit(callerId, remittanceId, v1)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             RemittanceService.submit(callerId, remittanceId, 99)
         }
     }

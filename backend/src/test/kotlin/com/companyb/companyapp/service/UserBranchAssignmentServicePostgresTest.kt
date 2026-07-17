@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -7,9 +10,6 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -92,7 +92,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val assignmentId = UUID.randomUUID()
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 0)
         }
     }
@@ -104,7 +104,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = UUID.randomUUID()
         val unknownBranchId = UUID.randomUUID()
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.create(callerId, assignmentId, unknownBranchId, userAId, 1)
         }
     }
@@ -116,7 +116,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = UUID.randomUUID()
         val unknownUserId = UUID.randomUUID()
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.create(callerId, assignmentId, branchId, unknownUserId, 1)
         }
     }
@@ -129,7 +129,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, firstId, branchId, userAId, 1)
 
         val secondId = UUID.randomUUID()
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             UserBranchAssignmentService.create(callerId, secondId, branchId, userAId, 2)
         }
     }
@@ -179,7 +179,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val unknownBranchId = UUID.randomUUID()
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.remove(callerId, unknownBranchId, userAId)
         }
     }
@@ -189,7 +189,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.remove(callerId, branchId, userAId)
         }
     }
@@ -229,7 +229,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 0)
         }
     }
@@ -239,7 +239,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 1)
         }
     }
@@ -251,7 +251,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<ForbiddenException> {
             UserBranchAssignmentService.updateSlot(nonManagerId, branchId, userAId, 3)
         }
 
@@ -296,7 +296,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val idB = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 1)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userBId)
         }
     }
@@ -308,7 +308,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val idA = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userBId)
         }
     }

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -10,7 +11,6 @@ import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -123,7 +123,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
     @Test
     fun `markRead throws 404 for non-existent notification`() {
         val fakeId = UUID.randomUUID()
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             NotificationService.markRead(callerId, fakeId)
         }
     }
@@ -133,7 +133,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         val notification = insertNotification(sessionId, otherUserId, branchId)
         trackOwned(NotificationTable, NotificationTable.id, notification.id)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             NotificationService.markRead(callerId, notification.id)
         }
     }

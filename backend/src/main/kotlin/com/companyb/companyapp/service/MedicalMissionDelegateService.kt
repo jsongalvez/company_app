@@ -1,12 +1,11 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.InternalServerErrorResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object MedicalMissionDelegateService {
@@ -20,8 +19,9 @@ object MedicalMissionDelegateService {
         callerId: UUID,
     ): MedicalMissionDelegate {
         val capabilityId =
-            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA)
-                ?: throw InternalServerErrorResponse("EDIT_BRANCH_DATA capability not found")
+            checkNotNull(
+                CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
+            ) { "EDIT_BRANCH_DATA capability not found" }
 
         MedicalMissionDelegateRepository.assignWithCapability(
             delegateId = delegateId,
@@ -33,8 +33,9 @@ object MedicalMissionDelegateService {
 
         logger.info { "[DELEGATE-ASSIGN] Delegate $delegateId: user=$targetUserId, branch=$branchId" }
 
-        return MedicalMissionDelegateRepository.findById(delegateId)
-            ?: throw InternalServerErrorResponse("Failed to read back delegate")
+        return checkNotNull(
+            MedicalMissionDelegateRepository.findById(delegateId),
+        ) { "Failed to read back delegate" }
     }
 
     @Suppress("ThrowsCount")
@@ -43,14 +44,15 @@ object MedicalMissionDelegateService {
         callerId: UUID,
     ): MedicalMissionDelegate {
         if (MedicalMissionDelegateRepository.findById(delegateId) == null) {
-            throw NotFoundResponse("Medical mission delegate not found")
+            throw NotFoundException("Medical mission delegate not found")
         }
 
         MedicalMissionDelegateRepository.revokeWithCapability(delegateId, callerId)
 
         logger.info { "[DELEGATE-REVOKE] Delegate $delegateId revoked by $callerId" }
 
-        return MedicalMissionDelegateRepository.findById(delegateId)
-            ?: throw InternalServerErrorResponse("Failed to read back delegate after revoke")
+        return checkNotNull(
+            MedicalMissionDelegateRepository.findById(delegateId),
+        ) { "Failed to read back delegate after revoke" }
     }
 }

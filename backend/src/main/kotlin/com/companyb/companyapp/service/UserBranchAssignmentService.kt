@@ -1,6 +1,9 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -8,9 +11,6 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -33,12 +33,12 @@ object UserBranchAssignmentService {
         slot: Short,
     ): CreateResult {
         if (slot < 1) {
-            throw BadRequestResponse("Slot must be 1 or greater")
+            throw ValidationException("Slot must be 1 or greater")
         }
 
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
 
         val userFound =
@@ -49,12 +49,12 @@ object UserBranchAssignmentService {
                     .any()
             }
         if (!userFound) {
-            throw NotFoundResponse("User not found")
+            throw NotFoundException("User not found")
         }
 
         val existing = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
         if (existing != null) {
-            throw BadRequestResponse("User already has an active assignment at this branch")
+            throw ValidationException("User already has an active assignment at this branch")
         }
 
         val created = UserBranchAssignmentRepository.create(id, userId, branchId, slot, callerId)
@@ -77,12 +77,12 @@ object UserBranchAssignmentService {
     ) {
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
 
         val assignment =
             UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
-                ?: throw NotFoundResponse("Active assignment not found")
+                ?: throw NotFoundException("Active assignment not found")
 
         val auditOldValue =
             AuditLogRepository.jsonFields(
@@ -103,7 +103,7 @@ object UserBranchAssignmentService {
         newSlot: Short,
     ) {
         if (newSlot < 1) {
-            throw BadRequestResponse("Slot must be 1 or greater")
+            throw ValidationException("Slot must be 1 or greater")
         }
 
         val canManage =
@@ -116,12 +116,12 @@ object UserBranchAssignmentService {
         val isSelf = callerId == targetUserId
 
         if (!canManage && !isSelf) {
-            throw ForbiddenResponse("MANAGE_USERS capability required to change another user's slot")
+            throw ForbiddenException("MANAGE_USERS capability required to change another user's slot")
         }
 
         val assignment =
             UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, targetUserId)
-                ?: throw NotFoundResponse("Active assignment not found for user at this branch")
+                ?: throw NotFoundException("Active assignment not found for user at this branch")
 
         val oldSlot = assignment.slot
         UserBranchAssignmentRepository.updateSlot(assignment.id, newSlot, callerId, oldSlot)

@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ForbiddenResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,16 +50,16 @@ class MeServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `getMe throws NotFoundResponse for non-existent user`() {
+    fun `getMe throws NotFoundException for non-existent user`() {
         val unknownId = UUID.randomUUID()
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             MeService.getMe(unknownId)
         }
     }
 
     @Test
-    fun `getMe throws ForbiddenResponse for INACTIVE user`() {
-        assertFailsWith<ForbiddenResponse> {
+    fun `getMe throws ForbiddenException for INACTIVE user`() {
+        assertFailsWith<ForbiddenException> {
             MeService.getMe(inactiveUserId)
         }
     }

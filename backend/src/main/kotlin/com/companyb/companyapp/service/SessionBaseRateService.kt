@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.OffsetDateTime
@@ -44,9 +44,9 @@ object SessionBaseRateService {
     ): SetRateResult {
         val rateAmount =
             runCatching { BigDecimal(rate).setScale(RATE_SCALE, RoundingMode.HALF_UP) }
-                .getOrElse { throw BadRequestResponse("Invalid rate amount: $rate") }
+                .getOrElse { throw ValidationException("Invalid rate amount: $rate") }
         if (rateAmount < BigDecimal.ZERO) {
-            throw BadRequestResponse("Rate must be non-negative")
+            throw ValidationException("Rate must be non-negative")
         }
 
         val now = OffsetDateTime.now(ZoneOffset.UTC)

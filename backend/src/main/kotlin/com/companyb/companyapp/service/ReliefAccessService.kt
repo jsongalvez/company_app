@@ -1,6 +1,9 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
@@ -9,10 +12,6 @@ import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
-import io.javalin.http.InternalServerErrorResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ReliefAccessService {
@@ -25,39 +24,42 @@ object ReliefAccessService {
     ): ReliefAccess {
         val request =
             ReliefAccessRepository.findById(requestId)
-                ?: throw NotFoundResponse("Relief access request not found")
+                ?: throw NotFoundException("Relief access request not found")
 
         if (request.requestStatus == ReliefStatus.GRANTED) {
             return request
         }
 
         if (callerId != request.targetUser) {
-            throw ForbiddenResponse("Only the target user can grant this request")
+            throw ForbiddenException("Only the target user can grant this request")
         }
 
         val capabilityId =
-            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA)
-                ?: throw InternalServerErrorResponse("EDIT_BRANCH_DATA capability not found")
+            checkNotNull(
+                CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
+            ) { "EDIT_BRANCH_DATA capability not found" }
 
         val branchDay =
             BranchDayRepository.findById(request.branchDayId)
-                ?: throw NotFoundResponse("Branch day not found")
+                ?: throw NotFoundException("Branch day not found")
         val validTo = BranchDayService.expirationUtc(branchDay.date)
 
         val result =
-            ReliefAccessRepository.grantWithCapability(
-                GrantWithCapabilityParams(
-                    requestId = requestId,
-                    grantedBy = callerId,
-                    userId = request.requestedBy,
-                    capabilityId = capabilityId,
-                    branchDayId = request.branchDayId,
-                    sourceId = requestId,
-                    validTo = validTo,
-                    priority = GrantPriorities.RELIEF_ACCESS,
-                    requestedBy = request.requestedBy,
+            checkNotNull(
+                ReliefAccessRepository.grantWithCapability(
+                    GrantWithCapabilityParams(
+                        requestId = requestId,
+                        grantedBy = callerId,
+                        userId = request.requestedBy,
+                        capabilityId = capabilityId,
+                        branchDayId = request.branchDayId,
+                        sourceId = requestId,
+                        validTo = validTo,
+                        priority = GrantPriorities.RELIEF_ACCESS,
+                        requestedBy = request.requestedBy,
+                    ),
                 ),
-            ) ?: throw InternalServerErrorResponse("Grant failed: relief access request not found in transaction")
+            ) { "Grant failed: relief access request not found in transaction" }
 
         if (result.id == requestId) {
             logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
@@ -78,18 +80,18 @@ object ReliefAccessService {
     ): ReliefAccess {
         val request =
             ReliefAccessRepository.findById(requestId)
-                ?: throw NotFoundResponse("Relief access request not found")
+                ?: throw NotFoundException("Relief access request not found")
 
         if (request.requestStatus == ReliefStatus.DENIED) {
             return request
         }
 
         if (callerId != request.targetUser) {
-            throw ForbiddenResponse("Only the target user can deny this request")
+            throw ForbiddenException("Only the target user can deny this request")
         }
 
         if (request.requestStatus == ReliefStatus.GRANTED) {
-            throw BadRequestResponse("Cannot deny a request that has already been granted")
+            throw ValidationException("Cannot deny a request that has already been granted")
         }
 
         ReliefAccessRepository.deny(requestId, callerId)
@@ -108,12 +110,12 @@ object ReliefAccessService {
     ): ReliefAccess {
         val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
         if (!targetHasClockIn) {
-            throw BadRequestResponse("Target user does not have an active clock-in on this branch day")
+            throw ValidationException("Target user does not have an active clock-in on this branch day")
         }
 
         val requesterIsRelief = ReliefAccessRepository.isReliefUser(callerId, branchDayId)
         if (!requesterIsRelief) {
-            throw ForbiddenResponse("Only relief users can request relief access")
+            throw ForbiddenException("Only relief users can request relief access")
         }
 
         val (reliefAccess, wasCreated) =

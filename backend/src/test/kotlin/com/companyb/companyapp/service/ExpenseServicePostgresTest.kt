@@ -1,6 +1,8 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -12,8 +14,6 @@ import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -138,7 +138,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-positive amount returns bad request`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ExpenseService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -149,7 +149,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             )
         }
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ExpenseService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -163,7 +163,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExpenseService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -227,7 +227,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `soft delete non-existent expense returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExpenseService.softDelete(
                 callerId = callerId,
                 expenseId = UUID.randomUUID(),
@@ -272,7 +272,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             notes = "Test",
         )
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ExpenseService.softDelete(
                 callerId = callerId,
                 expenseId = expenseId,
@@ -280,7 +280,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             )
         }
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ExpenseService.softDelete(
                 callerId = callerId,
                 expenseId = expenseId,
@@ -392,7 +392,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list expenses for non-existent branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExpenseService.findByBranchDayId(callerId, UUID.randomUUID())
         }
     }

@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -14,9 +17,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -140,7 +140,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell with non-existent branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -157,7 +157,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell with non-existent product returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -174,7 +174,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell with insufficient stock returns bad request`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -191,7 +191,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell with version mismatch returns conflict`() {
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -208,7 +208,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell with non-existent session returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -225,7 +225,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rejects session-linked sale with clientId`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -242,7 +242,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rejects quantity less than 1`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
                 id = UUID.randomUUID(),

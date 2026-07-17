@@ -33,6 +33,10 @@ import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.service.NextAppointmentScheduler
@@ -51,6 +55,10 @@ private val logger = KotlinLogging.logger {}
 private const val KB = 1024L
 private const val MAX_REQUEST_SIZE_KB = 64L
 private const val SCHEDULER_PERIOD_HOURS = 24L
+private const val HTTP_BAD_REQUEST = 400
+private const val HTTP_FORBIDDEN = 403
+private const val HTTP_NOT_FOUND = 404
+private const val HTTP_CONFLICT = 409
 
 fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Starting application" }
@@ -85,6 +93,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
         context.attribute("userId", userId)
     }
+    registerExceptionHandlers(config)
     HealthRoutes.register(config)
     AuthRoutes.login(config)
     AuthRoutes.register(config)
@@ -118,6 +127,21 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     RemittanceRoutes.register(config)
     AuditLogRoutes.register(config)
     ExportRoutes.register(config)
+}
+
+private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
+    config.routes.exception(ValidationException::class.java) { e, ctx ->
+        ctx.status(HTTP_BAD_REQUEST).json(mapOf("error" to (e.message ?: "Bad Request")))
+    }
+    config.routes.exception(ForbiddenException::class.java) { e, ctx ->
+        ctx.status(HTTP_FORBIDDEN).json(mapOf("error" to (e.message ?: "Forbidden")))
+    }
+    config.routes.exception(NotFoundException::class.java) { e, ctx ->
+        ctx.status(HTTP_NOT_FOUND).json(mapOf("error" to (e.message ?: "Not Found")))
+    }
+    config.routes.exception(ConflictException::class.java) { e, ctx ->
+        ctx.status(HTTP_CONFLICT).json(mapOf("error" to (e.message ?: "Conflict")))
+    }
 }
 
 fun initializeDenyList() {

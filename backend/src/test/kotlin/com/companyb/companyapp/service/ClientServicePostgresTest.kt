@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -7,8 +9,6 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -66,14 +66,14 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `bp both or none rejects systolic only`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             createClient(callerId, clientAId, systolicBp = 120.toShort(), diastolicBp = null)
         }
     }
 
     @Test
     fun `bp both or none rejects diastolic only`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             createClient(callerId, clientAId, systolicBp = null, diastolicBp = 80.toShort())
         }
     }
@@ -100,21 +100,21 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `invalid gender is rejected`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             createClient(callerId, clientAId, gender = "X")
         }
     }
 
     @Test
     fun `blank first name is rejected`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             createClient(callerId, clientAId, firstName = "   ")
         }
     }
 
     @Test
     fun `blank last name is rejected`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             createClient(callerId, clientAId, lastName = "")
         }
     }
@@ -133,7 +133,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     @Test
     fun `find by id throws not found for missing client`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ClientService.findById(UUID.randomUUID())
         }
     }
@@ -187,7 +187,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     @Test
     fun `search rejects empty query`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ClientService.search("   ")
         }
     }
@@ -308,7 +308,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `update client returns 404 for non-existent client`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ClientService.update(
                 callerId = callerId,
                 clientId = UUID.randomUUID(),
@@ -332,7 +332,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         createClient(callerId, clientAId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
@@ -356,7 +356,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         createClient(callerId, clientAId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
@@ -380,7 +380,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         createClient(callerId, clientAId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientAId,
@@ -462,7 +462,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `anonymize client returns 404 for non-existent client`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ClientService.anonymize(callerId, UUID.randomUUID())
         }
     }
@@ -496,7 +496,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         createClient(callerId, clientAId)
         ClientService.anonymize(callerId, clientAId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ClientService.anonymize(callerId, clientAId)
         }
     }

@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -26,7 +27,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -85,7 +85,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns 404 when no remittance data exists for given month`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
         }
     }
@@ -218,14 +218,14 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq callerId }
         }
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
         }
     }
 
     @Test
     fun `throws 404 for non-existent branch`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             MonthlyRemittanceSummaryService.getMonthlySummary(UUID.randomUUID(), 2026, 7)
         }
     }

@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object CommissionManualInclusionService {
@@ -22,7 +22,7 @@ object CommissionManualInclusionService {
     ): CommissionManualInclusion {
         val sale =
             ProductSaleRepository.findById(productSaleId)
-                ?: throw NotFoundResponse("Product sale not found")
+                ?: throw NotFoundException("Product sale not found")
 
         val result =
             CommissionManualInclusionRepository.upsert(

@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AllowanceTable
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -8,8 +10,6 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -116,7 +116,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             AllowanceService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -129,7 +129,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with negative amount returns bad request`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             AllowanceService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),

@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AllowanceRepository
 import com.companyb.companyapp.repository.model.Allowance
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -20,7 +20,7 @@ object AllowanceService {
         amount: BigDecimal,
     ): Allowance {
         if (amount < BigDecimal.ZERO) {
-            throw BadRequestResponse("Amount must be non-negative")
+            throw ValidationException("Amount must be non-negative")
         }
 
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)

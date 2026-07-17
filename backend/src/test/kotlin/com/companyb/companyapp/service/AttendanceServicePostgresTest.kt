@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -11,8 +13,6 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -72,7 +72,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         val attendanceId = UUID.randomUUID()
         AttendanceService.clockIn(attendanceId, branchId, userId)
 
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             AttendanceService.clockIn(attendanceId, branchId, userId)
         }
     }
@@ -83,7 +83,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         AttendanceService.clockIn(firstId, branchId, userId)
 
         val secondId = UUID.randomUUID()
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             AttendanceService.clockIn(secondId, branchId, userId)
         }
     }
@@ -141,7 +141,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     fun `clockOut on non-existent attendance throws NotFound`() {
         val unknownId = UUID.randomUUID()
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             AttendanceService.clockOut(unknownId, userId)
         }
     }

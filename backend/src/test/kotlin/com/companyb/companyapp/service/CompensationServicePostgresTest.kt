@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -9,9 +12,6 @@ import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -140,7 +140,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         )
 
         val secondId = UUID.randomUUID()
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             CompensationService.create(
                 callerId = callerId,
                 id = secondId,
@@ -175,7 +175,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent work branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -190,7 +190,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent paying branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -205,7 +205,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with negative amount returns bad request`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             CompensationService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -259,7 +259,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             note = null,
         )
 
-        assertFailsWith<ConflictResponse> {
+        assertFailsWith<ConflictException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,
@@ -272,7 +272,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update non-existent compensation returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = UUID.randomUUID(),
@@ -324,7 +324,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 note = null,
             )
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             CompensationService.update(
                 callerId = callerId,
                 compensationId = compId,

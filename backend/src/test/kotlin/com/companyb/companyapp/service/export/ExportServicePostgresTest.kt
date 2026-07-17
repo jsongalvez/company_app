@@ -3,6 +3,8 @@ package com.companyb.companyapp.service.export
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -30,8 +32,6 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -185,7 +185,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `daily export throws 404 for missing data`() {
         val missingDate = today.plusDays(100)
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExportService.exportDaily(branchId, missingDate, ExportFormat.CSV)
         }
     }
@@ -210,14 +210,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `daily export throws 404 for non-existent branch`() {
         val missingBranch = UUID.randomUUID()
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExportService.exportDaily(missingBranch, today, ExportFormat.CSV)
         }
     }
 
     @Test
     fun `monthly export throws 404 when no remittance data`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExportService.exportMonthly(branchId, 2099, 1, ExportFormat.CSV)
         }
     }
@@ -254,7 +254,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `all-time export throws 404 when no data`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ExportService.exportAllTime(branchId, ExportFormat.CSV)
         }
     }
@@ -331,22 +331,22 @@ class ExportServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `clinic branch type throws BadRequest for provincial export`() {
-        assertFailsWith<BadRequestResponse> {
+    fun `clinic branch type throws ValidationException for provincial export`() {
+        assertFailsWith<ValidationException> {
             ExportService.exportByBranchType(BranchType.CLINIC, null, null, ExportFormat.CSV)
         }
     }
 
     @Test
-    fun `parseFormat throws BadRequest for invalid format`() {
-        assertFailsWith<BadRequestResponse> {
+    fun `parseFormat throws ValidationException for invalid format`() {
+        assertFailsWith<ValidationException> {
             ExportService.parseFormat("xlsx")
         }
     }
 
     @Test
-    fun `parseFormat throws BadRequest for null format`() {
-        assertFailsWith<BadRequestResponse> {
+    fun `parseFormat throws ValidationException for null format`() {
+        assertFailsWith<ValidationException> {
             ExportService.parseFormat(null)
         }
     }

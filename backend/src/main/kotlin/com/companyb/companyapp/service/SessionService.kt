@@ -2,6 +2,9 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
@@ -12,9 +15,6 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionVoid
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -58,12 +58,12 @@ object SessionService {
         nextAppointmentDate: LocalDate?,
     ): SessionCreateResult {
         if (finalPrice < BigDecimal.ZERO) {
-            throw BadRequestResponse("finalPrice must be non-negative")
+            throw ValidationException("finalPrice must be non-negative")
         }
 
         val branchType =
             SessionRepository.getBranchType(branchId)
-                ?: throw NotFoundResponse("Branch not found")
+                ?: throw NotFoundException("Branch not found")
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {
@@ -101,7 +101,7 @@ object SessionService {
             } catch (e: IllegalStateException) {
                 when (e.message) {
                     "client_already_has_pending_session" -> {
-                        throw ConflictResponse("Client already has an active PENDING session")
+                        throw ConflictException("Client already has an active PENDING session")
                     }
 
                     else -> {
@@ -126,7 +126,7 @@ object SessionService {
         return activeRates
             .firstOrNull { it.sessionType == sessionType }
             ?.rate
-            ?: throw BadRequestResponse("No base rate configured for session type $sessionType at this branch")
+            ?: throw ValidationException("No base rate configured for session type $sessionType at this branch")
     }
 
     @Suppress("ReturnCount", "ThrowsCount")
@@ -136,16 +136,16 @@ object SessionService {
         newStatus: SessionStatus,
         expectedVersion: Int,
     ): Session {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
 
         if (session.version != expectedVersion) {
-            throw ConflictResponse("Session version mismatch")
+            throw ConflictException("Session version mismatch")
         }
 
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         if (session.isWalkIn && newStatus in setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)) {
-            throw BadRequestResponse("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
+            throw ValidationException("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
         }
 
         val oldStatus = SessionStatus.valueOf(session.sessionStatus)
@@ -175,10 +175,10 @@ object SessionService {
         voidReason: String,
     ): VoidResult {
         if (voidReason.isBlank()) {
-            throw BadRequestResponse("voidReason must not be blank")
+            throw ValidationException("voidReason must not be blank")
         }
 
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
 
         val existing = SessionVoidRepository.findBySessionId(sessionId)
         if (existing != null) {
@@ -210,14 +210,14 @@ object SessionService {
         unvoidedReason: String,
     ): SessionVoid {
         if (unvoidedReason.isBlank()) {
-            throw BadRequestResponse("unvoidedReason must not be blank")
+            throw ValidationException("unvoidedReason must not be blank")
         }
 
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
 
         val sessionVoid =
             SessionVoidRepository.findBySessionId(sessionId)
-                ?: throw NotFoundResponse("Session is not voided")
+                ?: throw NotFoundException("Session is not voided")
 
         if (sessionVoid.unvoidedAt != null) {
             logger.info { "[UNVOID-SESSION] Session $sessionId already unvoided, returning existing (idempotent)" }
@@ -231,7 +231,7 @@ object SessionService {
                 sessionVoidId = sessionVoid.id,
                 unvoidedBy = callerId,
                 unvoidedReason = unvoidedReason,
-            ) ?: throw NotFoundResponse("Session void record not found after unvoid")
+            ) ?: throw NotFoundException("Session void record not found after unvoid")
 
         logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
 

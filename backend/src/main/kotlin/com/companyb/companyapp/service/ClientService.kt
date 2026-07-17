@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ClientUpdateParams
 import com.companyb.companyapp.repository.model.Client
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ClientService {
@@ -33,18 +33,18 @@ object ClientService {
         val cleanFirst = firstName.trim()
         val cleanLast = lastName.trim()
         if (cleanFirst.isBlank()) {
-            throw BadRequestResponse("First name is required")
+            throw ValidationException("First name is required")
         }
         if (cleanLast.isBlank()) {
-            throw BadRequestResponse("Last name is required")
+            throw ValidationException("Last name is required")
         }
         if (gender !in VALID_GENDERS) {
-            throw BadRequestResponse("Gender must be 'M' or 'F'")
+            throw ValidationException("Gender must be 'M' or 'F'")
         }
         val hasBothBp = systolicBp != null && diastolicBp != null
         val hasNone = systolicBp == null && diastolicBp == null
         if (!hasBothBp && !hasNone) {
-            throw BadRequestResponse(
+            throw ValidationException(
                 "Both systolic and diastolic blood pressure must be provided together or not at all",
             )
         }
@@ -71,13 +71,13 @@ object ClientService {
     fun search(query: String): List<Client> {
         val q = query.trim()
         if (q.isEmpty()) {
-            throw BadRequestResponse("Search query is required")
+            throw ValidationException("Search query is required")
         }
         return ClientRepository.search(q)
     }
 
     fun findById(clientId: UUID): Client =
-        ClientRepository.findById(clientId) ?: throw NotFoundResponse("Client not found")
+        ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
 
     @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "CyclomaticComplexMethod")
     fun update(
@@ -96,18 +96,18 @@ object ClientService {
         medicalConditions: String?,
     ): Client {
         if (firstName != null && firstName.trim().isBlank()) {
-            throw BadRequestResponse("First name cannot be blank")
+            throw ValidationException("First name cannot be blank")
         }
         if (lastName != null && lastName.trim().isBlank()) {
-            throw BadRequestResponse("Last name cannot be blank")
+            throw ValidationException("Last name cannot be blank")
         }
         if (gender != null && gender !in VALID_GENDERS) {
-            throw BadRequestResponse("Gender must be 'M' or 'F'")
+            throw ValidationException("Gender must be 'M' or 'F'")
         }
         val hasBothBp = systolicBp != null && diastolicBp != null
         val hasNone = systolicBp == null && diastolicBp == null
         if (!hasBothBp && !hasNone) {
-            throw BadRequestResponse(
+            throw ValidationException(
                 "Both systolic and diastolic blood pressure must be provided together or not at all",
             )
         }
@@ -130,7 +130,7 @@ object ClientService {
                     changedBy = callerId,
                 ),
             )
-        return updated ?: throw NotFoundResponse("Client not found")
+        return updated ?: throw NotFoundException("Client not found")
     }
 
     fun anonymize(
@@ -139,7 +139,7 @@ object ClientService {
     ) {
         val updated = ClientRepository.anonymize(clientId, callerId)
         if (!updated) {
-            throw NotFoundResponse("Client not found")
+            throw NotFoundException("Client not found")
         }
     }
 }

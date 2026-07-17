@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
@@ -8,7 +9,6 @@ import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object SessionPractitionerService {
@@ -34,7 +34,7 @@ object SessionPractitionerService {
 
         val branchDay =
             BranchDayRepository.findById(session.branchDayId)
-                ?: throw NotFoundResponse("Branch day not found")
+                ?: throw NotFoundException("Branch day not found")
 
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchDay.branchId, practitionerId)
         val slotAtTime = assignment?.slot ?: DEFAULT_SLOT
@@ -70,7 +70,7 @@ object SessionPractitionerService {
                 practitionerId = practitionerId,
                 remarks = remarks,
                 changedBy = callerId,
-            ) ?: throw NotFoundResponse("Practitioner not found in session")
+            ) ?: throw NotFoundException("Practitioner not found in session")
 
         logger.info {
             "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
@@ -102,7 +102,7 @@ object SessionPractitionerService {
         sessionId: UUID,
         callerId: UUID,
     ): Session {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
         return session
     }
@@ -112,5 +112,5 @@ object SessionPractitionerService {
         practitionerId: UUID,
     ): SessionPractitioner =
         SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
-            ?: throw NotFoundResponse("Practitioner not found in session")
+            ?: throw NotFoundException("Practitioner not found in session")
 }

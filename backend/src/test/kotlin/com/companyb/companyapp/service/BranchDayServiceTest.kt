@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.DayStatus
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.Test
@@ -41,7 +41,7 @@ class BranchDayServiceTest {
 
     @Test
     fun `past day write without EDIT_PAST_DAY is forbidden`() {
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<ForbiddenException> {
             BranchDayService.assertEditableState(DayStatus.PAST, hasEditPastDay = false, reason = null)
         }
     }
@@ -53,14 +53,14 @@ class BranchDayServiceTest {
 
     @Test
     fun `remitted day write without reason is bad request`() {
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             BranchDayService.assertEditableState(DayStatus.REMITTED, hasEditPastDay = true, reason = "  ")
         }
     }
 
     @Test
     fun `remitted day write without capability is forbidden before reason check`() {
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<ForbiddenException> {
             BranchDayService.assertEditableState(DayStatus.REMITTED, hasEditPastDay = false, reason = null)
         }
     }

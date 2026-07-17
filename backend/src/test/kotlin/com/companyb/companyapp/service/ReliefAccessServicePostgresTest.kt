@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -12,9 +15,6 @@ import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ForbiddenResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -88,7 +88,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, noClockInTarget)
         val requestId = UUID.randomUUID()
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ReliefAccessService.requestReliefAccess(requestId, branchDayId, noClockInTarget, reliefUserId)
         }
     }
@@ -102,7 +102,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, branchDayId)
         val requestId = UUID.randomUUID()
 
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<ForbiddenException> {
             ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, nonReliefUser)
         }
     }
@@ -142,14 +142,14 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<ForbiddenException> {
             ReliefAccessService.grantAccess(requestId, otherUser)
         }
     }
 
     @Test
     fun `grant on non-existent request fails with 404`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ReliefAccessService.grantAccess(UUID.randomUUID(), targetUserId)
         }
     }
@@ -199,7 +199,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
-        assertFailsWith<ForbiddenResponse> {
+        assertFailsWith<ForbiddenException> {
             ReliefAccessService.denyAccess(requestId, otherUser)
         }
     }
@@ -210,14 +210,14 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
         ReliefAccessService.grantAccess(requestId, targetUserId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             ReliefAccessService.denyAccess(requestId, targetUserId)
         }
     }
 
     @Test
     fun `deny on non-existent request fails with 404`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ReliefAccessService.denyAccess(UUID.randomUUID(), targetUserId)
         }
     }

@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.DenyList
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 /**
@@ -20,7 +20,7 @@ object UserService {
     ) {
         val updated = UserRepository.deactivate(targetUserId, callerId)
         if (!updated) {
-            throw NotFoundResponse("User not found")
+            throw NotFoundException("User not found")
         }
         DenyList.deny(targetUserId)
         logger.info { "[DEACTIVATE] User deactivated and added to deny list" }

@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -29,9 +29,9 @@ object AuditLogService {
         entryId: UUID,
     ): AuditLogEntry {
         val updated = AuditLogRepository.acknowledge(entryId, callerId)
-        if (!updated) throw NotFoundResponse("Audit entry not found or already acknowledged")
+        if (!updated) throw NotFoundException("Audit entry not found or already acknowledged")
 
         return AuditLogRepository.findById(entryId)
-            ?: throw NotFoundResponse("Audit entry not found")
+            ?: throw NotFoundException("Audit entry not found")
     }
 }

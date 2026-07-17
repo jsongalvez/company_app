@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
@@ -26,7 +26,7 @@ object ProductService {
     ): ProductCreateResult {
         val cleanName = name.trim()
         if (cleanName.isBlank()) {
-            throw BadRequestResponse("Product name is required")
+            throw ValidationException("Product name is required")
         }
 
         val parsedPrice = parsePrice(unitPrice)
@@ -34,7 +34,7 @@ object ProductService {
 
         val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
         if (!categoryExists) {
-            throw BadRequestResponse("Product category not found")
+            throw ValidationException("Product category not found")
         }
 
         return ProductRepository.create(id, cleanName, productCategoryId, parsedPrice, parsedCommission, callerId)
@@ -43,7 +43,7 @@ object ProductService {
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()
 
     fun findById(productId: UUID): Product =
-        ProductRepository.findById(productId) ?: throw NotFoundResponse("Product not found")
+        ProductRepository.findById(productId) ?: throw NotFoundException("Product not found")
 
     @Suppress("LongParameterList", "ThrowsCount")
     fun update(
@@ -56,11 +56,11 @@ object ProductService {
         isActive: Boolean?,
     ): Product {
         if (name != null && name.trim().isBlank()) {
-            throw BadRequestResponse("Product name cannot be blank")
+            throw ValidationException("Product name cannot be blank")
         }
 
         if (productCategoryId != null && ProductCategoryRepository.findById(productCategoryId) == null) {
-            throw BadRequestResponse("Product category not found")
+            throw ValidationException("Product category not found")
         }
 
         val parsedPrice = unitPrice?.let { parsePrice(it) }
@@ -76,11 +76,11 @@ object ProductService {
                 isActive = isActive,
                 changedBy = callerId,
             )
-        return updated ?: throw NotFoundResponse("Product not found")
+        return updated ?: throw NotFoundException("Product not found")
     }
 
     private fun parsePrice(value: String): BigDecimal =
         runCatching { BigDecimal(value).setScale(PRICE_SCALE, RoundingMode.HALF_UP) }
-            .getOrElse { throw BadRequestResponse("Invalid price amount: $value") }
-            .also { if (it < BigDecimal.ZERO) throw BadRequestResponse("Price must be non-negative") }
+            .getOrElse { throw ValidationException("Invalid price amount: $value") }
+            .also { if (it < BigDecimal.ZERO) throw ValidationException("Price must be non-negative") }
 }

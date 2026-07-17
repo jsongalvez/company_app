@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -14,7 +15,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -133,14 +133,14 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add concern throws 404 for non-existent session`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ConcernService.addToSession(callerId, UUID.randomUUID(), systemConcernId)
         }
     }
 
     @Test
     fun `add concern throws 404 for non-existent concern`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ConcernService.addToSession(callerId, sessionId, UUID.randomUUID())
         }
     }
@@ -182,7 +182,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `remove concern throws 404 for non-existent concern`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             ConcernService.removeFromSession(callerId, sessionId, UUID.randomUUID())
         }
     }

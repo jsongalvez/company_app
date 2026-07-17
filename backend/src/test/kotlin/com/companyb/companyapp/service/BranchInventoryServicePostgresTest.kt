@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -12,8 +14,6 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -77,7 +77,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             BranchInventoryService.ensureCard(UUID.randomUUID(), productId)
         }
     }
@@ -87,7 +87,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             BranchInventoryService.ensureCard(branchId, UUID.randomUUID())
         }
     }
@@ -152,7 +152,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             BranchInventoryService.restock(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),
@@ -171,7 +171,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             BranchInventoryService.restock(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),
@@ -236,7 +236,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     fun `findByBranch with non-existent branch returns not found`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             BranchInventoryService.findByBranch(UUID.randomUUID())
         }
     }
@@ -401,7 +401,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             BranchInventoryService.recordMovement(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),
@@ -424,7 +424,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<BadRequestResponse> {
+        assertFailsWith<ValidationException> {
             BranchInventoryService.recordMovement(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),
@@ -478,7 +478,7 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             BranchInventoryService.recordMovement(
                 callerId = callerId,
                 movementId = UUID.randomUUID(),

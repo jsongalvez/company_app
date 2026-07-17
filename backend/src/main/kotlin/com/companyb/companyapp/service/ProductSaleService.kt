@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
@@ -7,9 +10,6 @@ import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.ProductSale
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
 object ProductSaleService {
@@ -32,19 +32,19 @@ object ProductSaleService {
         val branchDay = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         if (BranchRepository.findById(branchDay.branchId) == null) {
-            throw NotFoundResponse("Branch not found")
+            throw NotFoundException("Branch not found")
         }
 
         val product =
             ProductRepository.findById(productId)
-                ?: throw NotFoundResponse("Product not found")
+                ?: throw NotFoundException("Product not found")
 
         if (!product.isActive) {
-            throw BadRequestResponse("Product is not active")
+            throw ValidationException("Product is not active")
         }
 
         if (quantity < MINIMUM_QUANTITY) {
-            throw BadRequestResponse("Quantity must be at least 1")
+            throw ValidationException("Quantity must be at least 1")
         }
 
         validateSessionWalkInConstraints(sessionId, clientId, isWalkIn)
@@ -68,8 +68,8 @@ object ProductSaleService {
                 )
             } catch (e: IllegalStateException) {
                 when (e.message) {
-                    "version_mismatch" -> throw ConflictResponse("Inventory version mismatch")
-                    "insufficient_stock" -> throw BadRequestResponse("Insufficient stock")
+                    "version_mismatch" -> throw ConflictException("Inventory version mismatch")
+                    "insufficient_stock" -> throw ValidationException("Insufficient stock")
                     else -> throw e
                 }
             }
@@ -87,22 +87,22 @@ object ProductSaleService {
     ) {
         if (sessionId != null) {
             if (clientId != null) {
-                throw BadRequestResponse("Session-linked sale must not have a clientId")
+                throw ValidationException("Session-linked sale must not have a clientId")
             }
             if (isWalkIn) {
-                throw BadRequestResponse("Session-linked sale must not be a walk-in")
+                throw ValidationException("Session-linked sale must not be a walk-in")
             }
             if (SessionRepository.findById(sessionId) == null) {
-                throw NotFoundResponse("Session not found")
+                throw NotFoundException("Session not found")
             }
         }
 
         if (sessionId == null && clientId != null && !isWalkIn) {
-            throw BadRequestResponse("Walk-in sale with known client must set isWalkIn=true")
+            throw ValidationException("Walk-in sale with known client must set isWalkIn=true")
         }
 
         if (sessionId == null && clientId == null && !isWalkIn) {
-            throw BadRequestResponse("Anonymous sale must set isWalkIn=true")
+            throw ValidationException("Anonymous sale must set isWalkIn=true")
         }
     }
 }

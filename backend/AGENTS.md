@@ -79,14 +79,14 @@ operates on a different parent:
 ```kotlin
 // WRONG — line can belong to remittance A while operating through remittance B's URL
 fun removeLine(callerId: UUID, remittanceId: UUID, lineId: UUID): Line {
-    val remittance = RemittanceRepository.findById(remittanceId) ?: throw NotFoundResponse(...)
+    val remittance = RemittanceRepository.findById(remittanceId) ?: throw NotFoundException(...)
     // ... check remittance status ...
     return RemittanceLineRepository.softDelete(lineId, callerId, remittance.version)
 }
 
 // CORRECT — pass parentId to repository and include it in the WHERE clause
 fun removeLine(callerId: UUID, remittanceId: UUID, lineId: UUID): Line {
-    val remittance = RemittanceRepository.findById(remittanceId) ?: throw NotFoundResponse(...)
+    val remittance = RemittanceRepository.findById(remittanceId) ?: throw NotFoundException(...)
     // ... check remittance status ...
     return RemittanceLineRepository.softDelete(lineId, remittanceId, callerId, remittance.version)
 }
@@ -140,9 +140,13 @@ inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup
 
 ## HTTP errors & day state
 
-Signal HTTP errors by throwing Javalin's built-in response exceptions from the service layer:
-`ForbiddenResponse` (403), `BadRequestResponse` (400), `NotFoundResponse` (404),
-`UnauthorizedResponse` (401). There is no custom exception hierarchy.
+Signal business errors by throwing domain exceptions from the service layer:
+`ValidationException` (400), `NotFoundException` (404), `ConflictException` (409),
+`ForbiddenException` (403).
+These are defined in `com.companyb.companyapp.exception` and are mapped to HTTP status codes
+by a centralized exception handler in `Main.kt` (`registerExceptionHandlers`).
+Route handlers may still throw Javalin HTTP exceptions for request-validation concerns
+(BadRequestResponse, UnauthorizedResponse, ForbiddenResponse).
 
 Before any operational/financial write, resolve the owning day with
 `BranchDayService.resolveOrCreate(branchId, date)` and gate it with
@@ -255,7 +259,7 @@ val myJsonCol = registerColumn("my_json_col", JsonBColumnType()).nullable()
 
 ## Sessions
 
-Session create (`POST /api/sessions`) uses an idempotent PK lookup first (`SessionRepository.findById`) to handle retries with the same UUID before checking the PENDING guard (`hasActivePendingSession`). This prevents `ConflictResponse` for idempotent retries.
+Session create (`POST /api/sessions`) uses an idempotent PK lookup first (`SessionRepository.findById`) to handle retries with the same UUID before checking the PENDING guard (`hasActivePendingSession`). This prevents `ConflictException` for idempotent retries.
 
 The `computeSessionType` pure function is extracted from the service so it can be unit-tested without a database. The prior session count excludes MEDICAL_MISSION sessions and voided sessions (via `active_session_voids` view LEFT JOIN).
 
@@ -272,7 +276,7 @@ The service determines `is_relief` by checking for an active `user_branch_assign
 branch: if no assignment exists, the user clocks in as relief.
 
 Before inserting, check for an existing active clock-in via `AttendanceRepository.hasActiveClockIn`
-and throw `io.javalin.http.ConflictResponse` (409) if found — this prevents the unique index
+and throw `ConflictException` (409) if found — this prevents the unique index
 violation on `idx_one_active_clock_in`.
 
 The attendance insert and `branch_day_assignment` upsert happen in a single transaction using

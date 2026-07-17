@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service.export
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ExportRepository
 import com.companyb.companyapp.repository.model.Branch
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import java.time.LocalDate
 import java.time.Month
 import java.util.UUID
@@ -25,7 +25,7 @@ object ExportService {
         val summary =
             com.companyb.companyapp.repository.DailySalesSummaryRepository
                 .findByBranchAndDate(branchId, date)
-                ?: throw NotFoundResponse("No data for this branch and date")
+                ?: throw NotFoundException("No data for this branch and date")
 
         val title = "Daily Sales Summary - ${branch.name} - ${summary.date}"
         val headers = dailyHeaders()
@@ -57,7 +57,7 @@ object ExportService {
                 year,
                 month,
             )
-                ?: throw NotFoundResponse("No remittance data for this branch, year, and month")
+                ?: throw NotFoundException("No remittance data for this branch, year, and month")
 
         val monthName = Month.of(month)
         val title = "Monthly Remittance Summary - ${branch.name} - $year $monthName"
@@ -85,7 +85,7 @@ object ExportService {
 
         val summaries = ExportRepository.findAllTimeByBranch(branchId)
         if (summaries.isEmpty()) {
-            throw NotFoundResponse("No remittance data for this branch")
+            throw NotFoundException("No remittance data for this branch")
         }
 
         val title = "All-Time Remittance Summary - ${branch.name}"
@@ -120,12 +120,12 @@ object ExportService {
         when (formatParam?.lowercase()) {
             "csv" -> ExportFormat.CSV
             "pdf" -> ExportFormat.PDF
-            else -> throw BadRequestResponse("format query param is required (csv or pdf)")
+            else -> throw ValidationException("format query param is required (csv or pdf)")
         }
 
     private fun findBranch(branchId: UUID): Branch =
         BranchRepository.findById(branchId)
-            ?: throw NotFoundResponse("Branch not found")
+            ?: throw NotFoundException("Branch not found")
 
     private fun buildResult(
         title: String,
@@ -156,7 +156,7 @@ object ExportService {
         when (branchType) {
             BranchType.PROVINCIAL_TOUR -> "Provincial Tour"
             BranchType.MEDICAL_MISSION -> "Medical Mission"
-            BranchType.CLINIC -> throw BadRequestResponse("Use branch-specific export for clinic branches")
+            BranchType.CLINIC -> throw ValidationException("Use branch-specific export for clinic branches")
         }
 
     private fun fetchBranchTypeSummaries(
@@ -172,7 +172,7 @@ object ExportService {
             }
         if (summaries.isEmpty()) {
             val typeName = branchTypeName(branchType)
-            throw NotFoundResponse("No remittance data for $typeName branches")
+            throw NotFoundException("No remittance data for $typeName branches")
         }
         return summaries
     }

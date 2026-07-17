@@ -1,5 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddLineParams
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
@@ -16,9 +19,6 @@ import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceType
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.ConflictResponse
-import io.javalin.http.NotFoundResponse
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -34,14 +34,14 @@ object RemittanceService {
     ): RemittanceSubmissionResult {
         val existing =
             RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundResponse("Remittance not found")
+                ?: throw NotFoundException("Remittance not found")
 
         if (existing.status != RemittanceStatus.DRAFT) {
-            throw BadRequestResponse("Can only submit DRAFT remittances")
+            throw ValidationException("Can only submit DRAFT remittances")
         }
 
         if (existing.version != expectedVersion) {
-            throw ConflictResponse("Remittance version mismatch")
+            throw ConflictException("Remittance version mismatch")
         }
 
         try {
@@ -50,7 +50,7 @@ object RemittanceService {
                     remittanceId = remittanceId,
                     expectedVersion = expectedVersion,
                     callerId = callerId,
-                ) ?: throw NotFoundResponse("Remittance not found")
+                ) ?: throw NotFoundException("Remittance not found")
 
             logger.info {
                 "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
@@ -59,10 +59,10 @@ object RemittanceService {
             return result
         } catch (e: IllegalStateException) {
             if (e.message == "version_mismatch") {
-                throw ConflictResponse("Remittance version mismatch")
+                throw ConflictException("Remittance version mismatch")
             }
             if (e.message == "not_draft") {
-                throw BadRequestResponse("Can only submit DRAFT remittances")
+                throw ValidationException("Can only submit DRAFT remittances")
             }
             throw e
         }
@@ -79,11 +79,11 @@ object RemittanceService {
         dateRangeEnd: LocalDate,
     ): Remittance {
         if (dateRangeEnd.isBefore(dateRangeStart)) {
-            throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
+            throw ValidationException("dateRangeEnd must not be before dateRangeStart")
         }
 
         BranchRepository.findById(branchId)
-            ?: throw NotFoundResponse("Branch not found")
+            ?: throw NotFoundException("Branch not found")
 
         val today = LocalDate.now(BranchDayService.manilaZone)
         val result =
@@ -115,25 +115,25 @@ object RemittanceService {
     ): RemittanceLine {
         val remittance =
             RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundResponse("Remittance not found")
+                ?: throw NotFoundException("Remittance not found")
 
         if (remittance.status != RemittanceStatus.DRAFT) {
-            throw BadRequestResponse("Can only add lines to DRAFT remittances")
+            throw ValidationException("Can only add lines to DRAFT remittances")
         }
 
         when (type) {
             RemittanceLineType.SESSION -> {
-                if (sessionId == null) throw BadRequestResponse("sessionId is required for SESSION line type")
-                if (productSaleId != null) throw BadRequestResponse("productSaleId must be null for SESSION line type")
+                if (sessionId == null) throw ValidationException("sessionId is required for SESSION line type")
+                if (productSaleId != null) throw ValidationException("productSaleId must be null for SESSION line type")
             }
 
             RemittanceLineType.PRODUCT_SALE -> {
                 if (productSaleId ==
                     null
                 ) {
-                    throw BadRequestResponse("productSaleId is required for PRODUCT_SALE line type")
+                    throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
                 }
-                if (sessionId != null) throw BadRequestResponse("sessionId must be null for PRODUCT_SALE line type")
+                if (sessionId != null) throw ValidationException("sessionId must be null for PRODUCT_SALE line type")
             }
         }
 
@@ -153,7 +153,7 @@ object RemittanceService {
                 )
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
-                    throw ConflictResponse("Remittance version mismatch")
+                    throw ConflictException("Remittance version mismatch")
                 }
                 throw e
             }
@@ -170,19 +170,19 @@ object RemittanceService {
     ): RemittanceLine {
         val remittance =
             RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundResponse("Remittance not found")
+                ?: throw NotFoundException("Remittance not found")
 
         if (remittance.status != RemittanceStatus.DRAFT) {
-            throw BadRequestResponse("Can only delete lines from DRAFT remittances")
+            throw ValidationException("Can only delete lines from DRAFT remittances")
         }
 
         val line =
             try {
                 RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version)
-                    ?: throw NotFoundResponse("Remittance line not found")
+                    ?: throw NotFoundException("Remittance line not found")
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
-                    throw ConflictResponse("Remittance version mismatch")
+                    throw ConflictException("Remittance version mismatch")
                 }
                 throw e
             }
@@ -200,14 +200,14 @@ object RemittanceService {
     ): RemittanceDayBreakdown {
         val remittance =
             RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundResponse("Remittance not found")
+                ?: throw NotFoundException("Remittance not found")
 
         if (remittance.status != RemittanceStatus.DRAFT) {
-            throw BadRequestResponse("Can only add day breakdowns to DRAFT remittances")
+            throw ValidationException("Can only add day breakdowns to DRAFT remittances")
         }
 
         BranchDayRepository.findById(branchDayId)
-            ?: throw NotFoundResponse("Branch day not found")
+            ?: throw NotFoundException("Branch day not found")
 
         val breakdown =
             RemittanceDayBreakdownRepository.addDayBreakdown(
@@ -225,7 +225,7 @@ object RemittanceService {
     fun getRemittance(remittanceId: UUID): RemittanceDetail {
         val remittance =
             RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundResponse("Remittance not found")
+                ?: throw NotFoundException("Remittance not found")
 
         val lines = RemittanceLineRepository.findByRemittanceId(remittanceId)
         val totalAmount = RemittanceLineRepository.sumAmountsByRemittanceId(remittanceId)

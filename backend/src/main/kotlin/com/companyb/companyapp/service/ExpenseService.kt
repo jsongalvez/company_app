@@ -1,11 +1,12 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.javalin.http.BadRequestResponse
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -27,7 +28,7 @@ object ExpenseService {
         }
 
         if (amount <= BigDecimal.ZERO) {
-            throw BadRequestResponse("Amount must be positive")
+            throw ValidationException("Amount must be positive")
         }
 
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
@@ -43,16 +44,16 @@ object ExpenseService {
     ): Expense {
         val expense =
             ExpenseRepository.findById(expenseId)
-                ?: throw io.javalin.http.NotFoundResponse("Expense not found")
+                ?: throw NotFoundException("Expense not found")
 
         if (reason.isBlank()) {
-            throw BadRequestResponse("Reason is required for expense deletion")
+            throw ValidationException("Reason is required for expense deletion")
         }
 
         BranchDayService.checkBranchDayEditable(callerId, expense.branchDayId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId, reason)
-            ?: throw io.javalin.http.NotFoundResponse("Expense not found")
+            ?: throw NotFoundException("Expense not found")
     }
 
     @Suppress("ThrowsCount", "UnusedParameter")
@@ -61,7 +62,7 @@ object ExpenseService {
         branchDayId: UUID,
     ): List<Expense> {
         BranchDayRepository.findById(branchDayId)
-            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
+            ?: throw NotFoundException("Branch day not found")
 
         return ExpenseRepository.findByBranchDayId(branchDayId)
     }

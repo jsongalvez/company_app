@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
@@ -7,7 +8,6 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -151,7 +151,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantAssignCompensation(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             AuditLogService.acknowledge(callerId, UUID.randomUUID())
         }
     }
@@ -164,7 +164,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
         acknowledgeEntryDirectly(entryId)
 
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             AuditLogService.acknowledge(callerId, entryId)
         }
     }

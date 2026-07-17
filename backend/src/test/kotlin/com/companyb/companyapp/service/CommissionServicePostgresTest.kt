@@ -1,6 +1,8 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -21,8 +23,6 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
-import io.javalin.http.BadRequestResponse
-import io.javalin.http.NotFoundResponse
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -203,7 +203,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create with non-existent product sale returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             CommissionManualInclusionService.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
@@ -276,7 +276,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `get splits with non-existent branch day returns not found`() {
-        assertFailsWith<NotFoundResponse> {
+        assertFailsWith<NotFoundException> {
             CommissionSplitService.getByBranchDayId(UUID.randomUUID())
         }
     }
