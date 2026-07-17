@@ -57,6 +57,10 @@ object SessionService {
         bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
     ): SessionCreateResult {
+        if (finalPrice < BigDecimal.ZERO) {
+            throw BadRequestResponse("finalPrice must be non-negative")
+        }
+
         val branchType =
             SessionRepository.getBranchType(branchId)
                 ?: throw NotFoundResponse("Branch not found")
@@ -170,6 +174,10 @@ object SessionService {
         voidId: UUID,
         voidReason: String,
     ): VoidResult {
+        if (voidReason.isBlank()) {
+            throw BadRequestResponse("voidReason must not be blank")
+        }
+
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
 
         val existing = SessionVoidRepository.findBySessionId(sessionId)
@@ -201,6 +209,10 @@ object SessionService {
         sessionId: UUID,
         unvoidedReason: String,
     ): SessionVoid {
+        if (unvoidedReason.isBlank()) {
+            throw BadRequestResponse("unvoidedReason must not be blank")
+        }
+
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
 
         val sessionVoid =

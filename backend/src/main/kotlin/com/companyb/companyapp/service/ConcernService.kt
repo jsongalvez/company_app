@@ -4,6 +4,7 @@ import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.Concern
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.javalin.http.BadRequestResponse
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
 
@@ -64,6 +65,10 @@ object ConcernService {
         concernId: UUID,
         label: String,
     ): Concern {
+        if (label.isBlank()) {
+            throw BadRequestResponse("label must not be blank")
+        }
+
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 

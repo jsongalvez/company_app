@@ -154,10 +154,6 @@ object SessionRoutes {
                     .getOrElse { throw BadRequestResponse("Invalid nextAppointmentDate format") }
             }
 
-        if (finalPrice < BigDecimal.ZERO) {
-            throw BadRequestResponse("finalPrice must be non-negative")
-        }
-
         val result =
             SessionService.create(
                 callerId = callerId,
@@ -199,9 +195,6 @@ object SessionRoutes {
         val request = context.bodyAsClass<VoidSessionRequest>()
 
         val voidId = uuidOrThrow(request.id, "void id")
-        if (request.voidReason.isBlank()) {
-            throw BadRequestResponse("voidReason must not be blank")
-        }
 
         val result = SessionService.voidSession(callerId, sessionId, voidId, request.voidReason)
 
@@ -213,10 +206,6 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UnvoidSessionRequest>()
-
-        if (request.unvoidedReason.isBlank()) {
-            throw BadRequestResponse("unvoidedReason must not be blank")
-        }
 
         val sessionVoid = SessionService.unvoidSession(callerId, sessionId, request.unvoidedReason)
 
@@ -315,10 +304,6 @@ object SessionRoutes {
         val request = context.bodyAsClass<PromoteConcernRequest>()
 
         val concernId = uuidOrThrow(request.id, "concern id")
-
-        if (request.label.isBlank()) {
-            throw BadRequestResponse("label must not be blank")
-        }
 
         val concern = ConcernService.promoteConcern(callerId, sessionId, concernId, request.label)
         context.status(HttpStatus.CREATED)
