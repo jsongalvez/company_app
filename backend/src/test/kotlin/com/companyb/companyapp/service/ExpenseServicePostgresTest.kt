@@ -137,31 +137,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create with non-positive amount returns bad request`() {
-        assertFailsWith<ValidationException> {
-            ExpenseService.create(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = branchDayId,
-                amount = BigDecimal.ZERO,
-                category = ExpenseCategory.PANTRY,
-                notes = null,
-            )
-        }
-
-        assertFailsWith<ValidationException> {
-            ExpenseService.create(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = branchDayId,
-                amount = BigDecimal("-100.00"),
-                category = ExpenseCategory.PANTRY,
-                notes = null,
-            )
-        }
-    }
-
-    @Test
     fun `create with non-existent branch day returns not found`() {
         assertFailsWith<NotFoundException> {
             ExpenseService.create(

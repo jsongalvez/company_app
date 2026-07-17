@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchCreateResult
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.Branch
@@ -17,13 +16,7 @@ object BranchService {
         id: UUID,
         name: String,
         branchType: BranchType,
-    ): BranchCreateResult {
-        val cleanName = name.trim()
-        if (cleanName.isBlank()) {
-            throw ValidationException("Branch name is required")
-        }
-        return BranchRepository.create(id, cleanName, branchType, callerId)
-    }
+    ): BranchCreateResult = BranchRepository.create(id, name.trim(), branchType, callerId)
 
     fun findAll(): List<Branch> = BranchRepository.findAll()
 

@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -65,20 +64,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `bp both or none rejects systolic only`() {
-        assertFailsWith<ValidationException> {
-            createClient(callerId, clientAId, systolicBp = 120.toShort(), diastolicBp = null)
-        }
-    }
-
-    @Test
-    fun `bp both or none rejects diastolic only`() {
-        assertFailsWith<ValidationException> {
-            createClient(callerId, clientAId, systolicBp = null, diastolicBp = 80.toShort())
-        }
-    }
-
-    @Test
     fun `bp both or none accepts both null`() {
         val result = createClient(callerId, clientAId, systolicBp = null, diastolicBp = null)
 
@@ -96,27 +81,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
         val persisted = persistedClient(clientAId)
         assertEquals(130.toShort(), persisted.systolicBp)
         assertEquals(85.toShort(), persisted.diastolicBp)
-    }
-
-    @Test
-    fun `invalid gender is rejected`() {
-        assertFailsWith<ValidationException> {
-            createClient(callerId, clientAId, gender = "X")
-        }
-    }
-
-    @Test
-    fun `blank first name is rejected`() {
-        assertFailsWith<ValidationException> {
-            createClient(callerId, clientAId, firstName = "   ")
-        }
-    }
-
-    @Test
-    fun `blank last name is rejected`() {
-        assertFailsWith<ValidationException> {
-            createClient(callerId, clientAId, lastName = "")
-        }
     }
 
     @Test
@@ -182,14 +146,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
         assertTrue(results.any { it.id == clientAId })
         assertFalse(results.any { it.id == clientBId })
-    }
-
-    @Test
-    fun `search rejects empty query`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
-        assertFailsWith<ValidationException> {
-            ClientService.search("   ")
-        }
     }
 
     @Test
@@ -321,78 +277,6 @@ class ClientServicePostgresTest : BasePostgresTest() {
                 gender = null,
                 age = null,
                 systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
-            )
-        }
-    }
-
-    @Test
-    fun `update client rejects invalid gender`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
-        createClient(callerId, clientAId)
-
-        assertFailsWith<ValidationException> {
-            ClientService.update(
-                callerId = callerId,
-                clientId = clientAId,
-                firstName = null,
-                lastName = null,
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = "X",
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
-            )
-        }
-    }
-
-    @Test
-    fun `update client rejects blank first name`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
-        createClient(callerId, clientAId)
-
-        assertFailsWith<ValidationException> {
-            ClientService.update(
-                callerId = callerId,
-                clientId = clientAId,
-                firstName = "   ",
-                lastName = null,
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = null,
-                age = null,
-                systolicBp = null,
-                diastolicBp = null,
-                medicalConditions = null,
-            )
-        }
-    }
-
-    @Test
-    fun `update client rejects partial blood pressure`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
-        createClient(callerId, clientAId)
-
-        assertFailsWith<ValidationException> {
-            ClientService.update(
-                callerId = callerId,
-                clientId = clientAId,
-                firstName = null,
-                lastName = null,
-                middleName = null,
-                suffix = null,
-                phoneNumber = null,
-                address = null,
-                gender = null,
-                age = null,
-                systolicBp = 120.toShort(),
                 diastolicBp = null,
                 medicalConditions = null,
             )

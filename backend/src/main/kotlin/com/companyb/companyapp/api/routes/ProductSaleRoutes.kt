@@ -35,6 +35,8 @@ object ProductSaleRoutes {
             val clientId = request.clientId?.let { uuidOrThrow(it, "client id") }
             val productId = uuidOrThrow(request.productId, "product id")
 
+            if (request.quantity < 1) throw BadRequestResponse("Quantity must be at least 1")
+
             val sale =
                 ProductSaleService.sell(
                     callerId = callerId,

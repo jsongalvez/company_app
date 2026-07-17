@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryCreateResult
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.model.ProductCategory
@@ -15,13 +14,7 @@ object ProductCategoryService {
         callerId: UUID,
         id: UUID,
         name: String,
-    ): ProductCategoryCreateResult {
-        val cleanName = name.trim()
-        if (cleanName.isBlank()) {
-            throw ValidationException("Category name is required")
-        }
-        return ProductCategoryRepository.create(id, cleanName, callerId)
-    }
+    ): ProductCategoryCreateResult = ProductCategoryRepository.create(id, name.trim(), callerId)
 
     fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()
 

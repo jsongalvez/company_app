@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
@@ -12,7 +11,6 @@ import java.util.UUID
 
 object ClientService {
     private val logger = KotlinLogging.logger {}
-    private val VALID_GENDERS = setOf("M", "F")
 
     @Suppress("LongParameterList", "ReturnCount", "ThrowsCount")
     fun create(
@@ -32,22 +30,6 @@ object ClientService {
     ): ClientCreateResult {
         val cleanFirst = firstName.trim()
         val cleanLast = lastName.trim()
-        if (cleanFirst.isBlank()) {
-            throw ValidationException("First name is required")
-        }
-        if (cleanLast.isBlank()) {
-            throw ValidationException("Last name is required")
-        }
-        if (gender !in VALID_GENDERS) {
-            throw ValidationException("Gender must be 'M' or 'F'")
-        }
-        val hasBothBp = systolicBp != null && diastolicBp != null
-        val hasNone = systolicBp == null && diastolicBp == null
-        if (!hasBothBp && !hasNone) {
-            throw ValidationException(
-                "Both systolic and diastolic blood pressure must be provided together or not at all",
-            )
-        }
 
         return ClientRepository.create(
             ClientCreateParams(
@@ -68,13 +50,7 @@ object ClientService {
         )
     }
 
-    fun search(query: String): List<Client> {
-        val q = query.trim()
-        if (q.isEmpty()) {
-            throw ValidationException("Search query is required")
-        }
-        return ClientRepository.search(q)
-    }
+    fun search(query: String): List<Client> = ClientRepository.search(query.trim())
 
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
@@ -95,23 +71,6 @@ object ClientService {
         diastolicBp: Short?,
         medicalConditions: String?,
     ): Client {
-        if (firstName != null && firstName.trim().isBlank()) {
-            throw ValidationException("First name cannot be blank")
-        }
-        if (lastName != null && lastName.trim().isBlank()) {
-            throw ValidationException("Last name cannot be blank")
-        }
-        if (gender != null && gender !in VALID_GENDERS) {
-            throw ValidationException("Gender must be 'M' or 'F'")
-        }
-        val hasBothBp = systolicBp != null && diastolicBp != null
-        val hasNone = systolicBp == null && diastolicBp == null
-        if (!hasBothBp && !hasNone) {
-            throw ValidationException(
-                "Both systolic and diastolic blood pressure must be provided together or not at all",
-            )
-        }
-
         val updated =
             ClientRepository.update(
                 ClientUpdateParams(

@@ -218,21 +218,6 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create draft with reversed date range returns bad request`() {
-        assertFailsWith<ValidationException> {
-            RemittanceService.createDraft(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                type = RemittanceType.SESSION,
-                branchId = branchId,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 15),
-                dateRangeEnd = LocalDate.of(2026, 7, 1),
-            )
-        }
-    }
-
-    @Test
     fun `create draft writes audit log entry`() {
         val remittanceId = UUID.randomUUID()
 

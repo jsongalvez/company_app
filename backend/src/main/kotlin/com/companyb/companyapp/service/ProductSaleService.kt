@@ -15,8 +15,6 @@ import java.util.UUID
 object ProductSaleService {
     private val logger = KotlinLogging.logger {}
 
-    private const val MINIMUM_QUANTITY = 1
-
     @Suppress("ReturnCount", "ThrowsCount", "LongParameterList", "CyclomaticComplexMethod")
     fun sell(
         callerId: UUID,
@@ -41,10 +39,6 @@ object ProductSaleService {
 
         if (!product.isActive) {
             throw ValidationException("Product is not active")
-        }
-
-        if (quantity < MINIMUM_QUANTITY) {
-            throw ValidationException("Quantity must be at least 1")
         }
 
         validateSessionWalkInConstraints(sessionId, clientId, isWalkIn)

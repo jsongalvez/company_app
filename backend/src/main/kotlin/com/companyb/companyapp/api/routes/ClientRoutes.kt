@@ -16,6 +16,7 @@ import java.util.UUID
 
 object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
+    private val VALID_GENDERS = setOf("M", "F")
 
     fun register(config: JavalinConfig) {
         config.routes.before("/api/clients") { context ->
@@ -33,17 +34,31 @@ object ClientRoutes {
         config.routes.post("/api/clients/{$CLIENT_ID_PARAM}/anonymize", ::handleAnonymize)
     }
 
+    @Suppress("ThrowsCount")
     private fun handleCreate(context: Context) {
         val callerId = context.callerUuid()
         val request = context.bodyAsClass<CreateClientRequest>()
         val clientId = uuidOrThrow(request.id, "client id")
 
+        val firstName = request.firstName.trim()
+        if (firstName.isBlank()) throw BadRequestResponse("First name is required")
+        val lastName = request.lastName.trim()
+        if (lastName.isBlank()) throw BadRequestResponse("Last name is required")
+        if (request.gender !in VALID_GENDERS) throw BadRequestResponse("Gender must be 'M' or 'F'")
+        val hasBothBp = request.systolicBp != null && request.diastolicBp != null
+        val hasNone = request.systolicBp == null && request.diastolicBp == null
+        if (!hasBothBp && !hasNone) {
+            throw BadRequestResponse(
+                "Both systolic and diastolic blood pressure must be provided together or not at all",
+            )
+        }
+
         val result =
             ClientService.create(
                 callerId = callerId,
                 id = clientId,
-                firstName = request.firstName,
-                lastName = request.lastName,
+                firstName = firstName,
+                lastName = lastName,
                 middleName = request.middleName,
                 suffix = request.suffix,
                 phoneNumber = request.phoneNumber,
@@ -61,6 +76,7 @@ object ClientRoutes {
 
     private fun handleSearch(context: Context) {
         val query = context.queryParam("q") ?: throw BadRequestResponse("Query parameter 'q' is required")
+        if (query.trim().isEmpty()) throw BadRequestResponse("Search query cannot be blank")
         context.json(ClientService.search(query).map { it.toResponse() })
     }
 
@@ -69,10 +85,33 @@ object ClientRoutes {
         context.json(ClientService.findById(clientId).toResponse())
     }
 
+    @Suppress("ThrowsCount")
     private fun handleUpdate(context: Context) {
         val callerId = context.callerUuid()
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
         val request = context.bodyAsClass<UpdateClientRequest>()
+
+        val firstName = request.firstName
+        if (firstName != null && firstName.trim().isBlank()) {
+            throw BadRequestResponse("First name cannot be blank")
+        }
+        val lastName = request.lastName
+        if (lastName != null && lastName.trim().isBlank()) {
+            throw BadRequestResponse("Last name cannot be blank")
+        }
+        val gender = request.gender
+        if (gender != null && gender !in VALID_GENDERS) {
+            throw BadRequestResponse("Gender must be 'M' or 'F'")
+        }
+        val systolicBp = request.systolicBp
+        val diastolicBp = request.diastolicBp
+        val hasBothBp = systolicBp != null && diastolicBp != null
+        val hasNone = systolicBp == null && diastolicBp == null
+        if (!hasBothBp && !hasNone) {
+            throw BadRequestResponse(
+                "Both systolic and diastolic blood pressure must be provided together or not at all",
+            )
+        }
 
         val updated =
             ClientService.update(

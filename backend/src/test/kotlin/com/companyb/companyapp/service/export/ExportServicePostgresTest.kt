@@ -338,30 +338,6 @@ class ExportServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `parseFormat throws ValidationException for invalid format`() {
-        assertFailsWith<ValidationException> {
-            ExportService.parseFormat("xlsx")
-        }
-    }
-
-    @Test
-    fun `parseFormat throws ValidationException for null format`() {
-        assertFailsWith<ValidationException> {
-            ExportService.parseFormat(null)
-        }
-    }
-
-    @Test
-    fun `parseFormat returns CSV for csv string`() {
-        assertEquals(ExportFormat.CSV, ExportService.parseFormat("csv"))
-    }
-
-    @Test
-    fun `parseFormat returns PDF for pdf string`() {
-        assertEquals(ExportFormat.PDF, ExportService.parseFormat("pdf"))
-    }
-
-    @Test
     fun `provincial export with month filter returns filtered data`() {
         val provBranchId = UUID.randomUUID()
         testBranchIds.add(provBranchId)

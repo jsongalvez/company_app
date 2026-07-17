@@ -329,7 +329,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         id: UUID = rateId,
         sessionType: SessionType = SessionType.REGULAR,
     ) {
-        SessionBaseRateService.setRate(callerId, id, branchId, sessionType, "2500.00")
+        SessionBaseRateService.setRate(callerId, id, branchId, sessionType, BigDecimal("2500.00"))
     }
 
     private fun insertUserBranchAssignment(

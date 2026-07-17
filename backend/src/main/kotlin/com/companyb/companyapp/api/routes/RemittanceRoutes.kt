@@ -83,6 +83,9 @@ object RemittanceRoutes {
         val dateRangeEnd =
             runCatching { LocalDate.parse(request.dateRangeEnd) }
                 .getOrElse { throw BadRequestResponse("Invalid dateRangeEnd") }
+        if (dateRangeEnd.isBefore(dateRangeStart)) {
+            throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
+        }
 
         val remittance =
             RemittanceService.createDraft(

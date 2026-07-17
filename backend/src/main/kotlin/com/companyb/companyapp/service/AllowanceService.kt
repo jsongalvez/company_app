@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AllowanceRepository
 import com.companyb.companyapp.repository.model.Allowance
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -19,10 +18,6 @@ object AllowanceService {
         userId: UUID,
         amount: BigDecimal,
     ): Allowance {
-        if (amount < BigDecimal.ZERO) {
-            throw ValidationException("Amount must be non-negative")
-        }
-
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val result =

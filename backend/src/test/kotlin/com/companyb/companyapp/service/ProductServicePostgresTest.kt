@@ -46,8 +46,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 id = productId,
                 name = "  Test Product  ",
                 productCategoryId = categoryId,
-                unitPrice = "250.00",
-                commissionAmount = "25.00",
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
             )
 
         assertTrue(result.created)
@@ -70,8 +70,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 id = productId,
                 name = "Test Product",
                 productCategoryId = categoryId,
-                unitPrice = "250.00",
-                commissionAmount = "25.00",
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
             )
 
         val duplicate =
@@ -80,8 +80,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 id = productId,
                 name = "Changed Name",
                 productCategoryId = categoryId,
-                unitPrice = "100.00",
-                commissionAmount = "10.00",
+                unitPrice = BigDecimal("100.00"),
+                commissionAmount = BigDecimal("10.00"),
             )
 
         assertTrue(first.created)
@@ -102,16 +102,16 @@ class ProductServicePostgresTest : BasePostgresTest() {
             id = productId,
             name = "Product A",
             productCategoryId = categoryId,
-            unitPrice = "100.00",
-            commissionAmount = "10.00",
+            unitPrice = BigDecimal("100.00"),
+            commissionAmount = BigDecimal("10.00"),
         )
         ProductService.create(
             callerId = callerId,
             id = productId2,
             name = "Product B",
             productCategoryId = categoryId,
-            unitPrice = "200.00",
-            commissionAmount = "20.00",
+            unitPrice = BigDecimal("200.00"),
+            commissionAmount = BigDecimal("20.00"),
         )
 
         val all = ProductService.findAllActive()
@@ -133,8 +133,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
             id = productId,
             name = "Test Product",
             productCategoryId = categoryId,
-            unitPrice = "250.00",
-            commissionAmount = "25.00",
+            unitPrice = BigDecimal("250.00"),
+            commissionAmount = BigDecimal("25.00"),
         )
 
         val found = ProductService.findById(productId)
@@ -152,8 +152,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
             id = productId,
             name = "Original Name",
             productCategoryId = categoryId,
-            unitPrice = "100.00",
-            commissionAmount = "10.00",
+            unitPrice = BigDecimal("100.00"),
+            commissionAmount = BigDecimal("10.00"),
         )
 
         val updated =
@@ -162,7 +162,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 productId = productId,
                 name = "Updated Name",
                 productCategoryId = null,
-                unitPrice = "200.00",
+                unitPrice = BigDecimal("200.00"),
                 commissionAmount = null,
                 isActive = false,
             )
@@ -184,8 +184,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 id = newProductId,
                 name = "New Product",
                 productCategoryId = categoryId,
-                unitPrice = "250.00",
-                commissionAmount = "25.00",
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
             )
 
         assertTrue(result.created)
@@ -209,8 +209,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
             id = newProductId,
             name = "Find Product",
             productCategoryId = categoryId,
-            unitPrice = "250.00",
-            commissionAmount = "25.00",
+            unitPrice = BigDecimal("250.00"),
+            commissionAmount = BigDecimal("25.00"),
         )
 
         val otherCaller = UUID.randomUUID()
@@ -234,8 +234,8 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 id = productId,
                 name = "Test Product",
                 productCategoryId = UUID.randomUUID(),
-                unitPrice = "250.00",
-                commissionAmount = "25.00",
+                unitPrice = BigDecimal("250.00"),
+                commissionAmount = BigDecimal("25.00"),
             )
         }
     }

@@ -32,10 +32,6 @@ object UserBranchAssignmentService {
         userId: UUID,
         slot: Short,
     ): CreateResult {
-        if (slot < 1) {
-            throw ValidationException("Slot must be 1 or greater")
-        }
-
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
@@ -102,10 +98,6 @@ object UserBranchAssignmentService {
         targetUserId: UUID,
         newSlot: Short,
     ) {
-        if (newSlot < 1) {
-            throw ValidationException("Slot must be 1 or greater")
-        }
-
         val canManage =
             CapabilityService.hasCapability(
                 userId = callerId,

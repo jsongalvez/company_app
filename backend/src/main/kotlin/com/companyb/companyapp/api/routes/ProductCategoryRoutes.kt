@@ -28,11 +28,13 @@ object ProductCategoryRoutes {
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductCategoryRequest>()
             val categoryId = uuidOrThrow(request.id, "category id")
+            val name = request.name.trim()
+            if (name.isBlank()) throw BadRequestResponse("Category name is required")
             val result =
                 ProductCategoryService.create(
                     callerId = callerId,
                     id = categoryId,
-                    name = request.name,
+                    name = name,
                 )
 
             context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)

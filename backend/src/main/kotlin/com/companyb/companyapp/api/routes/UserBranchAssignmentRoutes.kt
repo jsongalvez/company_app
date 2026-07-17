@@ -44,6 +44,7 @@ object UserBranchAssignmentRoutes {
         val callerId = context.callerUuid()
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
         val request = context.bodyAsClass<CreateAssignmentRequest>()
+        if (request.slot < 1) throw BadRequestResponse("Slot must be 1 or greater")
         val assignmentId = uuidOrThrow(request.id, "assignment id")
         val targetUserId = uuidOrThrow(request.userId, "user id")
 
@@ -84,6 +85,7 @@ object UserBranchAssignmentRoutes {
         val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
         val request = context.bodyAsClass<UpdateSlotRequest>()
 
+        if (request.slot < 1) throw BadRequestResponse("Slot must be 1 or greater")
         UserBranchAssignmentService.updateSlot(callerId, branchId, targetUserId, request.slot)
         context.status(HttpStatus.NO_CONTENT)
     }

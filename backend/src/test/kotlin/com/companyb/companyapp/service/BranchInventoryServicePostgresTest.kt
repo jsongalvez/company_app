@@ -146,25 +146,6 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `restock with negative quantity returns bad request`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-
-        assertFailsWith<ValidationException> {
-            BranchInventoryService.restock(
-                callerId = callerId,
-                movementId = UUID.randomUUID(),
-                branchId = branchId,
-                productId = productId,
-                quantity = -5,
-                branchDayId = branchDayId,
-            )
-        }
-    }
-
-    @Test
     fun `restock with non-existent branch returns not found`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)

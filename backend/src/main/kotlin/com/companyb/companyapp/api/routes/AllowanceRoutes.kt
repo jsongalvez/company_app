@@ -48,6 +48,7 @@ object AllowanceRoutes {
             val amount =
                 runCatching { BigDecimal(request.amount) }
                     .getOrElse { throw BadRequestResponse("Invalid amount") }
+            if (amount < BigDecimal.ZERO) throw BadRequestResponse("Amount must be non-negative")
 
             val allowance =
                 AllowanceService.create(

@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -15,12 +14,12 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -44,7 +43,14 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val result = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
+        val result =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
 
         assertTrue(result.created)
@@ -57,7 +63,14 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     @Test
     fun `set rate without MANAGE_PRODUCTS is allowed at service layer`() {
         val newRateId = UUID.randomUUID()
-        val result = SessionBaseRateService.setRate(callerId, newRateId, branchId, SessionType.REGULAR, "2500.00")
+        val result =
+            SessionBaseRateService.setRate(
+                callerId,
+                newRateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, newRateId)
 
         assertTrue(result.created)
@@ -67,32 +80,26 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `set rate with invalid amount throws bad request`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-
-        assertFailsWith<ValidationException> {
-            SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "not-a-number")
-        }
-    }
-
-    @Test
-    fun `set rate with negative amount throws bad request`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-
-        assertFailsWith<ValidationException> {
-            SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "-100.00")
-        }
-    }
-
-    @Test
     fun `setting second rate for same branch and type deactivates first`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val first = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
-        val second = SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.REGULAR, "3000.00")
+        val first =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
+        val second =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId2,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("3000.00"),
+            )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
 
@@ -109,8 +116,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
-        SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, "2000.00")
+        SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
+        SessionBaseRateService.setRate(callerId, rateId2, branchId, SessionType.SECOND_SESSION, BigDecimal("2000.00"))
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
 
@@ -124,8 +131,22 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val first = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "2500.00")
-        val duplicate = SessionBaseRateService.setRate(callerId, rateId, branchId, SessionType.REGULAR, "3000.00")
+        val first =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
+        val duplicate =
+            SessionBaseRateService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("3000.00"),
+            )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
 
         assertTrue(first.created)

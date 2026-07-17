@@ -28,11 +28,13 @@ object BranchRoutes {
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateBranchRequest>()
             val branchId = uuidOrThrow(request.id, "branch id")
+            val name = request.name.trim()
+            if (name.isBlank()) throw BadRequestResponse("Branch name is required")
             val result =
                 BranchService.create(
                     callerId = callerId,
                     id = branchId,
-                    name = request.name,
+                    name = name,
                     branchType = request.branchType,
                 )
 

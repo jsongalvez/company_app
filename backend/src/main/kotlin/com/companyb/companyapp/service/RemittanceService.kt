@@ -78,10 +78,6 @@ object RemittanceService {
         dateRangeStart: LocalDate,
         dateRangeEnd: LocalDate,
     ): Remittance {
-        if (dateRangeEnd.isBefore(dateRangeStart)) {
-            throw ValidationException("dateRangeEnd must not be before dateRangeStart")
-        }
-
         BranchRepository.findById(branchId)
             ?: throw NotFoundException("Branch not found")
 

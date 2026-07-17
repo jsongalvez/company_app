@@ -87,17 +87,6 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create with slot less than 1 throws BadRequest`() {
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
-
-        assertFailsWith<ValidationException> {
-            UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 0)
-        }
-    }
-
-    @Test
     fun `create with non-existent branch throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
@@ -220,18 +209,6 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.updateSlot(nonManagerId, branchId, nonManagerId, 7)
 
         assertEquals(7, assignedSlot(assignmentId))
-    }
-
-    @Test
-    fun `updateSlot with slot less than 1 throws BadRequest`() {
-        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
-        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
-
-        assertFailsWith<ValidationException> {
-            UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 0)
-        }
     }
 
     @Test

@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.Concern
@@ -65,10 +64,6 @@ object ConcernService {
         concernId: UUID,
         label: String,
     ): Concern {
-        if (label.isBlank()) {
-            throw ValidationException("label must not be blank")
-        }
-
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
         BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 

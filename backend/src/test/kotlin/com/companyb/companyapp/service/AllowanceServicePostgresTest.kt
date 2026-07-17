@@ -128,19 +128,6 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create with negative amount returns bad request`() {
-        assertFailsWith<ValidationException> {
-            AllowanceService.create(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = branchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("-100.00"),
-            )
-        }
-    }
-
-    @Test
     fun `findByBranchDayId returns allowances for branch day`() {
         val allowanceId1 = UUID.randomUUID()
         val allowanceId2 = UUID.randomUUID()

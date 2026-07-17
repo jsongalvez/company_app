@@ -57,7 +57,7 @@ object ExportRoutes {
         val date =
             runCatching { LocalDate.parse(dateParam) }
                 .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
-        val format = ExportService.parseFormat(context.queryParam("format"))
+        val format = parseFormat(context.queryParam("format"))
 
         val result = ExportService.exportDaily(branchId, date, format)
         sendFileResponse(context, result)
@@ -68,7 +68,7 @@ object ExportRoutes {
         val year = parseRequiredInt(context, "year")
         val month = parseRequiredInt(context, "month")
         validateMonthRange(month)
-        val format = ExportService.parseFormat(context.queryParam("format"))
+        val format = parseFormat(context.queryParam("format"))
 
         val result = ExportService.exportMonthly(branchId, year, month, format)
         sendFileResponse(context, result)
@@ -76,7 +76,7 @@ object ExportRoutes {
 
     private fun handleAllTimeExport(context: io.javalin.http.Context) {
         val branchId = context.pathParamAsUuid("branchId")
-        val format = ExportService.parseFormat(context.queryParam("format"))
+        val format = parseFormat(context.queryParam("format"))
 
         val result = ExportService.exportAllTime(branchId, format)
         sendFileResponse(context, result)
@@ -89,7 +89,7 @@ object ExportRoutes {
         val year = context.queryParam("year")?.toIntOrNull()
         val month = context.queryParam("month")?.toIntOrNull()
         validateOptionalMonth(year, month)
-        val format = ExportService.parseFormat(context.queryParam("format"))
+        val format = parseFormat(context.queryParam("format"))
 
         val result = ExportService.exportByBranchType(branchType, year, month, format)
         sendFileResponse(context, result)
@@ -104,6 +104,13 @@ object ExportRoutes {
         context.header("Content-Disposition", "attachment; filename=\"${result.fileName}\"")
         context.result(result.bytes)
     }
+
+    private fun parseFormat(formatParam: String?): com.companyb.companyapp.service.export.ExportFormat =
+        when (formatParam?.lowercase()) {
+            "csv" -> com.companyb.companyapp.service.export.ExportFormat.CSV
+            "pdf" -> com.companyb.companyapp.service.export.ExportFormat.PDF
+            else -> throw BadRequestResponse("format query param is required (csv or pdf)")
+        }
 
     private fun parseRequiredInt(
         context: io.javalin.http.Context,

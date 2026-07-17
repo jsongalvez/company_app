@@ -1,13 +1,11 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -20,7 +18,6 @@ object SessionBaseRateService {
     private const val FAR_FUTURE_HOUR = 23
     private const val FAR_FUTURE_MINUTE = 59
     private const val FAR_FUTURE_SECOND = 59
-    private const val RATE_SCALE = 2
 
     private val FAR_FUTURE: OffsetDateTime =
         OffsetDateTime.of(
@@ -40,20 +37,13 @@ object SessionBaseRateService {
         id: UUID,
         branchId: UUID,
         sessionType: SessionType,
-        rate: String,
+        rate: BigDecimal,
     ): SetRateResult {
-        val rateAmount =
-            runCatching { BigDecimal(rate).setScale(RATE_SCALE, RoundingMode.HALF_UP) }
-                .getOrElse { throw ValidationException("Invalid rate amount: $rate") }
-        if (rateAmount < BigDecimal.ZERO) {
-            throw ValidationException("Rate must be non-negative")
-        }
-
         val now = OffsetDateTime.now(ZoneOffset.UTC)
 
         SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
 
-        return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rateAmount, now, FAR_FUTURE)
+        return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rate, now, FAR_FUTURE)
     }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> {

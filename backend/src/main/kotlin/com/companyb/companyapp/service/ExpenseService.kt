@@ -27,10 +27,6 @@ object ExpenseService {
             return existing
         }
 
-        if (amount <= BigDecimal.ZERO) {
-            throw ValidationException("Amount must be positive")
-        }
-
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         return ExpenseRepository.create(id, branchDayId, amount, category, callerId, notes)

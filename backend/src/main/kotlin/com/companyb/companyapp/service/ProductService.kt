@@ -8,12 +8,10 @@ import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
-import java.math.RoundingMode
 import java.util.UUID
 
 object ProductService {
     private val logger = KotlinLogging.logger {}
-    private const val PRICE_SCALE = 2
 
     @Suppress("LongParameterList", "ThrowsCount")
     fun create(
@@ -21,23 +19,17 @@ object ProductService {
         id: UUID,
         name: String,
         productCategoryId: UUID,
-        unitPrice: String,
-        commissionAmount: String,
+        unitPrice: BigDecimal,
+        commissionAmount: BigDecimal,
     ): ProductCreateResult {
         val cleanName = name.trim()
-        if (cleanName.isBlank()) {
-            throw ValidationException("Product name is required")
-        }
-
-        val parsedPrice = parsePrice(unitPrice)
-        val parsedCommission = parsePrice(commissionAmount)
 
         val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
         if (!categoryExists) {
             throw ValidationException("Product category not found")
         }
 
-        return ProductRepository.create(id, cleanName, productCategoryId, parsedPrice, parsedCommission, callerId)
+        return ProductRepository.create(id, cleanName, productCategoryId, unitPrice, commissionAmount, callerId)
     }
 
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()
@@ -51,36 +43,24 @@ object ProductService {
         productId: UUID,
         name: String?,
         productCategoryId: UUID?,
-        unitPrice: String?,
-        commissionAmount: String?,
+        unitPrice: BigDecimal?,
+        commissionAmount: BigDecimal?,
         isActive: Boolean?,
     ): Product {
-        if (name != null && name.trim().isBlank()) {
-            throw ValidationException("Product name cannot be blank")
-        }
-
         if (productCategoryId != null && ProductCategoryRepository.findById(productCategoryId) == null) {
             throw ValidationException("Product category not found")
         }
-
-        val parsedPrice = unitPrice?.let { parsePrice(it) }
-        val parsedCommission = commissionAmount?.let { parsePrice(it) }
 
         val updated =
             ProductRepository.update(
                 productId = productId,
                 name = name?.trim()?.takeIf { it.isNotEmpty() },
                 productCategoryId = productCategoryId,
-                unitPrice = parsedPrice,
-                commissionAmount = parsedCommission,
+                unitPrice = unitPrice,
+                commissionAmount = commissionAmount,
                 isActive = isActive,
                 changedBy = callerId,
             )
         return updated ?: throw NotFoundException("Product not found")
     }
-
-    private fun parsePrice(value: String): BigDecimal =
-        runCatching { BigDecimal(value).setScale(PRICE_SCALE, RoundingMode.HALF_UP) }
-            .getOrElse { throw ValidationException("Invalid price amount: $value") }
-            .also { if (it < BigDecimal.ZERO) throw ValidationException("Price must be non-negative") }
 }

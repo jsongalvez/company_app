@@ -43,10 +43,6 @@ object BranchInventoryService {
         quantity: Int,
         branchDayId: UUID,
     ): InventoryMovement {
-        if (quantity <= 0) {
-            throw ValidationException("Restock quantity must be positive")
-        }
-
         if (BranchRepository.findById(branchId) == null) {
             throw NotFoundException("Branch not found")
         }

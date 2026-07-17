@@ -241,23 +241,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `sell rejects quantity less than 1`() {
-        assertFailsWith<ValidationException> {
-            ProductSaleService.sell(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = branchDayId,
-                sessionId = null,
-                clientId = null,
-                isWalkIn = true,
-                productId = productId,
-                quantity = 0,
-                expectedVersion = 1,
-            )
-        }
-    }
-
-    @Test
     fun `sell idempotent duplicate returns same sale`() {
         val saleId = UUID.randomUUID()
 

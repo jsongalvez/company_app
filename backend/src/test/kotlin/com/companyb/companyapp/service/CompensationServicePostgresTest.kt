@@ -204,21 +204,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create with negative amount returns bad request`() {
-        assertFailsWith<ValidationException> {
-            CompensationService.create(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("-100.00"),
-                note = null,
-            )
-        }
-    }
-
-    @Test
     fun `update compensation succeeds`() {
         val compId = UUID.randomUUID()
         val created =
@@ -308,31 +293,6 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             )
 
         assertEquals(0, BigDecimal("2000.00").compareTo(updated.amount))
-    }
-
-    @Test
-    fun `update with negative amount returns bad request`() {
-        val compId = UUID.randomUUID()
-        val created =
-            CompensationService.create(
-                callerId = callerId,
-                id = compId,
-                workBranchDayId = workBranchDayId,
-                payingBranchDayId = payingBranchDayId,
-                userId = targetUserId,
-                amount = BigDecimal("1500.00"),
-                note = null,
-            )
-
-        assertFailsWith<ValidationException> {
-            CompensationService.update(
-                callerId = callerId,
-                compensationId = compId,
-                amount = BigDecimal("-500.00"),
-                note = null,
-                expectedVersion = created.version,
-            )
-        }
     }
 
     @Test

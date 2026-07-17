@@ -116,13 +116,6 @@ object ExportService {
         return buildResult(title, headers, rows, format, fileBase)
     }
 
-    fun parseFormat(formatParam: String?): ExportFormat =
-        when (formatParam?.lowercase()) {
-            "csv" -> ExportFormat.CSV
-            "pdf" -> ExportFormat.PDF
-            else -> throw ValidationException("format query param is required (csv or pdf)")
-        }
-
     private fun findBranch(branchId: UUID): Branch =
         BranchRepository.findById(branchId)
             ?: throw NotFoundException("Branch not found")

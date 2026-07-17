@@ -62,6 +62,7 @@ object BranchInventoryRoutes {
         val request = context.bodyAsClass<RestockRequest>()
         val movementId = uuidOrThrow(request.id, "movement id")
         val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
+        if (request.quantity <= 0) throw BadRequestResponse("Restock quantity must be positive")
 
         val movement =
             BranchInventoryService.restock(

@@ -54,6 +54,7 @@ object ExpenseRoutes {
             val amount =
                 runCatching { BigDecimal(request.amount) }
                     .getOrElse { throw BadRequestResponse("Invalid amount") }
+            if (amount <= BigDecimal.ZERO) throw BadRequestResponse("Amount must be positive")
             val category =
                 runCatching { ExpenseCategory.valueOf(request.category.uppercase()) }
                     .getOrElse { throw BadRequestResponse("Invalid expense category") }

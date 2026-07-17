@@ -143,6 +143,7 @@ object SessionRoutes {
         val finalPrice =
             runCatching { BigDecimal(request.finalPrice) }
                 .getOrElse { throw BadRequestResponse("Invalid final price") }
+        if (finalPrice < BigDecimal.ZERO) throw BadRequestResponse("finalPrice must be non-negative")
         val bookedAt =
             request.bookedAt?.let {
                 runCatching { OffsetDateTime.parse(it) }
@@ -194,6 +195,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<VoidSessionRequest>()
 
+        if (request.voidReason.isBlank()) throw BadRequestResponse("voidReason must not be blank")
         val voidId = uuidOrThrow(request.id, "void id")
 
         val result = SessionService.voidSession(callerId, sessionId, voidId, request.voidReason)
@@ -207,6 +209,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UnvoidSessionRequest>()
 
+        if (request.unvoidedReason.isBlank()) throw BadRequestResponse("unvoidedReason must not be blank")
         val sessionVoid = SessionService.unvoidSession(callerId, sessionId, request.unvoidedReason)
 
         context.status(HttpStatus.OK)
@@ -303,6 +306,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<PromoteConcernRequest>()
 
+        if (request.label.isBlank()) throw BadRequestResponse("label must not be blank")
         val concernId = uuidOrThrow(request.id, "concern id")
 
         val concern = ConcernService.promoteConcern(callerId, sessionId, concernId, request.label)

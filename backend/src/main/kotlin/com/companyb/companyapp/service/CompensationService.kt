@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
@@ -24,10 +23,6 @@ object CompensationService {
         amount: BigDecimal,
         note: String?,
     ): Compensation {
-        if (amount < BigDecimal.ZERO) {
-            throw ValidationException("Amount must be non-negative")
-        }
-
         BranchDayRepository.findById(workBranchDayId)
             ?: throw NotFoundException("Work branch day not found")
 
@@ -62,10 +57,6 @@ object CompensationService {
         note: String?,
         expectedVersion: Int,
     ): Compensation {
-        if (amount < BigDecimal.ZERO) {
-            throw ValidationException("Amount must be non-negative")
-        }
-
         val compensation =
             CompensationRepository.findById(compensationId)
                 ?: throw NotFoundException("Compensation not found")
