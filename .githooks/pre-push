@@ -43,7 +43,7 @@ log pre-push "Baseline comparison passed."
 # 3. k6 load-test baseline
 # ----------------------------------------------------------------
 source_env
-K6_BASELINE_SCRIPT="scripts/load-test/baseline.js"
+K6_BASELINE_SCRIPT="tests/k6/baseline.js"
 SKIP_K6=false
 
 # Check k6 availability

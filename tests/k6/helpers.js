@@ -18,7 +18,9 @@ export function authHeaders(token) {
 
 export const metrics = {
   authLatency: new Trend("auth_latency"),
+  branchesLatency: new Trend("branches_latency"),
   branchLatency: new Trend("branch_latency"),
+  clientsSearchLatency: new Trend("clients_search_latency"),
   clientLatency: new Trend("client_latency"),
   sessionLatency: new Trend("session_latency"),
   attendanceLatency: new Trend("attendance_latency"),
@@ -32,12 +34,16 @@ export const metrics = {
   notificationLatency: new Trend("notification_latency"),
   reportLatency: new Trend("report_latency"),
   concurrencyLatency: new Trend("concurrency_latency"),
+  authzLatency: new Trend("authz_latency"),
+  remittanceRaceLatency: new Trend("remittance_race_latency"),
   errorRate: new Rate("errors"),
 };
 
 export const thresholds = {
   auth_latency: ["p(95)<500"],
+  branches_latency: ["p(95)<500"],
   branch_latency: ["p(95)<500"],
+  clients_search_latency: ["p(95)<1000"],
   client_latency: ["p(95)<1000"],
   session_latency: ["p(95)<1000"],
   attendance_latency: ["p(95)<500"],
@@ -51,5 +57,7 @@ export const thresholds = {
   notification_latency: ["p(95)<500"],
   report_latency: ["p(95)<1000"],
   concurrency_latency: ["p(95)<1000"],
+  authz_latency: ["p(95)<1000"],
+  remittance_race_latency: ["p(95)<3000"],
   errors: ["rate<0.05"],
 };

@@ -10,7 +10,7 @@ endpoint. Do NOT update if a threshold failed due to an unintentional regression
 
 ```bash
 TEST_USERNAME=owner TEST_PASSWORD=pass \
-  k6 run scripts/load-test/baseline.js --summary-export=scripts/load-test/results/latest.json
+  k6 run tests/k6/baseline.js --summary-export=tests/k6/results/latest.json
 ```
 
 ---

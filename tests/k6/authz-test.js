@@ -1,15 +1,11 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { Trend, Rate } from "k6/metrics";
-import { BASE_URL, uuid, authHeaders } from "./helpers.js";
+import { BASE_URL, uuid, authHeaders, metrics } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
 const LIMITED_USERNAME = __ENV.LIMITED_USERNAME || "";
 const LIMITED_PASSWORD = __ENV.LIMITED_PASSWORD || "";
-
-const authzLatency = new Trend("authz_latency");
-const errorRate = new Rate("errors");
 
 export const options = {
   thresholds: {
@@ -60,14 +56,14 @@ function testInvalidTokenReturns401() {
   const badHeaders = authHeaders("this.is.a.bad.token");
 
   const res = http.get(`${BASE_URL}/api/branches`, { headers: badHeaders });
-  authzLatency.add(res.timings.duration, tags);
+  metrics.authzLatency.add(res.timings.duration, tags);
 
   check(res, {
     "invalid token returns 401": (r) => r.status === 401,
   });
 
   if (res.status !== 401) {
-    errorRate.add(1, tags);
+    metrics.errorRate.add(1, tags);
   }
 }
 
@@ -78,14 +74,14 @@ function testExpiredTokenReturns401() {
   const res = http.get(`${BASE_URL}/api/branches`, {
     headers: authHeaders(expiredToken),
   });
-  authzLatency.add(res.timings.duration, tags);
+  metrics.authzLatency.add(res.timings.duration, tags);
 
   check(res, {
     "expired/malformed token returns 401": (r) => r.status === 401,
   });
 
   if (res.status !== 401) {
-    errorRate.add(1, tags);
+    metrics.errorRate.add(1, tags);
   }
 }
 
@@ -97,14 +93,14 @@ function testInsufficientCapabilityReturns403(limitedToken) {
   const createBranchRes = http.post(`${BASE_URL}/api/branches`, JSON.stringify({
     id: branchId, name: `Authz-Test-${uuid().slice(0, 8)}`, branchType: "CLINIC",
   }), { headers: limitedHeaders });
-  authzLatency.add(createBranchRes.timings.duration, tags);
+  metrics.authzLatency.add(createBranchRes.timings.duration, tags);
 
   const today = new Date().toISOString().slice(0, 10);
   const branchDayId = uuid();
   const expenseRes = http.post(`${BASE_URL}/api/expenses`, JSON.stringify({
     id: uuid(), branchDayId, amount: "50.00", category: "MISCELLANEOUS",
   }), { headers: limitedHeaders });
-  authzLatency.add(expenseRes.timings.duration, tags);
+  metrics.authzLatency.add(expenseRes.timings.duration, tags);
 
   if (createBranchRes.status === 403 || expenseRes.status === 403) {
     check(true, { "limited user gets 403 for restricted operations": true });

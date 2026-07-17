@@ -392,41 +392,13 @@ Key things to look for in JFR:
 
 ### HTTP-level load testing (k6)
 
-A baseline k6 script lives at `scripts/load-test/baseline.js`. It hits the public and
-authenticated API endpoints in a staged ramp-up pattern.
-
-Prerequisite: install k6 (`brew install k6`, `apt install k6`, or download from k6.io).
+All k6 scripts live in `tests/k6/`. `helpers.js` is the single source of truth for metrics,
+thresholds, and auth utilities.
 
 ```bash
-# Against local dev server (requires a registered user in the DB)
-TEST_USERNAME=owner TEST_PASSWORD=pass \
-  k6 run scripts/load-test/baseline.js
+# Baseline load test (branches, clients search, products — staged ramp-up)
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/baseline.js
 
-# Against a remote server
-API_BASE_URL=https://api.example.com TEST_USERNAME=owner TEST_PASSWORD=pass \
-  k6 run scripts/load-test/baseline.js
-```
-
-The baseline enforces these thresholds (edit `options.thresholds` in the script to adjust):
-- `branches_latency`: p95 < 500ms
-- `clients_search_latency`: p95 < 1000ms
-- `sessions_latency`: p95 < 1000ms
-- `errors`: rate < 5%
-
-**Adding a new endpoint to the baseline** — edit `scripts/load-test/baseline.js`:
-1. Add a `Trend` metric for the endpoint's latency
-2. Add a threshold in `options.thresholds`
-3. Add the `http.get`/`http.post` call in the `default` function
-4. Run `k6 run` to establish a baseline p95, then tighten the threshold
-
-Remember: k6 tests the full HTTP stack — serialization, Javalin routing, JDBC, connection
-pooling, and auth middleware. Regressions here won't show up in JMH benchmarks.
-
-A comprehensive k6 test suite also lives at `tests/k6/`. It covers all critical API paths
-with staged ramp-up, concurrency edge cases (409, idempotency), authz edge cases (401, 403),
-and concurrent remittance submission testing:
-
-```bash
 # Full load test (all endpoints, 5 VUs ramp-up)
 TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/full-suite.js
 
@@ -439,6 +411,21 @@ LIMITED_USERNAME=limited LIMITED_PASSWORD=pass k6 run tests/k6/authz-test.js
 # Concurrent remittance submission (serializable isolation race)
 k6 run tests/k6/remittance-race-test.js
 ```
+
+The baseline enforces these thresholds (edit `options.thresholds` in the script to adjust):
+- `branches_latency`: p95 < 500ms
+- `clients_search_latency`: p95 < 1000ms
+- `product_latency`: p95 < 1000ms
+- `errors`: rate < 5%
+
+**Adding a new endpoint to the baseline** — edit `tests/k6/baseline.js`:
+1. Use an existing metric from `helpers.js` or add a new `Trend` to `metrics` in `helpers.js`
+2. Add a threshold in the script's `options.thresholds` (or in `thresholds` in `helpers.js`)
+3. Add the `http.get`/`http.post` call in the `default` function
+4. Run `k6 run` to establish a baseline p95, then tighten the threshold
+
+Remember: k6 tests the full HTTP stack — serialization, Javalin routing, JDBC, connection
+pooling, and auth middleware. Regressions here won't show up in JMH benchmarks.
 
 ### Threshold tuning — when and how to adjust limits
 
@@ -469,8 +456,8 @@ Threshold violation detected
    `backend/jmh-baselines.md`.
 
 3. **k6 threshold** — Run k6 3 times and take the worst p95. Add a 50% buffer for the
-   new threshold. Update `options.thresholds` in `scripts/load-test/baseline.js` and the
-   table in `scripts/load-test/results/baseline-results.md`.
+   new threshold. Update `options.thresholds` in `tests/k6/baseline.js` and the
+   table in `tests/k6/results/baseline-results.md`.
 
 4. **Commit message** — Include the tool, the old threshold, the new threshold, and a brief
    justification. Example:
@@ -486,5 +473,5 @@ Threshold violation detected
 | File | What it tracks |
 |---|---|
 | `backend/jmh-baselines.md` | JMH scores + measureTimedValue + k6 thresholds (single source of truth) |
-| `scripts/load-test/results/baseline-results.md` | k6 threshold history and run instructions |
-| `scripts/load-test/results/latest.json` | k6 raw JSON output from last run (gitignored) |
+| `tests/k6/results/baseline-results.md` | k6 threshold history and run instructions |
+| `tests/k6/results/latest.json` | k6 raw JSON output from last run (gitignored) |

@@ -1,13 +1,9 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { Trend, Rate } from "k6/metrics";
-import { BASE_URL, uuid, authHeaders } from "./helpers.js";
+import { BASE_URL, uuid, authHeaders, metrics } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
-
-const remittanceLatency = new Trend("remittance_race_latency");
-const errorRate = new Rate("errors");
 
 export const options = {
   thresholds: {
@@ -77,14 +73,14 @@ export default function (data) {
     expectedVersion: 1,
   }), { headers });
 
-  remittanceLatency.add(submitRes.timings.duration, tags);
+  metrics.remittanceRaceLatency.add(submitRes.timings.duration, tags);
 
   if (submitRes.status === 200) {
-    errorRate.add(0, tags);
+    metrics.errorRate.add(0, tags);
   } else if (submitRes.status === 409) {
     check(true, { "concurrent submit returns 409 on conflict": true });
   } else {
-    errorRate.add(1, tags);
+    metrics.errorRate.add(1, tags);
   }
 
   check(submitRes, {
