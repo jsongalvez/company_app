@@ -21,3 +21,5 @@
 
 **Priority:** medium
 **Story alignment:** cross-cutting — all composeApp code
+
+**Status:** ✅ done
