@@ -4,6 +4,8 @@ set -euo pipefail
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
+LOG_TAG=pre-push
+source "$ROOT_DIR/scripts/lib/start-app.sh"
 
 log pre-push "$@"
 
@@ -67,77 +69,11 @@ if [ "$SKIP_K6" = false ]; then
 fi
 
 if [ "$SKIP_K6" = false ]; then
-    APP_HOST="${APP_HOST:-localhost}"
-    APP_PORT="${APP_PORT:-3023}"
+    trap app_cleanup EXIT
 
-    log pre-push "Building backend distribution..."
-    ./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
-    log pre-push "Build complete."
-
-    cleanup_k6_app() {
-        if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
-            log pre-push "Cleaning up app (PID $APP_PID)..."
-            kill_cleanup "$APP_PID"
-        fi
-    }
-    trap cleanup_k6_app EXIT
-
-    log pre-push "Starting app for k6 baseline..."
-    ./gradlew :backend:run --no-daemon > /tmp/company-app-k6-boot.log 2>&1 &
-    APP_PID=$!
-    APP_STARTED=false
-
-    for i in $(seq 1 45); do
-        if ! kill -0 "$APP_PID" 2>/dev/null; then
-            wait "$APP_PID" || true
-            log pre-push "ERROR: App process died during startup. Last 20 lines:"
-            tail -20 /tmp/company-app-k6-boot.log
-            exit 1
-        fi
-        if port_is_listening "$APP_PORT"; then
-            APP_STARTED=true
-            break
-        fi
-        sleep 1
-    done
-
-    if [ "$APP_STARTED" = false ]; then
-        log pre-push "ERROR: App did not start within 45 seconds."
-        tail -20 /tmp/company-app-k6-boot.log
-        kill "$APP_PID" 2>/dev/null || true
-        exit 1
-    fi
-    log pre-push "App is running (PID $APP_PID) on port $APP_PORT."
-
-    HEALTH_RETRIES=10
-    HEALTH_DELAY=2
-    HEALTH_URL="http://$APP_HOST:$APP_PORT/health"
-    HEALTH_OK=false
-    HTTP_STATUS=""
-
-    log pre-push "Checking /health endpoint..."
-    for i in $(seq 1 $HEALTH_RETRIES); do
-        if ! kill -0 "$APP_PID" 2>/dev/null; then
-            log pre-push "ERROR: App died during health check."
-            tail -20 /tmp/company-app-k6-boot.log
-            kill "$APP_PID" 2>/dev/null || true
-            exit 1
-        fi
-        HTTP_STATUS=$(curl -s -o /tmp/company-app-k6-health.json -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
-        if [ "$HTTP_STATUS" = "200" ]; then
-            HEALTH_OK=true
-            break
-        fi
-        sleep "$HEALTH_DELAY"
-    done
-
-    if [ "$HEALTH_OK" = false ]; then
-        log pre-push "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
-        cat /tmp/company-app-k6-health.json 2>/dev/null || true
-        kill "$APP_PID" 2>/dev/null || true
-        exit 1
-    fi
-    log pre-push "Health check passed."
+    app_build
+    app_start /tmp/company-app-k6-boot.log
+    app_wait_ready /tmp/company-app-k6-health.json /tmp/company-app-k6-boot.log
 
     # Run k6 baseline
     K6_LOG="/tmp/company-app-k6-baseline.log"
@@ -149,9 +85,8 @@ if [ "$SKIP_K6" = false ]; then
     K6_EXIT_CODE=${PIPESTATUS[0]}
     set -o pipefail
 
-    cleanup_k6_app
+    app_cleanup
     trap - EXIT
-    log pre-push "App stopped."
 
     if [ "$K6_EXIT_CODE" -ne 0 ]; then
         log pre-push "ERROR: k6 baseline failed (exit code $K6_EXIT_CODE). Threshold violation detected."

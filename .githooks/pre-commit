@@ -4,6 +4,8 @@ set -euo pipefail
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
+LOG_TAG=pre-commit
+source "$ROOT_DIR/scripts/lib/start-app.sh"
 
 log pre-commit "$@"
 
@@ -127,85 +129,17 @@ log pre-commit "Postgres is reachable."
 # ----------------------------------------------------------------
 # 4. Build and boot the app, verify it starts
 # ----------------------------------------------------------------
-log pre-commit "Building backend distribution..."
-./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
-log pre-commit "Build complete."
-
-log pre-commit "Starting app to verify boot..."
-APP_PORT="${APP_PORT:-3023}"
-
-# Run the app in background
-./gradlew :backend:run --no-daemon > /tmp/company-app-boot.log 2>&1 &
-APP_PID=$!
-
-# Wait for the app to bind the port
-APP_STARTED=false
-for i in $(seq 1 45); do
-    if ! kill -0 "$APP_PID" 2>/dev/null; then
-        wait "$APP_PID" || true
-        log pre-commit "ERROR: App process died during startup. Last 20 lines of log:"
-        tail -20 /tmp/company-app-boot.log
-        exit 1
-    fi
-    # Check if port is listening
-    if port_is_listening "$APP_PORT"; then
-        APP_STARTED=true
-        break
-    fi
-    sleep 1
-done
-
-if [ "$APP_STARTED" = false ]; then
-    log pre-commit "ERROR: App did not start within 45 seconds. Last 20 lines of log:"
-    tail -20 /tmp/company-app-boot.log
-    kill "$APP_PID" 2>/dev/null || true
-    exit 1
-fi
-
-log pre-commit "App is running and listening on port $APP_PORT."
+app_build
+app_start /tmp/company-app-boot.log
 
 # ----------------------------------------------------------------
 # 4b. Health check — verify app responds and Postgres is reachable
 # ----------------------------------------------------------------
-HEALTH_RETRIES=10
-HEALTH_DELAY=2
-APP_HOST="${APP_HOST:-localhost}"
-HEALTH_URL="http://$APP_HOST:$APP_PORT/health"
-HEALTH_OK=false
-HTTP_STATUS=""
-
-log pre-commit "Checking /health endpoint (up to $HEALTH_RETRIES attempts, ${HEALTH_DELAY}s apart)..."
-for i in $(seq 1 $HEALTH_RETRIES); do
-    if ! kill -0 "$APP_PID" 2>/dev/null; then
-        log pre-commit "ERROR: App process died during health check."
-        tail -20 /tmp/company-app-boot.log
-        kill "$APP_PID" 2>/dev/null || true
-        exit 1
-    fi
-    HTTP_STATUS=$(curl -s -o /tmp/company-app-health.json -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
-    if [ "$HTTP_STATUS" = "200" ]; then
-        HEALTH_OK=true
-        break
-    fi
-    log pre-commit "  Attempt $i/$HEALTH_RETRIES: HTTP $HTTP_STATUS (retrying in ${HEALTH_DELAY}s)..."
-    sleep "$HEALTH_DELAY"
-done
-
-if [ "$HEALTH_OK" = false ]; then
-    log pre-commit "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
-    log pre-commit "Last response body:"
-    cat /tmp/company-app-health.json 2>/dev/null || true
-    kill "$APP_PID" 2>/dev/null || true
-    exit 1
-fi
-
-log pre-commit "Health check passed (HTTP 200)."
+app_wait_ready /tmp/company-app-health.json /tmp/company-app-boot.log
 
 # ----------------------------------------------------------------
 # 5. Cleanup: kill the app
 # ----------------------------------------------------------------
-log pre-commit "Stopping app (PID $APP_PID)..."
-kill_cleanup "$APP_PID"
-log pre-commit "App stopped."
+app_cleanup
 
 log pre-commit "All checks passed — commit allowed."
