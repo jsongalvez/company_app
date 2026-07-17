@@ -36,4 +36,136 @@ if ! bash scripts/check-baselines.sh /tmp/company-app-jmh.log 2>&1 | tail -20; t
 fi
 log "Baseline comparison passed."
 
+# ----------------------------------------------------------------
+# 3. k6 load-test baseline
+# ----------------------------------------------------------------
+source .env 2>/dev/null || true
+K6_BASELINE_SCRIPT="scripts/load-test/baseline.js"
+SKIP_K6=false
+
+# Check k6 availability
+if ! command -v k6 &>/dev/null; then
+    log "WARNING: k6 not found. Skipping load-test baseline."
+    log "Install k6 from https://k6.io/docs/getting-started/installation/"
+    SKIP_K6=true
+fi
+
+if [ "$SKIP_K6" = false ] && [ ! -f "$K6_BASELINE_SCRIPT" ]; then
+    log "WARNING: k6 baseline script not found at $K6_BASELINE_SCRIPT. Skipping load-test."
+    SKIP_K6=true
+fi
+
+if [ "$SKIP_K6" = false ]; then
+    TEST_USERNAME="${TEST_USERNAME:-}"
+    TEST_PASSWORD="${TEST_PASSWORD:-}"
+    if [ -z "$TEST_USERNAME" ] || [ -z "$TEST_PASSWORD" ]; then
+        log "WARNING: TEST_USERNAME or TEST_PASSWORD not set. Skipping load-test."
+        log "Set them in .env or export before pushing."
+        SKIP_K6=true
+    fi
+fi
+
+if [ "$SKIP_K6" = false ]; then
+    APP_HOST="${APP_HOST:-localhost}"
+    APP_PORT="${APP_PORT:-3023}"
+
+    log "Building backend distribution..."
+    ./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
+    log "Build complete."
+
+    log "Starting app for k6 baseline..."
+    ./gradlew :backend:run --no-daemon > /tmp/company-app-k6-boot.log 2>&1 &
+    APP_PID=$!
+    APP_STARTED=false
+
+    for i in $(seq 1 45); do
+        if ! kill -0 "$APP_PID" 2>/dev/null; then
+            wait "$APP_PID" || true
+            log "ERROR: App process died during startup. Last 20 lines:"
+            tail -20 /tmp/company-app-k6-boot.log
+            exit 1
+        fi
+        if command -v lsof &>/dev/null; then
+            if lsof -i ":$APP_PORT" -P 2>/dev/null | grep -q LISTEN; then
+                APP_STARTED=true
+                break
+            fi
+        elif command -v ss &>/dev/null; then
+            if ss -tlnp "sport = :$APP_PORT" 2>/dev/null | grep -q LISTEN; then
+                APP_STARTED=true
+                break
+            fi
+        fi
+        sleep 1
+    done
+
+    if [ "$APP_STARTED" = false ]; then
+        log "ERROR: App did not start within 45 seconds."
+        tail -20 /tmp/company-app-k6-boot.log
+        kill "$APP_PID" 2>/dev/null || true
+        exit 1
+    fi
+    log "App is running (PID $APP_PID) on port $APP_PORT."
+
+    HEALTH_RETRIES=10
+    HEALTH_DELAY=2
+    HEALTH_URL="http://$APP_HOST:$APP_PORT/health"
+    HEALTH_OK=false
+    HTTP_STATUS=""
+
+    log "Checking /health endpoint..."
+    for i in $(seq 1 $HEALTH_RETRIES); do
+        if ! kill -0 "$APP_PID" 2>/dev/null; then
+            log "ERROR: App died during health check."
+            tail -20 /tmp/company-app-k6-boot.log
+            kill "$APP_PID" 2>/dev/null || true
+            exit 1
+        fi
+        HTTP_STATUS=$(curl -s -o /tmp/company-app-k6-health.json -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+        if [ "$HTTP_STATUS" = "200" ]; then
+            HEALTH_OK=true
+            break
+        fi
+        sleep "$HEALTH_DELAY"
+    done
+
+    if [ "$HEALTH_OK" = false ]; then
+        log "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
+        cat /tmp/company-app-k6-health.json 2>/dev/null || true
+        kill "$APP_PID" 2>/dev/null || true
+        exit 1
+    fi
+    log "Health check passed."
+
+    # Run k6 baseline
+    K6_LOG="/tmp/company-app-k6-baseline.log"
+    K6_EXIT_CODE=0
+    log "Running k6 baseline..."
+    TEST_USERNAME="$TEST_USERNAME" TEST_PASSWORD="$TEST_PASSWORD" \
+        k6 run "$K6_BASELINE_SCRIPT" --quiet 2>&1 | tee "$K6_LOG" || true
+    K6_EXIT_CODE=${PIPESTATUS[0]}
+
+    # Stop the app regardless of k6 result
+    log "Stopping app (PID $APP_PID)..."
+    kill "$APP_PID" 2>/dev/null || true
+    for i in $(seq 1 10); do
+        if ! kill -0 "$APP_PID" 2>/dev/null; then
+            break
+        fi
+        sleep 1
+    done
+    kill -9 "$APP_PID" 2>/dev/null || true
+    wait "$APP_PID" 2>/dev/null || true
+    log "App stopped."
+
+    if [ "$K6_EXIT_CODE" -ne 0 ]; then
+        log "ERROR: k6 baseline failed (exit code $K6_EXIT_CODE). Threshold violation detected."
+        log "--- k6 summary ---"
+        tail -20 "$K6_LOG" 2>/dev/null || true
+        log "--- full output: $K6_LOG ---"
+        exit 1
+    fi
+    log "k6 baseline passed."
+fi
+
 log "Pre-push checks passed."
