@@ -44,7 +44,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
             ProductService.create(
                 callerId = callerId,
                 id = productId,
-                name = "  Test Product  ",
+                name = "Test Product",
                 productCategoryId = categoryId,
                 unitPrice = BigDecimal("250.00"),
                 commissionAmount = BigDecimal("25.00"),

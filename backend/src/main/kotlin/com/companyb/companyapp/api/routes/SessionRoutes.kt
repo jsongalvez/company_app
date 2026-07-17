@@ -28,7 +28,6 @@ import io.javalin.http.Context
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -140,10 +139,7 @@ object SessionRoutes {
         val branchId = uuidOrThrow(request.branchId, "branch id")
         val practitionerId =
             request.requestedPractitionerId?.let { uuidOrThrow(it, "practitioner id") }
-        val finalPrice =
-            runCatching { BigDecimal(request.finalPrice) }
-                .getOrElse { throw BadRequestResponse("Invalid final price") }
-        if (finalPrice < BigDecimal.ZERO) throw BadRequestResponse("finalPrice must be non-negative")
+        val finalPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
         val bookedAt =
             request.bookedAt?.let {
                 runCatching { OffsetDateTime.parse(it) }

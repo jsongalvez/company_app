@@ -22,14 +22,12 @@ object ProductService {
         unitPrice: BigDecimal,
         commissionAmount: BigDecimal,
     ): ProductCreateResult {
-        val cleanName = name.trim()
-
         val categoryExists = ProductCategoryRepository.findById(productCategoryId) != null
         if (!categoryExists) {
             throw ValidationException("Product category not found")
         }
 
-        return ProductRepository.create(id, cleanName, productCategoryId, unitPrice, commissionAmount, callerId)
+        return ProductRepository.create(id, name, productCategoryId, unitPrice, commissionAmount, callerId)
     }
 
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()
@@ -54,7 +52,7 @@ object ProductService {
         val updated =
             ProductRepository.update(
                 productId = productId,
-                name = name?.trim()?.takeIf { it.isNotEmpty() },
+                name = name?.takeIf { it.isNotEmpty() },
                 productCategoryId = productCategoryId,
                 unitPrice = unitPrice,
                 commissionAmount = commissionAmount,

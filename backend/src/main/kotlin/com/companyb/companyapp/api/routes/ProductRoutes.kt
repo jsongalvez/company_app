@@ -62,8 +62,8 @@ object ProductRoutes {
             val callerId = context.callerUuid()
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<UpdateProductRequest>()
-            val updateName = request.name
-            if (updateName != null && updateName.trim().isBlank()) {
+            val updateName = request.name?.trim()
+            if (updateName != null && updateName.isBlank()) {
                 throw BadRequestResponse("Product name cannot be blank")
             }
             val categoryId = request.productCategoryId?.let { uuidOrThrow(it, "product category id") }
@@ -73,7 +73,7 @@ object ProductRoutes {
                 ProductService.update(
                     callerId = callerId,
                     productId = productId,
-                    name = request.name,
+                    name = updateName,
                     productCategoryId = categoryId,
                     unitPrice = unitPrice,
                     commissionAmount = commissionAmount,

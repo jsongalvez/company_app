@@ -9,7 +9,6 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
 import java.util.UUID
 
 object AllowanceRoutes {
@@ -45,10 +44,7 @@ object AllowanceRoutes {
             val id = uuidOrThrow(request.id, "allowance id")
             val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
             val userId = uuidOrThrow(request.userId, "user id")
-            val amount =
-                runCatching { BigDecimal(request.amount) }
-                    .getOrElse { throw BadRequestResponse("Invalid amount") }
-            if (amount < BigDecimal.ZERO) throw BadRequestResponse("Amount must be non-negative")
+            val amount = parseNonNegativeBigDecimal(request.amount, "amount")
 
             val allowance =
                 AllowanceService.create(

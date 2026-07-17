@@ -46,7 +46,7 @@ object ClientService {
             ),
         )
 
-    fun search(query: String): List<Client> = ClientRepository.search(query.trim())
+    fun search(query: String): List<Client> = ClientRepository.search(query)
 
     fun findById(clientId: UUID): Client =
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
@@ -71,8 +71,8 @@ object ClientService {
             ClientRepository.update(
                 ClientUpdateParams(
                     clientId = clientId,
-                    firstName = firstName?.trim()?.takeIf { it.isNotEmpty() },
-                    lastName = lastName?.trim()?.takeIf { it.isNotEmpty() },
+                    firstName = firstName?.takeIf { it.isNotEmpty() },
+                    lastName = lastName?.takeIf { it.isNotEmpty() },
                     middleName = middleName?.trim()?.takeIf { it.isNotEmpty() },
                     suffix = suffix?.trim()?.takeIf { it.isNotEmpty() },
                     phoneNumber = phoneNumber?.trim()?.takeIf { it.isNotEmpty() },

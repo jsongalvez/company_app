@@ -11,7 +11,6 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
 import java.util.UUID
 
 object CompensationRoutes {
@@ -57,10 +56,7 @@ object CompensationRoutes {
             val workBranchDayId = uuidOrThrow(request.workBranchDayId, "work branch day id")
             val payingBranchDayId = uuidOrThrow(request.payingBranchDayId, "paying branch day id")
             val userId = uuidOrThrow(request.userId, "user id")
-            val amount =
-                runCatching { BigDecimal(request.amount) }
-                    .getOrElse { throw BadRequestResponse("Invalid amount") }
-            if (amount < BigDecimal.ZERO) throw BadRequestResponse("Amount must be non-negative")
+            val amount = parseNonNegativeBigDecimal(request.amount, "amount")
 
             val compensation =
                 CompensationService.create(
@@ -82,10 +78,7 @@ object CompensationRoutes {
             val compensationId = context.pathParamAsUuid("compensationId")
             val request = context.bodyAsClass<UpdateCompensationRequest>()
 
-            val amount =
-                runCatching { BigDecimal(request.amount) }
-                    .getOrElse { throw BadRequestResponse("Invalid amount") }
-            if (amount < BigDecimal.ZERO) throw BadRequestResponse("Amount must be non-negative")
+            val amount = parseNonNegativeBigDecimal(request.amount, "amount")
 
             val compensation =
                 CompensationService.update(

@@ -76,8 +76,9 @@ object ClientRoutes {
 
     private fun handleSearch(context: Context) {
         val query = context.queryParam("q") ?: throw BadRequestResponse("Query parameter 'q' is required")
-        if (query.trim().isEmpty()) throw BadRequestResponse("Search query cannot be blank")
-        context.json(ClientService.search(query).map { it.toResponse() })
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isEmpty()) throw BadRequestResponse("Search query cannot be blank")
+        context.json(ClientService.search(trimmedQuery).map { it.toResponse() })
     }
 
     private fun handleGetById(context: Context) {
@@ -91,12 +92,12 @@ object ClientRoutes {
         val clientId = context.pathParamAsUuid(CLIENT_ID_PARAM)
         val request = context.bodyAsClass<UpdateClientRequest>()
 
-        val firstName = request.firstName
-        if (firstName != null && firstName.trim().isBlank()) {
+        val firstName = request.firstName?.trim()
+        if (firstName != null && firstName.isBlank()) {
             throw BadRequestResponse("First name cannot be blank")
         }
-        val lastName = request.lastName
-        if (lastName != null && lastName.trim().isBlank()) {
+        val lastName = request.lastName?.trim()
+        if (lastName != null && lastName.isBlank()) {
             throw BadRequestResponse("Last name cannot be blank")
         }
         val gender = request.gender
@@ -117,8 +118,8 @@ object ClientRoutes {
             ClientService.update(
                 callerId = callerId,
                 clientId = clientId,
-                firstName = request.firstName,
-                lastName = request.lastName,
+                firstName = firstName,
+                lastName = lastName,
                 middleName = request.middleName,
                 suffix = request.suffix,
                 phoneNumber = request.phoneNumber,
