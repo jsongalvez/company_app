@@ -52,28 +52,42 @@ fun ClientSearchScreen(
     onClientSelected: (clientId: String) -> Unit = {},
 ) {
     val searchResultsState by clientViewModel.searchResults.collectAsState()
-    val isSearching by clientViewModel.isSearching.collectAsState()
-    val searchError by clientViewModel.searchErrorMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var query by remember { mutableStateOf("") }
+    var cachedResults by remember { mutableStateOf<List<ClientResponse>>(emptyList()) }
+    var cachedQuery by remember { mutableStateOf("") }
 
-    val hasPriorResults = searchResultsState is UiState.Success
-    val priorResults =
-        if (hasPriorResults) {
-            (searchResultsState as UiState.Success<List<ClientResponse>>).data
-        } else {
-            emptyList()
+    val isSearching = searchResultsState is UiState.Loading
+    val searchError = (searchResultsState as? UiState.Error)?.message
+
+    val hasPriorResults: Boolean
+    val priorResults: List<ClientResponse>
+
+    when (searchResultsState) {
+        is UiState.Success -> {
+            val data = (searchResultsState as UiState.Success<List<ClientResponse>>).data
+            if (data !== cachedResults) {
+                cachedResults = data
+                cachedQuery = query
+            }
+            hasPriorResults = true
+            priorResults = data
         }
+
+        else -> {
+            hasPriorResults = cachedResults.isNotEmpty() || searchResultsState is UiState.Success
+            priorResults = cachedResults
+        }
+    }
 
     LaunchedEffect(Unit) {
         logInfo("ClientSearchScreen", "composable entered (first composition)")
     }
 
     LaunchedEffect(searchError) {
-        val err = searchError
-        if (err != null) {
-            logWarn("ClientSearchScreen", "search error: $err")
-            snackbarHostState.showSnackbar(err)
+        if (searchError != null) {
+            logWarn("ClientSearchScreen", "search error: $searchError")
+            snackbarHostState.showSnackbar(searchError)
         }
     }
 
