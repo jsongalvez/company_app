@@ -35,10 +35,10 @@ import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.database.dotenv
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
+import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
-import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
@@ -173,7 +173,11 @@ private val DEV_CAPABILITIES =
         "ASSIGN_DELEGATE",
     )
 
+@Suppress("ReturnCount")
 fun initializeDevUser() {
+    val seedDev = dotenv["SEED_DEV_USER"]?.equals("true", ignoreCase = true) ?: false
+    if (!seedDev) return
+
     val username = dotenv["TEST_USERNAME"]?.takeIf { it.isNotBlank() } ?: return
     val password = dotenv["TEST_PASSWORD"]?.takeIf { it.isNotBlank() } ?: return
 
@@ -197,11 +201,8 @@ fun initializeDevUser() {
 
         for (code in DEV_CAPABILITIES) {
             val capabilityId =
-                CapabilityTable
-                    .selectAll()
-                    .where {
-                        CapabilityTable.code eq code
-                    }.single()[CapabilityTable.id]
+                CapabilityRepository.findIdByCode(code)
+                    ?: error("Capability '$code' not found in database")
             UserCapabilityTable.insert {
                 it[UserCapabilityTable.userId] = userId
                 it[UserCapabilityTable.capabilityId] = capabilityId
