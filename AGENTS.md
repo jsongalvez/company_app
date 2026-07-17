@@ -45,8 +45,8 @@ bash scripts/check-baselines.sh
 
 After `bash scripts/setup-hooks.sh`:
 
-- **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, runs full JMH benchmarks + baseline check, verifies Postgres is reachable, and boots the app to confirm it starts. Commits are blocked if any step fails.
-- **pre-push** runs full JMH suite and reminds you to compare against `backend/jmh-baselines.md` via `bash scripts/check-baselines.sh`.
+- **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, test-data cleanliness check, `:shared:compileKotlinJvm`, and verifies Postgres is reachable. Commits are blocked if any step fails.
+- **pre-push** runs full JMH suite + baseline comparison, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline.
 
 ## Configuration details
 

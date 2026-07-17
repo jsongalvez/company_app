@@ -30,7 +30,7 @@ fi
 log pre-push "JMH benchmarks passed."
 
 # ----------------------------------------------------------------
-# 2. Baseline comparison
+# 3. Baseline comparison
 # ----------------------------------------------------------------
 log pre-push "Comparing JMH results against baseline..."
 if ! bash scripts/check-baselines.sh /tmp/company-app-jmh.log 2>&1 | tail -20; then
@@ -40,7 +40,17 @@ fi
 log pre-push "Baseline comparison passed."
 
 # ----------------------------------------------------------------
-# 3. k6 load-test baseline
+# 4. ComposeApp compilation check (all targets)
+# ----------------------------------------------------------------
+log pre-push "Compiling composeApp (desktop + android + ios)..."
+if ! ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinIosArm64 :composeApp:compileKotlinIosSimulatorArm64 --no-daemon 2>&1 | tail -5; then
+    log pre-push "ERROR: composeApp compilation failed. Fix before pushing."
+    exit 1
+fi
+log pre-push "composeApp compilation passed."
+
+# ----------------------------------------------------------------
+# 5. k6 load-test baseline
 # ----------------------------------------------------------------
 source_env
 K6_BASELINE_SCRIPT="tests/k6/baseline.js"
@@ -76,7 +86,6 @@ if [ "$SKIP_K6" = false ]; then
     # pre-push cleanliness check above.
     K6_DB_NAME="${TEST_DB_NAME:-company_app_test}"
     export POSTGRES_DB="$K6_DB_NAME"
-    export SEED_DEV_USER=true
     log pre-push "Using test database '$K6_DB_NAME' for k6 baseline."
 
     app_build

@@ -14,7 +14,6 @@ data class AppConfig(
     val jwtIssuer: String,
     val jwtAudience: String,
     val authDummyPassword: String,
-    val seedDevUser: Boolean,
     val testUsername: String?,
     val testPassword: String?,
 ) {
@@ -37,7 +36,6 @@ data class AppConfig(
                 authDummyPassword =
                     env["AUTH_DUMMY_PASSWORD"]
                         ?: error("AUTH_DUMMY_PASSWORD must be set"),
-                seedDevUser = env["SEED_DEV_USER"]?.equals("true", ignoreCase = true) ?: false,
                 testUsername = env["TEST_USERNAME"]?.takeIf { it.isNotBlank() },
                 testPassword = env["TEST_PASSWORD"]?.takeIf { it.isNotBlank() },
             )

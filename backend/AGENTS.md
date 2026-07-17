@@ -23,15 +23,17 @@ Package root: `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repos
 The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
 
 1. **Formatting:** ktlint scoped to staged `.kt`/`.kts` files via `ktlint --format` CLI (falls back to project-wide `./gradlew ktlintFormat` if CLI not on PATH)
-2. **Static analysis, tests & JMH benchmarks:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmh`
-3. **App boot verification:** Postgres must be reachable, then the app is started and confirmed listening on its port before the commit is allowed.
+2. **Static analysis & tests:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
+3. **Test-data cleanliness:** verifies all test tables are empty after the test suite
+4. **Shared module compilation:** `./gradlew :shared:compileKotlinJvm`
+5. **Postgres connectivity:** verifies Postgres is reachable before commit is allowed.
 
-A pre-push hook (`.githooks/pre-push`) additionally runs the full JMH benchmark suite and
-reminds you to compare against `backend/jmh-baselines.md` with `bash scripts/check-baselines.sh`.
+A pre-push hook (`.githooks/pre-push`) additionally runs the full JMH benchmark suite +
+baseline comparison, composeApp multi-target compilation, and k6 load-test baseline.
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
-To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :backend:jmh` and then `bash scripts/check-baselines.sh`
+To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
 
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 
@@ -403,7 +405,7 @@ by the pre-push hook.
 
 Terminal 1 — start the app on the test DB with dev-user seeding:
 ```bash
-POSTGRES_DB=company_app_test SEED_DEV_USER=true TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
+POSTGRES_DB=company_app_test TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
 ```
 
 Terminal 2 — once the app is ready, run any k6 script:

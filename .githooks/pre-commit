@@ -5,8 +5,6 @@ HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
 LOG_TAG=pre-commit
-source "$ROOT_DIR/scripts/lib/start-app.sh"
-
 log pre-commit "$@"
 
 # ----------------------------------------------------------------
@@ -53,24 +51,7 @@ log pre-commit "Running quality gate (detekt, ktlint, test)..."
 log pre-commit "Quality gate passed."
 
 # ----------------------------------------------------------------
-# 2a. JMH benchmarks + baseline check
-# Expected additional latency: ~30-60s (full benchmark suite)
-# ----------------------------------------------------------------
-JMH_LOG="/tmp/company-app-jmh-precommit.log"
-log pre-commit "Running JMH benchmarks (log: $JMH_LOG)..."
-./gradlew :backend:jmh --no-daemon 2>&1 | tee "$JMH_LOG" | tail -5
-log pre-commit "JMH benchmarks complete."
-
-log pre-commit "Checking JMH baselines..."
-if ! bash scripts/check-baselines.sh "$JMH_LOG" 2>&1 | tail -10; then
-    log pre-commit "ERROR: Performance regression detected. JMH scores dropped >20% from baseline."
-    log pre-commit "Full JMH output: $JMH_LOG"
-    exit 1
-fi
-log pre-commit "JMH baselines check passed."
-
-# ----------------------------------------------------------------
-# 2b. Test-data cleanliness check
+# 3. Test-data cleanliness check
 # ----------------------------------------------------------------
 log pre-commit "Checking for test-data leaks..."
 if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
@@ -80,7 +61,7 @@ fi
 log pre-commit "Test-data cleanliness check passed."
 
 # ----------------------------------------------------------------
-# 2c. Shared module compilation check
+# 4. Shared module compilation check
 # ----------------------------------------------------------------
 log pre-commit "Compiling shared module (JVM)..."
 # shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
@@ -88,14 +69,7 @@ log pre-commit "Compiling shared module (JVM)..."
 log pre-commit "Shared module compilation passed."
 
 # ----------------------------------------------------------------
-# 2d. ComposeApp compilation check (all targets)
-# ----------------------------------------------------------------
-log pre-commit "Compiling composeApp (desktop + android + ios)..."
-./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinIosArm64 :composeApp:compileKotlinIosSimulatorArm64 --no-daemon 2>&1 | tail -5
-log pre-commit "composeApp compilation passed."
-
-# ----------------------------------------------------------------
-# 3. Ensure Postgres is reachable
+# 5. Ensure Postgres is reachable
 # ----------------------------------------------------------------
 source_env
 DB_HOST="${DB_HOST:-localhost}"
@@ -125,21 +99,5 @@ else
     fi
 fi
 log pre-commit "Postgres is reachable."
-
-# ----------------------------------------------------------------
-# 4. Build and boot the app, verify it starts
-# ----------------------------------------------------------------
-app_build
-app_start /tmp/company-app-boot.log
-
-# ----------------------------------------------------------------
-# 4b. Health check — verify app responds and Postgres is reachable
-# ----------------------------------------------------------------
-app_wait_ready /tmp/company-app-health.json /tmp/company-app-boot.log
-
-# ----------------------------------------------------------------
-# 5. Cleanup: kill the app
-# ----------------------------------------------------------------
-app_cleanup
 
 log pre-commit "All checks passed — commit allowed."

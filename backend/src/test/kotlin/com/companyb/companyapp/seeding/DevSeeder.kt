@@ -40,8 +40,6 @@ object DevSeeder {
         config: AppConfig,
         runInTransaction: (() -> Unit) -> Unit = { block -> transaction { block() } },
     ) {
-        if (!config.seedDevUser) return
-
         val username = config.testUsername?.takeIf { it.isNotBlank() } ?: return
         val password = config.testPassword?.takeIf { it.isNotBlank() } ?: return
 

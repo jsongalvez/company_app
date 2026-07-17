@@ -9,7 +9,7 @@ is the human-readable record of what "normal" looks like for each endpoint.
 
 1. Start the app on the test DB (Terminal 1):
    ```bash
-   POSTGRES_DB=company_app_test SEED_DEV_USER=true TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
+   POSTGRES_DB=company_app_test TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
    ```
 
 2. Run the baseline (Terminal 2):
