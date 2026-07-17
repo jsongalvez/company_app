@@ -44,15 +44,15 @@ export default function (data) {
     "Authorization": `Bearer ${data.token}`,
   };
 
-  const branchesRes = http.get(`${API_BASE_URL}/branches`, { headers });
+  const branchesRes = http.get(`${API_BASE_URL}/api/branches`, { headers });
   branchesLatency.add(branchesRes.timings.duration);
   errorRate.add(branchesRes.status >= 400);
 
-  const clientsRes = http.get(`${API_BASE_URL}/clients?q=test`, { headers });
+  const clientsRes = http.get(`${API_BASE_URL}/api/clients?q=test`, { headers });
   clientsSearchLatency.add(clientsRes.timings.duration);
   errorRate.add(clientsRes.status >= 400);
 
-  const productsRes = http.get(`${API_BASE_URL}/products`, { headers });
+  const productsRes = http.get(`${API_BASE_URL}/api/products`, { headers });
   sessionsLatency.add(productsRes.timings.duration);
   errorRate.add(productsRes.status >= 400);
 

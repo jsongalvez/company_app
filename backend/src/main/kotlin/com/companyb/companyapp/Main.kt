@@ -29,19 +29,32 @@ import com.companyb.companyapp.api.routes.UserBranchAssignmentRoutes
 import com.companyb.companyapp.api.routes.UserRoutes
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.database.dotenv
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
+import com.companyb.companyapp.repository.UserRepository
+import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.CapabilitySourceType
+import com.companyb.companyapp.repository.model.CapabilityTable
+import com.companyb.companyapp.repository.model.RoleTable
+import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.NextAppointmentScheduler
 import com.companyb.companyapp.utils.Helper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.MDC
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -143,6 +156,69 @@ fun initializeDenyList() {
     logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
 }
 
+private const val DEV_USER_ROLE_NAME = "OWNER"
+private const val DEV_USER_EMAIL_DOMAIN = "@example.com"
+private val NIL_UUID = UUID(0L, 0L)
+
+private val DEV_CAPABILITIES =
+    listOf(
+        "VIEW_BRANCH_DATA",
+        "EDIT_BRANCH_DATA",
+        "EDIT_PAST_DAY",
+        "VOID_SESSION",
+        "SUBMIT_REMITTANCE",
+        "ASSIGN_COMPENSATION",
+        "MANAGE_PRODUCTS",
+        "MANAGE_USERS",
+        "ASSIGN_DELEGATE",
+    )
+
+fun initializeDevUser() {
+    val username = dotenv["TEST_USERNAME"]?.takeIf { it.isNotBlank() } ?: return
+    val password = dotenv["TEST_PASSWORD"]?.takeIf { it.isNotBlank() } ?: return
+
+    transaction {
+        if (UserRepository.findByUsername(username) != null) return@transaction
+
+        val passwordHash = Password.create(password)
+        val userId =
+            UserRepository.createUser(
+                username,
+                passwordHash,
+                "$username$DEV_USER_EMAIL_DOMAIN",
+                "Dev $username",
+            )
+
+        val ownerRoleId = RoleTable.selectAll().where { RoleTable.name eq DEV_USER_ROLE_NAME }.single()[RoleTable.id]
+        UserRoleTable.insert {
+            it[UserRoleTable.userId] = userId
+            it[UserRoleTable.roleId] = ownerRoleId
+        }
+
+        for (code in DEV_CAPABILITIES) {
+            val capabilityId =
+                CapabilityTable
+                    .selectAll()
+                    .where {
+                        CapabilityTable.code eq code
+                    }.single()[CapabilityTable.id]
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = userId
+                it[UserCapabilityTable.capabilityId] = capabilityId
+                it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
+                it[UserCapabilityTable.contextId] = NIL_UUID
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
+                it[UserCapabilityTable.sourceId] = NIL_UUID
+            }
+        }
+
+        logger.info {
+            "[DEV-SEED] Created dev user '$username' with" +
+                " $DEV_USER_ROLE_NAME role and ${DEV_CAPABILITIES.size} capabilities"
+        }
+    }
+}
+
 fun initializeScheduler() {
     val scheduler =
         Executors.newSingleThreadScheduledExecutor { runnable ->
@@ -180,6 +256,7 @@ fun main() {
     initializeFlyway()
     initializeExposed()
     initializeDenyList()
+    initializeDevUser()
     initializeScheduler()
     initializeJavalin()
     val elapsed = RequestElapsedConverter.currentElapsedMs()
