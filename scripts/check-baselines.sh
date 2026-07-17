@@ -4,27 +4,27 @@
 # Exits with code 1 if any score dropped >20% from baseline.
 set -euo pipefail
 
-ROOT_DIR="$(git rev-parse --show-toplevel)"
-cd "$ROOT_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
 
 JMH_LOG="${1:-/tmp/company-app-jmh.log}"
 BASELINE="$ROOT_DIR/backend/jmh-baselines.md"
 
 if [ ! -f "$JMH_LOG" ]; then
-    echo "ERROR: JMH log file not found: $JMH_LOG"
-    echo "Run JMH first: ./gradlew :backend:jmh 2>&1 | tee /tmp/company-app-jmh.log"
+    log baselines "ERROR: JMH log file not found: $JMH_LOG"
+    log baselines "Run JMH first: ./gradlew :backend:jmh 2>&1 | tee /tmp/company-app-jmh.log"
     exit 1
 fi
 
 if [ ! -f "$BASELINE" ]; then
-    echo "WARNING: No baseline file at $BASELINE — skipping comparison."
+    log baselines "WARNING: No baseline file at $BASELINE — skipping comparison."
     exit 0
 fi
 
-echo "=== JMH Baseline Comparison ==="
-echo "Baseline: $BASELINE"
-echo "Results:  $JMH_LOG"
-echo ""
+log baselines "=== JMH Baseline Comparison ==="
+log baselines "Baseline: $BASELINE"
+log baselines "Results:  $JMH_LOG"
 
 FAILURES=0
 
@@ -57,7 +57,7 @@ done < <(parse_baseline)
 while IFS=' ' read -r name current_score; do
     expected="${BASELINES[$name]:-}"
     if [ -z "$expected" ]; then
-        echo "  NEW  $name: $current_score (no baseline yet)"
+        log baselines "  NEW  $name: $current_score (no baseline yet)"
         continue
     fi
 
@@ -77,9 +77,9 @@ done < <(parse_jmh)
 
 echo ""
 if [ "$FAILURES" -gt 0 ]; then
-    echo "FAILED: $FAILURES benchmark(s) dropped >20% from baseline."
-    echo "Investigate with JFR before pushing. If the change is intentional, update backend/jmh-baselines.md."
+    log baselines "FAILED: $FAILURES benchmark(s) dropped >20% from baseline."
+    log baselines "Investigate with JFR before pushing. If the change is intentional, update backend/jmh-baselines.md."
     exit 1
 else
-    echo "OK: All JMH scores within 20% of baseline."
+    log baselines "OK: All JMH scores within 20% of baseline."
 fi

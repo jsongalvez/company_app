@@ -6,18 +6,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-cd "$ROOT_DIR"
+source "$ROOT_DIR/scripts/lib/common.sh"
 
-source .env 2>/dev/null || true
+source_env
 
 DB_NAME="${TEST_DB_NAME:-${POSTGRES_DB}_test}"
 DB_USER="${POSTGRES_USER:-company_user}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 
-log() { echo "$(date '+%H:%M:%S') [cleanliness] $*"; }
-
-log "Checking test DB '$DB_NAME' for leftover test data..."
+log cleanliness "Checking test DB '$DB_NAME' for leftover test data..."
 
 # Seed tables that are expected to have rows
 SEED_TABLES="role capability role_capability flyway_schema_history"
@@ -39,11 +37,11 @@ WHERE schemaname = 'public'
 TABLES_TO_CHECK=$(echo "$RESULT" | tr ' ' '\n' | sort | tr '\n' ' ' | xargs)
 
 if [ -z "$TABLES_TO_CHECK" ]; then
-    log "No tables to check — test DB may not be initialized. Skipping."
+    log cleanliness "No tables to check — test DB may not be initialized. Skipping."
     exit 0
 fi
 
-log "Checking tables: $TABLES_TO_CHECK"
+log cleanliness "Checking tables: $TABLES_TO_CHECK"
 
 LEAKED=""
 for tbl in $TABLES_TO_CHECK; do
@@ -58,9 +56,9 @@ for tbl in $TABLES_TO_CHECK; do
 done
 
 if [ -n "$LEAKED" ]; then
-    log "ERROR: Test-data leak detected in tables:$LEAKED"
-    log "All test tables must have zero rows after the test suite completes."
+    log cleanliness "ERROR: Test-data leak detected in tables:$LEAKED"
+    log cleanliness "All test tables must have zero rows after the test suite completes."
     exit 1
 fi
 
-log "All test tables are clean."
+log cleanliness "All test tables are clean."

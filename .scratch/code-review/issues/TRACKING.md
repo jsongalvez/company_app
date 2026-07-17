@@ -42,7 +42,12 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-035 — chunk2a duplicated patterns | — | [ ] |
 | CR-036 — quality gate effectiveness audit | — | [x] |
 | CR-050 — extract shared app-boot lifecycle | — | [ ] |
+| CR-051 — implement start-app.sh (app-boot lifecycle module) | CR-052 | [ ] |
+| CR-052 — extract shared shell library (common.sh) | — | [x] |
+| CR-053 — consolidate k6 scripts into a single module | — | [ ] |
+| CR-054 — deepen Main.kt init (inject config, isolate dev seeder) | — | [ ] |
 <!-- NOTE: finish CR-001–035 (backend) before CR-037–043 (quality gates). -->
+<!-- CR-051–054 are architecture deepening from 2026-07-17 review. Order: 052 → 051 (foundation first), 053 parallel, 054 parallel. -->
 <!-- Stricter gates add friction; backend fixes establish a clean baseline first. -->
 | CR-037 — health check on app boot test | — | [x] |
 | CR-038 — wire check-baselines.sh into pre-push | — | [x] |
@@ -93,6 +98,10 @@ Unresolved tickets migrated to GitHub Issues (2026-07-17):
 | CR-047 | [#28](https://github.com/jsongalvez/company_app/issues/28) |
 | CR-049 | [#29](https://github.com/jsongalvez/company_app/issues/29) |
 | CR-050 | [#30](https://github.com/jsongalvez/company_app/issues/30) |
+| CR-051 | [#31](https://github.com/jsongalvez/company_app/issues/31) |
+| CR-052 | [#32](https://github.com/jsongalvez/company_app/issues/32) |
+| CR-053 | [#33](https://github.com/jsongalvez/company_app/issues/33) |
+| CR-054 | [#34](https://github.com/jsongalvez/company_app/issues/34) |
 
 ## To mark done
 

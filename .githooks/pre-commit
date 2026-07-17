@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="$(git rev-parse --show-toplevel)"
-cd "$ROOT_DIR"
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
 
-log() { echo "$(date '+%H:%M:%S') [pre-commit] $*"; }
+log pre-commit "$@"
 
 # ----------------------------------------------------------------
 # 1. Optimize imports (auto-fix via ktlintFormat, scoped to staged files)
@@ -14,7 +15,7 @@ log() { echo "$(date '+%H:%M:%S') [pre-commit] $*"; }
 KT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(kt|kts)$' || true)
 
 if [ -z "$KT_FILES" ]; then
-    log "No staged Kotlin files — skipping ktlintFormat"
+    log pre-commit "No staged Kotlin files — skipping ktlintFormat"
 else
     # Resolve ktlint command: PATH, then ~/.cache/company-app/ktlint (installed by setup-hooks.sh)
     KTLINT_CMD=""
@@ -25,112 +26,112 @@ else
     fi
 
     if [ -n "$KTLINT_CMD" ]; then
-        log "Formatting staged Kotlin file(s) with $KTLINT_CMD..."
+        log pre-commit "Formatting staged Kotlin file(s) with $KTLINT_CMD..."
         echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3 || true
-        log "Re-staging formatted files..."
+        log pre-commit "Re-staging formatted files..."
         echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
-        log "Import optimization complete."
+        log pre-commit "Import optimization complete."
     else
         # Fallback: project-wide formatting (slower, touches all tracked files).
         # Tradeoff: preserves correctness but can sweep unrelated formatting into the commit.
         # Run scripts/setup-hooks.sh to install ktlint for staged-only formatting.
-        log "WARNING: ktlint not found. Falling back to project-wide ktlintFormat."
-        log "Run 'bash scripts/setup-hooks.sh' to install ktlint for staged-only formatting."
+        log pre-commit "WARNING: ktlint not found. Falling back to project-wide ktlintFormat."
+        log pre-commit "Run 'bash scripts/setup-hooks.sh' to install ktlint for staged-only formatting."
         ./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
         git add -u
-        log "Import optimization complete."
+        log pre-commit "Import optimization complete."
     fi
 fi
 
 # ----------------------------------------------------------------
 # 2. Quality gate
 # ----------------------------------------------------------------
-log "Running quality gate (detekt, ktlint, test)..."
+log pre-commit "Running quality gate (detekt, ktlint, test)..."
 ./gradlew :backend:detekt :backend:ktlintCheck :backend:test --no-daemon 2>&1 | tail -5
-log "Quality gate passed."
+log pre-commit "Quality gate passed."
 
 # ----------------------------------------------------------------
 # 2a. JMH benchmarks + baseline check
 # Expected additional latency: ~30-60s (full benchmark suite)
 # ----------------------------------------------------------------
 JMH_LOG="/tmp/company-app-jmh-precommit.log"
-log "Running JMH benchmarks (log: $JMH_LOG)..."
+log pre-commit "Running JMH benchmarks (log: $JMH_LOG)..."
 ./gradlew :backend:jmh --no-daemon 2>&1 | tee "$JMH_LOG" | tail -5
-log "JMH benchmarks complete."
+log pre-commit "JMH benchmarks complete."
 
-log "Checking JMH baselines..."
+log pre-commit "Checking JMH baselines..."
 if ! bash scripts/check-baselines.sh "$JMH_LOG" 2>&1 | tail -10; then
-    log "ERROR: Performance regression detected. JMH scores dropped >20% from baseline."
-    log "Full JMH output: $JMH_LOG"
+    log pre-commit "ERROR: Performance regression detected. JMH scores dropped >20% from baseline."
+    log pre-commit "Full JMH output: $JMH_LOG"
     exit 1
 fi
-log "JMH baselines check passed."
+log pre-commit "JMH baselines check passed."
 
 # ----------------------------------------------------------------
 # 2b. Test-data cleanliness check
 # ----------------------------------------------------------------
-log "Checking for test-data leaks..."
+log pre-commit "Checking for test-data leaks..."
 if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
-    log "ERROR: Test-data leak detected. All test tables must be empty after the test suite."
+    log pre-commit "ERROR: Test-data leak detected. All test tables must be empty after the test suite."
     exit 1
 fi
-log "Test-data cleanliness check passed."
+log pre-commit "Test-data cleanliness check passed."
 
 # ----------------------------------------------------------------
 # 2c. Shared module compilation check
 # ----------------------------------------------------------------
-log "Compiling shared module (JVM)..."
+log pre-commit "Compiling shared module (JVM)..."
 # shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
 ./gradlew :shared:compileKotlinJvm --no-daemon 2>&1 | tail -3
-log "Shared module compilation passed."
+log pre-commit "Shared module compilation passed."
 
 # ----------------------------------------------------------------
 # 2d. ComposeApp compilation check (all targets)
 # ----------------------------------------------------------------
-log "Compiling composeApp (desktop + android + ios)..."
+log pre-commit "Compiling composeApp (desktop + android + ios)..."
 ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinIosArm64 :composeApp:compileKotlinIosSimulatorArm64 --no-daemon 2>&1 | tail -5
-log "composeApp compilation passed."
+log pre-commit "composeApp compilation passed."
 
 # ----------------------------------------------------------------
 # 3. Ensure Postgres is reachable
 # ----------------------------------------------------------------
-source .env 2>/dev/null || true
+source_env
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-company_user}"
 POSTGRES_DB="${POSTGRES_DB:-company_app}"
 
-log "Checking Postgres connectivity at $DB_HOST:$DB_PORT..."
+log pre-commit "Checking Postgres connectivity at $DB_HOST:$DB_PORT..."
 if command -v pg_isready &>/dev/null; then
     if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" &>/dev/null; then
-        log "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
-        log "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
         exit 1
     fi
 elif command -v psql &>/dev/null; then
     if ! PGPASSWORD="${POSTGRES_PASSWORD:-}" psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &>/dev/null; then
-        log "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
-        log "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
         exit 1
     fi
 else
     # Fallback: try connecting via /dev/tcp (bash builtin)
     if ! timeout 3 bash -c "echo > /dev/tcp/$DB_HOST/$DB_PORT" 2>/dev/null; then
-        log "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
-        log "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
         exit 1
     fi
 fi
-log "Postgres is reachable."
+log pre-commit "Postgres is reachable."
 
 # ----------------------------------------------------------------
 # 4. Build and boot the app, verify it starts
 # ----------------------------------------------------------------
-log "Building backend distribution..."
+log pre-commit "Building backend distribution..."
 ./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
-log "Build complete."
+log pre-commit "Build complete."
 
-log "Starting app to verify boot..."
+log pre-commit "Starting app to verify boot..."
 APP_PORT="${APP_PORT:-3023}"
 
 # Run the app in background
@@ -142,33 +143,26 @@ APP_STARTED=false
 for i in $(seq 1 45); do
     if ! kill -0 "$APP_PID" 2>/dev/null; then
         wait "$APP_PID" || true
-        log "ERROR: App process died during startup. Last 20 lines of log:"
+        log pre-commit "ERROR: App process died during startup. Last 20 lines of log:"
         tail -20 /tmp/company-app-boot.log
         exit 1
     fi
     # Check if port is listening
-    if command -v lsof &>/dev/null; then
-        if lsof -i ":$APP_PORT" -P 2>/dev/null | grep -q LISTEN; then
-            APP_STARTED=true
-            break
-        fi
-    elif command -v ss &>/dev/null; then
-        if ss -tlnp "sport = :$APP_PORT" 2>/dev/null | grep -q LISTEN; then
-            APP_STARTED=true
-            break
-        fi
+    if port_is_listening "$APP_PORT"; then
+        APP_STARTED=true
+        break
     fi
     sleep 1
 done
 
 if [ "$APP_STARTED" = false ]; then
-    log "ERROR: App did not start within 45 seconds. Last 20 lines of log:"
+    log pre-commit "ERROR: App did not start within 45 seconds. Last 20 lines of log:"
     tail -20 /tmp/company-app-boot.log
     kill "$APP_PID" 2>/dev/null || true
     exit 1
 fi
 
-log "App is running and listening on port $APP_PORT."
+log pre-commit "App is running and listening on port $APP_PORT."
 
 # ----------------------------------------------------------------
 # 4b. Health check — verify app responds and Postgres is reachable
@@ -180,10 +174,10 @@ HEALTH_URL="http://$APP_HOST:$APP_PORT/health"
 HEALTH_OK=false
 HTTP_STATUS=""
 
-log "Checking /health endpoint (up to $HEALTH_RETRIES attempts, ${HEALTH_DELAY}s apart)..."
+log pre-commit "Checking /health endpoint (up to $HEALTH_RETRIES attempts, ${HEALTH_DELAY}s apart)..."
 for i in $(seq 1 $HEALTH_RETRIES); do
     if ! kill -0 "$APP_PID" 2>/dev/null; then
-        log "ERROR: App process died during health check."
+        log pre-commit "ERROR: App process died during health check."
         tail -20 /tmp/company-app-boot.log
         kill "$APP_PID" 2>/dev/null || true
         exit 1
@@ -193,34 +187,25 @@ for i in $(seq 1 $HEALTH_RETRIES); do
         HEALTH_OK=true
         break
     fi
-    log "  Attempt $i/$HEALTH_RETRIES: HTTP $HTTP_STATUS (retrying in ${HEALTH_DELAY}s)..."
+    log pre-commit "  Attempt $i/$HEALTH_RETRIES: HTTP $HTTP_STATUS (retrying in ${HEALTH_DELAY}s)..."
     sleep "$HEALTH_DELAY"
 done
 
 if [ "$HEALTH_OK" = false ]; then
-    log "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
-    log "Last response body:"
+    log pre-commit "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
+    log pre-commit "Last response body:"
     cat /tmp/company-app-health.json 2>/dev/null || true
     kill "$APP_PID" 2>/dev/null || true
     exit 1
 fi
 
-log "Health check passed (HTTP 200)."
+log pre-commit "Health check passed (HTTP 200)."
 
 # ----------------------------------------------------------------
 # 5. Cleanup: kill the app
 # ----------------------------------------------------------------
-log "Stopping app (PID $APP_PID)..."
-kill "$APP_PID" 2>/dev/null || true
-# Give it a moment to shut down gracefully
-for i in $(seq 1 10); do
-    if ! kill -0 "$APP_PID" 2>/dev/null; then
-        break
-    fi
-    sleep 1
-done
-kill -9 "$APP_PID" 2>/dev/null || true
-wait "$APP_PID" 2>/dev/null || true
-log "App stopped."
+log pre-commit "Stopping app (PID $APP_PID)..."
+kill_cleanup "$APP_PID"
+log pre-commit "App stopped."
 
-log "All checks passed — commit allowed."
+log pre-commit "All checks passed — commit allowed."

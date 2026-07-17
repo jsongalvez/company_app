@@ -3,9 +3,13 @@
 # Run this once after cloning the repo.
 
 set -euo pipefail
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
+
 git config core.hooksPath .githooks
-echo "Git hooks installed from .githooks/"
+log setup-hooks "Git hooks installed from .githooks/"
 
 # Install ktlint CLI (needed by pre-commit for staged-only formatting).
 # The hook falls back to project-wide ./gradlew ktlintFormat if unavailable,

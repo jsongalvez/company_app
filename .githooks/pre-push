@@ -1,57 +1,58 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="$(git rev-parse --show-toplevel)"
-cd "$ROOT_DIR"
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
 
-log() { echo "$(date '+%H:%M:%S') [pre-push] $*"; }
+log pre-push "$@"
 
 # ----------------------------------------------------------------
 # 1. Test-data cleanliness check
 # ----------------------------------------------------------------
-log "Checking for test-data leaks..."
+log pre-push "Checking for test-data leaks..."
 if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
-    log "ERROR: Test-data leak detected before push."
+    log pre-push "ERROR: Test-data leak detected before push."
     exit 1
 fi
-log "Test-data cleanliness check passed."
+log pre-push "Test-data cleanliness check passed."
 
 # ----------------------------------------------------------------
 # 2. JMH full benchmark suite
 # ----------------------------------------------------------------
-log "Running JMH benchmarks..."
+log pre-push "Running JMH benchmarks..."
 if ! ./gradlew :backend:jmh --no-daemon 2>&1 | tee /tmp/company-app-jmh.log | tail -20; then
-    log "ERROR: JMH benchmarks failed. Fix before pushing."
+    log pre-push "ERROR: JMH benchmarks failed. Fix before pushing."
     exit 1
 fi
-log "JMH benchmarks passed."
+log pre-push "JMH benchmarks passed."
 
 # ----------------------------------------------------------------
 # 2. Baseline comparison
 # ----------------------------------------------------------------
-log "Comparing JMH results against baseline..."
+log pre-push "Comparing JMH results against baseline..."
 if ! bash scripts/check-baselines.sh /tmp/company-app-jmh.log 2>&1 | tail -20; then
-    log "ERROR: JMH score regression >20% detected."
+    log pre-push "ERROR: JMH score regression >20% detected."
     exit 1
 fi
-log "Baseline comparison passed."
+log pre-push "Baseline comparison passed."
 
 # ----------------------------------------------------------------
 # 3. k6 load-test baseline
 # ----------------------------------------------------------------
-source .env 2>/dev/null || true
+source_env
 K6_BASELINE_SCRIPT="scripts/load-test/baseline.js"
 SKIP_K6=false
 
 # Check k6 availability
 if ! command -v k6 &>/dev/null; then
-    log "WARNING: k6 not found. Skipping load-test baseline."
-    log "Install k6 from https://k6.io/docs/getting-started/installation/"
+    log pre-push "WARNING: k6 not found. Skipping load-test baseline."
+    log pre-push "Install k6 from https://k6.io/docs/getting-started/installation/"
     SKIP_K6=true
 fi
 
 if [ "$SKIP_K6" = false ] && [ ! -f "$K6_BASELINE_SCRIPT" ]; then
-    log "WARNING: k6 baseline script not found at $K6_BASELINE_SCRIPT. Skipping load-test."
+    log pre-push "WARNING: k6 baseline script not found at $K6_BASELINE_SCRIPT. Skipping load-test."
     SKIP_K6=true
 fi
 
@@ -59,8 +60,8 @@ if [ "$SKIP_K6" = false ]; then
     TEST_USERNAME="${TEST_USERNAME:-}"
     TEST_PASSWORD="${TEST_PASSWORD:-}"
     if [ -z "$TEST_USERNAME" ] || [ -z "$TEST_PASSWORD" ]; then
-        log "WARNING: TEST_USERNAME or TEST_PASSWORD not set. Skipping load-test."
-        log "Set them in .env or export before pushing."
+        log pre-push "WARNING: TEST_USERNAME or TEST_PASSWORD not set. Skipping load-test."
+        log pre-push "Set them in .env or export before pushing."
         SKIP_K6=true
     fi
 fi
@@ -69,25 +70,19 @@ if [ "$SKIP_K6" = false ]; then
     APP_HOST="${APP_HOST:-localhost}"
     APP_PORT="${APP_PORT:-3023}"
 
-    log "Building backend distribution..."
+    log pre-push "Building backend distribution..."
     ./gradlew :backend:installDist --no-daemon 2>&1 | tail -3
-    log "Build complete."
+    log pre-push "Build complete."
 
     cleanup_k6_app() {
         if [ -n "${APP_PID:-}" ] && kill -0 "$APP_PID" 2>/dev/null; then
-            log "Cleaning up app (PID $APP_PID)..."
-            kill "$APP_PID" 2>/dev/null || true
-            for i in $(seq 1 10); do
-                if ! kill -0 "$APP_PID" 2>/dev/null; then break; fi
-                sleep 1
-            done
-            kill -9 "$APP_PID" 2>/dev/null || true
-            wait "$APP_PID" 2>/dev/null || true
+            log pre-push "Cleaning up app (PID $APP_PID)..."
+            kill_cleanup "$APP_PID"
         fi
     }
     trap cleanup_k6_app EXIT
 
-    log "Starting app for k6 baseline..."
+    log pre-push "Starting app for k6 baseline..."
     ./gradlew :backend:run --no-daemon > /tmp/company-app-k6-boot.log 2>&1 &
     APP_PID=$!
     APP_STARTED=false
@@ -95,31 +90,24 @@ if [ "$SKIP_K6" = false ]; then
     for i in $(seq 1 45); do
         if ! kill -0 "$APP_PID" 2>/dev/null; then
             wait "$APP_PID" || true
-            log "ERROR: App process died during startup. Last 20 lines:"
+            log pre-push "ERROR: App process died during startup. Last 20 lines:"
             tail -20 /tmp/company-app-k6-boot.log
             exit 1
         fi
-        if command -v lsof &>/dev/null; then
-            if lsof -i ":$APP_PORT" -P 2>/dev/null | grep -q LISTEN; then
-                APP_STARTED=true
-                break
-            fi
-        elif command -v ss &>/dev/null; then
-            if ss -tlnp "sport = :$APP_PORT" 2>/dev/null | grep -q LISTEN; then
-                APP_STARTED=true
-                break
-            fi
+        if port_is_listening "$APP_PORT"; then
+            APP_STARTED=true
+            break
         fi
         sleep 1
     done
 
     if [ "$APP_STARTED" = false ]; then
-        log "ERROR: App did not start within 45 seconds."
+        log pre-push "ERROR: App did not start within 45 seconds."
         tail -20 /tmp/company-app-k6-boot.log
         kill "$APP_PID" 2>/dev/null || true
         exit 1
     fi
-    log "App is running (PID $APP_PID) on port $APP_PORT."
+    log pre-push "App is running (PID $APP_PID) on port $APP_PORT."
 
     HEALTH_RETRIES=10
     HEALTH_DELAY=2
@@ -127,10 +115,10 @@ if [ "$SKIP_K6" = false ]; then
     HEALTH_OK=false
     HTTP_STATUS=""
 
-    log "Checking /health endpoint..."
+    log pre-push "Checking /health endpoint..."
     for i in $(seq 1 $HEALTH_RETRIES); do
         if ! kill -0 "$APP_PID" 2>/dev/null; then
-            log "ERROR: App died during health check."
+            log pre-push "ERROR: App died during health check."
             tail -20 /tmp/company-app-k6-boot.log
             kill "$APP_PID" 2>/dev/null || true
             exit 1
@@ -144,17 +132,17 @@ if [ "$SKIP_K6" = false ]; then
     done
 
     if [ "$HEALTH_OK" = false ]; then
-        log "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
+        log pre-push "ERROR: /health returned HTTP $HTTP_STATUS after $HEALTH_RETRIES attempts."
         cat /tmp/company-app-k6-health.json 2>/dev/null || true
         kill "$APP_PID" 2>/dev/null || true
         exit 1
     fi
-    log "Health check passed."
+    log pre-push "Health check passed."
 
     # Run k6 baseline
     K6_LOG="/tmp/company-app-k6-baseline.log"
     K6_EXIT_CODE=0
-    log "Running k6 baseline..."
+    log pre-push "Running k6 baseline..."
     set +o pipefail
     TEST_USERNAME="$TEST_USERNAME" TEST_PASSWORD="$TEST_PASSWORD" \
         k6 run "$K6_BASELINE_SCRIPT" --quiet 2>&1 | tee "$K6_LOG" || true
@@ -163,16 +151,16 @@ if [ "$SKIP_K6" = false ]; then
 
     cleanup_k6_app
     trap - EXIT
-    log "App stopped."
+    log pre-push "App stopped."
 
     if [ "$K6_EXIT_CODE" -ne 0 ]; then
-        log "ERROR: k6 baseline failed (exit code $K6_EXIT_CODE). Threshold violation detected."
-        log "--- k6 summary ---"
+        log pre-push "ERROR: k6 baseline failed (exit code $K6_EXIT_CODE). Threshold violation detected."
+        log pre-push "--- k6 summary ---"
         tail -20 "$K6_LOG" 2>/dev/null || true
-        log "--- full output: $K6_LOG ---"
+        log pre-push "--- full output: $K6_LOG ---"
         exit 1
     fi
-    log "k6 baseline passed."
+    log pre-push "k6 baseline passed."
 fi
 
-log "Pre-push checks passed."
+log pre-push "Pre-push checks passed."
