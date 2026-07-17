@@ -16,7 +16,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -34,6 +33,7 @@ object SessionBaseRateRepository {
         branchId: UUID,
         sessionType: SessionType,
         rate: BigDecimal,
+        effectiveFrom: OffsetDateTime,
         effectiveUntil: OffsetDateTime,
     ): SetRateResult =
         transaction {
@@ -45,7 +45,7 @@ object SessionBaseRateRepository {
                         it[SessionBaseRateTable.branchId] = branchId
                         it[SessionBaseRateTable.sessionType] = sessionType
                         it[SessionBaseRateTable.rate] = rate
-                        it[SessionBaseRateTable.effectiveFrom] = OffsetDateTime.now(ZoneOffset.UTC)
+                        it[SessionBaseRateTable.effectiveFrom] = effectiveFrom
                         it[SessionBaseRateTable.effectiveUntil] = effectiveUntil
                     }.insertedCount
             val inserted = insertedCount > 0

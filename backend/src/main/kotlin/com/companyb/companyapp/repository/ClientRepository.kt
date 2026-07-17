@@ -111,8 +111,8 @@ object ClientRepository {
                     newValue =
                         AuditLogRepository.jsonFields(
                             "id" to client.id.toString(),
-                            "firstName" to client.firstName,
-                            "lastName" to client.lastName,
+                            "firstName" to (client.firstName ?: ""),
+                            "lastName" to (client.lastName ?: ""),
                         ),
                 )
             }
@@ -157,13 +157,13 @@ object ClientRepository {
                     changedBy = params.changedBy,
                     oldValue =
                         AuditLogRepository.jsonFields(
-                            "firstName" to old.firstName,
-                            "lastName" to old.lastName,
+                            "firstName" to (old.firstName ?: ""),
+                            "lastName" to (old.lastName ?: ""),
                         ),
                     newValue =
                         AuditLogRepository.jsonFields(
-                            "firstName" to updated.firstName,
-                            "lastName" to updated.lastName,
+                            "firstName" to (updated.firstName ?: ""),
+                            "lastName" to (updated.lastName ?: ""),
                         ),
                 )
             }
@@ -180,12 +180,12 @@ object ClientRepository {
             val updatedCount =
                 ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
                     it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone
-                    it[ClientTable.firstName] = ""
-                    it[ClientTable.lastName] = ""
+                    it[ClientTable.firstName] = null
+                    it[ClientTable.lastName] = null
                     it[ClientTable.middleName] = null
                     it[ClientTable.suffix] = null
                     it[ClientTable.phoneNumber] = null
-                    it[ClientTable.address] = ""
+                    it[ClientTable.address] = null
                     it[ClientTable.medicalConditions] = null
                     it[ClientTable.systolicBp] = null
                     it[ClientTable.diastolicBp] = null
@@ -199,14 +199,14 @@ object ClientRepository {
                     changedBy = changedBy,
                     oldValue =
                         AuditLogRepository.jsonFields(
-                            "firstName" to old.firstName,
-                            "lastName" to old.lastName,
+                            "firstName" to (old.firstName ?: "null"),
+                            "lastName" to (old.lastName ?: "null"),
                             "deletedAt" to (old.deletedAt?.toString() ?: "null"),
                         ),
                     newValue =
                         AuditLogRepository.jsonFields(
-                            "firstName" to "",
-                            "lastName" to "",
+                            "firstName" to "null",
+                            "lastName" to "null",
                             "deletedAt" to OffsetDateTime.now(ZoneOffset.UTC).toString(),
                         ),
                 )

@@ -36,12 +36,12 @@ data class UpdateClientRequest(
 @Serializable
 data class ClientResponse(
     val id: String,
-    val firstName: String,
-    val lastName: String,
+    val firstName: String?,
+    val lastName: String?,
     val middleName: String?,
     val suffix: String?,
     val phoneNumber: String?,
-    val address: String,
+    val address: String?,
     val gender: String,
     val age: Int,
     val systolicBp: Short?,

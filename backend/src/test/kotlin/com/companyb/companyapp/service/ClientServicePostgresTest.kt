@@ -434,12 +434,12 @@ class ClientServicePostgresTest : BasePostgresTest() {
         ClientService.anonymize(callerId, clientAId)
 
         val persisted = persistedClient(clientAId)
-        assertEquals("", persisted.firstName)
-        assertEquals("", persisted.lastName)
+        assertNull(persisted.firstName)
+        assertNull(persisted.lastName)
         assertNull(persisted.middleName)
         assertNull(persisted.suffix)
         assertNull(persisted.phoneNumber)
-        assertEquals("", persisted.address)
+        assertNull(persisted.address)
         assertNull(persisted.medicalConditions)
         assertNull(persisted.systolicBp)
         assertNull(persisted.diastolicBp)
@@ -455,7 +455,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         ClientService.anonymize(callerId, clientAId)
 
         val persisted = persistedClient(clientAId)
-        assertEquals("", persisted.firstName)
+        assertNull(persisted.firstName)
     }
 
     @Test
@@ -487,7 +487,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
         val found = ClientService.findById(clientAId)
         assertEquals(clientAId, found.id)
-        assertEquals("", found.firstName)
+        assertNull(found.firstName)
     }
 
     @Test

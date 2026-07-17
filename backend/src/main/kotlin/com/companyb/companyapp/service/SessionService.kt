@@ -27,8 +27,6 @@ object SessionService {
     private val logger = KotlinLogging.logger {}
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
-    private const val ZERO = "0"
-
     @Suppress("ReturnCount", "ThrowsCount")
     fun computeSessionType(
         branchType: BranchType,
@@ -124,7 +122,7 @@ object SessionService {
         return activeRates
             .firstOrNull { it.sessionType == sessionType }
             ?.rate
-            ?: BigDecimal(ZERO)
+            ?: throw BadRequestResponse("No base rate configured for session type $sessionType at this branch")
     }
 
     @Suppress("ReturnCount", "ThrowsCount")

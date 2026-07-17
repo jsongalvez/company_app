@@ -61,6 +61,8 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     private val productSaleId = UUID.randomUUID()
     private lateinit var branchDayId: UUID
     private val rateId = UUID.randomUUID()
+    private val secondSessionRateId = UUID.randomUUID()
+    private val subsequentRateId = UUID.randomUUID()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "rl")
@@ -79,7 +81,11 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(ClientTable, ClientTable.id, clientId)
 
         insertSessionBaseRate()
+        insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
+        insertSessionBaseRate(subsequentRateId, SessionType.SUBSEQUENT)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, secondSessionRateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
 
         ensureBranchDay()
 
@@ -736,14 +742,19 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         trackOwned(InventoryMovementTable, InventoryMovementTable.branchId, branchId)
     }
 
-    private fun insertSessionBaseRate() {
+    private fun insertSessionBaseRate(
+        id: UUID = rateId,
+        sessionType: SessionType = SessionType.REGULAR,
+    ) {
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
         SessionBaseRateRepository.setRate(
-            id = rateId,
+            id = id,
             setBy = callerId,
             branchId = branchId,
-            sessionType = SessionType.REGULAR,
+            sessionType = sessionType,
             rate = BigDecimal("2500.00"),
-            effectiveUntil = OffsetDateTime.now(ZoneOffset.UTC).plusYears(10),
+            effectiveFrom = now,
+            effectiveUntil = now.plusYears(10),
         )
     }
 

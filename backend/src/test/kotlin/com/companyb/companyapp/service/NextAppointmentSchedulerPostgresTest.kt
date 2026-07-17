@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -8,11 +10,13 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.SessionBaseRateService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.count
@@ -24,6 +28,7 @@ import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
@@ -44,6 +49,9 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     private val sourceId = UUID.randomUUID()
 
     private lateinit var branchDayId: UUID
+    private val rateId = UUID.randomUUID()
+    private val secondSessionRateId = UUID.randomUUID()
+    private val subsequentRateId = UUID.randomUUID()
 
     private val allTestUsers
         get() = listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
@@ -76,6 +84,12 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         }
         trackOwned(SessionTable, SessionTable.clientId, clientId)
         trackOwned(SessionVoidTable, SessionVoidTable.voidedBy, callerId)
+        insertSessionBaseRate()
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        insertSessionBaseRate(secondSessionRateId, SessionType.SECOND_SESSION)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, secondSessionRateId)
+        insertSessionBaseRate(subsequentRateId, SessionType.SUBSEQUENT)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
     }
 
     @Test
@@ -309,6 +323,13 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             contextId = branchId,
             sourceId = sourceId,
         )
+    }
+
+    private fun insertSessionBaseRate(
+        id: UUID = rateId,
+        sessionType: SessionType = SessionType.REGULAR,
+    ) {
+        SessionBaseRateService.setRate(callerId, id, branchId, sessionType, "2500.00")
     }
 
     private fun insertUserBranchAssignment(

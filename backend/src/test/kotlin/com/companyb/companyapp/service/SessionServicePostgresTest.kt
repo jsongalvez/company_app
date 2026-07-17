@@ -48,6 +48,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
     private val sessionId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
     private val rateId = UUID.randomUUID()
+    private val secondSessionRateId = UUID.randomUUID()
+    private val subsequentRateId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val walkInSessionId = UUID.randomUUID()
     private val practitionerId = UUID.randomUUID()
@@ -71,7 +73,11 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         insertSessionBaseRate()
+        insertSessionBaseRate(id = secondSessionRateId, sessionType = SessionType.SECOND_SESSION)
+        insertSessionBaseRate(id = subsequentRateId, sessionType = SessionType.SUBSEQUENT)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, secondSessionRateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, subsequentRateId)
 
         insertAssignment(practitionerId)
         trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.branchId, branchId)

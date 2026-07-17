@@ -53,7 +53,7 @@ object SessionBaseRateService {
 
         SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
 
-        return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rateAmount, FAR_FUTURE)
+        return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rateAmount, now, FAR_FUTURE)
     }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
