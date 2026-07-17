@@ -87,8 +87,8 @@ log "Shared module compilation passed."
 # ----------------------------------------------------------------
 # 2d. ComposeApp compilation check (all targets)
 # ----------------------------------------------------------------
-log "Compiling composeApp (desktop + android)..."
-./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid --no-daemon 2>&1 | tail -5
+log "Compiling composeApp (desktop + android + ios)..."
+./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinIosArm64 :composeApp:compileKotlinIosSimulatorArm64 --no-daemon 2>&1 | tail -5
 log "composeApp compilation passed."
 
 # ----------------------------------------------------------------
