@@ -320,7 +320,7 @@ object SessionRoutes {
             throw BadRequestResponse("label must not be blank")
         }
 
-        val concern = ConcernService.promoteConcern(callerId, concernId, sessionId, request.label)
+        val concern = ConcernService.promoteConcern(callerId, sessionId, concernId, request.label)
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }

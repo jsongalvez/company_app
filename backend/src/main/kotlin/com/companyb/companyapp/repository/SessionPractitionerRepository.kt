@@ -45,7 +45,8 @@ object SessionPractitionerRepository {
             val created = insertedCount > 0
 
             if (created) {
-                incrementSessionVersion(sessionId)
+                val sessionVersion = readSessionVersion(sessionId)
+                incrementSessionVersion(sessionId, sessionVersion)
             }
 
             val practitioner =
@@ -98,7 +99,8 @@ object SessionPractitionerRepository {
                 }
 
             if (updated > 0) {
-                incrementSessionVersion(sessionId)
+                val sessionVersion = readSessionVersion(sessionId)
+                incrementSessionVersion(sessionId, sessionVersion)
 
                 val practitioner =
                     SessionPractitionerTable
@@ -139,7 +141,8 @@ object SessionPractitionerRepository {
                 }
 
             if (deleted > 0) {
-                incrementSessionVersion(sessionId)
+                val sessionVersion = readSessionVersion(sessionId)
+                incrementSessionVersion(sessionId, sessionVersion)
 
                 AuditLogRepository.record(
                     tableName = SessionPractitionerTable.tableName,
@@ -192,14 +195,22 @@ object SessionPractitionerRepository {
             slotAtTime = this[SessionPractitionerTable.slotAtTime],
         )
 
-    private fun incrementSessionVersion(sessionId: UUID) {
-        val currentVersion =
-            SessionTable
-                .select(SessionTable.version)
-                .where { SessionTable.id eq sessionId }
-                .single()[SessionTable.version]
-        SessionTable.update({ SessionTable.id eq sessionId }) {
-            it[SessionTable.version] = currentVersion + 1
-        }
+    private fun incrementSessionVersion(
+        sessionId: UUID,
+        expectedVersion: Int,
+    ) {
+        val updated =
+            SessionTable.update({
+                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+            }) {
+                it[SessionTable.version] = expectedVersion + 1
+            }
+        check(updated > 0) { "Session version changed concurrently" }
     }
+
+    private fun readSessionVersion(sessionId: UUID): Int =
+        SessionTable
+            .select(SessionTable.version)
+            .where { SessionTable.id eq sessionId }
+            .single()[SessionTable.version]
 }

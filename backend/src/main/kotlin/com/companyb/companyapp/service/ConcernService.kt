@@ -60,8 +60,8 @@ object ConcernService {
     @Suppress("ReturnCount", "ThrowsCount")
     fun promoteConcern(
         callerId: UUID,
-        concernId: UUID,
         sessionId: UUID,
+        concernId: UUID,
         label: String,
     ): Concern {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
