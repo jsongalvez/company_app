@@ -1,6 +1,6 @@
 package com.companyb.companyapp.test
 
-import com.companyb.companyapp.database.dotenv
+import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
@@ -55,16 +55,17 @@ object DatabaseTestHelper {
 
     fun ensureDatabase() {
         if (!databaseReady) {
-            val dbName = dotenv["TEST_DB_NAME"] ?: "${dotenv["POSTGRES_DB"]}_test"
+            val config = AppConfig.parse()
+            val dbName = System.getenv("TEST_DB_NAME") ?: "${config.dbName}_test"
             val ds =
                 HikariDataSource(
                     HikariConfig().apply {
                         dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
-                        addDataSourceProperty("user", dotenv["POSTGRES_USER"])
-                        addDataSourceProperty("password", dotenv["POSTGRES_PASSWORD"])
+                        addDataSourceProperty("user", config.dbUser)
+                        addDataSourceProperty("password", config.dbPassword)
                         addDataSourceProperty("databaseName", dbName)
-                        addDataSourceProperty("serverName", dotenv["DB_HOST"])
-                        addDataSourceProperty("portNumber", dotenv["DB_PORT"])
+                        addDataSourceProperty("serverName", config.dbHost)
+                        addDataSourceProperty("portNumber", config.dbPort)
                         maximumPoolSize = MAX_POOL_SIZE
                         minimumIdle = MIN_IDLE
                         connectionTimeout = CONNECTION_TIMEOUT_MS

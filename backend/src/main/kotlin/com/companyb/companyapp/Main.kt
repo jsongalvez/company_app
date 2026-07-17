@@ -35,7 +35,6 @@ import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.database.DatabaseConfig
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
-import com.companyb.companyapp.seeding.DevSeeder
 import com.companyb.companyapp.service.NextAppointmentScheduler
 import com.companyb.companyapp.utils.Helper
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -157,18 +156,19 @@ fun initializeScheduler() {
 }
 
 fun main() {
+    main(AppConfig.parse())
+}
+
+fun main(config: AppConfig) {
     RequestElapsedConverter.startRequest()
     DeltaTimeConverter.startRequest()
     logger.info { "[INITIALIZATION] Starting initialization" }
-
-    val config = AppConfig.parse()
 
     JwtService.init(config)
     Password.init(config.authDummyPassword)
 
     DatabaseConfig.initialize(config)
     initializeDenyList()
-    DevSeeder.seed(config)
     initializeScheduler()
     initializeJavalin(config)
 

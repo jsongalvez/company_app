@@ -57,6 +57,8 @@ application {
 
 tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass = "com.companyb.companyapp.seeding.DevMainKt"
 }
 
 tasks.test {
