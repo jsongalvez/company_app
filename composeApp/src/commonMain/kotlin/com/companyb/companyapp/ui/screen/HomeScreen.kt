@@ -46,6 +46,7 @@ import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchViewModel
@@ -98,7 +99,7 @@ fun HomeScreen(
             }
 
             is UiState.Error -> {
-                logInfo("HomeScreen", "clockInState=Error: ${state.message}")
+                logWarn("HomeScreen", "clockInState=Error: ${state.message}")
                 snackbarHostState.showSnackbar(state.message)
             }
 
@@ -114,7 +115,7 @@ fun HomeScreen(
             }
 
             is UiState.Error -> {
-                logInfo("HomeScreen", "clockOutState=Error: ${state.message}")
+                logWarn("HomeScreen", "clockOutState=Error: ${state.message}")
                 snackbarHostState.showSnackbar(state.message)
             }
 

@@ -8,6 +8,7 @@ import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -68,7 +69,7 @@ class ClientViewModel(
                     logInfo("ClientVM", "search success")
                     _searchResults.value = UiState.Success(response.body())
                 } else {
-                    logInfo("ClientVM", "search failed: status=${response.status.value}")
+                    logWarn("ClientVM", "search failed: status=${response.status.value}")
                     _searchErrorMessage.value = "search failed: ${response.status.value}"
                 }
             } catch (e: Exception) {

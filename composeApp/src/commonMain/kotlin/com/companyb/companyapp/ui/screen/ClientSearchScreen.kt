@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.coroutines.delay
@@ -71,7 +72,7 @@ fun ClientSearchScreen(
     LaunchedEffect(searchError) {
         val err = searchError
         if (err != null) {
-            logInfo("ClientSearchScreen", "search error: $err")
+            logWarn("ClientSearchScreen", "search error: $err")
             snackbarHostState.showSnackbar(err)
         }
     }

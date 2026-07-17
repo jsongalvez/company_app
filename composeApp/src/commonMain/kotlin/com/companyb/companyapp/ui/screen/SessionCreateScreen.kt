@@ -44,6 +44,7 @@ import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
@@ -84,7 +85,7 @@ fun SessionCreateScreen(
             }
 
             is UiState.Error -> {
-                logInfo("SessionCreateScreen", "session create error: ${state.message}")
+                logWarn("SessionCreateScreen", "session create error: ${state.message}")
                 snackbarHostState.showSnackbar(state.message)
             }
 

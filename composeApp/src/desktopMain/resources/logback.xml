@@ -7,7 +7,7 @@
 
     <appender name="FILE" class="ch.qos.logback.core.FileAppender">
         <file>${companyApp.logDir}/app.log</file>
-        <append>false</append>
+        <append>true</append>
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} [%-5level] [%logger{0}] %msg%n</pattern>
         </encoder>

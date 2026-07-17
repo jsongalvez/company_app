@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
@@ -61,7 +62,7 @@ fun LoginScreen(
             }
 
             is UiState.Error -> {
-                logInfo("LoginScreen", "loginState=Error: ${state.message}")
+                logWarn("LoginScreen", "loginState=Error: ${state.message}")
             }
 
             else -> {}

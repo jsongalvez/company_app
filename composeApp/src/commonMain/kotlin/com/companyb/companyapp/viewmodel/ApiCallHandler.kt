@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +32,7 @@ class ApiCallHandler(
                     logInfo(tag, "$operation success")
                     state.value = UiState.Success(transform(response))
                 } else {
-                    logInfo(tag, "$operation failed: status=${response.status.value}")
+                    logWarn(tag, "$operation failed: status=${response.status.value}")
                     state.value = UiState.Error("$operation failed: ${response.status.value}")
                 }
             } catch (e: Exception) {
