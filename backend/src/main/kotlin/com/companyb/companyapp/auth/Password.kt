@@ -1,14 +1,15 @@
 package com.companyb.companyapp.auth
 
 import at.favre.lib.crypto.bcrypt.BCrypt
-import com.companyb.companyapp.database.dotenv
 
 object Password {
     private const val BCRYPT_COST = 12
     private const val MAX_PASSWORD_BYTES = 72
 
-    private val DUMMY_HASH: String by lazy {
-        BCrypt.withDefaults().hashToString(BCRYPT_COST, dotenv["AUTH_DUMMY_PASSWORD"].toCharArray())
+    private var dummyHash: String = ""
+
+    fun init(authDummyPassword: String) {
+        dummyHash = BCrypt.withDefaults().hashToString(BCRYPT_COST, authDummyPassword.toCharArray())
     }
 
     fun create(raw: String): String {
@@ -24,7 +25,7 @@ object Password {
         hash: String?,
     ): Boolean {
         if (raw.encodeToByteArray().size > MAX_PASSWORD_BYTES) return false
-        val passwordHash = hash ?: DUMMY_HASH
+        val passwordHash = hash ?: dummyHash
         val result =
             runCatching {
                 BCrypt.verifyer().verify(raw.toCharArray(), passwordHash)

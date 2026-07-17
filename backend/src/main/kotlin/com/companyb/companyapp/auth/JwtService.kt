@@ -3,7 +3,7 @@ package com.companyb.companyapp.auth
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.exceptions.JWTVerificationException
-import com.companyb.companyapp.database.dotenv
+import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.UserRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -16,35 +16,34 @@ import kotlin.time.Duration.Companion.seconds
 object JwtService {
     private val logger = KotlinLogging.logger {}
     private const val MIN_SECRET_LENGTH = 32
-    private val issuer =
-        run {
-            val issuer = dotenv["JWT_ISSUER"]
-            require(!issuer.isNullOrBlank()) { "JWT_ISSUER must be set" }
-            issuer
+
+    private var issuer: String = ""
+    private var audience: String = ""
+    private var algorithm: Algorithm? = null
+    private var verifier: com.auth0.jwt.JWTVerifier? = null
+
+    fun init(config: AppConfig) {
+        val secret = config.jwtSecret
+        require(secret.length >= MIN_SECRET_LENGTH) {
+            "JWT_SECRET must be at least $MIN_SECRET_LENGTH characters"
         }
-    private val audience =
-        run {
-            val audience = dotenv["JWT_AUDIENCE"]
-            require(!audience.isNullOrBlank()) { "JWT_AUDIENCE must be set" }
-            audience
-        }
-    private val algorithm =
-        run {
-            val secret = dotenv["JWT_SECRET"]
-            require(!secret.isNullOrBlank()) { "JWT_SECRET must be set" }
-            require(secret.length >= MIN_SECRET_LENGTH) { "JWT_SECRET must be at least $MIN_SECRET_LENGTH characters" }
-            Algorithm.HMAC256(secret)
-        }
-    private val verifier =
-        JWT
-            .require(algorithm)
-            .withIssuer(issuer)
-            .withAudience(audience)
-            .acceptLeeway(60.seconds.inWholeSeconds) // Accept some clock skew
-            .build()
+
+        issuer = config.jwtIssuer
+        audience = config.jwtAudience
+        val algo = Algorithm.HMAC256(secret)
+        algorithm = algo
+        verifier =
+            JWT
+                .require(algo)
+                .withIssuer(issuer)
+                .withAudience(audience)
+                .acceptLeeway(60.seconds.inWholeSeconds)
+                .build()
+    }
 
     fun generateToken(userId: String): String {
         logger.info { "[GENERATE-TOKEN] Generating token for ${userId.maskUUID()}" }
+        val algo = algorithm ?: error("JwtService.init() must be called before generateToken()")
         val now = Instant.now()
         val expiresAt = now.plus(1, ChronoUnit.DAYS)
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
@@ -56,7 +55,7 @@ object JwtService {
                 .withSubject(userId)
                 .withExpiresAt(Date.from(expiresAt))
                 .withIssuedAt(Date.from(now))
-                .sign(algorithm)
+                .sign(algo)
         logger.info { "[GENERATE-TOKEN] Successfully generated token" }
         return token
     }
@@ -64,8 +63,9 @@ object JwtService {
     @Suppress("ReturnCount")
     fun verifyToken(token: String): String? =
         try {
+            val v = verifier ?: error("JwtService.init() must be called before verifyToken()")
             val subj =
-                verifier.verify(token).subject ?: return null.also {
+                v.verify(token).subject ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no subject" }
                 }
             val parsedId =
@@ -75,7 +75,6 @@ object JwtService {
                         return null
                     }
             when {
-                // Deny list is checked in-memory before any database request.
                 DenyList.isDenied(parsedId) -> {
                     null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is on the deny list" } }
                 }

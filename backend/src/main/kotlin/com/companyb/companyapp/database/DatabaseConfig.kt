@@ -1,5 +1,6 @@
 package com.companyb.companyapp.database
 
+import com.companyb.companyapp.config.AppConfig
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import io.github.cdimascio.dotenv.dotenv
@@ -8,6 +9,7 @@ import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
 
 private val logger = KotlinLogging.logger {}
+
 val dotenv = dotenv()
 
 object DatabaseConfig {
@@ -15,15 +17,18 @@ object DatabaseConfig {
     private const val MIN_IDLE = 3
     private const val CONNECTION_TIMEOUT_MS = 30_000L
 
+    private var appConfig: AppConfig? = null
+
     val dataSource: HikariDataSource by lazy {
+        val cfg = appConfig ?: error("DatabaseConfig.initialize() must be called before accessing dataSource")
         val config =
             HikariConfig().apply {
                 dataSourceClassName = "org.postgresql.ds.PGSimpleDataSource"
-                addDataSourceProperty("user", dotenv["POSTGRES_USER"])
-                addDataSourceProperty("password", dotenv["POSTGRES_PASSWORD"])
-                addDataSourceProperty("databaseName", dotenv["POSTGRES_DB"])
-                addDataSourceProperty("serverName", dotenv["DB_HOST"])
-                addDataSourceProperty("portNumber", dotenv["DB_PORT"])
+                addDataSourceProperty("user", cfg.dbUser)
+                addDataSourceProperty("password", cfg.dbPassword)
+                addDataSourceProperty("databaseName", cfg.dbName)
+                addDataSourceProperty("serverName", cfg.dbHost)
+                addDataSourceProperty("portNumber", cfg.dbPort)
 
                 maximumPoolSize = MAX_POOL_SIZE
                 minimumIdle = MIN_IDLE
@@ -32,23 +37,25 @@ object DatabaseConfig {
         HikariDataSource(config)
     }
 
-    fun runMigrations() {
-        logger.info { "[RUN-MIGRATIONS] Starting flyway configuration" }
+    fun initialize(config: AppConfig) {
+        appConfig = config
+        logger.info { "[INITIALIZE-DATABASE] Starting HikariCP connection" }
+        dataSource
+        logger.info { "[INITIALIZE-DATABASE] HikariCP connection enabled" }
+
+        logger.info { "[INITIALIZE-DATABASE] Starting Flyway initialization" }
         val flyway =
             Flyway
                 .configure()
                 .dataSource(dataSource)
-                .locations(
-                    "classpath:db/migration",
-                ).load()
+                .locations("classpath:db/migration")
+                .load()
         flyway.repair()
         flyway.migrate()
-        logger.info { "[RUN-MIGRATIONS] Flyway configuration done" }
-    }
+        logger.info { "[INITIALIZE-DATABASE] Flyway initialization done" }
 
-    fun runExposed() {
-        logger.info { "[RUN-EXPOSED] Starting Exposed database connection" }
+        logger.info { "[INITIALIZE-DATABASE] Starting Exposed connection" }
         Database.connect(dataSource)
-        logger.info { "[RUN-EXPOSED] Exposed database connection done" }
+        logger.info { "[INITIALIZE-DATABASE] Exposed connection enabled" }
     }
 }

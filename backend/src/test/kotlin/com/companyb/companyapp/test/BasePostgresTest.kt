@@ -1,5 +1,8 @@
 package com.companyb.companyapp.test
 
+import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.repository.model.AllowanceTable
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -67,6 +70,9 @@ abstract class BasePostgresTest {
     @BeforeTest
     fun setUpBase() {
         DatabaseTestHelper.ensureDatabase()
+        val config = AppConfig.parse()
+        JwtService.init(config)
+        Password.init(config.authDummyPassword)
         cleanTrackedRows()
         tracked.clear()
         initTestData()
