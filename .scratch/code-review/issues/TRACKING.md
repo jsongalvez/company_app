@@ -41,12 +41,13 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-034 — ApiClient config + speculative params | — | [ ] |
 | CR-035 — chunk2a duplicated patterns | — | [ ] |
 | CR-036 — quality gate effectiveness audit | — | [x] |
+| CR-050 — extract shared app-boot lifecycle | — | [ ] |
 <!-- NOTE: finish CR-001–035 (backend) before CR-037–043 (quality gates). -->
 <!-- Stricter gates add friction; backend fixes establish a clean baseline first. -->
 | CR-037 — health check on app boot test | — | [x] |
 | CR-038 — wire check-baselines.sh into pre-push | — | [x] |
 | CR-039 — replace jmhClasses with JMH run in pre-commit | — | [x] |
-| CR-040 — wire k6 baseline into pre-push | CR-037 | [ ] |
+| CR-040 — wire k6 baseline into pre-push | CR-037 | [x] |
 | CR-041 — shared module compilation + test step | — | [x] |
 | CR-042 — iOS compilation target in pre-commit | — | [x] |
 | CR-043 — scope ktlintFormat to staged files only | — | [x] |
@@ -84,13 +85,14 @@ Unresolved tickets migrated to GitHub Issues (2026-07-17):
 | CR-035 | [#20](https://github.com/jsongalvez/company_app/issues/20) |
 | CR-038 | [#21](https://github.com/jsongalvez/company_app/issues/21) |
 | CR-039 | [#22](https://github.com/jsongalvez/company_app/issues/22) |
-| CR-040 | [#23](https://github.com/jsongalvez/company_app/issues/23) |
+| CR-040 | [#23](https://github.com/jsongalvez/company_app/issues/23) | ✅ done |
 | CR-041 | [#24](https://github.com/jsongalvez/company_app/issues/24) |
 | CR-042 | [#25](https://github.com/jsongalvez/company_app/issues/25) | ✅ done |
 | CR-043 | [#26](https://github.com/jsongalvez/company_app/issues/26) |
 | CR-046 | [#27](https://github.com/jsongalvez/company_app/issues/27) |
 | CR-047 | [#28](https://github.com/jsongalvez/company_app/issues/28) |
 | CR-049 | [#29](https://github.com/jsongalvez/company_app/issues/29) |
+| CR-050 | [#30](https://github.com/jsongalvez/company_app/issues/30) |
 
 ## To mark done
 
