@@ -32,7 +32,7 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-025 — magic strings + duplicated plumbing | — | [x] |
 | CR-026 — test anti-patterns | — | [ ] |
 | CR-027 — N+1 scheduler + notification table | — | [ ] |
-| CR-028 — business logic in route + fake DTOs | — | [ ] |
+| CR-028 — business logic in route + fake DTOs | — | [x] |
 | CR-029 — composeApp errors-as-logInfo + logback regression | — | [x] |
 | CR-030 — onUnauthorized + dead code | — | [x] |
 | CR-031 — null-safety + LinearTheme tokens | — | [x] |
