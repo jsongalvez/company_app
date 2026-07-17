@@ -17,7 +17,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * Shared day-state service. Every operational/financial write must call [assertEditable]
+ * Shared day-state service. Every operational/financial write must call [checkBranchDayEditable]
  * before mutating, and create the owning day via [resolveOrCreate].
  *
  * Day state is lazily evaluated against the current Asia/Manila calendar date: a day that is
@@ -37,30 +37,32 @@ object BranchDayService {
     ): BranchDay = BranchDayRepository.resolveOrCreate(branchId, date)
 
     /**
-     * Asserts the given branch day can be written to by [userId].
+     * Resolves the branch day and asserts it is editable by [callerId].
+     * Covers the branch-day lookup, [EDIT_PAST_DAY] capability check, and day-state validation.
      *
-     * @param reason mandatory free-text reason when writing to a REMITTED day.
+     * @return the resolved [BranchDay] so callers can use it without a second lookup.
      * @throws NotFoundResponse if the branch day does not exist.
      * @throws ForbiddenResponse if the day is PAST/REMITTED and the user lacks EDIT_PAST_DAY.
      * @throws BadRequestResponse if the day is REMITTED and no reason was supplied.
      */
-    fun assertEditable(
+    fun checkBranchDayEditable(
+        callerId: UUID,
         branchDayId: UUID,
-        userId: UUID,
         reason: String? = null,
-    ) {
+    ): BranchDay {
         val branchDay = BranchDayRepository.findById(branchDayId) ?: throw NotFoundResponse("Branch day not found")
         val today = LocalDate.now(manilaZone)
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val hasEditPastDay =
             CapabilityService.hasCapability(
-                userId = userId,
+                userId = callerId,
                 capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
                 contextType = CapabilityContextType.BRANCH,
                 contextId = branchDay.branchId,
             )
         assertEditableState(effectiveStatus, hasEditPastDay, reason)
-        logger.info { "[ASSERT-EDITABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
+        logger.info { "[CHECK-BRANCH-DAY-EDITABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
+        return branchDay
     }
 
     /**

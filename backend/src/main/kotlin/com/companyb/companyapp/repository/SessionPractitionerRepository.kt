@@ -45,14 +45,7 @@ object SessionPractitionerRepository {
             val created = insertedCount > 0
 
             if (created) {
-                val currentVersion =
-                    SessionTable
-                        .select(SessionTable.version)
-                        .where { SessionTable.id eq sessionId }
-                        .single()[SessionTable.version]
-                SessionTable.update({ SessionTable.id eq sessionId }) {
-                    it[SessionTable.version] = currentVersion + 1
-                }
+                incrementSessionVersion(sessionId)
             }
 
             val practitioner =
@@ -105,14 +98,7 @@ object SessionPractitionerRepository {
                 }
 
             if (updated > 0) {
-                val currentVersion =
-                    SessionTable
-                        .select(SessionTable.version)
-                        .where { SessionTable.id eq sessionId }
-                        .single()[SessionTable.version]
-                SessionTable.update({ SessionTable.id eq sessionId }) {
-                    it[SessionTable.version] = currentVersion + 1
-                }
+                incrementSessionVersion(sessionId)
 
                 val practitioner =
                     SessionPractitionerTable
@@ -153,14 +139,7 @@ object SessionPractitionerRepository {
                 }
 
             if (deleted > 0) {
-                val currentVersion =
-                    SessionTable
-                        .select(SessionTable.version)
-                        .where { SessionTable.id eq sessionId }
-                        .single()[SessionTable.version]
-                SessionTable.update({ SessionTable.id eq sessionId }) {
-                    it[SessionTable.version] = currentVersion + 1
-                }
+                incrementSessionVersion(sessionId)
 
                 AuditLogRepository.record(
                     tableName = SessionPractitionerTable.tableName,
@@ -212,4 +191,15 @@ object SessionPractitionerRepository {
             remarks = this[SessionPractitionerTable.remarks],
             slotAtTime = this[SessionPractitionerTable.slotAtTime],
         )
+
+    private fun incrementSessionVersion(sessionId: UUID) {
+        val currentVersion =
+            SessionTable
+                .select(SessionTable.version)
+                .where { SessionTable.id eq sessionId }
+                .single()[SessionTable.version]
+        SessionTable.update({ SessionTable.id eq sessionId }) {
+            it[SessionTable.version] = currentVersion + 1
+        }
+    }
 }

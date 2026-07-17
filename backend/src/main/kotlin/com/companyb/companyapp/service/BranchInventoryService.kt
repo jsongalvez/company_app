@@ -55,7 +55,7 @@ object BranchInventoryService {
             throw NotFoundResponse("Product not found")
         }
 
-        BranchDayService.assertEditable(branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val card = BranchInventoryRepository.ensureCard(branchId, productId)
         val expectedVersion = card.version
@@ -125,7 +125,7 @@ object BranchInventoryService {
             throw NotFoundResponse("Product not found")
         }
 
-        BranchDayService.assertEditable(branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val card = BranchInventoryRepository.ensureCard(branchId, productId)
         val expectedVersion = card.version

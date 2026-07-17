@@ -21,9 +21,6 @@ object ExpenseService {
         category: ExpenseCategory,
         notes: String?,
     ): Expense {
-        BranchDayRepository.findById(branchDayId)
-            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
-
         val existing = ExpenseRepository.findById(id)
         if (existing != null) {
             return existing
@@ -33,7 +30,7 @@ object ExpenseService {
             throw BadRequestResponse("Amount must be positive")
         }
 
-        BranchDayService.assertEditable(branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         return ExpenseRepository.create(id, branchDayId, amount, category, callerId, notes)
     }
@@ -48,14 +45,11 @@ object ExpenseService {
             ExpenseRepository.findById(expenseId)
                 ?: throw io.javalin.http.NotFoundResponse("Expense not found")
 
-        BranchDayRepository.findById(expense.branchDayId)
-            ?: throw io.javalin.http.NotFoundResponse("Branch day not found")
-
         if (reason.isBlank()) {
             throw BadRequestResponse("Reason is required for expense deletion")
         }
 
-        BranchDayService.assertEditable(expense.branchDayId, callerId, reason)
+        BranchDayService.checkBranchDayEditable(callerId, expense.branchDayId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId, reason)
             ?: throw io.javalin.http.NotFoundResponse("Expense not found")

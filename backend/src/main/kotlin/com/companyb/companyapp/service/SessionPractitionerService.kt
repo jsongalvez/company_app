@@ -103,7 +103,7 @@ object SessionPractitionerService {
         callerId: UUID,
     ): Session {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
         return session
     }
 

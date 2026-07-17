@@ -15,7 +15,7 @@ import java.util.UUID
  *
  * Moves capability checks from the service layer to the HTTP layer so that
  * each route declares its authorization requirements upfront. The service
- * layer retains day-state assertions (e.g. [com.companyb.companyapp.service.BranchDayService.assertEditable])
+ * layer retains day-state assertions (e.g. [com.companyb.companyapp.service.BranchDayService.checkBranchDayEditable])
  * but no longer performs capability checks.
  *
  * Usage in a route object's `register`:

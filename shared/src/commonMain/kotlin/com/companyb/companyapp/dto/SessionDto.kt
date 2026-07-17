@@ -61,6 +61,7 @@ data class SessionResponse(
     val bookedAt: String?,
     val nextAppointmentDate: String?,
     val version: Int,
+    val concerns: List<ConcernResponse> = emptyList(),
 )
 
 @Serializable

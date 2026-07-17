@@ -191,7 +191,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     fun `promote concern creates concern, links to session, and nullifies otherConcerns`() {
         ConcernService.addToSession(callerId, promotedSessionId, systemConcernId)
 
-        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Back Pain")
+        val promoted = ConcernService.promoteConcern(callerId, UUID.randomUUID(), promotedSessionId, "Back Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
@@ -207,7 +207,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promoted concern is discoverable in all concerns list`() {
-        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Neck Pain")
+        val promoted = ConcernService.promoteConcern(callerId, UUID.randomUUID(), promotedSessionId, "Neck Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val allConcerns = ConcernService.listAll()
@@ -233,7 +233,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        val promoted = ConcernService.promoteConcern(otherCaller, promotedSessionId, "Shoulder Pain")
+        val promoted = ConcernService.promoteConcern(otherCaller, UUID.randomUUID(), promotedSessionId, "Shoulder Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
@@ -243,7 +243,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promote concern writes audit log`() {
-        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, "Elbow Pain")
+        val promoted = ConcernService.promoteConcern(callerId, UUID.randomUUID(), promotedSessionId, "Elbow Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val auditCount =
@@ -256,6 +256,21 @@ class ConcernServicePostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertTrue(auditCount >= 1L)
+    }
+
+    @Test
+    fun `promote concern with duplicate UUID returns existing concern idempotently`() {
+        val concernId = UUID.randomUUID()
+        val first = ConcernService.promoteConcern(callerId, concernId, promotedSessionId, "Headache")
+        trackOwned(ConcernTable, ConcernTable.id, first.id)
+
+        val second = ConcernService.promoteConcern(callerId, concernId, promotedSessionId, "Different Label")
+
+        assertEquals("Headache", second.label)
+        assertEquals(first.id, second.id)
+
+        val allConcerns = ConcernService.listAll()
+        assertEquals(1, allConcerns.count { it.id == concernId })
     }
 
     @Suppress("LongParameterList")

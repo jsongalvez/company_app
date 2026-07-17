@@ -17,5 +17,6 @@ data class AddSessionConcernRequest(
 
 @Serializable
 data class PromoteConcernRequest(
+    val id: String,
     val label: String,
 )

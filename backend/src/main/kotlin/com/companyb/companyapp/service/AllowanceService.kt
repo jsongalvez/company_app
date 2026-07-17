@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.repository.AllowanceRepository
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.model.Allowance
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.http.BadRequestResponse
@@ -24,10 +23,7 @@ object AllowanceService {
             throw BadRequestResponse("Amount must be non-negative")
         }
 
-        BranchDayRepository.findById(branchDayId)
-            ?: throw NotFoundResponse("Branch day not found")
-
-        BranchDayService.assertEditable(branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val result =
             AllowanceRepository.create(

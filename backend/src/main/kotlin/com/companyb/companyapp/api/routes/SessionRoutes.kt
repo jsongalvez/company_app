@@ -173,8 +173,9 @@ object SessionRoutes {
                 nextAppointmentDate = nextAppt,
             )
 
+        val concerns = ConcernService.getForSession(sessionId).map { it.toResponse() }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-        context.json(result.session.toResponse())
+        context.json(result.session.toResponse(concerns))
     }
 
     private fun handleUpdateStatus(context: Context) {
@@ -313,16 +314,18 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<PromoteConcernRequest>()
 
+        val concernId = uuidOrThrow(request.id, "concern id")
+
         if (request.label.isBlank()) {
             throw BadRequestResponse("label must not be blank")
         }
 
-        val concern = ConcernService.promoteConcern(callerId, sessionId, request.label)
+        val concern = ConcernService.promoteConcern(callerId, concernId, sessionId, request.label)
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }
 
-    private fun Session.toResponse(): SessionResponse =
+    private fun Session.toResponse(concerns: List<ConcernResponse> = emptyList()): SessionResponse =
         SessionResponse(
             id = id.toString(),
             clientId = clientId.toString(),
@@ -338,6 +341,7 @@ object SessionRoutes {
             bookedAt = bookedAt?.toString(),
             nextAppointmentDate = nextAppointmentDate?.toString(),
             version = version,
+            concerns = concerns,
         )
 
     private fun SessionVoid.toResponse(): SessionVoidResponse =

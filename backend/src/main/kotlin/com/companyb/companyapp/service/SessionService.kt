@@ -138,7 +138,7 @@ object SessionService {
             throw ConflictResponse("Session version mismatch")
         }
 
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         if (session.isWalkIn && newStatus in setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)) {
             throw BadRequestResponse("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
@@ -180,7 +180,7 @@ object SessionService {
             }
         }
 
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val result =
             SessionVoidRepository.void(
@@ -212,7 +212,7 @@ object SessionService {
             return sessionVoid
         }
 
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val updated =
             SessionVoidRepository.unvoid(

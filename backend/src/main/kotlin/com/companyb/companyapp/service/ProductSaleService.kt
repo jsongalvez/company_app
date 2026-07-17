@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
@@ -30,11 +29,7 @@ object ProductSaleService {
         quantity: Int,
         expectedVersion: Int,
     ): ProductSale {
-        BranchDayService.assertEditable(branchDayId, callerId)
-
-        val branchDay =
-            BranchDayRepository.findById(branchDayId)
-                ?: throw NotFoundResponse("Branch day not found")
+        val branchDay = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         if (BranchRepository.findById(branchDay.branchId) == null) {
             throw NotFoundResponse("Branch not found")

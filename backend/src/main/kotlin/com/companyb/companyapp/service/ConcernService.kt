@@ -24,7 +24,7 @@ object ConcernService {
         concernId: UUID,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundResponse("Concern not found")
 
@@ -44,7 +44,7 @@ object ConcernService {
         concernId: UUID,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundResponse("Concern not found")
 
@@ -60,15 +60,16 @@ object ConcernService {
     @Suppress("ReturnCount", "ThrowsCount")
     fun promoteConcern(
         callerId: UUID,
+        concernId: UUID,
         sessionId: UUID,
         label: String,
     ): Concern {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundResponse("Session not found")
-        BranchDayService.assertEditable(session.branchDayId, callerId)
+        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern =
             ConcernRepository.create(
-                id = UUID.randomUUID(),
+                id = concernId,
                 label = label,
                 createdBy = callerId,
             )
