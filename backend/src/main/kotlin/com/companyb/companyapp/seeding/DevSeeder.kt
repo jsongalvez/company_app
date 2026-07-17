@@ -36,14 +36,17 @@ private val DEV_CAPABILITIES =
 
 object DevSeeder {
     @Suppress("ReturnCount")
-    fun seed(config: AppConfig) {
+    fun seed(
+        config: AppConfig,
+        runInTransaction: (() -> Unit) -> Unit = { block -> transaction { block() } },
+    ) {
         if (!config.seedDevUser) return
 
-        val username = config.testUsername ?: return
-        val password = config.testPassword ?: return
+        val username = config.testUsername?.takeIf { it.isNotBlank() } ?: return
+        val password = config.testPassword?.takeIf { it.isNotBlank() } ?: return
 
-        transaction {
-            if (UserRepository.findByUsername(username) != null) return@transaction
+        runInTransaction {
+            if (UserRepository.findByUsername(username) != null) return@runInTransaction
 
             val passwordHash = Password.create(password)
             val userId =

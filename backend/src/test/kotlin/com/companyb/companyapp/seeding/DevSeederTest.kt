@@ -2,6 +2,7 @@ package com.companyb.companyapp.seeding
 
 import com.companyb.companyapp.config.AppConfig
 import kotlin.test.Test
+import kotlin.test.assertTrue
 
 class DevSeederTest {
     private fun config(
@@ -43,5 +44,25 @@ class DevSeederTest {
     @Test
     fun `seed does nothing when testUsername is blank`() {
         DevSeeder.seed(config(seedDevUser = true, testUsername = "  ", testPassword = "pass"))
+    }
+
+    @Test
+    fun `seed invokes provided transaction block when conditions are met`() {
+        var called = false
+        DevSeeder.seed(
+            config(seedDevUser = true, testUsername = "user", testPassword = "pass"),
+            runInTransaction = { called = true },
+        )
+        assertTrue(called, "Transaction block should be invoked when seed conditions are met")
+    }
+
+    @Test
+    fun `seed does not invoke transaction block when seedDevUser is false`() {
+        var called = false
+        DevSeeder.seed(
+            config(seedDevUser = false, testUsername = "user", testPassword = "pass"),
+            runInTransaction = { called = true },
+        )
+        assertTrue(!called, "Transaction block should not be invoked when seedDevUser is false")
     }
 }
