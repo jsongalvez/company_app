@@ -395,6 +395,18 @@ Key things to look for in JFR:
 All k6 scripts live in `tests/k6/`. `helpers.js` is the single source of truth for metrics,
 thresholds, and auth utilities.
 
+k6 tests MUST run against the **test database** (`company_app_test`), not the main DB.
+The test DB is designed for throwaway use and is automatically cleaned after each run
+by the pre-push hook.
+
+**Quick start — two terminals:**
+
+Terminal 1 — start the app on the test DB with dev-user seeding:
+```bash
+POSTGRES_DB=company_app_test SEED_DEV_USER=true TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
+```
+
+Terminal 2 — once the app is ready, run any k6 script:
 ```bash
 # Baseline load test (branches, clients search, products — staged ramp-up)
 TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/baseline.js
@@ -403,14 +415,22 @@ TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/baseline.js
 TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/full-suite.js
 
 # Concurrency edge cases (pending guard, version mismatch, idempotency)
-k6 run tests/k6/concurrency-test.js
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/concurrency-test.js
 
 # Authz edge cases (invalid token, expired token, insufficient capability)
 LIMITED_USERNAME=limited LIMITED_PASSWORD=pass k6 run tests/k6/authz-test.js
 
 # Concurrent remittance submission (serializable isolation race)
-k6 run tests/k6/remittance-race-test.js
+TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/remittance-race-test.js
 ```
+
+After the k6 run, clean the test DB to preserve the cleanliness invariant:
+```bash
+bash scripts/clean-test-db.sh
+```
+
+The pre-push hook (`.githooks/pre-push`) automates this entire workflow: it starts the app on
+the test DB with seeding enabled, runs the k6 baseline, cleans the test DB, and stops the app.
 
 The baseline enforces these thresholds (edit `options.thresholds` in the script to adjust):
 - `branches_latency`: p95 < 500ms

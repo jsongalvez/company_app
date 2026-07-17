@@ -71,6 +71,14 @@ fi
 if [ "$SKIP_K6" = false ]; then
     trap app_cleanup EXIT
 
+    # Run k6 against the test database (not main DB) to avoid polluting production data.
+    # The test DB is already designed for throwaway use and verified clean by the
+    # pre-push cleanliness check above.
+    K6_DB_NAME="${TEST_DB_NAME:-company_app_test}"
+    export POSTGRES_DB="$K6_DB_NAME"
+    export SEED_DEV_USER=true
+    log pre-push "Using test database '$K6_DB_NAME' for k6 baseline."
+
     app_build
     app_start /tmp/company-app-k6-boot.log
     app_wait_ready /tmp/company-app-k6-health.json /tmp/company-app-k6-boot.log
@@ -78,12 +86,22 @@ if [ "$SKIP_K6" = false ]; then
     # Run k6 baseline
     K6_LOG="/tmp/company-app-k6-baseline.log"
     K6_EXIT_CODE=0
-    log pre-push "Running k6 baseline..."
+    log pre-push "Running k6 baseline against test DB..."
     set +o pipefail
     TEST_USERNAME="$TEST_USERNAME" TEST_PASSWORD="$TEST_PASSWORD" \
         k6 run "$K6_BASELINE_SCRIPT" --quiet 2>&1 | tee "$K6_LOG" || true
     K6_EXIT_CODE=${PIPESTATUS[0]}
     set -o pipefail
+
+    # Clean up test DB to preserve the cleanliness invariant checked by pre-commit.
+    # Seed tables (role, capability, role_capability, flyway_schema_history) are
+    # preserved; all user-data tables are truncated via CASCADE, then the
+    # cleanliness check is re-run to verify the DB is clean.
+    log pre-push "Cleaning test DB '$K6_DB_NAME' after k6 run..."
+    if ! bash scripts/clean-test-db.sh 2>&1 | tail -5; then
+        log pre-push "ERROR: Failed to clean test DB after k6 run."
+        exit 1
+    fi
 
     app_cleanup
     trap - EXIT

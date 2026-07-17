@@ -2,16 +2,29 @@
 
 Last updated: 2026-07-14
 
-**How to use:** Run k6 and paste the summary output here. This file is the human-readable
-record of what "normal" looks like for each endpoint.
+**How to use:** Run k6 against the test database and paste the summary output here. This file
+is the human-readable record of what "normal" looks like for each endpoint.
+
+**How to run:**
+
+1. Start the app on the test DB (Terminal 1):
+   ```bash
+   POSTGRES_DB=company_app_test SEED_DEV_USER=true TEST_USERNAME=owner TEST_PASSWORD=pass ./gradlew :backend:run
+   ```
+
+2. Run the baseline (Terminal 2):
+   ```bash
+   TEST_USERNAME=owner TEST_PASSWORD=pass \
+     k6 run tests/k6/baseline.js --summary-export=tests/k6/results/latest.json
+   ```
+
+3. Clean the test DB afterwards:
+   ```bash
+   bash scripts/clean-test-db.sh
+   ```
 
 **How to update:** Re-run the baseline after intentionally adding new functionality to an
 endpoint. Do NOT update if a threshold failed due to an unintentional regression.
-
-```bash
-TEST_USERNAME=owner TEST_PASSWORD=pass \
-  k6 run tests/k6/baseline.js --summary-export=tests/k6/results/latest.json
-```
 
 ---
 
