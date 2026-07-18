@@ -90,19 +90,10 @@ object BranchInventoryService {
                                     "version" to data.newCard.version.toString(),
                                 ),
                         )
-                        AuditLogRepository.record(
-                            tableName = InventoryMovementTable.tableName,
-                            recordId = data.movement.id,
-                            action = AuditAction.INSERT,
-                            changedBy = data.movement.movedBy,
-                            newValue =
-                                AuditLogRepository.jsonFields(
-                                    "productId" to data.movement.productId.toString(),
-                                    "branchId" to data.movement.branchId.toString(),
-                                    "branchDayId" to data.movement.branchDayId.toString(),
-                                    "reason" to InventoryMovementReason.RESTOCK.name,
-                                    "quantityChange" to data.quantityAdded.toString(),
-                                ),
+                        AuditLogRepository.recordInsert(
+                            InventoryMovementTable.tableName,
+                            data.movement,
+                            data.movement.movedBy,
                         )
                     },
                 )
@@ -170,20 +161,10 @@ object BranchInventoryService {
                                 "version" to data.newCard.version.toString(),
                             ),
                     )
-                    AuditLogRepository.record(
-                        tableName = InventoryMovementTable.tableName,
-                        recordId = data.movement.id,
-                        action = AuditAction.INSERT,
-                        changedBy = data.movement.movedBy,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "productId" to data.movement.productId.toString(),
-                                "branchId" to data.movement.branchId.toString(),
-                                "branchDayId" to data.movement.branchDayId.toString(),
-                                "reason" to data.reason.name,
-                                "quantityChange" to data.quantityChange.toString(),
-                                "notes" to (data.notes ?: ""),
-                            ),
+                    AuditLogRepository.recordInsert(
+                        InventoryMovementTable.tableName,
+                        data.movement,
+                        data.movement.movedBy,
                     )
                 },
             )

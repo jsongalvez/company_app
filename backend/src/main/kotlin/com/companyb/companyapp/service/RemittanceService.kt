@@ -122,22 +122,7 @@ object RemittanceService {
                     submittedBy = callerId,
                 ),
             ) { remittance ->
-                AuditLogRepository.record(
-                    tableName = RemittanceTable.tableName,
-                    recordId = remittance.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to remittance.id.toString(),
-                            "type" to remittance.type.name,
-                            "status" to remittance.status.name,
-                            "branchId" to remittance.branchId.toString(),
-                            "method" to remittance.method.name,
-                            "dateRangeStart" to remittance.dateRangeStart.toString(),
-                            "dateRangeEnd" to remittance.dateRangeEnd.toString(),
-                        ),
-                )
+                AuditLogRepository.recordInsert(RemittanceTable.tableName, remittance, callerId)
             }
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
         return result.remittance
@@ -175,19 +160,7 @@ object RemittanceService {
                         expectedVersion = remittance.version,
                     ),
                 ) { line ->
-                    AuditLogRepository.record(
-                        tableName = RemittanceLineTable.tableName,
-                        recordId = line.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to line.id.toString(),
-                                "remittanceId" to line.remittanceId.toString(),
-                                "type" to line.type.name,
-                                "amount" to line.amount.toPlainString(),
-                            ),
-                    )
+                    AuditLogRepository.recordInsert(RemittanceLineTable.tableName, line, callerId)
                 }
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
@@ -262,18 +235,7 @@ object RemittanceService {
                 remittanceId = remittanceId,
                 branchDayId = branchDayId,
             ) { breakdown ->
-                AuditLogRepository.record(
-                    tableName = RemittanceDayBreakdownTable.tableName,
-                    recordId = breakdown.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to breakdown.id.toString(),
-                            "remittanceId" to breakdown.remittanceId.toString(),
-                            "branchDayId" to breakdown.branchDayId.toString(),
-                        ),
-                )
+                AuditLogRepository.recordInsert(RemittanceDayBreakdownTable.tableName, breakdown, callerId)
             }
 
         logger.info { "[ADD-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id} added to remittance $remittanceId" }

@@ -66,20 +66,7 @@ object ProductSaleService {
                         product = product,
                     ),
                 ) { data ->
-                    AuditLogRepository.record(
-                        tableName = ProductSaleTable.tableName,
-                        recordId = data.sale.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to data.sale.id.toString(),
-                                "branchDayId" to data.sale.branchDayId.toString(),
-                                "productId" to data.sale.productId.toString(),
-                                "quantity" to data.sale.quantity.toString(),
-                                "totalAmount" to data.sale.totalAmountAtTime.toPlainString(),
-                            ),
-                    )
+                    AuditLogRepository.recordInsert(ProductSaleTable.tableName, data.sale, callerId)
                     AuditLogRepository.record(
                         tableName = BranchInventoryTable.tableName,
                         recordId = data.inventoryCardId,

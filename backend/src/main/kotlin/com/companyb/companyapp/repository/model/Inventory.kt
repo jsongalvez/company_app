@@ -11,15 +11,24 @@ import java.util.UUID
 enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT }
 
 data class BranchInventory(
-    val id: UUID,
+    override val id: UUID,
     val branchId: UUID,
     val productId: UUID,
     val currentStock: Int,
     val version: Int,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "branchId" to branchId.toString(),
+            "productId" to productId.toString(),
+            "currentStock" to currentStock.toString(),
+            "version" to version.toString(),
+        )
+}
 
 data class InventoryMovement(
-    val id: UUID,
+    override val id: UUID,
     val productId: UUID,
     val branchId: UUID,
     val branchDayId: UUID,
@@ -28,7 +37,18 @@ data class InventoryMovement(
     val movedBy: UUID,
     val movedAt: OffsetDateTime,
     val notes: String?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "productId" to productId.toString(),
+            "branchId" to branchId.toString(),
+            "branchDayId" to branchDayId.toString(),
+            "reason" to reason.name,
+            "quantityChange" to quantityChange.toString(),
+            "notes" to (notes ?: ""),
+        )
+}
 
 data class BranchInventoryWithProduct(
     val inventory: BranchInventory,
