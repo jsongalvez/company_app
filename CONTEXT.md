@@ -63,3 +63,7 @@ _Avoid_: Rank, seniority number
 **Notification**:
 An in-app alert about an upcoming appointment, delivered to the coordinator(s) assigned to the session's branch. Contains a human-readable `message`, the originating `session_id`, and a read/unread status. Written once daily at 07:00 AM Manila by the scheduler, never updated (only marked read).
 _Avoid_: Alert, reminder, push notification
+
+**Audit Log**:
+An immutable record of every mutation in the system — who changed what, when, and (optionally) why. Each entry captures the table name, record id, action (INSERT/UPDATE/DELETE), caller, and before-and-after field snapshots. Written atomically with the mutation inside the same database transaction.
+_Avoid_: Change log, history, event log
