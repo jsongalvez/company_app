@@ -96,6 +96,6 @@ audit. The service already has these values from its own parameters.
   transaction.
 - **Positive (2026-07):** The ~40 duplicated `AuditLogRepository.record(...)` blocks were
   eliminated via `recordInsert`/`recordUpdate`/`recordDelete` convenience methods and the
-  `Auditable` interface (see [ADR 0014](./0014-entity-audit-field-mapping.md)).
+  Table-hosted `auditFields()` pattern (see [ADR 0014](./0014-entity-audit-field-mapping.md)).
 - **Negative:** Services must import table objects (`XxxTable`) to reference `tableName` in audit
   calls — a minor layer violation.

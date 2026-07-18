@@ -32,7 +32,10 @@ Convenience methods on `AuditLogRepository`:
 Service call sites explicitly name the Table that owns the audit definition:
 ```kotlin
 AuditLogRepository.recordInsert(
-    ClientTable.tableName, client.id, callerId, ClientTable.auditFields(client)
+    tableName = ClientTable.tableName,
+    recordId = client.id,
+    changedBy = callerId,
+    fields = ClientTable.auditFields(client),
 )
 ```
 
