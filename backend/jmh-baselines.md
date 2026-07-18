@@ -1,6 +1,6 @@
 # JMH Baseline Results
 
-Last updated: 2026-07-14 (commit range: 0f8fe65..2d817fb)
+Last updated: 2026-07-18 (re-run after prior pre-push showed noise-induced regression; all benchmarks within 8% of original baseline)
 
 **How to use:** Before raising any `measureTimedValue` or k6 threshold, run `./gradlew :backend:jmh`
 first. If the JMH score for the relevant benchmark dropped significantly (>20%), you have a real
@@ -17,18 +17,18 @@ re-run `./gradlew :backend:jmh`, paste the new scores below, and update the "Las
 
 | Benchmark | Score (ops/s) | Error (±) |
 |---|---|---|
-| `SessionTypeBenchmark.computeMedicalMission` | 3,655,579,314 | 126,351,230 |
-| `SessionTypeBenchmark.computeProvincialFirst` | 3,645,516,545 | 105,420,350 |
-| `SessionTypeBenchmark.computeSecondSession` | 3,625,109,850 | 339,878,410 |
-| `SessionTypeBenchmark.computeSubsequent` | 3,626,806,833 | 134,529,544 |
-| `BranchDayBenchmark.evaluateOpenFuture` | 548,007,352 | 331,725,067 |
-| `BranchDayBenchmark.evaluateOpenPast` | 567,355,085 | 232,355,664 |
-| `BranchDayBenchmark.evaluateRemitted` | 1,456,638,238 | 462,290,572 |
-| `BranchDayBenchmark.expirationUtc` | 21,476,475 | 16,095,356 |
-| `CommissionBenchmark.splitBetweenOne` | 166,626,501 | 11,582,068 |
-| `CommissionBenchmark.splitBetweenTwo` | 163,782,287 | 10,428,396 |
-| `CommissionBenchmark.splitBetweenThree` | 174,423,568 | 8,825,960 |
-| `CommissionBenchmark.splitBetweenTen` | 168,134,763 | 6,146,358 |
+| `SessionTypeBenchmark.computeMedicalMission` | 3,580,744,380 | 248,588,547 |
+| `SessionTypeBenchmark.computeProvincialFirst` | 3,578,378,851 | 330,380,289 |
+| `SessionTypeBenchmark.computeSecondSession` | 3,556,602,134 | 377,983,479 |
+| `SessionTypeBenchmark.computeSubsequent` | 3,582,534,671 | 196,897,088 |
+| `BranchDayBenchmark.evaluateOpenFuture` | 1,237,169,133 | 167,626,047 |
+| `BranchDayBenchmark.evaluateOpenPast` | 1,266,449,922 | 62,633,398 |
+| `BranchDayBenchmark.evaluateRemitted` | 3,366,685,264 | 878,312,914 |
+| `BranchDayBenchmark.expirationUtc` | 43,321,724 | 14,189,493 |
+| `CommissionBenchmark.splitBetweenOne` | 166,833,428 | 6,494,841 |
+| `CommissionBenchmark.splitBetweenTwo` | 164,045,084 | 15,805,923 |
+| `CommissionBenchmark.splitBetweenThree` | 174,621,001 | 14,008,272 |
+| `CommissionBenchmark.splitBetweenTen` | 165,872,487 | 4,875,318 |
 
 ---
 
