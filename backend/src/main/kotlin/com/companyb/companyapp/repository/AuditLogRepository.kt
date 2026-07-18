@@ -4,6 +4,7 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.Auditable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -21,6 +22,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+@Suppress("TooManyFunctions")
 object AuditLogRepository {
     @Suppress("LongParameterList")
     fun record(
@@ -32,18 +34,67 @@ object AuditLogRepository {
         newValue: String? = null,
         reason: String? = null,
     ) {
-        transaction {
-            AuditLogTable.insert {
-                it[AuditLogTable.auditTableName] = tableName
-                it[AuditLogTable.recordId] = recordId
-                it[AuditLogTable.action] = action
-                it[AuditLogTable.changedBy] = changedBy
-                if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
-                if (newValue != null) it[AuditLogTable.newValue] = newValue
-                if (reason != null) it[AuditLogTable.reason] = reason
-            }
+        AuditLogTable.insert {
+            it[AuditLogTable.auditTableName] = tableName
+            it[AuditLogTable.recordId] = recordId
+            it[AuditLogTable.action] = action
+            it[AuditLogTable.changedBy] = changedBy
+            if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
+            if (newValue != null) it[AuditLogTable.newValue] = newValue
+            if (reason != null) it[AuditLogTable.reason] = reason
         }
         logger.info { "[AUDIT-LOG] Recorded $action on $tableName/$recordId" }
+    }
+
+    fun recordInsert(
+        tableName: String,
+        entity: Auditable,
+        changedBy: UUID,
+    ) {
+        record(
+            tableName = tableName,
+            recordId = entity.id,
+            action = AuditAction.INSERT,
+            changedBy = changedBy,
+            newValue = jsonFields(entity.toAuditFields()),
+        )
+    }
+
+    fun recordUpdate(
+        tableName: String,
+        recordId: UUID,
+        oldFields: Map<String, String>,
+        newFields: Map<String, String>,
+        changedBy: UUID,
+    ) {
+        record(
+            tableName = tableName,
+            recordId = recordId,
+            action = AuditAction.UPDATE,
+            changedBy = changedBy,
+            oldValue = jsonFields(oldFields),
+            newValue = jsonFields(newFields),
+        )
+    }
+
+    @Suppress("LongParameterList")
+    fun recordDelete(
+        tableName: String,
+        recordId: UUID,
+        oldFields: Map<String, String>,
+        newFields: Map<String, String>,
+        changedBy: UUID,
+        reason: String? = null,
+    ) {
+        record(
+            tableName = tableName,
+            recordId = recordId,
+            action = AuditAction.DELETE,
+            changedBy = changedBy,
+            oldValue = jsonFields(oldFields),
+            newValue = jsonFields(newFields),
+            reason = reason,
+        )
     }
 
     fun findByTableAndRecord(
@@ -104,6 +155,13 @@ object AuditLogRepository {
     ): String = jsonFields(key to value)
 
     fun jsonFields(vararg fields: Pair<String, String>): String =
+        buildJsonObject {
+            fields.forEach { (key, value) ->
+                put(key, JsonPrimitive(value))
+            }
+        }.toString()
+
+    fun jsonFields(fields: Map<String, String>): String =
         buildJsonObject {
             fields.forEach { (key, value) ->
                 put(key, JsonPrimitive(value))

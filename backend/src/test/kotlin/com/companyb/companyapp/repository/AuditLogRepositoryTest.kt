@@ -16,4 +16,17 @@ class AuditLogRepositoryTest {
             AuditLogRepository.jsonField("reason", "he said \"hi\""),
         )
     }
+
+    @Test
+    fun `jsonFields with Map produces same output as vararg for equivalent input`() {
+        val map = mapOf("name" to "Alice", "age" to "30")
+        val varargResult = AuditLogRepository.jsonFields("name" to "Alice", "age" to "30")
+        val mapResult = AuditLogRepository.jsonFields(map)
+        assertEquals(varargResult, mapResult)
+    }
+
+    @Test
+    fun `jsonFields with Map handles empty map`() {
+        assertEquals("{}", AuditLogRepository.jsonFields(emptyMap()))
+    }
 }
