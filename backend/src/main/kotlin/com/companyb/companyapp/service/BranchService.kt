@@ -2,9 +2,10 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchCreateResult
 import com.companyb.companyapp.repository.BranchRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.BranchCreateParams
 import com.companyb.companyapp.repository.model.BranchTable
@@ -28,13 +29,17 @@ object BranchService {
                 changedBy = callerId,
             ),
         ) { branch ->
-            AuditLogger.insert(
-                table = BranchTable.tableName,
-                id = branch.id,
-                by = callerId,
-                "id" to branch.id.toString(),
-                "branchType" to branch.branchType.name,
-                "name" to branch.name,
+            AuditLogRepository.record(
+                tableName = BranchTable.tableName,
+                recordId = branch.id,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "id" to branch.id.toString(),
+                        "branchType" to branch.branchType.name,
+                        "name" to branch.name,
+                    ),
             )
         }
 

@@ -2,9 +2,10 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -32,14 +33,18 @@ object MedicalMissionDelegateService {
             branchId = branchId,
             capabilityId = capabilityId,
             auditFn = { delegate ->
-                AuditLogger.insert(
-                    table = MedicalMissionDelegateTable.tableName,
-                    id = delegate.id,
-                    by = callerId,
-                    "delegateId" to delegate.id.toString(),
-                    "targetUserId" to delegate.targetUser.toString(),
-                    "branchId" to delegate.branchId.toString(),
-                    "assignedBy" to delegate.assignedBy.toString(),
+                AuditLogRepository.record(
+                    tableName = MedicalMissionDelegateTable.tableName,
+                    recordId = delegate.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "delegateId" to delegate.id.toString(),
+                            "targetUserId" to delegate.targetUser.toString(),
+                            "branchId" to delegate.branchId.toString(),
+                            "assignedBy" to delegate.assignedBy.toString(),
+                        ),
                 )
             },
         )
@@ -63,12 +68,16 @@ object MedicalMissionDelegateService {
         MedicalMissionDelegateRepository.revokeWithCapability(
             delegateId,
             auditFn = { revoked ->
-                AuditLogger.update(
-                    table = MedicalMissionDelegateTable.tableName,
-                    id = revoked.id,
-                    by = callerId,
-                    oldFields = emptyArray(),
-                    newFields = arrayOf("delegateId" to revoked.id.toString(), "endedAt" to "now"),
+                AuditLogRepository.record(
+                    tableName = MedicalMissionDelegateTable.tableName,
+                    recordId = revoked.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "delegateId" to revoked.id.toString(),
+                            "endedAt" to "now",
+                        ),
                 )
             },
         )

@@ -1,9 +1,10 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
@@ -41,14 +42,18 @@ object ExpenseService {
                 notes = notes,
             ),
         ) { expense ->
-            AuditLogger.insert(
-                table = ExpenseTable.tableName,
-                id = expense.id,
-                by = callerId,
-                "id" to expense.id.toString(),
-                "branchDayId" to expense.branchDayId.toString(),
-                "amount" to expense.amount.toPlainString(),
-                "category" to expense.category.name,
+            AuditLogRepository.record(
+                tableName = ExpenseTable.tableName,
+                recordId = expense.id,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "id" to expense.id.toString(),
+                        "branchDayId" to expense.branchDayId.toString(),
+                        "amount" to expense.amount.toPlainString(),
+                        "category" to expense.category.name,
+                    ),
             )
         }
     }
@@ -66,12 +71,21 @@ object ExpenseService {
         BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId) { after ->
-            AuditLogger.delete(
-                table = ExpenseTable.tableName,
-                id = expenseId,
-                by = callerId,
-                oldFields = arrayOf("amount" to before.amount.toPlainString(), "category" to before.category.name),
-                newFields = arrayOf("amount" to after.amount.toPlainString(), "category" to after.category.name),
+            AuditLogRepository.record(
+                tableName = ExpenseTable.tableName,
+                recordId = expenseId,
+                action = AuditAction.DELETE,
+                changedBy = callerId,
+                oldValue =
+                    AuditLogRepository.jsonFields(
+                        "amount" to before.amount.toPlainString(),
+                        "category" to before.category.name,
+                    ),
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "amount" to after.amount.toPlainString(),
+                        "category" to after.category.name,
+                    ),
                 reason = reason,
             )
         }

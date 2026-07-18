@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AuditAction
@@ -38,12 +37,16 @@ object ConcernService {
             sessionId = sessionId,
             concernId = concernId,
             auditFn = { sc ->
-                AuditLogger.insert(
-                    table = SessionConcernTable.tableName,
-                    id = sessionId,
-                    by = callerId,
-                    "sessionId" to sessionId.toString(),
-                    "concernId" to sc.concernId.toString(),
+                AuditLogRepository.record(
+                    tableName = SessionConcernTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "concernId" to sc.concernId.toString(),
+                        ),
                 )
             },
         )
@@ -66,12 +69,16 @@ object ConcernService {
             sessionId = sessionId,
             concernId = concernId,
             auditFn = { sc ->
-                AuditLogger.delete(
-                    table = SessionConcernTable.tableName,
-                    id = sessionId,
-                    by = callerId,
-                    oldFields = arrayOf("sessionId" to sessionId.toString(), "concernId" to sc.concernId.toString()),
-                    newFields = emptyArray(),
+                AuditLogRepository.record(
+                    tableName = SessionConcernTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.DELETE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "concernId" to sc.concernId.toString(),
+                        ),
                 )
             },
         )
@@ -95,12 +102,16 @@ object ConcernService {
                 label = label,
                 createdBy = callerId,
                 auditFn = { c ->
-                    AuditLogger.insert(
-                        table = ConcernTable.tableName,
-                        id = c.id,
-                        by = callerId,
-                        "id" to c.id.toString(),
-                        "label" to label,
+                    AuditLogRepository.record(
+                        tableName = ConcernTable.tableName,
+                        recordId = c.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to c.id.toString(),
+                                "label" to label,
+                            ),
                     )
                 },
             )
@@ -109,12 +120,16 @@ object ConcernService {
             sessionId = sessionId,
             concernId = concern.id,
             auditFn = { sc ->
-                AuditLogger.insert(
-                    table = SessionConcernTable.tableName,
-                    id = sessionId,
-                    by = callerId,
-                    "sessionId" to sessionId.toString(),
-                    "concernId" to sc.concernId.toString(),
+                AuditLogRepository.record(
+                    tableName = SessionConcernTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "concernId" to sc.concernId.toString(),
+                        ),
                 )
             },
         )

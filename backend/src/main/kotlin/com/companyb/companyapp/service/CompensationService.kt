@@ -2,10 +2,11 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -47,15 +48,19 @@ object CompensationService {
                     note = note,
                 ),
             ) { compensation ->
-                AuditLogger.insert(
-                    table = CompensationTable.tableName,
-                    id = compensation.id,
-                    by = callerId,
-                    "id" to compensation.id.toString(),
-                    "workBranchDayId" to compensation.workBranchDayId.toString(),
-                    "payingBranchDayId" to compensation.payingBranchDayId.toString(),
-                    "userId" to compensation.userId.toString(),
-                    "amount" to compensation.amount.toPlainString(),
+                AuditLogRepository.record(
+                    tableName = CompensationTable.tableName,
+                    recordId = compensation.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "id" to compensation.id.toString(),
+                            "workBranchDayId" to compensation.workBranchDayId.toString(),
+                            "payingBranchDayId" to compensation.payingBranchDayId.toString(),
+                            "userId" to compensation.userId.toString(),
+                            "amount" to compensation.amount.toPlainString(),
+                        ),
                 )
             }
         logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
@@ -78,17 +83,18 @@ object CompensationService {
 
         return try {
             CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
-                AuditLogger.update(
-                    table = CompensationTable.tableName,
-                    id = compensationId,
-                    by = callerId,
-                    oldFields =
-                        arrayOf(
+                AuditLogRepository.record(
+                    tableName = CompensationTable.tableName,
+                    recordId = compensationId,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
                             "amount" to before.amount.toPlainString(),
                             "note" to (before.note ?: "null"),
                         ),
-                    newFields =
-                        arrayOf(
+                    newValue =
+                        AuditLogRepository.jsonFields(
                             "amount" to after.amount.toPlainString(),
                             "note" to (after.note ?: "null"),
                         ),

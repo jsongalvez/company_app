@@ -2,10 +2,11 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductTable
@@ -40,15 +41,19 @@ object ProductService {
                 changedBy = callerId,
             ),
         ) { product ->
-            AuditLogger.insert(
-                table = ProductTable.tableName,
-                id = product.id,
-                by = callerId,
-                "id" to product.id.toString(),
-                "name" to product.name,
-                "productCategoryId" to product.productCategoryId.toString(),
-                "unitPrice" to product.unitPrice.toPlainString(),
-                "commissionAmount" to product.commissionAmount.toPlainString(),
+            AuditLogRepository.record(
+                tableName = ProductTable.tableName,
+                recordId = product.id,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "id" to product.id.toString(),
+                        "name" to product.name,
+                        "productCategoryId" to product.productCategoryId.toString(),
+                        "unitPrice" to product.unitPrice.toPlainString(),
+                        "commissionAmount" to product.commissionAmount.toPlainString(),
+                    ),
             )
         }
     }
@@ -83,18 +88,19 @@ object ProductService {
                 commissionAmount = commissionAmount,
                 isActive = isActive,
             ) { updated ->
-                AuditLogger.update(
-                    table = ProductTable.tableName,
-                    id = productId,
-                    by = callerId,
-                    oldFields =
-                        arrayOf(
+                AuditLogRepository.record(
+                    tableName = ProductTable.tableName,
+                    recordId = productId,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
                             "name" to old.name,
                             "unitPrice" to old.unitPrice.toPlainString(),
                             "commissionAmount" to old.commissionAmount.toPlainString(),
                         ),
-                    newFields =
-                        arrayOf(
+                    newValue =
+                        AuditLogRepository.jsonFields(
                             "name" to updated.name,
                             "unitPrice" to updated.unitPrice.toPlainString(),
                             "commissionAmount" to updated.commissionAmount.toPlainString(),

@@ -4,7 +4,6 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.ClockInParams
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -91,14 +90,18 @@ object AttendanceService {
                     branchId = branchId,
                 ),
             ) { attendance ->
-                AuditLogger.insert(
-                    table = AttendanceTable.tableName,
-                    id = attendance.id,
-                    by = callerId,
-                    "attendanceId" to attendance.id.toString(),
-                    "branchDayId" to attendance.branchDayId.toString(),
-                    "branchId" to branchId.toString(),
-                    "isRelief" to isRelief.toString(),
+                AuditLogRepository.record(
+                    tableName = AttendanceTable.tableName,
+                    recordId = attendance.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "attendanceId" to attendance.id.toString(),
+                            "branchDayId" to attendance.branchDayId.toString(),
+                            "branchId" to branchId.toString(),
+                            "isRelief" to isRelief.toString(),
+                        ),
                 )
             }
 

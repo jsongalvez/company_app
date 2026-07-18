@@ -2,10 +2,11 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AllowanceRepository
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import com.companyb.companyapp.repository.model.AllowanceTable
+import com.companyb.companyapp.repository.model.AuditAction
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -33,14 +34,18 @@ object AllowanceService {
                     assignedBy = callerId,
                 ),
                 auditFn = { created ->
-                    AuditLogger.insert(
-                        table = AllowanceTable.tableName,
-                        id = created.id,
-                        by = callerId,
-                        "id" to created.id.toString(),
-                        "branchDayId" to created.branchDayId.toString(),
-                        "userId" to created.userId.toString(),
-                        "amount" to created.amount.toPlainString(),
+                    AuditLogRepository.record(
+                        tableName = AllowanceTable.tableName,
+                        recordId = created.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to created.id.toString(),
+                                "branchDayId" to created.branchDayId.toString(),
+                                "userId" to created.userId.toString(),
+                                "amount" to created.amount.toPlainString(),
+                            ),
                     )
                 },
             )

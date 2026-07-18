@@ -2,9 +2,10 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditLogger
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -36,27 +37,32 @@ object CommissionManualInclusionService {
                 assignedBy = callerId,
             ) { existing, updated ->
                 if (existing == null) {
-                    AuditLogger.insert(
-                        table = CommissionManualInclusionTable.tableName,
-                        id = updated.id,
-                        by = callerId,
-                        "id" to updated.id.toString(),
-                        "productSaleId" to updated.productSaleId.toString(),
-                        "userId" to updated.userId.toString(),
-                        "isIncluded" to updated.isIncluded.toString(),
+                    AuditLogRepository.record(
+                        tableName = CommissionManualInclusionTable.tableName,
+                        recordId = updated.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to updated.id.toString(),
+                                "productSaleId" to updated.productSaleId.toString(),
+                                "userId" to updated.userId.toString(),
+                                "isIncluded" to updated.isIncluded.toString(),
+                            ),
                     )
                 } else {
-                    AuditLogger.update(
-                        table = CommissionManualInclusionTable.tableName,
-                        id = updated.id,
-                        by = callerId,
-                        oldFields =
-                            arrayOf(
+                    AuditLogRepository.record(
+                        tableName = CommissionManualInclusionTable.tableName,
+                        recordId = updated.id,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        oldValue =
+                            AuditLogRepository.jsonFields(
                                 "isIncluded" to existing.isIncluded.toString(),
                                 "reason" to (existing.reason ?: "null"),
                             ),
-                        newFields =
-                            arrayOf(
+                        newValue =
+                            AuditLogRepository.jsonFields(
                                 "isIncluded" to updated.isIncluded.toString(),
                                 "reason" to (updated.reason ?: "null"),
                             ),
