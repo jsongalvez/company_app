@@ -9,6 +9,7 @@ import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -43,6 +44,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
+@Suppress("LargeClass")
 class SessionServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val clientId = UUID.randomUUID()
@@ -342,6 +344,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals(sessionId, result.sessionVoid.sessionId)
         assertEquals("Customer request", result.sessionVoid.voidReason)
         assertEquals(callerId, result.sessionVoid.voidedBy)
+        assertEquals(1L, auditVoidEntryCount(voidId))
     }
 
     @Test
@@ -384,18 +387,21 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `unvoid session sets unvoided fields`() {
+    fun `unvoid session sets unvoided fields and writes audit`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
-        SessionService.voidSession(callerId, sessionId, UUID.randomUUID(), "Customer request")
+        val voidId = UUID.randomUUID()
+        SessionService.voidSession(callerId, sessionId, voidId, "Customer request")
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
 
         val result = SessionService.unvoidSession(callerId, sessionId, "Resolved in error")
 
         assertNotNull(result.unvoidedAt)
         assertEquals(callerId, result.unvoidedBy)
         assertEquals("Resolved in error", result.unvoidedReason)
+        assertEquals(2L, auditVoidEntryCount(voidId))
     }
 
     @Test
@@ -553,14 +559,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `update practitioner remarks succeeds and increments session version`() {
+    fun `update practitioner remarks succeeds and increments session version and writes audit`() {
         createSession(callerId, practitionerSessionId)
         trackOwned(SessionTable, SessionTable.id, practitionerSessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
+        val practitionerEntityId = UUID.randomUUID()
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = UUID.randomUUID(),
+            id = practitionerEntityId,
             sessionId = practitionerSessionId,
             practitionerId = practitionerId,
             remarks = "Initial remarks",
@@ -578,6 +585,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val session = SessionRepository.findById(practitionerSessionId)!!
         assertEquals(3, session.version)
+        assertEquals(2L, auditPractitionerEntryCount(practitionerEntityId))
     }
 
     @Test
@@ -598,14 +606,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `remove practitioner succeeds and increments session version`() {
+    fun `remove practitioner succeeds and increments session version and writes audit`() {
         createSession(callerId, practitionerSessionId)
         trackOwned(SessionTable, SessionTable.id, practitionerSessionId)
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
+        val practitionerEntityId = UUID.randomUUID()
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
-            id = UUID.randomUUID(),
+            id = practitionerEntityId,
             sessionId = practitionerSessionId,
             practitionerId = practitionerId,
             remarks = null,
@@ -623,6 +632,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val session = SessionRepository.findById(practitionerSessionId)!!
         assertEquals(3, session.version)
+        assertEquals(2L, auditPractitionerEntryCount(practitionerEntityId))
+        assertEquals(1L, auditPractitionerDeleteCount(practitionerEntityId))
     }
 
     @Test
@@ -700,6 +711,37 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 .where {
                     (AuditLogTable.auditTableName eq SessionTable.tableName) and
                         (AuditLogTable.recordId eq sessionId)
+                }.count()
+        }
+
+    private fun auditVoidEntryCount(voidId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq SessionVoidTable.tableName) and
+                        (AuditLogTable.recordId eq voidId)
+                }.count()
+        }
+
+    private fun auditPractitionerEntryCount(practitionerEntityId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq SessionPractitionerTable.tableName) and
+                        (AuditLogTable.recordId eq practitionerEntityId)
+                }.count()
+        }
+
+    private fun auditPractitionerDeleteCount(practitionerEntityId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq SessionPractitionerTable.tableName) and
+                        (AuditLogTable.recordId eq practitionerEntityId) and
+                        (AuditLogTable.action eq AuditAction.DELETE)
                 }.count()
         }
 }

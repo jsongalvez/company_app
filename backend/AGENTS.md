@@ -132,11 +132,13 @@ capability, the corresponding read endpoint (GET) should check the same capabili
 ## Audit logging
 
 Every mutating service must write an audit row via `AuditLogRepository.record(tableName, recordId,
-action, changedBy, oldValue?, newValue?, reason?)`. `record` opens its own `transaction {}` which
-**joins an enclosing transaction** (Exposed reuses the connection unless nested transactions are
-explicitly enabled), so the audit insert commits atomically with the change it describes — call it
-inside the same repository `transaction {}` that performs the mutation. Build JSON values with
-`AuditLogRepository.jsonField(key, value)` (safely escaped).
+action, changedBy, oldValue?, newValue?, reason?)`. `record` does **not** open its own `transaction {}`
+— it runs the insert on the current connection and must be called inside an existing `transaction {}`
+(typically via the repository's `auditFn` callback, which is invoked inside the repository's
+`transaction {}`). This ensures the audit insert commits atomically with the mutation it describes.
+Build JSON values with `AuditLogRepository.jsonField(key, value)` (safely escaped) or use the
+convenience methods `recordInsert`, `recordUpdate`, `recordDelete` which accept `Auditable` entities
+and `Map<String, String>` field maps.
 
 Immediate revocation uses the in-memory `DenyList` (`ConcurrentHashMap<UUID, Instant>`), checked
 inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup

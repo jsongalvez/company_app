@@ -111,7 +111,7 @@ object SessionPractitionerService {
             auditFn = { p ->
                 AuditLogRepository.recordDelete(
                     tableName = SessionPractitionerTable.tableName,
-                    recordId = practitionerId,
+                    recordId = p.id,
                     oldFields =
                         mapOf(
                             "sessionId" to sessionId.toString(),

@@ -16,6 +16,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -58,7 +59,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `successful relief request persists with PENDING status`() {
+    fun `successful relief request persists with PENDING status and writes audit`() {
         val requestId = UUID.randomUUID()
 
         val result = ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
@@ -68,6 +69,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         assertEquals(reliefUserId, result.requestedBy)
         assertEquals(targetUserId, result.targetUser)
         assertTrue(requestExists(requestId))
+        assertEquals(1L, auditReliefEntryCount(requestId))
     }
 
     @Test
@@ -108,7 +110,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `successful grant sets status to GRANTED and creates user_capability`() {
+    fun `successful grant sets status to GRANTED and creates user_capability and writes audit`() {
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
@@ -119,6 +121,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         assertEquals(targetUserId, result.grantedBy)
         assertNotNull(result.grantedAt)
         assertTrue(capabilityExistsForReliefUser(requestId, reliefUserId, branchDayId))
+        assertEquals(2L, auditReliefEntryCount(requestId))
     }
 
     @Test
@@ -169,7 +172,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `successful deny sets status to DENIED`() {
+    fun `successful deny sets status to DENIED and writes audit`() {
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
@@ -177,6 +180,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
         assertEquals(requestId, result.id)
         assertEquals(ReliefStatus.DENIED, result.requestStatus)
+        assertEquals(2L, auditReliefEntryCount(requestId))
     }
 
     @Test
@@ -290,5 +294,15 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 .where { GrantReliefAccessTable.id eq requestId }
                 .empty()
                 .not()
+        }
+
+    private fun auditReliefEntryCount(requestId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq GrantReliefAccessTable.tableName) and
+                        (AuditLogTable.recordId eq requestId)
+                }.count()
         }
 }
