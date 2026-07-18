@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
@@ -127,7 +128,7 @@ fun ClientSearchScreen(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = Spacing.md, end = Spacing.md, top = Spacing.md),
             ) {
                 OutlinedTextField(
                     value = query,
@@ -137,7 +138,7 @@ fun ClientSearchScreen(
                     modifier = Modifier.weight(1f),
                 )
                 if (isSearching) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Spacing.sm))
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
@@ -157,7 +158,7 @@ fun ClientSearchScreen(
                         },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
                 )
             }
             if (errorMessage != null && hasPriorResults) {
@@ -165,7 +166,7 @@ fun ClientSearchScreen(
                     text = "Search failed for \"$query\"",
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
                 )
             }
 
@@ -185,7 +186,7 @@ fun ClientSearchScreen(
                     isSearching && !hasPriorResults -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator()
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(Spacing.md))
                             Text(
                                 text = "Searching...",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -201,13 +202,13 @@ fun ClientSearchScreen(
                                 color = MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.bodyLarge,
                             )
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(Spacing.sm))
                             Text(
                                 text = errorMessage,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.height(16.dp))
+                            Spacer(Modifier.height(Spacing.md))
                             OutlinedButton(onClick = { clientViewModel.search(query) }) {
                                 Text("Retry")
                             }
@@ -216,8 +217,8 @@ fun ClientSearchScreen(
 
                     hasPriorResults && priorResults.isNotEmpty() -> {
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                         ) {
                             items(priorResults) { client ->
                                 ClientSearchResultCard(
@@ -268,7 +269,7 @@ private fun ClientSearchResultCard(
             ),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(Spacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -277,14 +278,14 @@ private fun ClientSearchResultCard(
                     text = fullName,
                     style = MaterialTheme.typography.titleSmall,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 Row {
                     Text(
                         text = client.gender.name,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(Spacing.sm))
                     Text(
                         text = "${client.age} yrs",
                         style = MaterialTheme.typography.labelSmall,
@@ -293,7 +294,7 @@ private fun ClientSearchResultCard(
                 }
                 val phone = client.phoneNumber
                 if (!phone.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
                     Text(
                         text = phone,
                         style = MaterialTheme.typography.labelSmall,

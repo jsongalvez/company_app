@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionViewModel
@@ -117,8 +118,8 @@ fun SessionCreateScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             item {
                 BranchDropdown(
@@ -240,7 +241,7 @@ fun SessionCreateScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Button(
                     onClick = {
                         logInfo("SessionCreateScreen", "submit button onClick")
@@ -266,7 +267,7 @@ fun SessionCreateScreen(
                             modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Spacing.sm))
                     }
                     Text("Create Session")
                 }
@@ -333,7 +334,7 @@ private fun ConcernCheckboxRow(
             ),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(
@@ -341,7 +342,7 @@ private fun ConcernCheckboxRow(
                 onCheckedChange = onToggle,
                 enabled = enabled,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.sm))
             Text(
                 text = concern.label,
                 style = MaterialTheme.typography.bodyMedium,

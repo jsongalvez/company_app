@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AuthViewModel
@@ -73,7 +74,7 @@ fun LoginScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(32.dp),
+                .padding(Spacing.xl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -82,7 +83,7 @@ fun LoginScreen(
             style = MaterialTheme.typography.headlineLarge,
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(Spacing.xxl))
 
         OutlinedTextField(
             value = username,
@@ -98,7 +99,7 @@ fun LoginScreen(
             enabled = loginState !is UiState.Loading,
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.md))
 
         OutlinedTextField(
             value = password,
@@ -128,7 +129,7 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(Spacing.lg))
 
         Button(
             onClick = {
@@ -154,7 +155,7 @@ fun LoginScreen(
 
         when (val state = loginState) {
             is UiState.Error -> {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(Spacing.md))
                 Text(
                     text = state.message,
                     color = MaterialTheme.colorScheme.error,
@@ -165,7 +166,7 @@ fun LoginScreen(
             else -> {}
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.md))
 
         TextButton(onClick = onRegisterClick) {
             Text("Don't have an account? Register")

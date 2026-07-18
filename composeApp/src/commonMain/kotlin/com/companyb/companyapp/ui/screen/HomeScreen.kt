@@ -45,6 +45,7 @@ import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
@@ -207,7 +208,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.error,
                                     style = MaterialTheme.typography.bodyLarge,
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(Spacing.md))
                                 OutlinedButton(onClick = { branchViewModel.loadBranches() }) {
                                     Text("Retry")
                                 }
@@ -259,16 +260,16 @@ private fun HomeScreenContent(
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxSize().padding(Spacing.md),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         item {
             QuickNavRow(onClientsClick = onClientsClick)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = "Branches",
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(vertical = 8.dp),
+                modifier = Modifier.padding(vertical = Spacing.sm),
             )
         }
 
@@ -291,7 +292,7 @@ private fun HomeScreenContent(
 private fun QuickNavRow(onClientsClick: () -> Unit = {}) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         FilledTonalButton(
             onClick = onClientsClick,
@@ -339,7 +340,7 @@ private fun BranchCard(
             ),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(Spacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -348,10 +349,10 @@ private fun BranchCard(
                     text = branch.name,
                     style = MaterialTheme.typography.titleSmall,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 BranchTypeBadge(branch.branchType)
                 if (isClockedInHere) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
                         text = "Clocked in",
                         style = MaterialTheme.typography.labelSmall,
@@ -359,7 +360,7 @@ private fun BranchCard(
                     )
                 }
                 if (isClockedInElsewhere) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
                         text = "Clocked in elsewhere",
                         style = MaterialTheme.typography.labelSmall,
@@ -368,7 +369,7 @@ private fun BranchCard(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(Spacing.sm))
 
             when {
                 isClockedInHere -> {

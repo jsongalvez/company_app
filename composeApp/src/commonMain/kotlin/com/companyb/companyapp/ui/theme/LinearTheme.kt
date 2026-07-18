@@ -9,8 +9,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import company_app.composeapp.generated.resources.Inter_Bold
+import company_app.composeapp.generated.resources.Inter_Regular
+import company_app.composeapp.generated.resources.Inter_SemiBold
+import company_app.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.Font
 
 private val Canvas = Color(0xFF010102)
 private val Surface1 = Color(0xFF0F1011)
@@ -23,72 +29,29 @@ private val Ink = Color(0xFFF7F8F8)
 private val InkMuted = Color(0xFFD0D6E0)
 private val InkSubtle = Color(0xFF8A8F98)
 private val Hairline = Color(0xFF23252A)
+private val HairlineStrong = Color(0xFF34343A)
+private val HairlineTertiary = Color(0xFF3E3E44)
 
 object CornerRadius {
     val xs = 4.dp
-    val sm = 8.dp
-    val md = 12.dp
-    val lg = 16.dp
-    val xl = 24.dp
-    val full = 999.dp
+    val sm = 6.dp
+    val md = 8.dp
+    val lg = 12.dp
+    val xl = 16.dp
+    val xxl = 24.dp
+    val pill = 9999.dp
 }
 
 object Spacing {
-    val xs = 4.dp
-    val sm = 8.dp
+    val xxs = 4.dp
+    val xs = 8.dp
+    val sm = 12.dp
     val md = 16.dp
     val lg = 24.dp
     val xl = 32.dp
     val xxl = 48.dp
+    val section = 96.dp
 }
-
-private val LinearFontFamily = FontFamily.SansSerif // Inter when bundled
-
-private val LinearTypography =
-    Typography(
-        bodyLarge =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-            ),
-        bodyMedium =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-            ),
-        bodySmall =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-            ),
-        titleLarge =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 22.sp,
-                lineHeight = 28.sp,
-            ),
-        titleMedium =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 16.sp,
-                lineHeight = 24.sp,
-            ),
-        labelLarge =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 14.sp,
-                lineHeight = 20.sp,
-            ),
-        labelSmall =
-            TextStyle(
-                fontFamily = LinearFontFamily,
-                fontSize = 11.sp,
-                lineHeight = 16.sp,
-            ),
-    )
 
 private val LinearShapes =
     Shapes(
@@ -114,7 +77,7 @@ private val LinearDarkColors =
         tertiary = Surface4,
         onTertiary = InkMuted,
         outline = Hairline,
-        outlineVariant = Hairline,
+        outlineVariant = HairlineTertiary,
         error = Color(0xFFCF6679),
         onError = Color(0xFF000000),
         inverseSurface = Surface1,
@@ -124,9 +87,27 @@ private val LinearDarkColors =
 
 @Composable
 fun LinearTheme(content: @Composable () -> Unit) {
+    val fontFamily =
+        FontFamily(
+            Font(Res.font.Inter_Regular, FontWeight.Normal),
+            Font(Res.font.Inter_SemiBold, FontWeight.SemiBold),
+            Font(Res.font.Inter_Bold, FontWeight.Bold),
+        )
+
+    val typography =
+        Typography(
+            bodyLarge = TextStyle(fontFamily = fontFamily, fontSize = 16.sp, lineHeight = 24.sp),
+            bodyMedium = TextStyle(fontFamily = fontFamily, fontSize = 14.sp, lineHeight = 20.sp),
+            bodySmall = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, lineHeight = 16.sp),
+            titleLarge = TextStyle(fontFamily = fontFamily, fontSize = 22.sp, lineHeight = 28.sp),
+            titleMedium = TextStyle(fontFamily = fontFamily, fontSize = 16.sp, lineHeight = 24.sp),
+            labelLarge = TextStyle(fontFamily = fontFamily, fontSize = 14.sp, lineHeight = 20.sp),
+            labelSmall = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, lineHeight = 16.sp),
+        )
+
     MaterialTheme(
         colorScheme = LinearDarkColors,
-        typography = LinearTypography,
+        typography = typography,
         shapes = LinearShapes,
         content = content,
     )
