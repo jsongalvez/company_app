@@ -13,9 +13,9 @@ import org.openjdk.jmh.infra.Blackhole;
 import java.time.LocalDate;
 
 @State(Scope.Thread)
-@Fork(1)
-@Warmup(iterations = 3, time = 1)
-@Measurement(iterations = 5, time = 1)
+@Fork(2)
+@Warmup(iterations = 5, time = 2)
+@Measurement(iterations = 10, time = 2)
 public class BranchDayBenchmark {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 7, 14);
