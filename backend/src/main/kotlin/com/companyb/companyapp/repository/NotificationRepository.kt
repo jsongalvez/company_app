@@ -21,12 +21,14 @@ object NotificationRepository {
         sessionId: UUID,
         userId: UUID,
         branchId: UUID,
+        message: String,
     ): Notification =
         transaction {
             NotificationTable.insert {
                 it[NotificationTable.sessionId] = sessionId
                 it[NotificationTable.userId] = userId
                 it[NotificationTable.branchId] = branchId
+                it[NotificationTable.message] = message
             }
 
             NotificationTable
@@ -77,6 +79,7 @@ object NotificationRepository {
             sessionId = this[NotificationTable.sessionId],
             userId = this[NotificationTable.userId],
             branchId = this[NotificationTable.branchId],
+            message = this[NotificationTable.message],
             isRead = this[NotificationTable.isRead],
             readAt = this[NotificationTable.readAt],
             createdAt = this[NotificationTable.createdAt],

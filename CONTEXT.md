@@ -59,3 +59,7 @@ _Avoid_: Permission, right, role-check
 **Branch Slot**:
 A cosmetic ordering number (1 = senior) per user per branch assignment. Controls display order in reports and sessions. Swappable atomically. Relief practitioners sort after home slots.
 _Avoid_: Rank, seniority number
+
+**Notification**:
+An in-app alert about an upcoming appointment, delivered to the coordinator(s) assigned to the session's branch. Contains a human-readable `message`, the originating `session_id`, and a read/unread status. Written once daily at 07:00 AM Manila by the scheduler, never updated (only marked read).
+_Avoid_: Alert, reminder, push notification

@@ -15,6 +15,7 @@ import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.between
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
@@ -62,19 +63,27 @@ object NextAppointmentScheduler {
             return 0
         }
 
+        val branchIds = sessions.map { it.branchId }.distinct()
+        val coordinatorsByBranch = findActiveCoordinatorsForBranches(branchIds)
+
+        val message = "You have an upcoming appointment on $target"
+
         var created = 0
         for (session in sessions) {
-            val coordinatorIds = findActiveCoordinatorsForBranch(session.branchId)
+            val coordinatorIds = coordinatorsByBranch[session.branchId].orEmpty()
             for (userId in coordinatorIds) {
                 val exists = notificationExists(session.sessionId, userId)
                 if (!exists) {
-                    NotificationRepository.insert(session.sessionId, userId, session.branchId)
+                    NotificationRepository.insert(session.sessionId, userId, session.branchId, message)
                     created++
                 }
             }
         }
 
-        logger.info { "[SCHEDULER] Created $created notifications for $target (${sessions.size} sessions)" }
+        logger.info {
+            "[SCHEDULER] Created $created notifications for $target " +
+                "(${sessions.size} sessions, ${branchIds.size} branches)"
+        }
         return created
     }
 
@@ -103,7 +112,7 @@ object NextAppointmentScheduler {
                 }
         }
 
-    internal fun findActiveCoordinatorsForBranch(branchId: UUID): List<UUID> =
+    internal fun findActiveCoordinatorsForBranches(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
         transaction {
             UserBranchAssignmentTable
                 .innerJoin(
@@ -116,14 +125,17 @@ object NextAppointmentScheduler {
                     { CapabilityTable.id },
                 ).select(
                     UserBranchAssignmentTable.userId,
+                    UserBranchAssignmentTable.branchId,
                 ).where {
-                    (UserBranchAssignmentTable.branchId eq branchId) and
+                    (UserBranchAssignmentTable.branchId inList branchIds) and
                         (UserBranchAssignmentTable.endedAt.isNull()) and
                         (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                        (ActiveUserCapabilitiesView.contextId eq branchId) and
+                        (ActiveUserCapabilitiesView.contextId inList branchIds) and
                         (CapabilityTable.code eq RECEIVE_NEXT_APPOINTMENT_ALERTS)
                 }.withDistinct()
-                .map { it[UserBranchAssignmentTable.userId] }
+                .map { row ->
+                    row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]
+                }.groupBy({ it.first }, { it.second })
         }
 
     private fun notificationExists(

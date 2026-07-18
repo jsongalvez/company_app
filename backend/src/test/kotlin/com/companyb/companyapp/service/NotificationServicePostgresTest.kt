@@ -150,6 +150,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                 it[NotificationTable.sessionId] = sessionId
                 it[NotificationTable.userId] = userId
                 it[NotificationTable.branchId] = branchId
+                it[NotificationTable.message] = "Test notification"
             }
         }
         return transaction {
@@ -163,6 +164,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                         sessionId = row[NotificationTable.sessionId],
                         userId = row[NotificationTable.userId],
                         branchId = row[NotificationTable.branchId],
+                        message = row[NotificationTable.message],
                         isRead = row[NotificationTable.isRead],
                         readAt = row[NotificationTable.readAt],
                         createdAt = row[NotificationTable.createdAt],

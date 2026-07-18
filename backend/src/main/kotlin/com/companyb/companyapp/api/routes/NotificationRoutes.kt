@@ -36,6 +36,7 @@ object NotificationRoutes {
             id = id.toString(),
             sessionId = sessionId.toString(),
             branchId = branchId.toString(),
+            message = message,
             isRead = isRead,
             readAt = readAt?.toString(),
             createdAt = createdAt.toString(),
