@@ -9,7 +9,6 @@ import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,10 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class AuthViewModel(
     private val apiClient: ApiClient,
-    private val scope: CoroutineScope? = null,
 ) : ViewModel() {
-    private val vmScope: CoroutineScope get() = scope ?: viewModelScope
-    private val handler = ApiCallHandler(vmScope, "AuthVM")
+    private val handler = ApiCallHandler(viewModelScope, "AuthVM")
 
     private val _loginState = MutableStateFlow<UiState<LoginResponse>>(UiState.Idle)
     val loginState: StateFlow<UiState<LoginResponse>> = _loginState.asStateFlow()

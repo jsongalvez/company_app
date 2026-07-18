@@ -28,19 +28,13 @@ import kotlinx.serialization.json.Json
 class ApiClient(
     private val tokenStore: TokenStore,
     baseUrl: String = platformDefaultBaseUrl,
-    engine: HttpClientEngine? = null,
+    engine: HttpClientEngine = httpClientEngine(),
 ) {
     val onUnauthorized: MutableSharedFlow<Unit> = MutableSharedFlow(extraBufferCapacity = 1)
 
     val httpClient: HttpClient =
-        if (engine != null) {
-            HttpClient(engine) {
-                configure(tokenStore, baseUrl, onUnauthorized)
-            }
-        } else {
-            HttpClient {
-                configure(tokenStore, baseUrl, onUnauthorized)
-            }
+        HttpClient(engine) {
+            configure(tokenStore, baseUrl, onUnauthorized)
         }
 
     companion object {

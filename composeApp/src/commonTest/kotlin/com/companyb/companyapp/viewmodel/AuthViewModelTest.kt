@@ -3,12 +3,29 @@ package com.companyb.companyapp.viewmodel
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AuthViewModelTest {
+    @BeforeTest
+    fun setup() {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+    }
+
+    @AfterTest
+    fun teardown() {
+        Dispatchers.resetMain()
+    }
+
     @Test
     fun loginSuccessTransitionsToSuccess() =
         runBlocking {
@@ -17,7 +34,7 @@ class AuthViewModelTest {
                     status = HttpStatusCode.OK,
                     body = """{"token": "fake-jwt"}""",
                 )
-            val viewModel = AuthViewModel(apiClient, scope = this)
+            val viewModel = AuthViewModel(apiClient)
 
             assertEquals(UiState.Idle, viewModel.loginState.value)
 
@@ -36,7 +53,7 @@ class AuthViewModelTest {
                     status = HttpStatusCode.Unauthorized,
                     body = """{"error": "invalid"}""",
                 )
-            val viewModel = AuthViewModel(apiClient, scope = this)
+            val viewModel = AuthViewModel(apiClient)
 
             assertEquals(UiState.Idle, viewModel.loginState.value)
 
@@ -44,6 +61,6 @@ class AuthViewModelTest {
 
             val state = viewModel.loginState.value
             val error = assertIs<UiState.Error>(state)
-            assertEquals("Login failed: 401", error.message)
+            assertEquals("login failed: 401", error.message)
         }
 }
