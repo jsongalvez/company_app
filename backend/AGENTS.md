@@ -137,7 +137,7 @@ action, changedBy, oldValue?, newValue?, reason?)`. `record` does **not** open i
 (typically via the repository's `auditFn` callback, which is invoked inside the repository's
 `transaction {}`). This ensures the audit insert commits atomically with the mutation it describes.
 Build JSON values with `AuditLogRepository.jsonField(key, value)` (safely escaped) or use the
-convenience methods `recordInsert`, `recordUpdate`, `recordDelete` which accept `Auditable` entities
+convenience methods `recordInsert`, `recordUpdate`, `recordDelete` which accept
 and `Map<String, String>` field maps.
 
 Immediate revocation uses the in-memory `DenyList` (`ConcurrentHashMap<UUID, Instant>`), checked

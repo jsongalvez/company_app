@@ -71,7 +71,7 @@ object SessionPractitionerService {
         remarks: String?,
     ): SessionPractitioner {
         resolveSession(sessionId, callerId)
-        requirePractitionerInSession(sessionId, practitionerId)
+        val oldPractitioner = requirePractitionerInSession(sessionId, practitionerId)
 
         val updated =
             SessionPractitionerRepository.updateRemarks(
@@ -82,8 +82,8 @@ object SessionPractitionerService {
                     AuditLogRepository.recordUpdate(
                         tableName = SessionPractitionerTable.tableName,
                         recordId = p.id,
-                        oldFields = emptyMap(),
-                        newFields = mapOf("remarks" to (remarks ?: "")),
+                        oldFields = mapOf("remarks" to (oldPractitioner.remarks ?: "null")),
+                        newFields = mapOf("remarks" to (remarks ?: "null")),
                         changedBy = callerId,
                     )
                 },

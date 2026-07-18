@@ -10,8 +10,6 @@ import com.companyb.companyapp.repository.ClientUpdateParams
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 object ClientService {
@@ -136,7 +134,7 @@ object ClientService {
                         mapOf(
                             "firstName" to "null",
                             "lastName" to "null",
-                            "deletedAt" to OffsetDateTime.now(ZoneOffset.UTC).toString(),
+                            "deletedAt" to (client.deletedAt?.toString() ?: "null"),
                         ),
                     changedBy = callerId,
                 )

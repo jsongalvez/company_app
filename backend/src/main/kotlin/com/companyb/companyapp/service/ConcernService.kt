@@ -129,16 +129,18 @@ object ConcernService {
             },
         )
 
+        val oldOtherConcerns = session.otherConcerns
+
         SessionRepository.updateOtherConcerns(
             sessionId = sessionId,
             otherConcerns = null,
             changedBy = callerId,
-            auditFn = { session ->
+            auditFn = { updatedSession ->
                 AuditLogRepository.recordUpdate(
                     tableName = SessionTable.tableName,
-                    recordId = session.id,
-                    oldFields = mapOf("otherConcerns" to (session.otherConcerns ?: "")),
-                    newFields = mapOf("otherConcerns" to ""),
+                    recordId = updatedSession.id,
+                    oldFields = mapOf("otherConcerns" to (oldOtherConcerns ?: "null")),
+                    newFields = mapOf("otherConcerns" to "null"),
                     changedBy = callerId,
                 )
             },
