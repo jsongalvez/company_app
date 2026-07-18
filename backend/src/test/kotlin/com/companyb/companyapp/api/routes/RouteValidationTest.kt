@@ -14,8 +14,11 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -24,6 +27,9 @@ import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
 import io.javalin.testtools.JavalinTest
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,6 +42,7 @@ class RouteValidationTest : BasePostgresTest() {
     private val testCategoryId = UUID.randomUUID()
     private val testProductId = UUID.randomUUID()
     private val testClientId = UUID.randomUUID()
+    private val testSessionId = UUID.randomUUID()
 
     override fun initTestData() {
         trackOwned(AppUserTable, AppUserTable.id, testUserId)
@@ -77,6 +84,12 @@ class RouteValidationTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestProduct(testProductId, categoryId = testCategoryId)
         trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestClient(testClientId)
+        trackOwned(SessionTable, SessionTable.id, testSessionId)
+        DatabaseTestHelper.insertTestSession(
+            id = testSessionId,
+            clientId = testClientId,
+            branchDayId = testBranchDayId,
+        )
     }
 
     companion object {
@@ -204,6 +217,32 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `PATCH compensation negative amount returns 400`() {
+        val compId = UUID.randomUUID()
+        transaction {
+            CompensationTable.insert {
+                it[CompensationTable.id] = compId
+                it[CompensationTable.workBranchDayId] = testBranchDayId
+                it[CompensationTable.payingBranchDayId] = testBranchDayId
+                it[CompensationTable.userId] = testUserId
+                it[CompensationTable.amount] = BigDecimal("100.00")
+                it[CompensationTable.assignedBy] = testUserId
+            }
+        }
+        trackOwned(CompensationTable, CompensationTable.id, compId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .patch(
+                        "/api/compensation/$compId",
+                        mapOf("amount" to "-10.00", "expectedVersion" to 0),
+                    ).code,
+            )
+        }
+    }
+
     // ──────────────────────────────────────────────
     // SessionRoutes
     // ──────────────────────────────────────────────
@@ -235,6 +274,29 @@ class RouteValidationTest : BasePostgresTest() {
                     "finalPrice" to "abc",
                 )
             assertEquals(400, client.post("/api/sessions", body).code)
+        }
+    }
+
+    @Test
+    fun `POST void session blank voidReason returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("id" to UUID.randomUUID().toString(), "voidReason" to "  ")
+            assertEquals(400, client.post("/api/sessions/$testSessionId/void", body).code)
+        }
+    }
+
+    @Test
+    fun `POST unvoid session blank unvoidedReason returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.post("/api/sessions/$testSessionId/unvoid", mapOf("unvoidedReason" to "  ")).code)
+        }
+    }
+
+    @Test
+    fun `POST promote concern blank label returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("id" to UUID.randomUUID().toString(), "label" to "  ")
+            assertEquals(400, client.post("/api/sessions/$testSessionId/promote-concern", body).code)
         }
     }
 
@@ -667,6 +729,30 @@ class RouteValidationTest : BasePostgresTest() {
                     "category" to "INVALID",
                 )
             assertEquals(400, client.post("/api/expenses", body).code)
+        }
+    }
+
+    @Test
+    fun `DELETE expense blank reason returns 400`() {
+        val expenseId = UUID.randomUUID()
+        transaction {
+            com.companyb.companyapp.repository.model.ExpenseTable.insert {
+                it[com.companyb.companyapp.repository.model.ExpenseTable.id] = expenseId
+                it[com.companyb.companyapp.repository.model.ExpenseTable.branchDayId] = testBranchDayId
+                it[com.companyb.companyapp.repository.model.ExpenseTable.amount] = BigDecimal("100.00")
+                it[com.companyb.companyapp.repository.model.ExpenseTable.category] =
+                    com.companyb.companyapp.repository.model.ExpenseCategory.MISCELLANEOUS
+                it[com.companyb.companyapp.repository.model.ExpenseTable.createdBy] = testUserId
+                it[com.companyb.companyapp.repository.model.ExpenseTable.notes] = "Test expense"
+            }
+        }
+        trackOwned(
+            com.companyb.companyapp.repository.model.ExpenseTable,
+            com.companyb.companyapp.repository.model.ExpenseTable.id,
+            expenseId,
+        )
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ")).code)
         }
     }
 }

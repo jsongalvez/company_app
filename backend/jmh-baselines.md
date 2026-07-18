@@ -21,10 +21,10 @@ re-run `./gradlew :backend:jmh`, paste the new scores below, and update the "Las
 | `SessionTypeBenchmark.computeProvincialFirst` | 3,645,516,545 | 105,420,350 |
 | `SessionTypeBenchmark.computeSecondSession` | 3,625,109,850 | 339,878,410 |
 | `SessionTypeBenchmark.computeSubsequent` | 3,626,806,833 | 134,529,544 |
-| `BranchDayBenchmark.evaluateOpenFuture` | 1,273,059,367 | 46,601,858 |
-| `BranchDayBenchmark.evaluateOpenPast` | 1,288,183,549 | 23,576,631 |
-| `BranchDayBenchmark.evaluateRemitted` | 3,612,729,334 | 276,122,295 |
-| `BranchDayBenchmark.expirationUtc` | 46,746,895 | 946,701 |
+| `BranchDayBenchmark.evaluateOpenFuture` | 548,007,352 | 331,725,067 |
+| `BranchDayBenchmark.evaluateOpenPast` | 567,355,085 | 232,355,664 |
+| `BranchDayBenchmark.evaluateRemitted` | 1,456,638,238 | 462,290,572 |
+| `BranchDayBenchmark.expirationUtc` | 21,476,475 | 16,095,356 |
 | `CommissionBenchmark.splitBetweenOne` | 166,626,501 | 11,582,068 |
 | `CommissionBenchmark.splitBetweenTwo` | 163,782,287 | 10,428,396 |
 | `CommissionBenchmark.splitBetweenThree` | 174,423,568 | 8,825,960 |
