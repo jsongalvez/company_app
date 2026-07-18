@@ -9,7 +9,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class ProductSale(
-    override val id: UUID,
+    val id: UUID,
     val branchDayId: UUID,
     val sessionId: UUID?,
     val clientId: UUID?,
@@ -22,16 +22,7 @@ data class ProductSale(
     val totalAmountAtTime: BigDecimal,
     val commissionAmountAtTime: BigDecimal,
     val soldAt: OffsetDateTime,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "branchDayId" to branchDayId.toString(),
-            "productId" to productId.toString(),
-            "quantity" to quantity.toString(),
-            "totalAmountAtTime" to totalAmountAtTime.toPlainString(),
-        )
-}
+)
 
 private const val PRICE_PRECISION = 10
 private const val PRICE_SCALE = 2
@@ -54,4 +45,13 @@ object ProductSaleTable : Table("product_sale") {
     val soldAt = timestampWithTimeZone("sold_at").defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: ProductSale): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+            "productId" to entity.productId.toString(),
+            "quantity" to entity.quantity.toString(),
+            "totalAmountAtTime" to entity.totalAmountAtTime.toPlainString(),
+        )
 }

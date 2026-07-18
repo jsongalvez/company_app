@@ -67,9 +67,10 @@ object UserBranchAssignmentService {
                 ),
                 auditFn = { assignment ->
                     AuditLogRepository.recordInsert(
-                        UserBranchAssignmentTable.tableName,
-                        assignment,
-                        callerId,
+                        tableName = UserBranchAssignmentTable.tableName,
+                        recordId = assignment.id,
+                        changedBy = callerId,
+                        fields = UserBranchAssignmentTable.auditFields(assignment),
                     )
                 },
             )

@@ -50,7 +50,12 @@ object ClientService {
                 changedBy = callerId,
             ),
         ) { client ->
-            AuditLogRepository.recordInsert(ClientTable.tableName, client, callerId)
+            AuditLogRepository.recordInsert(
+                tableName = ClientTable.tableName,
+                recordId = client.id,
+                changedBy = callerId,
+                fields = ClientTable.auditFields(client),
+            )
         }
 
     fun search(query: String): List<Client> = ClientRepository.search(query)

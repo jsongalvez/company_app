@@ -122,7 +122,12 @@ object RemittanceService {
                     submittedBy = callerId,
                 ),
             ) { remittance ->
-                AuditLogRepository.recordInsert(RemittanceTable.tableName, remittance, callerId)
+                AuditLogRepository.recordInsert(
+                    tableName = RemittanceTable.tableName,
+                    recordId = remittance.id,
+                    changedBy = callerId,
+                    fields = RemittanceTable.auditFields(remittance),
+                )
             }
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
         return result.remittance
@@ -160,7 +165,12 @@ object RemittanceService {
                         expectedVersion = remittance.version,
                     ),
                 ) { line ->
-                    AuditLogRepository.recordInsert(RemittanceLineTable.tableName, line, callerId)
+                    AuditLogRepository.recordInsert(
+                        tableName = RemittanceLineTable.tableName,
+                        recordId = line.id,
+                        changedBy = callerId,
+                        fields = RemittanceLineTable.auditFields(line),
+                    )
                 }
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
@@ -235,7 +245,12 @@ object RemittanceService {
                 remittanceId = remittanceId,
                 branchDayId = branchDayId,
             ) { breakdown ->
-                AuditLogRepository.recordInsert(RemittanceDayBreakdownTable.tableName, breakdown, callerId)
+                AuditLogRepository.recordInsert(
+                    tableName = RemittanceDayBreakdownTable.tableName,
+                    recordId = breakdown.id,
+                    changedBy = callerId,
+                    fields = RemittanceDayBreakdownTable.auditFields(breakdown),
+                )
             }
 
         logger.info { "[ADD-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id} added to remittance $remittanceId" }

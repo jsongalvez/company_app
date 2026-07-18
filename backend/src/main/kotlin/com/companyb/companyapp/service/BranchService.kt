@@ -28,7 +28,12 @@ object BranchService {
                 changedBy = callerId,
             ),
         ) { branch ->
-            AuditLogRepository.recordInsert(BranchTable.tableName, branch, callerId)
+            AuditLogRepository.recordInsert(
+                tableName = BranchTable.tableName,
+                recordId = branch.id,
+                changedBy = callerId,
+                fields = BranchTable.auditFields(branch),
+            )
         }
 
     fun findAll(): List<Branch> = BranchRepository.findAll()

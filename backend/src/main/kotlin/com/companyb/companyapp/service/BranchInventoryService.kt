@@ -91,9 +91,10 @@ object BranchInventoryService {
                                 ),
                         )
                         AuditLogRepository.recordInsert(
-                            InventoryMovementTable.tableName,
-                            data.movement,
-                            data.movement.movedBy,
+                            tableName = InventoryMovementTable.tableName,
+                            recordId = data.movement.id,
+                            changedBy = data.movement.movedBy,
+                            fields = InventoryMovementTable.auditFields(data.movement),
                         )
                     },
                 )
@@ -162,9 +163,10 @@ object BranchInventoryService {
                             ),
                     )
                     AuditLogRepository.recordInsert(
-                        InventoryMovementTable.tableName,
-                        data.movement,
-                        data.movement.movedBy,
+                        tableName = InventoryMovementTable.tableName,
+                        recordId = data.movement.id,
+                        changedBy = data.movement.movedBy,
+                        fields = InventoryMovementTable.auditFields(data.movement),
                     )
                 },
             )

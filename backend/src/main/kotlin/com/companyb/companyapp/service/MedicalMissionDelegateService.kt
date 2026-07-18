@@ -34,9 +34,10 @@ object MedicalMissionDelegateService {
             capabilityId = capabilityId,
             auditFn = { delegate ->
                 AuditLogRepository.recordInsert(
-                    MedicalMissionDelegateTable.tableName,
-                    delegate,
-                    callerId,
+                    tableName = MedicalMissionDelegateTable.tableName,
+                    recordId = delegate.id,
+                    changedBy = callerId,
+                    fields = MedicalMissionDelegateTable.auditFields(delegate),
                 )
             },
         )

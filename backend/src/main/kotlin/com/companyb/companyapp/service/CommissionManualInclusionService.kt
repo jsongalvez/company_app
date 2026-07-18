@@ -37,9 +37,10 @@ object CommissionManualInclusionService {
             ) { existing, updated ->
                 if (existing == null) {
                     AuditLogRepository.recordInsert(
-                        CommissionManualInclusionTable.tableName,
-                        updated,
-                        callerId,
+                        tableName = CommissionManualInclusionTable.tableName,
+                        recordId = updated.id,
+                        changedBy = callerId,
+                        fields = CommissionManualInclusionTable.auditFields(updated),
                     )
                 } else {
                     AuditLogRepository.recordUpdate(

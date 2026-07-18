@@ -3,7 +3,6 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.Auditable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -76,13 +75,17 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
 
     @Test
     fun `recordInsert writes correct audit row`() {
-        val entity = TestAuditable(id = recordId, name = "Alice", age = 30)
-
         transaction {
             AuditLogRepository.recordInsert(
                 tableName = tableName,
-                entity = entity,
+                recordId = recordId,
                 changedBy = callerId,
+                fields =
+                    mapOf(
+                        "id" to recordId.toString(),
+                        "name" to "Alice",
+                        "age" to "30",
+                    ),
             )
         }
 
@@ -135,18 +138,5 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
         assertEquals(callerId, row[AuditLogTable.changedBy])
         assertNotNull(row[AuditLogTable.oldValue])
         assertNotNull(row[AuditLogTable.newValue])
-    }
-
-    private data class TestAuditable(
-        override val id: UUID,
-        val name: String,
-        val age: Int,
-    ) : Auditable {
-        override fun toAuditFields(): Map<String, String> =
-            mapOf(
-                "id" to id.toString(),
-                "name" to name,
-                "age" to age.toString(),
-            )
     }
 }

@@ -17,7 +17,12 @@ object ProductCategoryService {
         name: String,
     ): ProductCategory =
         ProductCategoryRepository.create(id, name) { category ->
-            AuditLogRepository.recordInsert(ProductCategoryTable.tableName, category, callerId)
+            AuditLogRepository.recordInsert(
+                tableName = ProductCategoryTable.tableName,
+                recordId = category.id,
+                changedBy = callerId,
+                fields = ProductCategoryTable.auditFields(category),
+            )
         }
 
     fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()

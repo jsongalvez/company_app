@@ -15,7 +15,7 @@ enum class RemittanceLineType {
 }
 
 data class RemittanceLine(
-    override val id: UUID,
+    val id: UUID,
     val remittanceId: UUID,
     val type: RemittanceLineType,
     val sessionId: UUID?,
@@ -25,15 +25,7 @@ data class RemittanceLine(
     val deletedBy: UUID?,
     val deletedAt: OffsetDateTime?,
     val amount: BigDecimal,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "remittanceId" to remittanceId.toString(),
-            "type" to type.name,
-            "amount" to amount.toPlainString(),
-        )
-}
+)
 
 private const val PRECISION = 10
 private const val SCALE = 2
@@ -62,4 +54,12 @@ object RemittanceLineTable : Table("remittance_line") {
     val amount = decimal("amount", PRECISION, SCALE)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: RemittanceLine): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "remittanceId" to entity.remittanceId.toString(),
+            "type" to entity.type.name,
+            "amount" to entity.amount.toPlainString(),
+        )
 }

@@ -11,24 +11,14 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class SessionBaseRate(
-    override val id: UUID,
+    val id: UUID,
     val setBy: UUID,
     val branchId: UUID,
     val sessionType: SessionType,
     val rate: BigDecimal,
     val effectiveFrom: OffsetDateTime,
     val effectiveUntil: OffsetDateTime,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "branchId" to branchId.toString(),
-            "sessionType" to sessionType.name,
-            "rate" to rate.toPlainString(),
-            "effectiveFrom" to effectiveFrom.toString(),
-            "effectiveUntil" to effectiveUntil.toString(),
-        )
-}
+)
 
 object SessionBaseRateTable : Table("session_base_rate") {
     private const val RATE_PRECISION = 10
@@ -54,4 +44,14 @@ object SessionBaseRateTable : Table("session_base_rate") {
     val effectiveUntil = timestampWithTimeZone("effective_until")
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: SessionBaseRate): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchId" to entity.branchId.toString(),
+            "sessionType" to entity.sessionType.name,
+            "rate" to entity.rate.toPlainString(),
+            "effectiveFrom" to entity.effectiveFrom.toString(),
+            "effectiveUntil" to entity.effectiveUntil.toString(),
+        )
 }

@@ -41,7 +41,12 @@ object ExpenseService {
                 notes = notes,
             ),
         ) { expense ->
-            AuditLogRepository.recordInsert(ExpenseTable.tableName, expense, callerId)
+            AuditLogRepository.recordInsert(
+                tableName = ExpenseTable.tableName,
+                recordId = expense.id,
+                changedBy = callerId,
+                fields = ExpenseTable.auditFields(expense),
+            )
         }
     }
 

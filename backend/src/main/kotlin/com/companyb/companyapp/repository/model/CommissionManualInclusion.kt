@@ -8,25 +8,14 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class CommissionManualInclusion(
-    override val id: UUID,
+    val id: UUID,
     val productSaleId: UUID,
     val userId: UUID,
     val isIncluded: Boolean,
     val reason: String?,
     val assignedBy: UUID,
     val assignedAt: OffsetDateTime,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "productSaleId" to productSaleId.toString(),
-            "userId" to userId.toString(),
-            "isIncluded" to isIncluded.toString(),
-            "reason" to (reason ?: "null"),
-            "assignedBy" to assignedBy.toString(),
-            "assignedAt" to assignedAt.toString(),
-        )
-}
+)
 
 object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
     val id = javaUUID("id").autoGenerate()
@@ -38,4 +27,15 @@ object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
     val assignedAt = timestampWithTimeZone("assigned_at").defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: CommissionManualInclusion): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "productSaleId" to entity.productSaleId.toString(),
+            "userId" to entity.userId.toString(),
+            "isIncluded" to entity.isIncluded.toString(),
+            "reason" to (entity.reason ?: "null"),
+            "assignedBy" to entity.assignedBy.toString(),
+            "assignedAt" to entity.assignedAt.toString(),
+        )
 }

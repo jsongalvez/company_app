@@ -104,8 +104,9 @@ object ConcernService {
                 auditFn = { c ->
                     AuditLogRepository.recordInsert(
                         tableName = ConcernTable.tableName,
-                        entity = c,
+                        recordId = c.id,
                         changedBy = callerId,
+                        fields = ConcernTable.auditFields(c),
                     )
                 },
             )

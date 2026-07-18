@@ -9,7 +9,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Compensation(
-    override val id: UUID,
+    val id: UUID,
     val workBranchDayId: UUID,
     val payingBranchDayId: UUID,
     val userId: UUID,
@@ -18,20 +18,7 @@ data class Compensation(
     val assignedAt: OffsetDateTime,
     val note: String?,
     val version: Int,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "workBranchDayId" to workBranchDayId.toString(),
-            "payingBranchDayId" to payingBranchDayId.toString(),
-            "userId" to userId.toString(),
-            "amount" to amount.toPlainString(),
-            "assignedBy" to assignedBy.toString(),
-            "assignedAt" to assignedAt.toString(),
-            "note" to (note ?: "null"),
-            "version" to version.toString(),
-        )
-}
+)
 
 object CompensationTable : Table("compensation") {
     private const val AMOUNT_PRECISION = 10
@@ -48,4 +35,17 @@ object CompensationTable : Table("compensation") {
     val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Compensation): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "workBranchDayId" to entity.workBranchDayId.toString(),
+            "payingBranchDayId" to entity.payingBranchDayId.toString(),
+            "userId" to entity.userId.toString(),
+            "amount" to entity.amount.toPlainString(),
+            "assignedBy" to entity.assignedBy.toString(),
+            "assignedAt" to entity.assignedAt.toString(),
+            "note" to (entity.note ?: "null"),
+            "version" to entity.version.toString(),
+        )
 }

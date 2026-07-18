@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class SessionVoid(
-    override val id: UUID,
+    val id: UUID,
     val sessionId: UUID,
     val voidedAt: OffsetDateTime,
     val voidedBy: UUID,
@@ -16,14 +16,7 @@ data class SessionVoid(
     val unvoidedAt: OffsetDateTime?,
     val unvoidedBy: UUID?,
     val unvoidedReason: String?,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "sessionId" to sessionId.toString(),
-            "voidReason" to voidReason,
-        )
-}
+)
 
 object SessionVoidTable : Table("session_void") {
     val id = javaUUID("id").autoGenerate()
@@ -36,4 +29,11 @@ object SessionVoidTable : Table("session_void") {
     val unvoidedReason = text("unvoided_reason").nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: SessionVoid): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "sessionId" to entity.sessionId.toString(),
+            "voidReason" to entity.voidReason,
+        )
 }

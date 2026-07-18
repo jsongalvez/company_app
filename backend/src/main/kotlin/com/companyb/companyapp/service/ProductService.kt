@@ -40,7 +40,12 @@ object ProductService {
                 changedBy = callerId,
             ),
         ) { product ->
-            AuditLogRepository.recordInsert(ProductTable.tableName, product, callerId)
+            AuditLogRepository.recordInsert(
+                tableName = ProductTable.tableName,
+                recordId = product.id,
+                changedBy = callerId,
+                fields = ProductTable.auditFields(product),
+            )
         }
     }
 

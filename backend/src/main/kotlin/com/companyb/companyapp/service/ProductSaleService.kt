@@ -65,7 +65,12 @@ object ProductSaleService {
                         product = product,
                     ),
                 ) { data ->
-                    AuditLogRepository.recordInsert(ProductSaleTable.tableName, data.sale, callerId)
+                    AuditLogRepository.recordInsert(
+                        tableName = ProductSaleTable.tableName,
+                        recordId = data.sale.id,
+                        changedBy = callerId,
+                        fields = ProductSaleTable.auditFields(data.sale),
+                    )
                     AuditLogRepository.recordUpdate(
                         tableName = BranchInventoryTable.tableName,
                         recordId = data.inventoryCardId,

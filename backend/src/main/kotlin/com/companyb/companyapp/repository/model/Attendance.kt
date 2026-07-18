@@ -8,23 +8,13 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Attendance(
-    override val id: UUID,
+    val id: UUID,
     val branchDayId: UUID,
     val userId: UUID,
     val markedBy: UUID,
     val clockIn: OffsetDateTime,
     val clockOut: OffsetDateTime?,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "branchDayId" to branchDayId.toString(),
-            "userId" to userId.toString(),
-            "markedBy" to markedBy.toString(),
-            "clockIn" to clockIn.toString(),
-            "clockOut" to (clockOut?.toString() ?: "null"),
-        )
-}
+)
 
 object AttendanceTable : Table("attendance") {
     val id = javaUUID("id").autoGenerate()
@@ -35,6 +25,16 @@ object AttendanceTable : Table("attendance") {
     val clockOut = timestampWithTimeZone("clock_out").nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Attendance): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+            "userId" to entity.userId.toString(),
+            "markedBy" to entity.markedBy.toString(),
+            "clockIn" to entity.clockIn.toString(),
+            "clockOut" to (entity.clockOut?.toString() ?: "null"),
+        )
 }
 
 data class BranchDayAssignment(

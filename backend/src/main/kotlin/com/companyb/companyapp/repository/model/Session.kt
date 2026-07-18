@@ -13,7 +13,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Session(
-    override val id: UUID,
+    val id: UUID,
     val clientId: UUID,
     val branchDayId: UUID,
     val requestedPractitionerId: UUID?,
@@ -28,16 +28,7 @@ data class Session(
     val nextAppointmentDate: LocalDate?,
     val createdAt: OffsetDateTime,
     val version: Int,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "clientId" to clientId.toString(),
-            "branchDayId" to branchDayId.toString(),
-            "sessionType" to sessionType,
-            "finalPrice" to finalPrice.toPlainString(),
-        )
-}
+)
 
 enum class SessionStatus {
     PENDING,
@@ -89,4 +80,13 @@ object SessionTable : Table("session") {
     val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Session): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "clientId" to entity.clientId.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+            "sessionType" to entity.sessionType,
+            "finalPrice" to entity.finalPrice.toPlainString(),
+        )
 }

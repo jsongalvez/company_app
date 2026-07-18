@@ -47,7 +47,12 @@ object CompensationService {
                     note = note,
                 ),
             ) { compensation ->
-                AuditLogRepository.recordInsert(CompensationTable.tableName, compensation, callerId)
+                AuditLogRepository.recordInsert(
+                    tableName = CompensationTable.tableName,
+                    recordId = compensation.id,
+                    changedBy = callerId,
+                    fields = CompensationTable.auditFields(compensation),
+                )
             }
         logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
         return result.compensation

@@ -4,7 +4,6 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.Auditable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -46,17 +45,19 @@ object AuditLogRepository {
         logger.info { "[AUDIT-LOG] Recorded $action on $tableName/$recordId" }
     }
 
+    @Suppress("LongParameterList")
     fun recordInsert(
         tableName: String,
-        entity: Auditable,
+        recordId: UUID,
         changedBy: UUID,
+        fields: Map<String, String>,
     ) {
         record(
             tableName = tableName,
-            recordId = entity.id,
+            recordId = recordId,
             action = AuditAction.INSERT,
             changedBy = changedBy,
-            newValue = jsonFields(entity.toAuditFields()),
+            newValue = jsonFields(fields),
         )
     }
 

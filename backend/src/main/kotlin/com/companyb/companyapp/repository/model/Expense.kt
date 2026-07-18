@@ -22,7 +22,7 @@ enum class ExpenseCategory {
 }
 
 data class Expense(
-    override val id: UUID,
+    val id: UUID,
     val branchDayId: UUID,
     val amount: BigDecimal,
     val category: ExpenseCategory,
@@ -31,20 +31,7 @@ data class Expense(
     val createdAt: OffsetDateTime,
     val deletedBy: UUID?,
     val deletedAt: OffsetDateTime?,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "branchDayId" to branchDayId.toString(),
-            "amount" to amount.toPlainString(),
-            "category" to category.name,
-            "notes" to (notes ?: "null"),
-            "createdBy" to createdBy.toString(),
-            "createdAt" to createdAt.toString(),
-            "deletedBy" to (deletedBy?.toString() ?: "null"),
-            "deletedAt" to (deletedAt?.toString() ?: "null"),
-        )
-}
+)
 
 data class ExpenseCreateParams(
     val id: UUID,
@@ -81,4 +68,17 @@ object ExpenseTable : Table("expense") {
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Expense): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+            "amount" to entity.amount.toPlainString(),
+            "category" to entity.category.name,
+            "notes" to (entity.notes ?: "null"),
+            "createdBy" to entity.createdBy.toString(),
+            "createdAt" to entity.createdAt.toString(),
+            "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
+            "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
+        )
 }

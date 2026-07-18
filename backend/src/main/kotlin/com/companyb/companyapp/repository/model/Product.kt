@@ -6,33 +6,18 @@ import java.math.BigDecimal
 import java.util.UUID
 
 data class ProductCategory(
-    override val id: UUID,
+    val id: UUID,
     val name: String,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "name" to name,
-        )
-}
+)
 
 data class Product(
-    override val id: UUID,
+    val id: UUID,
     val name: String,
     val productCategoryId: UUID,
     val isActive: Boolean,
     val unitPrice: BigDecimal,
     val commissionAmount: BigDecimal,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "name" to name,
-            "productCategoryId" to productCategoryId.toString(),
-            "unitPrice" to unitPrice.toPlainString(),
-            "commissionAmount" to commissionAmount.toPlainString(),
-        )
-}
+)
 
 data class ProductCreateParams(
     val id: UUID,
@@ -48,6 +33,12 @@ object ProductCategoryTable : Table("product_category") {
     val name = text("name")
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: ProductCategory): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "name" to entity.name,
+        )
 }
 
 object ProductTable : Table("product") {
@@ -62,4 +53,13 @@ object ProductTable : Table("product") {
     val commissionAmount = decimal("commission_amount", PRECISION, SCALE)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Product): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "name" to entity.name,
+            "productCategoryId" to entity.productCategoryId.toString(),
+            "unitPrice" to entity.unitPrice.toPlainString(),
+            "commissionAmount" to entity.commissionAmount.toPlainString(),
+        )
 }

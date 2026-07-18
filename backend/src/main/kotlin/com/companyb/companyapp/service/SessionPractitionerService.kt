@@ -51,8 +51,9 @@ object SessionPractitionerService {
                 auditFn = { p ->
                     AuditLogRepository.recordInsert(
                         tableName = SessionPractitionerTable.tableName,
-                        entity = p,
+                        recordId = p.id,
                         changedBy = callerId,
+                        fields = SessionPractitionerTable.auditFields(p),
                     )
                 },
             )

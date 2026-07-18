@@ -9,23 +9,13 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Allowance(
-    override val id: UUID,
+    val id: UUID,
     val branchDayId: UUID,
     val userId: UUID,
     val amount: BigDecimal,
     val assignedBy: UUID,
     val assignedAt: OffsetDateTime,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "branchDayId" to branchDayId.toString(),
-            "userId" to userId.toString(),
-            "amount" to amount.toPlainString(),
-            "assignedBy" to assignedBy.toString(),
-            "assignedAt" to assignedAt.toString(),
-        )
-}
+)
 
 data class AllowanceCreateParams(
     val id: UUID,
@@ -47,4 +37,14 @@ object AllowanceTable : Table("allowance") {
     val assignedAt = timestampWithTimeZone("assigned_at").defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Allowance): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+            "userId" to entity.userId.toString(),
+            "amount" to entity.amount.toPlainString(),
+            "assignedBy" to entity.assignedBy.toString(),
+            "assignedAt" to entity.assignedAt.toString(),
+        )
 }

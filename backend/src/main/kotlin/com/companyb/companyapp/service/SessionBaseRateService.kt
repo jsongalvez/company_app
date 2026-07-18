@@ -56,8 +56,9 @@ object SessionBaseRateService {
             auditFn = { rate ->
                 AuditLogRepository.recordInsert(
                     tableName = SessionBaseRateTable.tableName,
-                    entity = rate,
+                    recordId = rate.id,
                     changedBy = callerId,
+                    fields = SessionBaseRateTable.auditFields(rate),
                 )
             },
         )

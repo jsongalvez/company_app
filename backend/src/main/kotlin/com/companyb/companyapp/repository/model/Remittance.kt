@@ -26,7 +26,7 @@ enum class RemittanceStatus {
 }
 
 data class Remittance(
-    override val id: UUID,
+    val id: UUID,
     val type: RemittanceType,
     val status: RemittanceStatus,
     val branchId: UUID,
@@ -37,18 +37,7 @@ data class Remittance(
     val dateRangeEnd: LocalDate,
     val createdAt: OffsetDateTime,
     val version: Int,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "type" to type.name,
-            "status" to status.name,
-            "branchId" to branchId.toString(),
-            "method" to method.name,
-            "dateRangeStart" to dateRangeStart.toString(),
-            "dateRangeEnd" to dateRangeEnd.toString(),
-        )
-}
+)
 
 object RemittanceTable : Table("remittance") {
     val id = javaUUID("id").autoGenerate()
@@ -97,4 +86,15 @@ object RemittanceTable : Table("remittance") {
     val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Remittance): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "type" to entity.type.name,
+            "status" to entity.status.name,
+            "branchId" to entity.branchId.toString(),
+            "method" to entity.method.name,
+            "dateRangeStart" to entity.dateRangeStart.toString(),
+            "dateRangeEnd" to entity.dateRangeEnd.toString(),
+        )
 }

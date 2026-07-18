@@ -5,17 +5,10 @@ import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID
 
 data class RemittanceDayBreakdown(
-    override val id: UUID,
+    val id: UUID,
     val remittanceId: UUID,
     val branchDayId: UUID,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "remittanceId" to remittanceId.toString(),
-            "branchDayId" to branchDayId.toString(),
-        )
-}
+)
 
 object RemittanceDayBreakdownTable : Table("remittance_day_breakdown") {
     val id = javaUUID("id")
@@ -23,4 +16,11 @@ object RemittanceDayBreakdownTable : Table("remittance_day_breakdown") {
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: RemittanceDayBreakdown): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "remittanceId" to entity.remittanceId.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+        )
 }

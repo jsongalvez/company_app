@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Client(
-    override val id: UUID,
+    val id: UUID,
     val firstName: String?,
     val lastName: String?,
     val middleName: String?,
@@ -21,14 +21,7 @@ data class Client(
     val diastolicBp: Short?,
     val medicalConditions: String?,
     val deletedAt: OffsetDateTime?,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "firstName" to (firstName ?: "null"),
-            "lastName" to (lastName ?: "null"),
-        )
-}
+)
 
 private const val PHONE_COLUMN_WIDTH = 20
 
@@ -48,4 +41,11 @@ object ClientTable : Table("client") {
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: Client): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "firstName" to (entity.firstName ?: "null"),
+            "lastName" to (entity.lastName ?: "null"),
+        )
 }

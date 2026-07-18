@@ -5,20 +5,12 @@ import org.jetbrains.exposed.v1.core.java.javaUUID
 import java.util.UUID
 
 data class SessionPractitioner(
-    override val id: UUID,
+    val id: UUID,
     val sessionId: UUID,
     val practitionerId: UUID,
     val remarks: String?,
     val slotAtTime: Short,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "sessionId" to sessionId.toString(),
-            "practitionerId" to practitionerId.toString(),
-            "slotAtTime" to slotAtTime.toString(),
-        )
-}
+)
 
 object SessionPractitionerTable : Table("session_practitioner") {
     val id = javaUUID("id").autoGenerate()
@@ -28,4 +20,12 @@ object SessionPractitionerTable : Table("session_practitioner") {
     val slotAtTime = short("slot_at_time")
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: SessionPractitioner): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "sessionId" to entity.sessionId.toString(),
+            "practitionerId" to entity.practitionerId.toString(),
+            "slotAtTime" to entity.slotAtTime.toString(),
+        )
 }

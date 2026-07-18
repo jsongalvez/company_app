@@ -99,8 +99,9 @@ object SessionService {
                 ) { session ->
                     AuditLogRepository.recordInsert(
                         tableName = SessionTable.tableName,
-                        entity = session,
+                        recordId = session.id,
                         changedBy = callerId,
+                        fields = SessionTable.auditFields(session),
                     )
                 }
             } catch (e: IllegalStateException) {
@@ -208,8 +209,9 @@ object SessionService {
             ) { voidRecord ->
                 AuditLogRepository.recordInsert(
                     tableName = SessionVoidTable.tableName,
-                    entity = voidRecord,
+                    recordId = voidRecord.id,
                     changedBy = callerId,
+                    fields = SessionVoidTable.auditFields(voidRecord),
                 )
             }
 

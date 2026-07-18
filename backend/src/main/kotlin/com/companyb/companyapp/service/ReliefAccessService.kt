@@ -159,9 +159,10 @@ object ReliefAccessService {
                 targetUserId,
                 auditFn = { created ->
                     AuditLogRepository.recordInsert(
-                        GrantReliefAccessTable.tableName,
-                        created,
-                        callerId,
+                        tableName = GrantReliefAccessTable.tableName,
+                        recordId = created.id,
+                        changedBy = callerId,
+                        fields = GrantReliefAccessTable.auditFields(created),
                     )
                 },
             )

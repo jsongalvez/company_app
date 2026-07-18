@@ -33,7 +33,12 @@ object AllowanceService {
                     assignedBy = callerId,
                 ),
                 auditFn = { created ->
-                    AuditLogRepository.recordInsert(AllowanceTable.tableName, created, callerId)
+                    AuditLogRepository.recordInsert(
+                        tableName = AllowanceTable.tableName,
+                        recordId = created.id,
+                        changedBy = callerId,
+                        fields = AllowanceTable.auditFields(created),
+                    )
                 },
             )
         logger.info { "[CREATE-ALLOWANCE] Created allowance ${result.allowance.id} created=${result.created}" }

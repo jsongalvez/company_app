@@ -8,25 +8,14 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class ReliefAccess(
-    override val id: UUID,
+    val id: UUID,
     val branchDayId: UUID,
     val requestedBy: UUID,
     val requestStatus: ReliefStatus,
     val targetUser: UUID,
     val grantedBy: UUID?,
     val grantedAt: OffsetDateTime?,
-) : Auditable {
-    override fun toAuditFields(): Map<String, String> =
-        mapOf(
-            "id" to id.toString(),
-            "branchDayId" to branchDayId.toString(),
-            "requestedBy" to requestedBy.toString(),
-            "requestStatus" to requestStatus.name,
-            "targetUser" to targetUser.toString(),
-            "grantedBy" to (grantedBy?.toString() ?: "null"),
-            "grantedAt" to (grantedAt?.toString() ?: "null"),
-        )
-}
+)
 
 object GrantReliefAccessTable : Table("grant_relief_access") {
     val id = javaUUID("id").autoGenerate()
@@ -49,4 +38,15 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
     val grantedAt = timestampWithTimeZone("granted_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: ReliefAccess): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchDayId" to entity.branchDayId.toString(),
+            "requestedBy" to entity.requestedBy.toString(),
+            "requestStatus" to entity.requestStatus.name,
+            "targetUser" to entity.targetUser.toString(),
+            "grantedBy" to (entity.grantedBy?.toString() ?: "null"),
+            "grantedAt" to (entity.grantedAt?.toString() ?: "null"),
+        )
 }
