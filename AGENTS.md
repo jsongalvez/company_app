@@ -46,7 +46,7 @@ bash scripts/check-baselines.sh
 After `bash scripts/setup-hooks.sh`:
 
 - **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, test-data cleanliness check, `:shared:compileKotlinJvm`, and verifies Postgres is reachable. Commits are blocked if any step fails.
-- **pre-push** runs full JMH suite + baseline comparison, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline.
+- **pre-push** runs full JMH suite + baseline comparison, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline. Takes ~4 min — always run `git push` with a sufficient timeout (600000 ms).
 
 ## Configuration details
 
