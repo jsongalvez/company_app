@@ -19,7 +19,7 @@ data class Product(
     val commissionAmount: BigDecimal,
 )
 
-data class CreateProduct(
+data class ProductCreateParams(
     val id: UUID,
     val name: String,
     val productCategoryId: UUID,

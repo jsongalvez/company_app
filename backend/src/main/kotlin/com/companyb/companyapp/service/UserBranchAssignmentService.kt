@@ -9,8 +9,8 @@ import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CreateUserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignment
+import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.select
@@ -56,7 +56,7 @@ object UserBranchAssignmentService {
 
         val created =
             UserBranchAssignmentRepository.create(
-                CreateUserBranchAssignment(
+                UserBranchAssignmentCreateParams(
                     id = id,
                     userId = userId,
                     branchId = branchId,

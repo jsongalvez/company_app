@@ -2,9 +2,9 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Allowance
+import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import com.companyb.companyapp.repository.model.AllowanceTable
 import com.companyb.companyapp.repository.model.AuditAction
-import com.companyb.companyapp.repository.model.CreateAllowance
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -22,7 +22,7 @@ data class AllowanceCreateResult(
 )
 
 object AllowanceRepository {
-    fun create(params: CreateAllowance): AllowanceCreateResult =
+    fun create(params: AllowanceCreateParams): AllowanceCreateResult =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {

@@ -4,8 +4,8 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Branch
+import com.companyb.companyapp.repository.model.BranchCreateParams
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CreateBranch
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -22,7 +22,7 @@ data class BranchCreateResult(
 )
 
 object BranchRepository {
-    fun create(params: CreateBranch): BranchCreateResult =
+    fun create(params: BranchCreateParams): BranchCreateResult =
         transaction {
             val insertedCount =
                 BranchTable

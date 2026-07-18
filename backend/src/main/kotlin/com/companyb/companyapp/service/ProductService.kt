@@ -5,8 +5,8 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.CreateProduct
 import com.companyb.companyapp.repository.model.Product
+import com.companyb.companyapp.repository.model.ProductCreateParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -29,7 +29,7 @@ object ProductService {
         }
 
         return ProductRepository.create(
-            CreateProduct(
+            ProductCreateParams(
                 id = id,
                 name = name,
                 productCategoryId = productCategoryId,

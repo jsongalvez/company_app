@@ -9,12 +9,12 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.CreateUserBranchAssignment
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.SessionBaseRateService
@@ -338,7 +338,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         branchId: UUID,
     ) {
         UserBranchAssignmentRepository.create(
-            CreateUserBranchAssignment(
+            UserBranchAssignmentCreateParams(
                 id = UUID.randomUUID(),
                 userId = userId,
                 branchId = branchId,

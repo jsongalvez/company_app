@@ -1,8 +1,8 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.CreateNotification
 import com.companyb.companyapp.repository.model.Notification
+import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -18,22 +18,21 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object NotificationRepository {
-    fun insert(params: CreateNotification): Notification =
+    fun insert(params: NotificationCreateParams): Notification =
         transaction {
-            val sessionId = params.sessionId
-            val userId = params.userId
-
             NotificationTable.insert {
-                it[NotificationTable.sessionId] = sessionId
-                it[NotificationTable.userId] = userId
+                it[NotificationTable.sessionId] = params.sessionId
+                it[NotificationTable.userId] = params.userId
                 it[NotificationTable.branchId] = params.branchId
                 it[NotificationTable.message] = params.message
             }
 
             NotificationTable
                 .selectAll()
-                .where { (NotificationTable.sessionId eq sessionId) and (NotificationTable.userId eq userId) }
-                .single()
+                .where {
+                    (NotificationTable.sessionId eq params.sessionId) and
+                        (NotificationTable.userId eq params.userId)
+                }.single()
                 .toNotification()
         }.also {
             logger.info {

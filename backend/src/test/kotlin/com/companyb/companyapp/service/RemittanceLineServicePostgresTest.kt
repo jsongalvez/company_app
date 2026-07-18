@@ -15,9 +15,9 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
-import com.companyb.companyapp.repository.model.CreateProduct
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
@@ -731,7 +731,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Suppress("UNUSED_PARAMETER")
     private fun insertProduct(changedBy: UUID = callerId) {
         ProductRepository.create(
-            CreateProduct(
+            ProductCreateParams(
                 id = productId,
                 name = "Test Product $productId",
                 productCategoryId = productCategoryId,

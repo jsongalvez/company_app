@@ -17,7 +17,7 @@ data class UserBranchAssignment(
     val endedAt: OffsetDateTime?,
 )
 
-data class CreateUserBranchAssignment(
+data class UserBranchAssignmentCreateParams(
     val id: UUID,
     val userId: UUID,
     val branchId: UUID,

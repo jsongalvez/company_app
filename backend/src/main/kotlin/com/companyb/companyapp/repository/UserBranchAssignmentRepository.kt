@@ -3,8 +3,8 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
-import com.companyb.companyapp.repository.model.CreateUserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignment
+import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -21,7 +21,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object UserBranchAssignmentRepository {
-    fun create(params: CreateUserBranchAssignment): Boolean =
+    fun create(params: UserBranchAssignmentCreateParams): Boolean =
         transaction {
             val insertedCount =
                 UserBranchAssignmentTable

@@ -5,11 +5,11 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.CreateRemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceMethod
@@ -212,7 +212,7 @@ object RemittanceRepository {
     ) {
         if (remittanceType == RemittanceType.SESSION) {
             RemittanceFinancialSnapshotRepository.insert(
-                CreateRemittanceFinancialSnapshot(
+                RemittanceFinancialSnapshotCreateParams(
                     remittanceId = remittanceId,
                     grossIncome = grossIncome,
                     totalCompensation = totalCompensation,

@@ -17,7 +17,7 @@ data class Allowance(
     val assignedAt: OffsetDateTime,
 )
 
-data class CreateAllowance(
+data class AllowanceCreateParams(
     val id: UUID,
     val branchDayId: UUID,
     val userId: UUID,

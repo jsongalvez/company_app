@@ -18,7 +18,7 @@ data class Notification(
     val createdAt: OffsetDateTime,
 )
 
-data class CreateNotification(
+data class NotificationCreateParams(
     val sessionId: UUID,
     val userId: UUID,
     val branchId: UUID,

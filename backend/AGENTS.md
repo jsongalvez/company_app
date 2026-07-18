@@ -44,8 +44,8 @@ Run the app: `./gradlew :backend:run` (requires Postgres at `DB_HOST:DB_PORT`).
   durations, lengths) into a `private const val`; constants are exempt. `ReturnCount` max is 2 —
   use `@Suppress("ReturnCount")` to match the existing pattern in `AuthService` when a guard-clause
   style is clearer.
-- **`Create*` parameter objects.** Repository `insert`/`create` functions with 4+ non-PK parameters
-  must use a `Create*` parameter object (e.g. `CreateNotification`) co-located in the same model
+- **`*CreateParams` parameter objects.** Repository `insert`/`create` functions with 4+ non-PK parameters
+  must use a `*CreateParams` parameter object (e.g. `NotificationCreateParams`) co-located in the same model
   file. 2-3 stable params can stay raw — no blanket rule. Use named-arg construction at call sites.
 - detekt needs the `detekt-formatting` plugin (wired in the root `build.gradle.kts`
   `subprojects { dependencies { add("detektPlugins", ...) } }`).

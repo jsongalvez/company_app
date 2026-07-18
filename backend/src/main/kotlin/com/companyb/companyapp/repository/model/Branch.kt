@@ -12,7 +12,7 @@ data class Branch(
     val branchType: BranchType,
 )
 
-data class CreateBranch(
+data class BranchCreateParams(
     val id: UUID,
     val name: String,
     val branchType: BranchType,

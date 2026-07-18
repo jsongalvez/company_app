@@ -3,7 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AllowanceRepository
 import com.companyb.companyapp.repository.model.Allowance
-import com.companyb.companyapp.repository.model.CreateAllowance
+import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -23,7 +23,7 @@ object AllowanceService {
 
         val result =
             AllowanceRepository.create(
-                CreateAllowance(
+                AllowanceCreateParams(
                     id = id,
                     branchDayId = branchDayId,
                     userId = userId,

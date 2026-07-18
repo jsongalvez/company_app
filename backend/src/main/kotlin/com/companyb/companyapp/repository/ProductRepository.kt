@@ -2,8 +2,8 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
-import com.companyb.companyapp.repository.model.CreateProduct
 import com.companyb.companyapp.repository.model.Product
+import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -23,7 +23,7 @@ data class ProductCreateResult(
 )
 
 object ProductRepository {
-    fun create(params: CreateProduct): ProductCreateResult =
+    fun create(params: ProductCreateParams): ProductCreateResult =
         transaction {
             val insertedCount =
                 ProductTable

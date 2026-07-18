@@ -33,7 +33,7 @@ data class Expense(
     val deletedAt: OffsetDateTime?,
 )
 
-data class CreateExpense(
+data class ExpenseCreateParams(
     val id: UUID,
     val branchDayId: UUID,
     val amount: BigDecimal,

@@ -2,9 +2,9 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
-import com.companyb.companyapp.repository.model.CreateExpense
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
+import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
@@ -20,7 +20,7 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object ExpenseRepository {
-    fun create(params: CreateExpense): Expense =
+    fun create(params: ExpenseCreateParams): Expense =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {

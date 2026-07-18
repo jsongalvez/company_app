@@ -17,7 +17,7 @@ data class RemittanceFinancialSnapshot(
     val snapshottedAt: OffsetDateTime,
 )
 
-data class CreateRemittanceFinancialSnapshot(
+data class RemittanceFinancialSnapshotCreateParams(
     val remittanceId: UUID,
     val grossIncome: BigDecimal,
     val totalCompensation: BigDecimal,

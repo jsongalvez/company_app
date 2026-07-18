@@ -5,7 +5,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.BranchCreateResult
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.Branch
-import com.companyb.companyapp.repository.model.CreateBranch
+import com.companyb.companyapp.repository.model.BranchCreateParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -19,7 +19,7 @@ object BranchService {
         branchType: BranchType,
     ): BranchCreateResult =
         BranchRepository.create(
-            CreateBranch(
+            BranchCreateParams(
                 id = id,
                 name = name,
                 branchType = branchType,

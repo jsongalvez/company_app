@@ -3,9 +3,9 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
-import com.companyb.companyapp.repository.model.CreateExpense
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
+import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -30,7 +30,7 @@ object ExpenseService {
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         return ExpenseRepository.create(
-            CreateExpense(
+            ExpenseCreateParams(
                 id = id,
                 branchDayId = branchDayId,
                 amount = amount,
