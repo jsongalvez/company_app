@@ -11,7 +11,6 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
 import java.util.UUID
 
 object ExpenseRoutes {
@@ -51,10 +50,7 @@ object ExpenseRoutes {
 
             val id = uuidOrThrow(request.id, "expense id")
             val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-            val amount =
-                runCatching { BigDecimal(request.amount) }
-                    .getOrElse { throw BadRequestResponse("Invalid amount") }
-            if (amount <= BigDecimal.ZERO) throw BadRequestResponse("Amount must be positive")
+            val amount = parsePositiveBigDecimal(request.amount, "amount")
             val category =
                 runCatching { ExpenseCategory.valueOf(request.category.uppercase()) }
                     .getOrElse { throw BadRequestResponse("Invalid expense category") }
@@ -77,6 +73,8 @@ object ExpenseRoutes {
             val callerId = context.callerUuid()
             val expenseId = context.pathParamAsUuid("expenseId")
             val request = context.bodyAsClass<DeleteExpenseRequest>()
+
+            if (request.reason.isBlank()) throw BadRequestResponse("Reason is required for expense deletion")
 
             val expense =
                 ExpenseService.softDelete(

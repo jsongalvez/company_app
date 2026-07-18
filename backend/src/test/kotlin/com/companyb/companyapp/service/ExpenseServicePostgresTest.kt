@@ -236,35 +236,6 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `soft delete without reason returns bad request`() {
-        val expenseId = UUID.randomUUID()
-        ExpenseService.create(
-            callerId = callerId,
-            id = expenseId,
-            branchDayId = branchDayId,
-            amount = BigDecimal("500.00"),
-            category = ExpenseCategory.PANTRY,
-            notes = "Test",
-        )
-
-        assertFailsWith<ValidationException> {
-            ExpenseService.softDelete(
-                callerId = callerId,
-                expenseId = expenseId,
-                reason = "",
-            )
-        }
-
-        assertFailsWith<ValidationException> {
-            ExpenseService.softDelete(
-                callerId = callerId,
-                expenseId = expenseId,
-                reason = "   ",
-            )
-        }
-    }
-
-    @Test
     fun `soft delete writes audit log entry`() {
         val expenseId = UUID.randomUUID()
         ExpenseService.create(

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Client
@@ -40,7 +41,7 @@ data class ClientCreateParams(
     val suffix: String?,
     val phoneNumber: String?,
     val address: String,
-    val gender: String,
+    val gender: Gender,
     val age: Int,
     val systolicBp: Short?,
     val diastolicBp: Short?,
@@ -56,7 +57,7 @@ data class ClientUpdateParams(
     val suffix: String?,
     val phoneNumber: String?,
     val address: String?,
-    val gender: String?,
+    val gender: Gender?,
     val age: Int?,
     val systolicBp: Short?,
     val diastolicBp: Short?,
@@ -87,7 +88,7 @@ object ClientRepository {
                         if (params.suffix != null) it[ClientTable.suffix] = params.suffix
                         if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
                         it[ClientTable.address] = params.address
-                        it[ClientTable.gender] = params.gender
+                        it[ClientTable.gender] = params.gender.name
                         it[ClientTable.age] = params.age
                         if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
                         if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
@@ -141,7 +142,7 @@ object ClientRepository {
                     if (params.suffix != null) it[ClientTable.suffix] = params.suffix
                     if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
                     if (params.address != null) it[ClientTable.address] = params.address
-                    if (params.gender != null) it[ClientTable.gender] = params.gender
+                    if (params.gender != null) it[ClientTable.gender] = params.gender.name
                     if (params.age != null) it[ClientTable.age] = params.age
                     if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
                     if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
@@ -274,7 +275,7 @@ object ClientRepository {
             suffix = this[ClientTable.suffix],
             phoneNumber = this[ClientTable.phoneNumber],
             address = this[ClientTable.address],
-            gender = this[ClientTable.gender],
+            gender = Gender.valueOf(this[ClientTable.gender]),
             age = this[ClientTable.age],
             systolicBp = this[ClientTable.systolicBp],
             diastolicBp = this[ClientTable.diastolicBp],

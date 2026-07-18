@@ -25,7 +25,6 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
-import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 
@@ -126,9 +125,21 @@ object RemittanceRoutes {
                 }
         val sessionId = request.sessionId?.let { uuidOrThrow(it, "session id") }
         val productSaleId = request.productSaleId?.let { uuidOrThrow(it, "product sale id") }
-        val amount =
-            runCatching { BigDecimal(request.amount) }
-                .getOrElse { throw BadRequestResponse("Invalid amount") }
+        val amount = parsePositiveBigDecimal(request.amount, "amount")
+
+        when (type) {
+            RemittanceLineType.SESSION -> {
+                if (sessionId == null) throw BadRequestResponse("sessionId is required for SESSION line type")
+                if (productSaleId != null) throw BadRequestResponse("productSaleId must be null for SESSION line type")
+            }
+
+            RemittanceLineType.PRODUCT_SALE -> {
+                if (productSaleId == null) {
+                    throw BadRequestResponse("productSaleId is required for PRODUCT_SALE line type")
+                }
+                if (sessionId != null) throw BadRequestResponse("sessionId must be null for PRODUCT_SALE line type")
+            }
+        }
 
         val line =
             RemittanceService.addLine(

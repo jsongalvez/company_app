@@ -1,5 +1,6 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.Gender
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -11,7 +12,7 @@ data class CreateClientRequest(
     val suffix: String? = null,
     val phoneNumber: String? = null,
     val address: String? = null,
-    val gender: String,
+    val gender: Gender,
     val age: Int,
     val systolicBp: Short? = null,
     val diastolicBp: Short? = null,
@@ -26,7 +27,7 @@ data class UpdateClientRequest(
     val suffix: String? = null,
     val phoneNumber: String? = null,
     val address: String? = null,
-    val gender: String? = null,
+    val gender: Gender? = null,
     val age: Int? = null,
     val systolicBp: Short? = null,
     val diastolicBp: Short? = null,
@@ -42,7 +43,7 @@ data class ClientResponse(
     val suffix: String?,
     val phoneNumber: String?,
     val address: String?,
-    val gender: String,
+    val gender: Gender,
     val age: Int,
     val systolicBp: Short?,
     val diastolicBp: Short?,

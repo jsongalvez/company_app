@@ -117,22 +117,6 @@ object RemittanceService {
             throw ValidationException("Can only add lines to DRAFT remittances")
         }
 
-        when (type) {
-            RemittanceLineType.SESSION -> {
-                if (sessionId == null) throw ValidationException("sessionId is required for SESSION line type")
-                if (productSaleId != null) throw ValidationException("productSaleId must be null for SESSION line type")
-            }
-
-            RemittanceLineType.PRODUCT_SALE -> {
-                if (productSaleId ==
-                    null
-                ) {
-                    throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
-                }
-                if (sessionId != null) throw ValidationException("sessionId must be null for PRODUCT_SALE line type")
-            }
-        }
-
         val line =
             try {
                 RemittanceLineRepository.addLine(

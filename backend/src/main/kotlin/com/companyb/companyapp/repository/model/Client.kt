@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.Gender
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
@@ -14,7 +15,7 @@ data class Client(
     val suffix: String?,
     val phoneNumber: String?,
     val address: String?,
-    val gender: String,
+    val gender: Gender,
     val age: Int,
     val systolicBp: Short?,
     val diastolicBp: Short?,

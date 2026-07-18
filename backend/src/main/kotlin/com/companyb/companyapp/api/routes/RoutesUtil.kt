@@ -51,3 +51,17 @@ fun parseNonNegativeBigDecimal(
     if (result < BigDecimal.ZERO) throw BadRequestResponse("$name must be non-negative")
     return result
 }
+
+@Suppress("MagicNumber")
+fun parsePositiveBigDecimal(
+    value: String,
+    name: String,
+    scale: Int = 2,
+    roundingMode: RoundingMode = RoundingMode.HALF_UP,
+): BigDecimal {
+    val result =
+        runCatching { BigDecimal(value).setScale(scale, roundingMode) }
+            .getOrElse { throw BadRequestResponse("Invalid $name amount: $value") }
+    if (result <= BigDecimal.ZERO) throw BadRequestResponse("$name must be positive")
+    return result
+}

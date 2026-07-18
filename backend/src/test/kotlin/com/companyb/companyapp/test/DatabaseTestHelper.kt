@@ -3,6 +3,7 @@ package com.companyb.companyapp.test
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -285,7 +286,7 @@ object DatabaseTestHelper {
                 it[ClientTable.id] = id
                 it[ClientTable.firstName] = "Test"
                 it[ClientTable.lastName] = "Client"
-                it[ClientTable.gender] = "M"
+                it[ClientTable.gender] = Gender.M.name
                 it[ClientTable.age] = TEST_CLIENT_AGE
             }
         }

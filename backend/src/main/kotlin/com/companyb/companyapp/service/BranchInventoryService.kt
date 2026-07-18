@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
@@ -90,29 +89,6 @@ object BranchInventoryService {
         notes: String?,
         branchDayId: UUID,
     ): InventoryMovement {
-        when (reason) {
-            InventoryMovementReason.TESTER,
-            InventoryMovementReason.SAMPLE,
-            InventoryMovementReason.MISSING,
-            -> {
-                if (quantityChange >= 0) {
-                    throw ValidationException("$reason movement must have a negative quantity change")
-                }
-            }
-
-            InventoryMovementReason.ADJUSTMENT -> {
-                // either sign allowed
-            }
-
-            else -> {
-                throw ValidationException("Invalid movement reason for this endpoint")
-            }
-        }
-
-        if (reason == InventoryMovementReason.MISSING && notes.isNullOrBlank()) {
-            throw ValidationException("Notes are required for MISSING movements")
-        }
-
         if (BranchRepository.findById(branchId) == null) {
             throw NotFoundException("Branch not found")
         }

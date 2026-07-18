@@ -18,6 +18,12 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.util.UUID
 
+private val NEGATIVE_QUANTITY_REASONS =
+    setOf(InventoryMovementReason.TESTER, InventoryMovementReason.SAMPLE, InventoryMovementReason.MISSING)
+
+private val ALLOWED_MOVEMENT_REASONS =
+    NEGATIVE_QUANTITY_REASONS + InventoryMovementReason.ADJUSTMENT
+
 object BranchInventoryRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val PRODUCT_ID_PARAM = "productId"
@@ -97,6 +103,16 @@ object BranchInventoryRoutes {
         val reason =
             runCatching { InventoryMovementReason.valueOf(request.reason.uppercase()) }
                 .getOrElse { throw BadRequestResponse("Invalid movement reason") }
+
+        if (reason in NEGATIVE_QUANTITY_REASONS && request.quantityChange >= 0) {
+            throw BadRequestResponse("$reason movement must have a negative quantity change")
+        }
+        if (reason !in ALLOWED_MOVEMENT_REASONS) {
+            throw BadRequestResponse("Invalid movement reason for this endpoint")
+        }
+        if (reason == InventoryMovementReason.MISSING && request.notes.isNullOrBlank()) {
+            throw BadRequestResponse("Notes are required for MISSING movements")
+        }
 
         val movement =
             BranchInventoryService.recordMovement(

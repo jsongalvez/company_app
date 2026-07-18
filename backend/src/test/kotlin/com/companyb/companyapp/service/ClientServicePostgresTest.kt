@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -44,7 +45,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         assertEquals("John", result.client.firstName)
         assertEquals("Doe", result.client.lastName)
         assertEquals("Jane", persistedClient(clientAId).middleName)
-        assertEquals("M", persistedClient(clientAId).gender)
+        assertEquals(Gender.M, persistedClient(clientAId).gender)
         assertEquals(30, persistedClient(clientAId).age)
         assertEquals(120.toShort(), persistedClient(clientAId).systolicBp)
         assertEquals(80.toShort(), persistedClient(clientAId).diastolicBp)
@@ -312,7 +313,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `anonymize client nullifies PII and retains age and gender`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         val age = 35
-        val gender = "F"
+        val gender = Gender.F
         createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang", age = age, gender = gender)
 
         ClientService.anonymize(callerId, clientAId)
@@ -395,7 +396,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
         suffix: String? = null,
         phoneNumber: String? = "9998887777",
         address: String? = "123 Main St",
-        gender: String = "M",
+        gender: Gender = Gender.M,
         age: Int = 30,
         systolicBp: Short? = 120.toShort(),
         diastolicBp: Short? = 80.toShort(),
@@ -432,7 +433,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
                         suffix = row[ClientTable.suffix],
                         phoneNumber = row[ClientTable.phoneNumber],
                         address = row[ClientTable.address],
-                        gender = row[ClientTable.gender],
+                        gender = Gender.valueOf(row[ClientTable.gender]),
                         age = row[ClientTable.age],
                         systolicBp = row[ClientTable.systolicBp],
                         diastolicBp = row[ClientTable.diastolicBp],

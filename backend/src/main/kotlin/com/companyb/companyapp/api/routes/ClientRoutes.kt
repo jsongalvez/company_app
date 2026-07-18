@@ -16,7 +16,6 @@ import java.util.UUID
 
 object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
-    private val VALID_GENDERS = setOf("M", "F")
 
     fun register(config: JavalinConfig) {
         config.routes.before("/api/clients") { context ->
@@ -44,7 +43,6 @@ object ClientRoutes {
         if (firstName.isBlank()) throw BadRequestResponse("First name is required")
         val lastName = request.lastName.trim()
         if (lastName.isBlank()) throw BadRequestResponse("Last name is required")
-        if (request.gender !in VALID_GENDERS) throw BadRequestResponse("Gender must be 'M' or 'F'")
         val hasBothBp = request.systolicBp != null && request.diastolicBp != null
         val hasNone = request.systolicBp == null && request.diastolicBp == null
         if (!hasBothBp && !hasNone) {
@@ -99,10 +97,6 @@ object ClientRoutes {
         val lastName = request.lastName?.trim()
         if (lastName != null && lastName.isBlank()) {
             throw BadRequestResponse("Last name cannot be blank")
-        }
-        val gender = request.gender
-        if (gender != null && gender !in VALID_GENDERS) {
-            throw BadRequestResponse("Gender must be 'M' or 'F'")
         }
         val systolicBp = request.systolicBp
         val diastolicBp = request.diastolicBp

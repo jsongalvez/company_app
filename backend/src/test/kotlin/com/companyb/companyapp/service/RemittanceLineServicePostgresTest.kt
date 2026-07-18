@@ -251,46 +251,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `add SESSION line without sessionId returns bad request`() {
-        val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
-
-        assertFailsWith<ValidationException> {
-            RemittanceService.addLine(
-                callerId = callerId,
-                remittanceId = remittance.id,
-                id = UUID.randomUUID(),
-                type = RemittanceLineType.SESSION,
-                sessionId = null,
-                productSaleId = null,
-                amount = BigDecimal("1500.00"),
-            )
-        }
-    }
-
-    @Test
-    fun `add PRODUCT_SALE line with sessionId returns bad request`() {
-        val remittance = createDraftRemittance()
-        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
-        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
-        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
-
-        assertFailsWith<ValidationException> {
-            RemittanceService.addLine(
-                callerId = callerId,
-                remittanceId = remittance.id,
-                id = UUID.randomUUID(),
-                type = RemittanceLineType.PRODUCT_SALE,
-                sessionId = sessionId,
-                productSaleId = null,
-                amount = BigDecimal("500.00"),
-            )
-        }
-    }
-
-    @Test
     fun `delete line succeeds and increments version`() {
         val remittance = createDraftRemittance()
         trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)

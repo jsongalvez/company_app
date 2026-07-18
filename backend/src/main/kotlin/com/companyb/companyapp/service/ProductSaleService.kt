@@ -41,7 +41,9 @@ object ProductSaleService {
             throw ValidationException("Product is not active")
         }
 
-        validateSessionWalkInConstraints(sessionId, clientId, isWalkIn)
+        if (sessionId != null && SessionRepository.findById(sessionId) == null) {
+            throw NotFoundException("Session not found")
+        }
 
         val result =
             try {
@@ -71,32 +73,5 @@ object ProductSaleService {
         CommissionEngineService.recalculate(branchDayId)
 
         return result
-    }
-
-    @Suppress("ThrowsCount")
-    private fun validateSessionWalkInConstraints(
-        sessionId: UUID?,
-        clientId: UUID?,
-        isWalkIn: Boolean,
-    ) {
-        if (sessionId != null) {
-            if (clientId != null) {
-                throw ValidationException("Session-linked sale must not have a clientId")
-            }
-            if (isWalkIn) {
-                throw ValidationException("Session-linked sale must not be a walk-in")
-            }
-            if (SessionRepository.findById(sessionId) == null) {
-                throw NotFoundException("Session not found")
-            }
-        }
-
-        if (sessionId == null && clientId != null && !isWalkIn) {
-            throw ValidationException("Walk-in sale with known client must set isWalkIn=true")
-        }
-
-        if (sessionId == null && clientId == null && !isWalkIn) {
-            throw ValidationException("Anonymous sale must set isWalkIn=true")
-        }
     }
 }

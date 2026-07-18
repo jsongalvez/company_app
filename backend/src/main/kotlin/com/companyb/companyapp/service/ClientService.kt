@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
@@ -22,7 +23,7 @@ object ClientService {
         suffix: String?,
         phoneNumber: String?,
         address: String?,
-        gender: String,
+        gender: Gender,
         age: Int,
         systolicBp: Short?,
         diastolicBp: Short?,
@@ -61,7 +62,7 @@ object ClientService {
         suffix: String?,
         phoneNumber: String?,
         address: String?,
-        gender: String?,
+        gender: Gender?,
         age: Int?,
         systolicBp: Short?,
         diastolicBp: Short?,

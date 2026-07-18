@@ -16,6 +16,10 @@ _Avoid_: Appointment, booking, visit
 A global person record shared across all branches. Has at most one PENDING session at a time. Can be anonymized (soft-delete + PII nullification) while retaining gender and age for reporting.
 _Avoid_: Patient, customer
 
+**Gender**:
+A domain enumeration (`M`, `F`) used throughout the client lifecycle — from request DTOs through the service layer to DB persistence. Replaces raw string validation in route handlers.
+_Avoid_: sex, gender-string
+
 **Practitioner**:
 A user who works on clients during sessions. Logs sessions, manages inventory, views clients. Full access to home branches and any branch checked into that day.
 _Avoid_: Therapist, doctor, staff

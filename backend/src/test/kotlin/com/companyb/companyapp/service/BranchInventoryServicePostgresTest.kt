@@ -375,52 +375,6 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `recordMovement with TESTER positive quantity returns bad request`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        BranchInventoryService.ensureCard(branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-
-        assertFailsWith<ValidationException> {
-            BranchInventoryService.recordMovement(
-                callerId = callerId,
-                movementId = UUID.randomUUID(),
-                branchId = branchId,
-                productId = productId,
-                reason = InventoryMovementReason.TESTER,
-                quantityChange = 1,
-                notes = null,
-                branchDayId = branchDayId,
-            )
-        }
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-    }
-
-    @Test
-    fun `recordMovement with MISSING blank notes returns bad request`() {
-        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        BranchInventoryService.ensureCard(branchId, productId)
-        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
-
-        assertFailsWith<ValidationException> {
-            BranchInventoryService.recordMovement(
-                callerId = callerId,
-                movementId = UUID.randomUUID(),
-                branchId = branchId,
-                productId = productId,
-                reason = InventoryMovementReason.MISSING,
-                quantityChange = -1,
-                notes = "",
-                branchDayId = branchDayId,
-            )
-        }
-        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
-    }
-
-    @Test
     fun `recordMovement without MANAGE_PRODUCTS is allowed at service layer`() {
         BranchInventoryService.ensureCard(branchId, productId)
         BranchInventoryService.restock(

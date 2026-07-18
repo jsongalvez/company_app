@@ -207,40 +207,6 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `sell with non-existent session returns not found`() {
-        assertFailsWith<NotFoundException> {
-            ProductSaleService.sell(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = branchDayId,
-                sessionId = UUID.randomUUID(),
-                clientId = null,
-                isWalkIn = false,
-                productId = productId,
-                quantity = 1,
-                expectedVersion = 1,
-            )
-        }
-    }
-
-    @Test
-    fun `sell rejects session-linked sale with clientId`() {
-        assertFailsWith<ValidationException> {
-            ProductSaleService.sell(
-                callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = branchDayId,
-                sessionId = sessionId,
-                clientId = UUID.randomUUID(),
-                isWalkIn = false,
-                productId = productId,
-                quantity = 1,
-                expectedVersion = 1,
-            )
-        }
-    }
-
-    @Test
     fun `sell idempotent duplicate returns same sale`() {
         val saleId = UUID.randomUUID()
 

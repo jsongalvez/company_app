@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
@@ -41,10 +40,6 @@ object ExpenseService {
         val expense =
             ExpenseRepository.findById(expenseId)
                 ?: throw NotFoundException("Expense not found")
-
-        if (reason.isBlank()) {
-            throw ValidationException("Reason is required for expense deletion")
-        }
 
         BranchDayService.checkBranchDayEditable(callerId, expense.branchDayId, reason)
 
