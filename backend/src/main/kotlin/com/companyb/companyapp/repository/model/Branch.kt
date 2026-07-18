@@ -7,10 +7,17 @@ import org.postgresql.util.PGobject
 import java.util.UUID
 
 data class Branch(
-    val id: UUID,
+    override val id: UUID,
     val name: String,
     val branchType: BranchType,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "name" to name,
+            "branchType" to branchType.name,
+        )
+}
 
 data class BranchCreateParams(
     val id: UUID,

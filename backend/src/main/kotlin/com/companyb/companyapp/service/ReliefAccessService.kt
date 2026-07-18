@@ -158,17 +158,10 @@ object ReliefAccessService {
                 callerId,
                 targetUserId,
                 auditFn = { created ->
-                    AuditLogRepository.record(
-                        tableName = GrantReliefAccessTable.tableName,
-                        recordId = created.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "requestId" to created.id.toString(),
-                                "branchDayId" to created.branchDayId.toString(),
-                                "targetUserId" to created.targetUser.toString(),
-                            ),
+                    AuditLogRepository.recordInsert(
+                        GrantReliefAccessTable.tableName,
+                        created,
+                        callerId,
                     )
                 },
             )

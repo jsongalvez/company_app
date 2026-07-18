@@ -8,14 +8,25 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class ReliefAccess(
-    val id: UUID,
+    override val id: UUID,
     val branchDayId: UUID,
     val requestedBy: UUID,
     val requestStatus: ReliefStatus,
     val targetUser: UUID,
     val grantedBy: UUID?,
     val grantedAt: OffsetDateTime?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "branchDayId" to branchDayId.toString(),
+            "requestedBy" to requestedBy.toString(),
+            "requestStatus" to requestStatus.name,
+            "targetUser" to targetUser.toString(),
+            "grantedBy" to (grantedBy?.toString() ?: "null"),
+            "grantedAt" to (grantedAt?.toString() ?: "null"),
+        )
+}
 
 object GrantReliefAccessTable : Table("grant_relief_access") {
     val id = javaUUID("id").autoGenerate()

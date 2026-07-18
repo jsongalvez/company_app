@@ -8,13 +8,23 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class MedicalMissionDelegate(
-    val id: UUID,
+    override val id: UUID,
     val targetUser: UUID,
     val assignedAt: OffsetDateTime,
     val assignedBy: UUID,
     val branchId: UUID,
     val endedAt: OffsetDateTime?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "targetUser" to targetUser.toString(),
+            "assignedAt" to assignedAt.toString(),
+            "assignedBy" to assignedBy.toString(),
+            "branchId" to branchId.toString(),
+            "endedAt" to (endedAt?.toString() ?: "null"),
+        )
+}
 
 object MedicalMissionDelegateTable : Table("medical_mission_delegate") {
     val id = javaUUID("id").autoGenerate()

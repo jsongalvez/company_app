@@ -5,7 +5,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -37,35 +36,26 @@ object CommissionManualInclusionService {
                 assignedBy = callerId,
             ) { existing, updated ->
                 if (existing == null) {
-                    AuditLogRepository.record(
-                        tableName = CommissionManualInclusionTable.tableName,
-                        recordId = updated.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to updated.id.toString(),
-                                "productSaleId" to updated.productSaleId.toString(),
-                                "userId" to updated.userId.toString(),
-                                "isIncluded" to updated.isIncluded.toString(),
-                            ),
+                    AuditLogRepository.recordInsert(
+                        CommissionManualInclusionTable.tableName,
+                        updated,
+                        callerId,
                     )
                 } else {
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordUpdate(
                         tableName = CommissionManualInclusionTable.tableName,
                         recordId = updated.id,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        oldValue =
-                            AuditLogRepository.jsonFields(
+                        oldFields =
+                            mapOf(
                                 "isIncluded" to existing.isIncluded.toString(),
                                 "reason" to (existing.reason ?: "null"),
                             ),
-                        newValue =
-                            AuditLogRepository.jsonFields(
+                        newFields =
+                            mapOf(
                                 "isIncluded" to updated.isIncluded.toString(),
                                 "reason" to (updated.reason ?: "null"),
                             ),
+                        changedBy = callerId,
                     )
                 }
             }

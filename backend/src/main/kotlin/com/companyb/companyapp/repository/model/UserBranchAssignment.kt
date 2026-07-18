@@ -8,14 +8,25 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class UserBranchAssignment(
-    val id: UUID,
+    override val id: UUID,
     val userId: UUID,
     val branchId: UUID,
     val slot: Short,
     val assignedBy: UUID,
     val assignedAt: OffsetDateTime,
     val endedAt: OffsetDateTime?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "userId" to userId.toString(),
+            "branchId" to branchId.toString(),
+            "slot" to slot.toString(),
+            "assignedBy" to assignedBy.toString(),
+            "assignedAt" to assignedAt.toString(),
+            "endedAt" to (endedAt?.toString() ?: "null"),
+        )
+}
 
 data class UserBranchAssignmentCreateParams(
     val id: UUID,

@@ -8,14 +8,25 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class CommissionManualInclusion(
-    val id: UUID,
+    override val id: UUID,
     val productSaleId: UUID,
     val userId: UUID,
     val isIncluded: Boolean,
     val reason: String?,
     val assignedBy: UUID,
     val assignedAt: OffsetDateTime,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "productSaleId" to productSaleId.toString(),
+            "userId" to userId.toString(),
+            "isIncluded" to isIncluded.toString(),
+            "reason" to (reason ?: "null"),
+            "assignedBy" to assignedBy.toString(),
+            "assignedAt" to assignedAt.toString(),
+        )
+}
 
 object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
     val id = javaUUID("id").autoGenerate()

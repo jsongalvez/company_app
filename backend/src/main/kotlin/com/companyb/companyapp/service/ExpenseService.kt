@@ -4,7 +4,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
@@ -42,19 +41,7 @@ object ExpenseService {
                 notes = notes,
             ),
         ) { expense ->
-            AuditLogRepository.record(
-                tableName = ExpenseTable.tableName,
-                recordId = expense.id,
-                action = AuditAction.INSERT,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to expense.id.toString(),
-                        "branchDayId" to expense.branchDayId.toString(),
-                        "amount" to expense.amount.toPlainString(),
-                        "category" to expense.category.name,
-                    ),
-            )
+            AuditLogRepository.recordInsert(ExpenseTable.tableName, expense, callerId)
         }
     }
 
@@ -71,21 +58,20 @@ object ExpenseService {
         BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId) { after ->
-            AuditLogRepository.record(
+            AuditLogRepository.recordDelete(
                 tableName = ExpenseTable.tableName,
                 recordId = expenseId,
-                action = AuditAction.DELETE,
-                changedBy = callerId,
-                oldValue =
-                    AuditLogRepository.jsonFields(
+                oldFields =
+                    mapOf(
                         "amount" to before.amount.toPlainString(),
                         "category" to before.category.name,
                     ),
-                newValue =
-                    AuditLogRepository.jsonFields(
+                newFields =
+                    mapOf(
                         "amount" to after.amount.toPlainString(),
                         "category" to after.category.name,
                     ),
+                changedBy = callerId,
                 reason = reason,
             )
         }

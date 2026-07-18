@@ -22,7 +22,7 @@ enum class ExpenseCategory {
 }
 
 data class Expense(
-    val id: UUID,
+    override val id: UUID,
     val branchDayId: UUID,
     val amount: BigDecimal,
     val category: ExpenseCategory,
@@ -31,7 +31,20 @@ data class Expense(
     val createdAt: OffsetDateTime,
     val deletedBy: UUID?,
     val deletedAt: OffsetDateTime?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "branchDayId" to branchDayId.toString(),
+            "amount" to amount.toPlainString(),
+            "category" to category.name,
+            "notes" to (notes ?: "null"),
+            "createdBy" to createdBy.toString(),
+            "createdAt" to createdAt.toString(),
+            "deletedBy" to (deletedBy?.toString() ?: "null"),
+            "deletedAt" to (deletedAt?.toString() ?: "null"),
+        )
+}
 
 data class ExpenseCreateParams(
     val id: UUID,

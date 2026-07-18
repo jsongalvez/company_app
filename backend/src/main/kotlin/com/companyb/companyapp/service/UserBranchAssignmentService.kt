@@ -66,18 +66,10 @@ object UserBranchAssignmentService {
                     assignedBy = callerId,
                 ),
                 auditFn = { assignment ->
-                    AuditLogRepository.record(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = assignment.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to assignment.id.toString(),
-                                "userId" to assignment.userId.toString(),
-                                "branchId" to assignment.branchId.toString(),
-                                "slot" to assignment.slot.toString(),
-                            ),
+                    AuditLogRepository.recordInsert(
+                        UserBranchAssignmentTable.tableName,
+                        assignment,
+                        callerId,
                     )
                 },
             )
@@ -158,13 +150,12 @@ object UserBranchAssignmentService {
             assignment.id,
             newSlot,
             auditFn = { updated ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = UserBranchAssignmentTable.tableName,
                     recordId = updated.id,
-                    action = AuditAction.UPDATE,
+                    oldFields = mapOf("slot" to oldSlot.toString()),
+                    newFields = mapOf("slot" to newSlot.toString()),
                     changedBy = callerId,
-                    oldValue = AuditLogRepository.jsonField("slot", oldSlot.toString()),
-                    newValue = AuditLogRepository.jsonField("slot", newSlot.toString()),
                 )
             },
         )

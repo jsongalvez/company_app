@@ -6,7 +6,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -48,20 +47,7 @@ object CompensationService {
                     note = note,
                 ),
             ) { compensation ->
-                AuditLogRepository.record(
-                    tableName = CompensationTable.tableName,
-                    recordId = compensation.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to compensation.id.toString(),
-                            "workBranchDayId" to compensation.workBranchDayId.toString(),
-                            "payingBranchDayId" to compensation.payingBranchDayId.toString(),
-                            "userId" to compensation.userId.toString(),
-                            "amount" to compensation.amount.toPlainString(),
-                        ),
-                )
+                AuditLogRepository.recordInsert(CompensationTable.tableName, compensation, callerId)
             }
         logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
         return result.compensation
@@ -83,21 +69,20 @@ object CompensationService {
 
         return try {
             CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = CompensationTable.tableName,
                     recordId = compensationId,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                    oldFields =
+                        mapOf(
                             "amount" to before.amount.toPlainString(),
                             "note" to (before.note ?: "null"),
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        mapOf(
                             "amount" to after.amount.toPlainString(),
                             "note" to (after.note ?: "null"),
                         ),
+                    changedBy = callerId,
                 )
             }
         } catch (e: IllegalStateException) {

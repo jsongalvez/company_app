@@ -33,18 +33,10 @@ object MedicalMissionDelegateService {
             branchId = branchId,
             capabilityId = capabilityId,
             auditFn = { delegate ->
-                AuditLogRepository.record(
-                    tableName = MedicalMissionDelegateTable.tableName,
-                    recordId = delegate.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "delegateId" to delegate.id.toString(),
-                            "targetUserId" to delegate.targetUser.toString(),
-                            "branchId" to delegate.branchId.toString(),
-                            "assignedBy" to delegate.assignedBy.toString(),
-                        ),
+                AuditLogRepository.recordInsert(
+                    MedicalMissionDelegateTable.tableName,
+                    delegate,
+                    callerId,
                 )
             },
         )
