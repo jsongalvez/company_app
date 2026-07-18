@@ -6,6 +6,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
@@ -98,19 +99,15 @@ object SessionService {
                         changedBy = callerId,
                     ),
                 ) { session ->
-                    AuditLogRepository.record(
-                        tableName = SessionTable.tableName,
-                        recordId = session.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to session.id.toString(),
-                                "clientId" to session.clientId.toString(),
-                                "branchDayId" to session.branchDayId.toString(),
-                                "sessionType" to session.sessionType,
-                                "finalPrice" to session.finalPrice.toPlainString(),
-                            ),
+                    AuditLogger.insert(
+                        table = SessionTable.tableName,
+                        id = session.id,
+                        by = callerId,
+                        "id" to session.id.toString(),
+                        "clientId" to session.clientId.toString(),
+                        "branchDayId" to session.branchDayId.toString(),
+                        "sessionType" to session.sessionType,
+                        "finalPrice" to session.finalPrice.toPlainString(),
                     )
                 }
             } catch (e: IllegalStateException) {
@@ -217,17 +214,13 @@ object SessionService {
                 voidReason = voidReason,
                 voidedBy = callerId,
             ) { voidRecord ->
-                AuditLogRepository.record(
-                    tableName = SessionVoidTable.tableName,
-                    recordId = voidRecord.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to voidRecord.id.toString(),
-                            "sessionId" to voidRecord.sessionId.toString(),
-                            "voidReason" to voidRecord.voidReason,
-                        ),
+                AuditLogger.insert(
+                    table = SessionVoidTable.tableName,
+                    id = voidRecord.id,
+                    by = callerId,
+                    "id" to voidRecord.id.toString(),
+                    "sessionId" to voidRecord.sessionId.toString(),
+                    "voidReason" to voidRecord.voidReason,
                 )
             }
 
@@ -261,19 +254,18 @@ object SessionService {
                 unvoidedBy = callerId,
                 unvoidedReason = unvoidedReason,
             ) { unvoided ->
-                AuditLogRepository.record(
-                    tableName = SessionVoidTable.tableName,
-                    recordId = unvoided.id,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                AuditLogger.update(
+                    table = SessionVoidTable.tableName,
+                    id = unvoided.id,
+                    by = callerId,
+                    oldFields =
+                        arrayOf(
                             "unvoidedAt" to "null",
                             "unvoidedBy" to "null",
                             "unvoidedReason" to "null",
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        arrayOf(
                             "unvoidedAt" to unvoided.unvoidedAt.toString(),
                             "unvoidedBy" to callerId.toString(),
                             "unvoidedReason" to unvoidedReason,

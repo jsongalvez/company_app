@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddLineParams
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CreateDraftParams
@@ -122,21 +123,17 @@ object RemittanceService {
                     submittedBy = callerId,
                 ),
             ) { remittance ->
-                AuditLogRepository.record(
-                    tableName = RemittanceTable.tableName,
-                    recordId = remittance.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to remittance.id.toString(),
-                            "type" to remittance.type.name,
-                            "status" to remittance.status.name,
-                            "branchId" to remittance.branchId.toString(),
-                            "method" to remittance.method.name,
-                            "dateRangeStart" to remittance.dateRangeStart.toString(),
-                            "dateRangeEnd" to remittance.dateRangeEnd.toString(),
-                        ),
+                AuditLogger.insert(
+                    table = RemittanceTable.tableName,
+                    id = remittance.id,
+                    by = callerId,
+                    "id" to remittance.id.toString(),
+                    "type" to remittance.type.name,
+                    "status" to remittance.status.name,
+                    "branchId" to remittance.branchId.toString(),
+                    "method" to remittance.method.name,
+                    "dateRangeStart" to remittance.dateRangeStart.toString(),
+                    "dateRangeEnd" to remittance.dateRangeEnd.toString(),
                 )
             }
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
@@ -175,18 +172,14 @@ object RemittanceService {
                         expectedVersion = remittance.version,
                     ),
                 ) { line ->
-                    AuditLogRepository.record(
-                        tableName = RemittanceLineTable.tableName,
-                        recordId = line.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to line.id.toString(),
-                                "remittanceId" to line.remittanceId.toString(),
-                                "type" to line.type.name,
-                                "amount" to line.amount.toPlainString(),
-                            ),
+                    AuditLogger.insert(
+                        table = RemittanceLineTable.tableName,
+                        id = line.id,
+                        by = callerId,
+                        "id" to line.id.toString(),
+                        "remittanceId" to line.remittanceId.toString(),
+                        "type" to line.type.name,
+                        "amount" to line.amount.toPlainString(),
                     )
                 }
             } catch (e: IllegalStateException) {
@@ -262,17 +255,13 @@ object RemittanceService {
                 remittanceId = remittanceId,
                 branchDayId = branchDayId,
             ) { breakdown ->
-                AuditLogRepository.record(
-                    tableName = RemittanceDayBreakdownTable.tableName,
-                    recordId = breakdown.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to breakdown.id.toString(),
-                            "remittanceId" to breakdown.remittanceId.toString(),
-                            "branchDayId" to breakdown.branchDayId.toString(),
-                        ),
+                AuditLogger.insert(
+                    table = RemittanceDayBreakdownTable.tableName,
+                    id = breakdown.id,
+                    by = callerId,
+                    "id" to breakdown.id.toString(),
+                    "remittanceId" to breakdown.remittanceId.toString(),
+                    "branchDayId" to breakdown.branchDayId.toString(),
                 )
             }
 

@@ -2,12 +2,11 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ClientUpdateParams
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -51,17 +50,13 @@ object ClientService {
                 changedBy = callerId,
             ),
         ) { client ->
-            AuditLogRepository.record(
-                tableName = ClientTable.tableName,
-                recordId = client.id,
-                action = AuditAction.INSERT,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to client.id.toString(),
-                        "firstName" to (client.firstName ?: ""),
-                        "lastName" to (client.lastName ?: ""),
-                    ),
+            AuditLogger.insert(
+                table = ClientTable.tableName,
+                id = client.id,
+                by = callerId,
+                "id" to client.id.toString(),
+                "firstName" to (client.firstName ?: ""),
+                "lastName" to (client.lastName ?: ""),
             )
         }
 
@@ -104,18 +99,17 @@ object ClientService {
                     medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
                 ),
             ) { client ->
-                AuditLogRepository.record(
-                    tableName = ClientTable.tableName,
-                    recordId = clientId,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                AuditLogger.update(
+                    table = ClientTable.tableName,
+                    id = clientId,
+                    by = callerId,
+                    oldFields =
+                        arrayOf(
                             "firstName" to (old.firstName ?: ""),
                             "lastName" to (old.lastName ?: ""),
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        arrayOf(
                             "firstName" to (client.firstName ?: ""),
                             "lastName" to (client.lastName ?: ""),
                         ),
@@ -131,19 +125,18 @@ object ClientService {
         val old = ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
         val updated =
             ClientRepository.anonymize(clientId) { client ->
-                AuditLogRepository.record(
-                    tableName = ClientTable.tableName,
-                    recordId = clientId,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                AuditLogger.update(
+                    table = ClientTable.tableName,
+                    id = clientId,
+                    by = callerId,
+                    oldFields =
+                        arrayOf(
                             "firstName" to (old.firstName ?: "null"),
                             "lastName" to (old.lastName ?: "null"),
                             "deletedAt" to (old.deletedAt?.toString() ?: "null"),
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        arrayOf(
                             "firstName" to "null",
                             "lastName" to "null",
                             "deletedAt" to OffsetDateTime.now(ZoneOffset.UTC).toString(),

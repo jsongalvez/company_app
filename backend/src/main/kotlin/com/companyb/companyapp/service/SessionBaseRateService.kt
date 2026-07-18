@@ -1,10 +1,9 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
-import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -55,20 +54,16 @@ object SessionBaseRateService {
             now,
             FAR_FUTURE,
             auditFn = { rate ->
-                AuditLogRepository.record(
-                    tableName = SessionBaseRateTable.tableName,
-                    recordId = rate.id,
-                    action = AuditAction.INSERT,
-                    changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to rate.id.toString(),
-                            "branchId" to rate.branchId.toString(),
-                            "sessionType" to rate.sessionType.name,
-                            "rate" to rate.rate.toPlainString(),
-                            "effectiveFrom" to rate.effectiveFrom.toString(),
-                            "effectiveUntil" to rate.effectiveUntil.toString(),
-                        ),
+                AuditLogger.insert(
+                    table = SessionBaseRateTable.tableName,
+                    id = rate.id,
+                    by = callerId,
+                    "id" to rate.id.toString(),
+                    "branchId" to rate.branchId.toString(),
+                    "sessionType" to rate.sessionType.name,
+                    "rate" to rate.rate.toPlainString(),
+                    "effectiveFrom" to rate.effectiveFrom.toString(),
+                    "effectiveUntil" to rate.effectiveUntil.toString(),
                 )
             },
         )

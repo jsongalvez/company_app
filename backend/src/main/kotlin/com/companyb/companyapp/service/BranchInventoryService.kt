@@ -2,7 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.MovementAuditData
@@ -10,7 +10,6 @@ import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.RecordMovementParams
 import com.companyb.companyapp.repository.RestockAuditData
 import com.companyb.companyapp.repository.RestockParams
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
@@ -74,35 +73,30 @@ object BranchInventoryService {
                         movedBy = callerId,
                     ),
                     auditFn = { data ->
-                        AuditLogRepository.record(
-                            tableName = BranchInventoryTable.tableName,
-                            recordId = data.newCard.id,
-                            action = AuditAction.UPDATE,
-                            changedBy = data.movement.movedBy,
-                            oldValue =
-                                AuditLogRepository.jsonFields(
+                        AuditLogger.update(
+                            table = BranchInventoryTable.tableName,
+                            id = data.newCard.id,
+                            by = data.movement.movedBy,
+                            oldFields =
+                                arrayOf(
                                     "currentStock" to data.oldCard.currentStock.toString(),
                                     "version" to data.oldCard.version.toString(),
                                 ),
-                            newValue =
-                                AuditLogRepository.jsonFields(
+                            newFields =
+                                arrayOf(
                                     "currentStock" to data.newCard.currentStock.toString(),
                                     "version" to data.newCard.version.toString(),
                                 ),
                         )
-                        AuditLogRepository.record(
-                            tableName = InventoryMovementTable.tableName,
-                            recordId = data.movement.id,
-                            action = AuditAction.INSERT,
-                            changedBy = data.movement.movedBy,
-                            newValue =
-                                AuditLogRepository.jsonFields(
-                                    "productId" to data.movement.productId.toString(),
-                                    "branchId" to data.movement.branchId.toString(),
-                                    "branchDayId" to data.movement.branchDayId.toString(),
-                                    "reason" to InventoryMovementReason.RESTOCK.name,
-                                    "quantityChange" to data.quantityAdded.toString(),
-                                ),
+                        AuditLogger.insert(
+                            table = InventoryMovementTable.tableName,
+                            id = data.movement.id,
+                            by = data.movement.movedBy,
+                            "productId" to data.movement.productId.toString(),
+                            "branchId" to data.movement.branchId.toString(),
+                            "branchDayId" to data.movement.branchDayId.toString(),
+                            "reason" to InventoryMovementReason.RESTOCK.name,
+                            "quantityChange" to data.quantityAdded.toString(),
                         )
                     },
                 )
@@ -154,36 +148,31 @@ object BranchInventoryService {
                     movedBy = callerId,
                 ),
                 auditFn = { data ->
-                    AuditLogRepository.record(
-                        tableName = BranchInventoryTable.tableName,
-                        recordId = data.newCard.id,
-                        action = AuditAction.UPDATE,
-                        changedBy = data.movement.movedBy,
-                        oldValue =
-                            AuditLogRepository.jsonFields(
+                    AuditLogger.update(
+                        table = BranchInventoryTable.tableName,
+                        id = data.newCard.id,
+                        by = data.movement.movedBy,
+                        oldFields =
+                            arrayOf(
                                 "currentStock" to data.oldCard.currentStock.toString(),
                                 "version" to data.oldCard.version.toString(),
                             ),
-                        newValue =
-                            AuditLogRepository.jsonFields(
+                        newFields =
+                            arrayOf(
                                 "currentStock" to data.newCard.currentStock.toString(),
                                 "version" to data.newCard.version.toString(),
                             ),
                     )
-                    AuditLogRepository.record(
-                        tableName = InventoryMovementTable.tableName,
-                        recordId = data.movement.id,
-                        action = AuditAction.INSERT,
-                        changedBy = data.movement.movedBy,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "productId" to data.movement.productId.toString(),
-                                "branchId" to data.movement.branchId.toString(),
-                                "branchDayId" to data.movement.branchDayId.toString(),
-                                "reason" to data.reason.name,
-                                "quantityChange" to data.quantityChange.toString(),
-                                "notes" to (data.notes ?: ""),
-                            ),
+                    AuditLogger.insert(
+                        table = InventoryMovementTable.tableName,
+                        id = data.movement.id,
+                        by = data.movement.movedBy,
+                        "productId" to data.movement.productId.toString(),
+                        "branchId" to data.movement.branchId.toString(),
+                        "branchDayId" to data.movement.branchDayId.toString(),
+                        "reason" to data.reason.name,
+                        "quantityChange" to data.quantityChange.toString(),
+                        "notes" to (data.notes ?: ""),
                     )
                 },
             )

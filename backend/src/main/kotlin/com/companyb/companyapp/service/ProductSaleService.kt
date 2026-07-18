@@ -3,13 +3,12 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -66,32 +65,27 @@ object ProductSaleService {
                         product = product,
                     ),
                 ) { data ->
-                    AuditLogRepository.record(
-                        tableName = ProductSaleTable.tableName,
-                        recordId = data.sale.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to data.sale.id.toString(),
-                                "branchDayId" to data.sale.branchDayId.toString(),
-                                "productId" to data.sale.productId.toString(),
-                                "quantity" to data.sale.quantity.toString(),
-                                "totalAmount" to data.sale.totalAmountAtTime.toPlainString(),
-                            ),
+                    AuditLogger.insert(
+                        table = ProductSaleTable.tableName,
+                        id = data.sale.id,
+                        by = callerId,
+                        "id" to data.sale.id.toString(),
+                        "branchDayId" to data.sale.branchDayId.toString(),
+                        "productId" to data.sale.productId.toString(),
+                        "quantity" to data.sale.quantity.toString(),
+                        "totalAmount" to data.sale.totalAmountAtTime.toPlainString(),
                     )
-                    AuditLogRepository.record(
-                        tableName = BranchInventoryTable.tableName,
-                        recordId = data.inventoryCardId,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        oldValue =
-                            AuditLogRepository.jsonFields(
+                    AuditLogger.update(
+                        table = BranchInventoryTable.tableName,
+                        id = data.inventoryCardId,
+                        by = callerId,
+                        oldFields =
+                            arrayOf(
                                 "currentStock" to data.oldStock.toString(),
                                 "version" to data.oldVersion.toString(),
                             ),
-                        newValue =
-                            AuditLogRepository.jsonFields(
+                        newFields =
+                            arrayOf(
                                 "currentStock" to data.newStock.toString(),
                                 "version" to data.newVersion.toString(),
                             ),

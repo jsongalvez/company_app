@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
@@ -50,17 +51,13 @@ object SessionPractitionerService {
                 slotAtTime = slotAtTime,
                 remarks = remarks,
                 auditFn = { p ->
-                    AuditLogRepository.record(
-                        tableName = SessionPractitionerTable.tableName,
-                        recordId = p.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "sessionId" to sessionId.toString(),
-                                "practitionerId" to p.practitionerId.toString(),
-                                "slotAtTime" to slotAtTime.toString(),
-                            ),
+                    AuditLogger.insert(
+                        table = SessionPractitionerTable.tableName,
+                        id = p.id,
+                        by = callerId,
+                        "sessionId" to sessionId.toString(),
+                        "practitionerId" to p.practitionerId.toString(),
+                        "slotAtTime" to slotAtTime.toString(),
                     )
                 },
             )
@@ -117,16 +114,16 @@ object SessionPractitionerService {
             sessionId = sessionId,
             practitionerId = practitionerId,
             auditFn = { p ->
-                AuditLogRepository.record(
-                    tableName = SessionPractitionerTable.tableName,
-                    recordId = practitionerId,
-                    action = AuditAction.DELETE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                AuditLogger.delete(
+                    table = SessionPractitionerTable.tableName,
+                    id = practitionerId,
+                    by = callerId,
+                    oldFields =
+                        arrayOf(
                             "sessionId" to sessionId.toString(),
                             "practitionerId" to p.practitionerId.toString(),
                         ),
+                    newFields = arrayOf(),
                 )
             },
         )

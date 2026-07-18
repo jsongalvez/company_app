@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditLogger
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -66,18 +67,14 @@ object UserBranchAssignmentService {
                     assignedBy = callerId,
                 ),
                 auditFn = { assignment ->
-                    AuditLogRepository.record(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = assignment.id,
-                        action = AuditAction.INSERT,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to assignment.id.toString(),
-                                "userId" to assignment.userId.toString(),
-                                "branchId" to assignment.branchId.toString(),
-                                "slot" to assignment.slot.toString(),
-                            ),
+                    AuditLogger.insert(
+                        table = UserBranchAssignmentTable.tableName,
+                        id = assignment.id,
+                        by = callerId,
+                        "id" to assignment.id.toString(),
+                        "userId" to assignment.userId.toString(),
+                        "branchId" to assignment.branchId.toString(),
+                        "slot" to assignment.slot.toString(),
                     )
                 },
             )
@@ -107,22 +104,21 @@ object UserBranchAssignmentService {
             UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
                 ?: throw NotFoundException("Active assignment not found")
 
-        val auditOldValue =
-            AuditLogRepository.jsonFields(
-                "id" to assignment.id.toString(),
-                "userId" to userId.toString(),
-                "branchId" to branchId.toString(),
-                "slot" to assignment.slot.toString(),
-            )
         UserBranchAssignmentRepository.setEndedAt(
             assignment.id,
             auditFn = { updated ->
-                AuditLogRepository.record(
-                    tableName = UserBranchAssignmentTable.tableName,
-                    recordId = updated.id,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue = auditOldValue,
+                AuditLogger.update(
+                    table = UserBranchAssignmentTable.tableName,
+                    id = updated.id,
+                    by = callerId,
+                    oldFields =
+                        arrayOf(
+                            "id" to updated.id.toString(),
+                            "userId" to userId.toString(),
+                            "branchId" to branchId.toString(),
+                            "slot" to updated.slot.toString(),
+                        ),
+                    newFields = arrayOf(),
                 )
             },
         )
@@ -184,28 +180,34 @@ object UserBranchAssignmentService {
                 userIdA,
                 userIdB,
                 auditFn = { a, b ->
-                    AuditLogRepository.record(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = a.id,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
+                    AuditLogger.update(
+                        table = UserBranchAssignmentTable.tableName,
+                        id = a.id,
+                        by = callerId,
+                        oldFields =
+                            arrayOf(
                                 "userId" to a.userId.toString(),
-                                "oldSlot" to a.slot.toString(),
-                                "newSlot" to b.slot.toString(),
+                                "slot" to a.slot.toString(),
+                            ),
+                        newFields =
+                            arrayOf(
+                                "userId" to a.userId.toString(),
+                                "slot" to b.slot.toString(),
                             ),
                     )
-                    AuditLogRepository.record(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = b.id,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
+                    AuditLogger.update(
+                        table = UserBranchAssignmentTable.tableName,
+                        id = b.id,
+                        by = callerId,
+                        oldFields =
+                            arrayOf(
                                 "userId" to b.userId.toString(),
-                                "oldSlot" to b.slot.toString(),
-                                "newSlot" to a.slot.toString(),
+                                "slot" to b.slot.toString(),
+                            ),
+                        newFields =
+                            arrayOf(
+                                "userId" to b.userId.toString(),
+                                "slot" to a.slot.toString(),
                             ),
                     )
                 },
