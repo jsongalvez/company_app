@@ -3,7 +3,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -18,17 +17,7 @@ object ProductCategoryService {
         name: String,
     ): ProductCategory =
         ProductCategoryRepository.create(id, name) { category ->
-            AuditLogRepository.record(
-                tableName = ProductCategoryTable.tableName,
-                recordId = category.id,
-                action = AuditAction.INSERT,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to category.id.toString(),
-                        "name" to category.name,
-                    ),
-            )
+            AuditLogRepository.recordInsert(ProductCategoryTable.tableName, category, callerId)
         }
 
     fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()

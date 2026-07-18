@@ -6,18 +6,33 @@ import java.math.BigDecimal
 import java.util.UUID
 
 data class ProductCategory(
-    val id: UUID,
+    override val id: UUID,
     val name: String,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "name" to name,
+        )
+}
 
 data class Product(
-    val id: UUID,
+    override val id: UUID,
     val name: String,
     val productCategoryId: UUID,
     val isActive: Boolean,
     val unitPrice: BigDecimal,
     val commissionAmount: BigDecimal,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "name" to name,
+            "productCategoryId" to productCategoryId.toString(),
+            "unitPrice" to unitPrice.toPlainString(),
+            "commissionAmount" to commissionAmount.toPlainString(),
+        )
+}
 
 data class ProductCreateParams(
     val id: UUID,

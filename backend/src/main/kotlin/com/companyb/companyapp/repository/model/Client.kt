@@ -8,7 +8,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Client(
-    val id: UUID,
+    override val id: UUID,
     val firstName: String?,
     val lastName: String?,
     val middleName: String?,
@@ -21,7 +21,14 @@ data class Client(
     val diastolicBp: Short?,
     val medicalConditions: String?,
     val deletedAt: OffsetDateTime?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "firstName" to (firstName ?: ""),
+            "lastName" to (lastName ?: ""),
+        )
+}
 
 private const val PHONE_COLUMN_WIDTH = 20
 

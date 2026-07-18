@@ -6,7 +6,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductTable
@@ -41,20 +40,7 @@ object ProductService {
                 changedBy = callerId,
             ),
         ) { product ->
-            AuditLogRepository.record(
-                tableName = ProductTable.tableName,
-                recordId = product.id,
-                action = AuditAction.INSERT,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to product.id.toString(),
-                        "name" to product.name,
-                        "productCategoryId" to product.productCategoryId.toString(),
-                        "unitPrice" to product.unitPrice.toPlainString(),
-                        "commissionAmount" to product.commissionAmount.toPlainString(),
-                    ),
-            )
+            AuditLogRepository.recordInsert(ProductTable.tableName, product, callerId)
         }
     }
 
@@ -88,23 +74,22 @@ object ProductService {
                 commissionAmount = commissionAmount,
                 isActive = isActive,
             ) { updated ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = ProductTable.tableName,
                     recordId = productId,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                    oldFields =
+                        mapOf(
                             "name" to old.name,
                             "unitPrice" to old.unitPrice.toPlainString(),
                             "commissionAmount" to old.commissionAmount.toPlainString(),
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        mapOf(
                             "name" to updated.name,
                             "unitPrice" to updated.unitPrice.toPlainString(),
                             "commissionAmount" to updated.commissionAmount.toPlainString(),
                         ),
+                    changedBy = callerId,
                 )
             }
         return updated ?: throw NotFoundException("Product not found")

@@ -7,7 +7,6 @@ import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ClientUpdateParams
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -51,18 +50,7 @@ object ClientService {
                 changedBy = callerId,
             ),
         ) { client ->
-            AuditLogRepository.record(
-                tableName = ClientTable.tableName,
-                recordId = client.id,
-                action = AuditAction.INSERT,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to client.id.toString(),
-                        "firstName" to (client.firstName ?: ""),
-                        "lastName" to (client.lastName ?: ""),
-                    ),
-            )
+            AuditLogRepository.recordInsert(ClientTable.tableName, client, callerId)
         }
 
     fun search(query: String): List<Client> = ClientRepository.search(query)
@@ -104,21 +92,20 @@ object ClientService {
                     medicalConditions = medicalConditions?.trim()?.takeIf { it.isNotEmpty() },
                 ),
             ) { client ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = ClientTable.tableName,
                     recordId = clientId,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                    oldFields =
+                        mapOf(
                             "firstName" to (old.firstName ?: ""),
                             "lastName" to (old.lastName ?: ""),
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        mapOf(
                             "firstName" to (client.firstName ?: ""),
                             "lastName" to (client.lastName ?: ""),
                         ),
+                    changedBy = callerId,
                 )
             }
         return updated ?: throw NotFoundException("Client not found")
@@ -131,23 +118,22 @@ object ClientService {
         val old = ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
         val updated =
             ClientRepository.anonymize(clientId) { client ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = ClientTable.tableName,
                     recordId = clientId,
-                    action = AuditAction.UPDATE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                    oldFields =
+                        mapOf(
                             "firstName" to (old.firstName ?: "null"),
                             "lastName" to (old.lastName ?: "null"),
                             "deletedAt" to (old.deletedAt?.toString() ?: "null"),
                         ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
+                    newFields =
+                        mapOf(
                             "firstName" to "null",
                             "lastName" to "null",
                             "deletedAt" to OffsetDateTime.now(ZoneOffset.UTC).toString(),
                         ),
+                    changedBy = callerId,
                 )
             }
         if (!updated) {
