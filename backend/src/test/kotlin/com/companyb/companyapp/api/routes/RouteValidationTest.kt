@@ -1,3 +1,5 @@
+@file:Suppress("LargeClass")
+
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.auth.JwtService
@@ -15,9 +17,14 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.repository.model.RemittanceMethod
+import com.companyb.companyapp.repository.model.RemittanceStatus
+import com.companyb.companyapp.repository.model.RemittanceTable
+import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
@@ -30,6 +37,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -51,13 +59,15 @@ class RouteValidationTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
         val allCodes =
             listOf(
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityCodes.MANAGE_USERS,
-                CapabilityCodes.MANAGE_PRODUCTS,
-                CapabilityCodes.VOID_SESSION,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-                CapabilityCodes.SUBMIT_REMITTANCE,
                 CapabilityCodes.VIEW_BRANCH_DATA,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityCodes.EDIT_PAST_DAY,
+                CapabilityCodes.VOID_SESSION,
+                CapabilityCodes.SUBMIT_REMITTANCE,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+                CapabilityCodes.MANAGE_PRODUCTS,
+                CapabilityCodes.MANAGE_USERS,
+                CapabilityCodes.ASSIGN_DELEGATE,
             )
         for (code in allCodes) {
             DatabaseTestHelper.grantCapability(
@@ -665,6 +675,70 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `POST remittance SESSION line without sessionId returns 400`() {
+        val remittanceId = UUID.randomUUID()
+        transaction {
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = remittanceId
+                it[RemittanceTable.type] = RemittanceType.SESSION
+                it[RemittanceTable.branchId] = testBranchId
+                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
+                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
+                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.submittedBy] = testUserId
+            }
+        }
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/remittances/$remittanceId/lines",
+                        mapOf(
+                            "id" to UUID.randomUUID().toString(),
+                            "type" to "SESSION",
+                            "amount" to "100.00",
+                        ),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST remittance PRODUCT_SALE line without productSaleId returns 400`() {
+        val remittanceId = UUID.randomUUID()
+        transaction {
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = remittanceId
+                it[RemittanceTable.type] = RemittanceType.SESSION
+                it[RemittanceTable.branchId] = testBranchId
+                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
+                it[RemittanceTable.submittedDate] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.dateRangeStart] = LocalDate.of(2024, 1, 1)
+                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2024, 1, 15)
+                it[RemittanceTable.submittedBy] = testUserId
+            }
+        }
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/remittances/$remittanceId/lines",
+                        mapOf(
+                            "id" to UUID.randomUUID().toString(),
+                            "type" to "PRODUCT_SALE",
+                            "amount" to "100.00",
+                        ),
+                    ).code,
+            )
+        }
+    }
+
     // ──────────────────────────────────────────────
     // ExportRoutes
     // ──────────────────────────────────────────────
@@ -736,21 +810,16 @@ class RouteValidationTest : BasePostgresTest() {
     fun `DELETE expense blank reason returns 400`() {
         val expenseId = UUID.randomUUID()
         transaction {
-            com.companyb.companyapp.repository.model.ExpenseTable.insert {
-                it[com.companyb.companyapp.repository.model.ExpenseTable.id] = expenseId
-                it[com.companyb.companyapp.repository.model.ExpenseTable.branchDayId] = testBranchDayId
-                it[com.companyb.companyapp.repository.model.ExpenseTable.amount] = BigDecimal("100.00")
-                it[com.companyb.companyapp.repository.model.ExpenseTable.category] =
-                    com.companyb.companyapp.repository.model.ExpenseCategory.MISCELLANEOUS
-                it[com.companyb.companyapp.repository.model.ExpenseTable.createdBy] = testUserId
-                it[com.companyb.companyapp.repository.model.ExpenseTable.notes] = "Test expense"
+            ExpenseTable.insert {
+                it[ExpenseTable.id] = expenseId
+                it[ExpenseTable.branchDayId] = testBranchDayId
+                it[ExpenseTable.amount] = BigDecimal("100.00")
+                it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
+                it[ExpenseTable.createdBy] = testUserId
+                it[ExpenseTable.notes] = "Test expense"
             }
         }
-        trackOwned(
-            com.companyb.companyapp.repository.model.ExpenseTable,
-            com.companyb.companyapp.repository.model.ExpenseTable.id,
-            expenseId,
-        )
+        trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
         JavalinTest.test(createApp()) { _, client ->
             assertEquals(400, client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ")).code)
         }
