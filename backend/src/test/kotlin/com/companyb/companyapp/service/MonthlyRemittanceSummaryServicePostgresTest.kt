@@ -33,7 +33,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
-import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -73,14 +72,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
         trackOwned(CompensationTable, CompensationTable.userId, callerId)
         trackOwned(ExpenseTable, ExpenseTable.createdBy, callerId)
-    }
-
-    @AfterTest
-    override fun tearDownBase() {
-        if (!DatabaseTestHelper.isDatabaseReady()) return
-        DatabaseTestHelper.withSnapshotTriggerDisabled {
-            cleanTrackedRows()
-        }
     }
 
     @Test
@@ -348,24 +339,14 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val psId = UUID.randomUUID()
         val productCategoryId = UUID.randomUUID()
         val productId = UUID.randomUUID()
-        val conn = DatabaseTestHelper.requireTestDataSource().connection
-        conn.createStatement().use { stmt ->
-            stmt.execute(
-                "INSERT INTO product_category (id, name) VALUES ('$productCategoryId', 'Test Cat $psId')",
-            )
-            stmt.execute(
-                "INSERT INTO product (id, name, product_category_id, unit_price, commission_amount) " +
-                    "VALUES ('$productId', 'Test Prod $psId', '$productCategoryId', 100.00, 10.00)",
-            )
-            stmt.execute(
-                "INSERT INTO product_sale (id, branch_day_id, product_id, quantity, is_walk_in, " +
-                    "client_id, handled_by, unit_price_at_time, " +
-                    "total_amount_at_time, commission_amount_at_time, product_name) " +
-                    "VALUES ('$psId', '$branchDayId', '$productId', 1, true, " +
-                    "'$clientId', '$callerId', 100.00, 100.00, 10.00, 'Test Product')",
-            )
-        }
-        conn.close()
+        DatabaseTestHelper.insertTestCategory(productCategoryId, "Test Cat $psId")
+        DatabaseTestHelper.insertTestProduct(productId, "Test Prod $psId", productCategoryId)
+        DatabaseTestHelper.insertTestProductSale(
+            id = psId,
+            branchDayId = branchDayId,
+            productId = productId,
+            handledBy = callerId,
+        )
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, productCategoryId)
         trackOwned(ProductTable, ProductTable.id, productId)
         return psId

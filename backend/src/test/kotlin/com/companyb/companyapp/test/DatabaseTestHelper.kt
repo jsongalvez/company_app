@@ -5,18 +5,19 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
-import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
@@ -219,13 +220,10 @@ object DatabaseTestHelper {
         sourceId: UUID,
         priority: Int = GrantPriorities.DIRECT_GRANT.toInt(),
     ) {
+        val capId =
+            CapabilityRepository.findIdByCode(capabilityCode)
+                ?: error("Capability code not found: $capabilityCode")
         transaction {
-            val capId =
-                CapabilityTable
-                    .selectAll()
-                    .where { CapabilityTable.code eq capabilityCode }
-                    .single()[CapabilityTable.id]
-
             UserCapabilityTable.insert {
                 it[UserCapabilityTable.userId] = userId
                 it[UserCapabilityTable.capabilityId] = capId
@@ -320,6 +318,37 @@ object DatabaseTestHelper {
                 it[ProductTable.productCategoryId] = categoryId
                 it[ProductTable.unitPrice] = unitPrice
                 it[ProductTable.commissionAmount] = commissionAmount
+            }
+        }
+    }
+
+    @Suppress("LongParameterList")
+    fun insertTestProductSale(
+        id: UUID,
+        branchDayId: UUID,
+        productId: UUID,
+        handledBy: UUID,
+        clientId: UUID? = null,
+        quantity: Int = 1,
+        unitPrice: BigDecimal = BigDecimal("100.00"),
+        totalAmount: BigDecimal = BigDecimal("100.00"),
+        commissionAmount: BigDecimal = BigDecimal("10.00"),
+        productName: String = "Test Product",
+        isWalkIn: Boolean = true,
+    ) {
+        transaction {
+            ProductSaleTable.insertIgnore {
+                it[ProductSaleTable.id] = id
+                it[ProductSaleTable.branchDayId] = branchDayId
+                it[ProductSaleTable.productId] = productId
+                it[ProductSaleTable.quantity] = quantity
+                it[ProductSaleTable.isWalkIn] = isWalkIn
+                it[ProductSaleTable.handledBy] = handledBy
+                it[ProductSaleTable.unitPriceAtTime] = unitPrice
+                it[ProductSaleTable.totalAmountAtTime] = totalAmount
+                it[ProductSaleTable.commissionAmountAtTime] = commissionAmount
+                it[ProductSaleTable.productName] = productName
+                if (clientId != null) it[ProductSaleTable.clientId] = clientId
             }
         }
     }

@@ -73,7 +73,9 @@ abstract class BasePostgresTest {
         val config = AppConfig.parse()
         JwtService.init(config)
         Password.init(config.authDummyPassword)
-        cleanTrackedRows()
+        DatabaseTestHelper.withSnapshotTriggerDisabled {
+            cleanTrackedRows()
+        }
         tracked.clear()
         initTestData()
     }
@@ -81,7 +83,9 @@ abstract class BasePostgresTest {
     @AfterTest
     open fun tearDownBase() {
         if (DatabaseTestHelper.isDatabaseReady()) {
-            cleanTrackedRows()
+            DatabaseTestHelper.withSnapshotTriggerDisabled {
+                cleanTrackedRows()
+            }
         }
     }
 
