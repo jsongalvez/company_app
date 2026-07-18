@@ -9,7 +9,6 @@ import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -67,21 +66,20 @@ object ProductSaleService {
                     ),
                 ) { data ->
                     AuditLogRepository.recordInsert(ProductSaleTable.tableName, data.sale, callerId)
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordUpdate(
                         tableName = BranchInventoryTable.tableName,
                         recordId = data.inventoryCardId,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        oldValue =
-                            AuditLogRepository.jsonFields(
+                        oldFields =
+                            mapOf(
                                 "currentStock" to data.oldStock.toString(),
                                 "version" to data.oldVersion.toString(),
                             ),
-                        newValue =
-                            AuditLogRepository.jsonFields(
+                        newFields =
+                            mapOf(
                                 "currentStock" to data.newStock.toString(),
                                 "version" to data.newVersion.toString(),
                             ),
+                        changedBy = callerId,
                     )
                 }
             } catch (e: IllegalStateException) {

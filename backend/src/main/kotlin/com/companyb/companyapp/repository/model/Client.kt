@@ -25,8 +25,8 @@ data class Client(
     override fun toAuditFields(): Map<String, String> =
         mapOf(
             "id" to id.toString(),
-            "firstName" to (firstName ?: ""),
-            "lastName" to (lastName ?: ""),
+            "firstName" to (firstName ?: "null"),
+            "lastName" to (lastName ?: "null"),
         )
 }
 

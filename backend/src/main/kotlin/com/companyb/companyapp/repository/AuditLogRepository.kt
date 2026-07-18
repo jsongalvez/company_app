@@ -154,14 +154,11 @@ object AuditLogRepository {
         value: String,
     ): String = jsonFields(key to value)
 
-    fun jsonFields(vararg fields: Pair<String, String>): String =
-        buildJsonObject {
-            fields.forEach { (key, value) ->
-                put(key, JsonPrimitive(value))
-            }
-        }.toString()
+    fun jsonFields(vararg fields: Pair<String, String>): String = buildJson(fields.toList())
 
-    fun jsonFields(fields: Map<String, String>): String =
+    fun jsonFields(fields: Map<String, String>): String = buildJson(fields.toList())
+
+    private fun buildJson(fields: List<Pair<String, String>>): String =
         buildJsonObject {
             fields.forEach { (key, value) ->
                 put(key, JsonPrimitive(value))

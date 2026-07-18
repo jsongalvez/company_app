@@ -27,6 +27,7 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -106,7 +107,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals("2500.00", result.session.finalPrice.toPlainString())
         assertNotNull(result.session.version)
         assertEquals(1, result.session.version)
-        assertEquals(1L, auditEntryCount(sessionId))
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
     }
 
     @Test
@@ -120,7 +121,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertTrue(first.created)
         assertFalse(duplicate.created)
         assertEquals(first.session.id, duplicate.session.id)
-        assertEquals(1L, auditEntryCount(sessionId))
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
     }
 
     @Test
@@ -267,7 +268,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         assertEquals("COMPLETED", updated.sessionStatus)
         assertEquals(2, updated.version)
-        assertEquals(2L, auditEntryCount(sessionId))
+        assertEquals(2L, auditEntryCount(SessionTable.tableName, sessionId))
     }
 
     @Test
@@ -344,7 +345,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals(sessionId, result.sessionVoid.sessionId)
         assertEquals("Customer request", result.sessionVoid.voidReason)
         assertEquals(callerId, result.sessionVoid.voidedBy)
-        assertEquals(1L, auditVoidEntryCount(voidId))
+        assertEquals(1L, auditEntryCount(SessionVoidTable.tableName, voidId))
     }
 
     @Test
@@ -401,7 +402,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertNotNull(result.unvoidedAt)
         assertEquals(callerId, result.unvoidedBy)
         assertEquals("Resolved in error", result.unvoidedReason)
-        assertEquals(2L, auditVoidEntryCount(voidId))
+        assertEquals(2L, auditEntryCount(SessionVoidTable.tableName, voidId))
     }
 
     @Test
@@ -464,7 +465,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
 
-        assertEquals(2L, auditEntryCount(sessionId))
+        assertEquals(2L, auditEntryCount(SessionTable.tableName, sessionId))
     }
 
     @Test
@@ -488,7 +489,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals(practitionerId, result.practitioner.practitionerId)
         assertEquals(1, result.practitioner.slotAtTime.toInt())
         assertEquals("Test remarks", result.practitioner.remarks)
-        assertEquals(1L, auditEntryCount(practitionerSessionId))
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, practitionerSessionId))
     }
 
     @Test
@@ -585,7 +586,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val session = SessionRepository.findById(practitionerSessionId)!!
         assertEquals(3, session.version)
-        assertEquals(2L, auditPractitionerEntryCount(practitionerEntityId))
+        assertEquals(2L, auditEntryCount(SessionPractitionerTable.tableName, practitionerEntityId))
     }
 
     @Test
@@ -632,8 +633,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val session = SessionRepository.findById(practitionerSessionId)!!
         assertEquals(3, session.version)
-        assertEquals(2L, auditPractitionerEntryCount(practitionerEntityId))
-        assertEquals(1L, auditPractitionerDeleteCount(practitionerEntityId))
+        assertEquals(2L, auditEntryCount(SessionPractitionerTable.tableName, practitionerEntityId))
+        assertEquals(1L, auditEntryCount(SessionPractitionerTable.tableName, practitionerEntityId, AuditAction.DELETE))
     }
 
     @Test
@@ -704,44 +705,21 @@ class SessionServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    private fun auditEntryCount(sessionId: UUID): Long =
+    private fun auditEntryCount(
+        tableName: String,
+        recordId: UUID,
+        actionFilter: AuditAction? = null,
+    ): Long =
         transaction {
             AuditLogTable
                 .selectAll()
                 .where {
-                    (AuditLogTable.auditTableName eq SessionTable.tableName) and
-                        (AuditLogTable.recordId eq sessionId)
-                }.count()
-        }
-
-    private fun auditVoidEntryCount(voidId: UUID): Long =
-        transaction {
-            AuditLogTable
-                .selectAll()
-                .where {
-                    (AuditLogTable.auditTableName eq SessionVoidTable.tableName) and
-                        (AuditLogTable.recordId eq voidId)
-                }.count()
-        }
-
-    private fun auditPractitionerEntryCount(practitionerEntityId: UUID): Long =
-        transaction {
-            AuditLogTable
-                .selectAll()
-                .where {
-                    (AuditLogTable.auditTableName eq SessionPractitionerTable.tableName) and
-                        (AuditLogTable.recordId eq practitionerEntityId)
-                }.count()
-        }
-
-    private fun auditPractitionerDeleteCount(practitionerEntityId: UUID): Long =
-        transaction {
-            AuditLogTable
-                .selectAll()
-                .where {
-                    (AuditLogTable.auditTableName eq SessionPractitionerTable.tableName) and
-                        (AuditLogTable.recordId eq practitionerEntityId) and
-                        (AuditLogTable.action eq AuditAction.DELETE)
+                    (AuditLogTable.auditTableName eq tableName) and
+                        (AuditLogTable.recordId eq recordId) and
+                        (
+                            actionFilter?.let { AuditLogTable.action eq it }
+                                ?: AuditLogTable.auditTableName.isNotNull()
+                        )
                 }.count()
         }
 }

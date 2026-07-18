@@ -46,7 +46,7 @@ data class InventoryMovement(
             "branchDayId" to branchDayId.toString(),
             "reason" to reason.name,
             "quantityChange" to quantityChange.toString(),
-            "notes" to (notes ?: ""),
+            "notes" to (notes ?: "null"),
         )
 }
 

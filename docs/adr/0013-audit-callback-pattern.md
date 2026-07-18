@@ -90,8 +90,12 @@ audit. The service already has these values from its own parameters.
 
 - **Positive:** G1 satisfied. Audit logic lives alongside business logic in the service layer.
   Atomicity preserved — audit runs inside the same DB transaction as the mutation.
-- **Negative:** ~40 duplicated `AuditLogRepository.record(...)` blocks across services.
-  Follow-up issue [#46](https://github.com/jsongalvez/company_app/issues/46) tracks extracting
-  shared audit factories.
+- **Positive (2026-07):** Inner `transaction {}` removed from `AuditLogRepository.record()`
+  (epic [#49](https://github.com/jsongalvez/company_app/issues/49)). It now inserts on the caller's
+  connection, eliminating unnecessary savepoint overhead. Callers must ensure they're inside a
+  transaction.
+- **Positive (2026-07):** The ~40 duplicated `AuditLogRepository.record(...)` blocks were
+  eliminated via `recordInsert`/`recordUpdate`/`recordDelete` convenience methods and the
+  `Auditable` interface (see [ADR 0014](./0014-entity-audit-field-mapping.md)).
 - **Negative:** Services must import table objects (`XxxTable`) to reference `tableName` in audit
   calls — a minor layer violation.
