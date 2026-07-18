@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -19,7 +18,7 @@ object RemittanceDayBreakdownRepository {
         id: UUID,
         remittanceId: UUID,
         branchDayId: UUID,
-        createdBy: UUID,
+        auditFn: (RemittanceDayBreakdown) -> Unit = {},
     ): RemittanceDayBreakdown =
         transaction {
             val existing =
@@ -46,19 +45,7 @@ object RemittanceDayBreakdownRepository {
                     .single()
                     .toRemittanceDayBreakdown()
 
-            AuditLogRepository.record(
-                tableName = RemittanceDayBreakdownTable.tableName,
-                recordId = created.id,
-                action = AuditAction.INSERT,
-                changedBy = createdBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to created.id.toString(),
-                        "remittanceId" to created.remittanceId.toString(),
-                        "branchDayId" to created.branchDayId.toString(),
-                    ),
-            )
-
+            auditFn(created)
             created
         }.also { breakdown ->
             logger.info {

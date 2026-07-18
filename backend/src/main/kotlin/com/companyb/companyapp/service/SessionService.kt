@@ -5,15 +5,19 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
 import com.companyb.companyapp.repository.VoidResult
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionStatus
+import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
+import com.companyb.companyapp.repository.model.SessionVoidTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -43,7 +47,7 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount")
+    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -93,7 +97,22 @@ object SessionService {
                         nextAppointmentDate = nextAppointmentDate,
                         changedBy = callerId,
                     ),
-                )
+                ) { session ->
+                    AuditLogRepository.record(
+                        tableName = SessionTable.tableName,
+                        recordId = session.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to session.id.toString(),
+                                "clientId" to session.clientId.toString(),
+                                "branchDayId" to session.branchDayId.toString(),
+                                "sessionType" to session.sessionType,
+                                "finalPrice" to session.finalPrice.toPlainString(),
+                            ),
+                    )
+                }
             } catch (e: IllegalStateException) {
                 when (e.message) {
                     "client_already_has_pending_session" -> {
@@ -153,7 +172,16 @@ object SessionService {
                 newStatus = newStatus,
                 expectedVersion = expectedVersion,
                 changedBy = callerId,
-            )
+            ) { session ->
+                AuditLogRepository.record(
+                    tableName = SessionTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue = AuditLogRepository.jsonField("sessionStatus", oldStatus.name),
+                    newValue = AuditLogRepository.jsonField("sessionStatus", newStatus.name),
+                )
+            }
 
         logger.info {
             "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
@@ -188,7 +216,20 @@ object SessionService {
                 sessionId = sessionId,
                 voidReason = voidReason,
                 voidedBy = callerId,
-            )
+            ) { voidRecord ->
+                AuditLogRepository.record(
+                    tableName = SessionVoidTable.tableName,
+                    recordId = voidRecord.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "id" to voidRecord.id.toString(),
+                            "sessionId" to voidRecord.sessionId.toString(),
+                            "voidReason" to voidRecord.voidReason,
+                        ),
+                )
+            }
 
         logger.info { "[VOID-SESSION] Session $sessionId voided" }
 
@@ -219,7 +260,26 @@ object SessionService {
                 sessionVoidId = sessionVoid.id,
                 unvoidedBy = callerId,
                 unvoidedReason = unvoidedReason,
-            ) ?: throw NotFoundException("Session void record not found after unvoid")
+            ) { unvoided ->
+                AuditLogRepository.record(
+                    tableName = SessionVoidTable.tableName,
+                    recordId = unvoided.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "unvoidedAt" to "null",
+                            "unvoidedBy" to "null",
+                            "unvoidedReason" to "null",
+                        ),
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "unvoidedAt" to unvoided.unvoidedAt.toString(),
+                            "unvoidedBy" to callerId.toString(),
+                            "unvoidedReason" to unvoidedReason,
+                        ),
+                )
+            } ?: throw NotFoundException("Session void record not found after unvoid")
 
         logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
 

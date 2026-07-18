@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
@@ -25,6 +24,15 @@ import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
 
+data class SaleAuditData(
+    val sale: ProductSale,
+    val inventoryCardId: UUID,
+    val oldStock: Int,
+    val oldVersion: Int,
+    val newStock: Int,
+    val newVersion: Int,
+)
+
 data class SellProductParams(
     val id: UUID,
     val branchDayId: UUID,
@@ -43,7 +51,10 @@ private val logger = KotlinLogging.logger {}
 
 object ProductSaleRepository {
     @Suppress("LongMethod")
-    fun sell(params: SellProductParams): ProductSale =
+    fun sell(
+        params: SellProductParams,
+        auditFn: (SaleAuditData) -> Unit = {},
+    ): ProductSale =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
@@ -99,14 +110,15 @@ object ProductSaleRepository {
                 findByIdInTransaction(params.id)
                     ?: error("product sale not found after insert for ${params.id}")
 
-            writeSaleAuditLogs(
-                sale = sale,
-                handledBy = params.handledBy,
-                inventoryCardId = card[BranchInventoryTable.id],
-                oldStock = oldStock,
-                oldVersion = oldVersion,
-                newStock = newStock,
-                newVersion = params.expectedVersion + 1,
+            auditFn(
+                SaleAuditData(
+                    sale = sale,
+                    inventoryCardId = card[BranchInventoryTable.id],
+                    oldStock = oldStock,
+                    oldVersion = oldVersion,
+                    newStock = newStock,
+                    newVersion = params.expectedVersion + 1,
+                ),
             )
             sale
         }.also {
@@ -194,49 +206,6 @@ object ProductSaleRepository {
             it[InventoryMovementTable.movedBy] = movedBy
             it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
         }
-    }
-
-    @Suppress("LongParameterList")
-    private fun writeSaleAuditLogs(
-        sale: ProductSale,
-        handledBy: UUID,
-        inventoryCardId: UUID,
-        oldStock: Int,
-        oldVersion: Int,
-        newStock: Int,
-        newVersion: Int,
-    ) {
-        AuditLogRepository.record(
-            tableName = ProductSaleTable.tableName,
-            recordId = sale.id,
-            action = AuditAction.INSERT,
-            changedBy = handledBy,
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "id" to sale.id.toString(),
-                    "branchDayId" to sale.branchDayId.toString(),
-                    "productId" to sale.productId.toString(),
-                    "quantity" to sale.quantity.toString(),
-                    "totalAmount" to sale.totalAmountAtTime.toPlainString(),
-                ),
-        )
-
-        AuditLogRepository.record(
-            tableName = BranchInventoryTable.tableName,
-            recordId = inventoryCardId,
-            action = AuditAction.UPDATE,
-            changedBy = handledBy,
-            oldValue =
-                AuditLogRepository.jsonFields(
-                    "currentStock" to oldStock.toString(),
-                    "version" to oldVersion.toString(),
-                ),
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "currentStock" to newStock.toString(),
-                    "version" to newVersion.toString(),
-                ),
-        )
     }
 
     fun findById(id: UUID): ProductSale? =

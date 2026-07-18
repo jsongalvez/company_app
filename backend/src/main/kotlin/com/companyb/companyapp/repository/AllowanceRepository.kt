@@ -4,7 +4,6 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import com.companyb.companyapp.repository.model.AllowanceTable
-import com.companyb.companyapp.repository.model.AuditAction
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -22,7 +21,10 @@ data class AllowanceCreateResult(
 )
 
 object AllowanceRepository {
-    fun create(params: AllowanceCreateParams): AllowanceCreateResult =
+    fun create(
+        params: AllowanceCreateParams,
+        auditFn: (Allowance) -> Unit = {},
+    ): AllowanceCreateResult =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
@@ -39,19 +41,7 @@ object AllowanceRepository {
 
             val created = findByIdInTransaction(params.id) ?: error("allowance not found after insert for ${params.id}")
 
-            AuditLogRepository.record(
-                tableName = AllowanceTable.tableName,
-                recordId = created.id,
-                action = AuditAction.INSERT,
-                changedBy = params.assignedBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to created.id.toString(),
-                        "branchDayId" to created.branchDayId.toString(),
-                        "userId" to created.userId.toString(),
-                        "amount" to created.amount.toPlainString(),
-                    ),
-            )
+            auditFn(created)
             AllowanceCreateResult(created, created = true)
         }.also { result ->
             logger.info {

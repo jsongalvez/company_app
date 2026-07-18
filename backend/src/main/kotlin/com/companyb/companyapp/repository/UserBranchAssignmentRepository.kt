@@ -2,7 +2,6 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
@@ -21,7 +20,10 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object UserBranchAssignmentRepository {
-    fun create(params: UserBranchAssignmentCreateParams): Boolean =
+    fun create(
+        params: UserBranchAssignmentCreateParams,
+        auditFn: (UserBranchAssignment) -> Unit = {},
+    ): Boolean =
         transaction {
             val insertedCount =
                 UserBranchAssignmentTable
@@ -35,19 +37,13 @@ object UserBranchAssignmentRepository {
             val created = insertedCount > 0
 
             if (created) {
-                AuditLogRepository.record(
-                    tableName = UserBranchAssignmentTable.tableName,
-                    recordId = params.id,
-                    action = AuditAction.INSERT,
-                    changedBy = params.assignedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to params.id.toString(),
-                            "userId" to params.userId.toString(),
-                            "branchId" to params.branchId.toString(),
-                            "slot" to params.slot.toString(),
-                        ),
-                )
+                val assignment =
+                    UserBranchAssignmentTable
+                        .selectAll()
+                        .where { UserBranchAssignmentTable.id eq params.id }
+                        .single()
+                        .toAssignment()
+                auditFn(assignment)
             }
 
             created
@@ -107,21 +103,20 @@ object UserBranchAssignmentRepository {
 
     fun setEndedAt(
         id: UUID,
-        callerId: UUID,
-        oldValue: String,
+        auditFn: (UserBranchAssignment) -> Unit = {},
     ) {
         transaction {
             UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
                 it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
             }
 
-            AuditLogRepository.record(
-                tableName = UserBranchAssignmentTable.tableName,
-                recordId = id,
-                action = AuditAction.UPDATE,
-                changedBy = callerId,
-                oldValue = oldValue,
-            )
+            val updated =
+                UserBranchAssignmentTable
+                    .selectAll()
+                    .where { UserBranchAssignmentTable.id eq id }
+                    .single()
+                    .toAssignment()
+            auditFn(updated)
         }
         logger.info { "[SET-ENDED-AT] Assignment ${id.toString().maskUUID()}" }
     }
@@ -129,8 +124,7 @@ object UserBranchAssignmentRepository {
     fun updateSlot(
         id: UUID,
         slot: Short,
-        callerId: UUID,
-        oldSlot: Short,
+        auditFn: (UserBranchAssignment) -> Unit = {},
     ) {
         transaction {
             UserBranchAssignmentTable.update({
@@ -140,14 +134,13 @@ object UserBranchAssignmentRepository {
                 it[UserBranchAssignmentTable.slot] = slot
             }
 
-            AuditLogRepository.record(
-                tableName = UserBranchAssignmentTable.tableName,
-                recordId = id,
-                action = AuditAction.UPDATE,
-                changedBy = callerId,
-                oldValue = AuditLogRepository.jsonField("slot", oldSlot.toString()),
-                newValue = AuditLogRepository.jsonField("slot", slot.toString()),
-            )
+            val updated =
+                UserBranchAssignmentTable
+                    .selectAll()
+                    .where { UserBranchAssignmentTable.id eq id }
+                    .single()
+                    .toAssignment()
+            auditFn(updated)
         }
         logger.info { "[UPDATE-SLOT] Assignment ${id.toString().maskUUID()} slot=$slot" }
     }
@@ -173,10 +166,10 @@ object UserBranchAssignmentRepository {
     }
 
     fun swapSlots(
-        callerId: UUID,
         branchId: UUID,
         userIdA: UUID,
         userIdB: UUID,
+        auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
     ): Pair<UserBranchAssignment, UserBranchAssignment> =
         transaction {
             val a =
@@ -191,21 +184,7 @@ object UserBranchAssignmentRepository {
 
             swapSlotsInTransaction(a.id, slotA, b.id, slotB)
 
-            AuditLogRepository.record(
-                tableName = UserBranchAssignmentTable.tableName,
-                recordId = a.id,
-                action = AuditAction.UPDATE,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "userIdA" to userIdA.toString(),
-                        "oldSlotA" to slotA.toString(),
-                        "newSlotA" to slotB.toString(),
-                        "userIdB" to userIdB.toString(),
-                        "oldSlotB" to slotB.toString(),
-                        "newSlotB" to slotA.toString(),
-                    ),
-            )
+            auditFn(a, b)
 
             a to b
         }

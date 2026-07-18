@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -25,14 +24,15 @@ object CommissionManualInclusionRepository {
         isIncluded: Boolean,
         reason: String?,
         assignedBy: UUID,
+        auditFn: (existing: CommissionManualInclusion?, result: CommissionManualInclusion) -> Unit = { _, _ -> },
     ): CommissionManualInclusion =
         transaction {
             val existing = findByProductSaleAndUserInTransaction(productSaleId, userId)
 
             if (existing != null) {
-                updateInclusion(existing, isIncluded, reason, assignedBy)
+                updateInclusion(existing, isIncluded, reason, assignedBy, auditFn)
             } else {
-                insertInclusion(id, productSaleId, userId, isIncluded, reason, assignedBy)
+                insertInclusion(id, productSaleId, userId, isIncluded, reason, assignedBy, auditFn)
             }
         }.also { result ->
             logger.info {
@@ -48,6 +48,7 @@ object CommissionManualInclusionRepository {
         isIncluded: Boolean,
         reason: String?,
         assignedBy: UUID,
+        auditFn: (CommissionManualInclusion?, CommissionManualInclusion) -> Unit,
     ): CommissionManualInclusion {
         CommissionManualInclusionTable.update({
             CommissionManualInclusionTable.id eq existing.id
@@ -65,23 +66,7 @@ object CommissionManualInclusionRepository {
             findByIdInTransaction(existing.id)
                 ?: error("commission_manual_inclusion not found after update for ${existing.id}")
 
-        AuditLogRepository.record(
-            tableName = CommissionManualInclusionTable.tableName,
-            recordId = updated.id,
-            action = AuditAction.UPDATE,
-            changedBy = assignedBy,
-            oldValue =
-                AuditLogRepository.jsonFields(
-                    "isIncluded" to existing.isIncluded.toString(),
-                    "reason" to (existing.reason ?: "null"),
-                ),
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "isIncluded" to updated.isIncluded.toString(),
-                    "reason" to (updated.reason ?: "null"),
-                ),
-        )
-
+        auditFn(existing, updated)
         return updated
     }
 
@@ -93,6 +78,7 @@ object CommissionManualInclusionRepository {
         isIncluded: Boolean,
         reason: String?,
         assignedBy: UUID,
+        auditFn: (CommissionManualInclusion?, CommissionManualInclusion) -> Unit,
     ): CommissionManualInclusion {
         CommissionManualInclusionTable.insert {
             it[CommissionManualInclusionTable.id] = id
@@ -107,20 +93,7 @@ object CommissionManualInclusionRepository {
             findByIdInTransaction(id)
                 ?: error("commission_manual_inclusion not found after insert for $id")
 
-        AuditLogRepository.record(
-            tableName = CommissionManualInclusionTable.tableName,
-            recordId = created.id,
-            action = AuditAction.INSERT,
-            changedBy = assignedBy,
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "id" to created.id.toString(),
-                    "productSaleId" to created.productSaleId.toString(),
-                    "userId" to created.userId.toString(),
-                    "isIncluded" to created.isIncluded.toString(),
-                ),
-        )
-
+        auditFn(null, created)
         return created
     }
 

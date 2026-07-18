@@ -30,15 +30,15 @@ object ProductCategoryRoutes {
             val categoryId = uuidOrThrow(request.id, "category id")
             val name = request.name.trim()
             if (name.isBlank()) throw BadRequestResponse("Category name is required")
-            val result =
+            val category =
                 ProductCategoryService.create(
                     callerId = callerId,
                     id = categoryId,
                     name = name,
                 )
 
-            context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
-            context.json(result.category.toResponse())
+            context.status(HttpStatus.CREATED)
+            context.json(category.toResponse())
         }
 
         config.routes.get("/api/product-categories") { context ->

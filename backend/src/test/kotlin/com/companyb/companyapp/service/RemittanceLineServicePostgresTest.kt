@@ -724,7 +724,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         ProductCategoryRepository.create(
             id = productCategoryId,
             name = "Test Category $productCategoryId",
-            changedBy = callerId,
         )
     }
 

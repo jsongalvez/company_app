@@ -1,9 +1,14 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Concern
+import com.companyb.companyapp.repository.model.ConcernTable
+import com.companyb.companyapp.repository.model.SessionConcernTable
+import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -31,7 +36,19 @@ object ConcernService {
         ConcernRepository.addToSession(
             sessionId = sessionId,
             concernId = concernId,
-            changedBy = callerId,
+            auditFn = { sc ->
+                AuditLogRepository.record(
+                    tableName = SessionConcernTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "concernId" to sc.concernId.toString(),
+                        ),
+                )
+            },
         )
 
         logger.info { "[ADD-CONCERN] Added concern ${concern.label} to session $sessionId" }
@@ -51,7 +68,19 @@ object ConcernService {
         ConcernRepository.removeFromSession(
             sessionId = sessionId,
             concernId = concernId,
-            changedBy = callerId,
+            auditFn = { sc ->
+                AuditLogRepository.record(
+                    tableName = SessionConcernTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.DELETE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "concernId" to sc.concernId.toString(),
+                        ),
+                )
+            },
         )
 
         logger.info { "[REMOVE-CONCERN] Removed concern ${concern.label} from session $sessionId" }
@@ -72,18 +101,53 @@ object ConcernService {
                 id = concernId,
                 label = label,
                 createdBy = callerId,
+                auditFn = { c ->
+                    AuditLogRepository.record(
+                        tableName = ConcernTable.tableName,
+                        recordId = c.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to c.id.toString(),
+                                "label" to label,
+                            ),
+                    )
+                },
             )
 
         ConcernRepository.addToSession(
             sessionId = sessionId,
             concernId = concern.id,
-            changedBy = callerId,
+            auditFn = { sc ->
+                AuditLogRepository.record(
+                    tableName = SessionConcernTable.tableName,
+                    recordId = sessionId,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "concernId" to sc.concernId.toString(),
+                        ),
+                )
+            },
         )
 
         SessionRepository.updateOtherConcerns(
             sessionId = sessionId,
             otherConcerns = null,
             changedBy = callerId,
+            auditFn = { session ->
+                AuditLogRepository.record(
+                    tableName = SessionTable.tableName,
+                    recordId = session.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue = AuditLogRepository.jsonField("otherConcerns", session.otherConcerns ?: ""),
+                    newValue = AuditLogRepository.jsonField("otherConcerns", ""),
+                )
+            },
         )
 
         logger.info { "[PROMOTE-CONCERN] Promoted concern '$label' for session $sessionId, cleared other_concerns" }

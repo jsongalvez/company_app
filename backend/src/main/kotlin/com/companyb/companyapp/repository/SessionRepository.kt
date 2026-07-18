@@ -3,7 +3,6 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
@@ -75,7 +74,10 @@ object SessionRepository {
                 ?.let { it[BranchTable.branchType] }
         }
 
-    fun create(params: SessionCreateParams): SessionCreateResult =
+    fun create(
+        params: SessionCreateParams,
+        auditFn: (Session) -> Unit = {},
+    ): SessionCreateResult =
         transaction {
             acquireClientLock(params.clientId)
             val hasActive = hasActivePendingSessionInTransaction(params.clientId)
@@ -111,20 +113,7 @@ object SessionRepository {
                     ?: error("session row not found after idempotent insert for ${params.id}")
 
             if (created) {
-                AuditLogRepository.record(
-                    tableName = SessionTable.tableName,
-                    recordId = session.id,
-                    action = AuditAction.INSERT,
-                    changedBy = params.changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to session.id.toString(),
-                            "clientId" to session.clientId.toString(),
-                            "branchDayId" to session.branchDayId.toString(),
-                            "sessionType" to params.sessionType.name,
-                            "finalPrice" to params.finalPrice.toPlainString(),
-                        ),
-                )
+                auditFn(session)
             }
             SessionCreateResult(session, created)
         }.also {
@@ -133,12 +122,14 @@ object SessionRepository {
             }
         }
 
+    @Suppress("LongParameterList", "UNUSED_PARAMETER")
     fun updateStatus(
         sessionId: UUID,
         oldStatus: SessionStatus,
         newStatus: SessionStatus,
         expectedVersion: Int,
         changedBy: UUID,
+        auditFn: (Session) -> Unit = {},
     ): Session =
         transaction {
             SessionTable.update({
@@ -152,14 +143,7 @@ object SessionRepository {
                 findByIdInTransaction(sessionId)
                     ?: error("Session $sessionId not found after status update")
 
-            AuditLogRepository.record(
-                tableName = SessionTable.tableName,
-                recordId = session.id,
-                action = AuditAction.UPDATE,
-                changedBy = changedBy,
-                oldValue = AuditLogRepository.jsonField("sessionStatus", oldStatus.name),
-                newValue = AuditLogRepository.jsonField("sessionStatus", newStatus.name),
-            )
+            auditFn(session)
 
             session
         }
@@ -169,28 +153,26 @@ object SessionRepository {
             findByIdInTransaction(id)
         }
 
+    @Suppress("UNUSED_PARAMETER")
     fun updateOtherConcerns(
         sessionId: UUID,
         otherConcerns: String?,
         changedBy: UUID,
-    ) {
+        auditFn: (Session) -> Unit = {},
+    ): Session =
         transaction {
-            val session = findByIdInTransaction(sessionId) ?: error("Session $sessionId not found")
-
             SessionTable.update({ SessionTable.id eq sessionId }) {
                 it[SessionTable.otherConcerns] = otherConcerns
             }
 
-            AuditLogRepository.record(
-                tableName = SessionTable.tableName,
-                recordId = session.id,
-                action = AuditAction.UPDATE,
-                changedBy = changedBy,
-                oldValue = AuditLogRepository.jsonField("otherConcerns", session.otherConcerns ?: ""),
-                newValue = AuditLogRepository.jsonField("otherConcerns", otherConcerns ?: ""),
-            )
+            val updated =
+                findByIdInTransaction(sessionId)
+                    ?: error("Session $sessionId not found after other concerns update")
+
+            auditFn(updated)
+
+            updated
         }
-    }
 
     private fun findByIdInTransaction(id: UUID): Session? =
         SessionTable

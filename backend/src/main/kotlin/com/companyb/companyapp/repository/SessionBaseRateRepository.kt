@@ -2,7 +2,6 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -35,6 +34,7 @@ object SessionBaseRateRepository {
         rate: BigDecimal,
         effectiveFrom: OffsetDateTime,
         effectiveUntil: OffsetDateTime,
+        auditFn: (SessionBaseRate) -> Unit = {},
     ): SetRateResult =
         transaction {
             val insertedCount =
@@ -53,21 +53,7 @@ object SessionBaseRateRepository {
                 findByIdInTransaction(id) ?: error("session_base_rate not found after idempotent insert for $id")
 
             if (inserted) {
-                AuditLogRepository.record(
-                    tableName = SessionBaseRateTable.tableName,
-                    recordId = rateRow.id,
-                    action = AuditAction.INSERT,
-                    changedBy = setBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to rateRow.id.toString(),
-                            "branchId" to rateRow.branchId.toString(),
-                            "sessionType" to rateRow.sessionType.name,
-                            "rate" to rateRow.rate.toPlainString(),
-                            "effectiveFrom" to rateRow.effectiveFrom.toString(),
-                            "effectiveUntil" to rateRow.effectiveUntil.toString(),
-                        ),
-                )
+                auditFn(rateRow)
                 SetRateResult(rateRow, created = true)
             } else {
                 SetRateResult(rateRow, created = false)

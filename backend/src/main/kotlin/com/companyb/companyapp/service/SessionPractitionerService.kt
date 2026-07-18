@@ -2,12 +2,15 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
+import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -46,7 +49,20 @@ object SessionPractitionerService {
                 practitionerId = practitionerId,
                 slotAtTime = slotAtTime,
                 remarks = remarks,
-                changedBy = callerId,
+                auditFn = { p ->
+                    AuditLogRepository.record(
+                        tableName = SessionPractitionerTable.tableName,
+                        recordId = p.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "sessionId" to sessionId.toString(),
+                                "practitionerId" to p.practitionerId.toString(),
+                                "slotAtTime" to slotAtTime.toString(),
+                            ),
+                    )
+                },
             )
 
         logger.info { "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime" }
@@ -69,7 +85,15 @@ object SessionPractitionerService {
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = remarks,
-                changedBy = callerId,
+                auditFn = { p ->
+                    AuditLogRepository.record(
+                        tableName = SessionPractitionerTable.tableName,
+                        recordId = p.id,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        newValue = AuditLogRepository.jsonField("remarks", remarks ?: ""),
+                    )
+                },
             ) ?: throw NotFoundException("Practitioner not found in session")
 
         logger.info {
@@ -92,7 +116,19 @@ object SessionPractitionerService {
         SessionPractitionerRepository.remove(
             sessionId = sessionId,
             practitionerId = practitionerId,
-            changedBy = callerId,
+            auditFn = { p ->
+                AuditLogRepository.record(
+                    tableName = SessionPractitionerTable.tableName,
+                    recordId = practitionerId,
+                    action = AuditAction.DELETE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "sessionId" to sessionId.toString(),
+                            "practitionerId" to p.practitionerId.toString(),
+                        ),
+                )
+            },
         )
 
         logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }

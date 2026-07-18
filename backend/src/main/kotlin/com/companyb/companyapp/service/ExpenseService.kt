@@ -1,11 +1,14 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
+import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -38,7 +41,21 @@ object ExpenseService {
                 createdBy = callerId,
                 notes = notes,
             ),
-        )
+        ) { expense ->
+            AuditLogRepository.record(
+                tableName = ExpenseTable.tableName,
+                recordId = expense.id,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "id" to expense.id.toString(),
+                        "branchDayId" to expense.branchDayId.toString(),
+                        "amount" to expense.amount.toPlainString(),
+                        "category" to expense.category.name,
+                    ),
+            )
+        }
     }
 
     @Suppress("ThrowsCount")
@@ -47,13 +64,31 @@ object ExpenseService {
         expenseId: UUID,
         reason: String,
     ): Expense {
-        val expense =
+        val before =
             ExpenseRepository.findById(expenseId)
                 ?: throw NotFoundException("Expense not found")
 
-        BranchDayService.checkBranchDayEditable(callerId, expense.branchDayId, reason)
+        BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
-        return ExpenseRepository.softDelete(expenseId, callerId, reason)
+        return ExpenseRepository.softDelete(expenseId, callerId) { after ->
+            AuditLogRepository.record(
+                tableName = ExpenseTable.tableName,
+                recordId = expenseId,
+                action = AuditAction.DELETE,
+                changedBy = callerId,
+                oldValue =
+                    AuditLogRepository.jsonFields(
+                        "amount" to before.amount.toPlainString(),
+                        "category" to before.category.name,
+                    ),
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "amount" to after.amount.toPlainString(),
+                        "category" to after.category.name,
+                    ),
+                reason = reason,
+            )
+        }
             ?: throw NotFoundException("Expense not found")
     }
 

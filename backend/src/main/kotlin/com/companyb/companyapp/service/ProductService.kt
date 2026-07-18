@@ -2,11 +2,14 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductCreateParams
+import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -37,7 +40,22 @@ object ProductService {
                 commissionAmount = commissionAmount,
                 changedBy = callerId,
             ),
-        )
+        ) { product ->
+            AuditLogRepository.record(
+                tableName = ProductTable.tableName,
+                recordId = product.id,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+                newValue =
+                    AuditLogRepository.jsonFields(
+                        "id" to product.id.toString(),
+                        "name" to product.name,
+                        "productCategoryId" to product.productCategoryId.toString(),
+                        "unitPrice" to product.unitPrice.toPlainString(),
+                        "commissionAmount" to product.commissionAmount.toPlainString(),
+                    ),
+            )
+        }
     }
 
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()
@@ -59,6 +77,8 @@ object ProductService {
             throw ValidationException("Product category not found")
         }
 
+        val old = ProductRepository.findById(productId) ?: throw NotFoundException("Product not found")
+
         val updated =
             ProductRepository.update(
                 productId = productId,
@@ -67,8 +87,26 @@ object ProductService {
                 unitPrice = unitPrice,
                 commissionAmount = commissionAmount,
                 isActive = isActive,
-                changedBy = callerId,
-            )
+            ) { updated ->
+                AuditLogRepository.record(
+                    tableName = ProductTable.tableName,
+                    recordId = productId,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue =
+                        AuditLogRepository.jsonFields(
+                            "name" to old.name,
+                            "unitPrice" to old.unitPrice.toPlainString(),
+                            "commissionAmount" to old.commissionAmount.toPlainString(),
+                        ),
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "name" to updated.name,
+                            "unitPrice" to updated.unitPrice.toPlainString(),
+                            "commissionAmount" to updated.commissionAmount.toPlainString(),
+                        ),
+                )
+            }
         return updated ?: throw NotFoundException("Product not found")
     }
 }

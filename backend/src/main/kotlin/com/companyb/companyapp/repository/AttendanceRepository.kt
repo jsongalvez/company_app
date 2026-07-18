@@ -2,7 +2,6 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
@@ -48,7 +47,10 @@ object AttendanceRepository {
                 .not()
         }
 
-    fun clockIn(params: ClockInParams): Pair<Attendance, Boolean> =
+    fun clockIn(
+        params: ClockInParams,
+        auditFn: (Attendance) -> Unit = {},
+    ): Pair<Attendance, Boolean> =
         transaction {
             val insertedCount =
                 AttendanceTable
@@ -57,7 +59,6 @@ object AttendanceRepository {
                         it[AttendanceTable.branchDayId] = params.branchDayId
                         it[AttendanceTable.userId] = params.userId
                         it[AttendanceTable.markedBy] = params.markedBy
-                        // defaultExpression suppressed by insertIgnore
                         it[AttendanceTable.clockIn] = OffsetDateTime.now(ZoneOffset.UTC)
                     }.insertedCount
             val isNew = insertedCount > 0
@@ -82,19 +83,7 @@ object AttendanceRepository {
                     .toAttendance()
 
             if (isNew) {
-                AuditLogRepository.record(
-                    tableName = AttendanceTable.tableName,
-                    recordId = params.attendanceId,
-                    action = AuditAction.INSERT,
-                    changedBy = params.markedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "attendanceId" to params.attendanceId.toString(),
-                            "branchDayId" to params.branchDayId.toString(),
-                            "branchId" to params.branchId.toString(),
-                            "isRelief" to params.isRelief.toString(),
-                        ),
-                )
+                auditFn(attendance)
             }
 
             attendance to isNew
@@ -125,7 +114,7 @@ object AttendanceRepository {
 
     fun clockOut(
         attendanceId: UUID,
-        callerId: UUID,
+        auditFn: (Attendance) -> Unit = {},
     ): Attendance =
         transaction {
             AttendanceTable
@@ -140,14 +129,7 @@ object AttendanceRepository {
                     .single()
                     .toAttendance()
 
-            AuditLogRepository.record(
-                tableName = AttendanceTable.tableName,
-                recordId = attendanceId,
-                action = AuditAction.UPDATE,
-                changedBy = callerId,
-                newValue = AuditLogRepository.jsonField("clockOut", "now"),
-            )
-
+            auditFn(attendance)
             attendance
         }
 

@@ -2,7 +2,6 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.BranchCreateParams
 import com.companyb.companyapp.repository.model.BranchTable
@@ -22,7 +21,10 @@ data class BranchCreateResult(
 )
 
 object BranchRepository {
-    fun create(params: BranchCreateParams): BranchCreateResult =
+    fun create(
+        params: BranchCreateParams,
+        auditFn: (Branch) -> Unit = {},
+    ): BranchCreateResult =
         transaction {
             val insertedCount =
                 BranchTable
@@ -37,18 +39,7 @@ object BranchRepository {
                     ?: error("branch row not found after idempotent insert for ${params.id}")
 
             if (inserted) {
-                AuditLogRepository.record(
-                    tableName = BranchTable.tableName,
-                    recordId = branch.id,
-                    action = AuditAction.INSERT,
-                    changedBy = params.changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to branch.id.toString(),
-                            "branchType" to branch.branchType.name,
-                            "name" to branch.name,
-                        ),
-                )
+                auditFn(branch)
                 BranchCreateResult(branch, created = true)
             } else {
                 BranchCreateResult(

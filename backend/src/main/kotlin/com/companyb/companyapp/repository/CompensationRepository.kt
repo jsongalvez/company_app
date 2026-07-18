@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -32,7 +31,10 @@ data class CompensationCreateResult(
 )
 
 object CompensationRepository {
-    fun create(params: CompensationCreateParams): CompensationCreateResult =
+    fun create(
+        params: CompensationCreateParams,
+        auditFn: (Compensation) -> Unit = {},
+    ): CompensationCreateResult =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
@@ -52,20 +54,7 @@ object CompensationRepository {
             val created =
                 findByIdInTransaction(params.id) ?: error("compensation not found after insert for ${params.id}")
 
-            AuditLogRepository.record(
-                tableName = CompensationTable.tableName,
-                recordId = created.id,
-                action = AuditAction.INSERT,
-                changedBy = params.assignedBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to created.id.toString(),
-                        "workBranchDayId" to created.workBranchDayId.toString(),
-                        "payingBranchDayId" to created.payingBranchDayId.toString(),
-                        "userId" to created.userId.toString(),
-                        "amount" to created.amount.toPlainString(),
-                    ),
-            )
+            auditFn(created)
             CompensationCreateResult(created, created = true)
         }.also { result ->
             logger.info {
@@ -74,17 +63,15 @@ object CompensationRepository {
             }
         }
 
+    @Suppress("LongParameterList")
     fun update(
         compensationId: UUID,
         amount: BigDecimal,
         note: String?,
         expectedVersion: Int,
-        changedBy: UUID,
+        auditFn: (Compensation) -> Unit = {},
     ): Compensation =
         transaction {
-            val before =
-                findByIdInTransaction(compensationId) ?: error("compensation not found for update $compensationId")
-
             val updatedCount =
                 CompensationTable.update({
                     (CompensationTable.id eq compensationId) and
@@ -107,22 +94,7 @@ object CompensationRepository {
                 findByIdInTransaction(compensationId)
                     ?: error("compensation not found after update for $compensationId")
 
-            AuditLogRepository.record(
-                tableName = CompensationTable.tableName,
-                recordId = compensationId,
-                action = AuditAction.UPDATE,
-                changedBy = changedBy,
-                oldValue =
-                    AuditLogRepository.jsonFields(
-                        "amount" to before.amount.toPlainString(),
-                        "note" to (before.note ?: "null"),
-                    ),
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "amount" to after.amount.toPlainString(),
-                        "note" to (after.note ?: "null"),
-                    ),
-            )
+            auditFn(after)
             after
         }.also {
             logger.info { "[UPDATE-COMPENSATION] Compensation ${compensationId.toString().maskUUID()} updated" }

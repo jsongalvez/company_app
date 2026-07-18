@@ -1,8 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
-import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.DayStatus
@@ -61,7 +59,10 @@ object RemittanceRepository {
                 ?.toRemittance()
         }
 
-    fun createDraft(params: CreateDraftParams): RemittanceCreateResult =
+    fun createDraft(
+        params: CreateDraftParams,
+        auditFn: (Remittance) -> Unit = {},
+    ): RemittanceCreateResult =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
@@ -82,22 +83,7 @@ object RemittanceRepository {
             val created =
                 findByIdInTransaction(params.id) ?: error("remittance not found after insert for ${params.id}")
 
-            AuditLogRepository.record(
-                tableName = RemittanceTable.tableName,
-                recordId = created.id,
-                action = AuditAction.INSERT,
-                changedBy = params.submittedBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to created.id.toString(),
-                        "type" to created.type.name,
-                        "status" to created.status.name,
-                        "branchId" to created.branchId.toString(),
-                        "method" to created.method.name,
-                        "dateRangeStart" to created.dateRangeStart.toString(),
-                        "dateRangeEnd" to created.dateRangeEnd.toString(),
-                    ),
-            )
+            auditFn(created)
             RemittanceCreateResult(created, created = true)
         }.also { result ->
             logger.info {
@@ -120,6 +106,7 @@ object RemittanceRepository {
         remittanceId: UUID,
         expectedVersion: Int,
         callerId: UUID,
+        auditFn: (SubmitAuditContext) -> Unit = {},
     ): RemittanceSubmissionResult? =
         transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
             val remittance =
@@ -159,7 +146,7 @@ object RemittanceRepository {
             )
             updateRemittanceToSubmitted(remittanceId, expectedVersion, callerId)
             updateBranchDayStatuses(breakdownIds)
-            writeSubmitAuditLogs(remittanceId, callerId, breakdownIds)
+            auditFn(SubmitAuditContext(remittanceId, breakdownIds))
 
             val submitted =
                 findByIdInTransaction(remittanceId)
@@ -231,36 +218,6 @@ object RemittanceRepository {
         }
     }
 
-    private fun writeSubmitAuditLogs(
-        remittanceId: UUID,
-        callerId: UUID,
-        breakdownIds: List<UUID>,
-    ) {
-        val auditOldValue = AuditLogRepository.jsonField("status", "DRAFT")
-        val auditNewValue = AuditLogRepository.jsonField("status", "SUBMITTED")
-        AuditLogTable.insert {
-            it[AuditLogTable.auditTableName] = RemittanceTable.tableName
-            it[AuditLogTable.recordId] = remittanceId
-            it[AuditLogTable.action] = AuditAction.UPDATE
-            it[AuditLogTable.changedBy] = callerId
-            it[AuditLogTable.oldValue] = auditOldValue
-            it[AuditLogTable.newValue] = auditNewValue
-        }
-
-        val bdOldValue = AuditLogRepository.jsonField("status", "OPEN")
-        val bdNewValue = AuditLogRepository.jsonField("status", "REMITTED")
-        for (bdId in breakdownIds) {
-            AuditLogTable.insert {
-                it[AuditLogTable.auditTableName] = BranchDayTable.tableName
-                it[AuditLogTable.recordId] = bdId
-                it[AuditLogTable.action] = AuditAction.UPDATE
-                it[AuditLogTable.changedBy] = callerId
-                it[AuditLogTable.oldValue] = bdOldValue
-                it[AuditLogTable.newValue] = bdNewValue
-            }
-        }
-    }
-
     private fun calculateGrossIncome(remittanceId: UUID): BigDecimal =
         RemittanceLineTable
             .selectAll()
@@ -306,6 +263,11 @@ object RemittanceRepository {
             version = this[RemittanceTable.version],
         )
 }
+
+data class SubmitAuditContext(
+    val remittanceId: UUID,
+    val breakdownIds: List<UUID>,
+)
 
 data class RemittanceSubmissionResult(
     val remittance: Remittance,

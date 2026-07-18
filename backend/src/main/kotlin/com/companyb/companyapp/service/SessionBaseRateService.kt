@@ -1,9 +1,12 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.SessionBaseRate
+import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.OffsetDateTime
@@ -43,7 +46,32 @@ object SessionBaseRateService {
 
         SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
 
-        return SessionBaseRateRepository.setRate(id, callerId, branchId, sessionType, rate, now, FAR_FUTURE)
+        return SessionBaseRateRepository.setRate(
+            id,
+            callerId,
+            branchId,
+            sessionType,
+            rate,
+            now,
+            FAR_FUTURE,
+            auditFn = { rate ->
+                AuditLogRepository.record(
+                    tableName = SessionBaseRateTable.tableName,
+                    recordId = rate.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "id" to rate.id.toString(),
+                            "branchId" to rate.branchId.toString(),
+                            "sessionType" to rate.sessionType.name,
+                            "rate" to rate.rate.toPlainString(),
+                            "effectiveFrom" to rate.effectiveFrom.toString(),
+                            "effectiveUntil" to rate.effectiveUntil.toString(),
+                        ),
+                )
+            },
+        )
     }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> {

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantPriorities
@@ -28,12 +27,14 @@ object MedicalMissionDelegateRepository {
                 ?.toMedicalMissionDelegate()
         }
 
+    @Suppress("LongParameterList")
     fun assignWithCapability(
         delegateId: UUID,
         targetUserId: UUID,
         assignedBy: UUID,
         branchId: UUID,
         capabilityId: UUID,
+        auditFn: (MedicalMissionDelegate) -> Unit = {},
     ): Unit =
         transaction {
             MedicalMissionDelegateTable.insertIgnore {
@@ -53,24 +54,18 @@ object MedicalMissionDelegateRepository {
                 it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
             }
 
-            AuditLogRepository.record(
-                tableName = MedicalMissionDelegateTable.tableName,
-                recordId = delegateId,
-                action = AuditAction.INSERT,
-                changedBy = assignedBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "delegateId" to delegateId.toString(),
-                        "targetUserId" to targetUserId.toString(),
-                        "branchId" to branchId.toString(),
-                        "assignedBy" to assignedBy.toString(),
-                    ),
-            )
+            val delegate =
+                MedicalMissionDelegateTable
+                    .selectAll()
+                    .where { MedicalMissionDelegateTable.id eq delegateId }
+                    .single()
+                    .toMedicalMissionDelegate()
+            auditFn(delegate)
         }
 
     fun revokeWithCapability(
         delegateId: UUID,
-        callerId: UUID,
+        auditFn: (MedicalMissionDelegate) -> Unit = {},
     ): Unit =
         transaction {
             MedicalMissionDelegateTable
@@ -86,17 +81,13 @@ object MedicalMissionDelegateRepository {
                     it[UserCapabilityTable.validTo] = CurrentTimestampWithTimeZone
                 }
 
-            AuditLogRepository.record(
-                tableName = MedicalMissionDelegateTable.tableName,
-                recordId = delegateId,
-                action = AuditAction.UPDATE,
-                changedBy = callerId,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "delegateId" to delegateId.toString(),
-                        "endedAt" to "now",
-                    ),
-            )
+            val revoked =
+                MedicalMissionDelegateTable
+                    .selectAll()
+                    .where { MedicalMissionDelegateTable.id eq delegateId }
+                    .single()
+                    .toMedicalMissionDelegate()
+            auditFn(revoked)
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toMedicalMissionDelegate(): MedicalMissionDelegate =

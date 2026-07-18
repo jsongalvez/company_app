@@ -1,8 +1,8 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
+import com.companyb.companyapp.repository.model.SessionConcern
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
@@ -34,6 +34,7 @@ object ConcernRepository {
         id: UUID,
         label: String,
         createdBy: UUID?,
+        auditFn: (Concern) -> Unit = {},
     ): Concern {
         val inserted =
             transaction {
@@ -52,17 +53,7 @@ object ConcernRepository {
                         ?: error("concern row not found after idempotent insert for $id")
 
                 if (insertedCount > 0 && createdBy != null) {
-                    AuditLogRepository.record(
-                        tableName = ConcernTable.tableName,
-                        recordId = concern.id,
-                        action = AuditAction.INSERT,
-                        changedBy = createdBy,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to concern.id.toString(),
-                                "label" to label,
-                            ),
-                    )
+                    auditFn(concern)
                 }
 
                 concern
@@ -73,7 +64,7 @@ object ConcernRepository {
     fun addToSession(
         sessionId: UUID,
         concernId: UUID,
-        changedBy: UUID,
+        auditFn: (SessionConcern) -> Unit = {},
     ): Boolean =
         transaction {
             val insertedCount =
@@ -85,17 +76,7 @@ object ConcernRepository {
 
             val created = insertedCount > 0
             if (created) {
-                AuditLogRepository.record(
-                    tableName = SessionConcernTable.tableName,
-                    recordId = sessionId,
-                    action = AuditAction.INSERT,
-                    changedBy = changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "concernId" to concernId.toString(),
-                        ),
-                )
+                auditFn(SessionConcern(sessionId, concernId))
             }
 
             created
@@ -104,7 +85,7 @@ object ConcernRepository {
     fun removeFromSession(
         sessionId: UUID,
         concernId: UUID,
-        changedBy: UUID,
+        auditFn: (SessionConcern) -> Unit = {},
     ): Boolean =
         transaction {
             val deleted =
@@ -115,17 +96,7 @@ object ConcernRepository {
                     } > 0
 
             if (deleted) {
-                AuditLogRepository.record(
-                    tableName = SessionConcernTable.tableName,
-                    recordId = sessionId,
-                    action = AuditAction.DELETE,
-                    changedBy = changedBy,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "concernId" to concernId.toString(),
-                        ),
-                )
+                auditFn(SessionConcern(sessionId, concernId))
             }
 
             deleted

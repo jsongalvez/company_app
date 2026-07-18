@@ -14,6 +14,11 @@ data class Concern(
     val createdAt: OffsetDateTime?,
 )
 
+data class SessionConcern(
+    val sessionId: UUID,
+    val concernId: UUID,
+)
+
 object ConcernTable : Table("concern") {
     val id = javaUUID("id").autoGenerate()
     val label = text("label")

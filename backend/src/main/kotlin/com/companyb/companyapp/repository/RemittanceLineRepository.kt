@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
@@ -32,7 +31,10 @@ data class AddLineParams(
 private val logger = KotlinLogging.logger {}
 
 object RemittanceLineRepository {
-    fun addLine(params: AddLineParams): RemittanceLine =
+    fun addLine(
+        params: AddLineParams,
+        auditFn: (RemittanceLine) -> Unit = {},
+    ): RemittanceLine =
         transaction {
             val existing =
                 RemittanceLineTable
@@ -71,7 +73,7 @@ object RemittanceLineRepository {
                     .single()
                     .toRemittanceLine()
 
-            writeAddLineAuditLog(created, params.createdBy)
+            auditFn(created)
             created
         }.also { line ->
             logger.info {
@@ -80,30 +82,12 @@ object RemittanceLineRepository {
             }
         }
 
-    private fun writeAddLineAuditLog(
-        line: RemittanceLine,
-        createdBy: UUID,
-    ) {
-        AuditLogRepository.record(
-            tableName = RemittanceLineTable.tableName,
-            recordId = line.id,
-            action = AuditAction.INSERT,
-            changedBy = createdBy,
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "id" to line.id.toString(),
-                    "remittanceId" to line.remittanceId.toString(),
-                    "type" to line.type.name,
-                    "amount" to line.amount.toPlainString(),
-                ),
-        )
-    }
-
     fun softDeleteLine(
         lineId: UUID,
         remittanceId: UUID,
         deletedBy: UUID,
         expectedVersion: Int,
+        auditFn: (RemittanceLine) -> Unit = {},
     ): RemittanceLine? =
         transaction {
             val existing =
@@ -145,7 +129,7 @@ object RemittanceLineRepository {
                     .single()
                     .toRemittanceLine()
 
-            writeSoftDeleteLineAuditLog(line, deletedBy)
+            auditFn(line)
             line
         }.also { line ->
             if (line != null) {
@@ -154,20 +138,6 @@ object RemittanceLineRepository {
                 }
             }
         }
-
-    private fun writeSoftDeleteLineAuditLog(
-        line: RemittanceLine,
-        deletedBy: UUID,
-    ) {
-        AuditLogRepository.record(
-            tableName = RemittanceLineTable.tableName,
-            recordId = line.id,
-            action = AuditAction.UPDATE,
-            changedBy = deletedBy,
-            oldValue = AuditLogRepository.jsonField("deletedAt", "null"),
-            newValue = AuditLogRepository.jsonField("deletedAt", "now()"),
-        )
-    }
 
     fun findByRemittanceId(remittanceId: UUID): List<RemittanceLine> =
         transaction {

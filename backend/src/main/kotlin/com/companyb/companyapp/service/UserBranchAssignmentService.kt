@@ -8,9 +8,11 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.select
@@ -63,6 +65,21 @@ object UserBranchAssignmentService {
                     slot = slot,
                     assignedBy = callerId,
                 ),
+                auditFn = { assignment ->
+                    AuditLogRepository.record(
+                        tableName = UserBranchAssignmentTable.tableName,
+                        recordId = assignment.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to assignment.id.toString(),
+                                "userId" to assignment.userId.toString(),
+                                "branchId" to assignment.branchId.toString(),
+                                "slot" to assignment.slot.toString(),
+                            ),
+                    )
+                },
             )
 
         val assignment =
@@ -97,7 +114,18 @@ object UserBranchAssignmentService {
                 "branchId" to branchId.toString(),
                 "slot" to assignment.slot.toString(),
             )
-        UserBranchAssignmentRepository.setEndedAt(assignment.id, callerId, auditOldValue)
+        UserBranchAssignmentRepository.setEndedAt(
+            assignment.id,
+            auditFn = { updated ->
+                AuditLogRepository.record(
+                    tableName = UserBranchAssignmentTable.tableName,
+                    recordId = updated.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue = auditOldValue,
+                )
+            },
+        )
         logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} for user $userId at branch $branchId" }
     }
 
@@ -126,7 +154,20 @@ object UserBranchAssignmentService {
                 ?: throw NotFoundException("Active assignment not found for user at this branch")
 
         val oldSlot = assignment.slot
-        UserBranchAssignmentRepository.updateSlot(assignment.id, newSlot, callerId, oldSlot)
+        UserBranchAssignmentRepository.updateSlot(
+            assignment.id,
+            newSlot,
+            auditFn = { updated ->
+                AuditLogRepository.record(
+                    tableName = UserBranchAssignmentTable.tableName,
+                    recordId = updated.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue = AuditLogRepository.jsonField("slot", oldSlot.toString()),
+                    newValue = AuditLogRepository.jsonField("slot", newSlot.toString()),
+                )
+            },
+        )
         logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} from $oldSlot to $newSlot" }
     }
 
@@ -137,7 +178,38 @@ object UserBranchAssignmentService {
         userIdA: UUID,
         userIdB: UUID,
     ) {
-        val (assignA, assignB) = UserBranchAssignmentRepository.swapSlots(callerId, branchId, userIdA, userIdB)
+        val (assignA, assignB) =
+            UserBranchAssignmentRepository.swapSlots(
+                branchId,
+                userIdA,
+                userIdB,
+                auditFn = { a, b ->
+                    AuditLogRepository.record(
+                        tableName = UserBranchAssignmentTable.tableName,
+                        recordId = a.id,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "userId" to a.userId.toString(),
+                                "oldSlot" to a.slot.toString(),
+                                "newSlot" to b.slot.toString(),
+                            ),
+                    )
+                    AuditLogRepository.record(
+                        tableName = UserBranchAssignmentTable.tableName,
+                        recordId = b.id,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "userId" to b.userId.toString(),
+                                "oldSlot" to b.slot.toString(),
+                                "newSlot" to a.slot.toString(),
+                            ),
+                    )
+                },
+            )
         val slotA = assignA.slot
         val slotB = assignB.slot
         logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }

@@ -16,7 +16,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -45,8 +44,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
-        assertTrue(result.created)
-        assertEquals(cat1Name, result.category.name)
+        assertEquals(cat1Name, result.name)
 
         val persisted = persistedCategory(cat1Id)
         assertNotNull(persisted)
@@ -60,16 +58,14 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
-        val first = ProductCategoryService.create(callerId, cat1Id, cat1Name)
+        ProductCategoryService.create(callerId, cat1Id, cat1Name)
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, cat1Id)
 
         val duplicate = ProductCategoryService.create(callerId, cat1Id, "Changed Name $cat1Id")
 
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
-        assertTrue(first.created)
-        assertFalse(duplicate.created)
-        assertEquals(cat1Name, duplicate.category.name)
+        assertEquals(cat1Name, duplicate.name)
         assertEquals(1L, auditEntryCount(cat1Id))
     }
 
@@ -113,7 +109,6 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
-        assertTrue(result.created)
         assertTrue(categoryExists(newCatId))
         assertEquals(1L, auditEntryCount(newCatId))
     }

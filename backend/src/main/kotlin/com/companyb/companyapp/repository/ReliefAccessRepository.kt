@@ -1,6 +1,5 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
@@ -58,7 +57,10 @@ object ReliefAccessRepository {
                 ?.toReliefAccess()
         }
 
-    fun grantWithCapability(params: GrantWithCapabilityParams): ReliefAccess? =
+    fun grantWithCapability(
+        params: GrantWithCapabilityParams,
+        auditFn: (ReliefAccess) -> Unit = {},
+    ): ReliefAccess? =
         transaction {
             GrantReliefAccessTable
                 .selectAll()
@@ -101,47 +103,34 @@ object ReliefAccessRepository {
                 it[UserCapabilityTable.priority] = params.priority
             }
 
-            AuditLogRepository.record(
-                tableName = GrantReliefAccessTable.tableName,
-                recordId = params.requestId,
-                action = AuditAction.UPDATE,
-                changedBy = params.grantedBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "requestId" to params.requestId.toString(),
-                        "branchDayId" to params.branchDayId.toString(),
-                        "grantedBy" to params.grantedBy.toString(),
-                        "requestedBy" to params.requestedBy.toString(),
-                    ),
-            )
+            val updated =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq params.requestId }
+                    .single()
+                    .toReliefAccess()
 
-            GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq params.requestId }
-                .single()
-                .toReliefAccess()
+            auditFn(updated)
+            updated
         }
 
     fun deny(
         requestId: UUID,
-        callerId: UUID,
+        auditFn: (ReliefAccess) -> Unit = {},
     ) = transaction {
         GrantReliefAccessTable
             .update({ GrantReliefAccessTable.id eq requestId }) {
                 it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
             }
 
-        AuditLogRepository.record(
-            tableName = GrantReliefAccessTable.tableName,
-            recordId = requestId,
-            action = AuditAction.UPDATE,
-            changedBy = callerId,
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "requestId" to requestId.toString(),
-                    "status" to "DENIED",
-                ),
-        )
+        val updated =
+            GrantReliefAccessTable
+                .selectAll()
+                .where { GrantReliefAccessTable.id eq requestId }
+                .single()
+                .toReliefAccess()
+
+        auditFn(updated)
     }
 
     fun insertRequest(
@@ -149,6 +138,7 @@ object ReliefAccessRepository {
         branchDayId: UUID,
         requestedBy: UUID,
         targetUser: UUID,
+        auditFn: (ReliefAccess) -> Unit = {},
     ): Pair<ReliefAccess, Boolean> =
         transaction {
             val insertedCount =
@@ -161,27 +151,16 @@ object ReliefAccessRepository {
                     }.insertedCount
             val isNew = insertedCount > 0
 
-            if (isNew) {
-                AuditLogRepository.record(
-                    tableName = GrantReliefAccessTable.tableName,
-                    recordId = id,
-                    action = AuditAction.INSERT,
-                    changedBy = requestedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "requestId" to id.toString(),
-                            "branchDayId" to branchDayId.toString(),
-                            "targetUserId" to targetUser.toString(),
-                        ),
-                )
-            }
-
             val row =
                 GrantReliefAccessTable
                     .selectAll()
                     .where { GrantReliefAccessTable.id eq id }
                     .single()
                     .toReliefAccess()
+
+            if (isNew) {
+                auditFn(row)
+            }
 
             row to isNew
         }

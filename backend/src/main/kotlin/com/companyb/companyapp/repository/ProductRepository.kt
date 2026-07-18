@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductTable
@@ -23,7 +22,10 @@ data class ProductCreateResult(
 )
 
 object ProductRepository {
-    fun create(params: ProductCreateParams): ProductCreateResult =
+    fun create(
+        params: ProductCreateParams,
+        auditFn: (Product) -> Unit = {},
+    ): ProductCreateResult =
         transaction {
             val insertedCount =
                 ProductTable
@@ -40,20 +42,7 @@ object ProductRepository {
                     ?: error("product row not found after idempotent insert for ${params.id}")
 
             if (inserted) {
-                AuditLogRepository.record(
-                    tableName = ProductTable.tableName,
-                    recordId = product.id,
-                    action = AuditAction.INSERT,
-                    changedBy = params.changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to product.id.toString(),
-                            "name" to product.name,
-                            "productCategoryId" to product.productCategoryId.toString(),
-                            "unitPrice" to product.unitPrice.toPlainString(),
-                            "commissionAmount" to product.commissionAmount.toPlainString(),
-                        ),
-                )
+                auditFn(product)
                 ProductCreateResult(product, created = true)
             } else {
                 ProductCreateResult(product, created = false)
@@ -86,11 +75,9 @@ object ProductRepository {
         unitPrice: BigDecimal?,
         commissionAmount: BigDecimal?,
         isActive: Boolean?,
-        changedBy: UUID,
+        auditFn: (Product) -> Unit = {},
     ): Product? =
         transaction {
-            val old = findByIdInTransaction(productId) ?: return@transaction null
-
             val updatedCount =
                 ProductTable.update({ ProductTable.id eq productId }) {
                     if (name != null) it[ProductTable.name] = name
@@ -102,24 +89,7 @@ object ProductRepository {
             val updated = findByIdInTransaction(productId) ?: return@transaction null
 
             if (updatedCount > 0) {
-                AuditLogRepository.record(
-                    tableName = ProductTable.tableName,
-                    recordId = productId,
-                    action = AuditAction.UPDATE,
-                    changedBy = changedBy,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "name" to old.name,
-                            "unitPrice" to old.unitPrice.toPlainString(),
-                            "commissionAmount" to old.commissionAmount.toPlainString(),
-                        ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "name" to updated.name,
-                            "unitPrice" to updated.unitPrice.toPlainString(),
-                            "commissionAmount" to updated.commissionAmount.toPlainString(),
-                        ),
-                )
+                auditFn(updated)
             }
             updated
         }

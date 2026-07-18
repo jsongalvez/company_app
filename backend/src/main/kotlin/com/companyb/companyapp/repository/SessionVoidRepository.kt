@@ -1,6 +1,5 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -41,6 +40,7 @@ object SessionVoidRepository {
         sessionId: UUID,
         voidReason: String,
         voidedBy: UUID,
+        auditFn: (SessionVoid) -> Unit = {},
     ): VoidResult =
         transaction {
             val insertedCount =
@@ -58,18 +58,7 @@ object SessionVoidRepository {
                     ?: error("session_void row not found after idempotent insert for $id")
 
             if (created) {
-                AuditLogRepository.record(
-                    tableName = SessionVoidTable.tableName,
-                    recordId = sessionVoid.id,
-                    action = AuditAction.INSERT,
-                    changedBy = voidedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to sessionVoid.id.toString(),
-                            "sessionId" to sessionId.toString(),
-                            "voidReason" to voidReason,
-                        ),
-                )
+                auditFn(sessionVoid)
             }
             VoidResult(sessionVoid, created)
         }.also {
@@ -82,6 +71,7 @@ object SessionVoidRepository {
         sessionVoidId: UUID,
         unvoidedBy: UUID,
         unvoidedReason: String,
+        auditFn: (SessionVoid) -> Unit = {},
     ): SessionVoid? =
         transaction {
             SessionVoidTable.update({
@@ -95,19 +85,7 @@ object SessionVoidRepository {
             val sessionVoid = findByIdInTransaction(sessionVoidId)
 
             if (sessionVoid != null) {
-                AuditLogRepository.record(
-                    tableName = SessionVoidTable.tableName,
-                    recordId = sessionVoid.id,
-                    action = AuditAction.UPDATE,
-                    changedBy = unvoidedBy,
-                    oldValue = AuditLogRepository.jsonField("unvoidedAt", "null"),
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "unvoidedAt" to sessionVoid.unvoidedAt.toString(),
-                            "unvoidedBy" to unvoidedBy.toString(),
-                            "unvoidedReason" to unvoidedReason,
-                        ),
-                )
+                auditFn(sessionVoid)
             }
 
             sessionVoid

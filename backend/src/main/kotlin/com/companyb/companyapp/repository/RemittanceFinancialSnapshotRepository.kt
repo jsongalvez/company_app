@@ -6,23 +6,25 @@ import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 object RemittanceFinancialSnapshotRepository {
-    fun insert(params: RemittanceFinancialSnapshotCreateParams): RemittanceFinancialSnapshot {
-        RemittanceFinancialSnapshotTable.insert {
-            it[RemittanceFinancialSnapshotTable.remittanceId] = params.remittanceId
-            it[RemittanceFinancialSnapshotTable.grossIncome] = params.grossIncome
-            it[RemittanceFinancialSnapshotTable.totalCompensation] = params.totalCompensation
-            it[RemittanceFinancialSnapshotTable.netIncome] = params.netIncome
-            it[RemittanceFinancialSnapshotTable.totalExpenses] = params.totalExpenses
+    fun insert(params: RemittanceFinancialSnapshotCreateParams): RemittanceFinancialSnapshot =
+        transaction {
+            RemittanceFinancialSnapshotTable.insert {
+                it[RemittanceFinancialSnapshotTable.remittanceId] = params.remittanceId
+                it[RemittanceFinancialSnapshotTable.grossIncome] = params.grossIncome
+                it[RemittanceFinancialSnapshotTable.totalCompensation] = params.totalCompensation
+                it[RemittanceFinancialSnapshotTable.netIncome] = params.netIncome
+                it[RemittanceFinancialSnapshotTable.totalExpenses] = params.totalExpenses
+            }
+            val row =
+                RemittanceFinancialSnapshotTable
+                    .selectAll()
+                    .where { RemittanceFinancialSnapshotTable.remittanceId eq params.remittanceId }
+                    .single()
+            row.toSnapshot()
         }
-        val row =
-            RemittanceFinancialSnapshotTable
-                .selectAll()
-                .where { RemittanceFinancialSnapshotTable.remittanceId eq params.remittanceId }
-                .single()
-        return row.toSnapshot()
-    }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toSnapshot(): RemittanceFinancialSnapshot =
         RemittanceFinancialSnapshot(

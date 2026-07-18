@@ -1,6 +1,5 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
@@ -30,7 +29,7 @@ object SessionPractitionerRepository {
         practitionerId: UUID,
         slotAtTime: Short,
         remarks: String?,
-        changedBy: UUID,
+        auditFn: (SessionPractitioner) -> Unit = {},
     ): AddPractitionerResult =
         transaction {
             val insertedCount =
@@ -59,18 +58,7 @@ object SessionPractitionerRepository {
                     .toSessionPractitioner()
 
             if (created) {
-                AuditLogRepository.record(
-                    tableName = SessionPractitionerTable.tableName,
-                    recordId = practitioner.id,
-                    action = AuditAction.INSERT,
-                    changedBy = changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "practitionerId" to practitionerId.toString(),
-                            "slotAtTime" to slotAtTime.toString(),
-                        ),
-                )
+                auditFn(practitioner)
                 logger.info {
                     "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime"
                 }
@@ -87,7 +75,7 @@ object SessionPractitionerRepository {
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
-        changedBy: UUID,
+        auditFn: (SessionPractitioner) -> Unit = {},
     ): SessionPractitioner? =
         transaction {
             val updated =
@@ -111,13 +99,7 @@ object SessionPractitionerRepository {
                         }.single()
                         .toSessionPractitioner()
 
-                AuditLogRepository.record(
-                    tableName = SessionPractitionerTable.tableName,
-                    recordId = practitioner.id,
-                    action = AuditAction.UPDATE,
-                    changedBy = changedBy,
-                    newValue = AuditLogRepository.jsonField("remarks", remarks ?: ""),
-                )
+                auditFn(practitioner)
                 logger.info {
                     "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
                         "practitioner $practitionerId in session $sessionId"
@@ -131,9 +113,18 @@ object SessionPractitionerRepository {
     fun remove(
         sessionId: UUID,
         practitionerId: UUID,
-        changedBy: UUID,
+        auditFn: (SessionPractitioner) -> Unit = {},
     ): Boolean =
         transaction {
+            val existing =
+                SessionPractitionerTable
+                    .selectAll()
+                    .where {
+                        (SessionPractitionerTable.sessionId eq sessionId) and
+                            (SessionPractitionerTable.practitionerId eq practitionerId)
+                    }.singleOrNull()
+                    ?.toSessionPractitioner()
+
             val deleted =
                 SessionPractitionerTable.deleteWhere {
                     (SessionPractitionerTable.sessionId eq sessionId) and
@@ -144,17 +135,9 @@ object SessionPractitionerRepository {
                 val sessionVersion = readSessionVersion(sessionId)
                 incrementSessionVersion(sessionId, sessionVersion)
 
-                AuditLogRepository.record(
-                    tableName = SessionPractitionerTable.tableName,
-                    recordId = practitionerId,
-                    action = AuditAction.DELETE,
-                    changedBy = changedBy,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "practitionerId" to practitionerId.toString(),
-                        ),
-                )
+                if (existing != null) {
+                    auditFn(existing)
+                }
                 logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
             }
 

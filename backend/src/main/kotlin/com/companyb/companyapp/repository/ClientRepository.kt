@@ -2,7 +2,6 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -27,8 +26,6 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -62,7 +59,6 @@ data class ClientUpdateParams(
     val systolicBp: Short?,
     val diastolicBp: Short?,
     val medicalConditions: String?,
-    val changedBy: UUID,
 )
 
 data class ClientCreateResult(
@@ -76,7 +72,10 @@ object ClientRepository {
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
-    fun create(params: ClientCreateParams): ClientCreateResult =
+    fun create(
+        params: ClientCreateParams,
+        auditFn: (Client) -> Unit = {},
+    ): ClientCreateResult =
         transaction {
             val insertedCount =
                 ClientTable
@@ -104,18 +103,7 @@ object ClientRepository {
                     ?: error("client row not found after idempotent insert for ${params.id}")
 
             if (created) {
-                AuditLogRepository.record(
-                    tableName = ClientTable.tableName,
-                    recordId = client.id,
-                    action = AuditAction.INSERT,
-                    changedBy = params.changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to client.id.toString(),
-                            "firstName" to (client.firstName ?: ""),
-                            "lastName" to (client.lastName ?: ""),
-                        ),
-                )
+                auditFn(client)
             }
             ClientCreateResult(client, created)
         }.also {
@@ -130,10 +118,11 @@ object ClientRepository {
         }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
 
     @Suppress("CyclomaticComplexMethod")
-    fun update(params: ClientUpdateParams): Client? =
+    fun update(
+        params: ClientUpdateParams,
+        auditFn: (Client) -> Unit = {},
+    ): Client? =
         transaction {
-            val old = findByIdInTransaction(params.clientId) ?: return@transaction null
-
             val updatedCount =
                 ClientTable.update({ ClientTable.id eq params.clientId }) {
                     if (params.firstName != null) it[ClientTable.firstName] = params.firstName
@@ -151,33 +140,16 @@ object ClientRepository {
             val updated = findByIdInTransaction(params.clientId) ?: return@transaction null
 
             if (updatedCount > 0) {
-                AuditLogRepository.record(
-                    tableName = ClientTable.tableName,
-                    recordId = params.clientId,
-                    action = AuditAction.UPDATE,
-                    changedBy = params.changedBy,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "firstName" to (old.firstName ?: ""),
-                            "lastName" to (old.lastName ?: ""),
-                        ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "firstName" to (updated.firstName ?: ""),
-                            "lastName" to (updated.lastName ?: ""),
-                        ),
-                )
+                auditFn(updated)
             }
             updated
         }
 
     fun anonymize(
         clientId: UUID,
-        changedBy: UUID,
+        auditFn: (Client) -> Unit = {},
     ): Boolean =
         transaction {
-            val old = findByIdInTransaction(clientId) ?: return@transaction false
-
             val updatedCount =
                 ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
                     it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone
@@ -193,24 +165,8 @@ object ClientRepository {
                 }
 
             if (updatedCount > 0) {
-                AuditLogRepository.record(
-                    tableName = ClientTable.tableName,
-                    recordId = clientId,
-                    action = AuditAction.UPDATE,
-                    changedBy = changedBy,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "firstName" to (old.firstName ?: "null"),
-                            "lastName" to (old.lastName ?: "null"),
-                            "deletedAt" to (old.deletedAt?.toString() ?: "null"),
-                        ),
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "firstName" to "null",
-                            "lastName" to "null",
-                            "deletedAt" to OffsetDateTime.now(ZoneOffset.UTC).toString(),
-                        ),
-                )
+                val updated = findByIdInTransaction(clientId) ?: error("client not found after update")
+                auditFn(updated)
             }
             updatedCount > 0
         }

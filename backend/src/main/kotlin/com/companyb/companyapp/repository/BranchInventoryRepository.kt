@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
@@ -50,6 +49,22 @@ data class RestockResult(
     val updatedStock: Int,
 )
 
+data class RestockAuditData(
+    val movement: InventoryMovement,
+    val oldCard: BranchInventory,
+    val newCard: BranchInventory,
+    val quantityAdded: Int,
+)
+
+data class MovementAuditData(
+    val movement: InventoryMovement,
+    val oldCard: BranchInventory,
+    val newCard: BranchInventory,
+    val reason: InventoryMovementReason,
+    val quantityChange: Int,
+    val notes: String?,
+)
+
 object BranchInventoryRepository {
     fun ensureCard(
         branchId: UUID,
@@ -76,7 +91,10 @@ object BranchInventoryRepository {
             }
         }
 
-    fun restock(params: RestockParams): RestockResult =
+    fun restock(
+        params: RestockParams,
+        auditFn: (RestockAuditData) -> Unit = {},
+    ): RestockResult =
         transaction {
             val card = requireCardForUpdate(params.branchId, params.productId, params.expectedVersion)
 
@@ -119,16 +137,13 @@ object BranchInventoryRepository {
                 findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found after restock")
 
-            writeRestockAuditLogs(
-                insertedCount,
-                card,
-                newCard,
-                params.movedBy,
-                params.productId,
-                params.branchId,
-                params.branchDayId,
-                params.quantity,
-                movementRow,
+            auditFn(
+                RestockAuditData(
+                    movement = movementRow,
+                    oldCard = card,
+                    newCard = newCard,
+                    quantityAdded = params.quantity,
+                ),
             )
 
             RestockResult(
@@ -142,54 +157,10 @@ object BranchInventoryRepository {
             }
         }
 
-    @Suppress("LongParameterList")
-    private fun writeRestockAuditLogs(
-        insertedCount: Int,
-        oldCard: BranchInventory,
-        newCard: BranchInventory,
-        movedBy: UUID,
-        productId: UUID,
-        branchId: UUID,
-        branchDayId: UUID,
-        quantity: Int,
-        movementRow: InventoryMovement,
-    ) {
-        if (insertedCount > 0) {
-            AuditLogRepository.record(
-                tableName = BranchInventoryTable.tableName,
-                recordId = newCard.id,
-                action = AuditAction.UPDATE,
-                changedBy = movedBy,
-                oldValue =
-                    AuditLogRepository.jsonFields(
-                        "currentStock" to oldCard.currentStock.toString(),
-                        "version" to oldCard.version.toString(),
-                    ),
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "currentStock" to newCard.currentStock.toString(),
-                        "version" to newCard.version.toString(),
-                    ),
-            )
-
-            AuditLogRepository.record(
-                tableName = InventoryMovementTable.tableName,
-                recordId = movementRow.id,
-                action = AuditAction.INSERT,
-                changedBy = movedBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "productId" to productId.toString(),
-                        "branchId" to branchId.toString(),
-                        "branchDayId" to branchDayId.toString(),
-                        "reason" to InventoryMovementReason.RESTOCK.name,
-                        "quantityChange" to quantity.toString(),
-                    ),
-            )
-        }
-    }
-
-    fun recordMovement(params: RecordMovementParams): InventoryMovement =
+    fun recordMovement(
+        params: RecordMovementParams,
+        auditFn: (MovementAuditData) -> Unit = {},
+    ): InventoryMovement =
         transaction {
             val card = requireCardForUpdate(params.branchId, params.productId, params.expectedVersion)
 
@@ -233,17 +204,15 @@ object BranchInventoryRepository {
                 findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found after movement")
 
-            writeMovementAuditLogs(
-                card,
-                newCard,
-                params.movedBy,
-                params.productId,
-                params.branchId,
-                params.branchDayId,
-                params.reason,
-                params.quantityChange,
-                params.notes,
-                movementRow,
+            auditFn(
+                MovementAuditData(
+                    movement = movementRow,
+                    oldCard = card,
+                    newCard = newCard,
+                    reason = params.reason,
+                    quantityChange = params.quantityChange,
+                    notes = params.notes,
+                ),
             )
             movementRow
         }.also {
@@ -253,51 +222,16 @@ object BranchInventoryRepository {
             }
         }
 
-    @Suppress("LongParameterList")
-    private fun writeMovementAuditLogs(
-        oldCard: BranchInventory,
-        newCard: BranchInventory,
-        movedBy: UUID,
-        productId: UUID,
+    private fun requireCardForUpdate(
         branchId: UUID,
-        branchDayId: UUID,
-        reason: InventoryMovementReason,
-        quantityChange: Int,
-        notes: String?,
-        movementRow: InventoryMovement,
-    ) {
-        AuditLogRepository.record(
-            tableName = BranchInventoryTable.tableName,
-            recordId = newCard.id,
-            action = AuditAction.UPDATE,
-            changedBy = movedBy,
-            oldValue =
-                AuditLogRepository.jsonFields(
-                    "currentStock" to oldCard.currentStock.toString(),
-                    "version" to oldCard.version.toString(),
-                ),
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "currentStock" to newCard.currentStock.toString(),
-                    "version" to newCard.version.toString(),
-                ),
-        )
-
-        AuditLogRepository.record(
-            tableName = InventoryMovementTable.tableName,
-            recordId = movementRow.id,
-            action = AuditAction.INSERT,
-            changedBy = movedBy,
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "productId" to productId.toString(),
-                    "branchId" to branchId.toString(),
-                    "branchDayId" to branchDayId.toString(),
-                    "reason" to reason.name,
-                    "quantityChange" to quantityChange.toString(),
-                    "notes" to (notes ?: ""),
-                ),
-        )
+        productId: UUID,
+        expectedVersion: Int,
+    ): BranchInventory {
+        val card =
+            findCardInTransaction(branchId, productId)
+                ?: error("inventory card not found for branch=$branchId product=$productId")
+        if (card.version != expectedVersion) error("version_mismatch")
+        return card
     }
 
     fun findCardInTransaction(
@@ -311,18 +245,6 @@ object BranchInventoryRepository {
                     (BranchInventoryTable.productId eq productId)
             }.singleOrNull()
             ?.let { it.toBranchInventory() }
-
-    private fun requireCardForUpdate(
-        branchId: UUID,
-        productId: UUID,
-        expectedVersion: Int,
-    ): BranchInventory {
-        val card =
-            findCardInTransaction(branchId, productId)
-                ?: error("inventory card not found for branch=$branchId product=$productId")
-        if (card.version != expectedVersion) error("version_mismatch")
-        return card
-    }
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> =
         transaction {

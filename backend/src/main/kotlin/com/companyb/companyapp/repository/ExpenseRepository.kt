@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
@@ -20,7 +19,10 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object ExpenseRepository {
-    fun create(params: ExpenseCreateParams): Expense =
+    fun create(
+        params: ExpenseCreateParams,
+        auditFn: (Expense) -> Unit = {},
+    ): Expense =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
@@ -39,31 +41,16 @@ object ExpenseRepository {
             val created =
                 findByIdInTransaction(params.id) ?: error("expense not found after insert for ${params.id}")
 
-            AuditLogRepository.record(
-                tableName = ExpenseTable.tableName,
-                recordId = created.id,
-                action = AuditAction.INSERT,
-                changedBy = params.createdBy,
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "id" to created.id.toString(),
-                        "branchDayId" to created.branchDayId.toString(),
-                        "amount" to created.amount.toPlainString(),
-                        "category" to created.category.name,
-                    ),
-            )
+            auditFn(created)
             created
         }.also { logger.info { "[CREATE-EXPENSE] Expense ${params.id.toString().maskUUID()} created" } }
 
     fun softDelete(
         expenseId: UUID,
         deletedBy: UUID,
-        reason: String,
+        auditFn: (Expense) -> Unit = {},
     ): Expense? =
         transaction {
-            val before =
-                findByIdInTransaction(expenseId) ?: return@transaction null
-
             ExpenseTable.update({ ExpenseTable.id eq expenseId }) {
                 it[ExpenseTable.deletedBy] = deletedBy
                 it[ExpenseTable.deletedAt] =
@@ -74,23 +61,7 @@ object ExpenseRepository {
                 findByIdInTransaction(expenseId)
                     ?: error("expense not found after soft delete for $expenseId")
 
-            AuditLogRepository.record(
-                tableName = ExpenseTable.tableName,
-                recordId = expenseId,
-                action = AuditAction.DELETE,
-                changedBy = deletedBy,
-                oldValue =
-                    AuditLogRepository.jsonFields(
-                        "amount" to before.amount.toPlainString(),
-                        "category" to before.category.name,
-                    ),
-                newValue =
-                    AuditLogRepository.jsonFields(
-                        "amount" to after.amount.toPlainString(),
-                        "category" to after.category.name,
-                    ),
-                reason = reason,
-            )
+            auditFn(after)
             after
         }.also { result ->
             logger.info { "[SOFT-DELETE-EXPENSE] Expense ${expenseId.toString().maskUUID()} deleted=${result != null}" }

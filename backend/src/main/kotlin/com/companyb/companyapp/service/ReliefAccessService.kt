@@ -4,11 +4,14 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
+import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.GrantPriorities
+import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -58,6 +61,21 @@ object ReliefAccessService {
                         priority = GrantPriorities.RELIEF_ACCESS,
                         requestedBy = request.requestedBy,
                     ),
+                    auditFn = { updated ->
+                        AuditLogRepository.record(
+                            tableName = GrantReliefAccessTable.tableName,
+                            recordId = updated.id,
+                            action = AuditAction.UPDATE,
+                            changedBy = callerId,
+                            newValue =
+                                AuditLogRepository.jsonFields(
+                                    "requestId" to updated.id.toString(),
+                                    "branchDayId" to updated.branchDayId.toString(),
+                                    "grantedBy" to callerId.toString(),
+                                    "requestedBy" to updated.requestedBy.toString(),
+                                ),
+                        )
+                    },
                 ),
             ) { "Grant failed: relief access request not found in transaction" }
 
@@ -94,7 +112,22 @@ object ReliefAccessService {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
-        ReliefAccessRepository.deny(requestId, callerId)
+        ReliefAccessRepository.deny(
+            requestId,
+            auditFn = { updated ->
+                AuditLogRepository.record(
+                    tableName = GrantReliefAccessTable.tableName,
+                    recordId = updated.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "requestId" to updated.id.toString(),
+                            "status" to "DENIED",
+                        ),
+                )
+            },
+        )
 
         logger.info { "[RELIEF-ACCESS-DENY] Request $requestId denied by $callerId" }
 
@@ -119,7 +152,26 @@ object ReliefAccessService {
         }
 
         val (reliefAccess, wasCreated) =
-            ReliefAccessRepository.insertRequest(requestId, branchDayId, callerId, targetUserId)
+            ReliefAccessRepository.insertRequest(
+                requestId,
+                branchDayId,
+                callerId,
+                targetUserId,
+                auditFn = { created ->
+                    AuditLogRepository.record(
+                        tableName = GrantReliefAccessTable.tableName,
+                        recordId = created.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "requestId" to created.id.toString(),
+                                "branchDayId" to created.branchDayId.toString(),
+                                "targetUserId" to created.targetUser.toString(),
+                            ),
+                    )
+                },
+            )
 
         logger.info {
             "[RELIEF-ACCESS-REQUEST] Request $requestId created " +

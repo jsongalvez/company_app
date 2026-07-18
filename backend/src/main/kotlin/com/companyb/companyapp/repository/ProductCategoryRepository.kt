@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -23,8 +22,8 @@ object ProductCategoryRepository {
     fun create(
         id: UUID,
         name: String,
-        changedBy: UUID,
-    ): ProductCategoryCreateResult =
+        auditFn: (ProductCategory) -> Unit = {},
+    ): ProductCategory =
         transaction {
             val insertedCount =
                 ProductCategoryTable
@@ -38,24 +37,14 @@ object ProductCategoryRepository {
                     ?: error("product_category row not found after idempotent insert for $id")
 
             if (inserted) {
-                AuditLogRepository.record(
-                    tableName = ProductCategoryTable.tableName,
-                    recordId = category.id,
-                    action = AuditAction.INSERT,
-                    changedBy = changedBy,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "id" to category.id.toString(),
-                            "name" to category.name,
-                        ),
-                )
-                ProductCategoryCreateResult(category, created = true)
+                auditFn(category)
+                category
             } else {
-                ProductCategoryCreateResult(category, created = false)
+                category
             }
         }.also {
             logger.info {
-                "[CREATE-PRODUCT-CATEGORY] Category ${it.category.id.toString().maskUUID()} created=${it.created}"
+                "[CREATE-PRODUCT-CATEGORY] Category ${it.id.toString().maskUUID()}"
             }
         }
 

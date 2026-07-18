@@ -2,7 +2,11 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.UserRepository
+import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -18,8 +22,21 @@ object UserService {
         callerId: UUID,
         targetUserId: UUID,
     ) {
-        val updated = UserRepository.deactivate(targetUserId, callerId)
-        if (!updated) {
+        val user =
+            UserRepository.deactivate(
+                targetUserId,
+                auditFn = { oldStatus, deactivated ->
+                    AuditLogRepository.record(
+                        tableName = AppUserTable.tableName,
+                        recordId = targetUserId,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        oldValue = AuditLogRepository.jsonField("status", oldStatus),
+                        newValue = AuditLogRepository.jsonField("status", UserStatus.INACTIVE.name),
+                    )
+                },
+            )
+        if (user == null) {
             throw NotFoundException("User not found")
         }
         DenyList.deny(targetUserId)

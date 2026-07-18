@@ -4,6 +4,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddLineParams
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CreateDraftParams
@@ -11,12 +12,18 @@ import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
 import com.companyb.companyapp.repository.RemittanceLineRepository
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.RemittanceSubmissionResult
+import com.companyb.companyapp.repository.SubmitAuditContext
+import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
+import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceLine
+import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
+import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
@@ -50,6 +57,26 @@ object RemittanceService {
                     remittanceId = remittanceId,
                     expectedVersion = expectedVersion,
                     callerId = callerId,
+                    auditFn = { ctx ->
+                        AuditLogRepository.record(
+                            tableName = RemittanceTable.tableName,
+                            recordId = ctx.remittanceId,
+                            action = AuditAction.UPDATE,
+                            changedBy = callerId,
+                            oldValue = AuditLogRepository.jsonField("status", "DRAFT"),
+                            newValue = AuditLogRepository.jsonField("status", "SUBMITTED"),
+                        )
+                        for (bdId in ctx.breakdownIds) {
+                            AuditLogRepository.record(
+                                tableName = BranchDayTable.tableName,
+                                recordId = bdId,
+                                action = AuditAction.UPDATE,
+                                changedBy = callerId,
+                                oldValue = AuditLogRepository.jsonField("status", "OPEN"),
+                                newValue = AuditLogRepository.jsonField("status", "REMITTED"),
+                            )
+                        }
+                    },
                 ) ?: throw NotFoundException("Remittance not found")
 
             logger.info {
@@ -94,7 +121,24 @@ object RemittanceService {
                     submittedDate = today,
                     submittedBy = callerId,
                 ),
-            )
+            ) { remittance ->
+                AuditLogRepository.record(
+                    tableName = RemittanceTable.tableName,
+                    recordId = remittance.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "id" to remittance.id.toString(),
+                            "type" to remittance.type.name,
+                            "status" to remittance.status.name,
+                            "branchId" to remittance.branchId.toString(),
+                            "method" to remittance.method.name,
+                            "dateRangeStart" to remittance.dateRangeStart.toString(),
+                            "dateRangeEnd" to remittance.dateRangeEnd.toString(),
+                        ),
+                )
+            }
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
         return result.remittance
     }
@@ -130,7 +174,21 @@ object RemittanceService {
                         createdBy = callerId,
                         expectedVersion = remittance.version,
                     ),
-                )
+                ) { line ->
+                    AuditLogRepository.record(
+                        tableName = RemittanceLineTable.tableName,
+                        recordId = line.id,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        newValue =
+                            AuditLogRepository.jsonFields(
+                                "id" to line.id.toString(),
+                                "remittanceId" to line.remittanceId.toString(),
+                                "type" to line.type.name,
+                                "amount" to line.amount.toPlainString(),
+                            ),
+                    )
+                }
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
                     throw ConflictException("Remittance version mismatch")
@@ -158,7 +216,16 @@ object RemittanceService {
 
         val line =
             try {
-                RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version)
+                RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version) { line ->
+                    AuditLogRepository.record(
+                        tableName = RemittanceLineTable.tableName,
+                        recordId = line.id,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        oldValue = AuditLogRepository.jsonField("deletedAt", "null"),
+                        newValue = AuditLogRepository.jsonField("deletedAt", "now()"),
+                    )
+                }
                     ?: throw NotFoundException("Remittance line not found")
             } catch (e: IllegalStateException) {
                 if (e.message == "version_mismatch") {
@@ -194,8 +261,20 @@ object RemittanceService {
                 id = id,
                 remittanceId = remittanceId,
                 branchDayId = branchDayId,
-                createdBy = callerId,
-            )
+            ) { breakdown ->
+                AuditLogRepository.record(
+                    tableName = RemittanceDayBreakdownTable.tableName,
+                    recordId = breakdown.id,
+                    action = AuditAction.INSERT,
+                    changedBy = callerId,
+                    newValue =
+                        AuditLogRepository.jsonFields(
+                            "id" to breakdown.id.toString(),
+                            "remittanceId" to breakdown.remittanceId.toString(),
+                            "branchDayId" to breakdown.branchDayId.toString(),
+                        ),
+                )
+            }
 
         logger.info { "[ADD-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id} added to remittance $remittanceId" }
         return breakdown

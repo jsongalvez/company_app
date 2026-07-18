@@ -3,7 +3,6 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
@@ -71,32 +70,33 @@ object UserRepository {
 
     fun deactivate(
         userId: UUID,
-        changedBy: UUID,
-    ): Boolean =
+        auditFn: (String, AppUser) -> Unit = { _, _ -> },
+    ): AppUser? =
         transaction {
             val current =
                 AppUserTable
-                    .select(AppUserTable.status)
+                    .selectAll()
                     .where { AppUserTable.id eq userId }
                     .singleOrNull()
             if (current == null) {
-                false
+                null
             } else {
-                val oldStatus = current[AppUserTable.status]
+                val oldStatus = current[AppUserTable.status].name
                 AppUserTable.update({ AppUserTable.id eq userId }) {
                     it[status] = UserStatus.INACTIVE
                 }
-                AuditLogRepository.record(
-                    tableName = AppUserTable.tableName,
-                    recordId = userId,
-                    action = AuditAction.UPDATE,
-                    changedBy = changedBy,
-                    oldValue = AuditLogRepository.jsonField("status", oldStatus.name),
-                    newValue = AuditLogRepository.jsonField("status", UserStatus.INACTIVE.name),
-                )
-                true
+                val deactivated =
+                    AppUser(
+                        id = current[AppUserTable.id].toString(),
+                        username = current[AppUserTable.username],
+                        passwordHash = current[AppUserTable.passwordHash],
+                    )
+                auditFn(oldStatus, deactivated)
+                deactivated
             }
-        }.also { updated -> logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=$updated" } }
+        }.also { updated ->
+            logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=${updated != null}" }
+        }
 
     fun authorize(id: String): Boolean {
         // safe: id is non-null String; caller guards null before calling
