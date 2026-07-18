@@ -462,7 +462,7 @@ threshold to make a failing test pass.** Follow this decision tree:
 ```
 Threshold violation detected
 │
-├─ JMH scores for the same hot path dropped >20%?
+├─ JMH scores for the same hot path dropped below threshold (default 20%, 40% for BranchDayBenchmark.*)?
 │   → REAL REGRESSION. Fix the code, don't raise the threshold.
 │
 ├─ JMH scores are stable but measureTimedValue/k6 fails?
