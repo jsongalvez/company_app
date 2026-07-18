@@ -7,7 +7,6 @@ import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
@@ -50,17 +49,10 @@ object SessionPractitionerService {
                 slotAtTime = slotAtTime,
                 remarks = remarks,
                 auditFn = { p ->
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordInsert(
                         tableName = SessionPractitionerTable.tableName,
-                        recordId = p.id,
-                        action = AuditAction.INSERT,
+                        entity = p,
                         changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "sessionId" to sessionId.toString(),
-                                "practitionerId" to p.practitionerId.toString(),
-                                "slotAtTime" to slotAtTime.toString(),
-                            ),
                     )
                 },
             )
@@ -86,12 +78,12 @@ object SessionPractitionerService {
                 practitionerId = practitionerId,
                 remarks = remarks,
                 auditFn = { p ->
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordUpdate(
                         tableName = SessionPractitionerTable.tableName,
                         recordId = p.id,
-                        action = AuditAction.UPDATE,
+                        oldFields = emptyMap(),
+                        newFields = mapOf("remarks" to (remarks ?: "")),
                         changedBy = callerId,
-                        newValue = AuditLogRepository.jsonField("remarks", remarks ?: ""),
                     )
                 },
             ) ?: throw NotFoundException("Practitioner not found in session")
@@ -117,16 +109,16 @@ object SessionPractitionerService {
             sessionId = sessionId,
             practitionerId = practitionerId,
             auditFn = { p ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordDelete(
                     tableName = SessionPractitionerTable.tableName,
                     recordId = practitionerId,
-                    action = AuditAction.DELETE,
-                    changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
+                    oldFields =
+                        mapOf(
                             "sessionId" to sessionId.toString(),
                             "practitionerId" to p.practitionerId.toString(),
                         ),
+                    newFields = emptyMap(),
+                    changedBy = callerId,
                 )
             },
         )

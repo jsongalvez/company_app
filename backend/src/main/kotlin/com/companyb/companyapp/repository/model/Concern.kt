@@ -8,11 +8,17 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 data class Concern(
-    val id: UUID,
+    override val id: UUID,
     val label: String,
     val createdBy: UUID?,
     val createdAt: OffsetDateTime?,
-)
+) : Auditable {
+    override fun toAuditFields(): Map<String, String> =
+        mapOf(
+            "id" to id.toString(),
+            "label" to label,
+        )
+}
 
 data class SessionConcern(
     val sessionId: UUID,

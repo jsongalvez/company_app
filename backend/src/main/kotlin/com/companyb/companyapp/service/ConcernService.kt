@@ -102,16 +102,10 @@ object ConcernService {
                 label = label,
                 createdBy = callerId,
                 auditFn = { c ->
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordInsert(
                         tableName = ConcernTable.tableName,
-                        recordId = c.id,
-                        action = AuditAction.INSERT,
+                        entity = c,
                         changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "id" to c.id.toString(),
-                                "label" to label,
-                            ),
                     )
                 },
             )
@@ -139,13 +133,12 @@ object ConcernService {
             otherConcerns = null,
             changedBy = callerId,
             auditFn = { session ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = SessionTable.tableName,
                     recordId = session.id,
-                    action = AuditAction.UPDATE,
+                    oldFields = mapOf("otherConcerns" to (session.otherConcerns ?: "")),
+                    newFields = mapOf("otherConcerns" to ""),
                     changedBy = callerId,
-                    oldValue = AuditLogRepository.jsonField("otherConcerns", session.otherConcerns ?: ""),
-                    newValue = AuditLogRepository.jsonField("otherConcerns", ""),
                 )
             },
         )
