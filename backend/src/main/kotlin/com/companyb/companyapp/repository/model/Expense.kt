@@ -33,6 +33,15 @@ data class Expense(
     val deletedAt: OffsetDateTime?,
 )
 
+data class CreateExpense(
+    val id: UUID,
+    val branchDayId: UUID,
+    val amount: BigDecimal,
+    val category: ExpenseCategory,
+    val createdBy: UUID,
+    val notes: String?,
+)
+
 object ExpenseTable : Table("expense") {
     private const val AMOUNT_PRECISION = 10
     private const val AMOUNT_SCALE = 2

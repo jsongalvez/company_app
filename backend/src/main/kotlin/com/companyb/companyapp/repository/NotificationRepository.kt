@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.model.CreateNotification
 import com.companyb.companyapp.repository.model.Notification
 import com.companyb.companyapp.repository.model.NotificationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -17,18 +18,16 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object NotificationRepository {
-    fun insert(
-        sessionId: UUID,
-        userId: UUID,
-        branchId: UUID,
-        message: String,
-    ): Notification =
+    fun insert(params: CreateNotification): Notification =
         transaction {
+            val sessionId = params.sessionId
+            val userId = params.userId
+
             NotificationTable.insert {
                 it[NotificationTable.sessionId] = sessionId
                 it[NotificationTable.userId] = userId
-                it[NotificationTable.branchId] = branchId
-                it[NotificationTable.message] = message
+                it[NotificationTable.branchId] = params.branchId
+                it[NotificationTable.message] = params.message
             }
 
             NotificationTable
@@ -38,7 +37,8 @@ object NotificationRepository {
                 .toNotification()
         }.also {
             logger.info {
-                "[INSERT-NOTIFICATION] session=${sessionId.toString().maskUUID()} user=${userId.toString().maskUUID()}"
+                "[INSERT-NOTIFICATION] session=${params.sessionId.toString().maskUUID()} " +
+                    "user=${params.userId.toString().maskUUID()}"
             }
         }
 

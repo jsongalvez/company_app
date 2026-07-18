@@ -5,6 +5,7 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CreateBranch
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
@@ -21,29 +22,26 @@ data class BranchCreateResult(
 )
 
 object BranchRepository {
-    fun create(
-        id: UUID,
-        name: String,
-        branchType: BranchType,
-        changedBy: UUID,
-    ): BranchCreateResult =
+    fun create(params: CreateBranch): BranchCreateResult =
         transaction {
             val insertedCount =
                 BranchTable
                     .insertIgnore {
-                        it[BranchTable.id] = id
-                        it[BranchTable.branchType] = branchType
-                        it[BranchTable.name] = name
+                        it[BranchTable.id] = params.id
+                        it[BranchTable.branchType] = params.branchType
+                        it[BranchTable.name] = params.name
                     }.insertedCount
             val inserted = insertedCount > 0
-            val branch = findByIdInTransaction(id) ?: error("branch row not found after idempotent insert for $id")
+            val branch =
+                findByIdInTransaction(params.id)
+                    ?: error("branch row not found after idempotent insert for ${params.id}")
 
             if (inserted) {
                 AuditLogRepository.record(
                     tableName = BranchTable.tableName,
                     recordId = branch.id,
                     action = AuditAction.INSERT,
-                    changedBy = changedBy,
+                    changedBy = params.changedBy,
                     newValue =
                         AuditLogRepository.jsonFields(
                             "id" to branch.id.toString(),

@@ -17,6 +17,14 @@ data class Allowance(
     val assignedAt: OffsetDateTime,
 )
 
+data class CreateAllowance(
+    val id: UUID,
+    val branchDayId: UUID,
+    val userId: UUID,
+    val amount: BigDecimal,
+    val assignedBy: UUID,
+)
+
 object AllowanceTable : Table("allowance") {
     private const val AMOUNT_PRECISION = 10
     private const val AMOUNT_SCALE = 2

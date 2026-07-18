@@ -1,32 +1,25 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.repository.model.CreateRemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import java.math.BigDecimal
-import java.util.UUID
 
 object RemittanceFinancialSnapshotRepository {
-    fun insert(
-        remittanceId: UUID,
-        grossIncome: BigDecimal,
-        totalCompensation: BigDecimal,
-        totalExpenses: BigDecimal,
-        netIncome: BigDecimal,
-    ): RemittanceFinancialSnapshot {
+    fun insert(params: CreateRemittanceFinancialSnapshot): RemittanceFinancialSnapshot {
         RemittanceFinancialSnapshotTable.insert {
-            it[RemittanceFinancialSnapshotTable.remittanceId] = remittanceId
-            it[RemittanceFinancialSnapshotTable.grossIncome] = grossIncome
-            it[RemittanceFinancialSnapshotTable.totalCompensation] = totalCompensation
-            it[RemittanceFinancialSnapshotTable.netIncome] = netIncome
-            it[RemittanceFinancialSnapshotTable.totalExpenses] = totalExpenses
+            it[RemittanceFinancialSnapshotTable.remittanceId] = params.remittanceId
+            it[RemittanceFinancialSnapshotTable.grossIncome] = params.grossIncome
+            it[RemittanceFinancialSnapshotTable.totalCompensation] = params.totalCompensation
+            it[RemittanceFinancialSnapshotTable.netIncome] = params.netIncome
+            it[RemittanceFinancialSnapshotTable.totalExpenses] = params.totalExpenses
         }
         val row =
             RemittanceFinancialSnapshotTable
                 .selectAll()
-                .where { RemittanceFinancialSnapshotTable.remittanceId eq remittanceId }
+                .where { RemittanceFinancialSnapshotTable.remittanceId eq params.remittanceId }
                 .single()
         return row.toSnapshot()
     }

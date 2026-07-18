@@ -12,6 +12,13 @@ data class Branch(
     val branchType: BranchType,
 )
 
+data class CreateBranch(
+    val id: UUID,
+    val name: String,
+    val branchType: BranchType,
+    val changedBy: UUID,
+)
+
 object BranchTable : Table("branch") {
     val id = javaUUID("id").autoGenerate()
     val branchType =

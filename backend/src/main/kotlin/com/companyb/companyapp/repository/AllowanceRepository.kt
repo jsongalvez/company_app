@@ -4,6 +4,7 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceTable
 import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.CreateAllowance
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -21,34 +22,28 @@ data class AllowanceCreateResult(
 )
 
 object AllowanceRepository {
-    fun create(
-        id: UUID,
-        branchDayId: UUID,
-        userId: UUID,
-        amount: BigDecimal,
-        assignedBy: UUID,
-    ): AllowanceCreateResult =
+    fun create(params: CreateAllowance): AllowanceCreateResult =
         transaction {
-            val existing = findByIdInTransaction(id)
+            val existing = findByIdInTransaction(params.id)
             if (existing != null) {
                 return@transaction AllowanceCreateResult(existing, created = false)
             }
 
             AllowanceTable.insert {
-                it[AllowanceTable.id] = id
-                it[AllowanceTable.branchDayId] = branchDayId
-                it[AllowanceTable.userId] = userId
-                it[AllowanceTable.amount] = amount
-                it[AllowanceTable.assignedBy] = assignedBy
+                it[AllowanceTable.id] = params.id
+                it[AllowanceTable.branchDayId] = params.branchDayId
+                it[AllowanceTable.userId] = params.userId
+                it[AllowanceTable.amount] = params.amount
+                it[AllowanceTable.assignedBy] = params.assignedBy
             }
 
-            val created = findByIdInTransaction(id) ?: error("allowance not found after insert for $id")
+            val created = findByIdInTransaction(params.id) ?: error("allowance not found after insert for ${params.id}")
 
             AuditLogRepository.record(
                 tableName = AllowanceTable.tableName,
                 recordId = created.id,
                 action = AuditAction.INSERT,
-                changedBy = assignedBy,
+                changedBy = params.assignedBy,
                 newValue =
                     AuditLogRepository.jsonFields(
                         "id" to created.id.toString(),

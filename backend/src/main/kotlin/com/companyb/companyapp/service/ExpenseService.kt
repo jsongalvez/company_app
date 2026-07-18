@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
+import com.companyb.companyapp.repository.model.CreateExpense
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -28,7 +29,16 @@ object ExpenseService {
 
         BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
-        return ExpenseRepository.create(id, branchDayId, amount, category, callerId, notes)
+        return ExpenseRepository.create(
+            CreateExpense(
+                id = id,
+                branchDayId = branchDayId,
+                amount = amount,
+                category = category,
+                createdBy = callerId,
+                notes = notes,
+            ),
+        )
     }
 
     @Suppress("ThrowsCount")

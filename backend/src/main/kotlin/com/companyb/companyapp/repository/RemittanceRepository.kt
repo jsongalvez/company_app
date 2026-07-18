@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.repository.model.CreateRemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.Remittance
@@ -211,11 +212,13 @@ object RemittanceRepository {
     ) {
         if (remittanceType == RemittanceType.SESSION) {
             RemittanceFinancialSnapshotRepository.insert(
-                remittanceId = remittanceId,
-                grossIncome = grossIncome,
-                totalCompensation = totalCompensation,
-                totalExpenses = totalExpenses,
-                netIncome = netIncome,
+                CreateRemittanceFinancialSnapshot(
+                    remittanceId = remittanceId,
+                    grossIncome = grossIncome,
+                    totalCompensation = totalCompensation,
+                    totalExpenses = totalExpenses,
+                    netIncome = netIncome,
+                ),
             )
         }
     }

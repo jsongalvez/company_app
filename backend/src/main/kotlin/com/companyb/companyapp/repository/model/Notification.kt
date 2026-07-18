@@ -18,6 +18,13 @@ data class Notification(
     val createdAt: OffsetDateTime,
 )
 
+data class CreateNotification(
+    val sessionId: UUID,
+    val userId: UUID,
+    val branchId: UUID,
+    val message: String,
+)
+
 object NotificationTable : Table("notification") {
     val id = javaUUID("id").autoGenerate()
     val sessionId = javaUUID("session_id").references(SessionTable.id)

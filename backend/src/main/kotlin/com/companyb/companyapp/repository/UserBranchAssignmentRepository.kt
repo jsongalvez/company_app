@@ -3,6 +3,7 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.CreateUserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -20,44 +21,38 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object UserBranchAssignmentRepository {
-    fun create(
-        id: UUID,
-        userId: UUID,
-        branchId: UUID,
-        slot: Short,
-        assignedBy: UUID,
-    ): Boolean =
+    fun create(params: CreateUserBranchAssignment): Boolean =
         transaction {
             val insertedCount =
                 UserBranchAssignmentTable
                     .insertIgnore {
-                        it[UserBranchAssignmentTable.id] = id
-                        it[UserBranchAssignmentTable.userId] = userId
-                        it[UserBranchAssignmentTable.branchId] = branchId
-                        it[UserBranchAssignmentTable.slot] = slot
-                        it[UserBranchAssignmentTable.assignedBy] = assignedBy
+                        it[UserBranchAssignmentTable.id] = params.id
+                        it[UserBranchAssignmentTable.userId] = params.userId
+                        it[UserBranchAssignmentTable.branchId] = params.branchId
+                        it[UserBranchAssignmentTable.slot] = params.slot
+                        it[UserBranchAssignmentTable.assignedBy] = params.assignedBy
                     }.insertedCount
             val created = insertedCount > 0
 
             if (created) {
                 AuditLogRepository.record(
                     tableName = UserBranchAssignmentTable.tableName,
-                    recordId = id,
+                    recordId = params.id,
                     action = AuditAction.INSERT,
-                    changedBy = assignedBy,
+                    changedBy = params.assignedBy,
                     newValue =
                         AuditLogRepository.jsonFields(
-                            "id" to id.toString(),
-                            "userId" to userId.toString(),
-                            "branchId" to branchId.toString(),
-                            "slot" to slot.toString(),
+                            "id" to params.id.toString(),
+                            "userId" to params.userId.toString(),
+                            "branchId" to params.branchId.toString(),
+                            "slot" to params.slot.toString(),
                         ),
                 )
             }
 
             created
         }.also { created ->
-            logger.info { "[CREATE-ASSIGNMENT] Assignment $id created=$created" }
+            logger.info { "[CREATE-ASSIGNMENT] Assignment ${params.id} created=$created" }
         }
 
     fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =

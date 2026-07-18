@@ -17,6 +17,14 @@ data class UserBranchAssignment(
     val endedAt: OffsetDateTime?,
 )
 
+data class CreateUserBranchAssignment(
+    val id: UUID,
+    val userId: UUID,
+    val branchId: UUID,
+    val slot: Short,
+    val assignedBy: UUID,
+)
+
 object UserBranchAssignmentTable : Table("user_branch_assignment") {
     val id = javaUUID("id").autoGenerate()
     val userId = javaUUID("user_id").references(AppUserTable.id)

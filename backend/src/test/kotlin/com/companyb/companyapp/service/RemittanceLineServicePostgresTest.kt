@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.CreateProduct
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -730,12 +731,14 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     @Suppress("UNUSED_PARAMETER")
     private fun insertProduct(changedBy: UUID = callerId) {
         ProductRepository.create(
-            id = productId,
-            name = "Test Product $productId",
-            productCategoryId = productCategoryId,
-            unitPrice = BigDecimal("500.00"),
-            commissionAmount = BigDecimal("50.00"),
-            changedBy = callerId,
+            CreateProduct(
+                id = productId,
+                name = "Test Product $productId",
+                productCategoryId = productCategoryId,
+                unitPrice = BigDecimal("500.00"),
+                commissionAmount = BigDecimal("50.00"),
+                changedBy = callerId,
+            ),
         )
     }
 

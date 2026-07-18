@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
+import com.companyb.companyapp.repository.model.CreateProduct
 import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
@@ -27,7 +28,16 @@ object ProductService {
             throw ValidationException("Product category not found")
         }
 
-        return ProductRepository.create(id, name, productCategoryId, unitPrice, commissionAmount, callerId)
+        return ProductRepository.create(
+            CreateProduct(
+                id = id,
+                name = name,
+                productCategoryId = productCategoryId,
+                unitPrice = unitPrice,
+                commissionAmount = commissionAmount,
+                changedBy = callerId,
+            ),
+        )
     }
 
     fun findAllActive(): List<Product> = ProductRepository.findAllActive()

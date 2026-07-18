@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.CreateProduct
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -22,36 +23,28 @@ data class ProductCreateResult(
 )
 
 object ProductRepository {
-    @Suppress("LongParameterList")
-    fun create(
-        id: UUID,
-        name: String,
-        productCategoryId: UUID,
-        unitPrice: BigDecimal,
-        commissionAmount: BigDecimal,
-        changedBy: UUID,
-    ): ProductCreateResult =
+    fun create(params: CreateProduct): ProductCreateResult =
         transaction {
             val insertedCount =
                 ProductTable
                     .insertIgnore {
-                        it[ProductTable.id] = id
-                        it[ProductTable.name] = name
-                        it[ProductTable.productCategoryId] = productCategoryId
-                        it[ProductTable.unitPrice] = unitPrice
-                        it[ProductTable.commissionAmount] = commissionAmount
+                        it[ProductTable.id] = params.id
+                        it[ProductTable.name] = params.name
+                        it[ProductTable.productCategoryId] = params.productCategoryId
+                        it[ProductTable.unitPrice] = params.unitPrice
+                        it[ProductTable.commissionAmount] = params.commissionAmount
                     }.insertedCount
             val inserted = insertedCount > 0
             val product =
-                findByIdInTransaction(id)
-                    ?: error("product row not found after idempotent insert for $id")
+                findByIdInTransaction(params.id)
+                    ?: error("product row not found after idempotent insert for ${params.id}")
 
             if (inserted) {
                 AuditLogRepository.record(
                     tableName = ProductTable.tableName,
                     recordId = product.id,
                     action = AuditAction.INSERT,
-                    changedBy = changedBy,
+                    changedBy = params.changedBy,
                     newValue =
                         AuditLogRepository.jsonFields(
                             "id" to product.id.toString(),

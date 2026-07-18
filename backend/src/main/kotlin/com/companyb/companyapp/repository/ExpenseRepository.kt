@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AuditAction
+import com.companyb.companyapp.repository.model.CreateExpense
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
@@ -19,38 +20,30 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object ExpenseRepository {
-    @Suppress("LongParameterList")
-    fun create(
-        id: UUID,
-        branchDayId: UUID,
-        amount: java.math.BigDecimal,
-        category: ExpenseCategory,
-        createdBy: UUID,
-        notes: String?,
-    ): Expense =
+    fun create(params: CreateExpense): Expense =
         transaction {
-            val existing = findByIdInTransaction(id)
+            val existing = findByIdInTransaction(params.id)
             if (existing != null) {
                 return@transaction existing
             }
 
             ExpenseTable.insert {
-                it[ExpenseTable.id] = id
-                it[ExpenseTable.branchDayId] = branchDayId
-                it[ExpenseTable.amount] = amount
-                it[ExpenseTable.category] = category
-                it[ExpenseTable.createdBy] = createdBy
-                if (notes != null) it[ExpenseTable.notes] = notes
+                it[ExpenseTable.id] = params.id
+                it[ExpenseTable.branchDayId] = params.branchDayId
+                it[ExpenseTable.amount] = params.amount
+                it[ExpenseTable.category] = params.category
+                it[ExpenseTable.createdBy] = params.createdBy
+                if (params.notes != null) it[ExpenseTable.notes] = params.notes
             }
 
             val created =
-                findByIdInTransaction(id) ?: error("expense not found after insert for $id")
+                findByIdInTransaction(params.id) ?: error("expense not found after insert for ${params.id}")
 
             AuditLogRepository.record(
                 tableName = ExpenseTable.tableName,
                 recordId = created.id,
                 action = AuditAction.INSERT,
-                changedBy = createdBy,
+                changedBy = params.createdBy,
                 newValue =
                     AuditLogRepository.jsonFields(
                         "id" to created.id.toString(),
@@ -60,7 +53,7 @@ object ExpenseRepository {
                     ),
             )
             created
-        }.also { logger.info { "[CREATE-EXPENSE] Expense ${id.toString().maskUUID()} created" } }
+        }.also { logger.info { "[CREATE-EXPENSE] Expense ${params.id.toString().maskUUID()} created" } }
 
     fun softDelete(
         expenseId: UUID,

@@ -9,6 +9,7 @@ import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.CreateUserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
@@ -53,7 +54,16 @@ object UserBranchAssignmentService {
             throw ValidationException("User already has an active assignment at this branch")
         }
 
-        val created = UserBranchAssignmentRepository.create(id, userId, branchId, slot, callerId)
+        val created =
+            UserBranchAssignmentRepository.create(
+                CreateUserBranchAssignment(
+                    id = id,
+                    userId = userId,
+                    branchId = branchId,
+                    slot = slot,
+                    assignedBy = callerId,
+                ),
+            )
 
         val assignment =
             UserBranchAssignmentRepository.findById(id)

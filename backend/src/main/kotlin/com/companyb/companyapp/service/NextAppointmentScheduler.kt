@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilityTable
+import com.companyb.companyapp.repository.model.CreateNotification
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
@@ -74,7 +75,14 @@ object NextAppointmentScheduler {
             for (userId in coordinatorIds) {
                 val exists = notificationExists(session.sessionId, userId)
                 if (!exists) {
-                    NotificationRepository.insert(session.sessionId, userId, session.branchId, message)
+                    NotificationRepository.insert(
+                        CreateNotification(
+                            sessionId = session.sessionId,
+                            userId = userId,
+                            branchId = session.branchId,
+                            message = message,
+                        ),
+                    )
                     created++
                 }
             }

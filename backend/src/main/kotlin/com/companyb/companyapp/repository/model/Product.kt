@@ -19,6 +19,15 @@ data class Product(
     val commissionAmount: BigDecimal,
 )
 
+data class CreateProduct(
+    val id: UUID,
+    val name: String,
+    val productCategoryId: UUID,
+    val unitPrice: BigDecimal,
+    val commissionAmount: BigDecimal,
+    val changedBy: UUID,
+)
+
 object ProductCategoryTable : Table("product_category") {
     val id = javaUUID("id").autoGenerate()
     val name = text("name")
