@@ -6,7 +6,6 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.GrantCapabilityParams
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -22,6 +21,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.service.CapabilityService
@@ -35,6 +35,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -219,17 +220,20 @@ object DatabaseTestHelper {
         sourceId: UUID,
         priority: Int = GrantPriorities.DIRECT_GRANT.toInt(),
     ) {
-        CapabilityRepository.grantCapability(
-            GrantCapabilityParams(
-                userId = userId,
-                capabilityCode = capabilityCode,
-                contextType = contextType,
-                contextId = contextId,
-                sourceId = sourceId,
-                sourceType = CapabilitySourceType.SYSTEM,
-                priority = priority.toShort(),
-            ),
-        )
+        val capId =
+            CapabilityRepository.findIdByCode(capabilityCode)
+                ?: error("Capability code not found: $capabilityCode")
+        transaction {
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = userId
+                it[UserCapabilityTable.capabilityId] = capId
+                it[UserCapabilityTable.contextType] = contextType
+                it[UserCapabilityTable.contextId] = contextId
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
+                it[UserCapabilityTable.sourceId] = sourceId
+                it[UserCapabilityTable.priority] = priority.toShort()
+            }
+        }
     }
 
     fun insertTestUser(
@@ -417,7 +421,9 @@ object DatabaseTestHelper {
     }
 
     fun revokeAllCapabilities(userId: UUID) {
-        CapabilityRepository.revokeAllCapabilities(userId)
+        transaction {
+            UserCapabilityTable.deleteWhere { UserCapabilityTable.userId eq userId }
+        }
     }
 
     private val json = Json
