@@ -6,7 +6,6 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddLineParams
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CreateDraftParams
 import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
@@ -27,6 +26,7 @@ import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -238,8 +238,7 @@ object RemittanceService {
             throw ValidationException("Can only add day breakdowns to DRAFT remittances")
         }
 
-        BranchDayRepository.findById(branchDayId)
-            ?: throw NotFoundException("Branch day not found")
+        BranchDayService.requireBranchDayExists(branchDayId)
 
         val breakdown =
             RemittanceDayBreakdownRepository.addDayBreakdown(

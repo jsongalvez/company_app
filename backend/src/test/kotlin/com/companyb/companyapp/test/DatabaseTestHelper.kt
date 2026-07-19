@@ -23,8 +23,8 @@ import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
-import com.companyb.companyapp.service.BranchDayService
 import com.companyb.companyapp.service.CapabilityService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.serialization.json.Json

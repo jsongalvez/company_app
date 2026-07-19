@@ -4,14 +4,13 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.service.BranchDayService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -37,8 +36,7 @@ internal object SessionPractitionerService {
         }
 
         val branchDay =
-            BranchDayRepository.findById(session.branchDayId)
-                ?: throw NotFoundException("Branch day not found")
+            BranchDayService.requireBranchDayExists(session.branchDayId)
 
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchDay.branchId, practitionerId)
         val slotAtTime = assignment?.slot ?: DEFAULT_SLOT

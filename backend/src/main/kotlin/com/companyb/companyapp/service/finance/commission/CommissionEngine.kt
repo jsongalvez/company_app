@@ -1,13 +1,11 @@
 package com.companyb.companyapp.service.finance.commission
 
-import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AttendanceRepository
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.DayStatus
-import com.companyb.companyapp.service.BranchDayService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -38,18 +36,11 @@ internal object CommissionEngine {
     ) {
         logger.info { "[COMMISSION-ENGINE] Recalculating commission for branchDay=$branchDayId force=$force" }
 
-        val branchDay = BranchDayRepository.findById(branchDayId)
-        if (branchDay == null) {
+        val effectiveStatus = BranchDayService.getEffectiveStatus(branchDayId)
+        if (effectiveStatus == null) {
             logger.warn { "[COMMISSION-ENGINE] Branch day $branchDayId not found, skipping" }
             return
         }
-
-        val effectiveStatus =
-            BranchDayService.evaluateStatus(
-                branchDay.status,
-                branchDay.date,
-                java.time.LocalDate.now(BranchDayService.manilaZone),
-            )
         if (!force && effectiveStatus != DayStatus.OPEN) {
             logger.info {
                 "[COMMISSION-ENGINE] Branch day $branchDayId is $effectiveStatus, skipping automatic recalculation"
@@ -99,10 +90,7 @@ internal object CommissionEngine {
     }
 
     fun manualRecalculate(branchDayId: UUID) {
-        val branchDay =
-            BranchDayRepository.findById(branchDayId)
-                ?: throw NotFoundException("Branch day not found")
-
+        BranchDayService.requireBranchDayExists(branchDayId)
         recalculate(branchDayId, force = true)
     }
 }

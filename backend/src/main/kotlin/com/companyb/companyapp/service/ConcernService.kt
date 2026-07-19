@@ -10,6 +10,7 @@ import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 

@@ -2,12 +2,12 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -88,8 +88,7 @@ object ExpenseService {
         callerId: UUID,
         branchDayId: UUID,
     ): List<Expense> {
-        BranchDayRepository.findById(branchDayId)
-            ?: throw NotFoundException("Branch day not found")
+        BranchDayService.requireBranchDayExists(branchDayId)
 
         return ExpenseRepository.findByBranchDayId(branchDayId)
     }

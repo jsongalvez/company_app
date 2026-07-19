@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import com.companyb.companyapp.repository.model.AllowanceTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID

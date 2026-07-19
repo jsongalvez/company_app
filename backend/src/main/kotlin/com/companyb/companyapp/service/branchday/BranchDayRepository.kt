@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.branchday
 
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -11,9 +11,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
 
-private val logger = KotlinLogging.logger {}
+internal object BranchDayRepository {
+    private val logger = KotlinLogging.logger {}
 
-object BranchDayRepository {
     fun resolveOrCreate(
         branchId: UUID,
         date: LocalDate,

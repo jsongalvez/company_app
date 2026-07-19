@@ -4,11 +4,11 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.util.UUID
@@ -26,8 +26,7 @@ object CompensationService {
         amount: BigDecimal,
         note: String?,
     ): Compensation {
-        BranchDayRepository.findById(workBranchDayId)
-            ?: throw NotFoundException("Work branch day not found")
+        BranchDayService.requireBranchDayExists(workBranchDayId)
 
         BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId)
 

@@ -1,11 +1,11 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.service.CapabilityService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
@@ -159,8 +159,7 @@ object CapabilityFilter {
      */
     fun resolveBranchIdFromBranchDay(branchDayId: UUID): UUID {
         val branchDay =
-            BranchDayRepository.findById(branchDayId)
-                ?: throw NotFoundResponse("Branch day not found")
+            BranchDayService.requireBranchDayExists(branchDayId)
         return branchDay.branchId
     }
 }

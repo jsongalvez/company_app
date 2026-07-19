@@ -5,7 +5,6 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
@@ -14,6 +13,7 @@ import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -43,8 +43,7 @@ object ReliefAccessService {
             ) { "EDIT_BRANCH_DATA capability not found" }
 
         val branchDay =
-            BranchDayRepository.findById(request.branchDayId)
-                ?: throw NotFoundException("Branch day not found")
+            BranchDayService.requireBranchDayExists(request.branchDayId)
         val validTo = BranchDayService.expirationUtc(branchDay.date)
 
         val result =

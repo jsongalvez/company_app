@@ -1,17 +1,14 @@
 package com.companyb.companyapp.service.finance.commission
 
-import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionSplit
+import com.companyb.companyapp.service.branchday.BranchDayService
 import java.util.UUID
 
 object CommissionService {
     fun getByBranchDayId(branchDayId: UUID): List<CommissionSplit> {
-        BranchDayRepository.findById(branchDayId)
-            ?: throw NotFoundException("Branch day not found")
-
+        BranchDayService.requireBranchDayExists(branchDayId)
         return CommissionSplitRepository.findByBranchDayId(branchDayId)
     }
 

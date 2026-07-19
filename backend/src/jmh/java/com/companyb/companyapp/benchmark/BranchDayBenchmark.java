@@ -1,7 +1,7 @@
 package com.companyb.companyapp.benchmark;
 
 import com.companyb.companyapp.repository.model.DayStatus;
-import com.companyb.companyapp.service.BranchDayService;
+import com.companyb.companyapp.service.branchday.BranchDayService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
