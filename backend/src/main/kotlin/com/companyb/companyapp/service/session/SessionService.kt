@@ -1,10 +1,11 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.SessionBaseRateRepository
@@ -12,12 +13,16 @@ import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
+import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.VoidResult
 import com.companyb.companyapp.repository.model.Session
+import com.companyb.companyapp.repository.model.SessionBaseRate
+import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
+import com.companyb.companyapp.service.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -269,4 +274,63 @@ object SessionService {
 
         return updated
     }
+
+    // --- Practitioner pass-throughs ---
+
+    fun addPractitioner(
+        callerId: UUID,
+        id: UUID,
+        sessionId: UUID,
+        practitionerId: UUID,
+        remarks: String?,
+    ): AddPractitionerResult =
+        SessionPractitionerService.addPractitioner(
+            callerId = callerId,
+            id = id,
+            sessionId = sessionId,
+            practitionerId = practitionerId,
+            remarks = remarks,
+        )
+
+    fun updatePractitionerRemarks(
+        callerId: UUID,
+        sessionId: UUID,
+        practitionerId: UUID,
+        remarks: String?,
+    ): SessionPractitioner =
+        SessionPractitionerService.updatePractitionerRemarks(
+            callerId = callerId,
+            sessionId = sessionId,
+            practitionerId = practitionerId,
+            remarks = remarks,
+        )
+
+    fun removePractitioner(
+        callerId: UUID,
+        sessionId: UUID,
+        practitionerId: UUID,
+    ) = SessionPractitionerService.removePractitioner(
+        callerId = callerId,
+        sessionId = sessionId,
+        practitionerId = practitionerId,
+    )
+
+    // --- Base rate pass-throughs ---
+
+    fun setRate(
+        callerId: UUID,
+        id: UUID,
+        branchId: UUID,
+        sessionType: SessionType,
+        rate: BigDecimal,
+    ): SetRateResult =
+        SessionBaseRateService.setRate(
+            callerId = callerId,
+            id = id,
+            branchId = branchId,
+            sessionType = sessionType,
+            rate = rate,
+        )
+
+    fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateService.findActiveRates(branchId)
 }

@@ -13,6 +13,7 @@ import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and

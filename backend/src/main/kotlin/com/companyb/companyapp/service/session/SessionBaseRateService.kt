@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -13,7 +13,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-object SessionBaseRateService {
+internal object SessionBaseRateService {
     private val logger = KotlinLogging.logger {}
     private const val FAR_FUTURE_YEAR = 9999
     private const val FAR_FUTURE_MONTH = 12

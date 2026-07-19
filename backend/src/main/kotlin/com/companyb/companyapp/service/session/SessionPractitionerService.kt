@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
@@ -11,10 +11,11 @@ import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
+import com.companyb.companyapp.service.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
-object SessionPractitionerService {
+internal object SessionPractitionerService {
     private val logger = KotlinLogging.logger {}
 
     private const val DEFAULT_SLOT: Short = 999

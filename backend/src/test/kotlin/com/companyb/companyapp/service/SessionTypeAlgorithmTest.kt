@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.service.session.SessionService
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

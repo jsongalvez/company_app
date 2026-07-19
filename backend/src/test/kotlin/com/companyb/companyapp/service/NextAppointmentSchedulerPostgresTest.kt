@@ -17,7 +17,7 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.service.SessionBaseRateService
+import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.count
@@ -330,7 +330,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         id: UUID = rateId,
         sessionType: SessionType = SessionType.REGULAR,
     ) {
-        SessionBaseRateService.setRate(callerId, id, branchId, sessionType, BigDecimal("2500.00"))
+        SessionService.setRate(callerId, id, branchId, sessionType, BigDecimal("2500.00"))
     }
 
     private fun insertUserBranchAssignment(

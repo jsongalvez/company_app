@@ -22,6 +22,7 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -477,7 +478,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val requestId = UUID.randomUUID()
 
         val result =
-            SessionPractitionerService.addPractitioner(
+            SessionService.addPractitioner(
                 callerId = callerId,
                 id = requestId,
                 sessionId = practitionerSessionId,
@@ -501,7 +502,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         val requestId = UUID.randomUUID()
 
         val first =
-            SessionPractitionerService.addPractitioner(
+            SessionService.addPractitioner(
                 callerId = callerId,
                 id = requestId,
                 sessionId = practitionerSessionId,
@@ -509,7 +510,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 remarks = null,
             )
         val duplicate =
-            SessionPractitionerService.addPractitioner(
+            SessionService.addPractitioner(
                 callerId = callerId,
                 id = requestId,
                 sessionId = practitionerSessionId,
@@ -535,7 +536,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         insertAssignment(otherCaller)
 
         val result =
-            SessionPractitionerService.addPractitioner(
+            SessionService.addPractitioner(
                 callerId = otherCaller,
                 id = UUID.randomUUID(),
                 sessionId = practitionerSessionId,
@@ -549,7 +550,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add practitioner throws 404 for non-existent session`() {
         assertFailsWith<NotFoundException> {
-            SessionPractitionerService.addPractitioner(
+            SessionService.addPractitioner(
                 callerId = callerId,
                 id = UUID.randomUUID(),
                 sessionId = UUID.randomUUID(),
@@ -566,7 +567,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
         val practitionerEntityId = UUID.randomUUID()
-        SessionPractitionerService.addPractitioner(
+        SessionService.addPractitioner(
             callerId = callerId,
             id = practitionerEntityId,
             sessionId = practitionerSessionId,
@@ -575,7 +576,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         )
 
         val updated =
-            SessionPractitionerService.updatePractitionerRemarks(
+            SessionService.updatePractitionerRemarks(
                 callerId = callerId,
                 sessionId = practitionerSessionId,
                 practitionerId = practitionerId,
@@ -597,7 +598,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
 
         assertFailsWith<NotFoundException> {
-            SessionPractitionerService.updatePractitionerRemarks(
+            SessionService.updatePractitionerRemarks(
                 callerId = callerId,
                 sessionId = practitionerSessionId,
                 practitionerId = UUID.randomUUID(),
@@ -613,7 +614,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
         val practitionerEntityId = UUID.randomUUID()
-        SessionPractitionerService.addPractitioner(
+        SessionService.addPractitioner(
             callerId = callerId,
             id = practitionerEntityId,
             sessionId = practitionerSessionId,
@@ -621,7 +622,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
             remarks = null,
         )
 
-        SessionPractitionerService.removePractitioner(
+        SessionService.removePractitioner(
             callerId = callerId,
             sessionId = practitionerSessionId,
             practitionerId = practitionerId,
@@ -645,7 +646,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
 
         assertFailsWith<NotFoundException> {
-            SessionPractitionerService.removePractitioner(
+            SessionService.removePractitioner(
                 callerId = callerId,
                 sessionId = practitionerSessionId,
                 practitionerId = UUID.randomUUID(),

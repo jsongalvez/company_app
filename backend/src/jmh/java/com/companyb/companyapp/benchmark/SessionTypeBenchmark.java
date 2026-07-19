@@ -2,7 +2,7 @@ package com.companyb.companyapp.benchmark;
 
 import com.companyb.companyapp.domain.BranchType;
 import com.companyb.companyapp.domain.SessionType;
-import com.companyb.companyapp.service.SessionService;
+import com.companyb.companyapp.service.session.SessionService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
