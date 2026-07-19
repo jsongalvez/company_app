@@ -17,6 +17,15 @@ data class CommissionManualInclusion(
     val assignedAt: OffsetDateTime,
 )
 
+data class CommissionManualInclusionUpsertParams(
+    val id: UUID,
+    val productSaleId: UUID,
+    val userId: UUID,
+    val isIncluded: Boolean,
+    val reason: String?,
+    val assignedBy: UUID,
+)
+
 object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
     val id = javaUUID("id").autoGenerate()
     val productSaleId = javaUUID("product_sale_id")

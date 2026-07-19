@@ -101,7 +101,7 @@ object RemittanceRepository {
 
     private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
 
-    @Suppress("ReturnCount", "ComplexMethod", "LongParameterList")
+    @Suppress("ReturnCount", "ComplexMethod")
     fun submit(
         remittanceId: UUID,
         expectedVersion: Int,

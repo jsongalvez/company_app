@@ -27,6 +27,7 @@ import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
+import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
@@ -709,13 +710,15 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     ) {
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         SessionBaseRateRepository.setRate(
-            id = id,
-            setBy = callerId,
-            branchId = branchId,
-            sessionType = sessionType,
-            rate = BigDecimal("2500.00"),
-            effectiveFrom = now,
-            effectiveUntil = now.plusYears(10),
+            SessionBaseRateCreateParams(
+                id = id,
+                setBy = callerId,
+                branchId = branchId,
+                sessionType = sessionType,
+                rate = BigDecimal("2500.00"),
+                effectiveFrom = now,
+                effectiveUntil = now.plusYears(10),
+            ),
         )
     }
 

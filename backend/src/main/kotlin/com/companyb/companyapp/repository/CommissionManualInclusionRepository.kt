@@ -3,6 +3,7 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
+import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -16,23 +17,17 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object CommissionManualInclusionRepository {
-    @Suppress("LongParameterList")
     fun upsert(
-        id: UUID,
-        productSaleId: UUID,
-        userId: UUID,
-        isIncluded: Boolean,
-        reason: String?,
-        assignedBy: UUID,
+        params: CommissionManualInclusionUpsertParams,
         auditFn: (existing: CommissionManualInclusion?, result: CommissionManualInclusion) -> Unit = { _, _ -> },
     ): CommissionManualInclusion =
         transaction {
-            val existing = findByProductSaleAndUserInTransaction(productSaleId, userId)
+            val existing = findByProductSaleAndUserInTransaction(params.productSaleId, params.userId)
 
             if (existing != null) {
-                updateInclusion(existing, isIncluded, reason, assignedBy, auditFn)
+                updateInclusion(existing, params.isIncluded, params.reason, params.assignedBy, auditFn)
             } else {
-                insertInclusion(id, productSaleId, userId, isIncluded, reason, assignedBy, auditFn)
+                insertInclusion(params, auditFn)
             }
         }.also { result ->
             logger.info {
@@ -70,28 +65,22 @@ object CommissionManualInclusionRepository {
         return updated
     }
 
-    @Suppress("LongParameterList")
     private fun insertInclusion(
-        id: UUID,
-        productSaleId: UUID,
-        userId: UUID,
-        isIncluded: Boolean,
-        reason: String?,
-        assignedBy: UUID,
+        params: CommissionManualInclusionUpsertParams,
         auditFn: (CommissionManualInclusion?, CommissionManualInclusion) -> Unit,
     ): CommissionManualInclusion {
         CommissionManualInclusionTable.insert {
-            it[CommissionManualInclusionTable.id] = id
-            it[CommissionManualInclusionTable.productSaleId] = productSaleId
-            it[CommissionManualInclusionTable.userId] = userId
-            it[CommissionManualInclusionTable.isIncluded] = isIncluded
-            if (reason != null) it[CommissionManualInclusionTable.reason] = reason
-            it[CommissionManualInclusionTable.assignedBy] = assignedBy
+            it[CommissionManualInclusionTable.id] = params.id
+            it[CommissionManualInclusionTable.productSaleId] = params.productSaleId
+            it[CommissionManualInclusionTable.userId] = params.userId
+            it[CommissionManualInclusionTable.isIncluded] = params.isIncluded
+            if (params.reason != null) it[CommissionManualInclusionTable.reason] = params.reason
+            it[CommissionManualInclusionTable.assignedBy] = params.assignedBy
         }
 
         val created =
-            findByIdInTransaction(id)
-                ?: error("commission_manual_inclusion not found after insert for $id")
+            findByIdInTransaction(params.id)
+                ?: error("commission_manual_inclusion not found after insert for ${params.id}")
 
         auditFn(null, created)
         return created

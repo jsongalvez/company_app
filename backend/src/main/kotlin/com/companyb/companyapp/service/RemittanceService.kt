@@ -223,7 +223,7 @@ object RemittanceService {
         return line
     }
 
-    @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
+    @Suppress("ThrowsCount", "ReturnCount")
     fun addDayBreakdown(
         callerId: UUID,
         remittanceId: UUID,

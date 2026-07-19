@@ -8,6 +8,7 @@ import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
+import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -29,12 +30,14 @@ object CommissionManualInclusionService {
 
         val result =
             CommissionManualInclusionRepository.upsert(
-                id = id,
-                productSaleId = productSaleId,
-                userId = userId,
-                isIncluded = isIncluded,
-                reason = reason,
-                assignedBy = callerId,
+                CommissionManualInclusionUpsertParams(
+                    id = id,
+                    productSaleId = productSaleId,
+                    userId = userId,
+                    isIncluded = isIncluded,
+                    reason = reason,
+                    assignedBy = callerId,
+                ),
             ) { existing, updated ->
                 if (existing == null) {
                     AuditLogRepository.recordInsert(

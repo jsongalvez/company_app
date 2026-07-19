@@ -3,6 +3,7 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.SessionBaseRate
+import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -25,32 +26,26 @@ data class SetRateResult(
 )
 
 object SessionBaseRateRepository {
-    @Suppress("LongParameterList")
     fun setRate(
-        id: UUID,
-        setBy: UUID,
-        branchId: UUID,
-        sessionType: SessionType,
-        rate: BigDecimal,
-        effectiveFrom: OffsetDateTime,
-        effectiveUntil: OffsetDateTime,
+        params: SessionBaseRateCreateParams,
         auditFn: (SessionBaseRate) -> Unit = {},
     ): SetRateResult =
         transaction {
             val insertedCount =
                 SessionBaseRateTable
                     .insertIgnore {
-                        it[SessionBaseRateTable.id] = id
-                        it[SessionBaseRateTable.setBy] = setBy
-                        it[SessionBaseRateTable.branchId] = branchId
-                        it[SessionBaseRateTable.sessionType] = sessionType
-                        it[SessionBaseRateTable.rate] = rate
-                        it[SessionBaseRateTable.effectiveFrom] = effectiveFrom
-                        it[SessionBaseRateTable.effectiveUntil] = effectiveUntil
+                        it[SessionBaseRateTable.id] = params.id
+                        it[SessionBaseRateTable.setBy] = params.setBy
+                        it[SessionBaseRateTable.branchId] = params.branchId
+                        it[SessionBaseRateTable.sessionType] = params.sessionType
+                        it[SessionBaseRateTable.rate] = params.rate
+                        it[SessionBaseRateTable.effectiveFrom] = params.effectiveFrom
+                        it[SessionBaseRateTable.effectiveUntil] = params.effectiveUntil
                     }.insertedCount
             val inserted = insertedCount > 0
             val rateRow =
-                findByIdInTransaction(id) ?: error("session_base_rate not found after idempotent insert for $id")
+                findByIdInTransaction(params.id)
+                    ?: error("session_base_rate not found after idempotent insert for ${params.id}")
 
             if (inserted) {
                 auditFn(rateRow)

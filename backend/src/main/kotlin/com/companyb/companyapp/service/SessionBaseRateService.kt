@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.model.SessionBaseRate
+import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
@@ -46,13 +47,15 @@ object SessionBaseRateService {
         SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
 
         return SessionBaseRateRepository.setRate(
-            id,
-            callerId,
-            branchId,
-            sessionType,
-            rate,
-            now,
-            FAR_FUTURE,
+            SessionBaseRateCreateParams(
+                id = id,
+                setBy = callerId,
+                branchId = branchId,
+                sessionType = sessionType,
+                rate = rate,
+                effectiveFrom = now,
+                effectiveUntil = FAR_FUTURE,
+            ),
             auditFn = { rate ->
                 AuditLogRepository.recordInsert(
                     tableName = SessionBaseRateTable.tableName,

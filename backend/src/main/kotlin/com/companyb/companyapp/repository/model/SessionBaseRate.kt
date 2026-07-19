@@ -20,6 +20,16 @@ data class SessionBaseRate(
     val effectiveUntil: OffsetDateTime,
 )
 
+data class SessionBaseRateCreateParams(
+    val id: UUID,
+    val setBy: UUID,
+    val branchId: UUID,
+    val sessionType: SessionType,
+    val rate: BigDecimal,
+    val effectiveFrom: OffsetDateTime,
+    val effectiveUntil: OffsetDateTime,
+)
+
 object SessionBaseRateTable : Table("session_base_rate") {
     private const val RATE_PRECISION = 10
     private const val RATE_SCALE = 2
