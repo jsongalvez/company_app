@@ -6,7 +6,7 @@
 
 ## Context
 
-Per `docs/architecture_implementation_plan.md` §G1, audit entries must be written in the service layer
+Per `docs/architecture.md` §12.1, audit entries must be written in the service layer
 only — never in routes, never in repositories. However, the existing codebase had
 `AuditLogRepository.record()` calls inside 24 repository files (49 call sites), each inside the
 repository's own `transaction{}` block.

@@ -2,15 +2,15 @@
 
 ## Core Documents
 
-Before coding, read the relevant doc(s) in `docs/`:
+Before coding, read the relevant doc(s):
 
 | File | Use when |
 |------|----------|
-| `docs/architecture_implementation_plan.md` | You need architecture decisions, module map, or implementation sequence |
-| `docs/engine_specifications.md` | You need exact pseudocode or SQL for the commission, delegate, or remittance engines |
-| `docs/business_requirements.md` | You need domain terminology, business rules, or constraints |
-| `docs/design_specification.md` | You need the tech stack, repo structure, or deployment context |
-| `docs/javalin-framework.md` | Before writing Javalin routes, handlers, or tests — Javalin 7.x API reference |
+| `docs/architecture.md` | Architecture decisions, module map, tech stack, backend layering |
+| `docs/engines.md` | Exact pseudocode or SQL for the commission, delegate, or remittance engines |
+| `docs/business-requirements.md` | Domain terminology, business rules, or constraints |
+| `docs/javalin-framework.md` (at `backend/docs/javalin-framework.md`) | Before writing Javalin routes, handlers, or tests — Javalin 7.x API reference |
+| `CONTEXT.md` | Domain glossary and precise terminology |
 
 ## Schema
 

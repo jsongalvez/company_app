@@ -5,10 +5,30 @@ Kotlin Multiplatform project: backend API server + Compose Multiplatform client 
 ## Module boundaries
 
 - `backend/` — Javalin + Exposed (Postgres) API server. **Read `backend/AGENTS.md` before touching any backend code.** It is the authority on backend conventions, database access, auth, testing, and performance.
-- `composeApp/` — Compose Multiplatform UI. Targets: Android, desktop (JVM), iOS.
-- `shared/` — Kotlin Multiplatform shared library (all targets). Serialization, domain types, and route constants.
+- `composeApp/` — Compose Multiplatform UI. Targets: Android, desktop (JVM), iOS. **Read `composeApp/AGENTS.md` for UI conventions, logging, and ViewModel patterns.**
+- `shared/` — Kotlin Multiplatform shared library (all targets). Serialization, domain types, and route constants. **Read `shared/AGENTS.md` for shared module conventions.**
 
 All modules depend on `:shared`. The backend depends on nothing else beyond `:shared`.
+
+## Document map
+
+This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `docs/adr/` (architecture decisions). Below is a quick-reference for where to find what.
+
+| When you need... | Read this |
+|-----------------|-----------|
+| Domain terms and glossary | `CONTEXT.md` |
+| Architecture, tech stack, layering, deep module map | `docs/architecture.md` |
+| Business rules and domain terminology (detailed) | `docs/business-requirements.md` |
+| Engine pseudocode (commission, delegate, remittance) | `docs/engines.md` |
+| Architecture decisions | `docs/adr/` (numbered 0001-0015) |
+| Feature specs | `docs/specs/` |
+| Backend conventions (Exposed, routes, auth, testing, Javalin) | `backend/AGENTS.md` |
+| Frontend conventions (logging, ViewModels, design tokens) | `composeApp/AGENTS.md` |
+| Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
+| Issue tracking | `docs/agents/issue-tracker.md` |
+| Triage labels | `docs/agents/triage-labels.md` |
+| Performance baselines | `backend/jmh-baselines.md` |
+| Load test results | `tests/k6/results/baseline-results.md` |
 
 ## Commands
 
@@ -55,51 +75,9 @@ After `bash scripts/setup-hooks.sh`:
 - ktlint + detekt applied to all subprojects via root `build.gradle.kts` `subprojects {}`. Detekt config: `config/detekt/detekt.yml`. Plugin: `detekt-formatting`.
 - EditorConfig: 4-space indent, 120-char max line for Kotlin, no-wildcard-imports disabled.
 
-## composeApp logging convention
+## composeApp
 
-All composeApp code uses `expect/actual Log` functions from `com.companyb.companyapp.util`:
-- `logDebug(tag, message)`, `logInfo(tag, message)`, `logWarn(tag, message)`, `logError(tag, message, throwable?)`
-- Desktop → SLF4J/logback, Android → android.util.Log, iOS → println with timestamp prefix.
-- **Tag naming**: `"[Feature]VM"` for ViewModels (e.g. `"BranchVM"`, `"SessionVM"`), screen name for composables (`"LoginScreen"`, `"HomeScreen"`), `"TokenStore"`, `"ApiClient"`.
-- **Where to log**: method entry, API call start (with endpoint path), success/failure, and catch blocks.
-- `logWarn`: handled business errors (HTTP 4xx responses, `UiState.Error` branches in screens — not exceptions).
-- `logError` must be used in every `catch` block with the exception as the third arg.
-- New ViewModels/screens must follow this convention.
-
-### ApiCallHandler
-
-ViewModels must use `ApiCallHandler` (`com.companyb.companyapp.viewmodel`) for all API calls instead of writing inline `try/catch/log/state` boilerplate:
-
-```kotlin
-class ExampleViewModel(private val apiClient: ApiClient) : ViewModel() {
-    private val handler = ApiCallHandler(viewModelScope, "ExampleVM")
-
-    fun loadData() {
-        handler.launch(
-            state = _data,
-            operation = "loadData",
-            endpoint = "GET /api/example",
-            block = { apiClient.httpClient.get("/api/example") },
-            transform = { it.body() },
-        )
-    }
-
-    fun performAction() {
-        handler.launchUnit(
-            state = _actionResult,
-            operation = "performAction",
-            endpoint = "POST /api/example/action",
-            block = { apiClient.httpClient.post("/api/example/action") },
-        )
-    }
-}
-```
-
-- `launch`: for calls that deserialize a response body. Use `transform = { it.body() }` for standard deserialization.
-- `launchUnit`: for calls that only need success/failure status (no response body).
-- `entryMessage`: optional parameter to customize the entry log (defaults to `"$operation called"`).
-- The handler automatically manages `UiState.Loading`, `UiState.Success`, `UiState.Error`, and all logging (`logInfo` for lifecycle, `logError` for exceptions).
-- ViewModels that use `ApiCallHandler` exclusively do not need to import `logInfo`, `logError`, or `launch` from kotlinx.coroutines.
+See `composeApp/AGENTS.md` for UI conventions, logging, ViewModel patterns, and the ApiCallHandler.
 
 ## Performance
 
