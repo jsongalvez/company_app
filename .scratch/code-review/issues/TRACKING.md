@@ -25,10 +25,10 @@ Work "blocked-by" first — any unblocked ticket is ready to grab.
 | CR-018 — FOR UPDATE on client+inventory | — | [x] |
 | CR-019 — base rate gaps + PII + pricing | — | [x] |
 | CR-020 — assertEditable + expectedVersion | — | [x] |
-| CR-021 — commission recalc endpoint + net_income view | CR-013 | [ ] |
+| CR-021 — commission recalc endpoint + net_income view | CR-013 | [x] |
 | CR-022 — soft-deleted expenses + duplicate mapping | — | [x] |
 | CR-023 — `!!` in runCatching + no-zone OffsetDateTime | — | [x] |
-| CR-024 — audit in repo + snapshot transaction | — | [ ] |
+| CR-024 — audit in repo + snapshot transaction | — | [x] |
 | CR-025 — magic strings + duplicated plumbing | — | [x] |
 | CR-026 — test anti-patterns | — | [ ] |
 | CR-027 — N+1 scheduler + notification table | — | [ ] |
@@ -78,7 +78,8 @@ Unresolved tickets migrated to GitHub Issues (2026-07-17):
 | CR-013 | [#8](https://github.com/jsongalvez/company_app/issues/8) |
 | CR-015 | [#9](https://github.com/jsongalvez/company_app/issues/9) |
 | CR-019 | [#10](https://github.com/jsongalvez/company_app/issues/10) |
-| CR-021 | [#11](https://github.com/jsongalvez/company_app/issues/11) |
+| CR-021 | [#11](https://github.com/jsongalvez/company_app/issues/11) | ✅ done |
+
 | CR-024 | [#12](https://github.com/jsongalvez/company_app/issues/12) |
 | CR-026 | [#13](https://github.com/jsongalvez/company_app/issues/13) |
 | CR-027 | [#14](https://github.com/jsongalvez/company_app/issues/14) |

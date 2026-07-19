@@ -40,7 +40,7 @@ object MonthlyRemittanceSummaryRepository {
             grossIncome = gross,
             totalCompensation = comp,
             totalExpenses = exp,
-            netIncome = gross - comp - exp,
+            netIncome = this[MonthlyRemittanceSummaryView.netIncome],
         )
     }
 }
