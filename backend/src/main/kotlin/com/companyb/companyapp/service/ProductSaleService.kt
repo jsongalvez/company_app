@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
+import com.companyb.companyapp.service.finance.commission.CommissionEngine
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -95,7 +96,7 @@ object ProductSaleService {
                 }
             }
 
-        CommissionEngineService.recalculate(branchDayId)
+        CommissionEngine.recalculate(branchDayId)
 
         return result
     }

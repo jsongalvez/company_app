@@ -1,4 +1,4 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.service.finance.commission
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AttendanceRepository
@@ -7,21 +7,17 @@ import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.DayStatus
+import com.companyb.companyapp.service.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
 
-object CommissionEngineService {
+internal object CommissionEngine {
     private val logger = KotlinLogging.logger {}
 
     private const val COMMISSION_SCALE = 4
 
-    /**
-     * Pure computation: splits total commission (amount x quantity) equally among
-     * [eligibleUserCount] users. Extracted so it can be unit-tested and benchmarked
-     * without a database.
-     */
     fun splitCommission(
         commissionAmount: BigDecimal,
         quantity: Int,

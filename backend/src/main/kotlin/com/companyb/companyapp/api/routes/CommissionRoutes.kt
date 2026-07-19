@@ -7,9 +7,7 @@ import com.companyb.companyapp.dto.CommissionSplitResponse
 import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionSplit
-import com.companyb.companyapp.service.CommissionEngineService
-import com.companyb.companyapp.service.CommissionManualInclusionService
-import com.companyb.companyapp.service.CommissionSplitService
+import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -55,7 +53,7 @@ object CommissionRoutes {
         val userId = uuidOrThrow(request.userId, "user id")
 
         val inclusion =
-            CommissionManualInclusionService.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = id,
                 productSaleId = productSaleId,
@@ -71,7 +69,7 @@ object CommissionRoutes {
     private fun handleGetSplits(context: Context) {
         val branchDayId = context.pathParamAsUuid("branchDayId")
 
-        val splits = CommissionSplitService.getByBranchDayId(branchDayId)
+        val splits = CommissionService.getByBranchDayId(branchDayId)
 
         context.status(HttpStatus.OK)
         context.json(splits.map { it.toResponse() })
@@ -80,9 +78,9 @@ object CommissionRoutes {
     private fun handleRecalculate(context: Context) {
         val branchDayId = context.pathParamAsUuid("branchDayId")
 
-        CommissionEngineService.manualRecalculate(branchDayId)
+        CommissionService.manualRecalculate(branchDayId)
 
-        val splits = CommissionSplitService.getByBranchDayId(branchDayId)
+        val splits = CommissionService.getByBranchDayId(branchDayId)
         context.status(HttpStatus.OK)
         context.json(splits.map { it.toResponse() })
     }

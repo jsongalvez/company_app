@@ -1,6 +1,6 @@
 package com.companyb.companyapp.benchmark;
 
-import com.companyb.companyapp.service.CommissionEngineService;
+import com.companyb.companyapp.service.finance.commission.CommissionEngine;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
@@ -22,21 +22,21 @@ public class CommissionBenchmark {
 
     @Benchmark
     public void splitBetweenOne(Blackhole bh) {
-        bh.consume(CommissionEngineService.INSTANCE.splitCommission(AMOUNT, QUANTITY, 1));
+        bh.consume(CommissionEngine.INSTANCE.splitCommission(AMOUNT, QUANTITY, 1));
     }
 
     @Benchmark
     public void splitBetweenTwo(Blackhole bh) {
-        bh.consume(CommissionEngineService.INSTANCE.splitCommission(AMOUNT, QUANTITY, 2));
+        bh.consume(CommissionEngine.INSTANCE.splitCommission(AMOUNT, QUANTITY, 2));
     }
 
     @Benchmark
     public void splitBetweenThree(Blackhole bh) {
-        bh.consume(CommissionEngineService.INSTANCE.splitCommission(AMOUNT, QUANTITY, 3));
+        bh.consume(CommissionEngine.INSTANCE.splitCommission(AMOUNT, QUANTITY, 3));
     }
 
     @Benchmark
     public void splitBetweenTen(Blackhole bh) {
-        bh.consume(CommissionEngineService.INSTANCE.splitCommission(AMOUNT, QUANTITY, 10));
+        bh.consume(CommissionEngine.INSTANCE.splitCommission(AMOUNT, QUANTITY, 10));
     }
 }

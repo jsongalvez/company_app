@@ -21,6 +21,8 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.finance.commission.CommissionService
+import com.companyb.companyapp.service.finance.commission.ManualInclusionHelper
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -90,7 +92,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusionId = UUID.randomUUID()
 
         val inclusion =
-            CommissionManualInclusionService.create(
+            ManualInclusionHelper.create(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -114,7 +116,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusionId = UUID.randomUUID()
 
         val inclusion =
-            CommissionManualInclusionService.create(
+            ManualInclusionHelper.create(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -132,7 +134,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusionId = UUID.randomUUID()
 
         val inclusion =
-            CommissionManualInclusionService.create(
+            ManualInclusionHelper.create(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -149,7 +151,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `upsert updates existing inclusion`() {
         val inclusionId = UUID.randomUUID()
 
-        CommissionManualInclusionService.create(
+        ManualInclusionHelper.create(
             callerId = callerId,
             id = inclusionId,
             productSaleId = productSaleId,
@@ -159,7 +161,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         )
 
         val updated =
-            CommissionManualInclusionService.create(
+            ManualInclusionHelper.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
                 productSaleId = productSaleId,
@@ -187,7 +189,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         val inclusionId = UUID.randomUUID()
         val inclusion =
-            CommissionManualInclusionService.create(
+            ManualInclusionHelper.create(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -204,7 +206,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create with non-existent product sale returns not found`() {
         assertFailsWith<NotFoundException> {
-            CommissionManualInclusionService.create(
+            ManualInclusionHelper.create(
                 callerId = callerId,
                 id = UUID.randomUUID(),
                 productSaleId = UUID.randomUUID(),
@@ -221,7 +223,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         val (_, duration) =
             measureTimedValue {
-                CommissionManualInclusionService.create(
+                ManualInclusionHelper.create(
                     callerId = callerId,
                     id = inclusionId,
                     productSaleId = productSaleId,
@@ -245,7 +247,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `get splits returns correct data`() {
         val inclusionId = UUID.randomUUID()
 
-        CommissionManualInclusionService.create(
+        ManualInclusionHelper.create(
             callerId = callerId,
             id = inclusionId,
             productSaleId = productSaleId,
@@ -258,7 +260,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
 
         val splits =
-            CommissionSplitService.getByBranchDayId(branchDayId)
+            CommissionService.getByBranchDayId(branchDayId)
         assertTrue(splits.isNotEmpty())
 
         val targetSplit = splits.find { it.userId == targetUserId }
@@ -269,7 +271,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get splits without VIEW_BRANCH_DATA is allowed at service layer`() {
         val splits =
-            CommissionSplitService.getByBranchDayId(branchDayId)
+            CommissionService.getByBranchDayId(branchDayId)
 
         assertTrue(splits.isEmpty())
     }
@@ -277,7 +279,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get splits with non-existent branch day returns not found`() {
         assertFailsWith<NotFoundException> {
-            CommissionSplitService.getByBranchDayId(UUID.randomUUID())
+            CommissionService.getByBranchDayId(UUID.randomUUID())
         }
     }
 
@@ -285,7 +287,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `create writes audit log entry`() {
         val inclusionId = UUID.randomUUID()
 
-        CommissionManualInclusionService.create(
+        ManualInclusionHelper.create(
             callerId = callerId,
             id = inclusionId,
             productSaleId = productSaleId,

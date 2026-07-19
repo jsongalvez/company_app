@@ -1,7 +1,6 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.service.finance.commission
 
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
@@ -12,7 +11,7 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertP
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
-object CommissionManualInclusionService {
+internal object ManualInclusionHelper {
     private val logger = KotlinLogging.logger {}
 
     @Suppress("ThrowsCount", "LongParameterList")
@@ -65,7 +64,7 @@ object CommissionManualInclusionService {
                 }
             }
 
-        CommissionEngineService.recalculate(sale.branchDayId)
+        CommissionEngine.recalculate(sale.branchDayId)
 
         logger.info {
             "[COMMISSION-INCLUSION] Created inclusion ${result.id} for productSale=$productSaleId " +
