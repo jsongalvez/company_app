@@ -10,7 +10,8 @@ import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.InventoryMovementReason
-import com.companyb.companyapp.service.BranchInventoryService
+import com.companyb.companyapp.service.inventory.InventoryService
+import com.companyb.companyapp.service.inventory.MovementType
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -53,7 +54,7 @@ object BranchInventoryRoutes {
         val request = context.bodyAsClass<AddInventoryCardRequest>()
         val productId = uuidOrThrow(request.productId, "product id")
 
-        BranchInventoryService.ensureCard(
+        InventoryService.ensureCard(
             branchId = branchId,
             productId = productId,
         )
@@ -71,12 +72,14 @@ object BranchInventoryRoutes {
         if (request.quantity <= 0) throw BadRequestResponse("Restock quantity must be positive")
 
         val movement =
-            BranchInventoryService.restock(
+            InventoryService.recordMovement(
                 callerId = callerId,
                 movementId = movementId,
                 branchId = branchId,
                 productId = productId,
-                quantity = request.quantity,
+                movementType = MovementType.Restock,
+                quantityChange = request.quantity,
+                notes = null,
                 branchDayId = branchDayId,
             )
 
@@ -88,7 +91,7 @@ object BranchInventoryRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
         context.json(
-            BranchInventoryService.findByBranch(branchId).map { it.toResponse() },
+            InventoryService.getStock(branchId).map { it.toResponse() },
         )
     }
 
@@ -114,13 +117,22 @@ object BranchInventoryRoutes {
             throw BadRequestResponse("Notes are required for MISSING movements")
         }
 
+        val movementType =
+            when (reason) {
+                InventoryMovementReason.TESTER -> MovementType.Tester
+                InventoryMovementReason.SAMPLE -> MovementType.Sample
+                InventoryMovementReason.MISSING -> MovementType.Missing
+                InventoryMovementReason.ADJUSTMENT -> MovementType.Adjustment
+                else -> throw BadRequestResponse("Invalid movement reason for this endpoint")
+            }
+
         val movement =
-            BranchInventoryService.recordMovement(
+            InventoryService.recordMovement(
                 callerId = callerId,
                 movementId = movementId,
                 branchId = branchId,
                 productId = productId,
-                reason = reason,
+                movementType = movementType,
                 quantityChange = request.quantityChange,
                 notes = request.notes,
                 branchDayId = branchDayId,

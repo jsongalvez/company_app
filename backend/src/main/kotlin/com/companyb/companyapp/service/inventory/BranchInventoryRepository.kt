@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.inventory
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.BranchInventory
@@ -22,7 +22,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-data class RestockParams(
+internal data class RestockParams(
     val movementId: UUID,
     val branchId: UUID,
     val productId: UUID,
@@ -32,7 +32,7 @@ data class RestockParams(
     val movedBy: UUID,
 )
 
-data class RecordMovementParams(
+internal data class RecordMovementParams(
     val movementId: UUID,
     val branchId: UUID,
     val productId: UUID,
@@ -44,19 +44,19 @@ data class RecordMovementParams(
     val movedBy: UUID,
 )
 
-data class RestockResult(
+internal data class RestockResult(
     val movement: InventoryMovement,
     val updatedStock: Int,
 )
 
-data class RestockAuditData(
+internal data class RestockAuditData(
     val movement: InventoryMovement,
     val oldCard: BranchInventory,
     val newCard: BranchInventory,
     val quantityAdded: Int,
 )
 
-data class MovementAuditData(
+internal data class MovementAuditData(
     val movement: InventoryMovement,
     val oldCard: BranchInventory,
     val newCard: BranchInventory,
@@ -65,7 +65,7 @@ data class MovementAuditData(
     val notes: String?,
 )
 
-object BranchInventoryRepository {
+internal object BranchInventoryRepository {
     fun ensureCard(
         branchId: UUID,
         productId: UUID,
