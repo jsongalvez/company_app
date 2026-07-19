@@ -10,6 +10,17 @@ Kotlin Multiplatform project: backend API server + Compose Multiplatform client 
 
 All modules depend on `:shared`. The backend depends on nothing else beyond `:shared`.
 
+## Agent workflow — starting a task
+
+When a fresh agent opens a GitHub issue to work on:
+
+1. Read the issue body to understand the task
+2. Read `CONTEXT.md` for domain vocabulary (use these terms exactly)
+3. Read `AGENTS.md` + the relevant module `AGENTS.md` (`backend/`, `composeApp/`, or `shared/`)
+4. Scan `docs/adr/` for decisions in the area you're touching
+5. Open the relevant doc from the Document Map below (e.g. `docs/architecture.md` for layering, `docs/engines.md` for pseudocode, `docs/business-requirements.md` for rules)
+6. Load the skill indicated by the workflow (`/implement`, `/code-review`, etc.)
+
 ## Document map
 
 This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `docs/adr/` (architecture decisions). Below is a quick-reference for where to find what.
