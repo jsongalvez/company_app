@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service.finance.commission
 
-import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.DayStatus
+import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
@@ -60,7 +60,7 @@ internal object CommissionEngine {
         for (sale in sales) {
             val eligibleUsers = mutableSetOf<UUID>()
 
-            val clockedInUsers = AttendanceRepository.findUsersClockedInAt(branchDayId, sale.soldAt)
+            val clockedInUsers = AttendanceService.findUsersClockedInAt(branchDayId, sale.soldAt)
             eligibleUsers.addAll(clockedInUsers)
 
             val inclusions = CommissionManualInclusionRepository.findByProductSaleId(sale.id)

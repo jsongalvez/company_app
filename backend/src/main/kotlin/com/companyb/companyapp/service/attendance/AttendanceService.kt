@@ -1,11 +1,8 @@
-package com.companyb.companyapp.service
-import com.companyb.companyapp.exception.ConflictException
+package com.companyb.companyapp.service.attendance
+
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
-import com.companyb.companyapp.repository.ClockInParams
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -21,6 +18,11 @@ object AttendanceService {
 
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
+    fun findUsersClockedInAt(
+        branchDayId: UUID,
+        at: OffsetDateTime,
+    ): List<UUID> = AttendanceRepository.findUsersClockedInAt(branchDayId, at)
+
     @Suppress("ThrowsCount")
     fun clockOut(
         attendanceId: UUID,
@@ -32,7 +34,7 @@ object AttendanceService {
         }
 
         if (existing.clockOut != null) {
-            val isRelief = getIsRelief(existing.branchDayId, existing.userId)
+            val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
             return AttendanceServiceResult(existing, false, isRelief)
         }
 
@@ -51,14 +53,9 @@ object AttendanceService {
 
         CommissionEngine.recalculate(attendance.branchDayId)
 
-        val isRelief = getIsRelief(attendance.branchDayId, attendance.userId)
+        val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
         return AttendanceServiceResult(attendance, false, isRelief)
     }
-
-    private fun getIsRelief(
-        branchDayId: UUID,
-        userId: UUID,
-    ): Boolean = AttendanceRepository.branchDayAssignmentIsRelief(branchDayId, userId) ?: false
 
     @Suppress("ThrowsCount")
     fun clockIn(
@@ -69,14 +66,9 @@ object AttendanceService {
         val today = LocalDate.now(manilaZone)
         val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
-        val activeClockIn = AttendanceRepository.hasActiveClockIn(callerId, branchDay.id)
-        if (activeClockIn) {
-            throw ConflictException("User already has an active clock-in for this branch day")
-        }
+        ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
 
-        val existingAssignment =
-            UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
-        val isRelief = existingAssignment == null
+        val isRelief = AssignmentResolver.resolveIsRelief(branchId, callerId)
 
         val branchDayAssignmentId = UUID.randomUUID()
 

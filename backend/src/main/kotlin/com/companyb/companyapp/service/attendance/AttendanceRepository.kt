@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.attendance
 
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -19,7 +19,9 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
-data class ClockInParams(
+private val logger = KotlinLogging.logger {}
+
+internal data class ClockInParams(
     val attendanceId: UUID,
     val branchDayId: UUID,
     val userId: UUID,
@@ -29,9 +31,7 @@ data class ClockInParams(
     val branchId: UUID,
 )
 
-private val logger = KotlinLogging.logger {}
-
-object AttendanceRepository {
+internal object AttendanceRepository {
     fun hasActiveClockIn(
         userId: UUID,
         branchDayId: UUID,

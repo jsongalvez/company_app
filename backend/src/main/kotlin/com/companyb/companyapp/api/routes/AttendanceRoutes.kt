@@ -4,7 +4,7 @@ import com.companyb.companyapp.dto.ClockInRequest
 import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.dto.ClockOutResponse
-import com.companyb.companyapp.service.AttendanceService
+import com.companyb.companyapp.service.attendance.AttendanceService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
