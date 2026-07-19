@@ -5,7 +5,6 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
@@ -124,7 +123,7 @@ object ReliefAccessService {
                     newValue =
                         AuditLogRepository.jsonFields(
                             "requestId" to updated.id.toString(),
-                            "status" to AuditValues.DENIED,
+                            "status" to ReliefStatus.DENIED.name,
                         ),
                 )
             },

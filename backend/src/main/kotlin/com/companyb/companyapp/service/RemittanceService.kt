@@ -16,6 +16,7 @@ import com.companyb.companyapp.repository.RemittanceSubmissionResult
 import com.companyb.companyapp.repository.SubmitAuditContext
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
@@ -64,8 +65,8 @@ object RemittanceService {
                             recordId = ctx.remittanceId,
                             action = AuditAction.UPDATE,
                             changedBy = callerId,
-                            oldValue = AuditLogRepository.jsonField("status", AuditValues.DRAFT),
-                            newValue = AuditLogRepository.jsonField("status", AuditValues.SUBMITTED),
+                            oldValue = AuditLogRepository.jsonField("status", RemittanceStatus.DRAFT.name),
+                            newValue = AuditLogRepository.jsonField("status", RemittanceStatus.SUBMITTED.name),
                         )
                         for (bdId in ctx.breakdownIds) {
                             AuditLogRepository.record(
@@ -73,8 +74,8 @@ object RemittanceService {
                                 recordId = bdId,
                                 action = AuditAction.UPDATE,
                                 changedBy = callerId,
-                                oldValue = AuditLogRepository.jsonField("status", AuditValues.OPEN),
-                                newValue = AuditLogRepository.jsonField("status", AuditValues.REMITTED),
+                                oldValue = AuditLogRepository.jsonField("status", DayStatus.OPEN.name),
+                                newValue = AuditLogRepository.jsonField("status", DayStatus.REMITTED.name),
                             )
                         }
                     },
