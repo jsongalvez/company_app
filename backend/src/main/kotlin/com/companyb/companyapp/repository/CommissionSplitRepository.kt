@@ -27,19 +27,25 @@ object CommissionSplitRepository {
     fun replaceForBranchDay(
         branchDayId: UUID,
         splits: Map<UUID, BigDecimal>,
+        auditFn: (List<CommissionSplit>) -> Unit = {},
     ) {
         transaction {
             CommissionSplitTable.deleteWhere {
                 CommissionSplitTable.branchDayId eq branchDayId
             }
 
+            val created = mutableListOf<CommissionSplit>()
             splits.forEach { (userId, amount) ->
-                CommissionSplitTable.insert {
-                    it[CommissionSplitTable.branchDayId] = branchDayId
-                    it[CommissionSplitTable.userId] = userId
-                    it[CommissionSplitTable.amount] = amount
-                }
+                val insert =
+                    CommissionSplitTable.insert {
+                        it[CommissionSplitTable.branchDayId] = branchDayId
+                        it[CommissionSplitTable.userId] = userId
+                        it[CommissionSplitTable.amount] = amount
+                    }
+                val id = insert[CommissionSplitTable.id]
+                created.add(CommissionSplit(id, branchDayId, userId, amount))
             }
+            auditFn(created)
         }.also {
             logger.info { "[COMMISSION-SPLIT] Replaced splits for branchDay=$branchDayId with ${splits.size} entries" }
         }

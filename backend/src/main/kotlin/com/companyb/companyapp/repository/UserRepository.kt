@@ -49,15 +49,19 @@ object UserRepository {
         passwordHash: String,
         email: String,
         displayName: String,
+        auditFn: (UUID) -> Unit = {},
     ): UUID =
         transaction {
-            AppUserTable
-                .insert {
+            val insert =
+                AppUserTable.insert {
                     it[AppUserTable.username] = username
                     it[AppUserTable.passwordHash] = passwordHash
                     it[AppUserTable.email] = email
                     it[AppUserTable.displayName] = displayName
-                } get AppUserTable.id
+                }
+            val id = insert[AppUserTable.id]
+            auditFn(id)
+            id
         }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 
     fun findInactiveUserIds(): List<UUID> =
