@@ -12,9 +12,6 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
-import com.companyb.companyapp.repository.model.InventoryMovementTable
-import com.companyb.companyapp.repository.model.NotificationTable
-import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -23,21 +20,14 @@ import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
-import com.companyb.companyapp.repository.model.SessionConcernTable
-import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.inSubQuery
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
@@ -46,7 +36,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
-import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -59,7 +48,6 @@ class ExportServicePostgresTest : BasePostgresTest() {
     private val branchId = UUID.randomUUID()
     private val branchDayId = UUID.randomUUID()
     private val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
-    private val testBranchIds = mutableListOf(branchId)
 
     override fun initTestData() {
         DatabaseTestHelper.insertUser(
@@ -70,76 +58,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
             displayName = "Export User",
         )
         trackOwned(AppUserTable, AppUserTable.id, callerId)
-        testBranchIds.add(branchId)
         DatabaseTestHelper.insertTestBranch(branchId, "Export Test Branch ${UUID.randomUUID()}", BranchType.CLINIC)
         trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
-        for (bid in testBranchIds) {
-            trackOwned(BranchDayTable, BranchDayTable.branchId, bid)
-        }
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         trackOwned(CompensationTable, CompensationTable.assignedBy, callerId)
         trackOwned(ExpenseTable, ExpenseTable.createdBy, callerId)
-    }
-
-    @Suppress("MaxLineLength")
-    @AfterTest
-    override fun tearDownBase() {
-        if (!DatabaseTestHelper.isDatabaseReady()) return
-        DatabaseTestHelper.withSnapshotTriggerDisabled {
-            for (bid in testBranchIds) {
-                val branchDayIds = BranchDayTable.select(BranchDayTable.id).where { BranchDayTable.branchId eq bid }
-                val remittanceIds = RemittanceTable.select(RemittanceTable.id).where { RemittanceTable.branchId eq bid }
-                val sessionIds =
-                    SessionTable.select(SessionTable.id).where {
-                        SessionTable.branchDayId inSubQuery branchDayIds
-                    }
-                val productSaleIds =
-                    ProductSaleTable.select(ProductSaleTable.id).where {
-                        ProductSaleTable.branchDayId inSubQuery branchDayIds
-                    }
-                val clientIds =
-                    SessionTable
-                        .select(SessionTable.clientId)
-                        .where {
-                            SessionTable.branchDayId inSubQuery branchDayIds
-                        }.map { it[SessionTable.clientId] }
-                val compUserIds =
-                    CompensationTable
-                        .select(CompensationTable.userId)
-                        .where {
-                            (CompensationTable.workBranchDayId inSubQuery branchDayIds) or
-                                (CompensationTable.payingBranchDayId inSubQuery branchDayIds)
-                        }.map { it[CompensationTable.userId] }
-
-                RemittanceFinancialSnapshotTable.deleteWhere { remittanceId inSubQuery remittanceIds }
-                RemittanceDayBreakdownTable.deleteWhere { remittanceId inSubQuery remittanceIds }
-                RemittanceLineTable.deleteWhere { remittanceId inSubQuery remittanceIds }
-                RemittanceTable.deleteWhere { branchId eq bid }
-
-                InventoryMovementTable.deleteWhere { productSaleId inSubQuery productSaleIds }
-                ProductSaleTable.deleteWhere { branchDayId inSubQuery branchDayIds }
-
-                NotificationTable.deleteWhere { sessionId inSubQuery sessionIds }
-                SessionVoidTable.deleteWhere { sessionId inSubQuery sessionIds }
-                SessionPractitionerTable.deleteWhere { sessionId inSubQuery sessionIds }
-                SessionConcernTable.deleteWhere { sessionId inSubQuery sessionIds }
-
-                SessionTable.deleteWhere { branchDayId inSubQuery branchDayIds }
-                ClientTable.deleteWhere { id inList clientIds }
-
-                CompensationTable.deleteWhere {
-                    (workBranchDayId inSubQuery branchDayIds) or (payingBranchDayId inSubQuery branchDayIds)
-                }
-                ExpenseTable.deleteWhere { branchDayId inSubQuery branchDayIds }
-                BranchDayTable.deleteWhere { branchId eq bid }
-
-                AppUserTable.deleteWhere { id inList compUserIds }
-            }
-            cleanTrackedRows()
-        }
     }
 
     @Test
@@ -271,16 +197,15 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `provincial export CSV returns branch data`() {
         val provBranchId = UUID.randomUUID()
-        testBranchIds.add(provBranchId)
         DatabaseTestHelper.insertTestBranch(
             provBranchId,
             "Prov Branch ${UUID.randomUUID()}",
             BranchType.PROVINCIAL_TOUR,
         )
         trackOwned(BranchTable, BranchTable.id, provBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, provBranchId)
         val provDayId = UUID.randomUUID()
         insertBranchDay(provDayId, provBranchId, today)
+        trackOwned(BranchDayTable, BranchDayTable.id, provDayId)
         val remittanceId =
             createSubmittedRemittanceForBranch(
                 provBranchId,
@@ -304,12 +229,11 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `medical mission export CSV returns branch data`() {
         val mmBranchId = UUID.randomUUID()
-        testBranchIds.add(mmBranchId)
         DatabaseTestHelper.insertTestBranch(mmBranchId, "MM Branch ${UUID.randomUUID()}", BranchType.MEDICAL_MISSION)
         trackOwned(BranchTable, BranchTable.id, mmBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, mmBranchId)
         val mmDayId = UUID.randomUUID()
         insertBranchDay(mmDayId, mmBranchId, today)
+        trackOwned(BranchDayTable, BranchDayTable.id, mmDayId)
         val remittanceId =
             createSubmittedRemittanceForBranch(
                 mmBranchId,
@@ -340,16 +264,15 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `provincial export with month filter returns filtered data`() {
         val provBranchId = UUID.randomUUID()
-        testBranchIds.add(provBranchId)
         DatabaseTestHelper.insertTestBranch(
             provBranchId,
             "Prov Month Branch ${UUID.randomUUID()}",
             BranchType.PROVINCIAL_TOUR,
         )
         trackOwned(BranchTable, BranchTable.id, provBranchId)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, provBranchId)
         val provDayId = UUID.randomUUID()
         insertBranchDay(provDayId, provBranchId, today)
+        trackOwned(BranchDayTable, BranchDayTable.id, provDayId)
         val remittanceId =
             createSubmittedRemittanceForBranch(
                 provBranchId,
@@ -447,6 +370,13 @@ class ExportServicePostgresTest : BasePostgresTest() {
             DatabaseTestHelper.insertTestExpense(targetDayId, callerId, expenses)
             insertFinancialSnapshot(remittanceId, grossIncome, compensation, expenses)
         }
+        trackOwned(AppUserTable, AppUserTable.id, compensationUserId)
+        trackOwned(ClientTable, ClientTable.id, lineClientId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
         return remittanceId
     }
 
@@ -470,6 +400,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
                 it[BranchDayTable.date] = today
             }
         }
+        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
         return dayId
     }
 

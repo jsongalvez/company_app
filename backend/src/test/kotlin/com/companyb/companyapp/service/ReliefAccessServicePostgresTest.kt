@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -9,6 +10,7 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefStatus
@@ -120,7 +122,14 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         assertEquals(ReliefStatus.GRANTED, result.requestStatus)
         assertEquals(targetUserId, result.grantedBy)
         assertNotNull(result.grantedAt)
-        assertTrue(capabilityExistsForReliefUser(requestId, reliefUserId, branchDayId))
+        assertTrue(
+            CapabilityService.hasCapability(
+                userId = reliefUserId,
+                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.BRANCH_DAY,
+                contextId = branchDayId,
+            ),
+        )
         assertEquals(2L, auditReliefEntryCount(requestId))
     }
 
@@ -225,22 +234,6 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
             ReliefAccessService.denyAccess(UUID.randomUUID(), targetUserId)
         }
     }
-
-    private fun capabilityExistsForReliefUser(
-        sourceId: UUID,
-        userId: UUID,
-        contextId: UUID,
-    ): Boolean =
-        transaction {
-            UserCapabilityTable
-                .selectAll()
-                .where {
-                    (UserCapabilityTable.sourceId eq sourceId) and
-                        (UserCapabilityTable.userId eq userId) and
-                        (UserCapabilityTable.contextId eq contextId)
-                }.empty()
-                .not()
-        }
 
     private fun insertBranchDay(
         id: UUID,
