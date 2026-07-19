@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
 import com.companyb.companyapp.repository.model.AuditAction
@@ -69,7 +70,7 @@ object MedicalMissionDelegateService {
                     newValue =
                         AuditLogRepository.jsonFields(
                             "delegateId" to revoked.id.toString(),
-                            "endedAt" to "now",
+                            "endedAt" to AuditValues.NOW,
                         ),
                 )
             },

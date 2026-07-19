@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
@@ -126,15 +127,15 @@ object ClientService {
                     recordId = clientId,
                     oldFields =
                         mapOf(
-                            "firstName" to (old.firstName ?: "null"),
-                            "lastName" to (old.lastName ?: "null"),
-                            "deletedAt" to (old.deletedAt?.toString() ?: "null"),
+                            "firstName" to (old.firstName ?: AuditValues.NULL),
+                            "lastName" to (old.lastName ?: AuditValues.NULL),
+                            "deletedAt" to (old.deletedAt?.toString() ?: AuditValues.NULL),
                         ),
                     newFields =
                         mapOf(
-                            "firstName" to "null",
-                            "lastName" to "null",
-                            "deletedAt" to (client.deletedAt?.toString() ?: "null"),
+                            "firstName" to AuditValues.NULL,
+                            "lastName" to AuditValues.NULL,
+                            "deletedAt" to (client.deletedAt?.toString() ?: AuditValues.NULL),
                         ),
                     changedBy = callerId,
                 )

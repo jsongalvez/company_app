@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AuditAction
@@ -139,8 +140,8 @@ object ConcernService {
                 AuditLogRepository.recordUpdate(
                     tableName = SessionTable.tableName,
                     recordId = updatedSession.id,
-                    oldFields = mapOf("otherConcerns" to (oldOtherConcerns ?: "null")),
-                    newFields = mapOf("otherConcerns" to "null"),
+                    oldFields = mapOf("otherConcerns" to (oldOtherConcerns ?: AuditValues.NULL)),
+                    newFields = mapOf("otherConcerns" to AuditValues.NULL),
                     changedBy = callerId,
                 )
             },

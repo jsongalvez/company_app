@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
@@ -49,12 +50,12 @@ object CommissionManualInclusionService {
                         oldFields =
                             mapOf(
                                 "isIncluded" to existing.isIncluded.toString(),
-                                "reason" to (existing.reason ?: "null"),
+                                "reason" to (existing.reason ?: AuditValues.NULL),
                             ),
                         newFields =
                             mapOf(
                                 "isIncluded" to updated.isIncluded.toString(),
-                                "reason" to (updated.reason ?: "null"),
+                                "reason" to (updated.reason ?: AuditValues.NULL),
                             ),
                         changedBy = callerId,
                     )

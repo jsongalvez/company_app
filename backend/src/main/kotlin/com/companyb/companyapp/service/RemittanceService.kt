@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddLineParams
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CreateDraftParams
@@ -63,8 +64,8 @@ object RemittanceService {
                             recordId = ctx.remittanceId,
                             action = AuditAction.UPDATE,
                             changedBy = callerId,
-                            oldValue = AuditLogRepository.jsonField("status", "DRAFT"),
-                            newValue = AuditLogRepository.jsonField("status", "SUBMITTED"),
+                            oldValue = AuditLogRepository.jsonField("status", AuditValues.DRAFT),
+                            newValue = AuditLogRepository.jsonField("status", AuditValues.SUBMITTED),
                         )
                         for (bdId in ctx.breakdownIds) {
                             AuditLogRepository.record(
@@ -72,8 +73,8 @@ object RemittanceService {
                                 recordId = bdId,
                                 action = AuditAction.UPDATE,
                                 changedBy = callerId,
-                                oldValue = AuditLogRepository.jsonField("status", "OPEN"),
-                                newValue = AuditLogRepository.jsonField("status", "REMITTED"),
+                                oldValue = AuditLogRepository.jsonField("status", AuditValues.OPEN),
+                                newValue = AuditLogRepository.jsonField("status", AuditValues.REMITTED),
                             )
                         }
                     },
@@ -205,8 +206,8 @@ object RemittanceService {
                         recordId = line.id,
                         action = AuditAction.UPDATE,
                         changedBy = callerId,
-                        oldValue = AuditLogRepository.jsonField("deletedAt", "null"),
-                        newValue = AuditLogRepository.jsonField("deletedAt", "now()"),
+                        oldValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NULL),
+                        newValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NOW_FN),
                     )
                 }
                     ?: throw NotFoundException("Remittance line not found")

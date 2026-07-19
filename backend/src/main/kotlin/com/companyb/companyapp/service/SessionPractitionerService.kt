@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
@@ -82,8 +83,8 @@ object SessionPractitionerService {
                     AuditLogRepository.recordUpdate(
                         tableName = SessionPractitionerTable.tableName,
                         recordId = p.id,
-                        oldFields = mapOf("remarks" to (oldPractitioner.remarks ?: "null")),
-                        newFields = mapOf("remarks" to (remarks ?: "null")),
+                        oldFields = mapOf("remarks" to (oldPractitioner.remarks ?: AuditValues.NULL)),
+                        newFields = mapOf("remarks" to (remarks ?: AuditValues.NULL)),
                         changedBy = callerId,
                     )
                 },

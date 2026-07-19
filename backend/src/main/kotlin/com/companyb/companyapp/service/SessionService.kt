@@ -6,6 +6,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
@@ -250,9 +251,9 @@ object SessionService {
                     recordId = unvoided.id,
                     oldFields =
                         mapOf(
-                            "unvoidedAt" to "null",
-                            "unvoidedBy" to "null",
-                            "unvoidedReason" to "null",
+                            "unvoidedAt" to AuditValues.NULL,
+                            "unvoidedBy" to AuditValues.NULL,
+                            "unvoidedReason" to AuditValues.NULL,
                         ),
                     newFields =
                         mapOf(

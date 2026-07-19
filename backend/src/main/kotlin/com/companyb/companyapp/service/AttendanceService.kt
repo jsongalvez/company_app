@@ -4,6 +4,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AttendanceRepository
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ClockInParams
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -41,7 +42,7 @@ object AttendanceService {
                     recordId = attendanceId,
                     action = AuditAction.UPDATE,
                     changedBy = callerId,
-                    newValue = AuditLogRepository.jsonField("clockOut", "now"),
+                    newValue = AuditLogRepository.jsonField("clockOut", AuditValues.NOW),
                 )
             }
 

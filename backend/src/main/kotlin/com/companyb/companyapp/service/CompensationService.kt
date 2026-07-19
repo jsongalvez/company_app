@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.BranchDayRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
@@ -80,12 +81,12 @@ object CompensationService {
                     oldFields =
                         mapOf(
                             "amount" to before.amount.toPlainString(),
-                            "note" to (before.note ?: "null"),
+                            "note" to (before.note ?: AuditValues.NULL),
                         ),
                     newFields =
                         mapOf(
                             "amount" to after.amount.toPlainString(),
-                            "note" to (after.note ?: "null"),
+                            "note" to (after.note ?: AuditValues.NULL),
                         ),
                     changedBy = callerId,
                 )
