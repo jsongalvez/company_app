@@ -13,11 +13,6 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-data class ProductCategoryCreateResult(
-    val category: ProductCategory,
-    val created: Boolean,
-)
-
 object ProductCategoryRepository {
     fun create(
         id: UUID,
@@ -31,17 +26,14 @@ object ProductCategoryRepository {
                         it[ProductCategoryTable.id] = id
                         it[ProductCategoryTable.name] = name
                     }.insertedCount
-            val inserted = insertedCount > 0
             val category =
                 findByIdInTransaction(id)
                     ?: error("product_category row not found after idempotent insert for $id")
 
-            if (inserted) {
+            if (insertedCount > 0) {
                 auditFn(category)
-                category
-            } else {
-                category
             }
+            category
         }.also {
             logger.info {
                 "[CREATE-PRODUCT-CATEGORY] Category ${it.id.toString().maskUUID()}"
