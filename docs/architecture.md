@@ -431,7 +431,7 @@ fun computeSessionType(branchType, priorCount):
 
 ### 14.2 Concurrent Session Guard
 
-Partial unique index on `session (client_id) WHERE session_status = 'PENDING'`. Only one PENDING session per client globally. Before inserting, the service acquires a row-level lock on the client (`SELECT id FROM client WHERE id = :clientId FOR UPDATE`) to serialize concurrent session creation.
+Only one PENDING session per client globally. Enforced by a partial unique index on `session (client_id)` scoped to PENDING rows, with a row-level lock on the client before insert to serialize concurrent creation.
 
 ### 14.3 Session Base Rate: No Gap/Overlap
 
@@ -452,6 +452,13 @@ When a Coordinator promotes an "other_concerns" string to a structured concern:
 ### 14.5 Next Appointment Alerts
 
 Server-side scheduled task runs once daily at 07:00 Asia/Manila. Finds sessions with `next_appointment_date = CURRENT_DATE + 2 days` and creates notification rows for the branch's Coordinators.
+
+### 14.6 Client Search
+
+- `pg_trgm` extension with `ILIKE` for fuzzy name matching — handles typos ("Jhn" → "John")
+- Typeahead: frontend debounces ~300ms before firing
+- Search supports both name (fuzzy) and phone number (exact prefix)
+- No external search engine needed at this scale
 
 ---
 
@@ -485,22 +492,13 @@ For sale operations, the stock update and the product_sale + inventory_movement 
 
 ### 16.1 Commission Recalculation Engine
 
-Full algorithm in `docs/engines.md` (Engine 1).
-
-**Trigger events** (service layer hooks, not DB triggers):
-- `ProductSaleService.create()` → triggers recalc for that `branch_day_id`
-- `AttendanceService.clockIn/clockOut()` → triggers recalc
-- `CommissionManualInclusionService.upsert()` → triggers recalc
-
-**PAST/REMITTED days:** Recalc is blocked automatically unless the calling user holds `EDIT_PAST_DAY` and explicitly initiates a manual re-run.
+Full algorithm in `docs/engines.md` (Engine 1). Triggered by product sale create, attendance clock-in/out, or manual inclusion changes. PAST/REMITTED days block automatic recalculation unless the user holds `EDIT_PAST_DAY` and initiates a manual re-run.
 
 **Precision:** All intermediate arithmetic in `BigDecimal`. Stored as `NUMERIC(15,4)`.
 
 ### 16.2 Manual Commission Inclusion/Exclusion
 
-`commission_manual_inclusion` stores overrides keyed to a specific `(product_sale_id, user_id)`:
-- `is_included = true` → force-add user
-- `is_included = false` → force-remove user
+Per-sale overrides stored in `commission_manual_inclusion` can force-add or force-remove a user from the eligible set for a specific product sale, regardless of attendance windows.
 
 ### 16.3 Compensation Uniqueness
 
@@ -510,21 +508,13 @@ For relief duty, `work_branch_day_id ≠ paying_branch_day_id` is allowed and ex
 
 ### 16.4 Remittance Submission
 
-Full algorithm in `docs/engines.md` (Engine 3).
+Full algorithm in `docs/engines.md` (Engine 3). `SERIALIZABLE` isolation prevents double-submission; optimistic locking on the `remittance` row detects concurrent draft edits. The snapshot, status update, and branch_day transitions are all written atomically in a single transaction.
 
-**Draft phase:** Multiple coordinators can view and edit the same draft. No lock is held during drafting. Last-write-wins on draft line edits is acceptable.
-
-**Submission phase:**
-- `SERIALIZABLE` transaction isolation
-- `SELECT FOR UPDATE` on the `remittance` row
-- Version check before proceeding
-- Snapshot written, status updated, branch_days transitioned — all in one transaction
-
-**Exclusion constraint scope:** The `no_remittance_overlap` EXCLUDE constraint applies only to `status = 'SUBMITTED'` rows. Drafts are unconstrained.
+**Exclusion constraint scope:** The `no_remittance_overlap` constraint applies only to `status = 'SUBMITTED'` rows. Drafts are unconstrained.
 
 ### 16.5 Remittance Financial Snapshot Immutability
 
-The `fn_remittance_snapshot_immutable` trigger blocks UPDATE/DELETE on `remittance_financial_snapshot`. Service layer must not attempt to insert a snapshot until the submission transaction is underway.
+A database trigger blocks UPDATE/DELETE on `remittance_financial_snapshot`. The snapshot is only written during submission — never pre-inserted.
 
 For `PRODUCT` remittances: no snapshot row is written. Totals are derived at query time from `remittance_line.amount`.
 
