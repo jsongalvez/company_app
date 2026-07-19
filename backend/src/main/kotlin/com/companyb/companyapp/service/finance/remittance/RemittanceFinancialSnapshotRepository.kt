@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
@@ -8,7 +8,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
-object RemittanceFinancialSnapshotRepository {
+internal object RemittanceFinancialSnapshotRepository {
     fun insert(params: RemittanceFinancialSnapshotCreateParams): RemittanceFinancialSnapshot =
         transaction {
             RemittanceFinancialSnapshotTable.insert {

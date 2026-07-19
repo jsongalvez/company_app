@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceLine
@@ -30,7 +30,7 @@ data class AddLineParams(
 
 private val logger = KotlinLogging.logger {}
 
-object RemittanceLineRepository {
+internal object RemittanceLineRepository {
     fun addLine(
         params: AddLineParams,
         auditFn: (RemittanceLine) -> Unit = {},

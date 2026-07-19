@@ -4,7 +4,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
@@ -31,6 +30,7 @@ import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
@@ -120,8 +120,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertEquals(sessionId, line.sessionId)
         assertEquals("1500.00", line.amount.toPlainString())
 
-        val updatedRemittance = RemittanceRepository.findById(remittance.id)
-        assertNotNull(updatedRemittance)
+        val updatedRemittance = RemittanceService.getRemittance(remittance.id).remittance
         assertEquals(remittance.version + 1, updatedRemittance.version)
     }
 
@@ -273,14 +272,13 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("1500.00"),
         )
 
-        val afterAdd = RemittanceRepository.findById(remittance.id)!!
+        val afterAdd = RemittanceService.getRemittance(remittance.id).remittance!!
 
         val deleted = RemittanceService.removeLine(callerId, remittance.id, lineId)
         assertNotNull(deleted)
         assertNotNull(deleted.deletedAt)
 
-        val afterDelete = RemittanceRepository.findById(remittance.id)
-        assertNotNull(afterDelete)
+        val afterDelete = RemittanceService.getRemittance(remittance.id).remittance
         assertEquals(afterAdd.version + 1, afterDelete.version)
     }
 

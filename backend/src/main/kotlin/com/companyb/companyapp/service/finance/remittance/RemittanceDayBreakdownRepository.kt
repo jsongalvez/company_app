@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
@@ -13,7 +13,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-object RemittanceDayBreakdownRepository {
+internal object RemittanceDayBreakdownRepository {
     fun addDayBreakdown(
         id: UUID,
         remittanceId: UUID,

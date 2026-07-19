@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -27,6 +26,7 @@ import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -257,7 +257,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId!!)
         trackOwned(ClientTable, ClientTable.id, clientId)
 
-        val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
+        val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val (result, duration) =
             measureTimedValue {
@@ -305,7 +305,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId!!)
         trackOwned(ClientTable, ClientTable.id, clientId)
 
-        val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
+        val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
 
@@ -346,7 +346,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(CompensationTable, CompensationTable.assignedBy, callerId)
         trackOwned(ExpenseTable, ExpenseTable.createdBy, callerId)
 
-        val actualVersion = RemittanceRepository.findById(remittanceId)!!.version
+        val actualVersion = RemittanceService.getRemittance(remittanceId).remittance.version
 
         val result = RemittanceService.submit(callerId, remittanceId, actualVersion)
 
@@ -414,7 +414,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId!!)
         trackOwned(ClientTable, ClientTable.id, clientId)
 
-        val v1 = RemittanceRepository.findById(remittanceId)!!.version
+        val v1 = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, v1)
 
         assertFailsWith<ValidationException> {

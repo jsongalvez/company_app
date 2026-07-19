@@ -1,11 +1,11 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import io.javalin.http.Context
 import io.javalin.http.NotFoundResponse
 import java.util.UUID
@@ -101,15 +101,13 @@ object CapabilityFilter {
         remittanceId: UUID,
         capabilityCode: String = CapabilityCodes.SUBMIT_REMITTANCE,
     ) {
-        val remittance =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundResponse("Remittance not found")
+        val branchId = RemittanceService.getBranchIdForRemittance(remittanceId)
         val callerId = context.callerUuid()
         CapabilityService.requireCapability(
             userId = callerId,
             capabilityCode = capabilityCode,
             contextType = CapabilityContextType.BRANCH,
-            contextId = remittance.branchId,
+            contextId = branchId,
             message = "$capabilityCode capability required for this branch",
         )
     }

@@ -1,18 +1,11 @@
-package com.companyb.companyapp.service
+package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.AddLineParams
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.BranchRepository
-import com.companyb.companyapp.repository.CreateDraftParams
-import com.companyb.companyapp.repository.RemittanceDayBreakdownRepository
-import com.companyb.companyapp.repository.RemittanceLineRepository
-import com.companyb.companyapp.repository.RemittanceRepository
-import com.companyb.companyapp.repository.RemittanceSubmissionResult
-import com.companyb.companyapp.repository.SubmitAuditContext
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.DayStatus
@@ -274,6 +267,13 @@ object RemittanceService {
             totalAmount = totalAmount,
             dayBreakdowns = dayBreakdowns,
         )
+    }
+
+    fun getBranchIdForRemittance(remittanceId: UUID): UUID {
+        val remittance =
+            RemittanceRepository.findById(remittanceId)
+                ?: throw NotFoundException("Remittance not found")
+        return remittance.branchId
     }
 }
 

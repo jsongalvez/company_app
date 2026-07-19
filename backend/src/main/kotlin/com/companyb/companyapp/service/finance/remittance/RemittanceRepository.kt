@@ -1,4 +1,4 @@
-package com.companyb.companyapp.repository
+package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -49,7 +49,7 @@ data class RemittanceCreateResult(
 )
 
 @Suppress("TooManyFunctions")
-object RemittanceRepository {
+internal object RemittanceRepository {
     fun findById(id: UUID): Remittance? =
         transaction {
             RemittanceTable

@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.repository.RemittanceRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -25,6 +24,7 @@ import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.eq
@@ -139,7 +139,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("2000.00"),
         )
 
-        val version = RemittanceRepository.findById(remittanceId)!!.version
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
 
         trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
@@ -276,7 +276,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             amount = lineAmount,
         )
 
-        val version = RemittanceRepository.findById(remittanceId)!!.version
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
     }
 
@@ -310,7 +310,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("200.00"),
         )
 
-        val version = RemittanceRepository.findById(remittanceId)!!.version
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, version)
     }
 
