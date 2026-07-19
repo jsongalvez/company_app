@@ -3,7 +3,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -235,7 +234,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         assertTrue(duration < 5.seconds, "commission recalculation regressed: took $duration")
 
         val splits =
-            CommissionSplitRepository.findByBranchDayId(branchDayId)
+            CommissionService.getByBranchDayId(branchDayId)
         assertTrue(splits.isNotEmpty())
 
         val targetSplit = splits.find { it.userId == targetUserId }
