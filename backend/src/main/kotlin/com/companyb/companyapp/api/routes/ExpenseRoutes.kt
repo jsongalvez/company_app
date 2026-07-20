@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse

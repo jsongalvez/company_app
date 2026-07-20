@@ -86,6 +86,7 @@ company-app/
 ├── backend/
 │   └── src/main/kotlin/com/companyb/companyapp/
 │       ├── api/routes/       # HTTP endpoints
+│       ├── api/middleware/    # Capability enforcement filters
 │       ├── api/mapping/      # Domain results → HTTP responses
 │       ├── auth/             # JWT handling, rate limiting, deny list
 │       ├── config/           # Javalin config, serialization mapper

@@ -16,7 +16,7 @@ Before coding, read the relevant doc(s):
 
 The authoritative schema is `backend/src/main/resources/db/migration/V1__full_schema.sql`.
 
-Package root: `com.companyb.companyapp`. Layers: `api/routes`, `service`, `repository`
+Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
 
 ## Quality gate (run before every commit)

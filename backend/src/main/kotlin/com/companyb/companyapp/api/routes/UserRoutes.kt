@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.service.UserService

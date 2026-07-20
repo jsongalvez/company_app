@@ -20,7 +20,7 @@ This boilerplate:
 ## Decision
 
 Move capability enforcement from the service layer to the Javalin HTTP layer via
-`config.routes.before` filters. A `CapabilityFilter` utility object in `api/routes` provides
+`config.routes.before` filters. A `CapabilityFilter` utility object in `api/middleware` provides
 helper functions (`requireBranchCapability`, `requireBranchCapabilityForExpense`) that
 extract the relevant branch ID from the request context (query params, body, or path) and
 delegate to `CapabilityService`.
