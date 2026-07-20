@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -397,7 +398,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `submit already submitted remittance throws bad request`() {
+    fun `submit already submitted remittance throws version mismatch`() {
         val remittanceId = UUID.randomUUID()
         val lineId = UUID.randomUUID()
         val breakdownId = UUID.randomUUID()
@@ -417,7 +418,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val v1 = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, v1)
 
-        assertFailsWith<ValidationException> {
+        assertFailsWith<VersionMismatchException> {
             RemittanceService.submit(callerId, remittanceId, 99)
         }
     }

@@ -34,7 +34,7 @@ object RemittanceService {
         expectedVersion: Int,
     ): RemittanceSubmissionResult {
         val result =
-            SubmissionEngine.submit(
+            RemittanceRepository.submit(
                 remittanceId = remittanceId,
                 expectedVersion = expectedVersion,
                 callerId = callerId,
@@ -58,7 +58,7 @@ object RemittanceService {
                         )
                     }
                 },
-            )
+            ) ?: throw NotFoundException("Remittance not found")
 
         logger.info {
             "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
