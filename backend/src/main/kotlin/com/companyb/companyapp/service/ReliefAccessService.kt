@@ -36,7 +36,7 @@ object ReliefAccessService {
             throw ForbiddenException("Only the target user can grant this request")
         }
 
-        val (branchDay, _) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
 
         val capabilityId =
             checkNotNull(
@@ -66,6 +66,7 @@ object ReliefAccessService {
                             before = before,
                             after = after,
                             changedBy = callerId,
+                            isFlagged = isRemitted,
                             auditFields = GrantReliefAccessTable::auditFields,
                         )
                     },
@@ -105,7 +106,7 @@ object ReliefAccessService {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
-        BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
 
         ReliefAccessRepository.deny(
             requestId,
@@ -116,6 +117,7 @@ object ReliefAccessService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    isFlagged = isRemitted,
                     auditFields = GrantReliefAccessTable::auditFields,
                 )
             },
@@ -133,7 +135,7 @@ object ReliefAccessService {
         targetUserId: UUID,
         callerId: UUID,
     ): ReliefAccess {
-        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
         if (!targetHasClockIn) {
@@ -157,6 +159,7 @@ object ReliefAccessService {
                         recordId = created.id,
                         changedBy = callerId,
                         fields = GrantReliefAccessTable.auditFields(created),
+                        isFlagged = isRemitted,
                     )
                 },
             )
