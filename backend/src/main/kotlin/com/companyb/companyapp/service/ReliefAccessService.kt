@@ -37,13 +37,13 @@ object ReliefAccessService {
             throw ForbiddenException("Only the target user can grant this request")
         }
 
+        val (branchDay, _) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+
         val capabilityId =
             checkNotNull(
                 CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
             ) { "EDIT_BRANCH_DATA capability not found" }
 
-        val branchDay =
-            BranchDayService.requireBranchDayExists(request.branchDayId)
         val validTo = BranchDayService.expirationUtc(branchDay.date)
 
         val result =
@@ -111,6 +111,8 @@ object ReliefAccessService {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
+        BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+
         ReliefAccessRepository.deny(
             requestId,
             auditFn = { updated ->
@@ -140,6 +142,8 @@ object ReliefAccessService {
         targetUserId: UUID,
         callerId: UUID,
     ): ReliefAccess {
+        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+
         val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
         if (!targetHasClockIn) {
             throw ValidationException("Target user does not have an active clock-in on this branch day")

@@ -235,16 +235,86 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `request fails with 403 on REMITTED day`() {
+        val remittedBranchDayId = UUID.randomUUID()
+        val remittedAttendanceId = UUID.randomUUID()
+        val yesterday = LocalDate.now().minusDays(1)
+        insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
+        insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, remittedBranchDayId)
+        insertAttendance(remittedAttendanceId, targetUserId, remittedBranchDayId)
+        trackOwned(AttendanceTable, AttendanceTable.branchDayId, remittedBranchDayId)
+        val requestId = UUID.randomUUID()
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.requestReliefAccess(requestId, remittedBranchDayId, targetUserId, reliefUserId)
+        }
+    }
+
+    @Test
+    fun `grant fails with 403 on REMITTED day`() {
+        val yesterday = LocalDate.now().minusDays(1)
+        val remittedBranchDayId = UUID.randomUUID()
+        insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
+        insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, remittedBranchDayId)
+        val requestId = UUID.randomUUID()
+        transaction {
+            GrantReliefAccessTable.insert {
+                it[GrantReliefAccessTable.id] = requestId
+                it[GrantReliefAccessTable.branchDayId] = remittedBranchDayId
+                it[GrantReliefAccessTable.requestedBy] = reliefUserId
+                it[GrantReliefAccessTable.targetUser] = targetUserId
+                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.PENDING
+            }
+        }
+        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.grantAccess(requestId, targetUserId)
+        }
+    }
+
+    @Test
+    fun `deny fails with 403 on REMITTED day`() {
+        val yesterday = LocalDate.now().minusDays(1)
+        val remittedBranchDayId = UUID.randomUUID()
+        insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
+        insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
+        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, remittedBranchDayId)
+        val requestId = UUID.randomUUID()
+        transaction {
+            GrantReliefAccessTable.insert {
+                it[GrantReliefAccessTable.id] = requestId
+                it[GrantReliefAccessTable.branchDayId] = remittedBranchDayId
+                it[GrantReliefAccessTable.requestedBy] = reliefUserId
+                it[GrantReliefAccessTable.targetUser] = targetUserId
+                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.PENDING
+            }
+        }
+        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.denyAccess(requestId, targetUserId)
+        }
+    }
+
     private fun insertBranchDay(
         id: UUID,
         branchId: UUID,
+        status: DayStatus = DayStatus.OPEN,
+        date: LocalDate = LocalDate.now(),
     ) {
         transaction {
             BranchDayTable.insert {
                 it[BranchDayTable.id] = id
                 it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = LocalDate.now()
-                it[BranchDayTable.status] = DayStatus.OPEN
+                it[BranchDayTable.date] = date
+                it[BranchDayTable.status] = status
             }
         }
     }
