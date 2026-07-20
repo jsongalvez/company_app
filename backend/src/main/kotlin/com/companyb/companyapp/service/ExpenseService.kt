@@ -29,7 +29,7 @@ object ExpenseService {
             return existing
         }
 
-        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         return ExpenseRepository.create(
             ExpenseCreateParams(
@@ -46,6 +46,7 @@ object ExpenseService {
                 recordId = expense.id,
                 changedBy = callerId,
                 fields = ExpenseTable.auditFields(expense),
+                isFlagged = isRemitted,
             )
         }
     }
@@ -60,7 +61,7 @@ object ExpenseService {
             ExpenseRepository.findById(expenseId)
                 ?: throw NotFoundException("Expense not found")
 
-        BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId) { after ->
             AuditLogRepository.recordDelete(
@@ -78,6 +79,7 @@ object ExpenseService {
                     ),
                 changedBy = callerId,
                 reason = reason,
+                isFlagged = isRemitted,
             )
         }
             ?: throw NotFoundException("Expense not found")

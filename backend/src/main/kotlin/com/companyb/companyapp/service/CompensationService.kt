@@ -28,7 +28,7 @@ object CompensationService {
     ): Compensation {
         BranchDayService.requireBranchDayExists(workBranchDayId)
 
-        BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId)
 
         val existingByKey = CompensationRepository.findByUserAndPayingDay(userId, payingBranchDayId)
         if (existingByKey != null && existingByKey.id != id) {
@@ -52,6 +52,7 @@ object CompensationService {
                     recordId = compensation.id,
                     changedBy = callerId,
                     fields = CompensationTable.auditFields(compensation),
+                    isFlagged = isRemitted,
                 )
             }
         logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
@@ -70,7 +71,7 @@ object CompensationService {
             CompensationRepository.findById(compensationId)
                 ?: throw NotFoundException("Compensation not found")
 
-        BranchDayService.checkBranchDayEditable(callerId, before.payingBranchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.payingBranchDayId)
 
         return CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
             AuditLogRepository.recordUpdate(
@@ -87,6 +88,7 @@ object CompensationService {
                         "note" to (after.note ?: AuditValues.NULL),
                     ),
                 changedBy = callerId,
+                isFlagged = isRemitted,
             )
         }
     }

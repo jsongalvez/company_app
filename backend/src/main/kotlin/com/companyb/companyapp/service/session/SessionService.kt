@@ -154,7 +154,7 @@ object SessionService {
             throw ConflictException("Session version mismatch")
         }
 
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         if (session.isWalkIn && newStatus in setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)) {
             throw ValidationException("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
@@ -176,6 +176,7 @@ object SessionService {
                     oldFields = mapOf("sessionStatus" to oldStatus.name),
                     newFields = mapOf("sessionStatus" to newStatus.name),
                     changedBy = callerId,
+                    isFlagged = isRemitted,
                 )
             }
 
@@ -204,7 +205,7 @@ object SessionService {
             }
         }
 
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val result =
             SessionVoidRepository.void(
@@ -218,6 +219,7 @@ object SessionService {
                     recordId = voidRecord.id,
                     changedBy = callerId,
                     fields = SessionVoidTable.auditFields(voidRecord),
+                    isFlagged = isRemitted,
                 )
             }
 
@@ -243,7 +245,7 @@ object SessionService {
             return sessionVoid
         }
 
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val updated =
             SessionVoidRepository.unvoid(
@@ -267,6 +269,7 @@ object SessionService {
                             "unvoidedReason" to unvoidedReason,
                         ),
                     changedBy = callerId,
+                    isFlagged = isRemitted,
                 )
             } ?: throw NotFoundException("Session void record not found after unvoid")
 

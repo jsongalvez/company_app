@@ -32,17 +32,19 @@ object AuditLogRepository {
         oldValue: String? = null,
         newValue: String? = null,
         reason: String? = null,
+        isFlagged: Boolean = false,
     ) {
         AuditLogTable.insert {
             it[AuditLogTable.auditTableName] = tableName
             it[AuditLogTable.recordId] = recordId
             it[AuditLogTable.action] = action
             it[AuditLogTable.changedBy] = changedBy
+            it[AuditLogTable.isFlagged] = isFlagged
             if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
             if (newValue != null) it[AuditLogTable.newValue] = newValue
             if (reason != null) it[AuditLogTable.reason] = reason
         }
-        logger.info { "[AUDIT-LOG] Recorded $action on $tableName/$recordId" }
+        logger.info { "[AUDIT-LOG] Recorded $action on $tableName/$recordId isFlagged=$isFlagged" }
     }
 
     @Suppress("LongParameterList")
@@ -51,6 +53,7 @@ object AuditLogRepository {
         recordId: UUID,
         changedBy: UUID,
         fields: Map<String, String>,
+        isFlagged: Boolean = false,
     ) {
         record(
             tableName = tableName,
@@ -58,15 +61,18 @@ object AuditLogRepository {
             action = AuditAction.INSERT,
             changedBy = changedBy,
             newValue = jsonFields(fields),
+            isFlagged = isFlagged,
         )
     }
 
+    @Suppress("LongParameterList")
     fun recordUpdate(
         tableName: String,
         recordId: UUID,
         oldFields: Map<String, String>,
         newFields: Map<String, String>,
         changedBy: UUID,
+        isFlagged: Boolean = false,
     ) {
         record(
             tableName = tableName,
@@ -75,6 +81,7 @@ object AuditLogRepository {
             changedBy = changedBy,
             oldValue = jsonFields(oldFields),
             newValue = jsonFields(newFields),
+            isFlagged = isFlagged,
         )
     }
 
@@ -86,6 +93,7 @@ object AuditLogRepository {
         newFields: Map<String, String>,
         changedBy: UUID,
         reason: String? = null,
+        isFlagged: Boolean = false,
     ) {
         record(
             tableName = tableName,
@@ -95,6 +103,7 @@ object AuditLogRepository {
             oldValue = jsonFields(oldFields),
             newValue = jsonFields(newFields),
             reason = reason,
+            isFlagged = isFlagged,
         )
     }
 

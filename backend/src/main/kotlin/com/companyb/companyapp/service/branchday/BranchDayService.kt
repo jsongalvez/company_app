@@ -67,10 +67,11 @@ object BranchDayService {
         callerId: UUID,
         branchDayId: UUID,
         reason: String? = null,
-    ): BranchDay {
+    ): Pair<BranchDay, Boolean> {
         val branchDay = requireBranchDayExists(branchDayId)
         val today = LocalDate.now(manilaZone)
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
+        val isRemitted = effectiveStatus == DayStatus.REMITTED
         val hasEditPastDay =
             CapabilityService.hasCapability(
                 userId = callerId,
@@ -79,8 +80,11 @@ object BranchDayService {
                 contextId = branchDay.branchId,
             )
         assertEditableState(effectiveStatus, hasEditPastDay, reason)
-        logger.info { "[CHECK-BRANCH-DAY-EDITABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
-        return branchDay
+        logger.info {
+            "[CHECK-BRANCH-DAY-EDITABLE] branch_day=$branchDayId" +
+                " effectiveStatus=$effectiveStatus allowed isRemitted=$isRemitted"
+        }
+        return branchDay to isRemitted
     }
 
     /**

@@ -31,7 +31,7 @@ object ConcernService {
         concernId: UUID,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
@@ -49,6 +49,7 @@ object ConcernService {
                             "sessionId" to sessionId.toString(),
                             "concernId" to sc.concernId.toString(),
                         ),
+                    isFlagged = isRemitted,
                 )
             },
         )
@@ -63,7 +64,7 @@ object ConcernService {
         concernId: UUID,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
@@ -81,6 +82,7 @@ object ConcernService {
                             "sessionId" to sessionId.toString(),
                             "concernId" to sc.concernId.toString(),
                         ),
+                    isFlagged = isRemitted,
                 )
             },
         )
@@ -96,7 +98,7 @@ object ConcernService {
         label: String,
     ): Concern {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern =
             ConcernRepository.create(
@@ -109,6 +111,7 @@ object ConcernService {
                         recordId = c.id,
                         changedBy = callerId,
                         fields = ConcernTable.auditFields(c),
+                        isFlagged = isRemitted,
                     )
                 },
             )
@@ -127,6 +130,7 @@ object ConcernService {
                             "sessionId" to sessionId.toString(),
                             "concernId" to sc.concernId.toString(),
                         ),
+                    isFlagged = isRemitted,
                 )
             },
         )
@@ -144,6 +148,7 @@ object ConcernService {
                     oldFields = mapOf("otherConcerns" to (oldOtherConcerns ?: AuditValues.NULL)),
                     newFields = mapOf("otherConcerns" to AuditValues.NULL),
                     changedBy = callerId,
+                    isFlagged = isRemitted,
                 )
             },
         )

@@ -22,7 +22,7 @@ object AllowanceService {
         userId: UUID,
         amount: BigDecimal,
     ): Allowance {
-        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val result =
             AllowanceRepository.create(
@@ -39,6 +39,7 @@ object AllowanceService {
                         recordId = created.id,
                         changedBy = callerId,
                         fields = AllowanceTable.auditFields(created),
+                        isFlagged = isRemitted,
                     )
                 },
             )

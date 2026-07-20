@@ -30,7 +30,7 @@ object ProductSaleService {
         quantity: Int,
         expectedVersion: Int,
     ): ProductSale {
-        val branchDay = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         if (BranchRepository.findById(branchDay.branchId) == null) {
             throw NotFoundException("Branch not found")
@@ -69,6 +69,7 @@ object ProductSaleService {
                     recordId = data.sale.id,
                     changedBy = callerId,
                     fields = ProductSaleTable.auditFields(data.sale),
+                    isFlagged = isRemitted,
                 )
                 AuditLogRepository.recordUpdate(
                     tableName = BranchInventoryTable.tableName,
@@ -84,6 +85,7 @@ object ProductSaleService {
                             "version" to data.newVersion.toString(),
                         ),
                     changedBy = callerId,
+                    isFlagged = isRemitted,
                 )
             }
 
