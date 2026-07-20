@@ -28,66 +28,44 @@ import java.util.UUID
 object RemittanceService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    @Suppress("ThrowsCount")
     fun submit(
         callerId: UUID,
         remittanceId: UUID,
         expectedVersion: Int,
     ): RemittanceSubmissionResult {
-        val existing =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundException("Remittance not found")
-
-        if (existing.status != RemittanceStatus.DRAFT) {
-            throw ValidationException("Can only submit DRAFT remittances")
-        }
-
-        if (existing.version != expectedVersion) {
-            throw ConflictException("Remittance version mismatch")
-        }
-
-        try {
-            val result =
-                RemittanceRepository.submit(
-                    remittanceId = remittanceId,
-                    expectedVersion = expectedVersion,
-                    callerId = callerId,
-                    auditFn = { ctx ->
+        val result =
+            SubmissionEngine.submit(
+                remittanceId = remittanceId,
+                expectedVersion = expectedVersion,
+                callerId = callerId,
+                auditFn = { ctx ->
+                    AuditLogRepository.record(
+                        tableName = RemittanceTable.tableName,
+                        recordId = ctx.remittanceId,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        oldValue = AuditLogRepository.jsonField("status", RemittanceStatus.DRAFT.name),
+                        newValue = AuditLogRepository.jsonField("status", RemittanceStatus.SUBMITTED.name),
+                    )
+                    for (bdId in ctx.breakdownIds) {
                         AuditLogRepository.record(
-                            tableName = RemittanceTable.tableName,
-                            recordId = ctx.remittanceId,
+                            tableName = BranchDayTable.tableName,
+                            recordId = bdId,
                             action = AuditAction.UPDATE,
                             changedBy = callerId,
-                            oldValue = AuditLogRepository.jsonField("status", RemittanceStatus.DRAFT.name),
-                            newValue = AuditLogRepository.jsonField("status", RemittanceStatus.SUBMITTED.name),
+                            oldValue = AuditLogRepository.jsonField("status", DayStatus.OPEN.name),
+                            newValue = AuditLogRepository.jsonField("status", DayStatus.REMITTED.name),
                         )
-                        for (bdId in ctx.breakdownIds) {
-                            AuditLogRepository.record(
-                                tableName = BranchDayTable.tableName,
-                                recordId = bdId,
-                                action = AuditAction.UPDATE,
-                                changedBy = callerId,
-                                oldValue = AuditLogRepository.jsonField("status", DayStatus.OPEN.name),
-                                newValue = AuditLogRepository.jsonField("status", DayStatus.REMITTED.name),
-                            )
-                        }
-                    },
-                ) ?: throw NotFoundException("Remittance not found")
+                    }
+                },
+            )
 
-            logger.info {
-                "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
-                    "Net=${result.netIncome}"
-            }
-            return result
-        } catch (e: IllegalStateException) {
-            if (e.message == "version_mismatch") {
-                throw ConflictException("Remittance version mismatch")
-            }
-            if (e.message == "not_draft") {
-                throw ValidationException("Can only submit DRAFT remittances")
-            }
-            throw e
+        logger.info {
+            "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
+                "Net=${result.netIncome}"
         }
+        return result
     }
 
     @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
