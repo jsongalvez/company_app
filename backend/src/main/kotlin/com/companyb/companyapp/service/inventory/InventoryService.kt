@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service.inventory
 
-import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
@@ -38,39 +37,32 @@ object InventoryService {
 
         val reason = movementType.toInventoryMovementReason()
 
-        return try {
-            val movement =
-                BranchInventoryRepository.recordMovement(
-                    RecordMovementParams(
-                        movementId = movementId,
-                        branchId = branchId,
-                        productId = productId,
-                        reason = reason,
-                        quantityChange = quantityChange,
-                        notes = notes,
-                        branchDayId = branchDayId,
-                        expectedVersion = expectedVersion,
-                        movedBy = callerId,
-                    ),
-                    auditFn = { data ->
-                        MovementRecorder.recordBranchInventoryAudit(
-                            oldCard = data.oldCard,
-                            newCard = data.newCard,
-                            movement = data.movement,
-                        )
-                    },
-                )
+        val movement =
+            BranchInventoryRepository.recordMovement(
+                RecordMovementParams(
+                    movementId = movementId,
+                    branchId = branchId,
+                    productId = productId,
+                    reason = reason,
+                    quantityChange = quantityChange,
+                    notes = notes,
+                    branchDayId = branchDayId,
+                    expectedVersion = expectedVersion,
+                    movedBy = callerId,
+                ),
+                auditFn = { data ->
+                    MovementRecorder.recordBranchInventoryAudit(
+                        oldCard = data.oldCard,
+                        newCard = data.newCard,
+                        movement = data.movement,
+                    )
+                },
+            )
 
-            logger.info {
-                "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
-            }
-            movement
-        } catch (e: IllegalStateException) {
-            if (e.message == "version_mismatch") {
-                throw ConflictException("Inventory version mismatch")
-            }
-            throw e
+        logger.info {
+            "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
         }
+        return movement
     }
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {

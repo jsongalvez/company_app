@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
@@ -87,7 +88,7 @@ object CompensationRepository {
                 }
 
             if (updatedCount == 0) {
-                error("version_mismatch")
+                throw VersionMismatchException(CompensationTable.tableName, compensationId)
             }
 
             val after =

@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CompensationTable
@@ -117,10 +119,10 @@ internal object RemittanceRepository {
                     .singleOrNull() ?: return@transaction null
 
             if (remittance[RemittanceTable.version] != expectedVersion) {
-                error("version_mismatch")
+                throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
             }
             if (remittance[RemittanceTable.status] != RemittanceStatus.DRAFT) {
-                error("not_draft")
+                throw ValidationException("Can only submit DRAFT remittances")
             }
 
             val remittanceType = remittance[RemittanceTable.type]
@@ -184,7 +186,7 @@ internal object RemittanceRepository {
             }
 
         if (updated == 0) {
-            error("version_mismatch")
+            throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
         }
     }
 

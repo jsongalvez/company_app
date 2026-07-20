@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
@@ -88,7 +89,7 @@ internal object BranchInventoryRepository {
                 }
 
             if (updatedCount == 0) {
-                error("version_mismatch")
+                throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
             }
 
             InventoryMovementTable.insertIgnore {
@@ -143,7 +144,7 @@ internal object BranchInventoryRepository {
         val card =
             findCardInTransaction(branchId, productId)
                 ?: error("inventory card not found for branch=$branchId product=$productId")
-        if (card.version != expectedVersion) error("version_mismatch")
+        if (card.version != expectedVersion) throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
         return card
     }
 

@@ -26,19 +26,11 @@ internal object SubmissionEngine {
             throw ConflictException("Remittance version mismatch")
         }
 
-        try {
-            return RemittanceRepository.submit(
-                remittanceId = remittanceId,
-                expectedVersion = expectedVersion,
-                callerId = callerId,
-                auditFn = auditFn,
-            ) ?: throw NotFoundException("Remittance not found")
-        } catch (e: IllegalStateException) {
-            when (e.message) {
-                "version_mismatch" -> throw ConflictException("Remittance version mismatch")
-                "not_draft" -> throw ValidationException("Can only submit DRAFT remittances")
-                else -> throw e
-            }
-        }
+        return RemittanceRepository.submit(
+            remittanceId = remittanceId,
+            expectedVersion = expectedVersion,
+            callerId = callerId,
+            auditFn = auditFn,
+        ) ?: throw NotFoundException("Remittance not found")
     }
 }

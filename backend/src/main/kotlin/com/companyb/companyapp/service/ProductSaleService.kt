@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -50,50 +49,42 @@ object ProductSaleService {
         }
 
         val result =
-            try {
-                ProductSaleRepository.sell(
-                    SellProductParams(
-                        id = id,
-                        branchDayId = branchDayId,
-                        sessionId = sessionId,
-                        clientId = clientId,
-                        isWalkIn = isWalkIn,
-                        productId = productId,
-                        branchId = branchDay.branchId,
-                        quantity = quantity,
-                        expectedVersion = expectedVersion,
-                        handledBy = callerId,
-                        product = product,
-                    ),
-                ) { data ->
-                    AuditLogRepository.recordInsert(
-                        tableName = ProductSaleTable.tableName,
-                        recordId = data.sale.id,
-                        changedBy = callerId,
-                        fields = ProductSaleTable.auditFields(data.sale),
-                    )
-                    AuditLogRepository.recordUpdate(
-                        tableName = BranchInventoryTable.tableName,
-                        recordId = data.inventoryCardId,
-                        oldFields =
-                            mapOf(
-                                "currentStock" to data.oldStock.toString(),
-                                "version" to data.oldVersion.toString(),
-                            ),
-                        newFields =
-                            mapOf(
-                                "currentStock" to data.newStock.toString(),
-                                "version" to data.newVersion.toString(),
-                            ),
-                        changedBy = callerId,
-                    )
-                }
-            } catch (e: IllegalStateException) {
-                when (e.message) {
-                    "version_mismatch" -> throw ConflictException("Inventory version mismatch")
-                    "insufficient_stock" -> throw ValidationException("Insufficient stock")
-                    else -> throw e
-                }
+            ProductSaleRepository.sell(
+                SellProductParams(
+                    id = id,
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = clientId,
+                    isWalkIn = isWalkIn,
+                    productId = productId,
+                    branchId = branchDay.branchId,
+                    quantity = quantity,
+                    expectedVersion = expectedVersion,
+                    handledBy = callerId,
+                    product = product,
+                ),
+            ) { data ->
+                AuditLogRepository.recordInsert(
+                    tableName = ProductSaleTable.tableName,
+                    recordId = data.sale.id,
+                    changedBy = callerId,
+                    fields = ProductSaleTable.auditFields(data.sale),
+                )
+                AuditLogRepository.recordUpdate(
+                    tableName = BranchInventoryTable.tableName,
+                    recordId = data.inventoryCardId,
+                    oldFields =
+                        mapOf(
+                            "currentStock" to data.oldStock.toString(),
+                            "version" to data.oldVersion.toString(),
+                        ),
+                    newFields =
+                        mapOf(
+                            "currentStock" to data.newStock.toString(),
+                            "version" to data.newVersion.toString(),
+                        ),
+                    changedBy = callerId,
+                )
             }
 
         CommissionService.recalculate(branchDayId)

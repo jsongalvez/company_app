@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service.finance.remittance
 
-import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -125,31 +124,24 @@ object RemittanceService {
         }
 
         val line =
-            try {
-                RemittanceLineRepository.addLine(
-                    AddLineParams(
-                        id = id,
-                        remittanceId = remittanceId,
-                        type = type,
-                        sessionId = sessionId,
-                        productSaleId = productSaleId,
-                        amount = amount,
-                        createdBy = callerId,
-                        expectedVersion = remittance.version,
-                    ),
-                ) { line ->
-                    AuditLogRepository.recordInsert(
-                        tableName = RemittanceLineTable.tableName,
-                        recordId = line.id,
-                        changedBy = callerId,
-                        fields = RemittanceLineTable.auditFields(line),
-                    )
-                }
-            } catch (e: IllegalStateException) {
-                if (e.message == "version_mismatch") {
-                    throw ConflictException("Remittance version mismatch")
-                }
-                throw e
+            RemittanceLineRepository.addLine(
+                AddLineParams(
+                    id = id,
+                    remittanceId = remittanceId,
+                    type = type,
+                    sessionId = sessionId,
+                    productSaleId = productSaleId,
+                    amount = amount,
+                    createdBy = callerId,
+                    expectedVersion = remittance.version,
+                ),
+            ) { line ->
+                AuditLogRepository.recordInsert(
+                    tableName = RemittanceLineTable.tableName,
+                    recordId = line.id,
+                    changedBy = callerId,
+                    fields = RemittanceLineTable.auditFields(line),
+                )
             }
 
         logger.info { "[ADD-REMITTANCE-LINE] Line ${line.id} added to remittance $remittanceId" }
@@ -171,24 +163,17 @@ object RemittanceService {
         }
 
         val line =
-            try {
-                RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version) { line ->
-                    AuditLogRepository.record(
-                        tableName = RemittanceLineTable.tableName,
-                        recordId = line.id,
-                        action = AuditAction.UPDATE,
-                        changedBy = callerId,
-                        oldValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NULL),
-                        newValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NOW_FN),
-                    )
-                }
-                    ?: throw NotFoundException("Remittance line not found")
-            } catch (e: IllegalStateException) {
-                if (e.message == "version_mismatch") {
-                    throw ConflictException("Remittance version mismatch")
-                }
-                throw e
+            RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version) { line ->
+                AuditLogRepository.record(
+                    tableName = RemittanceLineTable.tableName,
+                    recordId = line.id,
+                    action = AuditAction.UPDATE,
+                    changedBy = callerId,
+                    oldValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NULL),
+                    newValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NOW_FN),
+                )
             }
+                ?: throw NotFoundException("Remittance line not found")
 
         logger.info { "[DELETE-REMITTANCE-LINE] Line $lineId deleted from remittance $remittanceId" }
         return line

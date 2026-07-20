@@ -1,5 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementReason
@@ -129,6 +131,7 @@ object ProductSaleRepository {
             }
         }
 
+    @Suppress("ThrowsCount")
     private fun decrementInventoryStock(
         card: ResultRow,
         branchId: UUID,
@@ -137,8 +140,10 @@ object ProductSaleRepository {
         expectedVersion: Int,
     ): Triple<Int, Int, Int> {
         val currentStock = card[BranchInventoryTable.currentStock]
-        if (currentStock < quantity) error("insufficient_stock")
-        if (card[BranchInventoryTable.version] != expectedVersion) error("version_mismatch")
+        if (currentStock < quantity) throw ValidationException("Insufficient stock")
+        if (card[BranchInventoryTable.version] != expectedVersion) {
+            throw VersionMismatchException(BranchInventoryTable.tableName, card[BranchInventoryTable.id])
+        }
 
         val oldStock = currentStock
         val oldVersion = card[BranchInventoryTable.version]
@@ -154,7 +159,9 @@ object ProductSaleRepository {
                 it[BranchInventoryTable.version] = expectedVersion + 1
             }
 
-        if (updatedCount == 0) error("version_mismatch")
+        if (updatedCount == 0) {
+            throw VersionMismatchException(BranchInventoryTable.tableName, card[BranchInventoryTable.id])
+        }
         return Triple(oldStock, oldVersion, newStock)
     }
 

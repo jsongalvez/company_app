@@ -72,29 +72,22 @@ object CompensationService {
 
         BranchDayService.checkBranchDayEditable(callerId, before.payingBranchDayId)
 
-        return try {
-            CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = CompensationTable.tableName,
-                    recordId = compensationId,
-                    oldFields =
-                        mapOf(
-                            "amount" to before.amount.toPlainString(),
-                            "note" to (before.note ?: AuditValues.NULL),
-                        ),
-                    newFields =
-                        mapOf(
-                            "amount" to after.amount.toPlainString(),
-                            "note" to (after.note ?: AuditValues.NULL),
-                        ),
-                    changedBy = callerId,
-                )
-            }
-        } catch (e: IllegalStateException) {
-            when (e.message) {
-                "version_mismatch" -> throw ConflictException("Compensation version mismatch")
-                else -> throw e
-            }
+        return CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
+            AuditLogRepository.recordUpdate(
+                tableName = CompensationTable.tableName,
+                recordId = compensationId,
+                oldFields =
+                    mapOf(
+                        "amount" to before.amount.toPlainString(),
+                        "note" to (before.note ?: AuditValues.NULL),
+                    ),
+                newFields =
+                    mapOf(
+                        "amount" to after.amount.toPlainString(),
+                        "note" to (after.note ?: AuditValues.NULL),
+                    ),
+                changedBy = callerId,
+            )
         }
     }
 }

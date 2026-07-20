@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -63,7 +64,7 @@ internal object RemittanceLineRepository {
                 }
 
             if (versionUpdated == 0) {
-                error("version_mismatch")
+                throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
             }
 
             val created =
@@ -119,7 +120,7 @@ internal object RemittanceLineRepository {
                 }
 
             if (versionUpdated == 0) {
-                error("version_mismatch")
+                throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
             }
 
             val line =
