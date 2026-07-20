@@ -11,6 +11,8 @@ import com.companyb.companyapp.repository.model.InventoryMovement
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
+private const val LOW_STOCK_THRESHOLD = 5
+
 object InventoryService {
     private val logger = KotlinLogging.logger {}
 
@@ -73,6 +75,11 @@ object InventoryService {
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
         return BranchInventoryRepository.findByBranch(branchId)
+    }
+
+    fun getLowStockAlerts(branchId: UUID): List<BranchInventoryWithProduct> {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        return BranchInventoryRepository.findByBranchLowStock(branchId, LOW_STOCK_THRESHOLD)
     }
 
     @Suppress("ThrowsCount")

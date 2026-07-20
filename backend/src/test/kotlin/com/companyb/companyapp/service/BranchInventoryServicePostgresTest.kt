@@ -492,4 +492,106 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
+
+    @Test
+    fun `getLowStockAlerts returns products at or below threshold`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Tester,
+            quantityChange = -6,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+
+        assertEquals(1, lowStock.size)
+        assertEquals(4, lowStock[0].inventory.currentStock)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getLowStockAlerts returns empty when no products are low stock`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+
+        assertTrue(lowStock.isEmpty())
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getLowStockAlerts with non-existent branch returns not found`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        assertFailsWith<NotFoundException> {
+            InventoryService.getLowStockAlerts(UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `getLowStockAlerts without MANAGE_PRODUCTS is allowed at service layer`() {
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 3,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+
+        assertEquals(1, lowStock.size)
+        assertEquals(3, lowStock[0].inventory.currentStock)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
 }

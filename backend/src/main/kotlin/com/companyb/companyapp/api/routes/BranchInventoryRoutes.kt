@@ -42,6 +42,7 @@ object BranchInventoryRoutes {
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleEnsureCard)
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/restock", ::handleRestock)
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleGetInventory)
+        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory/low-stock", ::handleGetLowStock)
         config.routes.post(
             "/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/movement",
             ::handleRecordMovement,
@@ -92,6 +93,14 @@ object BranchInventoryRoutes {
 
         context.json(
             InventoryService.getStock(branchId).map { it.toResponse() },
+        )
+    }
+
+    private fun handleGetLowStock(context: Context) {
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+
+        context.json(
+            InventoryService.getLowStockAlerts(branchId).map { it.toResponse() },
         )
     }
 

@@ -13,6 +13,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -175,6 +176,33 @@ internal object BranchInventoryRepository {
                     )
                 }
         }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
+
+    fun findByBranchLowStock(
+        branchId: UUID,
+        threshold: Int,
+    ): List<BranchInventoryWithProduct> =
+        transaction {
+            BranchInventoryTable
+                .innerJoin(
+                    ProductTable,
+                    { BranchInventoryTable.productId },
+                    { ProductTable.id },
+                ).selectAll()
+                .where {
+                    (BranchInventoryTable.branchId eq branchId) and
+                        (BranchInventoryTable.currentStock lessEq threshold)
+                }.orderBy(ProductTable.name to SortOrder.ASC)
+                .map { row ->
+                    BranchInventoryWithProduct(
+                        inventory = row.toBranchInventory(),
+                        productName = row[ProductTable.name],
+                    )
+                }
+        }.also {
+            logger.info {
+                "[FIND-LOW-STOCK] Fetched ${it.size} low-stock card(s) for branch $branchId (threshold=$threshold)"
+            }
+        }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchInventory(): BranchInventory =
         BranchInventory(
