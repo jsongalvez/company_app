@@ -165,7 +165,7 @@ object SessionRoutes {
                 nextAppointmentDate = nextAppt,
             )
 
-        val concerns = ConcernService.getForSession(sessionId).map { it.toResponse() }
+        val concerns = SessionService.getSessionConcerns(callerId, sessionId).map { it.toResponse() }
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
         context.json(result.session.toResponse(concerns))
     }
@@ -270,9 +270,10 @@ object SessionRoutes {
     }
 
     private fun handleGetSessionConcerns(context: Context) {
+        val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = SessionService.getSessionConcerns(callerId, sessionId)
         context.json(concerns.map { it.toResponse() })
     }
 
@@ -283,7 +284,7 @@ object SessionRoutes {
 
         val concernId = uuidOrThrow(request.concernId, "concern id")
 
-        ConcernService.addToSession(callerId, sessionId, concernId)
+        SessionService.addSessionConcern(callerId, sessionId, concernId)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -292,7 +293,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val concernId = context.pathParamAsUuid("concernId")
 
-        ConcernService.removeFromSession(callerId, sessionId, concernId)
+        SessionService.removeSessionConcern(callerId, sessionId, concernId)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -304,7 +305,7 @@ object SessionRoutes {
         if (request.label.isBlank()) throw BadRequestResponse("label must not be blank")
         val concernId = uuidOrThrow(request.id, "concern id")
 
-        val concern = ConcernService.promoteConcern(callerId, sessionId, concernId, request.label)
+        val concern = SessionService.promoteConcern(callerId, sessionId, concernId, request.label)
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }

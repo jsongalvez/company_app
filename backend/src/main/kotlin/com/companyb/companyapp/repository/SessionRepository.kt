@@ -109,7 +109,7 @@ object SessionRepository {
                     }.insertedCount
             val created = insertedCount > 0
             val session =
-                findByIdInTransaction(params.id)
+                findSessionByIdInTransaction(params.id)
                     ?: error("session row not found after idempotent insert for ${params.id}")
 
             if (created) {
@@ -140,7 +140,7 @@ object SessionRepository {
             }
 
             val session =
-                findByIdInTransaction(sessionId)
+                findSessionByIdInTransaction(sessionId)
                     ?: error("Session $sessionId not found after status update")
 
             auditFn(session)
@@ -150,7 +150,7 @@ object SessionRepository {
 
     fun findById(id: UUID): Session? =
         transaction {
-            findByIdInTransaction(id)
+            findSessionByIdInTransaction(id)
         }
 
     @Suppress("UNUSED_PARAMETER")
@@ -166,20 +166,13 @@ object SessionRepository {
             }
 
             val updated =
-                findByIdInTransaction(sessionId)
+                findSessionByIdInTransaction(sessionId)
                     ?: error("Session $sessionId not found after other concerns update")
 
             auditFn(updated)
 
             updated
         }
-
-    private fun findByIdInTransaction(id: UUID): Session? =
-        SessionTable
-            .selectAll()
-            .where { SessionTable.id eq id }
-            .singleOrNull()
-            ?.toSession()
 
     private fun acquireClientLock(clientId: UUID) {
         // Row-level lock on client to serialize concurrent session creation (CR-018 C2).
@@ -197,23 +190,30 @@ object SessionRepository {
                     (SessionTable.sessionStatus eq SessionStatus.PENDING)
             }.empty()
             .not()
-
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toSession(): Session =
-        Session(
-            id = this[SessionTable.id],
-            clientId = this[SessionTable.clientId],
-            branchDayId = this[SessionTable.branchDayId],
-            requestedPractitionerId = this[SessionTable.requestedPractitionerId],
-            sessionType = this.get<com.companyb.companyapp.domain.SessionType>(SessionTable.sessionType).name,
-            isWalkIn = this[SessionTable.isWalkIn],
-            sessionStatus = this.get<SessionStatus>(SessionTable.sessionStatus).name,
-            basePrice = this[SessionTable.basePrice],
-            finalPrice = this[SessionTable.finalPrice],
-            remarks = this[SessionTable.remarks],
-            otherConcerns = this[SessionTable.otherConcerns],
-            bookedAt = this[SessionTable.bookedAt],
-            nextAppointmentDate = this[SessionTable.nextAppointmentDate],
-            createdAt = this[SessionTable.createdAt],
-            version = this[SessionTable.version],
-        )
 }
+
+fun findSessionByIdInTransaction(id: UUID): Session? =
+    SessionTable
+        .selectAll()
+        .where { SessionTable.id eq id }
+        .singleOrNull()
+        ?.toSession()
+
+fun org.jetbrains.exposed.v1.core.ResultRow.toSession(): Session =
+    Session(
+        id = this[SessionTable.id],
+        clientId = this[SessionTable.clientId],
+        branchDayId = this[SessionTable.branchDayId],
+        requestedPractitionerId = this[SessionTable.requestedPractitionerId],
+        sessionType = this.get<com.companyb.companyapp.domain.SessionType>(SessionTable.sessionType).name,
+        isWalkIn = this[SessionTable.isWalkIn],
+        sessionStatus = this.get<SessionStatus>(SessionTable.sessionStatus).name,
+        basePrice = this[SessionTable.basePrice],
+        finalPrice = this[SessionTable.finalPrice],
+        remarks = this[SessionTable.remarks],
+        otherConcerns = this[SessionTable.otherConcerns],
+        bookedAt = this[SessionTable.bookedAt],
+        nextAppointmentDate = this[SessionTable.nextAppointmentDate],
+        createdAt = this[SessionTable.createdAt],
+        version = this[SessionTable.version],
+    )

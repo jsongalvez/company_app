@@ -93,9 +93,9 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add concern to session succeeds and writes audit`() {
-        ConcernService.addToSession(callerId, sessionId, systemConcernId)
+        SessionService.addSessionConcern(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = SessionService.getSessionConcerns(callerId, sessionId)
         assertEquals(1, concerns.size)
         assertEquals(systemConcernId, concerns[0].id)
 
@@ -111,10 +111,10 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add concern to session is idempotent`() {
-        ConcernService.addToSession(callerId, sessionId, systemConcernId)
-        ConcernService.addToSession(callerId, sessionId, systemConcernId)
+        SessionService.addSessionConcern(callerId, sessionId, systemConcernId)
+        SessionService.addSessionConcern(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = SessionService.getSessionConcerns(callerId, sessionId)
         assertEquals(1, concerns.size)
     }
 
@@ -125,9 +125,9 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        ConcernService.addToSession(otherCaller, sessionId, systemConcernId)
+        SessionService.addSessionConcern(otherCaller, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = SessionService.getSessionConcerns(otherCaller, sessionId)
         assertEquals(1, concerns.size)
         assertEquals(systemConcernId, concerns[0].id)
     }
@@ -135,24 +135,24 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add concern throws 404 for non-existent session`() {
         assertFailsWith<NotFoundException> {
-            ConcernService.addToSession(callerId, UUID.randomUUID(), systemConcernId)
+            SessionService.addSessionConcern(callerId, UUID.randomUUID(), systemConcernId)
         }
     }
 
     @Test
     fun `add concern throws 404 for non-existent concern`() {
         assertFailsWith<NotFoundException> {
-            ConcernService.addToSession(callerId, sessionId, UUID.randomUUID())
+            SessionService.addSessionConcern(callerId, sessionId, UUID.randomUUID())
         }
     }
 
     @Test
     fun `remove concern from session succeeds and writes audit`() {
-        ConcernService.addToSession(callerId, sessionId, systemConcernId)
+        SessionService.addSessionConcern(callerId, sessionId, systemConcernId)
 
-        ConcernService.removeFromSession(callerId, sessionId, systemConcernId)
+        SessionService.removeSessionConcern(callerId, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = SessionService.getSessionConcerns(callerId, sessionId)
         assertTrue(concerns.isEmpty())
 
         val auditCount =
@@ -169,37 +169,37 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `remove concern without EDIT_BRANCH_DATA is allowed at service layer`() {
-        ConcernService.addToSession(callerId, sessionId, systemConcernId)
+        SessionService.addSessionConcern(callerId, sessionId, systemConcernId)
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        ConcernService.removeFromSession(otherCaller, sessionId, systemConcernId)
+        SessionService.removeSessionConcern(otherCaller, sessionId, systemConcernId)
 
-        val concerns = ConcernService.getForSession(sessionId)
+        val concerns = SessionService.getSessionConcerns(otherCaller, sessionId)
         assertTrue(concerns.isEmpty())
     }
 
     @Test
     fun `remove concern throws 404 for non-existent concern`() {
         assertFailsWith<NotFoundException> {
-            ConcernService.removeFromSession(callerId, sessionId, UUID.randomUUID())
+            SessionService.removeSessionConcern(callerId, sessionId, UUID.randomUUID())
         }
     }
 
     @Test
     fun `promote concern creates concern, links to session, and nullifies otherConcerns`() {
-        ConcernService.addToSession(callerId, promotedSessionId, systemConcernId)
+        SessionService.addSessionConcern(callerId, promotedSessionId, systemConcernId)
 
-        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Back Pain")
+        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Back Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
         assertEquals("Back Pain", promoted.label)
         assertEquals(callerId, promoted.createdBy)
 
-        val concerns = ConcernService.getForSession(promotedSessionId)
+        val concerns = SessionService.getSessionConcerns(callerId, promotedSessionId)
         assertTrue(concerns.any { it.id == promoted.id })
 
         val session = SessionRepository.findById(promotedSessionId)!!
@@ -208,7 +208,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promoted concern is discoverable in all concerns list`() {
-        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Neck Pain")
+        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Neck Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val allConcerns = ConcernService.listAll()
@@ -222,7 +222,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
-        val concerns = ConcernService.getForSession(promotedSessionId)
+        val concerns = SessionService.getSessionConcerns(otherCaller, promotedSessionId)
 
         assertTrue(concerns.isEmpty())
     }
@@ -234,7 +234,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        val promoted = ConcernService.promoteConcern(otherCaller, promotedSessionId, UUID.randomUUID(), "Shoulder Pain")
+        val promoted = SessionService.promoteConcern(otherCaller, promotedSessionId, UUID.randomUUID(), "Shoulder Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
@@ -244,7 +244,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promote concern writes audit log`() {
-        val promoted = ConcernService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Elbow Pain")
+        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Elbow Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val auditCount =
@@ -262,10 +262,10 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `promote concern with duplicate UUID returns existing concern idempotently`() {
         val concernId = UUID.randomUUID()
-        val first = ConcernService.promoteConcern(callerId, promotedSessionId, concernId, "Headache")
+        val first = SessionService.promoteConcern(callerId, promotedSessionId, concernId, "Headache")
         trackOwned(ConcernTable, ConcernTable.id, first.id)
 
-        val second = ConcernService.promoteConcern(callerId, promotedSessionId, concernId, "Different Label")
+        val second = SessionService.promoteConcern(callerId, promotedSessionId, concernId, "Different Label")
 
         assertEquals("Headache", second.label)
         assertEquals(first.id, second.id)

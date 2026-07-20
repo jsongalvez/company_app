@@ -14,6 +14,7 @@ import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.SessionVoidRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.VoidResult
+import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionPractitioner
@@ -327,4 +328,30 @@ object SessionService {
         )
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateService.findActiveRates(branchId)
+
+    // --- Concern pass-throughs ---
+
+    fun getSessionConcerns(
+        callerId: UUID,
+        sessionId: UUID,
+    ): List<Concern> = SessionConcernService.getForSession(callerId, sessionId)
+
+    fun addSessionConcern(
+        callerId: UUID,
+        sessionId: UUID,
+        concernId: UUID,
+    ) = SessionConcernService.addToSession(callerId, sessionId, concernId)
+
+    fun removeSessionConcern(
+        callerId: UUID,
+        sessionId: UUID,
+        concernId: UUID,
+    ) = SessionConcernService.removeFromSession(callerId, sessionId, concernId)
+
+    fun promoteConcern(
+        callerId: UUID,
+        sessionId: UUID,
+        concernId: UUID,
+        label: String,
+    ): Concern = SessionConcernService.promoteConcern(callerId, sessionId, concernId, label)
 }
