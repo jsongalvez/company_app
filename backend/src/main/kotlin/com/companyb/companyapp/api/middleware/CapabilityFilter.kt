@@ -1,6 +1,6 @@
 package com.companyb.companyapp.api.middleware
 
-import com.companyb.companyapp.api.routes.callerUuid
+import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType

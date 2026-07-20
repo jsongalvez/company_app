@@ -6,14 +6,6 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
 
-fun Context.callerUuid(): UUID {
-    val userId =
-        this.attribute<String>("userId")
-            ?: throw BadRequestResponse("Missing authentication")
-    return runCatching { UUID.fromString(userId) }
-        .getOrElse { throw BadRequestResponse("Invalid user ID in authentication") }
-}
-
 fun Context.pathParamAsUuid(name: String): UUID =
     runCatching { UUID.fromString(this.pathParam(name)) }
         .getOrElse { throw BadRequestResponse("Invalid $name") }
