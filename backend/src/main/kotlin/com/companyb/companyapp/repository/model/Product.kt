@@ -17,6 +17,7 @@ data class Product(
     val isActive: Boolean,
     val unitPrice: BigDecimal,
     val commissionAmount: BigDecimal,
+    val reorderPoint: Int? = null,
 )
 
 data class ProductCreateParams(
@@ -51,6 +52,7 @@ object ProductTable : Table("product") {
     val isActive = bool("is_active").default(true)
     val unitPrice = decimal("unit_price", PRECISION, SCALE)
     val commissionAmount = decimal("commission_amount", PRECISION, SCALE)
+    val reorderPoint = integer("reorder_point").nullable()
 
     override val primaryKey = PrimaryKey(id)
 

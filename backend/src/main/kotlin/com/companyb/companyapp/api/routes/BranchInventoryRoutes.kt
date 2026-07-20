@@ -98,9 +98,10 @@ object BranchInventoryRoutes {
 
     private fun handleGetLowStock(context: Context) {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val thresholdOverride = context.queryParam("threshold")?.toIntOrNull()
 
         context.json(
-            InventoryService.getLowStockAlerts(branchId).map { it.toResponse() },
+            InventoryService.getLowStockAlerts(branchId, thresholdOverride).map { it.toResponse() },
         )
     }
 

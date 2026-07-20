@@ -310,6 +310,7 @@ object DatabaseTestHelper {
         categoryId: UUID,
         unitPrice: BigDecimal = BigDecimal("100.00"),
         commissionAmount: BigDecimal = BigDecimal("10.00"),
+        reorderPoint: Int? = null,
     ) {
         transaction {
             ProductTable.insertIgnore {
@@ -318,6 +319,7 @@ object DatabaseTestHelper {
                 it[ProductTable.productCategoryId] = categoryId
                 it[ProductTable.unitPrice] = unitPrice
                 it[ProductTable.commissionAmount] = commissionAmount
+                if (reorderPoint != null) it[ProductTable.reorderPoint] = reorderPoint
             }
         }
     }

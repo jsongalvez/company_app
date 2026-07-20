@@ -1,0 +1,1 @@
+ALTER TABLE product ADD COLUMN reorder_point INT DEFAULT NULL;

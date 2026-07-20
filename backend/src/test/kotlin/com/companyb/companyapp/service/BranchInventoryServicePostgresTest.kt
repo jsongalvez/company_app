@@ -27,6 +27,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
+@Suppress("LargeClass")
 class BranchInventoryServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -590,6 +591,189 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
 
         assertEquals(1, lowStock.size)
         assertEquals(3, lowStock[0].inventory.currentStock)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Suppress("LongMethod")
+    @Test
+    fun `getLowStockAlerts uses per-product reorder point`() {
+        val highReorderProductId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestProduct(
+            id = highReorderProductId,
+            categoryId = categoryId,
+            name = "High Reorder Product",
+            reorderPoint = 10,
+        )
+        trackOwned(ProductTable, ProductTable.id, highReorderProductId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        InventoryService.ensureCard(branchId, productId)
+        InventoryService.ensureCard(branchId, highReorderProductId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = highReorderProductId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Tester,
+            quantityChange = -2,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = highReorderProductId,
+            movementType = MovementType.Tester,
+            quantityChange = -2,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+
+        assertEquals(1, lowStock.size)
+        assertEquals(highReorderProductId, lowStock[0].inventory.productId)
+        assertEquals(8, lowStock[0].inventory.currentStock)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getLowStockAlerts with null reorderPoint falls back to global default`() {
+        val noReorderProductId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestProduct(
+            id = noReorderProductId,
+            categoryId = categoryId,
+            name = "No Reorder Product",
+        )
+        trackOwned(ProductTable, ProductTable.id, noReorderProductId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        InventoryService.ensureCard(branchId, noReorderProductId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = noReorderProductId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 4,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+
+        assertEquals(1, lowStock.size)
+        assertEquals(noReorderProductId, lowStock[0].inventory.productId)
+        assertEquals(4, lowStock[0].inventory.currentStock)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getLowStockAlerts with thresholdOverride overrides stored thresholds`() {
+        val highReorderProductId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestProduct(
+            id = highReorderProductId,
+            categoryId = categoryId,
+            name = "High Reorder Product",
+            reorderPoint = 10,
+        )
+        trackOwned(ProductTable, ProductTable.id, highReorderProductId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        InventoryService.ensureCard(branchId, productId)
+        InventoryService.ensureCard(branchId, highReorderProductId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = highReorderProductId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 12,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId, thresholdOverride = 15)
+
+        assertEquals(2, lowStock.size)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getLowStockAlerts returns product at exactly the threshold`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 5,
+            branchDayId = branchDayId,
+        )
+
+        val lowStock = InventoryService.getLowStockAlerts(branchId)
+
+        assertEquals(1, lowStock.size)
+        assertEquals(5, lowStock[0].inventory.currentStock)
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)

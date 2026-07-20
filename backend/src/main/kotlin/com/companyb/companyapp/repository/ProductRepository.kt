@@ -7,6 +7,7 @@ import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -57,6 +58,18 @@ object ProductRepository {
         transaction {
             findByIdInTransaction(id)
         }.also { logger.info { "[FIND-PRODUCT] Product ${id.toString().maskUUID()} found=${it != null}" } }
+
+    fun findByIds(ids: Collection<UUID>): List<Product> =
+        if (ids.isEmpty()) {
+            emptyList()
+        } else {
+            transaction {
+                ProductTable
+                    .selectAll()
+                    .where { ProductTable.id inList ids.toList() }
+                    .map { it.toProduct() }
+            }
+        }
 
     fun findAllActive(): List<Product> =
         transaction {
@@ -109,5 +122,6 @@ object ProductRepository {
             isActive = this[ProductTable.isActive],
             unitPrice = this[ProductTable.unitPrice],
             commissionAmount = this[ProductTable.commissionAmount],
+            reorderPoint = this[ProductTable.reorderPoint],
         )
 }
