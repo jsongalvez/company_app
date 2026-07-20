@@ -30,6 +30,10 @@ object CommissionService {
             reason = reason,
         )
 
+    fun recalculate(branchDayId: UUID) {
+        CommissionEngine.recalculate(branchDayId)
+    }
+
     fun manualRecalculate(branchDayId: UUID) {
         CommissionEngine.manualRecalculate(branchDayId)
     }

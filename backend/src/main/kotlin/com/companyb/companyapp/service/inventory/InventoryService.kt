@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
-import com.companyb.companyapp.repository.model.InventoryMovementReason
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -34,7 +33,7 @@ object InventoryService {
         val card = BranchInventoryRepository.ensureCard(branchId, productId)
         val expectedVersion = card.version
 
-        val reason = InventoryMovementReason.valueOf(movementType::class.simpleName!!.uppercase())
+        val reason = movementType.toInventoryMovementReason()
 
         return try {
             val movement =

@@ -16,6 +16,13 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
+/**
+ * Shared day-state service. Every operational/financial write must call [checkBranchDayEditable]
+ * before mutating, and create the owning day via [resolveOrCreate].
+ *
+ * Day state is lazily evaluated against the current Asia/Manila calendar date: a day that is
+ * still OPEN but whose calendar date is already in the past is treated as PAST.
+ */
 object BranchDayService {
     private val logger = KotlinLogging.logger {}
 
@@ -29,16 +36,33 @@ object BranchDayService {
         date: LocalDate,
     ): BranchDay = BranchDayRepository.resolveOrCreate(branchId, date)
 
+    /**
+     * Finds a branch day by ID or throws [NotFoundException].
+     */
     fun requireBranchDayExists(branchDayId: UUID): BranchDay =
         BranchDayRepository.findById(branchDayId)
             ?: throw NotFoundException("Branch day not found")
 
+    /**
+     * Returns the effective status of a branch day, applying lazy evaluation:
+     * an OPEN day whose calendar date is in the past is treated as PAST.
+     * Returns null if the branch day does not exist.
+     */
     fun getEffectiveStatus(branchDayId: UUID): DayStatus? {
         val branchDay = BranchDayRepository.findById(branchDayId) ?: return null
         val today = LocalDate.now(manilaZone)
         return evaluateStatus(branchDay.status, branchDay.date, today)
     }
 
+    /**
+     * Resolves the branch day and asserts it is editable by [callerId].
+     * Covers the branch-day lookup, [EDIT_PAST_DAY] capability check, and day-state validation.
+     *
+     * @return the resolved [BranchDay] so callers can use it without a second lookup.
+     * @throws NotFoundException if the branch day does not exist.
+     * @throws ForbiddenException if the day is PAST/REMITTED and the user lacks EDIT_PAST_DAY.
+     * @throws ValidationException if the day is REMITTED and no reason was supplied.
+     */
     fun checkBranchDayEditable(
         callerId: UUID,
         branchDayId: UUID,
@@ -59,6 +83,10 @@ object BranchDayService {
         return branchDay
     }
 
+    /**
+     * Pure day-state resolution: an OPEN day whose calendar date precedes [today] is treated as
+     * PAST. REMITTED and explicitly-PAST days are returned unchanged.
+     */
     fun evaluateStatus(
         status: DayStatus,
         date: LocalDate,
@@ -70,6 +98,10 @@ object BranchDayService {
             status
         }
 
+    /**
+     * Pure authorization/validation for a write against an already-resolved [effectiveStatus].
+     * Extracted so it can be unit-tested without a database.
+     */
     fun assertEditableState(
         effectiveStatus: DayStatus,
         hasEditPastDay: Boolean,
@@ -86,6 +118,10 @@ object BranchDayService {
         }
     }
 
+    /**
+     * Converts a branch calendar [branchDate] to its UTC expiration instant at the 4 AM Manila
+     * boundary of the following day. Used for relief-access capability `valid_to` timestamps.
+     */
     fun expirationUtc(branchDate: LocalDate): OffsetDateTime =
         branchDate
             .plusDays(ONE_DAY)

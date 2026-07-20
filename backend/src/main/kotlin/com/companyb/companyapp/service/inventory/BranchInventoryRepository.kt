@@ -22,16 +22,6 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-internal data class RestockParams(
-    val movementId: UUID,
-    val branchId: UUID,
-    val productId: UUID,
-    val quantity: Int,
-    val branchDayId: UUID,
-    val expectedVersion: Int,
-    val movedBy: UUID,
-)
-
 internal data class RecordMovementParams(
     val movementId: UUID,
     val branchId: UUID,
@@ -42,18 +32,6 @@ internal data class RecordMovementParams(
     val branchDayId: UUID,
     val expectedVersion: Int,
     val movedBy: UUID,
-)
-
-internal data class RestockResult(
-    val movement: InventoryMovement,
-    val updatedStock: Int,
-)
-
-internal data class RestockAuditData(
-    val movement: InventoryMovement,
-    val oldCard: BranchInventory,
-    val newCard: BranchInventory,
-    val quantityAdded: Int,
 )
 
 internal data class MovementAuditData(
@@ -88,72 +66,6 @@ internal object BranchInventoryRepository {
         }.also {
             logger.info {
                 "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId stock=${it.currentStock}"
-            }
-        }
-
-    fun restock(
-        params: RestockParams,
-        auditFn: (RestockAuditData) -> Unit = {},
-    ): RestockResult =
-        transaction {
-            val card = requireCardForUpdate(params.branchId, params.productId, params.expectedVersion)
-
-            val updatedCount =
-                BranchInventoryTable.update({
-                    (BranchInventoryTable.branchId eq params.branchId) and
-                        (BranchInventoryTable.productId eq params.productId) and
-                        (BranchInventoryTable.version eq params.expectedVersion)
-                }) {
-                    it[BranchInventoryTable.currentStock] = card.currentStock + params.quantity
-                    it[BranchInventoryTable.version] = params.expectedVersion + 1
-                }
-
-            if (updatedCount == 0) {
-                error("version_mismatch")
-            }
-
-            val insertedCount =
-                InventoryMovementTable
-                    .insertIgnore {
-                        it[InventoryMovementTable.id] = params.movementId
-                        it[InventoryMovementTable.productId] = params.productId
-                        it[InventoryMovementTable.branchId] = params.branchId
-                        it[InventoryMovementTable.branchDayId] = params.branchDayId
-                        it[InventoryMovementTable.reason] = InventoryMovementReason.RESTOCK
-                        it[InventoryMovementTable.quantityChange] = params.quantity
-                        it[InventoryMovementTable.movedBy] = params.movedBy
-                        it[InventoryMovementTable.movedAt] =
-                            CurrentTimestampWithTimeZone
-                    }.insertedCount
-
-            val movementRow =
-                InventoryMovementTable
-                    .selectAll()
-                    .where { InventoryMovementTable.id eq params.movementId }
-                    .single()
-                    .toInventoryMovement()
-
-            val newCard =
-                findCardInTransaction(params.branchId, params.productId)
-                    ?: error("inventory card not found after restock")
-
-            auditFn(
-                RestockAuditData(
-                    movement = movementRow,
-                    oldCard = card,
-                    newCard = newCard,
-                    quantityAdded = params.quantity,
-                ),
-            )
-
-            RestockResult(
-                movement = movementRow,
-                updatedStock = newCard.currentStock,
-            )
-        }.also {
-            logger.info {
-                "[RESTOCK] Restocked product=${params.productId} " +
-                    "branch=${params.branchId} qty=${params.quantity} stock=${it.updatedStock}"
             }
         }
 

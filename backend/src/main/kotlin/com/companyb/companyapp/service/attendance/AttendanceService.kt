@@ -6,7 +6,7 @@ import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.service.branchday.BranchDayService
-import com.companyb.companyapp.service.finance.commission.CommissionEngine
+import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -51,7 +51,7 @@ object AttendanceService {
 
         logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
 
-        CommissionEngine.recalculate(attendance.branchDayId)
+        CommissionService.recalculate(attendance.branchDayId)
 
         val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
         return AttendanceServiceResult(attendance, false, isRelief)
@@ -103,7 +103,7 @@ object AttendanceService {
             "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
         }
 
-        CommissionEngine.recalculate(branchDay.id)
+        CommissionService.recalculate(branchDay.id)
 
         return AttendanceServiceResult(attendance, wasCreated, isRelief)
     }

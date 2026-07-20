@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.repository.model.InventoryMovementReason
+
 sealed class MovementType(
     val signRequired: Sign,
 ) {
@@ -19,16 +21,13 @@ sealed class MovementType(
 
     data object Adjustment : MovementType(Sign.ANY)
 
-    companion object {
-        fun fromReason(reason: String): MovementType =
-            when (reason.uppercase()) {
-                "RESTOCK" -> Restock
-                "SALE" -> Sale
-                "TESTER" -> Tester
-                "SAMPLE" -> Sample
-                "MISSING" -> Missing
-                "ADJUSTMENT" -> Adjustment
-                else -> throw IllegalArgumentException("Unknown movement type: $reason")
-            }
-    }
+    fun toInventoryMovementReason(): InventoryMovementReason =
+        when (this) {
+            Restock -> InventoryMovementReason.RESTOCK
+            Sale -> InventoryMovementReason.SALE
+            Tester -> InventoryMovementReason.TESTER
+            Sample -> InventoryMovementReason.SAMPLE
+            Missing -> InventoryMovementReason.MISSING
+            Adjustment -> InventoryMovementReason.ADJUSTMENT
+        }
 }

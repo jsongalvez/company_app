@@ -21,7 +21,6 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
-import com.companyb.companyapp.service.finance.commission.ManualInclusionHelper
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -91,7 +90,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusionId = UUID.randomUUID()
 
         val inclusion =
-            ManualInclusionHelper.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -115,7 +114,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusionId = UUID.randomUUID()
 
         val inclusion =
-            ManualInclusionHelper.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -133,7 +132,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val inclusionId = UUID.randomUUID()
 
         val inclusion =
-            ManualInclusionHelper.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -150,7 +149,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `upsert updates existing inclusion`() {
         val inclusionId = UUID.randomUUID()
 
-        ManualInclusionHelper.create(
+        CommissionService.createManualInclusion(
             callerId = callerId,
             id = inclusionId,
             productSaleId = productSaleId,
@@ -160,7 +159,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         )
 
         val updated =
-            ManualInclusionHelper.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = UUID.randomUUID(),
                 productSaleId = productSaleId,
@@ -188,7 +187,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         val inclusionId = UUID.randomUUID()
         val inclusion =
-            ManualInclusionHelper.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = inclusionId,
                 productSaleId = productSaleId,
@@ -205,7 +204,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `create with non-existent product sale returns not found`() {
         assertFailsWith<NotFoundException> {
-            ManualInclusionHelper.create(
+            CommissionService.createManualInclusion(
                 callerId = callerId,
                 id = UUID.randomUUID(),
                 productSaleId = UUID.randomUUID(),
@@ -222,7 +221,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
         val (_, duration) =
             measureTimedValue {
-                ManualInclusionHelper.create(
+                CommissionService.createManualInclusion(
                     callerId = callerId,
                     id = inclusionId,
                     productSaleId = productSaleId,
@@ -246,7 +245,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `get splits returns correct data`() {
         val inclusionId = UUID.randomUUID()
 
-        ManualInclusionHelper.create(
+        CommissionService.createManualInclusion(
             callerId = callerId,
             id = inclusionId,
             productSaleId = productSaleId,
@@ -286,7 +285,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `create writes audit log entry`() {
         val inclusionId = UUID.randomUUID()
 
-        ManualInclusionHelper.create(
+        CommissionService.createManualInclusion(
             callerId = callerId,
             id = inclusionId,
             productSaleId = productSaleId,
