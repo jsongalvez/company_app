@@ -85,41 +85,29 @@ object SessionService {
         val basePrice = computeBasePrice(branchId, sessionType)
 
         val result =
-            try {
-                SessionRepository.create(
-                    SessionCreateParams(
-                        id = id,
-                        clientId = clientId,
-                        branchDayId = branchDay.id,
-                        requestedPractitionerId = requestedPractitionerId,
-                        sessionType = sessionType,
-                        isWalkIn = isWalkIn,
-                        basePrice = basePrice,
-                        finalPrice = finalPrice,
-                        remarks = remarks,
-                        otherConcerns = otherConcerns,
-                        bookedAt = bookedAt,
-                        nextAppointmentDate = nextAppointmentDate,
-                        changedBy = callerId,
-                    ),
-                ) { session ->
-                    AuditLogRepository.recordInsert(
-                        tableName = SessionTable.tableName,
-                        recordId = session.id,
-                        changedBy = callerId,
-                        fields = SessionTable.auditFields(session),
-                    )
-                }
-            } catch (e: IllegalStateException) {
-                when (e.message) {
-                    "client_already_has_pending_session" -> {
-                        throw ConflictException("Client already has an active PENDING session")
-                    }
-
-                    else -> {
-                        throw e
-                    }
-                }
+            SessionRepository.create(
+                SessionCreateParams(
+                    id = id,
+                    clientId = clientId,
+                    branchDayId = branchDay.id,
+                    requestedPractitionerId = requestedPractitionerId,
+                    sessionType = sessionType,
+                    isWalkIn = isWalkIn,
+                    basePrice = basePrice,
+                    finalPrice = finalPrice,
+                    remarks = remarks,
+                    otherConcerns = otherConcerns,
+                    bookedAt = bookedAt,
+                    nextAppointmentDate = nextAppointmentDate,
+                    changedBy = callerId,
+                ),
+            ) { session ->
+                AuditLogRepository.recordInsert(
+                    tableName = SessionTable.tableName,
+                    recordId = session.id,
+                    changedBy = callerId,
+                    fields = SessionTable.auditFields(session),
+                )
             }
 
         logger.info {

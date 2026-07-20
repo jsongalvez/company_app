@@ -18,6 +18,7 @@ import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -277,7 +278,7 @@ internal object RemittanceRepository {
             .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
     }
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchDay(): BranchDay =
+    private fun ResultRow.toBranchDay(): BranchDay =
         BranchDay(
             id = this[BranchDayTable.id],
             branchId = this[BranchDayTable.branchId],
@@ -285,7 +286,7 @@ internal object RemittanceRepository {
             status = this[BranchDayTable.status],
         )
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittance(): Remittance =
+    private fun ResultRow.toRemittance(): Remittance =
         Remittance(
             id = this[RemittanceTable.id],
             type = this[RemittanceTable.type],

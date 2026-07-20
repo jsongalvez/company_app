@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.Session
@@ -53,7 +54,7 @@ object ConcernRepository {
 
                 val concern =
                     findByIdInTransaction(id)
-                        ?: error("concern row not found after idempotent insert for $id")
+                        ?: throw NotFoundException("Concern not found after idempotent insert")
 
                 if (insertedCount > 0 && createdBy != null) {
                     auditFn(concern)
@@ -131,7 +132,7 @@ object ConcernRepository {
         transaction {
             val beforeSession =
                 findSessionByIdInTransaction(sessionId)
-                    ?: error("Session $sessionId not found for promoteConcern")
+                    ?: throw NotFoundException("Session not found")
 
             val insertedCount =
                 ConcernTable
@@ -143,7 +144,7 @@ object ConcernRepository {
 
             val concern =
                 findByIdInTransaction(concernId)
-                    ?: error("concern row not found after idempotent insert for $concernId")
+                    ?: throw NotFoundException("Concern not found after idempotent insert")
 
             if (insertedCount > 0) {
                 onConcernCreated(concern)
@@ -166,7 +167,7 @@ object ConcernRepository {
 
             val afterSession =
                 findSessionByIdInTransaction(sessionId)
-                    ?: error("Session $sessionId not found after promoteConcern session update")
+                    ?: throw NotFoundException("Session not found after concern promotion update")
 
             onSessionOtherConcernsCleared(beforeSession, afterSession)
 

@@ -2,6 +2,7 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -82,7 +83,7 @@ object SessionRepository {
             acquireClientLock(params.clientId)
             val hasActive = hasActivePendingSessionInTransaction(params.clientId)
             if (hasActive) {
-                error("client_already_has_pending_session")
+                throw ConflictException("Client already has an active PENDING session")
             }
 
             val insertedCount =
