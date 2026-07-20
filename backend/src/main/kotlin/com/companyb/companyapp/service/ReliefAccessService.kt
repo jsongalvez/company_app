@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
@@ -60,19 +59,14 @@ object ReliefAccessService {
                         priority = GrantPriorities.RELIEF_ACCESS,
                         requestedBy = request.requestedBy,
                     ),
-                    auditFn = { updated ->
-                        AuditLogRepository.record(
+                    auditFn = { before, after ->
+                        AuditLogRepository.recordUpdate(
                             tableName = GrantReliefAccessTable.tableName,
-                            recordId = updated.id,
-                            action = AuditAction.UPDATE,
+                            recordId = after.id,
+                            before = before,
+                            after = after,
                             changedBy = callerId,
-                            newValue =
-                                AuditLogRepository.jsonFields(
-                                    "requestId" to updated.id.toString(),
-                                    "branchDayId" to updated.branchDayId.toString(),
-                                    "grantedBy" to callerId.toString(),
-                                    "requestedBy" to updated.requestedBy.toString(),
-                                ),
+                            auditFields = GrantReliefAccessTable::auditFields,
                         )
                     },
                 ),
@@ -115,17 +109,14 @@ object ReliefAccessService {
 
         ReliefAccessRepository.deny(
             requestId,
-            auditFn = { updated ->
-                AuditLogRepository.record(
+            auditFn = { before, after ->
+                AuditLogRepository.recordUpdate(
                     tableName = GrantReliefAccessTable.tableName,
-                    recordId = updated.id,
-                    action = AuditAction.UPDATE,
+                    recordId = after.id,
+                    before = before,
+                    after = after,
                     changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "requestId" to updated.id.toString(),
-                            "status" to ReliefStatus.DENIED.name,
-                        ),
+                    auditFields = GrantReliefAccessTable::auditFields,
                 )
             },
         )

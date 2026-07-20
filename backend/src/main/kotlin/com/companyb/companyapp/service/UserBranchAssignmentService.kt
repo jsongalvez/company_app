@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
@@ -100,22 +99,16 @@ object UserBranchAssignmentService {
             UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
                 ?: throw NotFoundException("Active assignment not found")
 
-        val auditOldValue =
-            AuditLogRepository.jsonFields(
-                "id" to assignment.id.toString(),
-                "userId" to userId.toString(),
-                "branchId" to branchId.toString(),
-                "slot" to assignment.slot.toString(),
-            )
         UserBranchAssignmentRepository.setEndedAt(
             assignment.id,
-            auditFn = { updated ->
-                AuditLogRepository.record(
+            auditFn = { before, after ->
+                AuditLogRepository.recordUpdate(
                     tableName = UserBranchAssignmentTable.tableName,
-                    recordId = updated.id,
-                    action = AuditAction.UPDATE,
+                    recordId = after.id,
+                    before = before,
+                    after = after,
                     changedBy = callerId,
-                    oldValue = auditOldValue,
+                    auditFields = UserBranchAssignmentTable::auditFields,
                 )
             },
         )
@@ -150,12 +143,12 @@ object UserBranchAssignmentService {
         UserBranchAssignmentRepository.updateSlot(
             assignment.id,
             newSlot,
-            auditFn = { updated ->
+            auditFn = { before, after ->
                 AuditLogRepository.recordUpdate(
                     tableName = UserBranchAssignmentTable.tableName,
-                    recordId = updated.id,
-                    before = assignment,
-                    after = updated,
+                    recordId = after.id,
+                    before = before,
+                    after = after,
                     changedBy = callerId,
                     auditFields = UserBranchAssignmentTable::auditFields,
                 )
@@ -177,29 +170,21 @@ object UserBranchAssignmentService {
                 userIdA,
                 userIdB,
                 auditFn = { a, b ->
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordUpdate(
                         tableName = UserBranchAssignmentTable.tableName,
                         recordId = a.id,
-                        action = AuditAction.UPDATE,
+                        before = a,
+                        after = a.copy(slot = b.slot),
                         changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "userId" to a.userId.toString(),
-                                "oldSlot" to a.slot.toString(),
-                                "newSlot" to b.slot.toString(),
-                            ),
+                        auditFields = UserBranchAssignmentTable::auditFields,
                     )
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordUpdate(
                         tableName = UserBranchAssignmentTable.tableName,
                         recordId = b.id,
-                        action = AuditAction.UPDATE,
+                        before = b,
+                        after = b.copy(slot = a.slot),
                         changedBy = callerId,
-                        newValue =
-                            AuditLogRepository.jsonFields(
-                                "userId" to b.userId.toString(),
-                                "oldSlot" to b.slot.toString(),
-                                "newSlot" to a.slot.toString(),
-                            ),
+                        auditFields = UserBranchAssignmentTable::auditFields,
                     )
                 },
             )

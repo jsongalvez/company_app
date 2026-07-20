@@ -3,6 +3,7 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
+import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
@@ -26,15 +27,6 @@ import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
 
-data class SaleAuditData(
-    val sale: ProductSale,
-    val inventoryCardId: UUID,
-    val oldStock: Int,
-    val oldVersion: Int,
-    val newStock: Int,
-    val newVersion: Int,
-)
-
 data class SellProductParams(
     val id: UUID,
     val branchDayId: UUID,
@@ -55,7 +47,7 @@ object ProductSaleRepository {
     @Suppress("LongMethod")
     fun sell(
         params: SellProductParams,
-        auditFn: (SaleAuditData) -> Unit = {},
+        auditFn: (ProductSale, BranchInventory, BranchInventory) -> Unit = { _, _, _ -> },
     ): ProductSale =
         transaction {
             val existing = findByIdInTransaction(params.id)
@@ -75,6 +67,7 @@ object ProductSaleRepository {
                     }.singleOrNull()
                     ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
 
+            val beforeCard = card.toBranchInventory()
             val (oldStock, oldVersion, newStock) =
                 decrementInventoryStock(
                     card,
@@ -112,16 +105,12 @@ object ProductSaleRepository {
                 findByIdInTransaction(params.id)
                     ?: error("product sale not found after insert for ${params.id}")
 
-            auditFn(
-                SaleAuditData(
-                    sale = sale,
-                    inventoryCardId = card[BranchInventoryTable.id],
-                    oldStock = oldStock,
-                    oldVersion = oldVersion,
-                    newStock = newStock,
-                    newVersion = params.expectedVersion + 1,
-                ),
-            )
+            val afterCard =
+                beforeCard.copy(
+                    currentStock = newStock,
+                    version = params.expectedVersion + 1,
+                )
+            auditFn(sale, beforeCard, afterCard)
             sale
         }.also {
             logger.info {
@@ -264,6 +253,15 @@ object ProductSaleRepository {
             .where { ProductSaleTable.id eq id }
             .singleOrNull()
             ?.let { it.toProductSale() }
+
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchInventory(): BranchInventory =
+        BranchInventory(
+            id = this[BranchInventoryTable.id],
+            branchId = this[BranchInventoryTable.branchId],
+            productId = this[BranchInventoryTable.productId],
+            currentStock = this[BranchInventoryTable.currentStock],
+            version = this[BranchInventoryTable.version],
+        )
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toProductSale(): ProductSale =
         ProductSale(

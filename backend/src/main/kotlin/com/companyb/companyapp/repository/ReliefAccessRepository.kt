@@ -59,9 +59,16 @@ object ReliefAccessRepository {
 
     fun grantWithCapability(
         params: GrantWithCapabilityParams,
-        auditFn: (ReliefAccess) -> Unit = {},
+        auditFn: (ReliefAccess, ReliefAccess) -> Unit = { _, _ -> },
     ): ReliefAccess? =
         transaction {
+            val before =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq params.requestId }
+                    .singleOrNull()
+                    ?.toReliefAccess()
+
             GrantReliefAccessTable
                 .selectAll()
                 .where {
@@ -103,34 +110,43 @@ object ReliefAccessRepository {
                 it[UserCapabilityTable.priority] = params.priority
             }
 
-            val updated =
+            val after =
                 GrantReliefAccessTable
                     .selectAll()
                     .where { GrantReliefAccessTable.id eq params.requestId }
                     .single()
                     .toReliefAccess()
 
-            auditFn(updated)
-            updated
+            if (before != null) {
+                auditFn(before, after)
+            }
+            after
         }
 
     fun deny(
         requestId: UUID,
-        auditFn: (ReliefAccess) -> Unit = {},
+        auditFn: (ReliefAccess, ReliefAccess) -> Unit = { _, _ -> },
     ) = transaction {
-        GrantReliefAccessTable
-            .update({ GrantReliefAccessTable.id eq requestId }) {
-                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
-            }
-
-        val updated =
+        val before =
             GrantReliefAccessTable
                 .selectAll()
                 .where { GrantReliefAccessTable.id eq requestId }
                 .single()
                 .toReliefAccess()
 
-        auditFn(updated)
+        GrantReliefAccessTable
+            .update({ GrantReliefAccessTable.id eq requestId }) {
+                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+            }
+
+        val after =
+            GrantReliefAccessTable
+                .selectAll()
+                .where { GrantReliefAccessTable.id eq requestId }
+                .single()
+                .toReliefAccess()
+
+        auditFn(before, after)
     }
 
     fun insertRequest(

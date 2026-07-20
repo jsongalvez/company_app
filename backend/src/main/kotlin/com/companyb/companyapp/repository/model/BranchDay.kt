@@ -34,4 +34,12 @@ object BranchDayTable : Table("branch_day") {
         ).default(DayStatus.OPEN)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: BranchDay): Map<String, String> =
+        mapOf(
+            "id" to entity.id.toString(),
+            "branchId" to entity.branchId.toString(),
+            "date" to entity.date.toString(),
+            "status" to entity.status.name,
+        )
 }

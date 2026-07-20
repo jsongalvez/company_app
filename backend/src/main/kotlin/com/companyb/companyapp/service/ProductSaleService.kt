@@ -63,29 +63,22 @@ object ProductSaleService {
                     handledBy = callerId,
                     product = product,
                 ),
-            ) { data ->
+            ) { sale, beforeCard, afterCard ->
                 AuditLogRepository.recordInsert(
                     tableName = ProductSaleTable.tableName,
-                    recordId = data.sale.id,
+                    recordId = sale.id,
                     changedBy = callerId,
-                    fields = ProductSaleTable.auditFields(data.sale),
+                    fields = ProductSaleTable.auditFields(sale),
                     isFlagged = isRemitted,
                 )
                 AuditLogRepository.recordUpdate(
                     tableName = BranchInventoryTable.tableName,
-                    recordId = data.inventoryCardId,
-                    oldFields =
-                        mapOf(
-                            "currentStock" to data.oldStock.toString(),
-                            "version" to data.oldVersion.toString(),
-                        ),
-                    newFields =
-                        mapOf(
-                            "currentStock" to data.newStock.toString(),
-                            "version" to data.newVersion.toString(),
-                        ),
+                    recordId = beforeCard.id,
+                    before = beforeCard,
+                    after = afterCard,
                     changedBy = callerId,
                     isFlagged = isRemitted,
+                    auditFields = BranchInventoryTable::auditFields,
                 )
             }
 

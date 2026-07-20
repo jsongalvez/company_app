@@ -114,23 +114,30 @@ internal object AttendanceRepository {
 
     fun clockOut(
         attendanceId: UUID,
-        auditFn: (Attendance) -> Unit = {},
+        auditFn: (Attendance, Attendance) -> Unit = { _, _ -> },
     ): Attendance =
         transaction {
-            AttendanceTable
-                .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
-                    it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
-                }
-
-            val attendance =
+            val before =
                 AttendanceTable
                     .selectAll()
                     .where { AttendanceTable.id eq attendanceId }
                     .single()
                     .toAttendance()
 
-            auditFn(attendance)
-            attendance
+            AttendanceTable
+                .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
+                    it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
+                }
+
+            val after =
+                AttendanceTable
+                    .selectAll()
+                    .where { AttendanceTable.id eq attendanceId }
+                    .single()
+                    .toAttendance()
+
+            auditFn(before, after)
+            after
         }
 
     fun findUsersClockedInAt(

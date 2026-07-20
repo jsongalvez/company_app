@@ -1,7 +1,7 @@
 # ADR 0013: Audit callback pattern for repository-to-service migration
 
 **Date:** 2026-07-18  
-**Status:** ✅ accepted  
+**Status:** ✅ accepted (amended 2026-07-20 by [ADR-0019](./0019-repository-owns-before-state-capture.md))  
 **Stakeholders:** backend team
 
 ## Context
@@ -69,6 +69,8 @@ ExpenseRepository.softDelete(expenseId, callerId, reason) { after ->
     )
 }
 ```
+
+> **Note (2026-07-20, entity-based overloads):** With the entity-based `recordUpdate<T>` / `recordDelete<T>` pattern (see [ADR-0018](./0018-entity-audit-overload-lambda-pattern.md)), before-state capture moved from the service to the repository. The repository reads the "before" entity inside its `transaction{}`, mutates, reads the "after" entity, and passes `(before, after)` to the `auditFn` callback as `(T, T) -> Unit`. This guarantees both reads are atomic within the same transaction. See [ADR-0019](./0019-repository-owns-before-state-capture.md) for the full rationale. The service-only before-fetch described above still applies to map-based `recordUpdate(oldFields, newFields)` call sites.
 
 ### Parameters removed from repositories
 

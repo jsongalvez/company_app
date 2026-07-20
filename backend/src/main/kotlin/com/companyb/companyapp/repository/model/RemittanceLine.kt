@@ -61,5 +61,7 @@ object RemittanceLineTable : Table("remittance_line") {
             "remittanceId" to entity.remittanceId.toString(),
             "type" to entity.type.name,
             "amount" to entity.amount.toPlainString(),
+            "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
+            "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
         )
 }

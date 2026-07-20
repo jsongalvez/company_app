@@ -103,20 +103,27 @@ object UserBranchAssignmentRepository {
 
     fun setEndedAt(
         id: UUID,
-        auditFn: (UserBranchAssignment) -> Unit = {},
+        auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
     ) {
         transaction {
-            UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
-                it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
-            }
-
-            val updated =
+            val before =
                 UserBranchAssignmentTable
                     .selectAll()
                     .where { UserBranchAssignmentTable.id eq id }
                     .single()
                     .toAssignment()
-            auditFn(updated)
+
+            UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
+                it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
+            }
+
+            val after =
+                UserBranchAssignmentTable
+                    .selectAll()
+                    .where { UserBranchAssignmentTable.id eq id }
+                    .single()
+                    .toAssignment()
+            auditFn(before, after)
         }
         logger.info { "[SET-ENDED-AT] Assignment ${id.toString().maskUUID()}" }
     }
@@ -124,9 +131,16 @@ object UserBranchAssignmentRepository {
     fun updateSlot(
         id: UUID,
         slot: Short,
-        auditFn: (UserBranchAssignment) -> Unit = {},
+        auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
     ) {
         transaction {
+            val before =
+                UserBranchAssignmentTable
+                    .selectAll()
+                    .where { UserBranchAssignmentTable.id eq id }
+                    .single()
+                    .toAssignment()
+
             UserBranchAssignmentTable.update({
                 (UserBranchAssignmentTable.id eq id) and
                     (UserBranchAssignmentTable.endedAt.isNull())
@@ -134,13 +148,13 @@ object UserBranchAssignmentRepository {
                 it[UserBranchAssignmentTable.slot] = slot
             }
 
-            val updated =
+            val after =
                 UserBranchAssignmentTable
                     .selectAll()
                     .where { UserBranchAssignmentTable.id eq id }
                     .single()
                     .toAssignment()
-            auditFn(updated)
+            auditFn(before, after)
         }
         logger.info { "[UPDATE-SLOT] Assignment ${id.toString().maskUUID()} slot=$slot" }
     }

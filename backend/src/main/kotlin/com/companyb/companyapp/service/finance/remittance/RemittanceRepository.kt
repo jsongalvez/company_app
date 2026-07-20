@@ -3,6 +3,7 @@ package com.companyb.companyapp.service.finance.remittance
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.DayStatus
@@ -103,7 +104,7 @@ internal object RemittanceRepository {
 
     private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
 
-    @Suppress("ReturnCount", "ComplexMethod")
+    @Suppress("ReturnCount", "ComplexMethod", "LongMethod")
     fun submit(
         remittanceId: UUID,
         expectedVersion: Int,
@@ -111,21 +112,22 @@ internal object RemittanceRepository {
         auditFn: (SubmitAuditContext) -> Unit = {},
     ): RemittanceSubmissionResult? =
         transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
-            val remittance =
+            val remittanceRow =
                 RemittanceTable
                     .selectAll()
                     .where { RemittanceTable.id eq remittanceId }
                     .forUpdate(ForUpdateOption.ForUpdate)
                     .singleOrNull() ?: return@transaction null
 
-            if (remittance[RemittanceTable.version] != expectedVersion) {
+            if (remittanceRow[RemittanceTable.version] != expectedVersion) {
                 throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
             }
-            if (remittance[RemittanceTable.status] != RemittanceStatus.DRAFT) {
+            if (remittanceRow[RemittanceTable.status] != RemittanceStatus.DRAFT) {
                 throw ValidationException("Can only submit DRAFT remittances")
             }
 
-            val remittanceType = remittance[RemittanceTable.type]
+            val remittanceBefore = remittanceRow.toRemittance()
+            val remittanceType = remittanceRow[RemittanceTable.type]
 
             val breakdownIds =
                 RemittanceDayBreakdownTable
@@ -148,14 +150,39 @@ internal object RemittanceRepository {
             )
             updateRemittanceToSubmitted(remittanceId, expectedVersion, callerId)
             updateBranchDayStatuses(breakdownIds)
-            auditFn(SubmitAuditContext(remittanceId, breakdownIds))
 
-            val submitted =
+            val remittanceAfter =
                 findByIdInTransaction(remittanceId)
                     ?: error("remittance not found after submit for $remittanceId")
 
+            val branchDayPairs =
+                breakdownIds
+                    .map { bdId ->
+                        BranchDayTable
+                            .selectAll()
+                            .where { BranchDayTable.id eq bdId }
+                            .single()
+                            .toBranchDay()
+                    }.map { before ->
+                        val after =
+                            BranchDayTable
+                                .selectAll()
+                                .where { BranchDayTable.id eq before.id }
+                                .single()
+                                .toBranchDay()
+                        before to after
+                    }
+
+            auditFn(
+                SubmitAuditContext(
+                    remittanceBefore = remittanceBefore,
+                    remittanceAfter = remittanceAfter,
+                    branchDayPairs = branchDayPairs,
+                ),
+            )
+
             RemittanceSubmissionResult(
-                remittance = submitted,
+                remittance = remittanceAfter,
                 grossIncome = grossIncome,
                 totalCompensation = totalCompensation,
                 totalExpenses = totalExpenses,
@@ -250,6 +277,14 @@ internal object RemittanceRepository {
             .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
     }
 
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchDay(): BranchDay =
+        BranchDay(
+            id = this[BranchDayTable.id],
+            branchId = this[BranchDayTable.branchId],
+            date = this[BranchDayTable.date],
+            status = this[BranchDayTable.status],
+        )
+
     private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittance(): Remittance =
         Remittance(
             id = this[RemittanceTable.id],
@@ -267,8 +302,9 @@ internal object RemittanceRepository {
 }
 
 data class SubmitAuditContext(
-    val remittanceId: UUID,
-    val breakdownIds: List<UUID>,
+    val remittanceBefore: Remittance,
+    val remittanceAfter: Remittance,
+    val branchDayPairs: List<Pair<BranchDay, BranchDay>>,
 )
 
 data class RemittanceSubmissionResult(

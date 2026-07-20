@@ -10,6 +10,7 @@ data class AppUser(
     val id: String,
     val username: String,
     val passwordHash: String,
+    val status: UserStatus = UserStatus.ACTIVE,
 )
 
 enum class UserStatus { ACTIVE, INACTIVE }
@@ -42,4 +43,11 @@ object AppUserTable : Table("app_user") {
             .defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(id)
+
+    fun auditFields(entity: AppUser): Map<String, String> =
+        mapOf(
+            "id" to entity.id,
+            "username" to entity.username,
+            "status" to entity.status.name,
+        )
 }

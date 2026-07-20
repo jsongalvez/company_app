@@ -4,7 +4,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
@@ -38,16 +37,11 @@ object ConcernService {
             sessionId = sessionId,
             concernId = concernId,
             auditFn = { sc ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordInsert(
                     tableName = SessionConcernTable.tableName,
                     recordId = sessionId,
-                    action = AuditAction.INSERT,
                     changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "concernId" to sc.concernId.toString(),
-                        ),
+                    fields = SessionConcernTable.auditFields(sc),
                     isFlagged = isRemitted,
                 )
             },
@@ -71,17 +65,13 @@ object ConcernService {
             sessionId = sessionId,
             concernId = concernId,
             auditFn = { sc ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordDelete(
                     tableName = SessionConcernTable.tableName,
                     recordId = sessionId,
-                    action = AuditAction.DELETE,
+                    before = sc,
                     changedBy = callerId,
-                    oldValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "concernId" to sc.concernId.toString(),
-                        ),
                     isFlagged = isRemitted,
+                    auditFields = SessionConcernTable::auditFields,
                 )
             },
         )
@@ -119,16 +109,11 @@ object ConcernService {
             sessionId = sessionId,
             concernId = concern.id,
             auditFn = { sc ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordInsert(
                     tableName = SessionConcernTable.tableName,
                     recordId = sessionId,
-                    action = AuditAction.INSERT,
                     changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "sessionId" to sessionId.toString(),
-                            "concernId" to sc.concernId.toString(),
-                        ),
+                    fields = SessionConcernTable.auditFields(sc),
                     isFlagged = isRemitted,
                 )
             },

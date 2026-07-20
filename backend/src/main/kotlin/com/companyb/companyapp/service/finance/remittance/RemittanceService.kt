@@ -3,11 +3,8 @@ package com.companyb.companyapp.service.finance.remittance
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.BranchRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
@@ -39,22 +36,22 @@ object RemittanceService {
                 expectedVersion = expectedVersion,
                 callerId = callerId,
                 auditFn = { ctx ->
-                    AuditLogRepository.record(
+                    AuditLogRepository.recordUpdate(
                         tableName = RemittanceTable.tableName,
-                        recordId = ctx.remittanceId,
-                        action = AuditAction.UPDATE,
+                        recordId = ctx.remittanceAfter.id,
+                        before = ctx.remittanceBefore,
+                        after = ctx.remittanceAfter,
                         changedBy = callerId,
-                        oldValue = AuditLogRepository.jsonField("status", RemittanceStatus.DRAFT.name),
-                        newValue = AuditLogRepository.jsonField("status", RemittanceStatus.SUBMITTED.name),
+                        auditFields = RemittanceTable::auditFields,
                     )
-                    for (bdId in ctx.breakdownIds) {
-                        AuditLogRepository.record(
+                    ctx.branchDayPairs.forEach { (before, after) ->
+                        AuditLogRepository.recordUpdate(
                             tableName = BranchDayTable.tableName,
-                            recordId = bdId,
-                            action = AuditAction.UPDATE,
+                            recordId = after.id,
+                            before = before,
+                            after = after,
                             changedBy = callerId,
-                            oldValue = AuditLogRepository.jsonField("status", DayStatus.OPEN.name),
-                            newValue = AuditLogRepository.jsonField("status", DayStatus.REMITTED.name),
+                            auditFields = BranchDayTable::auditFields,
                         )
                     }
                 },
@@ -163,14 +160,19 @@ object RemittanceService {
         }
 
         val line =
-            RemittanceLineRepository.softDeleteLine(lineId, remittanceId, callerId, remittance.version) { line ->
-                AuditLogRepository.record(
+            RemittanceLineRepository.softDeleteLine(
+                lineId,
+                remittanceId,
+                callerId,
+                remittance.version,
+            ) { before, after ->
+                AuditLogRepository.recordUpdate(
                     tableName = RemittanceLineTable.tableName,
-                    recordId = line.id,
-                    action = AuditAction.UPDATE,
+                    recordId = after.id,
+                    before = before,
+                    after = after,
                     changedBy = callerId,
-                    oldValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NULL),
-                    newValue = AuditLogRepository.jsonField("deletedAt", AuditValues.NOW_FN),
+                    auditFields = RemittanceLineTable::auditFields,
                 )
             }
                 ?: throw NotFoundException("Remittance line not found")

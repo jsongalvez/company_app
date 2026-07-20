@@ -2,9 +2,7 @@ package com.companyb.companyapp.service.attendance
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -39,13 +37,14 @@ object AttendanceService {
         }
 
         val attendance =
-            AttendanceRepository.clockOut(attendanceId) { attendance ->
-                AuditLogRepository.record(
+            AttendanceRepository.clockOut(attendanceId) { before, after ->
+                AuditLogRepository.recordUpdate(
                     tableName = AttendanceTable.tableName,
-                    recordId = attendanceId,
-                    action = AuditAction.UPDATE,
+                    recordId = after.id,
+                    before = before,
+                    after = after,
                     changedBy = callerId,
-                    newValue = AuditLogRepository.jsonField("clockOut", AuditValues.NOW),
+                    auditFields = AttendanceTable::auditFields,
                 )
             }
 
@@ -84,18 +83,11 @@ object AttendanceService {
                     branchId = branchId,
                 ),
             ) { attendance ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordInsert(
                     tableName = AttendanceTable.tableName,
                     recordId = attendance.id,
-                    action = AuditAction.INSERT,
                     changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "attendanceId" to attendance.id.toString(),
-                            "branchDayId" to attendance.branchDayId.toString(),
-                            "branchId" to branchId.toString(),
-                            "isRelief" to isRelief.toString(),
-                        ),
+                    fields = AttendanceTable.auditFields(attendance),
                 )
             }
 

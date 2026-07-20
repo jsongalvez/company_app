@@ -39,4 +39,10 @@ object SessionConcernTable : Table("session_concern") {
     val concernId = javaUUID("concern_id").references(ConcernTable.id)
 
     override val primaryKey = PrimaryKey(sessionId, concernId)
+
+    fun auditFields(entity: SessionConcern): Map<String, String> =
+        mapOf(
+            "sessionId" to entity.sessionId.toString(),
+            "concernId" to entity.concernId.toString(),
+        )
 }

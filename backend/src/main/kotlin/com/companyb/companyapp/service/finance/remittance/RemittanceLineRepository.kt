@@ -88,7 +88,7 @@ internal object RemittanceLineRepository {
         remittanceId: UUID,
         deletedBy: UUID,
         expectedVersion: Int,
-        auditFn: (RemittanceLine) -> Unit = {},
+        auditFn: (RemittanceLine, RemittanceLine) -> Unit = { _, _ -> },
     ): RemittanceLine? =
         transaction {
             val existing =
@@ -101,6 +101,8 @@ internal object RemittanceLineRepository {
             if (existing[RemittanceLineTable.deletedAt] != null) {
                 return@transaction existing.toRemittanceLine()
             }
+
+            val beforeLine = existing.toRemittanceLine()
 
             val updated =
                 RemittanceLineTable
@@ -123,15 +125,15 @@ internal object RemittanceLineRepository {
                 throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
             }
 
-            val line =
+            val afterLine =
                 RemittanceLineTable
                     .selectAll()
                     .where { RemittanceLineTable.id eq lineId }
                     .single()
                     .toRemittanceLine()
 
-            auditFn(line)
-            line
+            auditFn(beforeLine, afterLine)
+            afterLine
         }.also { line ->
             if (line != null) {
                 logger.info {
