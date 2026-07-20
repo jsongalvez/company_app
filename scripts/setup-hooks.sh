@@ -1,0 +1,31 @@
+#!/bin/bash
+# Install the project's git hooks.
+# Run this once after cloning the repo.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
+
+git config core.hooksPath .githooks
+log setup-hooks "Git hooks installed from .githooks/"
+
+# Install ktlint CLI (needed by pre-commit for staged-only formatting).
+# The hook falls back to project-wide ./gradlew ktlintFormat if unavailable,
+# but scoped formatting is faster and avoids sweeping unrelated changes.
+KTLINT_VERSION="1.8.0"
+KTLINT_DIR="$HOME/.cache/company-app/ktlint"
+KTLINT_PATH="$KTLINT_DIR/$KTLINT_VERSION"
+if [ -x "$KTLINT_PATH" ]; then
+    echo "ktlint $KTLINT_VERSION already cached at $KTLINT_PATH"
+elif command -v java &>/dev/null; then
+    mkdir -p "$KTLINT_DIR"
+    echo "Downloading ktlint $KTLINT_VERSION to $KTLINT_PATH..."
+    curl -sSLo "$KTLINT_PATH" "https://github.com/pinterest/ktlint/releases/download/$KTLINT_VERSION/ktlint"
+    chmod +x "$KTLINT_PATH"
+    echo "ktlint $KTLINT_VERSION cached at $KTLINT_PATH."
+else
+    echo "WARNING: java not found — cannot run ktlint standalone jar."
+    echo "Pre-commit will fall back to project-wide ktlintFormat."
+fi

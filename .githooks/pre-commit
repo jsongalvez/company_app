@@ -1,0 +1,103 @@
+#!/bin/bash
+set -euo pipefail
+
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
+LOG_TAG=pre-commit
+log pre-commit "$@"
+
+# ----------------------------------------------------------------
+# 1. Optimize imports (auto-fix via ktlintFormat, scoped to staged files)
+# ----------------------------------------------------------------
+# Note: ktlint Gradle plugin (org.jlleitschuh.gradle.ktlint) doesn't support file-scoped
+# formatting. We use the standalone CLI instead, with project-wide fallback if unavailable.
+KT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(kt|kts)$' || true)
+
+if [ -z "$KT_FILES" ]; then
+    log pre-commit "No staged Kotlin files — skipping ktlintFormat"
+else
+    # Resolve ktlint command: PATH, then ~/.cache/company-app/ktlint (installed by setup-hooks.sh)
+    KTLINT_CMD=""
+    if command -v ktlint &>/dev/null; then
+        KTLINT_CMD="ktlint"
+    elif [ -x "$HOME/.cache/company-app/ktlint/1.8.0" ]; then
+        KTLINT_CMD="$HOME/.cache/company-app/ktlint/1.8.0"
+    fi
+
+    if [ -n "$KTLINT_CMD" ]; then
+        log pre-commit "Formatting staged Kotlin file(s) with $KTLINT_CMD..."
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3 || true
+        log pre-commit "Re-staging formatted files..."
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
+        log pre-commit "Import optimization complete."
+    else
+        # Fallback: project-wide formatting (slower, touches all tracked files).
+        # Tradeoff: preserves correctness but can sweep unrelated formatting into the commit.
+        # Run scripts/setup-hooks.sh to install ktlint for staged-only formatting.
+        log pre-commit "WARNING: ktlint not found. Falling back to project-wide ktlintFormat."
+        log pre-commit "Run 'bash scripts/setup-hooks.sh' to install ktlint for staged-only formatting."
+        ./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
+        git add -u
+        log pre-commit "Import optimization complete."
+    fi
+fi
+
+# ----------------------------------------------------------------
+# 2. Quality gate
+# ----------------------------------------------------------------
+log pre-commit "Running quality gate (detekt, ktlint, test)..."
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test --no-daemon 2>&1 | tail -5
+log pre-commit "Quality gate passed."
+
+# ----------------------------------------------------------------
+# 3. Test-data cleanliness check
+# ----------------------------------------------------------------
+log pre-commit "Checking for test-data leaks..."
+if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
+    log pre-commit "ERROR: Test-data leak detected. All test tables must be empty after the test suite."
+    exit 1
+fi
+log pre-commit "Test-data cleanliness check passed."
+
+# ----------------------------------------------------------------
+# 4. Shared module compilation check
+# ----------------------------------------------------------------
+log pre-commit "Compiling shared module (JVM)..."
+# shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
+./gradlew :shared:compileKotlinJvm --no-daemon 2>&1 | tail -3
+log pre-commit "Shared module compilation passed."
+
+# ----------------------------------------------------------------
+# 5. Ensure Postgres is reachable
+# ----------------------------------------------------------------
+source_env
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
+POSTGRES_USER="${POSTGRES_USER:-company_user}"
+POSTGRES_DB="${POSTGRES_DB:-company_app}"
+
+log pre-commit "Checking Postgres connectivity at $DB_HOST:$DB_PORT..."
+if command -v pg_isready &>/dev/null; then
+    if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" &>/dev/null; then
+        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        exit 1
+    fi
+elif command -v psql &>/dev/null; then
+    if ! PGPASSWORD="${POSTGRES_PASSWORD:-}" psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &>/dev/null; then
+        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        exit 1
+    fi
+else
+    # Fallback: try connecting via /dev/tcp (bash builtin)
+    if ! timeout 3 bash -c "echo > /dev/tcp/$DB_HOST/$DB_PORT" 2>/dev/null; then
+        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
+        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
+        exit 1
+    fi
+fi
+log pre-commit "Postgres is reachable."
+
+log pre-commit "All checks passed — commit allowed."

@@ -1,0 +1,81 @@
+package com.companyb.companyapp.api.routes
+
+import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.middleware.CapabilityFilter
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.AllowanceResponse
+import com.companyb.companyapp.dto.CreateAllowanceRequest
+import com.companyb.companyapp.repository.model.Allowance
+import com.companyb.companyapp.service.AllowanceService
+import io.javalin.config.JavalinConfig
+import io.javalin.http.BadRequestResponse
+import io.javalin.http.HttpStatus
+import io.javalin.http.bodyAsClass
+import java.util.UUID
+
+object AllowanceRoutes {
+    @Suppress("ThrowsCount")
+    fun register(config: JavalinConfig) {
+        config.routes.before("/api/allowances") { context ->
+            val branchDayId =
+                when (context.method()) {
+                    io.javalin.http.HandlerType.POST -> {
+                        val request = context.bodyAsClass<CreateAllowanceRequest>()
+                        uuidOrThrow(request.branchDayId, "branch day id")
+                    }
+
+                    io.javalin.http.HandlerType.GET -> {
+                        context.uuidFromQuery("branchDayId")
+                    }
+
+                    else -> {
+                        return@before
+                    }
+                }
+            CapabilityFilter.requireBranchCapability(
+                context,
+                branchDayId,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
+        config.routes.post("/api/allowances") { context ->
+            val callerId = context.callerUuid()
+            val request = context.bodyAsClass<CreateAllowanceRequest>()
+
+            val id = uuidOrThrow(request.id, "allowance id")
+            val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
+            val userId = uuidOrThrow(request.userId, "user id")
+            val amount = parseNonNegativeBigDecimal(request.amount, "amount")
+
+            val allowance =
+                AllowanceService.create(
+                    callerId = callerId,
+                    id = id,
+                    branchDayId = branchDayId,
+                    userId = userId,
+                    amount = amount,
+                )
+
+            context.status(HttpStatus.CREATED)
+            context.json(allowance.toResponse())
+        }
+
+        config.routes.get("/api/allowances") { context ->
+            val branchDayId = context.uuidFromQuery("branchDayId")
+
+            val allowances = AllowanceService.findByBranchDayId(branchDayId)
+            context.json(allowances.map { it.toResponse() })
+        }
+    }
+
+    private fun Allowance.toResponse(): AllowanceResponse =
+        AllowanceResponse(
+            id = id.toString(),
+            branchDayId = branchDayId.toString(),
+            userId = userId.toString(),
+            amount = amount.toPlainString(),
+            assignedBy = assignedBy.toString(),
+            assignedAt = assignedAt.toString(),
+        )
+}

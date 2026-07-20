@@ -1,0 +1,74 @@
+package com.companyb.companyapp.service.session
+
+import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.SessionBaseRateRepository
+import com.companyb.companyapp.repository.SetRateResult
+import com.companyb.companyapp.repository.model.SessionBaseRate
+import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
+import com.companyb.companyapp.repository.model.SessionBaseRateTable
+import io.github.oshai.kotlinlogging.KotlinLogging
+import java.math.BigDecimal
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import java.util.UUID
+
+internal object SessionBaseRateService {
+    private val logger = KotlinLogging.logger {}
+    private const val FAR_FUTURE_YEAR = 9999
+    private const val FAR_FUTURE_MONTH = 12
+    private const val FAR_FUTURE_DAY = 31
+    private const val FAR_FUTURE_HOUR = 23
+    private const val FAR_FUTURE_MINUTE = 59
+    private const val FAR_FUTURE_SECOND = 59
+
+    private val FAR_FUTURE: OffsetDateTime =
+        OffsetDateTime.of(
+            FAR_FUTURE_YEAR,
+            FAR_FUTURE_MONTH,
+            FAR_FUTURE_DAY,
+            FAR_FUTURE_HOUR,
+            FAR_FUTURE_MINUTE,
+            FAR_FUTURE_SECOND,
+            0,
+            ZoneOffset.UTC,
+        )
+
+    @Suppress("ThrowsCount")
+    fun setRate(
+        callerId: UUID,
+        id: UUID,
+        branchId: UUID,
+        sessionType: SessionType,
+        rate: BigDecimal,
+    ): SetRateResult {
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+
+        SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
+
+        return SessionBaseRateRepository.setRate(
+            SessionBaseRateCreateParams(
+                id = id,
+                setBy = callerId,
+                branchId = branchId,
+                sessionType = sessionType,
+                rate = rate,
+                effectiveFrom = now,
+                effectiveUntil = FAR_FUTURE,
+            ),
+            auditFn = { rate ->
+                AuditLogRepository.recordInsert(
+                    tableName = SessionBaseRateTable.tableName,
+                    recordId = rate.id,
+                    changedBy = callerId,
+                    fields = SessionBaseRateTable.auditFields(rate),
+                )
+            },
+        )
+    }
+
+    fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
+        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        return SessionBaseRateRepository.findActiveByBranch(branchId, now)
+    }
+}

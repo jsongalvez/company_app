@@ -1,0 +1,1 @@
+ALTER TABLE compensation ADD COLUMN version INT NOT NULL DEFAULT 1;

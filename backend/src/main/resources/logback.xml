@@ -1,0 +1,26 @@
+<configuration>
+    <conversionRule conversionWord="elapsed"
+                    class="com.companyb.companyapp.logging.RequestElapsedConverter" />
+    <conversionRule conversionWord="delta"
+                    class="com.companyb.companyapp.logging.DeltaTimeConverter" />
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <withJansi>true</withJansi>
+        <encoder>
+            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %highlight(%5level) [TraceId-%X{traceId}] +%delta ms. %green(%logger{36}) - %cyan(%msg%n) %red(%rEx{full})</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </root>
+
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logs/app.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%-30(%d{STRICT, Asia/Manila} [%thread]) %5level [TraceId-%X{traceId}] +%delta ms. %logger{36} - %msg%n %rEx{full}</pattern>
+        </encoder>
+    </appender>
+</configuration>

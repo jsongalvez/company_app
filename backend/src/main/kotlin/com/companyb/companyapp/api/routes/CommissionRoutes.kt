@@ -1,0 +1,108 @@
+package com.companyb.companyapp.api.routes
+
+import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.middleware.CapabilityFilter
+import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.CommissionInclusionResponse
+import com.companyb.companyapp.dto.CommissionSplitResponse
+import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
+import com.companyb.companyapp.repository.model.CommissionManualInclusion
+import com.companyb.companyapp.repository.model.CommissionSplit
+import com.companyb.companyapp.service.finance.commission.CommissionService
+import io.javalin.config.JavalinConfig
+import io.javalin.http.BadRequestResponse
+import io.javalin.http.Context
+import io.javalin.http.HttpStatus
+import io.javalin.http.bodyAsClass
+import java.util.UUID
+
+object CommissionRoutes {
+    fun register(config: JavalinConfig) {
+        config.routes.before("/api/commission-inclusions") { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
+        config.routes.before("/api/commission-splits/{branchDayId}") { context ->
+            val branchDayId = context.pathParamAsUuid("branchDayId")
+            CapabilityFilter.requireBranchCapability(context, branchDayId, CapabilityCodes.VIEW_BRANCH_DATA)
+        }
+
+        config.routes.before("/api/commission/recalculate/{branchDayId}") { context ->
+            val branchDayId = context.pathParamAsUuid("branchDayId")
+            CapabilityFilter.requireBranchCapability(
+                context,
+                branchDayId,
+                CapabilityCodes.EDIT_PAST_DAY,
+            )
+        }
+
+        config.routes.post("/api/commission-inclusions", ::handleCreateInclusion)
+        config.routes.get("/api/commission-splits/{branchDayId}", ::handleGetSplits)
+        config.routes.post("/api/commission/recalculate/{branchDayId}", ::handleRecalculate)
+    }
+
+    @Suppress("ThrowsCount")
+    private fun handleCreateInclusion(context: Context) {
+        val callerId = context.callerUuid()
+        val request = context.bodyAsClass<CreateCommissionInclusionRequest>()
+
+        val id = uuidOrThrow(request.id, "inclusion id")
+        val productSaleId = uuidOrThrow(request.productSaleId, "product sale id")
+        val userId = uuidOrThrow(request.userId, "user id")
+
+        val inclusion =
+            CommissionService.createManualInclusion(
+                callerId = callerId,
+                id = id,
+                productSaleId = productSaleId,
+                userId = userId,
+                isIncluded = request.isIncluded,
+                reason = request.reason,
+            )
+
+        context.status(HttpStatus.CREATED)
+        context.json(inclusion.toResponse())
+    }
+
+    private fun handleGetSplits(context: Context) {
+        val branchDayId = context.pathParamAsUuid("branchDayId")
+
+        val splits = CommissionService.getByBranchDayId(branchDayId)
+
+        context.status(HttpStatus.OK)
+        context.json(splits.map { it.toResponse() })
+    }
+
+    private fun handleRecalculate(context: Context) {
+        val branchDayId = context.pathParamAsUuid("branchDayId")
+
+        CommissionService.manualRecalculate(branchDayId)
+
+        val splits = CommissionService.getByBranchDayId(branchDayId)
+        context.status(HttpStatus.OK)
+        context.json(splits.map { it.toResponse() })
+    }
+
+    private fun CommissionManualInclusion.toResponse(): CommissionInclusionResponse =
+        CommissionInclusionResponse(
+            id = id.toString(),
+            productSaleId = productSaleId.toString(),
+            userId = userId.toString(),
+            isIncluded = isIncluded,
+            reason = reason,
+            assignedBy = assignedBy.toString(),
+            assignedAt = assignedAt.toString(),
+        )
+
+    private fun CommissionSplit.toResponse(): CommissionSplitResponse =
+        CommissionSplitResponse(
+            id = id.toString(),
+            branchDayId = branchDayId.toString(),
+            userId = userId.toString(),
+            amount = amount.toPlainString(),
+        )
+}

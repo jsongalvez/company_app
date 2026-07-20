@@ -1,0 +1,128 @@
+#!/bin/bash
+set -euo pipefail
+
+HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/common.sh"
+LOG_TAG=pre-push
+source "$ROOT_DIR/scripts/lib/start-app.sh"
+
+log pre-push "$@"
+
+# ----------------------------------------------------------------
+# 1. Test-data cleanliness check
+# ----------------------------------------------------------------
+log pre-push "Checking for test-data leaks..."
+if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
+    log pre-push "ERROR: Test-data leak detected before push."
+    exit 1
+fi
+log pre-push "Test-data cleanliness check passed."
+
+# ----------------------------------------------------------------
+# 2. JMH full benchmark suite
+# ----------------------------------------------------------------
+log pre-push "Running JMH benchmarks..."
+if ! ./gradlew :backend:jmh --no-daemon 2>&1 | tee /tmp/company-app-jmh.log | tail -20; then
+    log pre-push "ERROR: JMH benchmarks failed. Fix before pushing."
+    exit 1
+fi
+log pre-push "JMH benchmarks passed."
+
+# ----------------------------------------------------------------
+# 3. Baseline comparison
+# ----------------------------------------------------------------
+log pre-push "Comparing JMH results against baseline..."
+if ! bash scripts/check-baselines.sh /tmp/company-app-jmh.log 2>&1 | tail -20; then
+    log pre-push "ERROR: JMH score regression >20% detected."
+    exit 1
+fi
+log pre-push "Baseline comparison passed."
+
+# ----------------------------------------------------------------
+# 4. ComposeApp compilation check (all targets)
+# ----------------------------------------------------------------
+log pre-push "Compiling composeApp (desktop + android + ios)..."
+if ! ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinIosArm64 :composeApp:compileKotlinIosSimulatorArm64 --no-daemon 2>&1 | tail -5; then
+    log pre-push "ERROR: composeApp compilation failed. Fix before pushing."
+    exit 1
+fi
+log pre-push "composeApp compilation passed."
+
+# ----------------------------------------------------------------
+# 5. k6 load-test baseline
+# ----------------------------------------------------------------
+source_env
+K6_BASELINE_SCRIPT="tests/k6/baseline.js"
+SKIP_K6=false
+
+# Check k6 availability
+if ! command -v k6 &>/dev/null; then
+    log pre-push "WARNING: k6 not found. Skipping load-test baseline."
+    log pre-push "Install k6 from https://k6.io/docs/getting-started/installation/"
+    SKIP_K6=true
+fi
+
+if [ "$SKIP_K6" = false ] && [ ! -f "$K6_BASELINE_SCRIPT" ]; then
+    log pre-push "WARNING: k6 baseline script not found at $K6_BASELINE_SCRIPT. Skipping load-test."
+    SKIP_K6=true
+fi
+
+if [ "$SKIP_K6" = false ]; then
+    TEST_USERNAME="${TEST_USERNAME:-}"
+    TEST_PASSWORD="${TEST_PASSWORD:-}"
+    if [ -z "$TEST_USERNAME" ] || [ -z "$TEST_PASSWORD" ]; then
+        log pre-push "WARNING: TEST_USERNAME or TEST_PASSWORD not set. Skipping load-test."
+        log pre-push "Set them in .env or export before pushing."
+        SKIP_K6=true
+    fi
+fi
+
+if [ "$SKIP_K6" = false ]; then
+    trap app_cleanup EXIT
+
+    # Run k6 against the test database (not main DB) to avoid polluting production data.
+    # The test DB is already designed for throwaway use and verified clean by the
+    # pre-push cleanliness check above.
+    K6_DB_NAME="${TEST_DB_NAME:-company_app_test}"
+    export POSTGRES_DB="$K6_DB_NAME"
+    log pre-push "Using test database '$K6_DB_NAME' for k6 baseline."
+
+    app_build
+    app_start /tmp/company-app-k6-boot.log
+    app_wait_ready /tmp/company-app-k6-health.json /tmp/company-app-k6-boot.log
+
+    # Run k6 baseline
+    K6_LOG="/tmp/company-app-k6-baseline.log"
+    K6_EXIT_CODE=0
+    log pre-push "Running k6 baseline against test DB..."
+    set +o pipefail
+    TEST_USERNAME="$TEST_USERNAME" TEST_PASSWORD="$TEST_PASSWORD" \
+        k6 run "$K6_BASELINE_SCRIPT" --quiet 2>&1 | tee "$K6_LOG" || true
+    K6_EXIT_CODE=${PIPESTATUS[0]}
+    set -o pipefail
+
+    # Clean up test DB to preserve the cleanliness invariant checked by pre-commit.
+    # Seed tables (role, capability, role_capability, flyway_schema_history) are
+    # preserved; all user-data tables are truncated via CASCADE, then the
+    # cleanliness check is re-run to verify the DB is clean.
+    log pre-push "Cleaning test DB '$K6_DB_NAME' after k6 run..."
+    if ! bash scripts/clean-test-db.sh 2>&1 | tail -5; then
+        log pre-push "ERROR: Failed to clean test DB after k6 run."
+        exit 1
+    fi
+
+    app_cleanup
+    trap - EXIT
+
+    if [ "$K6_EXIT_CODE" -ne 0 ]; then
+        log pre-push "ERROR: k6 baseline failed (exit code $K6_EXIT_CODE). Threshold violation detected."
+        log pre-push "--- k6 summary ---"
+        tail -20 "$K6_LOG" 2>/dev/null || true
+        log pre-push "--- full output: $K6_LOG ---"
+        exit 1
+    fi
+    log pre-push "k6 baseline passed."
+fi
+
+log pre-push "Pre-push checks passed."

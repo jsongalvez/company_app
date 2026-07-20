@@ -18,9 +18,14 @@ local.properties
 
 captures
 
+**/*logDir_IS_UNDEFINED*/
+
 .externalNativeBuild
 
 .cxx
+
+.env
+!.env.example
 
 *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
@@ -30,3 +35,12 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 
 node_modules/
+
+kls_database.db
+
+*.jfr
+tests/k6/results/*.json
+tests/k6/results/*.html
+
+logs/
+**/.agents/handoffs/
