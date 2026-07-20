@@ -2,7 +2,6 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AuditAction
@@ -135,8 +134,6 @@ object ConcernService {
             },
         )
 
-        val oldOtherConcerns = session.otherConcerns
-
         SessionRepository.updateOtherConcerns(
             sessionId = sessionId,
             otherConcerns = null,
@@ -145,10 +142,11 @@ object ConcernService {
                 AuditLogRepository.recordUpdate(
                     tableName = SessionTable.tableName,
                     recordId = updatedSession.id,
-                    oldFields = mapOf("otherConcerns" to (oldOtherConcerns ?: AuditValues.NULL)),
-                    newFields = mapOf("otherConcerns" to AuditValues.NULL),
+                    before = session,
+                    after = updatedSession,
                     changedBy = callerId,
                     isFlagged = isRemitted,
+                    auditFields = SessionTable::auditFields,
                 )
             },
         )

@@ -3,10 +3,8 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -50,28 +48,24 @@ object MedicalMissionDelegateService {
         ) { "Failed to read back delegate" }
     }
 
-    @Suppress("ThrowsCount")
     fun revokeDelegate(
         delegateId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate {
-        if (MedicalMissionDelegateRepository.findById(delegateId) == null) {
-            throw NotFoundException("Medical mission delegate not found")
-        }
+        val before =
+            MedicalMissionDelegateRepository.findById(delegateId)
+                ?: throw NotFoundException("Medical mission delegate not found")
 
         MedicalMissionDelegateRepository.revokeWithCapability(
             delegateId,
             auditFn = { revoked ->
-                AuditLogRepository.record(
+                AuditLogRepository.recordUpdate(
                     tableName = MedicalMissionDelegateTable.tableName,
                     recordId = revoked.id,
-                    action = AuditAction.UPDATE,
+                    before = before,
+                    after = revoked,
                     changedBy = callerId,
-                    newValue =
-                        AuditLogRepository.jsonFields(
-                            "delegateId" to revoked.id.toString(),
-                            "endedAt" to AuditValues.NOW,
-                        ),
+                    auditFields = MedicalMissionDelegateTable::auditFields,
                 )
             },
         )

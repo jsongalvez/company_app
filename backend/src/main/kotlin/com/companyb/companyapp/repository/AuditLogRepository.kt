@@ -86,6 +86,54 @@ object AuditLogRepository {
     }
 
     @Suppress("LongParameterList")
+    fun <T> recordUpdate(
+        tableName: String,
+        recordId: UUID,
+        before: T,
+        after: T,
+        changedBy: UUID,
+        isFlagged: Boolean = false,
+        auditFields: (T) -> Map<String, String>,
+    ) {
+        val oldFields = auditFields(before)
+        val newFields = auditFields(after)
+        val allKeys = oldFields.keys + newFields.keys
+        val changedKeys = allKeys.filter { oldFields[it] != newFields[it] }
+        val changedOldFields = changedKeys.associateWith { oldFields[it] ?: AuditValues.NULL }
+        val changedNewFields = changedKeys.associateWith { newFields[it] ?: AuditValues.NULL }
+        recordUpdate(
+            tableName = tableName,
+            recordId = recordId,
+            oldFields = changedOldFields,
+            newFields = changedNewFields,
+            changedBy = changedBy,
+            isFlagged = isFlagged,
+        )
+    }
+
+    @Suppress("LongParameterList")
+    fun <T> recordDelete(
+        tableName: String,
+        recordId: UUID,
+        before: T,
+        changedBy: UUID,
+        reason: String? = null,
+        isFlagged: Boolean = false,
+        auditFields: (T) -> Map<String, String>,
+    ) {
+        val oldFields = auditFields(before)
+        recordDelete(
+            tableName = tableName,
+            recordId = recordId,
+            oldFields = oldFields,
+            newFields = emptyMap(),
+            changedBy = changedBy,
+            reason = reason,
+            isFlagged = isFlagged,
+        )
+    }
+
+    @Suppress("LongParameterList")
     fun recordDelete(
         tableName: String,
         recordId: UUID,

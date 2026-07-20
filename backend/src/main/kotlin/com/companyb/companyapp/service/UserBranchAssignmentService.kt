@@ -154,9 +154,10 @@ object UserBranchAssignmentService {
                 AuditLogRepository.recordUpdate(
                     tableName = UserBranchAssignmentTable.tableName,
                     recordId = updated.id,
-                    oldFields = mapOf("slot" to oldSlot.toString()),
-                    newFields = mapOf("slot" to newSlot.toString()),
+                    before = assignment,
+                    after = updated,
                     changedBy = callerId,
+                    auditFields = UserBranchAssignmentTable::auditFields,
                 )
             },
         )

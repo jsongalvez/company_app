@@ -67,19 +67,11 @@ object ExpenseService {
             AuditLogRepository.recordDelete(
                 tableName = ExpenseTable.tableName,
                 recordId = expenseId,
-                oldFields =
-                    mapOf(
-                        "amount" to before.amount.toPlainString(),
-                        "category" to before.category.name,
-                    ),
-                newFields =
-                    mapOf(
-                        "amount" to after.amount.toPlainString(),
-                        "category" to after.category.name,
-                    ),
+                before = before,
                 changedBy = callerId,
                 reason = reason,
                 isFlagged = isRemitted,
+                auditFields = ExpenseTable::auditFields,
             )
         }
             ?: throw NotFoundException("Expense not found")

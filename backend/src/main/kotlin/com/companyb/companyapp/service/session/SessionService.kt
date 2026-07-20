@@ -7,7 +7,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
@@ -169,14 +168,15 @@ object SessionService {
                 newStatus = newStatus,
                 expectedVersion = expectedVersion,
                 changedBy = callerId,
-            ) { session ->
+            ) { updatedSession ->
                 AuditLogRepository.recordUpdate(
                     tableName = SessionTable.tableName,
                     recordId = sessionId,
-                    oldFields = mapOf("sessionStatus" to oldStatus.name),
-                    newFields = mapOf("sessionStatus" to newStatus.name),
+                    before = session,
+                    after = updatedSession,
                     changedBy = callerId,
                     isFlagged = isRemitted,
+                    auditFields = SessionTable::auditFields,
                 )
             }
 
@@ -256,20 +256,11 @@ object SessionService {
                 AuditLogRepository.recordUpdate(
                     tableName = SessionVoidTable.tableName,
                     recordId = unvoided.id,
-                    oldFields =
-                        mapOf(
-                            "unvoidedAt" to AuditValues.NULL,
-                            "unvoidedBy" to AuditValues.NULL,
-                            "unvoidedReason" to AuditValues.NULL,
-                        ),
-                    newFields =
-                        mapOf(
-                            "unvoidedAt" to unvoided.unvoidedAt.toString(),
-                            "unvoidedBy" to callerId.toString(),
-                            "unvoidedReason" to unvoidedReason,
-                        ),
+                    before = sessionVoid,
+                    after = unvoided,
                     changedBy = callerId,
                     isFlagged = isRemitted,
+                    auditFields = SessionVoidTable::auditFields,
                 )
             } ?: throw NotFoundException("Session void record not found after unvoid")
 

@@ -1,7 +1,6 @@
 package com.companyb.companyapp.service.inventory
 
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovement
@@ -13,21 +12,13 @@ internal object MovementRecorder {
         newCard: BranchInventory,
         movement: InventoryMovement,
     ) {
-        AuditLogRepository.record(
+        AuditLogRepository.recordUpdate(
             tableName = BranchInventoryTable.tableName,
             recordId = newCard.id,
-            action = AuditAction.UPDATE,
+            before = oldCard,
+            after = newCard,
             changedBy = movement.movedBy,
-            oldValue =
-                AuditLogRepository.jsonFields(
-                    "currentStock" to oldCard.currentStock.toString(),
-                    "version" to oldCard.version.toString(),
-                ),
-            newValue =
-                AuditLogRepository.jsonFields(
-                    "currentStock" to newCard.currentStock.toString(),
-                    "version" to newCard.version.toString(),
-                ),
+            auditFields = BranchInventoryTable::auditFields,
         )
         AuditLogRepository.recordInsert(
             tableName = InventoryMovementTable.tableName,

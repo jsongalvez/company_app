@@ -3,7 +3,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.model.Compensation
@@ -77,18 +76,11 @@ object CompensationService {
             AuditLogRepository.recordUpdate(
                 tableName = CompensationTable.tableName,
                 recordId = compensationId,
-                oldFields =
-                    mapOf(
-                        "amount" to before.amount.toPlainString(),
-                        "note" to (before.note ?: AuditValues.NULL),
-                    ),
-                newFields =
-                    mapOf(
-                        "amount" to after.amount.toPlainString(),
-                        "note" to (after.note ?: AuditValues.NULL),
-                    ),
+                before = before,
+                after = after,
                 changedBy = callerId,
                 isFlagged = isRemitted,
+                auditFields = CompensationTable::auditFields,
             )
         }
     }

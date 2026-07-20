@@ -3,7 +3,6 @@ package com.companyb.companyapp.service.session
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -83,10 +82,11 @@ internal object SessionPractitionerService {
                     AuditLogRepository.recordUpdate(
                         tableName = SessionPractitionerTable.tableName,
                         recordId = p.id,
-                        oldFields = mapOf("remarks" to (oldPractitioner.remarks ?: AuditValues.NULL)),
-                        newFields = mapOf("remarks" to (remarks ?: AuditValues.NULL)),
+                        before = oldPractitioner,
+                        after = p,
                         changedBy = callerId,
                         isFlagged = isRemitted,
+                        auditFields = SessionPractitionerTable::auditFields,
                     )
                 },
             ) ?: throw NotFoundException("Practitioner not found in session")
@@ -115,14 +115,10 @@ internal object SessionPractitionerService {
                 AuditLogRepository.recordDelete(
                     tableName = SessionPractitionerTable.tableName,
                     recordId = p.id,
-                    oldFields =
-                        mapOf(
-                            "sessionId" to sessionId.toString(),
-                            "practitionerId" to p.practitionerId.toString(),
-                        ),
-                    newFields = emptyMap(),
+                    before = p,
                     changedBy = callerId,
                     isFlagged = isRemitted,
+                    auditFields = SessionPractitionerTable::auditFields,
                 )
             },
         )

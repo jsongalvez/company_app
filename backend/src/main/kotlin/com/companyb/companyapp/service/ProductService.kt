@@ -82,19 +82,10 @@ object ProductService {
                 AuditLogRepository.recordUpdate(
                     tableName = ProductTable.tableName,
                     recordId = productId,
-                    oldFields =
-                        mapOf(
-                            "name" to old.name,
-                            "unitPrice" to old.unitPrice.toPlainString(),
-                            "commissionAmount" to old.commissionAmount.toPlainString(),
-                        ),
-                    newFields =
-                        mapOf(
-                            "name" to updated.name,
-                            "unitPrice" to updated.unitPrice.toPlainString(),
-                            "commissionAmount" to updated.commissionAmount.toPlainString(),
-                        ),
+                    before = old,
+                    after = updated,
                     changedBy = callerId,
+                    auditFields = ProductTable::auditFields,
                 )
             }
         return updated ?: throw NotFoundException("Product not found")

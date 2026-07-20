@@ -2,7 +2,6 @@ package com.companyb.companyapp.service.finance.commission
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
@@ -76,17 +75,10 @@ object CommissionService {
                     AuditLogRepository.recordUpdate(
                         tableName = CommissionManualInclusionTable.tableName,
                         recordId = updated.id,
-                        oldFields =
-                            mapOf(
-                                "isIncluded" to existing.isIncluded.toString(),
-                                "reason" to (existing.reason ?: AuditValues.NULL),
-                            ),
-                        newFields =
-                            mapOf(
-                                "isIncluded" to updated.isIncluded.toString(),
-                                "reason" to (updated.reason ?: AuditValues.NULL),
-                            ),
+                        before = existing,
+                        after = updated,
                         changedBy = callerId,
+                        auditFields = CommissionManualInclusionTable::auditFields,
                     )
                 }
             }

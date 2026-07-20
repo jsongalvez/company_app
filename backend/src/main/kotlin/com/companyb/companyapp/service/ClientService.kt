@@ -3,7 +3,6 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.AuditValues
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
@@ -99,17 +98,10 @@ object ClientService {
                 AuditLogRepository.recordUpdate(
                     tableName = ClientTable.tableName,
                     recordId = clientId,
-                    oldFields =
-                        mapOf(
-                            "firstName" to (old.firstName ?: ""),
-                            "lastName" to (old.lastName ?: ""),
-                        ),
-                    newFields =
-                        mapOf(
-                            "firstName" to (client.firstName ?: ""),
-                            "lastName" to (client.lastName ?: ""),
-                        ),
+                    before = old,
+                    after = client,
                     changedBy = callerId,
+                    auditFields = ClientTable::auditFields,
                 )
             }
         return updated ?: throw NotFoundException("Client not found")
@@ -125,19 +117,10 @@ object ClientService {
                 AuditLogRepository.recordUpdate(
                     tableName = ClientTable.tableName,
                     recordId = clientId,
-                    oldFields =
-                        mapOf(
-                            "firstName" to (old.firstName ?: AuditValues.NULL),
-                            "lastName" to (old.lastName ?: AuditValues.NULL),
-                            "deletedAt" to (old.deletedAt?.toString() ?: AuditValues.NULL),
-                        ),
-                    newFields =
-                        mapOf(
-                            "firstName" to AuditValues.NULL,
-                            "lastName" to AuditValues.NULL,
-                            "deletedAt" to (client.deletedAt?.toString() ?: AuditValues.NULL),
-                        ),
+                    before = old,
+                    after = client,
                     changedBy = callerId,
+                    auditFields = ClientTable::auditFields,
                 )
             }
         if (!updated) {
