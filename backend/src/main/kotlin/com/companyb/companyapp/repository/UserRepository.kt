@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -74,30 +75,27 @@ object UserRepository {
 
     fun deactivate(
         userId: UUID,
-        auditFn: (String, AppUser) -> Unit = { _, _ -> },
+        auditFn: (AppUser, AppUser) -> Unit = { _, _ -> },
     ): AppUser? =
         transaction {
-            val current =
+            val beforeRow =
                 AppUserTable
                     .selectAll()
                     .where { AppUserTable.id eq userId }
-                    .singleOrNull()
-            if (current == null) {
-                null
-            } else {
-                val oldStatus = current[AppUserTable.status].name
-                AppUserTable.update({ AppUserTable.id eq userId }) {
-                    it[status] = UserStatus.INACTIVE
-                }
-                val deactivated =
-                    AppUser(
-                        id = current[AppUserTable.id].toString(),
-                        username = current[AppUserTable.username],
-                        passwordHash = current[AppUserTable.passwordHash],
-                    )
-                auditFn(oldStatus, deactivated)
-                deactivated
+                    .singleOrNull() ?: return@transaction null
+
+            AppUserTable.update({ AppUserTable.id eq userId }) {
+                it[status] = UserStatus.INACTIVE
             }
+
+            val afterRow =
+                AppUserTable
+                    .selectAll()
+                    .where { AppUserTable.id eq userId }
+                    .single()
+            val after = afterRow.toAppUser()
+            auditFn(beforeRow.toAppUser(), after)
+            after
         }.also { updated ->
             logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=${updated != null}" }
         }
@@ -120,4 +118,12 @@ object UserRepository {
         }
         return authorized
     }
+
+    private fun ResultRow.toAppUser(): AppUser =
+        AppUser(
+            id = this[AppUserTable.id].toString(),
+            username = this[AppUserTable.username],
+            passwordHash = this[AppUserTable.passwordHash],
+            status = this[AppUserTable.status],
+        )
 }

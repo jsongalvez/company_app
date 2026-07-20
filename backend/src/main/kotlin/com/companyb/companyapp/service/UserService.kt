@@ -5,7 +5,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
 
@@ -24,13 +23,14 @@ object UserService {
         val user =
             UserRepository.deactivate(
                 targetUserId,
-                auditFn = { oldStatus, deactivated ->
+                auditFn = { before, after ->
                     AuditLogRepository.recordUpdate(
                         tableName = AppUserTable.tableName,
                         recordId = targetUserId,
-                        oldFields = mapOf("status" to oldStatus),
-                        newFields = mapOf("status" to UserStatus.INACTIVE.name),
+                        before = before,
+                        after = after,
                         changedBy = callerId,
+                        auditFields = AppUserTable::auditFields,
                     )
                 },
             )

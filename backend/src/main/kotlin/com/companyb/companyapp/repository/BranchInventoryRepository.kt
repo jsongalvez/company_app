@@ -47,24 +47,19 @@ data class MovementAuditData(
 
 object BranchInventoryRepository {
     fun requireCardForUpdate(
-        branchId: UUID,
-        productId: UUID,
+        oldCard: BranchInventory,
         expectedVersion: Int,
         delta: Int,
     ): BranchInventory {
-        val card =
-            findCardInTransaction(branchId, productId)
-                ?: error("inventory card not found for branch=$branchId product=$productId")
-
-        if (card.version != expectedVersion) {
-            throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
+        if (oldCard.version != expectedVersion) {
+            throw VersionMismatchException(BranchInventoryTable.tableName, oldCard.id)
         }
 
-        val newStock = card.currentStock + delta
+        val newStock = oldCard.currentStock + delta
         val updatedCount =
             BranchInventoryTable.update({
-                (BranchInventoryTable.branchId eq branchId) and
-                    (BranchInventoryTable.productId eq productId) and
+                (BranchInventoryTable.branchId eq oldCard.branchId) and
+                    (BranchInventoryTable.productId eq oldCard.productId) and
                     (BranchInventoryTable.version eq expectedVersion)
             }) {
                 it[BranchInventoryTable.currentStock] = newStock
@@ -72,10 +67,10 @@ object BranchInventoryRepository {
             }
 
         if (updatedCount == 0) {
-            throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
+            throw VersionMismatchException(BranchInventoryTable.tableName, oldCard.id)
         }
 
-        return card.copy(currentStock = newStock, version = expectedVersion + 1)
+        return oldCard.copy(currentStock = newStock, version = expectedVersion + 1)
     }
 
     fun ensureCard(
@@ -114,8 +109,7 @@ object BranchInventoryRepository {
 
             val newCard =
                 requireCardForUpdate(
-                    params.branchId,
-                    params.productId,
+                    oldCard,
                     params.expectedVersion,
                     params.quantityChange,
                 )

@@ -63,8 +63,7 @@ object ProductSaleRepository {
 
             val newCard =
                 BranchInventoryRepository.requireCardForUpdate(
-                    params.branchId,
-                    params.productId,
+                    beforeCard,
                     params.expectedVersion,
                     -params.quantity,
                 )
