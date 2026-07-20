@@ -2,8 +2,10 @@ package com.companyb.companyapp.service.inventory
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
+import com.companyb.companyapp.repository.RecordMovementParams
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement

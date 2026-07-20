@@ -1,7 +1,6 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
@@ -22,9 +21,7 @@ import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
-import java.time.OffsetDateTime
 import java.util.UUID
 
 data class SellProductParams(
@@ -58,23 +55,18 @@ object ProductSaleRepository {
 
             acquireInventoryLock(params.branchId, params.productId)
 
-            val card =
-                BranchInventoryTable
-                    .selectAll()
-                    .where {
-                        (BranchInventoryTable.branchId eq params.branchId) and
-                            (BranchInventoryTable.productId eq params.productId)
-                    }.singleOrNull()
+            val beforeCard =
+                BranchInventoryRepository.findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
 
-            val beforeCard = card.toBranchInventory()
-            val (oldStock, oldVersion, newStock) =
-                decrementInventoryStock(
-                    card,
+            if (beforeCard.currentStock < params.quantity) throw ValidationException("Insufficient stock")
+
+            val newCard =
+                BranchInventoryRepository.requireCardForUpdate(
                     params.branchId,
                     params.productId,
-                    params.quantity,
                     params.expectedVersion,
+                    -params.quantity,
                 )
 
             val totalAmount = params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong())
@@ -105,12 +97,7 @@ object ProductSaleRepository {
                 findByIdInTransaction(params.id)
                     ?: error("product sale not found after insert for ${params.id}")
 
-            val afterCard =
-                beforeCard.copy(
-                    currentStock = newStock,
-                    version = params.expectedVersion + 1,
-                )
-            auditFn(sale, beforeCard, afterCard)
+            auditFn(sale, beforeCard, newCard)
             sale
         }.also {
             logger.info {
@@ -119,40 +106,6 @@ object ProductSaleRepository {
                     "total=${it.totalAmountAtTime}"
             }
         }
-
-    @Suppress("ThrowsCount")
-    private fun decrementInventoryStock(
-        card: ResultRow,
-        branchId: UUID,
-        productId: UUID,
-        quantity: Int,
-        expectedVersion: Int,
-    ): Triple<Int, Int, Int> {
-        val currentStock = card[BranchInventoryTable.currentStock]
-        if (currentStock < quantity) throw ValidationException("Insufficient stock")
-        if (card[BranchInventoryTable.version] != expectedVersion) {
-            throw VersionMismatchException(BranchInventoryTable.tableName, card[BranchInventoryTable.id])
-        }
-
-        val oldStock = currentStock
-        val oldVersion = card[BranchInventoryTable.version]
-        val newStock = oldStock - quantity
-
-        val updatedCount =
-            BranchInventoryTable.update({
-                (BranchInventoryTable.branchId eq branchId) and
-                    (BranchInventoryTable.productId eq productId) and
-                    (BranchInventoryTable.version eq expectedVersion)
-            }) {
-                it[BranchInventoryTable.currentStock] = newStock
-                it[BranchInventoryTable.version] = expectedVersion + 1
-            }
-
-        if (updatedCount == 0) {
-            throw VersionMismatchException(BranchInventoryTable.tableName, card[BranchInventoryTable.id])
-        }
-        return Triple(oldStock, oldVersion, newStock)
-    }
 
     @Suppress("LongParameterList")
     private fun insertProductSaleRow(
@@ -253,15 +206,6 @@ object ProductSaleRepository {
             .where { ProductSaleTable.id eq id }
             .singleOrNull()
             ?.let { it.toProductSale() }
-
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchInventory(): BranchInventory =
-        BranchInventory(
-            id = this[BranchInventoryTable.id],
-            branchId = this[BranchInventoryTable.branchId],
-            productId = this[BranchInventoryTable.productId],
-            currentStock = this[BranchInventoryTable.currentStock],
-            version = this[BranchInventoryTable.version],
-        )
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toProductSale(): ProductSale =
         ProductSale(

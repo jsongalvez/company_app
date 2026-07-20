@@ -1,7 +1,6 @@
-package com.companyb.companyapp.service.inventory
+package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.VersionMismatchException
-import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
@@ -10,6 +9,7 @@ import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -24,7 +24,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
-internal data class RecordMovementParams(
+data class RecordMovementParams(
     val movementId: UUID,
     val branchId: UUID,
     val productId: UUID,
@@ -36,7 +36,7 @@ internal data class RecordMovementParams(
     val movedBy: UUID,
 )
 
-internal data class MovementAuditData(
+data class MovementAuditData(
     val movement: InventoryMovement,
     val oldCard: BranchInventory,
     val newCard: BranchInventory,
@@ -45,7 +45,39 @@ internal data class MovementAuditData(
     val notes: String?,
 )
 
-internal object BranchInventoryRepository {
+object BranchInventoryRepository {
+    fun requireCardForUpdate(
+        branchId: UUID,
+        productId: UUID,
+        expectedVersion: Int,
+        delta: Int,
+    ): BranchInventory {
+        val card =
+            findCardInTransaction(branchId, productId)
+                ?: error("inventory card not found for branch=$branchId product=$productId")
+
+        if (card.version != expectedVersion) {
+            throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
+        }
+
+        val newStock = card.currentStock + delta
+        val updatedCount =
+            BranchInventoryTable.update({
+                (BranchInventoryTable.branchId eq branchId) and
+                    (BranchInventoryTable.productId eq productId) and
+                    (BranchInventoryTable.version eq expectedVersion)
+            }) {
+                it[BranchInventoryTable.currentStock] = newStock
+                it[BranchInventoryTable.version] = expectedVersion + 1
+            }
+
+        if (updatedCount == 0) {
+            throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
+        }
+
+        return card.copy(currentStock = newStock, version = expectedVersion + 1)
+    }
+
     fun ensureCard(
         branchId: UUID,
         productId: UUID,
@@ -76,21 +108,17 @@ internal object BranchInventoryRepository {
         auditFn: (MovementAuditData) -> Unit = {},
     ): InventoryMovement =
         transaction {
-            val card = requireCardForUpdate(params.branchId, params.productId, params.expectedVersion)
+            val oldCard =
+                findCardInTransaction(params.branchId, params.productId)
+                    ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
 
-            val updatedCount =
-                BranchInventoryTable.update({
-                    (BranchInventoryTable.branchId eq params.branchId) and
-                        (BranchInventoryTable.productId eq params.productId) and
-                        (BranchInventoryTable.version eq params.expectedVersion)
-                }) {
-                    it[BranchInventoryTable.currentStock] = card.currentStock + params.quantityChange
-                    it[BranchInventoryTable.version] = params.expectedVersion + 1
-                }
-
-            if (updatedCount == 0) {
-                throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
-            }
+            val newCard =
+                requireCardForUpdate(
+                    params.branchId,
+                    params.productId,
+                    params.expectedVersion,
+                    params.quantityChange,
+                )
 
             InventoryMovementTable.insertIgnore {
                 it[InventoryMovementTable.id] = params.movementId
@@ -100,8 +128,7 @@ internal object BranchInventoryRepository {
                 it[InventoryMovementTable.reason] = params.reason
                 it[InventoryMovementTable.quantityChange] = params.quantityChange
                 it[InventoryMovementTable.movedBy] = params.movedBy
-                it[InventoryMovementTable.movedAt] =
-                    CurrentTimestampWithTimeZone
+                it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
                 if (params.notes != null) {
                     it[InventoryMovementTable.notes] = params.notes
                 }
@@ -114,14 +141,10 @@ internal object BranchInventoryRepository {
                     .single()
                     .toInventoryMovement()
 
-            val newCard =
-                findCardInTransaction(params.branchId, params.productId)
-                    ?: error("inventory card not found after movement")
-
             auditFn(
                 MovementAuditData(
                     movement = movementRow,
-                    oldCard = card,
+                    oldCard = oldCard,
                     newCard = newCard,
                     reason = params.reason,
                     quantityChange = params.quantityChange,
@@ -135,18 +158,6 @@ internal object BranchInventoryRepository {
                     "branch=${params.branchId} qty=${params.quantityChange}"
             }
         }
-
-    private fun requireCardForUpdate(
-        branchId: UUID,
-        productId: UUID,
-        expectedVersion: Int,
-    ): BranchInventory {
-        val card =
-            findCardInTransaction(branchId, productId)
-                ?: error("inventory card not found for branch=$branchId product=$productId")
-        if (card.version != expectedVersion) throw VersionMismatchException(BranchInventoryTable.tableName, card.id)
-        return card
-    }
 
     fun findCardInTransaction(
         branchId: UUID,
@@ -205,7 +216,7 @@ internal object BranchInventoryRepository {
             }
         }
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchInventory(): BranchInventory =
+    private fun ResultRow.toBranchInventory(): BranchInventory =
         BranchInventory(
             id = this[BranchInventoryTable.id],
             branchId = this[BranchInventoryTable.branchId],
@@ -214,7 +225,7 @@ internal object BranchInventoryRepository {
             version = this[BranchInventoryTable.version],
         )
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toInventoryMovement(): InventoryMovement =
+    private fun ResultRow.toInventoryMovement(): InventoryMovement =
         InventoryMovement(
             id = this[InventoryMovementTable.id],
             productId = this[InventoryMovementTable.productId],
