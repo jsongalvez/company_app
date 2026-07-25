@@ -40,7 +40,6 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Triage labels | `docs/agents/triage-labels.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
 | Load test results | `tests/k6/results/baseline-results.md` |
-| Latest wayfinder handoff (map #89) | `docs/agents/wayfinder-97-handoff.md` |
 
 ## Commands
 
