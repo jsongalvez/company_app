@@ -1,19 +1,26 @@
 package com.companyb.companyapp.navigation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.viewmodel.AuthViewModel
 
@@ -25,43 +32,74 @@ actual fun AppNavHost(
     modifier: Modifier,
 ) {
     val startDestination: Route = if (tokenStore.getToken() != null) Route.Dashboard else Route.Login
+    // #96 Q5 — shell wraps the post-clock-in sub-graph of one AppNavHost. Pre-shell routes
+    // (Login, BranchSelect) render full-screen: empty `drawerContent` lambda produces a no-op
+    // Row child, so Row collapses to just `Box { content() }` (verified at Material3 source
+    // NavigationDrawer.kt:621-624). Post-shell routes get the permanent drawer on-screen by
+    // structural always-on rendering (no parent-swap of NavHost — keeps NavController back-stack
+    // stable across the boundary).
+    val currentRoute = navController.currentRoute()
+    val isPostClockIn =
+        currentRoute != null && currentRoute !is Route.Login && currentRoute !is Route.BranchSelect
 
-    NavHost(navController = navController, startDestination = startDestination, modifier = modifier) {
-        composable<Route.Login> {
-            LoginScreen(
-                authViewModel = remember { AuthViewModel(apiClient) },
-                tokenStore = tokenStore,
-                onLoginSuccess = {
-                    navController.navigate(Route.BranchSelect) {
-                        popUpTo(Route.Login) { inclusive = true }
+    CompositionLocalProvider(LocalNavHostController provides navController) {
+        PermanentNavigationDrawer(
+            drawerContent = {
+                if (isPostClockIn) {
+                    // #96 Q7 follow-up — PermanentNavigationDrawer's bare Row slot applies no
+                    // padding/background/chrome; desktop needs explicit surface-1 background +
+                    // width 360 (Material3 PermanentDrawerContainerWidth). Mobile ModalDrawerSheet
+                    // provides these defaults.
+                    DrawerContent(
+                        modifier =
+                            Modifier
+                                .fillMaxHeight()
+                                .width(360.dp)
+                                .background(MaterialTheme.colorScheme.surface),
+                    )
+                }
+            },
+            modifier = modifier,
+        ) {
+            NavHost(navController = navController, startDestination = startDestination) {
+                composable<Route.Login> {
+                    LoginScreen(
+                        authViewModel = remember { AuthViewModel(apiClient) },
+                        tokenStore = tokenStore,
+                        onLoginSuccess = {
+                            // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
+                            navController.navigate(Route.BranchSelect) {
+                                popUpTo(Route.Login) { inclusive = true }
+                            }
+                        },
+                        onRegisterClick = { /* register route — out of scope, pending #94-grad */ },
+                    )
+                }
+                composable<Route.BranchSelect> { PlaceholderRoute("BranchSelect") }
+                // Per ADR-0020 + #91: desktop Dashboard composes a master-detail Row with SessionDetail pane inline
+                // (no SessionDetail route navigation on desktop).
+                composable<Route.Dashboard> {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                            PlaceholderRoute("Dashboard — master pane")
+                        }
+                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                            PlaceholderRoute("Session detail pane (inline)")
+                        }
                     }
-                },
-                onRegisterClick = { /* register route — out of scope, pending #94-grad */ },
-            )
-        }
-        composable<Route.BranchSelect> { PlaceholderRoute("BranchSelect") }
-        // Per ADR-0020 + #91: desktop Dashboard composes a master-detail Row with SessionDetail pane inline
-        // (no SessionDetail route navigation on desktop).
-        composable<Route.Dashboard> {
-            Row(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    PlaceholderRoute("Dashboard — master pane")
                 }
-                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    PlaceholderRoute("Session detail pane (inline)")
-                }
+                composable<Route.Clients> { PlaceholderRoute("Clients") }
+                composable<Route.Inventory> { PlaceholderRoute("Inventory") }
+                composable<Route.Finance> { PlaceholderRoute("Finance") }
+                composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }
+                composable<Route.RemittanceDetail> { PlaceholderRoute("Remittance Detail") }
+                composable<Route.Notifications> { PlaceholderRoute("Notifications") }
+                composable<Route.AuditLog> { PlaceholderRoute("Audit Log") }
+                composable<Route.Reports> { PlaceholderRoute("Reports") }
+                composable<Route.UserManagement> { PlaceholderRoute("User Management") }
+                // No composable<Route.SessionDetail> on desktop — locked by #91 (desktop inline-pane only).
             }
         }
-        composable<Route.Clients> { PlaceholderRoute("Clients") }
-        composable<Route.Inventory> { PlaceholderRoute("Inventory") }
-        composable<Route.Finance> { PlaceholderRoute("Finance") }
-        composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }
-        composable<Route.RemittanceDetail> { PlaceholderRoute("Remittance Detail") }
-        composable<Route.Notifications> { PlaceholderRoute("Notifications") }
-        composable<Route.AuditLog> { PlaceholderRoute("Audit Log") }
-        composable<Route.Reports> { PlaceholderRoute("Reports") }
-        composable<Route.UserManagement> { PlaceholderRoute("User Management") }
-        // No composable<Route.SessionDetail> on desktop — locked by #91 (desktop inline-pane only).
     }
 }
 

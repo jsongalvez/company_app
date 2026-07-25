@@ -59,6 +59,14 @@ input model haven't changed); they've made a desktop window small, which is a
 self-inflicted UX situation, not a case the product needs to serve. This cost was
 named and explicitly accepted, not overlooked.
 
+A narrow desktop window also reduces the permanent navigation drawer to a
+cramped-but-functional rail (the drawer eats a disproportionate fraction of the
+already-narrow viewport). No runtime fallback to modal drawer — that would
+re-introduce `WindowSizeClass` ADR-0020 rejected and contradict the
+compile-time platform-target split. Named in #96 (Q1 confirmed-cost addendum)
+and propagated by build ticket #107; compounds with the narrow-window
+dense-table degradation above as a distinct desktop-narrow degradation axis.
+
 ## Consequences
 
 **Smallest-divergent-subtree split rule (from #95 Q2).** When a screen's layout
