@@ -8,6 +8,7 @@ import com.companyb.companyapp.navigation.AppNavHost
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
+import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.LinearTheme
 import com.companyb.companyapp.util.logError
@@ -26,7 +27,10 @@ fun App() {
         // Full POST-login GET /api/me → SessionState.setUser + setCapabilities wiring is deferred to #94-grad
         // build ticket. Foundation only clears SessionState if token absent — initial token-presence drives
         // AppNavHost's startDestination (Login or Dashboard).
-        if (!hasToken) SessionState.clear()
+        if (!hasToken) {
+            SessionState.clear()
+            NotificationState.clear()
+        }
     }
 
     LaunchedEffect(apiClient) {
@@ -38,6 +42,7 @@ fun App() {
                 logError("App", "Failed to clear token on unauthorized", e)
             }
             SessionState.clear()
+            NotificationState.clear()
             navController.navigate(com.companyb.companyapp.navigation.Route.Login) {
                 popUpTo(0) { inclusive = true }
             }

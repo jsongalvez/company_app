@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.state.NotificationState
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
@@ -38,7 +39,11 @@ class NotificationViewModel(
             operation = "markRead",
             endpoint = "PATCH /api/notifications/$notificationId/read",
             block = { apiClient.httpClient.patch("/api/notifications/$notificationId/read") },
-            transform = { it.body() },
+            transform = {
+                val body = it.body<NotificationResponse>()
+                NotificationState.decrementUnread()
+                body
+            },
         )
     }
 }

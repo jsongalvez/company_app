@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import com.companyb.companyapp.navigation.LocalNavHostController
 import com.companyb.companyapp.navigation.Route
 import com.companyb.companyapp.navigation.currentRoute
+import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -39,8 +40,8 @@ import com.companyb.companyapp.viewmodel.DrawerViewModel
  *
  * Reads state directly per #96 Q1: `SessionState.currentUser` + `selectedBranchName` +
  * `DrawerViewModel.uiState`, plus `LocalNavHostController.current` for currentRoute + on-click
- * navigation. `NotificationState.unreadCount` lands in ticket B; null until then, so no badge
- * renders (closure of #96 Q3a "iff > 0" gating).
+ * navigation. `NotificationState.unreadCount` (live count — #96 Q6 wiring) drives the
+ * Notification row badge iff `!= null && > 0` (closure of #96 Q3a gating).
  *
  * Caller supplies background + sizing chrome via [modifier] (#96 Q7 follow-up):
  * `PermanentNavigationDrawer`'s bare Row slot applies nothing, so the desktop caller passes
@@ -56,9 +57,7 @@ fun DrawerContent(modifier: Modifier = Modifier) {
     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
     val drawerViewModel = remember { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
-    // NotificationState.unreadCount wiring lands in ticket B; null until then.
-    // Q3a render iff `unreadCount != null && unreadCount > 0` ⟹ false until wired ⟹ no badge.
-    val unreadCount: Int? = null
+    val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
     val selectedRoute = navController.currentRoute()
 
     Column(modifier = modifier) {
@@ -87,9 +86,10 @@ fun DrawerContent(modifier: Modifier = Modifier) {
             .filter { it.visible }
             .forEach { item ->
                 val isSelected = item.route == selectedRoute
+                val count = unreadCount
                 val notificationBadge: (@Composable () -> Unit)? =
-                    if (item.route is Route.Notifications && unreadCount != null && unreadCount > 0) {
-                        { NotificationBadge(count = unreadCount) }
+                    if (item.route is Route.Notifications && count != null && count > 0) {
+                        { NotificationBadge(count = count) }
                     } else {
                         null
                     }

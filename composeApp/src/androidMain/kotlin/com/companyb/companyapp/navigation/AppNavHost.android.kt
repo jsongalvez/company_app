@@ -14,6 +14,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -23,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.drawer.HamburgerWithBadge
 import com.companyb.companyapp.ui.screen.LoginScreen
@@ -47,6 +50,7 @@ actual fun AppNavHost(
         currentRoute != null && currentRoute !is Route.Login && currentRoute !is Route.BranchSelect
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    NotificationBadgeHost(apiClient, isPostClockIn)
 
     // #96 Q1 + Q5 — `gesturesEnabled = false` (below) is LOAD-BEARING. Prevents a three-way
     // edge-gesture collision (drawer swipe vs Android back-swipe vs pushed-route back-pop) at
@@ -74,14 +78,15 @@ actual fun AppNavHost(
                         // shell chrome only — pushed detail routes layer their own TopAppBar with
                         // back-chevron via nested-Scaffold per #96 Q5; shell's hamburger temporarily
                         // yields to that detail heading.
-                        // HamburgerWithBadge.unreadCount wires to NotificationState in ticket B;
-                        // null ⟹ no badge (Q3a alert-not-status gating closure).
+                        // HamburgerWithBadge.unreadCount live via NotificationState; null/0 ⟹ no badge
+                        // (Q3a alert-not-status gating).
+                        val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
                         TopAppBar(
                             title = {},
                             navigationIcon = {
                                 HamburgerWithBadge(
                                     onClick = { scope.launch { drawerState.open() } },
-                                    unreadCount = null,
+                                    unreadCount = unreadCount,
                                 )
                             },
                         )

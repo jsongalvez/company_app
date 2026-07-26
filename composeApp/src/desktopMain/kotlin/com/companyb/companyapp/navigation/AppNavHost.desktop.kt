@@ -41,6 +41,7 @@ actual fun AppNavHost(
     val currentRoute = navController.currentRoute()
     val isPostClockIn =
         currentRoute != null && currentRoute !is Route.Login && currentRoute !is Route.BranchSelect
+    NotificationBadgeHost(apiClient, isPostClockIn)
 
     CompositionLocalProvider(LocalNavHostController provides navController) {
         PermanentNavigationDrawer(
