@@ -5,8 +5,8 @@ import com.companyb.companyapp.network.mockApiClient
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -28,7 +28,7 @@ class AuthViewModelTest {
 
     @Test
     fun loginSuccessTransitionsToSuccess() =
-        runBlocking {
+        runTest {
             val apiClient =
                 mockApiClient(
                     status = HttpStatusCode.OK,
@@ -47,7 +47,7 @@ class AuthViewModelTest {
 
     @Test
     fun loginFailureTransitionsToError() =
-        runBlocking {
+        runTest {
             val apiClient =
                 mockApiClient(
                     status = HttpStatusCode.Unauthorized,
