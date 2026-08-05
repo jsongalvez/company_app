@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -22,7 +23,9 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.screen.LoginScreen
+import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.viewmodel.AuthViewModel
+import com.companyb.companyapp.viewmodel.NotificationViewModel
 
 @Composable
 actual fun AppNavHost(
@@ -94,7 +97,16 @@ actual fun AppNavHost(
                 composable<Route.Finance> { PlaceholderRoute("Finance") }
                 composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }
                 composable<Route.RemittanceDetail> { PlaceholderRoute("Remittance Detail") }
-                composable<Route.Notifications> { PlaceholderRoute("Notifications") }
+                composable<Route.Notifications> {
+                    val notificationsViewModel: NotificationViewModel = viewModel { NotificationViewModel(apiClient) }
+                    NotificationsScreen(
+                        viewModel = notificationsViewModel,
+                        onNotificationClick = { notification ->
+                            // D3 (desktop): mark-read only — no desktop SessionDetail route (#91 lock).
+                            notificationsViewModel.markRead(notification.id)
+                        },
+                    )
+                }
                 composable<Route.AuditLog> { PlaceholderRoute("Audit Log") }
                 composable<Route.Reports> { PlaceholderRoute("Reports") }
                 composable<Route.UserManagement> { PlaceholderRoute("User Management") }

@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,7 +30,9 @@ import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.drawer.HamburgerWithBadge
 import com.companyb.companyapp.ui.screen.LoginScreen
+import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.viewmodel.AuthViewModel
+import com.companyb.companyapp.viewmodel.NotificationViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,7 +121,22 @@ actual fun AppNavHost(
                     composable<Route.Finance> { PlaceholderRoute("Finance") }
                     composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }
                     composable<Route.RemittanceDetail> { PlaceholderRoute("Remittance Detail") }
-                    composable<Route.Notifications> { PlaceholderRoute("Notifications") }
+                    composable<Route.Notifications> {
+                        // Entry-scoped viewModel(): the Notifications back-stack entry survives the
+                        // SessionDetail push, so readThisSession persists across push/pop — D3
+                        // "appears in Read (dimmed) on return". A fresh entry (new visit) creates a
+                        // fresh VM → Read self-cleans (D1).
+                        val notificationsViewModel: NotificationViewModel =
+                            viewModel { NotificationViewModel(apiClient) }
+                        NotificationsScreen(
+                            viewModel = notificationsViewModel,
+                            onNotificationClick = { notification ->
+                                // D3 (mobile): mark-read + navigate to the session detail.
+                                notificationsViewModel.markRead(notification.id)
+                                navController.navigate(Route.SessionDetail(notification.sessionId))
+                            },
+                        )
+                    }
                     composable<Route.AuditLog> { PlaceholderRoute("Audit Log") }
                     composable<Route.Reports> { PlaceholderRoute("Reports") }
                     composable<Route.UserManagement> { PlaceholderRoute("User Management") }
