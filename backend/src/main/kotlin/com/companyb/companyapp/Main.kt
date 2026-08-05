@@ -100,6 +100,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     AuthRoutes.logout(config)
     MeRoutes.getMe(config)
     MeRoutes.getCapabilities(config)
+    MeRoutes.getBranches(config)
     AttendanceRoutes.clockIn(config)
     AttendanceRoutes.clockOut(config)
     BranchRoutes.register(config)

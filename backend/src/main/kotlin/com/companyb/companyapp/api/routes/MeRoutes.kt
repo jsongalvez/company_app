@@ -1,6 +1,7 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.service.MeService
@@ -22,6 +23,15 @@ object MeRoutes {
         config.routes.get("/api/me/capabilities") { context ->
             val callerId = context.callerUuid()
             val response: List<UserCapabilityResponse> = MeService.getCapabilities(callerId)
+            context.status(HttpStatus.OK)
+            context.json(response)
+        }
+    }
+
+    fun getBranches(config: JavalinConfig) {
+        config.routes.get("/api/me/branches") { context ->
+            val callerId = context.callerUuid()
+            val response: List<MeBranchResponse> = MeService.getBranches(callerId)
             context.status(HttpStatus.OK)
             context.json(response)
         }
