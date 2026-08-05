@@ -19,6 +19,7 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceMethod
@@ -33,14 +34,17 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
 import io.javalin.testtools.JavalinTest
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class RouteValidationTest : BasePostgresTest() {
     private val testUserId = TEST_USER_ID
@@ -144,6 +148,7 @@ class RouteValidationTest : BasePostgresTest() {
             RemittanceRoutes.register(config)
             ExportRoutes.register(config)
             ExpenseRoutes.register(config)
+            NotificationRoutes.register(config)
         }
     }
 
@@ -757,6 +762,56 @@ class RouteValidationTest : BasePostgresTest() {
                 400,
                 client.get("/api/branches/$testBranchId/export/daily?date=2024-01-15&format=invalid").code,
             )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // NotificationRoutes
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `POST notifications read-all returns 200 and marks all unread as read`() {
+        val notificationId = UUID.randomUUID()
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = notificationId
+                it[NotificationTable.sessionId] = testSessionId
+                it[NotificationTable.userId] = testUserId
+                it[NotificationTable.branchId] = testBranchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        trackOwned(NotificationTable, NotificationTable.id, notificationId)
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.post("/api/notifications/read-all")
+            assertEquals(200, response.code)
+            assertTrue(response.body.string().contains("\"unreadCount\":0"))
+        }
+        val isRead =
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.id eq notificationId }
+                    .single()[NotificationTable.isRead]
+            }
+        assertTrue(isRead)
+    }
+
+    @Test
+    fun `PATCH notification read still matches param route when read-all literal registered first`() {
+        val notificationId = UUID.randomUUID()
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = notificationId
+                it[NotificationTable.sessionId] = testSessionId
+                it[NotificationTable.userId] = testUserId
+                it[NotificationTable.branchId] = testBranchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        trackOwned(NotificationTable, NotificationTable.id, notificationId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(200, client.patch("/api/notifications/$notificationId/read").code)
         }
     }
 

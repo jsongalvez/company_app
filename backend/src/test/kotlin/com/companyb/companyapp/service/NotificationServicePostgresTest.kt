@@ -138,6 +138,79 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `markAllRead marks all unread as read and returns zero unread remaining`() {
+        val n1 = insertNotificationForNewSession(callerId, branchId)
+        NotificationService.markRead(callerId, n1.id)
+        val n2 = insertNotificationForNewSession(callerId, branchId)
+
+        val remaining = NotificationService.markAllRead(callerId)
+
+        assertEquals(0, remaining)
+        assertTrue(NotificationService.listUnread(callerId).isEmpty())
+        val rows =
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.userId eq callerId }
+                    .map { it[NotificationTable.isRead] to it[NotificationTable.readAt] }
+            }
+        assertTrue(rows.all { (isRead, readAt) -> isRead && readAt != null })
+    }
+
+    @Test
+    fun `markAllRead returns zero when no unread notifications exist`() {
+        val remaining = NotificationService.markAllRead(callerId)
+        assertEquals(0, remaining)
+    }
+
+    @Test
+    fun `markAllRead is idempotent on re-call`() {
+        val n1 = insertNotificationForNewSession(callerId, branchId)
+        val n2 = insertNotificationForNewSession(callerId, branchId)
+
+        val first = NotificationService.markAllRead(callerId)
+        val second = NotificationService.markAllRead(callerId)
+
+        assertEquals(0, first)
+        assertEquals(0, second)
+        assertTrue(NotificationService.listUnread(callerId).isEmpty())
+    }
+
+    @Test
+    fun `markAllRead only marks caller's notifications`() {
+        insertNotificationForNewSession(callerId, branchId)
+        insertNotificationForNewSession(otherUserId, branchId)
+
+        val remaining = NotificationService.markAllRead(callerId)
+
+        assertEquals(0, remaining)
+        assertEquals(1, NotificationService.listUnread(otherUserId).size)
+        assertTrue(NotificationService.listUnread(callerId).isEmpty())
+    }
+
+    private fun insertNotificationForNewSession(
+        userId: UUID,
+        branchId: UUID,
+    ): com.companyb.companyapp.repository.model.Notification {
+        val newSessionId = UUID.randomUUID()
+        val newClientId = DatabaseTestHelper.insertTestClient()
+        val newBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.insertTestSession(
+            id = newSessionId,
+            clientId = newClientId,
+            branchDayId = newBranchDayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+        )
+        trackOwned(SessionTable, SessionTable.id, newSessionId)
+        trackOwned(ClientTable, ClientTable.id, newClientId)
+        val notification = insertNotification(newSessionId, userId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, notification.id)
+        return notification
+    }
+
     private fun insertNotification(
         sessionId: UUID,
         userId: UUID,

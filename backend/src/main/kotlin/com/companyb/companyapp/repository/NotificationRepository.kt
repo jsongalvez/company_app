@@ -50,6 +50,22 @@ object NotificationRepository {
                 .map { it.toNotification() }
         }.also { logger.info { "[FIND-UNREAD] $it.size unread notifications for user $userId" } }
 
+    fun markAllRead(userId: UUID): Int =
+        transaction {
+            NotificationTable.update({
+                (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false)
+            }) {
+                it[isRead] = true
+                it[readAt] = CurrentTimestampWithTimeZone
+            }
+
+            NotificationTable
+                .selectAll()
+                .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
+                .count()
+                .toInt()
+        }.also { logger.info { "[MARK-ALL-READ] user=${userId.toString().maskUUID()} unreadRemaining=$it" } }
+
     fun markRead(notificationId: UUID): Notification? =
         transaction {
             val found =

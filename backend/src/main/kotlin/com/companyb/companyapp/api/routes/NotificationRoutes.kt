@@ -2,6 +2,7 @@ package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.repository.model.Notification
 import com.companyb.companyapp.service.NotificationService
@@ -19,6 +20,15 @@ object NotificationRoutes {
 
             context.status(HttpStatus.OK)
             context.json(notifications.map { it.toResponse() })
+        }
+
+        config.routes.post("/api/notifications/read-all") { context ->
+            val callerId = context.callerUuid()
+
+            val unreadCount = NotificationService.markAllRead(callerId)
+
+            context.status(HttpStatus.OK)
+            context.json(NotificationMarkAllReadResponse(unreadCount))
         }
 
         config.routes.patch("/api/notifications/{notificationId}/read") { context ->
