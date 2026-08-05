@@ -24,14 +24,21 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.NotificationState
+import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.drawer.HamburgerWithBadge
+import com.companyb.companyapp.ui.screen.ClientDetailScreen
+import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.viewmodel.AuthViewModel
+import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import kotlinx.coroutines.launch
 
@@ -116,7 +123,33 @@ actual fun AppNavHost(
                     }
                     composable<Route.BranchSelect> { PlaceholderRoute("BranchSelect") }
                     composable<Route.Dashboard> { PlaceholderRoute("Dashboard") }
-                    composable<Route.Clients> { PlaceholderRoute("Clients") }
+                    composable<Route.Clients> {
+                        // #113 D7 — code-only route gate matching the implemented `Set<String>`
+                        // capabilities; backend GLOBAL gate + 403 paths stay authoritative (D8).
+                        val capabilities by SessionState.capabilities.collectAsState()
+                        if (CapabilityCodes.EDIT_BRANCH_DATA in capabilities) {
+                            val clientsViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+                            ClientsScreen(
+                                viewModel = clientsViewModel,
+                                onClientClick = { client ->
+                                    navController.navigate(Route.ClientDetail(client.id))
+                                },
+                            )
+                        } else {
+                            RouteGateCard(label = "Clients")
+                        }
+                    }
+                    composable<Route.ClientDetail> { entry ->
+                        // Entry-scoped per #112: fresh VM per detail entry; the search entry's VM
+                        // stays alive under the push so D9's stale-list + D1's notice work.
+                        val clientDetailViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+                        ClientDetailScreen(
+                            clientId = entry.toRoute<Route.ClientDetail>().clientId,
+                            viewModel = clientDetailViewModel,
+                            onBack = { navController.popBackStack() },
+                            onAnonymized = { navController.popBackStack() },
+                        )
+                    }
                     composable<Route.Inventory> { PlaceholderRoute("Inventory") }
                     composable<Route.Finance> { PlaceholderRoute("Finance") }
                     composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }

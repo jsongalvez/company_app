@@ -11,6 +11,8 @@ import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,12 +21,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.drawer.DrawerContent
+import com.companyb.companyapp.ui.screen.ClientDetailScreen
+import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.viewmodel.AuthViewModel
+import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 
 @Composable
@@ -92,7 +101,34 @@ actual fun AppNavHost(
                         }
                     }
                 }
-                composable<Route.Clients> { PlaceholderRoute("Clients") }
+                composable<Route.Clients> {
+                    // #113 D7 — code-only route gate (same shape as androidMain); backend GLOBAL
+                    // gate + 403 paths stay authoritative (D8).
+                    val capabilities by SessionState.capabilities.collectAsState()
+                    if (CapabilityCodes.EDIT_BRANCH_DATA in capabilities) {
+                        val clientsViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+                        ClientsScreen(
+                            viewModel = clientsViewModel,
+                            onClientClick = { client ->
+                                navController.navigate(Route.ClientDetail(client.id))
+                            },
+                        )
+                    } else {
+                        RouteGateCard(label = "Clients")
+                    }
+                }
+                // #113 — ClientDetail is a pushed route on desktop TOO (unlike SessionDetail —
+                // the #91 inline-pane lock is dashboard-specific; #99 outline: push on both
+                // platforms, no desktop pane).
+                composable<Route.ClientDetail> { entry ->
+                    val clientDetailViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+                    ClientDetailScreen(
+                        clientId = entry.toRoute<Route.ClientDetail>().clientId,
+                        viewModel = clientDetailViewModel,
+                        onBack = { navController.popBackStack() },
+                        onAnonymized = { navController.popBackStack() },
+                    )
+                }
                 composable<Route.Inventory> { PlaceholderRoute("Inventory") }
                 composable<Route.Finance> { PlaceholderRoute("Finance") }
                 composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }

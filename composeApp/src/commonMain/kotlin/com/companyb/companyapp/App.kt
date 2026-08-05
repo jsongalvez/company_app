@@ -8,6 +8,7 @@ import com.companyb.companyapp.navigation.AppNavHost
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.network.createTokenStore
+import com.companyb.companyapp.state.ClientState
 import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.LinearTheme
@@ -30,6 +31,7 @@ fun App() {
         if (!hasToken) {
             SessionState.clear()
             NotificationState.clear()
+            ClientState.clear()
         }
     }
 
@@ -43,6 +45,7 @@ fun App() {
             }
             SessionState.clear()
             NotificationState.clear()
+            ClientState.clear()
             navController.navigate(com.companyb.companyapp.navigation.Route.Login) {
                 popUpTo(0) { inclusive = true }
             }
