@@ -21,6 +21,7 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,6 +59,21 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         assertEquals(productId, cards[0].inventory.productId)
         assertEquals(0, cards[0].inventory.currentStock)
         assertEquals(1, cards[0].inventory.version)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getStock includes product price and commission from the join`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+
+        val cards = InventoryService.getStock(branchId)
+
+        assertEquals(1, cards.size)
+        assertEquals(BigDecimal("100.00"), cards[0].unitPrice)
+        assertEquals(BigDecimal("10.00"), cards[0].commissionAmount)
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }

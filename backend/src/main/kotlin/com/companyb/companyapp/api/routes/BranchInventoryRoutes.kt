@@ -17,6 +17,7 @@ import com.companyb.companyapp.service.inventory.MovementType
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.util.UUID
@@ -31,13 +32,55 @@ object BranchInventoryRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val PRODUCT_ID_PARAM = "productId"
 
+    @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/inventory") { context ->
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val required =
+                if (context.method() == HandlerType.POST) {
+                    CapabilityCodes.MANAGE_PRODUCTS
+                } else {
+                    CapabilityCodes.EDIT_BRANCH_DATA
+                }
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                branchId,
+                required,
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/inventory/low-stock") { context ->
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                branchId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/inventory/{productId}/restock") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
                 CapabilityCodes.MANAGE_PRODUCTS,
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/inventory/{productId}/movement") { context ->
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val request = context.bodyAsClass<InventoryMovementRequest>()
+            val reason = parseMovementReason(request.reason)
+            val required =
+                if (reason == InventoryMovementReason.ADJUSTMENT) {
+                    CapabilityCodes.MANAGE_PRODUCTS
+                } else {
+                    CapabilityCodes.EDIT_BRANCH_DATA
+                }
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                branchId,
+                required,
             )
         }
 
@@ -107,6 +150,16 @@ object BranchInventoryRoutes {
         )
     }
 
+    private fun parseMovementReason(rawReason: String): InventoryMovementReason {
+        val reason =
+            runCatching { InventoryMovementReason.valueOf(rawReason.uppercase()) }
+                .getOrElse { throw BadRequestResponse("Invalid movement reason") }
+        if (reason !in ALLOWED_MOVEMENT_REASONS) {
+            throw BadRequestResponse("Invalid movement reason for this endpoint")
+        }
+        return reason
+    }
+
     @Suppress("ThrowsCount")
     private fun handleRecordMovement(context: Context) {
         val callerId = context.callerUuid()
@@ -115,15 +168,10 @@ object BranchInventoryRoutes {
         val request = context.bodyAsClass<InventoryMovementRequest>()
         val movementId = uuidOrThrow(request.movementId, "movement id")
         val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-        val reason =
-            runCatching { InventoryMovementReason.valueOf(request.reason.uppercase()) }
-                .getOrElse { throw BadRequestResponse("Invalid movement reason") }
+        val reason = parseMovementReason(request.reason)
 
         if (reason in NEGATIVE_QUANTITY_REASONS && request.quantityChange >= 0) {
             throw BadRequestResponse("$reason movement must have a negative quantity change")
-        }
-        if (reason !in ALLOWED_MOVEMENT_REASONS) {
-            throw BadRequestResponse("Invalid movement reason for this endpoint")
         }
         if (reason == InventoryMovementReason.MISSING && request.notes.isNullOrBlank()) {
             throw BadRequestResponse("Notes are required for MISSING movements")
@@ -175,5 +223,7 @@ object BranchInventoryRoutes {
             productName = productName,
             currentStock = inventory.currentStock,
             version = inventory.version,
+            unitPrice = unitPrice.toPlainString(),
+            commissionAmount = commissionAmount.toPlainString(),
         )
 }

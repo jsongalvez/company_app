@@ -22,6 +22,8 @@ data class BranchInventoryResponse(
     val productName: String,
     val currentStock: Int,
     val version: Int,
+    val unitPrice: String,
+    val commissionAmount: String,
 )
 
 @Serializable

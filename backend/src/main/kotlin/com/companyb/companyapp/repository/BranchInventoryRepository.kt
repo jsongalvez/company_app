@@ -179,6 +179,8 @@ object BranchInventoryRepository {
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
                         productName = row[ProductTable.name],
+                        unitPrice = row[ProductTable.unitPrice],
+                        commissionAmount = row[ProductTable.commissionAmount],
                     )
                 }
         }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
@@ -202,6 +204,8 @@ object BranchInventoryRepository {
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
                         productName = row[ProductTable.name],
+                        unitPrice = row[ProductTable.unitPrice],
+                        commissionAmount = row[ProductTable.commissionAmount],
                     )
                 }
         }.also {
