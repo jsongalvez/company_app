@@ -20,6 +20,7 @@ import io.javalin.http.Context
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import java.time.LocalDate
 import java.util.UUID
 
 private val NEGATIVE_QUANTITY_REASONS =
@@ -58,6 +59,15 @@ object BranchInventoryRoutes {
             )
         }
 
+        config.routes.before("/api/branches/{branchId}/inventory/movements") { context ->
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                branchId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
         config.routes.before("/api/branches/{branchId}/inventory/{productId}/restock") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             CapabilityFilter.requireBranchCapabilityForBranchId(
@@ -88,6 +98,7 @@ object BranchInventoryRoutes {
         config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/restock", ::handleRestock)
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleGetInventory)
         config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory/low-stock", ::handleGetLowStock)
+        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory/movements", ::handleGetMovements)
         config.routes.post(
             "/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/movement",
             ::handleRecordMovement,
@@ -147,6 +158,20 @@ object BranchInventoryRoutes {
 
         context.json(
             InventoryService.getLowStockAlerts(branchId, thresholdOverride).map { it.toResponse() },
+        )
+    }
+
+    private fun handleGetMovements(context: Context) {
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val dateParam = context.queryParam("date")
+        val date =
+            dateParam?.let {
+                runCatching { LocalDate.parse(it) }
+                    .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
+            }
+
+        context.json(
+            InventoryService.getMovementHistory(branchId, date).map { it.toResponse() },
         )
     }
 

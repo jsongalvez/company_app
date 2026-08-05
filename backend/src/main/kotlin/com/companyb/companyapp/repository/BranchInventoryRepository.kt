@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
@@ -20,6 +21,7 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.LocalDate
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -164,6 +166,30 @@ object BranchInventoryRepository {
                     (BranchInventoryTable.productId eq productId)
             }.singleOrNull()
             ?.let { it.toBranchInventory() }
+
+    fun findMovements(
+        branchId: UUID,
+        date: LocalDate? = null,
+    ): List<InventoryMovement> =
+        transaction {
+            InventoryMovementTable
+                .innerJoin(
+                    BranchDayTable,
+                    { InventoryMovementTable.branchDayId },
+                    { BranchDayTable.id },
+                ).selectAll()
+                .where {
+                    if (date != null) {
+                        (InventoryMovementTable.branchId eq branchId) and
+                            (BranchDayTable.date eq date)
+                    } else {
+                        InventoryMovementTable.branchId eq branchId
+                    }
+                }.orderBy(
+                    InventoryMovementTable.movedAt to SortOrder.DESC,
+                    InventoryMovementTable.id to SortOrder.DESC,
+                ).map { it.toInventoryMovement() }
+        }.also { logger.info { "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId date=$date" } }
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> =
         transaction {

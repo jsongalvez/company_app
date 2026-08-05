@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -7,11 +8,13 @@ import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.test.BasePostgresTest
@@ -22,6 +25,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -246,6 +250,184 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         assertFailsWith<NotFoundException> {
             InventoryService.getStock(UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `getMovementHistory returns all movements for branch ordered by movedAt DESC`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        val restock =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                notes = null,
+                quantityChange = 10,
+                branchDayId = branchDayId,
+            )
+        val tester =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = UUID.randomUUID(),
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Tester,
+                quantityChange = -2,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+
+        val history = InventoryService.getMovementHistory(branchId)
+
+        assertEquals(2, history.size)
+        assertEquals(tester.id, history[0].id)
+        assertEquals(restock.id, history[1].id)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getMovementHistory filters by branch day date`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val pastDate = LocalDate.now(BranchDayService.manilaZone).minusDays(3)
+        val pastDayId = DatabaseTestHelper.createBranchDayForDate(branchId, pastDate)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        InventoryService.ensureCard(branchId, productId)
+        DatabaseTestHelper.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = pastDayId,
+        )
+
+        val history = InventoryService.getMovementHistory(branchId, pastDate)
+
+        assertEquals(1, history.size)
+        assertEquals(pastDayId, history[0].branchDayId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getMovementHistory with date of another day returns empty`() {
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+
+        val history =
+            InventoryService.getMovementHistory(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+
+        assertTrue(history.isEmpty())
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getMovementHistory does not leak movements from other branches`() {
+        val otherBranchId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch ${otherBranchId.toString().take(8)}")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        DatabaseTestHelper.grantManageProducts(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        InventoryService.ensureCard(otherBranchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val otherDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
+
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = branchDayId,
+        )
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = otherBranchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            notes = null,
+            quantityChange = 10,
+            branchDayId = otherDayId,
+        )
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = UUID.randomUUID(),
+            branchId = otherBranchId,
+            productId = productId,
+            movementType = MovementType.Tester,
+            quantityChange = -1,
+            notes = null,
+            branchDayId = otherDayId,
+        )
+
+        val history = InventoryService.getMovementHistory(branchId)
+
+        assertEquals(1, history.size)
+        assertEquals(branchId, history[0].branchId)
+        assertEquals(branchDayId, history[0].branchDayId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, otherBranchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `getMovementHistory returns empty for branch with no movements`() {
+        val history = InventoryService.getMovementHistory(branchId)
+        assertTrue(history.isEmpty())
+    }
+
+    @Test
+    fun `getMovementHistory with non-existent branch returns not found`() {
+        assertFailsWith<NotFoundException> {
+            InventoryService.getMovementHistory(UUID.randomUUID())
         }
     }
 

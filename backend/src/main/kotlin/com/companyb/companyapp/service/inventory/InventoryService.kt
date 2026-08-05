@@ -11,6 +11,7 @@ import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.Product
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.time.LocalDate
 import java.util.UUID
 
 private const val LOW_STOCK_DEFAULT_THRESHOLD = 5
@@ -70,6 +71,14 @@ object InventoryService {
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
         return BranchInventoryRepository.findByBranch(branchId)
+    }
+
+    fun getMovementHistory(
+        branchId: UUID,
+        date: LocalDate? = null,
+    ): List<InventoryMovement> {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        return BranchInventoryRepository.findMovements(branchId, date)
     }
 
     @Suppress("ReturnCount")

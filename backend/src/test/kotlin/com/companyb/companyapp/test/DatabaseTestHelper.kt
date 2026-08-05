@@ -264,17 +264,22 @@ object DatabaseTestHelper {
     }
 
     fun createBranchDayForToday(branchId: UUID): UUID =
+        createBranchDayForDate(branchId, LocalDate.now(BranchDayService.manilaZone))
+
+    fun createBranchDayForDate(
+        branchId: UUID,
+        date: LocalDate,
+    ): UUID =
         transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
             BranchDayTable.insertIgnore {
                 it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
+                it[BranchDayTable.date] = date
             }
             BranchDayTable
                 .selectAll()
                 .where {
                     (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
+                        (BranchDayTable.date eq date)
                 }.single()[BranchDayTable.id]
         }
 

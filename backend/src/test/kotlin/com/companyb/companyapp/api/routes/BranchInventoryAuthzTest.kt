@@ -18,16 +18,19 @@ import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.Javalin
 import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import java.time.LocalDate
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class BranchInventoryAuthzTest : BasePostgresTest() {
     private val editOnlyUser = UUID.randomUUID()
@@ -349,6 +352,152 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/inventory/$productId/movement",
                         movementBody("ADJUSTMENT", 5),
+                        asUser(editOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // GET /api/branches/{branchId}/inventory/movements → EDIT_BRANCH_DATA
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `GET movements allowed for EDIT_BRANCH_DATA user`() {
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
+        JavalinTest.test(createApp()) { _, client ->
+            val restockBody =
+                mapOf(
+                    "id" to UUID.randomUUID().toString(),
+                    "quantity" to 10,
+                    "branchDayId" to branchDayId.toString(),
+                )
+            assertEquals(
+                201,
+                client
+                    .post(
+                        "/api/branches/$branchId/inventory/$productId/restock",
+                        restockBody,
+                        asUser(manageOnlyUser),
+                    ).code,
+            )
+            assertEquals(
+                200,
+                client.get("/api/branches/$branchId/inventory/movements", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET movements returns movement payload for EDIT_BRANCH_DATA user`() {
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
+        JavalinTest.test(createApp()) { _, client ->
+            val restockBody =
+                mapOf(
+                    "id" to UUID.randomUUID().toString(),
+                    "quantity" to 10,
+                    "branchDayId" to branchDayId.toString(),
+                )
+            assertEquals(
+                201,
+                client
+                    .post(
+                        "/api/branches/$branchId/inventory/$productId/restock",
+                        restockBody,
+                        asUser(manageOnlyUser),
+                    ).code,
+            )
+            val body =
+                client
+                    .get("/api/branches/$branchId/inventory/movements", asUser(editOnlyUser))
+                    .body
+                    ?.string()
+                    .orEmpty()
+            assertTrue(body.contains("RESTOCK"))
+            assertTrue(body.contains("quantityChange"))
+        }
+    }
+
+    @Test
+    fun `GET movements forbidden for MANAGE_PRODUCTS-only user`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$branchId/inventory/movements", asUser(manageOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET movements forbidden for no-capability user`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$branchId/inventory/movements", asUser(noneUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET movements forbidden for EDIT_BRANCH_DATA user on other branch`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client.get("/api/branches/$otherBranchId/inventory/movements", asUser(editOnlyUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET movements with valid date returns 200`() {
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
+        JavalinTest.test(createApp()) { _, client ->
+            val restockBody =
+                mapOf(
+                    "id" to UUID.randomUUID().toString(),
+                    "quantity" to 10,
+                    "branchDayId" to branchDayId.toString(),
+                )
+            assertEquals(
+                201,
+                client
+                    .post(
+                        "/api/branches/$branchId/inventory/$productId/restock",
+                        restockBody,
+                        asUser(manageOnlyUser),
+                    ).code,
+            )
+            val today = LocalDate.now(BranchDayService.manilaZone)
+            val response =
+                client
+                    .get(
+                        "/api/branches/$branchId/inventory/movements?date=$today",
+                        asUser(editOnlyUser),
+                    )
+            assertEquals(200, response.code)
+            assertTrue(
+                response.body
+                    ?.string()
+                    .orEmpty()
+                    .contains("RESTOCK"),
+            )
+        }
+    }
+
+    @Test
+    fun `GET movements with invalid date returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .get(
+                        "/api/branches/$branchId/inventory/movements?date=not-a-date",
                         asUser(editOnlyUser),
                     ).code,
             )
