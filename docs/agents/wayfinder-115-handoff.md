@@ -8,7 +8,7 @@ A wayfinder session on map **#89** ("Frontend rebuild — from scratch to fully-
 
 **Read first:**
 - The map itself: https://github.com/jsongalvez/company_app/issues/89 (Destination, Notes, Decisions-so-far incl. new #115 row, Not-yet-specified, Out-of-scope)
-- Wayfinder skill: `/mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app/.agents/skills/wayfinder/SKILL.md` — NOTE: `.agents/` skill dir was deleted in working tree (pre-existing, unstaged deletions of an old skill copy — **do not commit**; live skills live in `skill/` and `~/.config/opencode/skills/`)
+- Wayfinder skill: `/home/jayson/.config/opencode/skills/wayfinder/SKILL.md` (the old `.agents/skills/` copy was removed — live skills live in repo `skill/` + global config)
 - Tracker conventions (GitHub sub-issues + native blocking): `docs/agents/issue-tracker.md` → "Wayfinding operations"
 - **#115 resolution comment (this session's load-bearing record): https://github.com/jsongalvez/company_app/issues/115#issuecomment-5198606850**
 - New backend state: `BranchInventoryRepository.findMovements(branchId, date?)`, `InventoryService.getMovementHistory(branchId, date?)`, movements GET route + filter in `BranchInventoryRoutes.kt`, `createBranchDayForDate` in `DatabaseTestHelper.kt`
