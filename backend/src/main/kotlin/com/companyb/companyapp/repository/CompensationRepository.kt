@@ -2,11 +2,14 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -29,6 +32,11 @@ data class CompensationCreateParams(
 data class CompensationCreateResult(
     val compensation: Compensation,
     val created: Boolean,
+)
+
+data class CompensationWithUser(
+    val compensation: Compensation,
+    val userName: String,
 )
 
 object CompensationRepository {
@@ -118,6 +126,27 @@ object CompensationRepository {
                         (CompensationTable.payingBranchDayId eq payingBranchDayId)
                 }.singleOrNull()
                 ?.toCompensation()
+        }
+
+    fun findByPayingBranchDayId(branchDayId: UUID): List<CompensationWithUser> =
+        transaction {
+            CompensationTable
+                .innerJoin(AppUserTable, { CompensationTable.userId }, { AppUserTable.id })
+                .selectAll()
+                .where { CompensationTable.payingBranchDayId eq branchDayId }
+                .orderBy(
+                    CompensationTable.assignedAt to SortOrder.DESC,
+                    CompensationTable.id to SortOrder.DESC,
+                ).map { row ->
+                    CompensationWithUser(
+                        compensation = row.toCompensation(),
+                        userName = row[AppUserTable.displayName],
+                    )
+                }
+        }.also {
+            logger.info {
+                "[FIND-COMPENSATIONS] Found ${it.size} compensations for paying branch day $branchDayId"
+            }
         }
 
     private fun findByIdInTransaction(id: UUID): Compensation? =

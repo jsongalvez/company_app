@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse
+import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.service.ExpenseService
@@ -71,6 +72,30 @@ object ExpenseRoutes {
             context.json(expense.toResponse())
         }
 
+        config.routes.patch("/api/expenses/{expenseId}") { context ->
+            val callerId = context.callerUuid()
+            val expenseId = context.pathParamAsUuid("expenseId")
+            val request = context.bodyAsClass<UpdateExpenseRequest>()
+
+            val amount = parsePositiveBigDecimal(request.amount, "amount")
+            val category =
+                runCatching { ExpenseCategory.valueOf(request.category.uppercase()) }
+                    .getOrElse { throw BadRequestResponse("Invalid expense category") }
+
+            val expense =
+                ExpenseService.update(
+                    callerId = callerId,
+                    expenseId = expenseId,
+                    amount = amount,
+                    category = category,
+                    notes = request.notes,
+                    expectedVersion = request.expectedVersion,
+                )
+
+            context.status(HttpStatus.OK)
+            context.json(expense.toResponse())
+        }
+
         config.routes.delete("/api/expenses/{expenseId}") { context ->
             val callerId = context.callerUuid()
             val expenseId = context.pathParamAsUuid("expenseId")
@@ -111,5 +136,6 @@ object ExpenseRoutes {
             createdAt = createdAt.toString(),
             deletedBy = deletedBy?.toString(),
             deletedAt = deletedAt?.toString(),
+            version = version,
         )
 }

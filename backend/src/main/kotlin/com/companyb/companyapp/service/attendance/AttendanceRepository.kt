@@ -1,12 +1,16 @@
 package com.companyb.companyapp.service.attendance
 
+import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.Slice
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.or
@@ -29,6 +33,11 @@ internal data class ClockInParams(
     val branchDayAssignmentId: UUID,
     val isRelief: Boolean,
     val branchId: UUID,
+)
+
+data class BranchDayUser(
+    val userId: UUID,
+    val displayName: String,
 )
 
 internal object AttendanceRepository {
@@ -153,6 +162,23 @@ internal object AttendanceRepository {
                         (AttendanceTable.clockOut.isNull() or (AttendanceTable.clockOut greaterEq atTime))
                 }.map { it[AttendanceTable.userId] }
         }
+
+    fun findUsersByBranchDayId(branchDayId: UUID): List<BranchDayUser> =
+        transaction {
+            val join =
+                AttendanceTable.innerJoin(AppUserTable, { AttendanceTable.userId }, { AppUserTable.id })
+            Slice(join, listOf(AttendanceTable.userId, AppUserTable.displayName))
+                .selectAll()
+                .withDistinct()
+                .where { AttendanceTable.branchDayId eq branchDayId }
+                .orderBy(AppUserTable.displayName to SortOrder.ASC)
+                .map { row ->
+                    BranchDayUser(
+                        userId = row[AttendanceTable.userId],
+                        displayName = row[AppUserTable.displayName],
+                    )
+                }
+        }.also { logger.info { "[FIND-BRANCH-DAY-USERS] Found ${it.size} users for branch_day $branchDayId" } }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toAttendance(): Attendance =
         Attendance(

@@ -25,6 +25,7 @@ data class CompensationResponse(
     val workBranchDayId: String,
     val payingBranchDayId: String,
     val userId: String,
+    val userName: String? = null,
     val amount: String,
     val assignedBy: String,
     val assignedAt: String,

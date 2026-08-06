@@ -31,6 +31,7 @@ data class Expense(
     val createdAt: OffsetDateTime,
     val deletedBy: UUID?,
     val deletedAt: OffsetDateTime?,
+    val version: Int,
 )
 
 data class ExpenseCreateParams(
@@ -66,6 +67,7 @@ object ExpenseTable : Table("expense") {
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
     val deletedBy = javaUUID("deleted_by").nullable()
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
+    val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
 
@@ -80,5 +82,6 @@ object ExpenseTable : Table("expense") {
             "createdAt" to entity.createdAt.toString(),
             "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
             "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
+            "version" to entity.version.toString(),
         )
 }

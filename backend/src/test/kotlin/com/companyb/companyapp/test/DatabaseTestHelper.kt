@@ -7,6 +7,7 @@ import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
@@ -42,6 +43,8 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 object DatabaseTestHelper {
@@ -423,6 +426,21 @@ object DatabaseTestHelper {
                     it[ExpenseTable.deletedBy] = userId
                     it[ExpenseTable.deletedAt] = CurrentTimestampWithTimeZone
                 }
+            }
+        }
+    }
+
+    fun insertTestAttendance(
+        branchDayId: UUID,
+        userId: UUID,
+    ) {
+        transaction {
+            AttendanceTable.insertIgnore {
+                it[AttendanceTable.id] = UUID.randomUUID()
+                it[AttendanceTable.branchDayId] = branchDayId
+                it[AttendanceTable.userId] = userId
+                it[AttendanceTable.markedBy] = userId
+                it[AttendanceTable.clockIn] = OffsetDateTime.now(ZoneOffset.UTC)
             }
         }
     }

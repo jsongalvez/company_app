@@ -21,6 +21,11 @@ object AttendanceService {
         at: OffsetDateTime,
     ): List<UUID> = AttendanceRepository.findUsersClockedInAt(branchDayId, at)
 
+    fun findUsersByBranchDayId(branchDayId: UUID): List<BranchDayUser> {
+        BranchDayService.requireBranchDayExists(branchDayId)
+        return AttendanceRepository.findUsersByBranchDayId(branchDayId)
+    }
+
     @Suppress("ThrowsCount")
     fun clockOut(
         attendanceId: UUID,

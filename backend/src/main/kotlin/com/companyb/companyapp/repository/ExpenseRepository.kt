@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
@@ -14,6 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.math.BigDecimal
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -77,6 +79,43 @@ object ExpenseRepository {
                 }.map { it.toExpense() }
         }.also { logger.info { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
 
+    @Suppress("LongParameterList")
+    fun update(
+        expenseId: UUID,
+        amount: BigDecimal,
+        category: ExpenseCategory,
+        notes: String?,
+        expectedVersion: Int,
+        auditFn: (Expense) -> Unit = {},
+    ): Expense =
+        transaction {
+            val updatedCount =
+                ExpenseTable.update({
+                    (ExpenseTable.id eq expenseId) and
+                        (ExpenseTable.version eq expectedVersion)
+                }) {
+                    it[ExpenseTable.amount] = amount
+                    it[ExpenseTable.category] = category
+                    if (notes != null) {
+                        it[ExpenseTable.notes] = notes
+                    } else {
+                        it[ExpenseTable.notes] = null
+                    }
+                    it[ExpenseTable.version] = expectedVersion + 1
+                }
+
+            if (updatedCount == 0) {
+                throw VersionMismatchException(ExpenseTable.tableName, expenseId)
+            }
+
+            val after =
+                findByIdInTransaction(expenseId)
+                    ?: error("expense not found after update for $expenseId")
+
+            auditFn(after)
+            after
+        }.also { logger.info { "[UPDATE-EXPENSE] Expense ${expenseId.toString().maskUUID()} updated" } }
+
     fun findById(id: UUID): Expense? =
         transaction {
             findByIdInTransaction(id)
@@ -100,5 +139,6 @@ object ExpenseRepository {
             createdAt = this[ExpenseTable.createdAt],
             deletedBy = this[ExpenseTable.deletedBy],
             deletedAt = this[ExpenseTable.deletedAt],
+            version = this[ExpenseTable.version],
         )
 }

@@ -296,6 +296,92 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `list compensations for paying branch day returns rows with user names`() {
+        val secondUser = UUID.randomUUID()
+        DatabaseTestHelper.insertTestUser(secondUser, "comp-second")
+        trackOwned(AppUserTable, AppUserTable.id, secondUser)
+        trackOwned(CompensationTable, CompensationTable.userId, secondUser)
+
+        CompensationService.create(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = null,
+        )
+        CompensationService.create(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = secondUser,
+            amount = BigDecimal("1200.00"),
+            note = null,
+        )
+
+        val rows = CompensationService.findByPayingBranchDayId(payingBranchDayId)
+
+        assertEquals(2, rows.size)
+        assertTrue(rows.any { it.compensation.userId == targetUserId && it.userName == "Test comp-target" })
+        assertTrue(rows.any { it.compensation.userId == secondUser && it.userName == "Test comp-second" })
+    }
+
+    @Test
+    fun `list compensations excludes other paying days`() {
+        val otherBranchId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
+
+        CompensationService.create(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = null,
+        )
+        CompensationService.create(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            workBranchDayId = otherBranchDayId,
+            payingBranchDayId = otherBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("800.00"),
+            note = null,
+        )
+
+        val rows = CompensationService.findByPayingBranchDayId(payingBranchDayId)
+
+        assertEquals(1, rows.size)
+        assertEquals(0, BigDecimal("1500.00").compareTo(rows[0].compensation.amount))
+    }
+
+    @Test
+    fun `list compensations returns empty for day with no rows`() {
+        val emptyBranchId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(emptyBranchId, "Empty Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, emptyBranchId)
+        val emptyBranchDayId = DatabaseTestHelper.createBranchDayForToday(emptyBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, emptyBranchDayId)
+
+        val rows = CompensationService.findByPayingBranchDayId(emptyBranchDayId)
+
+        assertTrue(rows.isEmpty())
+    }
+
+    @Test
+    fun `list compensations for non-existent branch day returns not found`() {
+        assertFailsWith<NotFoundException> {
+            CompensationService.findByPayingBranchDayId(UUID.randomUUID())
+        }
+    }
+
+    @Test
     fun `create writes audit log entry`() {
         val compId = UUID.randomUUID()
 

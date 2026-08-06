@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -173,6 +174,163 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertTrue(auditCount > 0)
+    }
+
+    @Test
+    fun `update expense succeeds with version bump`() {
+        val expenseId = UUID.randomUUID()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Original",
+            )
+
+        val updated =
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.WATER,
+                notes = "Updated",
+                expectedVersion = created.version,
+            )
+
+        assertEquals(0, BigDecimal("750.00").compareTo(updated.amount))
+        assertEquals(ExpenseCategory.WATER, updated.category)
+        assertEquals("Updated", updated.notes)
+        assertEquals(created.version + 1, updated.version)
+    }
+
+    @Test
+    fun `update expense clears notes when null`() {
+        val expenseId = UUID.randomUUID()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Original",
+            )
+
+        val updated =
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+                expectedVersion = created.version,
+            )
+
+        assertNull(updated.notes)
+    }
+
+    @Test
+    fun `update with wrong version returns conflict`() {
+        val expenseId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+
+        assertFailsWith<ConflictException> {
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+                expectedVersion = 999,
+            )
+        }
+    }
+
+    @Test
+    fun `update non-existent expense returns not found`() {
+        assertFailsWith<NotFoundException> {
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = UUID.randomUUID(),
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+                expectedVersion = 1,
+            )
+        }
+    }
+
+    @Test
+    fun `update soft-deleted expense is rejected`() {
+        val expenseId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = expenseId,
+            reason = "Incorrect entry",
+        )
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+                expectedVersion = 1,
+            )
+        }
+    }
+
+    @Test
+    fun `update writes audit log entry`() {
+        val expenseId = UUID.randomUUID()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+
+        ExpenseService.update(
+            callerId = callerId,
+            expenseId = expenseId,
+            amount = BigDecimal("750.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = "Updated",
+            expectedVersion = created.version,
+        )
+
+        val updateAuditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            }
+        assertTrue(updateAuditCount > 0)
     }
 
     @Test

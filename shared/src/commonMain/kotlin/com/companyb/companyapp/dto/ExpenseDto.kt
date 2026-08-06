@@ -17,6 +17,14 @@ data class DeleteExpenseRequest(
 )
 
 @Serializable
+data class UpdateExpenseRequest(
+    val amount: String,
+    val category: String,
+    val notes: String? = null,
+    val expectedVersion: Int,
+)
+
+@Serializable
 data class ExpenseResponse(
     val id: String,
     val branchDayId: String,
@@ -27,4 +35,5 @@ data class ExpenseResponse(
     val createdAt: String,
     val deletedBy: String?,
     val deletedAt: String?,
+    val version: Int,
 )

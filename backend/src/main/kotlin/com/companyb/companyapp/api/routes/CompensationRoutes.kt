@@ -7,10 +7,12 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateCompensationRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
+import com.companyb.companyapp.repository.CompensationWithUser
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.service.CompensationService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.util.UUID
@@ -21,7 +23,7 @@ object CompensationRoutes {
         config.routes.before("/api/compensation") { context ->
             val branchDayId =
                 when (context.method()) {
-                    io.javalin.http.HandlerType.POST -> {
+                    HandlerType.POST -> {
                         val request = context.bodyAsClass<CreateCompensationRequest>()
                         uuidOrThrow(request.workBranchDayId, "work branch day id")
                     }
@@ -30,6 +32,18 @@ object CompensationRoutes {
                         return@before
                     }
                 }
+            CapabilityFilter.requireBranchCapability(
+                context,
+                branchDayId,
+                CapabilityCodes.ASSIGN_COMPENSATION,
+            )
+        }
+
+        config.routes.before("/api/compensations") { context ->
+            if (context.method() != HandlerType.GET) {
+                return@before
+            }
+            val branchDayId = context.uuidFromQuery("branchDayId")
             CapabilityFilter.requireBranchCapability(
                 context,
                 branchDayId,
@@ -75,6 +89,12 @@ object CompensationRoutes {
             context.json(compensation.toResponse())
         }
 
+        config.routes.get("/api/compensations") { context ->
+            val branchDayId = context.uuidFromQuery("branchDayId")
+            val compensations = CompensationService.findByPayingBranchDayId(branchDayId)
+            context.json(compensations.map { it.toResponse() })
+        }
+
         config.routes.patch("/api/compensation/{compensationId}") { context ->
             val callerId = context.callerUuid()
             val compensationId = context.pathParamAsUuid("compensationId")
@@ -108,4 +128,7 @@ object CompensationRoutes {
             note = note,
             version = version,
         )
+
+    private fun CompensationWithUser.toResponse(): CompensationResponse =
+        compensation.toResponse().copy(userName = userName)
 }

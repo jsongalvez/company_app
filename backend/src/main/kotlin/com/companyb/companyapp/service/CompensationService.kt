@@ -5,6 +5,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
+import com.companyb.companyapp.repository.CompensationWithUser
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -14,6 +15,11 @@ import java.util.UUID
 
 object CompensationService {
     private val logger = KotlinLogging.logger {}
+
+    fun findByPayingBranchDayId(branchDayId: UUID): List<CompensationWithUser> {
+        BranchDayService.requireBranchDayExists(branchDayId)
+        return CompensationRepository.findByPayingBranchDayId(branchDayId)
+    }
 
     @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
     fun create(

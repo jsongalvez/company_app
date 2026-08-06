@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
@@ -47,6 +48,38 @@ object ExpenseService {
                 changedBy = callerId,
                 fields = ExpenseTable.auditFields(expense),
                 isFlagged = isRemitted,
+            )
+        }
+    }
+
+    @Suppress("ThrowsCount", "LongParameterList")
+    fun update(
+        callerId: UUID,
+        expenseId: UUID,
+        amount: BigDecimal,
+        category: ExpenseCategory,
+        notes: String?,
+        expectedVersion: Int,
+    ): Expense {
+        val before =
+            ExpenseRepository.findById(expenseId)
+                ?: throw NotFoundException("Expense not found")
+
+        if (before.deletedAt != null) {
+            throw ValidationException("Cannot update a deleted expense")
+        }
+
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId)
+
+        return ExpenseRepository.update(expenseId, amount, category, notes, expectedVersion) { after ->
+            AuditLogRepository.recordUpdate(
+                tableName = ExpenseTable.tableName,
+                recordId = expenseId,
+                before = before,
+                after = after,
+                changedBy = callerId,
+                isFlagged = isRemitted,
+                auditFields = ExpenseTable::auditFields,
             )
         }
     }
