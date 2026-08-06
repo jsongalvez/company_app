@@ -49,8 +49,12 @@ The act of submitting session income to the business. Two independent flows: SES
 _Avoid_: Payout, cash-out, settlement
 
 **Snapshot**:
-An immutable financial record written at remittance submission time. Cannot be updated or deleted. Later edits to the underlying session/expense/compensation data do not retroactively change the snapshot.
+An immutable financial record written at remittance submission time. Cannot be updated or deleted — except by an Undo within 48 hours of submission. Later edits to the underlying session/expense/compensation data do not retroactively change the snapshot.
 _Avoid_: Freeze, archive
+
+**Undo**:
+The act of reverting a submitted remittance within 48 hours of submission: the remittance returns to Draft, the covered days unlock, and the frozen snapshot is deleted. Requires a reason, recorded in the audit trail. Time-limited — after the window closes, the snapshot is permanent.
+_Avoid_: Reverse, cancel, refund
 
 **Void**:
 The act of excluding a session from financial calculations while preserving its record. Requires a reason. Can be undone (unvoided) if done in error. A voided session remains visible with a clear indicator.
