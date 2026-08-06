@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.DayStatus
@@ -35,6 +36,20 @@ object BranchDayService {
         branchId: UUID,
         date: LocalDate,
     ): BranchDay = BranchDayRepository.resolveOrCreate(branchId, date)
+
+    /**
+     * Resolves the branch day for today (Asia/Manila), creating it idempotently if missing.
+     * Consumers (inventory mutations, finance/expenses) need today's [BranchDay.id] before the
+     * first write of the day — a 404 on a missing day would deadlock them — so this is a
+     * resolve-or-create, not a find-only read.
+     *
+     * @throws NotFoundException if the branch does not exist.
+     */
+    fun getToday(branchId: UUID): BranchDay {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        val today = LocalDate.now(manilaZone)
+        return resolveOrCreate(branchId, today)
+    }
 
     /**
      * Finds a branch day by ID or throws [NotFoundException].

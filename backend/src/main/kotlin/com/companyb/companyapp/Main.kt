@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuditLogRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.api.routes.BranchDayRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
 import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
@@ -117,6 +118,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     ProductCategoryRoutes.register(config)
     ProductRoutes.register(config)
     BranchInventoryRoutes.register(config)
+    BranchDayRoutes.register(config)
     ProductSaleRoutes.register(config)
     CompensationRoutes.register(config)
     CommissionRoutes.register(config)
