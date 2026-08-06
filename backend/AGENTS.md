@@ -29,8 +29,13 @@ The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
 4. **Shared module compilation:** `./gradlew :shared:compileKotlinJvm`
 5. **Postgres connectivity:** verifies Postgres is reachable before commit is allowed.
 
-A pre-push hook (`.githooks/pre-push`) additionally runs the full JMH benchmark suite +
-baseline comparison, composeApp multi-target compilation, and k6 load-test baseline.
+A pre-push hook (`.githooks/pre-push`) additionally runs composeApp multi-target
+compilation and the k6 load-test baseline. **JMH no longer runs on push** — it lives
+in CI (`.github/workflows/jmh.yml`, runs on backend-touching pushes + merge to
+master): a single failing baseline comparison re-runs once and warns; the check
+fails only when the regression reproduces across two runs. CI-runner scores differ
+from the dev-machine scores in `backend/jmh-baselines.md` — after a runner baseline
+shift, copy the first CI run's scores into the file (see the workflow's comment).
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
