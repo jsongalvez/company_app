@@ -77,7 +77,7 @@ bash scripts/check-baselines.sh
 After `bash scripts/setup-hooks.sh`:
 
 - **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, test-data cleanliness check, `:shared:compileKotlinJvm`, and verifies Postgres is reachable. Commits are blocked if any step fails.
-- **pre-push** runs full JMH suite + baseline comparison, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline. Takes ~4 min — always run `git push` with a sufficient timeout (600000 ms).
+- **pre-push** runs test-data cleanliness check, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline. JMH no longer runs on push — it lives in CI (`.github/workflows/jmh.yml`, backend-touching pushes + merge to master; re-runs once on a suspected regression, fails only on a confirmed two-run regression). Takes ~3 min — always run `git push` with a sufficient timeout (600000 ms).
 
 ## Configuration details
 
@@ -92,7 +92,7 @@ See `composeApp/AGENTS.md` for UI conventions, logging, ViewModel patterns, and 
 
 ## Performance
 
-The pre-push hook runs JMH benchmarks. Regressions exceeding the per-benchmark threshold (default 20%; 40% for noise-sensitive nanosecond-scale benchmarks like `BranchDayBenchmark.*`) from `backend/jmh-baselines.md` should be investigated before pushing. See `backend/AGENTS.md` for the full performance workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
+JMH benchmarks run in CI (`.github/workflows/jmh.yml`) on backend-touching pushes and merge to master. Regressions exceeding the per-benchmark threshold (default 20%; 40% for noise-sensitive nanosecond-scale benchmarks like `BranchDayBenchmark.*`) from `backend/jmh-baselines.md` are flagged; the check fails only when a regression reproduces across two runs. JMH scores in `backend/jmh-baselines.md` were measured on a dev machine — after any CI-runner baseline shift, re-establish by copying the first CI run's scores into the file. See `backend/AGENTS.md` for the full performance workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
 
 ## Ticket tracking
 

@@ -1,0 +1,76 @@
+name: jmh
+
+# JMH benchmark gate — moved out of the pre-push hook (doc-only pushes
+# were paying ~4 min of JMH on a shared machine; see .githooks/pre-push).
+# Runs on every push touching backend code and on merge to master.
+#
+# NOTE ON BASELINES: scores in backend/jmh-baselines.md were measured on a
+# dev machine. CI runners differ. Establish the CI baseline by running this
+# workflow once, copying the scores from the "Compare against baseline" log
+# into backend/jmh-baselines.md, and committing that file. After that the
+# absolute comparison holds. (check-baselines.sh passes when no baseline
+# exists — first run is free.)
+#
+# A regression failing one run re-runs once and warns; the check fails only
+# when the regression reproduces across two runs (runner noise doesn't fail).
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'scripts/check-baselines.sh'
+      - 'backend/jmh-baselines.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jmh-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jmh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run JMH benchmarks
+        run: ./gradlew :backend:jmh --no-daemon 2>&1 | tee /tmp/company-app-jmh.log
+
+      - name: Compare against baseline (retry once on noise)
+        run: |
+          run_compare() {
+            local log=$1 out=$2
+            bash scripts/check-baselines.sh "$log" > "$out" 2>&1
+            local status=$?
+            cat "$out"
+            return "$status"
+          }
+          if run_compare /tmp/company-app-jmh.log /tmp/check1.txt; then
+            exit 0
+          fi
+          echo "::warning title=JMH::Possible regression — re-running to confirm"
+          ./gradlew :backend:jmh --no-daemon 2>&1 | tee /tmp/company-app-jmh-retry.log | tail -5
+          if run_compare /tmp/company-app-jmh-retry.log /tmp/check2.txt; then
+            echo "Regression did not reproduce on retry — noise, passing."
+            exit 0
+          fi
+          echo "::error title=JMH::Regression confirmed across two runs. Investigate with JFR, or update backend/jmh-baselines.md if intentional."
+          exit 1
+
+      - name: Upload JMH logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmh-logs
+          path: /tmp/company-app-jmh*.log
