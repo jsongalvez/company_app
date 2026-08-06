@@ -59,7 +59,7 @@ The ticket's four questions were ALL premised on wrong backend assumptions:
 
 ## Key decisions (recorded in full on the resolution comment)
 
-1. **Undo with 48h window + reason** — user-initiated requirement (Q5 grill); carves the snapshot immutability invariant (CONTEXT.md + trigger) — **ADR candidate** (hard to reverse, surprising, real trade-off: finality vs mistake recovery). Not written this session — offer before the #119 build or in a dedicated session.
+1. **Undo with 48h window + reason** — user-initiated requirement (Q5 grill); carves the snapshot immutability invariant (CONTEXT.md + trigger). **ADR deferred to implementation**: write `docs/adr/0023-remittance-undo-window.md` when #119 lands — the full rationale (why it meets the ADR bar, rejected alternatives incl. void-style keep-history) is captured on **#119's comment** (https://github.com/jsongalvez/company_app/issues/119#issuecomment-5200558046) so the implementing session can reconstruct it without this conversation.
 2. **Drift expander resurrected** — D6 originally ruled comparison out of scope; user asked "a button to view the diff at the right place" → lazy on-click drift endpoint; gross can't drift (lines immutable after submit) so drift = comp/expenses/net only.
 3. **Receipt styling is a design requirement** — Frozen block must read as a snapshot (hairline card, lock glyph, muted label), not live data.
 4. **Header-edit-in-place (Q10 A)** over delete+recreate — undo brings drafts back; rebuilding after that wastes the redo.
@@ -91,7 +91,7 @@ Per `gh api "repos/jsongalvez/company_app/issues/89/sub_issues?per_page=100"` �
 ## Recommended next picks
 
 - **#118 (remittance read-back endpoints, AFK)** — first in frontier order; largest AFK surface (7 pieces: list w/ snapshot join, sessions-in-range, sales-in-range, days-in-range, day-breakdown DELETE, snapshot block, drift). Falsify first per ticket body; the outline's Graduation section is the spec. Note: `GET /api/remittances?branchId=` ordering choice (createdAt DESC + id DESC per #115 lesson), read gates = SUBMIT_REMITTANCE (reads gate same as writes — AGENTS), k6 deferred.
-- **#119 (undo + header PATCH, AFK)** — the migration carve-out of `trg_remittance_snapshot_immutable` is the risky piece (V6/V11 precedent; never edit applied migrations). ADR offer before building (see below).
+- **#119 (undo + header PATCH, AFK)** — the migration carve-out of `trg_remittance_snapshot_immutable` is the risky piece (V6/V11 precedent; never edit applied migrations). **Write ADR-0023 alongside this build** — rationale pre-captured on #119's comment (https://github.com/jsongalvez/company_app/issues/119#issuecomment-5200558046).
 - #104/#105/#106 remain equally sharp-cuttable HITL prototypes in parallel.
 - Any AFK session should also consider graduating the **Finance build** or **dashboard build** if the session runs short (one-ticket-per-session doctrine — graduation is charting, not resolving).
 
@@ -102,7 +102,7 @@ Per `gh api "repos/jsongalvez/company_app/issues/89/sub_issues?per_page=100"` �
 3. **HITL prototype** (#104/#105/#106): /prototype + /grilling + /domain-modeling; falsification-before-claim against live backend; plain-language scenario framing for multi-option questions.
 4. Post the answer as a **resolution comment**, `gh issue close <N>`, append a context pointer to map #89's **Decisions so far** (fetch body → modify → `gh issue edit 89 --body-file <modified>`; keep the child-tickets table + closing paragraph current).
 5. Graduate fog (create-then-wire: `gh api .../issues/89/sub_issues -F sub_issue_id=<numeric .id>` — verify via the sub_issues query; blocking via `gh api .../issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, verify with `.issue_dependencies_summary`).
-6. If the decision meets the ADR bar (hard to reverse + surprising + real trade-off), offer an ADR per /domain-modeling. **Open ADR candidate: the 48h undo carve-out of snapshot immutability.**
+6. If the decision meets the ADR bar (hard to reverse + surprising + real trade-off), offer an ADR per /domain-modeling. **Deferred ADR: ADR-0023 (remittance 48h undo carve-out) is due at #119 implementation time — rationale pre-captured on #119's comment.**
 
 **One-ticket-per-session limit.** When done, stop and write `docs/agents/wayfinder-<N>-handoff.md` — follow this session's format.
 
