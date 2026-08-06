@@ -61,6 +61,7 @@ internal object SessionBaseRateService {
                     tableName = SessionBaseRateTable.tableName,
                     recordId = rate.id,
                     changedBy = callerId,
+                    branchId = branchId,
                     fields = SessionBaseRateTable.auditFields(rate),
                 )
             },

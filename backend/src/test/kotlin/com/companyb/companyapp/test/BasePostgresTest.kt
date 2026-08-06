@@ -114,7 +114,7 @@ abstract class BasePostgresTest {
             mapOf(
                 AllowanceTable to setOf(AppUserTable, BranchDayTable),
                 AttendanceTable to setOf(BranchDayTable, AppUserTable),
-                AuditLogTable to setOf(AppUserTable),
+                AuditLogTable to setOf(AppUserTable, BranchTable),
                 BranchDayAssignmentTable to setOf(BranchDayTable, AppUserTable),
                 BranchInventoryTable to setOf(BranchTable, ProductTable),
                 CommissionManualInclusionTable to setOf(BranchDayTable),

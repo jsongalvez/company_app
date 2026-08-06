@@ -42,6 +42,7 @@ object RemittanceService {
                         before = ctx.remittanceBefore,
                         after = ctx.remittanceAfter,
                         changedBy = callerId,
+                        branchId = ctx.remittanceAfter.branchId,
                         auditFields = RemittanceTable::auditFields,
                     )
                     ctx.branchDayPairs.forEach { (before, after) ->
@@ -51,6 +52,7 @@ object RemittanceService {
                             before = before,
                             after = after,
                             changedBy = callerId,
+                            branchId = before.branchId,
                             auditFields = BranchDayTable::auditFields,
                         )
                     }
@@ -95,6 +97,7 @@ object RemittanceService {
                     tableName = RemittanceTable.tableName,
                     recordId = remittance.id,
                     changedBy = callerId,
+                    branchId = branchId,
                     fields = RemittanceTable.auditFields(remittance),
                 )
             }
@@ -137,6 +140,7 @@ object RemittanceService {
                     tableName = RemittanceLineTable.tableName,
                     recordId = line.id,
                     changedBy = callerId,
+                    branchId = remittance.branchId,
                     fields = RemittanceLineTable.auditFields(line),
                 )
             }
@@ -172,6 +176,7 @@ object RemittanceService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = remittance.branchId,
                     auditFields = RemittanceLineTable::auditFields,
                 )
             }
@@ -208,6 +213,7 @@ object RemittanceService {
                     tableName = RemittanceDayBreakdownTable.tableName,
                     recordId = breakdown.id,
                     changedBy = callerId,
+                    branchId = remittance.branchId,
                     fields = RemittanceDayBreakdownTable.auditFields(breakdown),
                 )
             }

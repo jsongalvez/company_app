@@ -18,12 +18,14 @@ internal object MovementRecorder {
             before = oldCard,
             after = newCard,
             changedBy = movement.movedBy,
+            branchId = movement.branchId,
             auditFields = BranchInventoryTable::auditFields,
         )
         AuditLogRepository.recordInsert(
             tableName = InventoryMovementTable.tableName,
             recordId = movement.id,
             changedBy = movement.movedBy,
+            branchId = movement.branchId,
             fields = InventoryMovementTable.auditFields(movement),
         )
     }

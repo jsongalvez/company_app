@@ -31,7 +31,7 @@ internal object SessionConcernService {
         concernId: UUID,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
@@ -43,6 +43,7 @@ internal object SessionConcernService {
                     tableName = SessionConcernTable.tableName,
                     recordId = sessionId,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     fields = SessionConcernTable.auditFields(sc),
                     isFlagged = isRemitted,
                 )
@@ -59,7 +60,7 @@ internal object SessionConcernService {
         concernId: UUID,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
@@ -72,6 +73,7 @@ internal object SessionConcernService {
                     recordId = sessionId,
                     before = sc,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
                     auditFields = SessionConcernTable::auditFields,
                 )
@@ -89,7 +91,7 @@ internal object SessionConcernService {
         label: String,
     ): Concern {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val concern =
             ConcernRepository.promoteConcern(
@@ -111,6 +113,7 @@ internal object SessionConcernService {
                         tableName = SessionConcernTable.tableName,
                         recordId = sessionId,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         fields = SessionConcernTable.auditFields(sc),
                         isFlagged = isRemitted,
                     )
@@ -122,6 +125,7 @@ internal object SessionConcernService {
                         before = before,
                         after = after,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         isFlagged = isRemitted,
                         auditFields = SessionTable::auditFields,
                     )

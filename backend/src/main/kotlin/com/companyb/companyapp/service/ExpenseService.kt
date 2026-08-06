@@ -30,7 +30,7 @@ object ExpenseService {
             return existing
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         return ExpenseRepository.create(
             ExpenseCreateParams(
@@ -46,6 +46,7 @@ object ExpenseService {
                 tableName = ExpenseTable.tableName,
                 recordId = expense.id,
                 changedBy = callerId,
+                branchId = branchDay.branchId,
                 fields = ExpenseTable.auditFields(expense),
                 isFlagged = isRemitted,
             )
@@ -69,7 +70,7 @@ object ExpenseService {
             throw ValidationException("Cannot update a deleted expense")
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId)
 
         return ExpenseRepository.update(expenseId, amount, category, notes, expectedVersion) { after ->
             AuditLogRepository.recordUpdate(
@@ -78,6 +79,7 @@ object ExpenseService {
                 before = before,
                 after = after,
                 changedBy = callerId,
+                branchId = branchDay.branchId,
                 isFlagged = isRemitted,
                 auditFields = ExpenseTable::auditFields,
             )
@@ -94,7 +96,7 @@ object ExpenseService {
             ExpenseRepository.findById(expenseId)
                 ?: throw NotFoundException("Expense not found")
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
         return ExpenseRepository.softDelete(expenseId, callerId) { after ->
             AuditLogRepository.recordDelete(
@@ -102,6 +104,7 @@ object ExpenseService {
                 recordId = expenseId,
                 before = before,
                 changedBy = callerId,
+                branchId = branchDay.branchId,
                 reason = reason,
                 isFlagged = isRemitted,
                 auditFields = ExpenseTable::auditFields,

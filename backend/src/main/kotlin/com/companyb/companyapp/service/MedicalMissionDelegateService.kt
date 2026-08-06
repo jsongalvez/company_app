@@ -36,6 +36,7 @@ object MedicalMissionDelegateService {
                     tableName = MedicalMissionDelegateTable.tableName,
                     recordId = delegate.id,
                     changedBy = callerId,
+                    branchId = branchId,
                     fields = MedicalMissionDelegateTable.auditFields(delegate),
                 )
             },
@@ -65,6 +66,7 @@ object MedicalMissionDelegateService {
                     before = before,
                     after = revoked,
                     changedBy = callerId,
+                    branchId = before.branchId,
                     auditFields = MedicalMissionDelegateTable::auditFields,
                 )
             },

@@ -53,6 +53,8 @@ object CommissionService {
             ProductSaleRepository.findById(productSaleId)
                 ?: throw NotFoundException("Product sale not found")
 
+        val branchId = BranchDayService.requireBranchDayExists(sale.branchDayId).branchId
+
         val result =
             CommissionManualInclusionRepository.upsert(
                 CommissionManualInclusionUpsertParams(
@@ -69,6 +71,7 @@ object CommissionService {
                         tableName = CommissionManualInclusionTable.tableName,
                         recordId = updated.id,
                         changedBy = callerId,
+                        branchId = branchId,
                         fields = CommissionManualInclusionTable.auditFields(updated),
                     )
                 } else {
@@ -78,6 +81,7 @@ object CommissionService {
                         before = existing,
                         after = updated,
                         changedBy = callerId,
+                        branchId = branchId,
                         auditFields = CommissionManualInclusionTable::auditFields,
                     )
                 }

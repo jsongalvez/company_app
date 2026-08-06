@@ -41,6 +41,8 @@ object AttendanceService {
             return AttendanceServiceResult(existing, false, isRelief)
         }
 
+        val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
+
         val attendance =
             AttendanceRepository.clockOut(attendanceId) { before, after ->
                 AuditLogRepository.recordUpdate(
@@ -49,6 +51,7 @@ object AttendanceService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = branchId,
                     auditFields = AttendanceTable::auditFields,
                 )
             }
@@ -92,6 +95,7 @@ object AttendanceService {
                     tableName = AttendanceTable.tableName,
                     recordId = attendance.id,
                     changedBy = callerId,
+                    branchId = branchId,
                     fields = AttendanceTable.auditFields(attendance),
                 )
             }

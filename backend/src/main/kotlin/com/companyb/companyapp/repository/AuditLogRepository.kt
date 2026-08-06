@@ -29,6 +29,7 @@ object AuditLogRepository {
         recordId: UUID,
         action: AuditAction,
         changedBy: UUID,
+        branchId: UUID? = null,
         oldValue: String? = null,
         newValue: String? = null,
         reason: String? = null,
@@ -39,6 +40,7 @@ object AuditLogRepository {
             it[AuditLogTable.recordId] = recordId
             it[AuditLogTable.action] = action
             it[AuditLogTable.changedBy] = changedBy
+            it[AuditLogTable.branchId] = branchId
             it[AuditLogTable.isFlagged] = isFlagged
             if (oldValue != null) it[AuditLogTable.oldValue] = oldValue
             if (newValue != null) it[AuditLogTable.newValue] = newValue
@@ -53,6 +55,7 @@ object AuditLogRepository {
         recordId: UUID,
         changedBy: UUID,
         fields: Map<String, String>,
+        branchId: UUID? = null,
         isFlagged: Boolean = false,
     ) {
         record(
@@ -60,6 +63,7 @@ object AuditLogRepository {
             recordId = recordId,
             action = AuditAction.INSERT,
             changedBy = changedBy,
+            branchId = branchId,
             newValue = jsonFields(fields),
             isFlagged = isFlagged,
         )
@@ -72,6 +76,7 @@ object AuditLogRepository {
         oldFields: Map<String, String>,
         newFields: Map<String, String>,
         changedBy: UUID,
+        branchId: UUID? = null,
         isFlagged: Boolean = false,
     ) {
         record(
@@ -79,6 +84,7 @@ object AuditLogRepository {
             recordId = recordId,
             action = AuditAction.UPDATE,
             changedBy = changedBy,
+            branchId = branchId,
             oldValue = jsonFields(oldFields),
             newValue = jsonFields(newFields),
             isFlagged = isFlagged,
@@ -92,6 +98,7 @@ object AuditLogRepository {
         before: T,
         after: T,
         changedBy: UUID,
+        branchId: UUID? = null,
         isFlagged: Boolean = false,
         auditFields: (T) -> Map<String, String>,
     ) {
@@ -107,6 +114,7 @@ object AuditLogRepository {
             oldFields = changedOldFields,
             newFields = changedNewFields,
             changedBy = changedBy,
+            branchId = branchId,
             isFlagged = isFlagged,
         )
     }
@@ -117,6 +125,7 @@ object AuditLogRepository {
         recordId: UUID,
         before: T,
         changedBy: UUID,
+        branchId: UUID? = null,
         reason: String? = null,
         isFlagged: Boolean = false,
         auditFields: (T) -> Map<String, String>,
@@ -128,6 +137,7 @@ object AuditLogRepository {
             oldFields = oldFields,
             newFields = emptyMap(),
             changedBy = changedBy,
+            branchId = branchId,
             reason = reason,
             isFlagged = isFlagged,
         )
@@ -140,6 +150,7 @@ object AuditLogRepository {
         oldFields: Map<String, String>,
         newFields: Map<String, String>,
         changedBy: UUID,
+        branchId: UUID? = null,
         reason: String? = null,
         isFlagged: Boolean = false,
     ) {
@@ -148,6 +159,7 @@ object AuditLogRepository {
             recordId = recordId,
             action = AuditAction.DELETE,
             changedBy = changedBy,
+            branchId = branchId,
             oldValue = jsonFields(oldFields),
             newValue = jsonFields(newFields),
             reason = reason,

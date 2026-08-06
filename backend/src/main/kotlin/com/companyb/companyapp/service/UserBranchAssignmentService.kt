@@ -69,6 +69,7 @@ object UserBranchAssignmentService {
                         tableName = UserBranchAssignmentTable.tableName,
                         recordId = assignment.id,
                         changedBy = callerId,
+                        branchId = branchId,
                         fields = UserBranchAssignmentTable.auditFields(assignment),
                     )
                 },
@@ -108,6 +109,7 @@ object UserBranchAssignmentService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = branchId,
                     auditFields = UserBranchAssignmentTable::auditFields,
                 )
             },
@@ -150,6 +152,7 @@ object UserBranchAssignmentService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = branchId,
                     auditFields = UserBranchAssignmentTable::auditFields,
                 )
             },
@@ -176,6 +179,7 @@ object UserBranchAssignmentService {
                         before = a,
                         after = a.copy(slot = b.slot),
                         changedBy = callerId,
+                        branchId = branchId,
                         auditFields = UserBranchAssignmentTable::auditFields,
                     )
                     AuditLogRepository.recordUpdate(
@@ -184,6 +188,7 @@ object UserBranchAssignmentService {
                         before = b,
                         after = b.copy(slot = a.slot),
                         changedBy = callerId,
+                        branchId = branchId,
                         auditFields = UserBranchAssignmentTable::auditFields,
                     )
                 },

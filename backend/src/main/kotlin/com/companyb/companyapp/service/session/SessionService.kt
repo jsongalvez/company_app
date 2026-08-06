@@ -106,6 +106,7 @@ object SessionService {
                     tableName = SessionTable.tableName,
                     recordId = session.id,
                     changedBy = callerId,
+                    branchId = branchId,
                     fields = SessionTable.auditFields(session),
                 )
             }
@@ -142,7 +143,7 @@ object SessionService {
             throw ConflictException("Session version mismatch")
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         if (session.isWalkIn && newStatus in setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)) {
             throw ValidationException("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
@@ -164,6 +165,7 @@ object SessionService {
                     before = session,
                     after = updatedSession,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
                     auditFields = SessionTable::auditFields,
                 )
@@ -194,7 +196,7 @@ object SessionService {
             }
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val result =
             SessionVoidRepository.void(
@@ -207,6 +209,7 @@ object SessionService {
                     tableName = SessionVoidTable.tableName,
                     recordId = voidRecord.id,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     fields = SessionVoidTable.auditFields(voidRecord),
                     isFlagged = isRemitted,
                 )
@@ -234,7 +237,7 @@ object SessionService {
             return sessionVoid
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
 
         val updated =
             SessionVoidRepository.unvoid(
@@ -248,6 +251,7 @@ object SessionService {
                     before = sessionVoid,
                     after = unvoided,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
                     auditFields = SessionVoidTable::auditFields,
                 )

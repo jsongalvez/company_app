@@ -24,6 +24,7 @@ object AuditLogTable : Table("audit_log") {
             },
         )
     val changedBy = javaUUID("changed_by").references(AppUserTable.id)
+    val branchId = javaUUID("branch_id").references(BranchTable.id).nullable()
     val changedAt = timestampWithTimeZone("changed_at").defaultExpression(CurrentTimestampWithTimeZone)
     val oldValue = registerColumn("old_value", JsonBColumnType()).nullable()
     val newValue = registerColumn("new_value", JsonBColumnType()).nullable()

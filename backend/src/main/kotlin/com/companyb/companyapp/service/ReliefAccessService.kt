@@ -66,6 +66,7 @@ object ReliefAccessService {
                             before = before,
                             after = after,
                             changedBy = callerId,
+                            branchId = branchDay.branchId,
                             isFlagged = isRemitted,
                             auditFields = GrantReliefAccessTable::auditFields,
                         )
@@ -106,7 +107,7 @@ object ReliefAccessService {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
 
         ReliefAccessRepository.deny(
             requestId,
@@ -117,6 +118,7 @@ object ReliefAccessService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
                     auditFields = GrantReliefAccessTable::auditFields,
                 )
@@ -135,7 +137,7 @@ object ReliefAccessService {
         targetUserId: UUID,
         callerId: UUID,
     ): ReliefAccess {
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
 
         val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
         if (!targetHasClockIn) {
@@ -158,6 +160,7 @@ object ReliefAccessService {
                         tableName = GrantReliefAccessTable.tableName,
                         recordId = created.id,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         fields = GrantReliefAccessTable.auditFields(created),
                         isFlagged = isRemitted,
                     )

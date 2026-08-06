@@ -68,6 +68,7 @@ object ProductSaleService {
                     tableName = ProductSaleTable.tableName,
                     recordId = sale.id,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     fields = ProductSaleTable.auditFields(sale),
                     isFlagged = isRemitted,
                 )
@@ -77,6 +78,7 @@ object ProductSaleService {
                     before = beforeCard,
                     after = afterCard,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
                     auditFields = BranchInventoryTable::auditFields,
                 )

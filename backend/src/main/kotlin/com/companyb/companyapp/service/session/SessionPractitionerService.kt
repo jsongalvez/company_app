@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
@@ -26,16 +27,13 @@ internal object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
     ): AddPractitionerResult {
-        val (session, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId)
 
         val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
         if (existing != null) {
             logger.info { "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)" }
             return AddPractitionerResult(existing, false)
         }
-
-        val branchDay =
-            BranchDayService.requireBranchDayExists(session.branchDayId)
 
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchDay.branchId, practitionerId)
         val slotAtTime = assignment?.slot ?: DEFAULT_SLOT
@@ -52,6 +50,7 @@ internal object SessionPractitionerService {
                         tableName = SessionPractitionerTable.tableName,
                         recordId = p.id,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         fields = SessionPractitionerTable.auditFields(p),
                         isFlagged = isRemitted,
                     )
@@ -70,7 +69,7 @@ internal object SessionPractitionerService {
         practitionerId: UUID,
         remarks: String?,
     ): SessionPractitioner {
-        val (_, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId)
         val oldPractitioner = requirePractitionerInSession(sessionId, practitionerId)
 
         val updated =
@@ -85,6 +84,7 @@ internal object SessionPractitionerService {
                         before = oldPractitioner,
                         after = p,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         isFlagged = isRemitted,
                         auditFields = SessionPractitionerTable::auditFields,
                     )
@@ -105,7 +105,7 @@ internal object SessionPractitionerService {
         sessionId: UUID,
         practitionerId: UUID,
     ) {
-        val (_, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId)
         requirePractitionerInSession(sessionId, practitionerId)
 
         SessionPractitionerRepository.remove(
@@ -117,6 +117,7 @@ internal object SessionPractitionerService {
                     recordId = p.id,
                     before = p,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
                     auditFields = SessionPractitionerTable::auditFields,
                 )
@@ -129,10 +130,10 @@ internal object SessionPractitionerService {
     private fun resolveSession(
         sessionId: UUID,
         callerId: UUID,
-    ): Pair<Session, Boolean> {
+    ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
-        return session to isRemitted
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        return Triple(session, branchDay, isRemitted)
     }
 
     private fun requirePractitionerInSession(
