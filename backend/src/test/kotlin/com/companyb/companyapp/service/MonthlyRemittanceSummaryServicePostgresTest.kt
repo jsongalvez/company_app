@@ -77,7 +77,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns 404 when no remittance data exists for given month`() {
         assertFailsWith<NotFoundException> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
         }
     }
 
@@ -94,7 +94,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -111,9 +111,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val remittanceId = UUID.randomUUID()
         val lineId = UUID.randomUUID()
         val breakdownId = UUID.randomUUID()
-        val branchDayId = resolveBranchDay(LocalDate.of(2026, 7, 10))
+        val branchDayId = resolveBranchDay(LocalDate.of(2026, 8, 10))
 
-        createDraftRemittance(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))
+        createDraftRemittance(remittanceId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31))
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
         DatabaseTestHelper.insertTestCompensation(branchDayId, callerId, BigDecimal("300.00"), assignedBy = callerId)
@@ -147,7 +147,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -169,7 +169,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -194,7 +194,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem2Id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, rem2Id)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
 
         assertNotNull(summary)
         assertEquals(2, summary.totalRemittances)
@@ -210,14 +210,14 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         }
 
         assertFailsWith<NotFoundException> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
         }
     }
 
     @Test
     fun `throws 404 for non-existent branch`() {
         assertFailsWith<NotFoundException> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(UUID.randomUUID(), 2026, 7)
+            MonthlyRemittanceSummaryService.getMonthlySummary(UUID.randomUUID(), 2026, 8)
         }
     }
 
@@ -233,7 +233,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 7)
+        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
 
         assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
@@ -251,8 +251,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         breakdownId: UUID,
         lineAmount: BigDecimal,
     ) {
-        val branchDayId = resolveBranchDay(LocalDate.of(2026, 7, 10))
-        createDraftRemittance(remittanceId, LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31))
+        val branchDayId = resolveBranchDay(LocalDate.of(2026, 8, 10))
+        createDraftRemittance(remittanceId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31))
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
@@ -285,7 +285,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         lineId: UUID,
         breakdownId: UUID,
     ) {
-        val branchDayId = resolveBranchDay(LocalDate.of(2026, 7, 10))
+        val branchDayId = resolveBranchDay(LocalDate.of(2026, 8, 10))
 
         RemittanceService.createDraft(
             callerId = callerId,
@@ -293,8 +293,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             type = RemittanceType.PRODUCT,
             branchId = branchId,
             method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            dateRangeStart = LocalDate.of(2026, 7, 1),
-            dateRangeEnd = LocalDate.of(2026, 7, 31),
+            dateRangeStart = LocalDate.of(2026, 8, 1),
+            dateRangeEnd = LocalDate.of(2026, 8, 31),
         )
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
