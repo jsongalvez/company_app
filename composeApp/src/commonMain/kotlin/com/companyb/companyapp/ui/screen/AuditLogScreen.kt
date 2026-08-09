@@ -821,20 +821,6 @@ private fun ChangedFieldsList(
     }
 }
 
-@Composable
-private fun EmptyState(message: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
 // D3 — a changed-field line. `old`/`new` are display-ready (the "null" sentinel the backend
 // writes for absent values renders as "—"); either side may be null (INSERT/DELETE shapes).
 internal data class ChangedField(

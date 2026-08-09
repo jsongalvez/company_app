@@ -38,11 +38,14 @@ import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
+import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -155,8 +158,36 @@ actual fun AppNavHost(
                     }
                     composable<Route.Inventory> { PlaceholderRoute("Inventory") }
                     composable<Route.Finance> { PlaceholderRoute("Finance") }
-                    composable<Route.RemittanceList> { PlaceholderRoute("Remittance List") }
-                    composable<Route.RemittanceDetail> { PlaceholderRoute("Remittance Detail") }
+                    // #120 — D1: code-only route gate matching the implemented `Set<String>`
+                    // capabilities; backend 403 paths stay authoritative (D8, #99 D7 pattern).
+                    composable<Route.RemittanceList> {
+                        val capabilities by SessionState.capabilities.collectAsState()
+                        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+                        if (CapabilityCodes.SUBMIT_REMITTANCE in capabilities) {
+                            val remittanceViewModel: RemittanceViewModel =
+                                viewModel { RemittanceViewModel(apiClient) }
+                            RemittanceListScreen(
+                                viewModel = remittanceViewModel,
+                                branchId = selectedBranchId,
+                                onRemittanceClick = { remittance ->
+                                    navController.navigate(Route.RemittanceDetail(remittance.id))
+                                },
+                            )
+                        } else {
+                            RouteGateCard(label = "Remittance")
+                        }
+                    }
+                    composable<Route.RemittanceDetail> { entry ->
+                        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+                        val remittanceViewModel: RemittanceViewModel =
+                            viewModel { RemittanceViewModel(apiClient) }
+                        RemittanceDetailScreen(
+                            remittanceId = entry.toRoute<Route.RemittanceDetail>().id,
+                            branchId = selectedBranchId,
+                            viewModel = remittanceViewModel,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                     composable<Route.Notifications> {
                         // Entry-scoped viewModel(): the Notifications back-stack entry survives the
                         // SessionDetail push, so readThisSession persists across push/pop — D3
