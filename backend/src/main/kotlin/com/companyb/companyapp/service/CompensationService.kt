@@ -30,10 +30,11 @@ object CompensationService {
         userId: UUID,
         amount: BigDecimal,
         note: String?,
+        reason: String? = null,
     ): Compensation {
         BranchDayService.requireBranchDayExists(workBranchDayId)
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId, reason)
 
         val existingByKey = CompensationRepository.findByUserAndPayingDay(userId, payingBranchDayId)
         if (existingByKey != null && existingByKey.id != id) {
@@ -59,25 +60,32 @@ object CompensationService {
                     branchId = branchDay.branchId,
                     fields = CompensationTable.auditFields(compensation),
                     isFlagged = isRemitted,
+                    reason = reason,
                 )
             }
         logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
         return result.compensation
     }
 
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LongParameterList")
     fun update(
         callerId: UUID,
         compensationId: UUID,
         amount: BigDecimal,
         note: String?,
         expectedVersion: Int,
+        reason: String? = null,
     ): Compensation {
         val before =
             CompensationRepository.findById(compensationId)
                 ?: throw NotFoundException("Compensation not found")
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.payingBranchDayId)
+        val (branchDay, isRemitted) =
+            BranchDayService.checkBranchDayEditable(
+                callerId,
+                before.payingBranchDayId,
+                reason,
+            )
 
         return CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
             AuditLogRepository.recordUpdate(
@@ -88,6 +96,7 @@ object CompensationService {
                 changedBy = callerId,
                 branchId = branchDay.branchId,
                 isFlagged = isRemitted,
+                reason = reason,
                 auditFields = CompensationTable::auditFields,
             )
         }

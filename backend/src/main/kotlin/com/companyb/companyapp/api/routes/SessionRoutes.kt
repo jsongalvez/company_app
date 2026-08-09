@@ -9,6 +9,8 @@ import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.dto.PromoteConcernRequest
+import com.companyb.companyapp.dto.RemovePractitionerRequest
+import com.companyb.companyapp.dto.RemoveSessionConcernRequest
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
@@ -181,7 +183,7 @@ object SessionRoutes {
             runCatching { SessionStatus.valueOf(request.status.uppercase()) }
                 .getOrElse { throw BadRequestResponse("Invalid session status: ${request.status}") }
 
-        val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version)
+        val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
 
         context.status(HttpStatus.OK)
         context.json(updated.toResponse())
@@ -228,6 +230,7 @@ object SessionRoutes {
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = request.remarks,
+                reason = request.reason,
             )
 
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
@@ -246,6 +249,7 @@ object SessionRoutes {
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = request.remarks,
+                reason = request.reason,
             )
 
         context.status(HttpStatus.OK)
@@ -256,11 +260,13 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val practitionerId = context.pathParamAsUuid("practitionerId")
+        val reason = context.bodyIfPresent<RemovePractitionerRequest>()?.reason
 
         SessionService.removePractitioner(
             callerId = callerId,
             sessionId = sessionId,
             practitionerId = practitionerId,
+            reason = reason,
         )
 
         context.status(HttpStatus.NO_CONTENT)
@@ -286,7 +292,7 @@ object SessionRoutes {
 
         val concernId = uuidOrThrow(request.concernId, "concern id")
 
-        SessionService.addSessionConcern(callerId, sessionId, concernId)
+        SessionService.addSessionConcern(callerId, sessionId, concernId, request.reason)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -294,8 +300,9 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val concernId = context.pathParamAsUuid("concernId")
+        val reason = context.bodyIfPresent<RemoveSessionConcernRequest>()?.reason
 
-        SessionService.removeSessionConcern(callerId, sessionId, concernId)
+        SessionService.removeSessionConcern(callerId, sessionId, concernId, reason)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -307,7 +314,7 @@ object SessionRoutes {
         if (request.label.isBlank()) throw BadRequestResponse("label must not be blank")
         val concernId = uuidOrThrow(request.id, "concern id")
 
-        val concern = SessionService.promoteConcern(callerId, sessionId, concernId, request.label)
+        val concern = SessionService.promoteConcern(callerId, sessionId, concernId, request.label, request.reason)
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }

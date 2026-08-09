@@ -83,6 +83,7 @@ object CompensationRoutes {
                     userId = userId,
                     amount = amount,
                     note = request.note,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.CREATED)
@@ -109,6 +110,7 @@ object CompensationRoutes {
                     amount = amount,
                     note = request.note,
                     expectedVersion = request.expectedVersion,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.OK)

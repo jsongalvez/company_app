@@ -29,9 +29,10 @@ internal object SessionConcernService {
         callerId: UUID,
         sessionId: UUID,
         concernId: UUID,
+        reason: String? = null,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
@@ -46,6 +47,7 @@ internal object SessionConcernService {
                     branchId = branchDay.branchId,
                     fields = SessionConcernTable.auditFields(sc),
                     isFlagged = isRemitted,
+                    reason = reason,
                 )
             },
         )
@@ -58,9 +60,10 @@ internal object SessionConcernService {
         callerId: UUID,
         sessionId: UUID,
         concernId: UUID,
+        reason: String? = null,
     ) {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
 
         val concern = ConcernRepository.findById(concernId) ?: throw NotFoundException("Concern not found")
 
@@ -75,6 +78,7 @@ internal object SessionConcernService {
                     changedBy = callerId,
                     branchId = branchDay.branchId,
                     isFlagged = isRemitted,
+                    reason = reason,
                     auditFields = SessionConcernTable::auditFields,
                 )
             },
@@ -89,9 +93,10 @@ internal object SessionConcernService {
         sessionId: UUID,
         concernId: UUID,
         label: String,
+        reason: String? = null,
     ): Concern {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
 
         val concern =
             ConcernRepository.promoteConcern(
@@ -106,6 +111,7 @@ internal object SessionConcernService {
                         changedBy = callerId,
                         fields = ConcernTable.auditFields(c),
                         isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
                 onLinkCreated = { sc ->
@@ -116,6 +122,7 @@ internal object SessionConcernService {
                         branchId = branchDay.branchId,
                         fields = SessionConcernTable.auditFields(sc),
                         isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
                 onSessionOtherConcernsCleared = { before, after ->
@@ -127,6 +134,7 @@ internal object SessionConcernService {
                         changedBy = callerId,
                         branchId = branchDay.branchId,
                         isFlagged = isRemitted,
+                        reason = reason,
                         auditFields = SessionTable::auditFields,
                     )
                 },

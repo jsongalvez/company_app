@@ -19,15 +19,16 @@ internal object SessionPractitionerService {
 
     private const val DEFAULT_SLOT: Short = 999
 
-    @Suppress("ReturnCount", "ThrowsCount")
+    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList")
     fun addPractitioner(
         callerId: UUID,
         id: UUID,
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        reason: String? = null,
     ): AddPractitionerResult {
-        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
 
         val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
         if (existing != null) {
@@ -53,6 +54,7 @@ internal object SessionPractitionerService {
                         branchId = branchDay.branchId,
                         fields = SessionPractitionerTable.auditFields(p),
                         isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
             )
@@ -68,8 +70,9 @@ internal object SessionPractitionerService {
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        reason: String? = null,
     ): SessionPractitioner {
-        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
         val oldPractitioner = requirePractitionerInSession(sessionId, practitionerId)
 
         val updated =
@@ -86,6 +89,7 @@ internal object SessionPractitionerService {
                         changedBy = callerId,
                         branchId = branchDay.branchId,
                         isFlagged = isRemitted,
+                        reason = reason,
                         auditFields = SessionPractitionerTable::auditFields,
                     )
                 },
@@ -104,8 +108,9 @@ internal object SessionPractitionerService {
         callerId: UUID,
         sessionId: UUID,
         practitionerId: UUID,
+        reason: String? = null,
     ) {
-        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
         requirePractitionerInSession(sessionId, practitionerId)
 
         SessionPractitionerRepository.remove(
@@ -119,6 +124,7 @@ internal object SessionPractitionerService {
                     changedBy = callerId,
                     branchId = branchDay.branchId,
                     isFlagged = isRemitted,
+                    reason = reason,
                     auditFields = SessionPractitionerTable::auditFields,
                 )
             },
@@ -130,9 +136,10 @@ internal object SessionPractitionerService {
     private fun resolveSession(
         sessionId: UUID,
         callerId: UUID,
+        reason: String?,
     ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
         return Triple(session, branchDay, isRemitted)
     }
 

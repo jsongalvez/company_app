@@ -13,6 +13,7 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -21,6 +22,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -499,6 +501,67 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ExpenseService.findByBranchDayId(callerId, UUID.randomUUID())
         }
+    }
+
+    @Test
+    fun `create expense on REMITTED day without reason is rejected`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.create(
+                callerId = callerId,
+                id = UUID.randomUUID(),
+                branchDayId = remittedDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Test",
+            )
+        }
+    }
+
+    @Test
+    fun `create expense on REMITTED day with reason succeeds and flags audit entry`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val expenseId = UUID.randomUUID()
+
+        val expense =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = remittedDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Test",
+                reason = "Coordinator correction",
+            )
+
+        assertNotNull(expense)
+        trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                            (AuditLogTable.recordId eq expenseId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
     }
 
     private fun grantEditBranchData(userId: UUID) {

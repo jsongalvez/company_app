@@ -78,6 +78,7 @@ object AuditLogRepository {
         fields: Map<String, String>,
         branchId: UUID? = null,
         isFlagged: Boolean = false,
+        reason: String? = null,
     ) {
         record(
             tableName = tableName,
@@ -86,6 +87,7 @@ object AuditLogRepository {
             changedBy = changedBy,
             branchId = branchId,
             newValue = jsonFields(fields),
+            reason = reason,
             isFlagged = isFlagged,
         )
     }

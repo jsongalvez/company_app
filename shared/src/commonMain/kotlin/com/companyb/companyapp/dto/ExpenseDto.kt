@@ -9,6 +9,7 @@ data class CreateExpenseRequest(
     val amount: String,
     val category: String,
     val notes: String? = null,
+    val reason: String? = null,
 )
 
 @Serializable
@@ -22,6 +23,7 @@ data class UpdateExpenseRequest(
     val category: String,
     val notes: String? = null,
     val expectedVersion: Int,
+    val reason: String? = null,
 )
 
 @Serializable

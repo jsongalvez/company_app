@@ -12,6 +12,7 @@ data class RestockRequest(
     val id: String,
     val quantity: Int,
     val branchDayId: String,
+    val editReason: String? = null,
 )
 
 @Serializable
@@ -34,6 +35,7 @@ data class InventoryMovementRequest(
     val notes: String? = null,
     val branchDayId: String,
     val expectedVersion: Int,
+    val editReason: String? = null,
 )
 
 @Serializable

@@ -63,6 +63,7 @@ object ProductSaleRoutes {
                     productId = productId,
                     quantity = request.quantity,
                     expectedVersion = request.expectedVersion,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.CREATED)

@@ -23,6 +23,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -251,6 +252,44 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             ReliefAccessService.requestReliefAccess(requestId, remittedBranchDayId, targetUserId, reliefUserId)
         }
+    }
+
+    @Test
+    fun `grant on REMITTED day with reason succeeds and flags audit entry`() {
+        transaction {
+            BranchDayTable.update({ BranchDayTable.id eq branchDayId }) {
+                it[BranchDayTable.status] = DayStatus.REMITTED
+            }
+        }
+        val requestId = UUID.randomUUID()
+        val remittedDayId = branchDayId
+        transaction {
+            GrantReliefAccessTable.insert {
+                it[GrantReliefAccessTable.id] = requestId
+                it[GrantReliefAccessTable.branchDayId] = remittedDayId
+                it[GrantReliefAccessTable.requestedBy] = reliefUserId
+                it[GrantReliefAccessTable.targetUser] = targetUserId
+                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.PENDING
+            }
+        }
+        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
+        DatabaseTestHelper.grantEditPastDay(targetUserId, branchId, UUID.randomUUID())
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+
+        val result = ReliefAccessService.grantAccess(requestId, targetUserId, "Coordinator correction")
+
+        assertEquals(ReliefStatus.GRANTED, result.requestStatus)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq GrantReliefAccessTable.tableName) and
+                            (AuditLogTable.recordId eq requestId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
     }
 
     @Test

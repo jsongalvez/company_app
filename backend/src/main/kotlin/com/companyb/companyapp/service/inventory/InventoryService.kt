@@ -29,16 +29,25 @@ object InventoryService {
         quantityChange: Int,
         notes: String?,
         branchDayId: UUID,
+        reason: String? = null,
     ): InventoryMovement {
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
         if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
 
-        StockValidator.validateMovement(callerId, branchDayId, movementType, quantityChange, notes)
+        val isRemitted =
+            StockValidator.validateMovement(
+                callerId,
+                branchDayId,
+                movementType,
+                quantityChange,
+                notes,
+                reason,
+            )
 
         val card = BranchInventoryRepository.ensureCard(branchId, productId)
         val expectedVersion = card.version
 
-        val reason = movementType.toInventoryMovementReason()
+        val movementReason = movementType.toInventoryMovementReason()
 
         val movement =
             BranchInventoryRepository.recordMovement(
@@ -46,7 +55,7 @@ object InventoryService {
                     movementId = movementId,
                     branchId = branchId,
                     productId = productId,
-                    reason = reason,
+                    reason = movementReason,
                     quantityChange = quantityChange,
                     notes = notes,
                     branchDayId = branchDayId,
@@ -58,6 +67,8 @@ object InventoryService {
                         oldCard = data.oldCard,
                         newCard = data.newCard,
                         movement = data.movement,
+                        isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
             )

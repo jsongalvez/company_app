@@ -14,15 +14,16 @@ import java.util.UUID
 object AllowanceService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
     fun create(
         callerId: UUID,
         id: UUID,
         branchDayId: UUID,
         userId: UUID,
         amount: BigDecimal,
+        reason: String? = null,
     ): Allowance {
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
         val result =
             AllowanceRepository.create(
@@ -41,6 +42,7 @@ object AllowanceService {
                         branchId = branchDay.branchId,
                         fields = AllowanceTable.auditFields(created),
                         isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
             )

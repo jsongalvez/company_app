@@ -24,13 +24,14 @@ object ExpenseService {
         amount: BigDecimal,
         category: ExpenseCategory,
         notes: String?,
+        reason: String? = null,
     ): Expense {
         val existing = ExpenseRepository.findById(id)
         if (existing != null) {
             return existing
         }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
         return ExpenseRepository.create(
             ExpenseCreateParams(
@@ -49,6 +50,7 @@ object ExpenseService {
                 branchId = branchDay.branchId,
                 fields = ExpenseTable.auditFields(expense),
                 isFlagged = isRemitted,
+                reason = reason,
             )
         }
     }
@@ -61,6 +63,7 @@ object ExpenseService {
         category: ExpenseCategory,
         notes: String?,
         expectedVersion: Int,
+        reason: String? = null,
     ): Expense {
         val before =
             ExpenseRepository.findById(expenseId)
@@ -70,7 +73,7 @@ object ExpenseService {
             throw ValidationException("Cannot update a deleted expense")
         }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
         return ExpenseRepository.update(expenseId, amount, category, notes, expectedVersion) { after ->
             AuditLogRepository.recordUpdate(
@@ -81,6 +84,7 @@ object ExpenseService {
                 changedBy = callerId,
                 branchId = branchDay.branchId,
                 isFlagged = isRemitted,
+                reason = reason,
                 auditFields = ExpenseTable::auditFields,
             )
         }

@@ -295,6 +295,61 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `movement on REMITTED day with reason succeeds and flags audit entries`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        InventoryService.ensureCard(branchId, productId)
+        val restockId = UUID.randomUUID()
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = restockId,
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            quantityChange = 10,
+            notes = null,
+            branchDayId = remittedDayId,
+            reason = "Coordinator correction",
+        )
+        val movementId = UUID.randomUUID()
+
+        val movement =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Tester,
+                quantityChange = -2,
+                notes = null,
+                branchDayId = remittedDayId,
+                reason = "Coordinator correction",
+            )
+
+        assertEquals(movementId, movement.id)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq InventoryMovementTable.tableName) and
+                            (AuditLogTable.recordId eq movementId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
     fun `getMovementHistory filters by branch day date`() {
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)

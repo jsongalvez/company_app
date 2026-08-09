@@ -10,6 +10,7 @@ data class CreateCompensationRequest(
     val userId: String,
     val amount: String,
     val note: String? = null,
+    val reason: String? = null,
 )
 
 @Serializable
@@ -17,6 +18,7 @@ data class UpdateCompensationRequest(
     val amount: String,
     val expectedVersion: Int,
     val note: String? = null,
+    val reason: String? = null,
 )
 
 @Serializable

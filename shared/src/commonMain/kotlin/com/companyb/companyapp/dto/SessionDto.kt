@@ -20,6 +20,7 @@ data class CreateSessionRequest(
 data class UpdateSessionStatusRequest(
     val status: String,
     val version: Int,
+    val reason: String? = null,
 )
 
 @Serializable
@@ -69,11 +70,18 @@ data class AddPractitionerRequest(
     val id: String,
     val practitionerId: String,
     val remarks: String? = null,
+    val reason: String? = null,
 )
 
 @Serializable
 data class UpdatePractitionerRemarksRequest(
     val remarks: String? = null,
+    val reason: String? = null,
+)
+
+@Serializable
+data class RemovePractitionerRequest(
+    val reason: String? = null,
 )
 
 @Serializable

@@ -14,6 +14,7 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantPriorities
@@ -41,6 +42,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -286,6 +288,60 @@ object DatabaseTestHelper {
                 }.single()[BranchDayTable.id]
         }
 
+    /** Creates a REMITTED branch day for [date] (e.g. a past covered day). */
+    fun createRemittedBranchDay(
+        branchId: UUID,
+        date: LocalDate,
+    ): UUID =
+        createBranchDayForDate(branchId, date).also { id ->
+            transaction {
+                BranchDayTable.update({ BranchDayTable.id eq id }) {
+                    it[BranchDayTable.status] = DayStatus.REMITTED
+                }
+            }
+        }
+
+    /** Grants EDIT_PAST_DAY at [branchId] — the capability that permits writes on PAST/REMITTED days. */
+    fun grantEditPastDay(
+        userId: UUID,
+        branchId: UUID,
+        sourceId: UUID,
+    ) {
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+    }
+
+    /** Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses [SessionService.create]). */
+    @Suppress("LongParameterList")
+    fun insertTestSession(
+        id: UUID,
+        clientId: UUID,
+        branchDayId: UUID,
+        sessionType: SessionType = SessionType.REGULAR,
+        sessionStatus: SessionStatus = SessionStatus.PENDING,
+        isWalkIn: Boolean = false,
+        basePrice: BigDecimal = BigDecimal("2500.00"),
+        finalPrice: BigDecimal = BigDecimal("2500.00"),
+    ) {
+        transaction {
+            SessionTable.insertIgnore {
+                it[SessionTable.id] = id
+                it[SessionTable.clientId] = clientId
+                it[SessionTable.branchDayId] = branchDayId
+                it[SessionTable.sessionType] = sessionType
+                it[SessionTable.sessionStatus] = sessionStatus
+                it[SessionTable.isWalkIn] = isWalkIn
+                it[SessionTable.basePrice] = basePrice
+                it[SessionTable.finalPrice] = finalPrice
+            }
+        }
+    }
+
     fun insertTestClient(id: UUID = UUID.randomUUID()): UUID {
         transaction {
             ClientTable.insertIgnore {
@@ -359,31 +415,6 @@ object DatabaseTestHelper {
                 it[ProductSaleTable.commissionAmountAtTime] = commissionAmount
                 it[ProductSaleTable.productName] = productName
                 if (clientId != null) it[ProductSaleTable.clientId] = clientId
-            }
-        }
-    }
-
-    @Suppress("LongParameterList")
-    fun insertTestSession(
-        id: UUID,
-        clientId: UUID,
-        branchDayId: UUID,
-        sessionType: SessionType = SessionType.REGULAR,
-        sessionStatus: SessionStatus = SessionStatus.PENDING,
-        isWalkIn: Boolean = false,
-        basePrice: BigDecimal = BigDecimal("2500.00"),
-        finalPrice: BigDecimal = BigDecimal("2500.00"),
-    ) {
-        transaction {
-            SessionTable.insertIgnore {
-                it[SessionTable.id] = id
-                it[SessionTable.clientId] = clientId
-                it[SessionTable.branchDayId] = branchDayId
-                it[SessionTable.sessionType] = sessionType
-                it[SessionTable.sessionStatus] = sessionStatus
-                it[SessionTable.isWalkIn] = isWalkIn
-                it[SessionTable.basePrice] = basePrice
-                it[SessionTable.finalPrice] = finalPrice
             }
         }
     }

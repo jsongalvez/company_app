@@ -22,6 +22,7 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -34,6 +35,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -470,6 +472,60 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `update status on REMITTED day without reason is rejected`() {
+        val remittedDayId = insertRemittedDay()
+        val remittedSessionId = UUID.randomUUID()
+        insertSessionOnDay(remittedSessionId, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        assertFailsWith<ValidationException> {
+            SessionService.updateStatus(callerId, remittedSessionId, SessionStatus.COMPLETED, 1)
+        }
+    }
+
+    @Test
+    fun `update status on REMITTED day with reason succeeds and flags audit entry with reason`() {
+        val remittedDayId = insertRemittedDay()
+        val remittedSessionId = UUID.randomUUID()
+        insertSessionOnDay(remittedSessionId, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        val updated =
+            SessionService.updateStatus(
+                callerId,
+                remittedSessionId,
+                SessionStatus.COMPLETED,
+                1,
+                "Coordinator correction",
+            )
+
+        assertEquals(SessionStatus.COMPLETED.name, updated.sessionStatus)
+        val audit = auditEntry(SessionTable.tableName, remittedSessionId)
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
+    }
+
+    @Test
+    fun `void session on REMITTED day uses voidReason as audit reason and flags entry`() {
+        val remittedDayId = insertRemittedDay()
+        val remittedSessionId = UUID.randomUUID()
+        insertSessionOnDay(remittedSessionId, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        val voidId = UUID.randomUUID()
+        val result = SessionService.voidSession(callerId, remittedSessionId, voidId, "Customer request")
+
+        assertNotNull(result.sessionVoid)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, remittedSessionId)
+        val audit = auditEntry(SessionVoidTable.tableName, voidId)
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Customer request", audit[AuditLogTable.reason])
+    }
+
+    @Test
     fun `add practitioner snapshots slot and writes audit`() {
         createSession(callerId, practitionerSessionId)
         trackOwned(SessionTable, SessionTable.id, practitionerSessionId)
@@ -723,4 +779,36 @@ class SessionServicePostgresTest : BasePostgresTest() {
                         )
                 }.count()
         }
+
+    private fun insertRemittedDay(): UUID {
+        val dayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
+        return dayId
+    }
+
+    private fun insertSessionOnDay(
+        id: UUID,
+        dayId: UUID,
+    ) {
+        val sessionClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, sessionClientId)
+        DatabaseTestHelper.insertTestSession(id, sessionClientId, dayId)
+        trackOwned(SessionTable, SessionTable.id, id)
+    }
+
+    private fun auditEntry(
+        tableName: String,
+        recordId: UUID,
+    ) = transaction {
+        AuditLogTable
+            .selectAll()
+            .where {
+                (AuditLogTable.auditTableName eq tableName) and
+                    (AuditLogTable.recordId eq recordId)
+            }.single()
+    }
 }

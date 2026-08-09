@@ -10,6 +10,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -18,6 +19,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -51,6 +53,44 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
         trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
+    }
+
+    @Test
+    fun `create compensation on REMITTED paying day with reason succeeds and flags audit entry`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val compId = UUID.randomUUID()
+
+        val comp =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = remittedDayId,
+                payingBranchDayId = remittedDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = "Daily compensation",
+                reason = "Coordinator correction",
+            )
+
+        assertNotNull(comp)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq CompensationTable.tableName) and
+                            (AuditLogTable.recordId eq compId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
     }
 
     @Test

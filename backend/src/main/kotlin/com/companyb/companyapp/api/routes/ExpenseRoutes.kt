@@ -66,6 +66,7 @@ object ExpenseRoutes {
                     amount = amount,
                     category = category,
                     notes = request.notes,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.CREATED)
@@ -90,6 +91,7 @@ object ExpenseRoutes {
                     category = category,
                     notes = request.notes,
                     expectedVersion = request.expectedVersion,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.OK)

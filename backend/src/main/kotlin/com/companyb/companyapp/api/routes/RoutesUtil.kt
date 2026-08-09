@@ -30,6 +30,15 @@ fun Context.uuidFromBody(key: String): UUID {
     return uuidOrThrow(value, key)
 }
 
+/**
+ * Parses the request body only when one is present; endpoints that historically accepted
+ * a body-less request keep working without one.
+ */
+inline fun <reified T> Context.bodyIfPresent(): T? {
+    val raw = this.body()
+    return if (raw.isBlank()) null else this.bodyAsClass(T::class.java)
+}
+
 @Suppress("MagicNumber")
 fun parseNonNegativeBigDecimal(
     value: String,

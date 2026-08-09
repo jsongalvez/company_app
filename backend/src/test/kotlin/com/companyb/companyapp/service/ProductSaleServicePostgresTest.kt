@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -24,6 +25,7 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -64,6 +66,48 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         ensureInventoryCard(branchId, productId, 20)
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.productId, productId)
+    }
+
+    @Test
+    fun `sell on REMITTED day with reason succeeds and flags audit entries`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val saleId = UUID.randomUUID()
+
+        val sale =
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = remittedDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                expectedVersion = 1,
+                reason = "Coordinator correction",
+            )
+
+        assertNotNull(sale)
+        val saleAudit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq ProductSaleTable.tableName) and
+                            (AuditLogTable.recordId eq saleId)
+                    }.single()
+            }
+        assertEquals(true, saleAudit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", saleAudit[AuditLogTable.reason])
         trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.productId, productId)
     }

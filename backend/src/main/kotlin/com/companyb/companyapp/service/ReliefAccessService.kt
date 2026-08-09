@@ -23,6 +23,7 @@ object ReliefAccessService {
     fun grantAccess(
         requestId: UUID,
         callerId: UUID,
+        reason: String? = null,
     ): ReliefAccess {
         val request =
             ReliefAccessRepository.findById(requestId)
@@ -36,7 +37,7 @@ object ReliefAccessService {
             throw ForbiddenException("Only the target user can grant this request")
         }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
 
         val capabilityId =
             checkNotNull(
@@ -68,6 +69,7 @@ object ReliefAccessService {
                             changedBy = callerId,
                             branchId = branchDay.branchId,
                             isFlagged = isRemitted,
+                            reason = reason,
                             auditFields = GrantReliefAccessTable::auditFields,
                         )
                     },
@@ -90,6 +92,7 @@ object ReliefAccessService {
     fun denyAccess(
         requestId: UUID,
         callerId: UUID,
+        reason: String? = null,
     ): ReliefAccess {
         val request =
             ReliefAccessRepository.findById(requestId)
@@ -107,7 +110,7 @@ object ReliefAccessService {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
 
         ReliefAccessRepository.deny(
             requestId,
@@ -120,6 +123,7 @@ object ReliefAccessService {
                     changedBy = callerId,
                     branchId = branchDay.branchId,
                     isFlagged = isRemitted,
+                    reason = reason,
                     auditFields = GrantReliefAccessTable::auditFields,
                 )
             },
@@ -136,8 +140,9 @@ object ReliefAccessService {
         branchDayId: UUID,
         targetUserId: UUID,
         callerId: UUID,
+        reason: String? = null,
     ): ReliefAccess {
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
         val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
         if (!targetHasClockIn) {
@@ -163,6 +168,7 @@ object ReliefAccessService {
                         branchId = branchDay.branchId,
                         fields = GrantReliefAccessTable.auditFields(created),
                         isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
             )

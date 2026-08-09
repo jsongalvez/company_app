@@ -55,6 +55,7 @@ object AllowanceRoutes {
                     branchDayId = branchDayId,
                     userId = userId,
                     amount = amount,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.CREATED)

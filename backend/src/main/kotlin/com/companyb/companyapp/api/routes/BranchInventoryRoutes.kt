@@ -138,6 +138,7 @@ object BranchInventoryRoutes {
                 quantityChange = request.quantity,
                 notes = null,
                 branchDayId = branchDayId,
+                reason = request.editReason,
             )
 
         context.status(HttpStatus.CREATED)
@@ -221,6 +222,7 @@ object BranchInventoryRoutes {
                 quantityChange = request.quantityChange,
                 notes = request.notes,
                 branchDayId = branchDayId,
+                reason = request.editReason,
             )
 
         context.status(HttpStatus.CREATED)

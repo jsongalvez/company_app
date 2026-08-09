@@ -40,6 +40,17 @@ data class ReliefAccessRequest(
     val requestId: String,
     val branchDayId: String,
     val targetUserId: String,
+    val reason: String? = null,
+)
+
+@Serializable
+data class GrantReliefAccessRequest(
+    val reason: String? = null,
+)
+
+@Serializable
+data class DenyReliefAccessRequest(
+    val reason: String? = null,
 )
 
 @Serializable
