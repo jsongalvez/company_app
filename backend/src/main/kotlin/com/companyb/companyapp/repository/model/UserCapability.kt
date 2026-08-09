@@ -22,7 +22,7 @@ data class UserCapability(
 
 enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
 
-enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM }
+enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
 
 object UserCapabilityTable : Table("user_capability") {
     val id = javaUUID("id").autoGenerate()
