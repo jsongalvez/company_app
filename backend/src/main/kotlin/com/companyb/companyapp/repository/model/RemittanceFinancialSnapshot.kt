@@ -37,4 +37,13 @@ object RemittanceFinancialSnapshotTable : Table("remittance_financial_snapshot")
     val snapshottedAt = timestampWithTimeZone("snapshotted_at").defaultExpression(CurrentTimestampWithTimeZone)
 
     override val primaryKey = PrimaryKey(remittanceId)
+
+    fun auditFields(entity: RemittanceFinancialSnapshot): Map<String, String> =
+        mapOf(
+            "remittanceId" to entity.remittanceId.toString(),
+            "grossIncome" to entity.grossIncome.toPlainString(),
+            "totalCompensation" to entity.totalCompensation.toPlainString(),
+            "totalExpenses" to entity.totalExpenses.toPlainString(),
+            "netIncome" to entity.netIncome.toPlainString(),
+        )
 }

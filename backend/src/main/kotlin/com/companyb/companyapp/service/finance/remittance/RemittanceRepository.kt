@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
@@ -13,6 +14,7 @@ import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -23,6 +25,7 @@ import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -34,7 +37,9 @@ import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -62,6 +67,22 @@ data class CreateDraftParams(
 data class RemittanceCreateResult(
     val remittance: Remittance,
     val created: Boolean,
+)
+
+data class UndoParams(
+    val remittanceId: UUID,
+    val expectedVersion: Int,
+    val reason: String,
+    val now: OffsetDateTime,
+)
+
+data class UpdateHeaderParams(
+    val remittanceId: UUID,
+    val expectedVersion: Int,
+    val type: RemittanceType,
+    val method: RemittanceMethod,
+    val dateRangeStart: LocalDate,
+    val dateRangeEnd: LocalDate,
 )
 
 data class RemittanceWithNet(
@@ -360,6 +381,187 @@ internal object RemittanceRepository {
             }
         }
 
+    private const val UNDO_WINDOW_HOURS = 48L
+
+    /**
+     * Reverts a SUBMITTED remittance to DRAFT within the 48h undo window (server-enforced).
+     * Days unlock (status re-derived from their calendar date), the snapshot row is deleted
+     * (V13 trigger carve-out: allowed when the parent remittance is DRAFT), version bumps,
+     * submitted_at cleared (a reverted draft has no submission instant).
+     *
+     * Window clock: [UndoParams.now] comes from the JVM clock while `submitted_at` is written
+     * with the DB clock (CurrentTimestampWithTimeZone). A boundary comparison against a
+     * 48h window tolerates second-scale skew — the same JVM-clock-for-read-side-boundaries
+     * precedent as BranchDayService.evaluateStatus / checkBranchDayEditable (JVM clock for
+     * day-boundary decisions, DB clock for writes; AGENTS.md "Timestamp consistency").
+     *
+     * Accepted per #103 D10: monthly aggregate views may shift while the window is open —
+     * they are views over live rows and re-compute.
+     */
+    @Suppress("ReturnCount", "ComplexMethod", "LongMethod")
+    fun undo(
+        params: UndoParams,
+        auditFn: (UndoAuditContext) -> Unit = {},
+    ): Remittance? =
+        transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+            val remittanceRow =
+                RemittanceTable
+                    .selectAll()
+                    .where { RemittanceTable.id eq params.remittanceId }
+                    .forUpdate(ForUpdateOption.ForUpdate)
+                    .singleOrNull() ?: return@transaction null
+
+            if (remittanceRow[RemittanceTable.status] != RemittanceStatus.SUBMITTED) {
+                throw ValidationException("Can only undo SUBMITTED remittances")
+            }
+            if (remittanceRow[RemittanceTable.version] != params.expectedVersion) {
+                throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
+            }
+
+            val submissionInstant =
+                remittanceRow[RemittanceTable.submittedAt]
+                    ?: RemittanceFinancialSnapshotTable
+                        .selectAll()
+                        .where { RemittanceFinancialSnapshotTable.remittanceId eq params.remittanceId }
+                        .singleOrNull()
+                        ?.get(RemittanceFinancialSnapshotTable.snapshottedAt)
+                    ?: throw ValidationException("No submission timestamp — cannot undo this remittance")
+            if (params.now.isAfter(submissionInstant.plusHours(UNDO_WINDOW_HOURS))) {
+                throw ValidationException("Undo window of 48 hours has expired")
+            }
+
+            val remittanceBefore = remittanceRow.toRemittance()
+
+            val breakdownDayRows =
+                RemittanceDayBreakdownTable
+                    .selectAll()
+                    .where { RemittanceDayBreakdownTable.remittanceId eq params.remittanceId }
+                    .map { it[RemittanceDayBreakdownTable.branchDayId] }
+                    .map { bdId ->
+                        BranchDayTable
+                            .selectAll()
+                            .where { BranchDayTable.id eq bdId }
+                            .single()
+                    }
+
+            val updated =
+                RemittanceTable.update({
+                    (RemittanceTable.id eq params.remittanceId) and
+                        (RemittanceTable.version eq params.expectedVersion) and
+                        (RemittanceTable.status eq RemittanceStatus.SUBMITTED)
+                }) {
+                    it[RemittanceTable.status] = RemittanceStatus.DRAFT
+                    it[RemittanceTable.version] = params.expectedVersion + 1
+                    it[RemittanceTable.submittedAt] = null
+                }
+            if (updated == 0) {
+                throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
+            }
+
+            val snapshotBefore = RemittanceFinancialSnapshotRepository.deleteByRemittanceId(params.remittanceId)
+
+            val today = LocalDate.now(BranchDayService.manilaZone)
+            val branchDayPairs =
+                breakdownDayRows.map { beforeRow ->
+                    val afterStatus =
+                        BranchDayService.evaluateStatus(DayStatus.OPEN, beforeRow[BranchDayTable.date], today)
+                    BranchDayTable.update({ BranchDayTable.id eq beforeRow[BranchDayTable.id] }) {
+                        it[BranchDayTable.status] = afterStatus
+                    }
+                    val afterRow =
+                        BranchDayTable
+                            .selectAll()
+                            .where { BranchDayTable.id eq beforeRow[BranchDayTable.id] }
+                            .single()
+                    beforeRow.toBranchDay() to afterRow.toBranchDay()
+                }
+
+            val remittanceAfter =
+                findByIdInTransaction(params.remittanceId)
+                    ?: error("remittance not found after undo for ${params.remittanceId}")
+
+            auditFn(
+                UndoAuditContext(
+                    remittanceBefore = remittanceBefore,
+                    remittanceAfter = remittanceAfter,
+                    branchDayPairs = branchDayPairs,
+                    snapshotBefore = snapshotBefore,
+                ),
+            )
+
+            remittanceAfter
+        }.also { remittance ->
+            logger.info {
+                "[UNDO-REMITTANCE] Remittance ${params.remittanceId.toString().maskUUID()}" +
+                    " undone=${remittance != null} reason=${params.reason}"
+            }
+        }
+
+    @Suppress("ReturnCount")
+    fun updateHeader(
+        params: UpdateHeaderParams,
+        auditFn: (Remittance, Remittance) -> Unit = { _, _ -> },
+    ): Remittance? =
+        transaction {
+            val existing =
+                RemittanceTable
+                    .selectAll()
+                    .where { RemittanceTable.id eq params.remittanceId }
+                    .singleOrNull() ?: return@transaction null
+
+            if (existing[RemittanceTable.status] != RemittanceStatus.DRAFT) {
+                throw ValidationException("Can only update header of DRAFT remittances")
+            }
+            if (existing[RemittanceTable.version] != params.expectedVersion) {
+                throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
+            }
+
+            val tupleOccupied =
+                RemittanceTable
+                    .selectAll()
+                    .where {
+                        (RemittanceTable.branchId eq existing[RemittanceTable.branchId]) and
+                            (RemittanceTable.type eq params.type) and
+                            (RemittanceTable.submittedDate eq existing[RemittanceTable.submittedDate]) and
+                            (RemittanceTable.id neq params.remittanceId)
+                    }.empty()
+                    .not()
+            if (tupleOccupied) {
+                throw ConflictException(
+                    "A remittance of type ${params.type.name} already exists " +
+                        "for ${existing[RemittanceTable.submittedDate]}",
+                )
+            }
+
+            val updated =
+                RemittanceTable.update({
+                    (RemittanceTable.id eq params.remittanceId) and
+                        (RemittanceTable.version eq params.expectedVersion) and
+                        (RemittanceTable.status eq RemittanceStatus.DRAFT)
+                }) {
+                    it[RemittanceTable.type] = params.type
+                    it[RemittanceTable.method] = params.method
+                    it[RemittanceTable.dateRangeStart] = params.dateRangeStart
+                    it[RemittanceTable.dateRangeEnd] = params.dateRangeEnd
+                    it[RemittanceTable.version] = params.expectedVersion + 1
+                }
+            if (updated == 0) {
+                throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
+            }
+
+            val before = existing.toRemittance()
+            val after =
+                findByIdInTransaction(params.remittanceId)
+                    ?: error("remittance not found after header update for ${params.remittanceId}")
+            auditFn(before, after)
+            after
+        }.also { remittance ->
+            logger.info {
+                "[UPDATE-REMITTANCE-HEADER] Remittance ${params.remittanceId.toString().maskUUID()}" +
+                    " header updated=${remittance != null}"
+            }
+        }
+
     private fun updateRemittanceToSubmitted(
         remittanceId: UUID,
         expectedVersion: Int,
@@ -374,6 +576,7 @@ internal object RemittanceRepository {
                 it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
                 it[RemittanceTable.version] = expectedVersion + 1
                 it[RemittanceTable.submittedDate] = today
+                it[RemittanceTable.submittedAt] = CurrentTimestampWithTimeZone
                 it[RemittanceTable.submittedBy] = callerId
             }
 
@@ -466,6 +669,7 @@ internal object RemittanceRepository {
             branchId = this[RemittanceTable.branchId],
             method = this[RemittanceTable.method],
             submittedDate = this[RemittanceTable.submittedDate],
+            submittedAt = this[RemittanceTable.submittedAt],
             submittedBy = this[RemittanceTable.submittedBy],
             dateRangeStart = this[RemittanceTable.dateRangeStart],
             dateRangeEnd = this[RemittanceTable.dateRangeEnd],
@@ -473,6 +677,13 @@ internal object RemittanceRepository {
             version = this[RemittanceTable.version],
         )
 }
+
+data class UndoAuditContext(
+    val remittanceBefore: Remittance,
+    val remittanceAfter: Remittance,
+    val branchDayPairs: List<Pair<BranchDay, BranchDay>>,
+    val snapshotBefore: RemittanceFinancialSnapshot?,
+)
 
 data class SubmitAuditContext(
     val remittanceBefore: Remittance,

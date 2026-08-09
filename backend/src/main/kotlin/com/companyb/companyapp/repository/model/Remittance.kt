@@ -32,6 +32,7 @@ data class Remittance(
     val branchId: UUID,
     val method: RemittanceMethod,
     val submittedDate: LocalDate,
+    val submittedAt: OffsetDateTime?,
     val submittedBy: UUID,
     val dateRangeStart: LocalDate,
     val dateRangeEnd: LocalDate,
@@ -79,6 +80,7 @@ object RemittanceTable : Table("remittance") {
             },
         )
     val submittedDate = date("submitted_date")
+    val submittedAt = timestampWithTimeZone("submitted_at").nullable()
     val submittedBy = javaUUID("submitted_by")
     val dateRangeStart = date("date_range_start")
     val dateRangeEnd = date("date_range_end")

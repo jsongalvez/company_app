@@ -38,6 +38,7 @@ object AuditLogTableRegistry {
             AuditedTable("product_sale", "Product Sale"),
             AuditedTable("remittance", "Remittance"),
             AuditedTable("remittance_day_breakdown", "Remittance Day"),
+            AuditedTable("remittance_financial_snapshot", "Remittance Snapshot"),
             AuditedTable("remittance_line", "Remittance Line"),
             AuditedTable("session", "Session"),
             AuditedTable("session_base_rate", "Base Rate"),

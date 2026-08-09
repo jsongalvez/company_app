@@ -717,4 +717,259 @@ class RemittanceAuthzTest : BasePostgresTest() {
             )
         }
     }
+
+    // ──────────────────────────────────────────────
+    // G8 — undo + header PATCH
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `POST undo allowed for granted user`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val version = RemittanceService.getRemittance(submittedRemittanceId).remittance.version
+            val response =
+                client.post(
+                    "/api/remittances/$submittedRemittanceId/undo",
+                    mapOf("expectedVersion" to version, "reason" to "wrong amounts"),
+                    asUser(submitUser),
+                )
+            assertEquals(200, response.code)
+            val body = response.body?.string().orEmpty()
+            assertTrue(body.contains("\"status\":\"DRAFT\""))
+        }
+    }
+
+    @Test
+    fun `POST undo forbidden for no-capability user`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/remittances/$submittedRemittanceId/undo",
+                        mapOf("expectedVersion" to 3, "reason" to "wrong"),
+                        asUser(noneUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST undo forbidden on other branch remittance`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/remittances/$otherBranchDraftId/undo",
+                        mapOf("expectedVersion" to 1, "reason" to "wrong"),
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST undo on non-submitted remittance returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/remittances/$draftRemittanceId/undo",
+                        mapOf("expectedVersion" to 2, "reason" to "wrong"),
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST undo without reason returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/remittances/$submittedRemittanceId/undo",
+                        mapOf("expectedVersion" to 3, "reason" to "   "),
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST undo with multi-line reason returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/remittances/$submittedRemittanceId/undo",
+                        mapOf("expectedVersion" to 3, "reason" to "line one\nline two"),
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST undo with version mismatch returns 409`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                409,
+                client
+                    .post(
+                        "/api/remittances/$submittedRemittanceId/undo",
+                        mapOf("expectedVersion" to 99, "reason" to "wrong"),
+                        asUser(submitUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header allowed for granted user`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "PRODUCT",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 2,
+                )
+            val response = client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser))
+            assertEquals(200, response.code)
+            val responseBody = response.body?.string().orEmpty()
+            assertTrue(responseBody.contains("\"method\":\"HANDED_TO_ACCOUNTANT\""))
+            assertTrue(responseBody.contains("\"version\":3"))
+        }
+    }
+
+    @Test
+    fun `PATCH header to a type already used for the submitted date returns 409`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "SESSION",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 2,
+                )
+            assertEquals(
+                409,
+                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header forbidden for no-capability user`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "SESSION",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 2,
+                )
+            assertEquals(
+                403,
+                client.patch("/api/remittances/$draftRemittanceId", body, asUser(noneUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header forbidden on other branch remittance`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "SESSION",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 1,
+                )
+            assertEquals(
+                403,
+                client.patch("/api/remittances/$otherBranchDraftId", body, asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header invalid type returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "NOPE",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 2,
+                )
+            assertEquals(
+                400,
+                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header reversed range returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "SESSION",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeEnd.toString(),
+                    "dateRangeEnd" to rangeStart.toString(),
+                    "expectedVersion" to 2,
+                )
+            assertEquals(
+                400,
+                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header on submitted remittance returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "SESSION",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 3,
+                )
+            assertEquals(
+                400,
+                client.patch("/api/remittances/$submittedRemittanceId", body, asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
+    fun `PATCH header with version mismatch returns 409`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "type" to "SESSION",
+                    "method" to "HANDED_TO_ACCOUNTANT",
+                    "dateRangeStart" to rangeStart.toString(),
+                    "dateRangeEnd" to rangeEnd.toString(),
+                    "expectedVersion" to 99,
+                )
+            assertEquals(
+                409,
+                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
+            )
+        }
+    }
 }

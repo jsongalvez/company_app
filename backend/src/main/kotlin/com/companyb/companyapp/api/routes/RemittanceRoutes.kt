@@ -18,6 +18,8 @@ import com.companyb.companyapp.dto.RemittanceResponse
 import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceSubmitResponse
 import com.companyb.companyapp.dto.SubmitRemittanceRequest
+import com.companyb.companyapp.dto.UndoRemittanceRequest
+import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
@@ -112,6 +114,13 @@ object RemittanceRoutes {
             )
         }
 
+        config.routes.before("/api/remittances/{remittanceId}/undo") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
         config.routes.before("/api/remittances/{remittanceId}/drift") { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
@@ -152,6 +161,8 @@ object RemittanceRoutes {
         config.routes.post("/api/remittances/{remittanceId}/day-breakdowns", ::handleAddDayBreakdown)
         config.routes.delete("/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}", ::handleRemoveDayBreakdown)
         config.routes.post("/api/remittances/{remittanceId}/submit", ::handleSubmit)
+        config.routes.post("/api/remittances/{remittanceId}/undo", ::handleUndo)
+        config.routes.patch("/api/remittances/{remittanceId}", ::handleUpdateHeader)
         config.routes.get("/api/branches/{branchId}/remittance-sessions", ::handleListSessionsInRange)
         config.routes.get("/api/branches/{branchId}/remittance-product-sales", ::handleListProductSalesInRange)
         config.routes.get("/api/branches/{branchId}/remittance-days", ::handleListDaysInRange)
@@ -163,44 +174,62 @@ object RemittanceRoutes {
         val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
 
         val id = uuidOrThrow(request.id, "remittance id")
-        val type =
-            runCatching { RemittanceType.valueOf(request.type.uppercase()) }
-                .getOrElse {
-                    throw BadRequestResponse(
-                        "Invalid remittance type: must be SESSION or PRODUCT",
-                    )
-                }
+        val header = parseHeader(request.type, request.method, request.dateRangeStart, request.dateRangeEnd)
         val branchId = uuidOrThrow(request.branchId, "branch id")
-        val method =
-            runCatching { RemittanceMethod.valueOf(request.method.uppercase()) }
-                .getOrElse {
-                    throw BadRequestResponse(
-                        "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
-                    )
-                }
-        val dateRangeStart =
-            runCatching { LocalDate.parse(request.dateRangeStart) }
-                .getOrElse { throw BadRequestResponse("Invalid dateRangeStart") }
-        val dateRangeEnd =
-            runCatching { LocalDate.parse(request.dateRangeEnd) }
-                .getOrElse { throw BadRequestResponse("Invalid dateRangeEnd") }
-        if (dateRangeEnd.isBefore(dateRangeStart)) {
-            throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
-        }
 
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
                 id = id,
-                type = type,
+                type = header.type,
                 branchId = branchId,
-                method = method,
-                dateRangeStart = dateRangeStart,
-                dateRangeEnd = dateRangeEnd,
+                method = header.method,
+                dateRangeStart = header.dateRangeStart,
+                dateRangeEnd = header.dateRangeEnd,
             )
 
         context.status(HttpStatus.CREATED)
         context.json(remittance.toResponse())
+    }
+
+    private data class ParsedRemittanceHeader(
+        val type: RemittanceType,
+        val method: RemittanceMethod,
+        val dateRangeStart: LocalDate,
+        val dateRangeEnd: LocalDate,
+    )
+
+    @Suppress("ThrowsCount")
+    private fun parseHeader(
+        type: String,
+        method: String,
+        dateRangeStart: String,
+        dateRangeEnd: String,
+    ): ParsedRemittanceHeader {
+        val parsedType =
+            runCatching { RemittanceType.valueOf(type.uppercase()) }
+                .getOrElse {
+                    throw BadRequestResponse(
+                        "Invalid remittance type: must be SESSION or PRODUCT",
+                    )
+                }
+        val parsedMethod =
+            runCatching { RemittanceMethod.valueOf(method.uppercase()) }
+                .getOrElse {
+                    throw BadRequestResponse(
+                        "Invalid remittance method: must be BANK_TRANSFER or HANDED_TO_ACCOUNTANT",
+                    )
+                }
+        val parsedStart =
+            runCatching { LocalDate.parse(dateRangeStart) }
+                .getOrElse { throw BadRequestResponse("Invalid dateRangeStart") }
+        val parsedEnd =
+            runCatching { LocalDate.parse(dateRangeEnd) }
+                .getOrElse { throw BadRequestResponse("Invalid dateRangeEnd") }
+        if (parsedEnd.isBefore(parsedStart)) {
+            throw BadRequestResponse("dateRangeEnd must not be before dateRangeStart")
+        }
+        return ParsedRemittanceHeader(parsedType, parsedMethod, parsedStart, parsedEnd)
     }
 
     private fun handleGetRemittance(context: Context) {
@@ -380,6 +409,53 @@ object RemittanceRoutes {
         context.json(result.toSubmitResponse())
     }
 
+    @Suppress("ThrowsCount")
+    private fun handleUndo(context: Context) {
+        val callerId = context.callerUuid()
+        val remittanceId = context.pathParamAsUuid("remittanceId")
+        val request = context.bodyAsClass<UndoRemittanceRequest>()
+
+        val reason = request.reason.trim()
+        if (reason.isBlank()) {
+            throw BadRequestResponse("reason is required")
+        }
+        if (reason.any { it == '\n' || it == '\r' }) {
+            throw BadRequestResponse("reason must be a single line")
+        }
+
+        val remittance =
+            RemittanceService.undo(
+                callerId = callerId,
+                remittanceId = remittanceId,
+                expectedVersion = request.expectedVersion,
+                reason = reason,
+            )
+
+        context.json(remittance.toResponse())
+    }
+
+    @Suppress("ThrowsCount")
+    private fun handleUpdateHeader(context: Context) {
+        val callerId = context.callerUuid()
+        val remittanceId = context.pathParamAsUuid("remittanceId")
+        val request = context.bodyAsClass<UpdateRemittanceHeaderRequest>()
+
+        val header = parseHeader(request.type, request.method, request.dateRangeStart, request.dateRangeEnd)
+
+        val remittance =
+            RemittanceService.updateHeader(
+                callerId = callerId,
+                remittanceId = remittanceId,
+                type = header.type,
+                method = header.method,
+                dateRangeStart = header.dateRangeStart,
+                dateRangeEnd = header.dateRangeEnd,
+                expectedVersion = request.expectedVersion,
+            )
+
+        context.json(remittance.toResponse())
+    }
+
     private fun Remittance.toResponse(): RemittanceResponse =
         RemittanceResponse(
             id = id.toString(),
@@ -388,6 +464,7 @@ object RemittanceRoutes {
             branchId = branchId.toString(),
             method = method.name,
             submittedDate = submittedDate.toString(),
+            submittedAt = submittedAt?.toString(),
             submittedBy = submittedBy.toString(),
             dateRangeStart = dateRangeStart.toString(),
             dateRangeEnd = dateRangeEnd.toString(),
@@ -427,6 +504,7 @@ object RemittanceRoutes {
             branchId = remittance.branchId.toString(),
             method = remittance.method.name,
             submittedDate = remittance.submittedDate.toString(),
+            submittedAt = remittance.submittedAt?.toString(),
             submittedBy = remittance.submittedBy.toString(),
             dateRangeStart = remittance.dateRangeStart.toString(),
             dateRangeEnd = remittance.dateRangeEnd.toString(),
@@ -489,6 +567,7 @@ object RemittanceRoutes {
             branchId = remittance.branchId.toString(),
             method = remittance.method.name,
             submittedDate = remittance.submittedDate.toString(),
+            submittedAt = remittance.submittedAt?.toString(),
             submittedBy = remittance.submittedBy.toString(),
             dateRangeStart = remittance.dateRangeStart.toString(),
             dateRangeEnd = remittance.dateRangeEnd.toString(),

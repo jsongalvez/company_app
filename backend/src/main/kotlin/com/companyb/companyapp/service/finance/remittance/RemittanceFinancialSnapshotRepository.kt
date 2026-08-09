@@ -4,6 +4,7 @@ import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -34,6 +35,24 @@ internal object RemittanceFinancialSnapshotRepository {
                 .where { RemittanceFinancialSnapshotTable.remittanceId eq remittanceId }
                 .singleOrNull()
                 ?.toSnapshot()
+        }
+
+    /**
+     * Deletes the snapshot row (undo carve-out: allowed when the parent remittance is DRAFT)
+     * and returns the deleted row for the audit before-image. Null when no snapshot exists.
+     */
+    fun deleteByRemittanceId(remittanceId: UUID): RemittanceFinancialSnapshot? =
+        transaction {
+            val existing =
+                RemittanceFinancialSnapshotTable
+                    .selectAll()
+                    .where { RemittanceFinancialSnapshotTable.remittanceId eq remittanceId }
+                    .singleOrNull() ?: return@transaction null
+
+            RemittanceFinancialSnapshotTable.deleteWhere {
+                RemittanceFinancialSnapshotTable.remittanceId eq remittanceId
+            }
+            existing.toSnapshot()
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toSnapshot(): RemittanceFinancialSnapshot =

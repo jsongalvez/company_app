@@ -20,6 +20,7 @@ data class RemittanceResponse(
     val branchId: String,
     val method: String,
     val submittedDate: String,
+    val submittedAt: String? = null,
     val submittedBy: String,
     val dateRangeStart: String,
     val dateRangeEnd: String,
@@ -70,6 +71,21 @@ data class SubmitRemittanceRequest(
 )
 
 @Serializable
+data class UndoRemittanceRequest(
+    val expectedVersion: Int,
+    val reason: String,
+)
+
+@Serializable
+data class UpdateRemittanceHeaderRequest(
+    val type: String,
+    val method: String,
+    val dateRangeStart: String,
+    val dateRangeEnd: String,
+    val expectedVersion: Int,
+)
+
+@Serializable
 data class RemittanceSubmitResponse(
     val id: String,
     val type: String,
@@ -77,6 +93,7 @@ data class RemittanceSubmitResponse(
     val branchId: String,
     val method: String,
     val submittedDate: String,
+    val submittedAt: String? = null,
     val submittedBy: String,
     val dateRangeStart: String,
     val dateRangeEnd: String,
@@ -96,6 +113,7 @@ data class RemittanceDetailResponse(
     val branchId: String,
     val method: String,
     val submittedDate: String,
+    val submittedAt: String? = null,
     val submittedBy: String,
     val dateRangeStart: String,
     val dateRangeEnd: String,

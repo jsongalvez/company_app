@@ -49,6 +49,7 @@ class AuditLogTableRegistryTest {
                 "product_sale",
                 "remittance",
                 "remittance_day_breakdown",
+                "remittance_financial_snapshot",
                 "remittance_line",
                 "session",
                 "session_base_rate",

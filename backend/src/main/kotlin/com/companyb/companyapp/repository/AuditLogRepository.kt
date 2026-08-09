@@ -99,6 +99,7 @@ object AuditLogRepository {
         changedBy: UUID,
         branchId: UUID? = null,
         isFlagged: Boolean = false,
+        reason: String? = null,
     ) {
         record(
             tableName = tableName,
@@ -108,6 +109,7 @@ object AuditLogRepository {
             branchId = branchId,
             oldValue = jsonFields(oldFields),
             newValue = jsonFields(newFields),
+            reason = reason,
             isFlagged = isFlagged,
         )
     }
@@ -121,6 +123,7 @@ object AuditLogRepository {
         changedBy: UUID,
         branchId: UUID? = null,
         isFlagged: Boolean = false,
+        reason: String? = null,
         auditFields: (T) -> Map<String, String>,
     ) {
         val oldFields = auditFields(before)
@@ -137,6 +140,7 @@ object AuditLogRepository {
             changedBy = changedBy,
             branchId = branchId,
             isFlagged = isFlagged,
+            reason = reason,
         )
     }
 

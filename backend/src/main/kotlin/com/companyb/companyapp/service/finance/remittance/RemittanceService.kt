@@ -2,6 +2,7 @@ package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.BranchDay
@@ -10,6 +11,7 @@ import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
@@ -21,6 +23,8 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
@@ -106,6 +110,117 @@ object RemittanceService {
             }
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
         return result.remittance
+    }
+
+    @Suppress("ThrowsCount")
+    fun undo(
+        callerId: UUID,
+        remittanceId: UUID,
+        expectedVersion: Int,
+        reason: String,
+    ): Remittance =
+        undoAt(
+            callerId = callerId,
+            remittanceId = remittanceId,
+            expectedVersion = expectedVersion,
+            reason = reason,
+            now = OffsetDateTime.now(ZoneOffset.UTC),
+        )
+
+    @Suppress("ThrowsCount", "LongMethod")
+    internal fun undoAt(
+        callerId: UUID,
+        remittanceId: UUID,
+        expectedVersion: Int,
+        reason: String,
+        now: OffsetDateTime,
+    ): Remittance {
+        val remittance =
+            RemittanceRepository.undo(
+                UndoParams(
+                    remittanceId = remittanceId,
+                    expectedVersion = expectedVersion,
+                    reason = reason,
+                    now = now,
+                ),
+            ) { ctx ->
+                AuditLogRepository.recordUpdate(
+                    tableName = RemittanceTable.tableName,
+                    recordId = ctx.remittanceAfter.id,
+                    before = ctx.remittanceBefore,
+                    after = ctx.remittanceAfter,
+                    changedBy = callerId,
+                    branchId = ctx.remittanceAfter.branchId,
+                    reason = reason,
+                    auditFields = RemittanceTable::auditFields,
+                )
+                ctx.branchDayPairs.forEach { (before, after) ->
+                    AuditLogRepository.recordUpdate(
+                        tableName = BranchDayTable.tableName,
+                        recordId = after.id,
+                        before = before,
+                        after = after,
+                        changedBy = callerId,
+                        branchId = before.branchId,
+                        reason = reason,
+                        auditFields = BranchDayTable::auditFields,
+                    )
+                }
+                ctx.snapshotBefore?.let { snapshot ->
+                    AuditLogRepository.recordDelete(
+                        tableName = RemittanceFinancialSnapshotTable.tableName,
+                        recordId = snapshot.remittanceId,
+                        before = snapshot,
+                        changedBy = callerId,
+                        branchId = ctx.remittanceAfter.branchId,
+                        reason = reason,
+                        auditFields = RemittanceFinancialSnapshotTable::auditFields,
+                    )
+                }
+            } ?: throw NotFoundException("Remittance not found")
+
+        logger.info {
+            "[UNDO-REMITTANCE] Remittance ${remittanceId.toString().maskUUID()} undone"
+        }
+        return remittance
+    }
+
+    @Suppress("ThrowsCount", "LongParameterList")
+    fun updateHeader(
+        callerId: UUID,
+        remittanceId: UUID,
+        type: RemittanceType,
+        method: RemittanceMethod,
+        dateRangeStart: LocalDate,
+        dateRangeEnd: LocalDate,
+        expectedVersion: Int,
+    ): Remittance {
+        val remittance =
+            RemittanceRepository.updateHeader(
+                UpdateHeaderParams(
+                    remittanceId = remittanceId,
+                    expectedVersion = expectedVersion,
+                    type = type,
+                    method = method,
+                    dateRangeStart = dateRangeStart,
+                    dateRangeEnd = dateRangeEnd,
+                ),
+            ) { before, after ->
+                AuditLogRepository.recordUpdate(
+                    tableName = RemittanceTable.tableName,
+                    recordId = after.id,
+                    before = before,
+                    after = after,
+                    changedBy = callerId,
+                    branchId = after.branchId,
+                    auditFields = RemittanceTable::auditFields,
+                )
+            } ?: throw NotFoundException("Remittance not found")
+
+        logger.info {
+            "[UPDATE-REMITTANCE-HEADER] Remittance ${remittanceId.toString().maskUUID()} header updated"
+        }
+        return remittance
     }
 
     @Suppress("ThrowsCount", "ReturnCount", "LongParameterList", "MaxLineLength")
