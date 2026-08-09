@@ -36,6 +36,18 @@ _Avoid_: Auditor, bookkeeper
 A freshly registered user with zero capabilities. Functionally locked out until `MANAGE_USERS` assigns them to a branch, at which point they gain practitioner access.
 _Avoid_: New user, unassigned, pending
 
+**Role**:
+A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped capabilities derive from the user's role through the capability view; BRANCH-scoped grants come from direct grants (relief, delegate).
+_Avoid_: Position, title
+
+**Deactivate**:
+The act of setting a user INACTIVE: login is blocked immediately (active JWT killed), all capabilities vanish, records and branch assignments are kept. Reversible via Reactivate. The deactivation time is recorded (`deactivated_at`).
+_Avoid_: Disable, ban, delete
+
+**Reactivate**:
+The act of restoring a deactivated user to ACTIVE. Capabilities return through the capability view; the user logs in fresh (the old JWT stays dead).
+_Avoid_: Re-enable, unban
+
 **Relief Duty**:
 When any user clocks into a non-home branch. Starts with view-only access; edit access requires a relief grant from a currently checked-in user at that branch. Expires at 04:00 Manila the next day. Compensation is paid from the relief branch's drawer.
 _Avoid_: Temporary assignment, loaned staff
