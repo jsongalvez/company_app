@@ -66,4 +66,45 @@ object CapabilityRepository {
                     )
                 }
         }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }
+
+    /**
+     * Distinct branch context ids where [userId] holds any active grant — the
+     * audit read window (#104 D6, #98 union pattern). GLOBAL grants contribute
+     * nothing here; [ActiveUserCapabilitiesView] already excludes inactive
+     * users and out-of-window grants.
+     */
+    fun findBranchWindow(userId: UUID): List<UUID> =
+        transaction {
+            ActiveUserCapabilitiesView
+                .selectAll()
+                .where {
+                    (ActiveUserCapabilitiesView.userId eq userId) and
+                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH)
+                }.withDistinct()
+                .map { it[ActiveUserCapabilitiesView.contextId] }
+        }.also { logger.info { "[BRANCH-WINDOW] $userId window=${it.size} branches" } }
+
+    /**
+     * True when [userId] holds [capabilityCode] at any context (any
+     * contextType/contextId) — the #104 D6 "any EDIT_BRANCH_DATA holder" policy.
+     */
+    fun hasCapabilityAnyContext(
+        userId: UUID,
+        capabilityCode: String,
+    ): Boolean =
+        transaction {
+            ActiveUserCapabilitiesView
+                .innerJoin(
+                    CapabilityTable,
+                    { ActiveUserCapabilitiesView.capabilityId },
+                    { CapabilityTable.id },
+                ).selectAll()
+                .where {
+                    (ActiveUserCapabilitiesView.userId eq userId) and
+                        (CapabilityTable.code eq capabilityCode)
+                }.empty()
+                .not()
+        }.also { granted ->
+            logger.info { "[HAS-CAPABILITY-ANY] $capabilityCode granted=$granted" }
+        }
 }

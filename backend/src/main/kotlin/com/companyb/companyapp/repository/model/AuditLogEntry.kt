@@ -9,6 +9,8 @@ data class AuditLogEntry(
     val recordId: UUID,
     val action: AuditAction,
     val changedBy: UUID,
+    val changedByName: String?,
+    val branchId: UUID?,
     val changedAt: OffsetDateTime,
     val oldValue: String?,
     val newValue: String?,

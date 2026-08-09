@@ -9,6 +9,8 @@ data class AuditLogEntryResponse(
     val recordId: String,
     val action: String,
     val changedBy: String,
+    val changedByName: String? = null,
+    val branchId: String? = null,
     val changedAt: String,
     val oldValue: String? = null,
     val newValue: String? = null,
