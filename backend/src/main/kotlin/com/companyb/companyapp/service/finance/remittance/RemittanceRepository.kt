@@ -3,26 +3,37 @@ package com.companyb.companyapp.service.finance.remittance
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.RemittanceType
+import com.companyb.companyapp.repository.model.SessionStatus
+import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.leftJoin
+import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -32,6 +43,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.sql.Connection
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -52,6 +64,27 @@ data class RemittanceCreateResult(
     val created: Boolean,
 )
 
+data class RemittanceWithNet(
+    val remittance: Remittance,
+    val netIncome: BigDecimal?,
+)
+
+data class RemittanceSessionPickerEntry(
+    val id: UUID,
+    val clientName: String?,
+    val bookedAt: OffsetDateTime?,
+    val sessionStatus: SessionStatus,
+    val finalPrice: BigDecimal,
+)
+
+data class RemittanceProductSalePickerEntry(
+    val id: UUID,
+    val productName: String,
+    val quantity: Int,
+    val totalAmountAtTime: BigDecimal,
+    val soldAt: OffsetDateTime,
+)
+
 @Suppress("TooManyFunctions")
 internal object RemittanceRepository {
     fun findById(id: UUID): Remittance? =
@@ -62,6 +95,137 @@ internal object RemittanceRepository {
                 .singleOrNull()
                 ?.toRemittance()
         }
+
+    fun findByBranchId(
+        branchId: UUID,
+        status: RemittanceStatus?,
+    ): List<RemittanceWithNet> =
+        transaction {
+            val query =
+                RemittanceTable
+                    .leftJoin(
+                        RemittanceFinancialSnapshotTable,
+                        { RemittanceTable.id },
+                        { RemittanceFinancialSnapshotTable.remittanceId },
+                    ).selectAll()
+            val rows =
+                if (status == null) {
+                    query.where { RemittanceTable.branchId eq branchId }
+                } else {
+                    query.where {
+                        (RemittanceTable.branchId eq branchId) and (RemittanceTable.status eq status)
+                    }
+                }
+            rows
+                .orderBy(
+                    RemittanceTable.createdAt to SortOrder.DESC,
+                    RemittanceTable.id to SortOrder.DESC,
+                ).map { row ->
+                    RemittanceWithNet(
+                        remittance = row.toRemittance(),
+                        netIncome = row.getOrNull(RemittanceFinancialSnapshotTable.netIncome),
+                    )
+                }
+        }
+
+    fun findSessionsInRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<RemittanceSessionPickerEntry> =
+        transaction {
+            SessionTable
+                .innerJoin(BranchDayTable, { SessionTable.branchDayId }, { BranchDayTable.id })
+                .innerJoin(ClientTable, { SessionTable.clientId }, { ClientTable.id })
+                .leftJoin(ActiveSessionVoidsView, { SessionTable.id }, { ActiveSessionVoidsView.sessionId })
+                .selectAll()
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date greaterEq from) and
+                        (BranchDayTable.date lessEq to) and
+                        (ActiveSessionVoidsView.sessionId.isNull())
+                }.orderBy(
+                    BranchDayTable.date to SortOrder.ASC,
+                    SessionTable.createdAt to SortOrder.ASC,
+                    SessionTable.id to SortOrder.ASC,
+                ).map { row ->
+                    RemittanceSessionPickerEntry(
+                        id = row[SessionTable.id],
+                        clientName =
+                            buildClientName(
+                                firstName = row[ClientTable.firstName],
+                                middleName = row[ClientTable.middleName],
+                                lastName = row[ClientTable.lastName],
+                                suffix = row[ClientTable.suffix],
+                            ),
+                        bookedAt = row[SessionTable.bookedAt],
+                        sessionStatus = row[SessionTable.sessionStatus],
+                        finalPrice = row[SessionTable.finalPrice],
+                    )
+                }
+        }
+
+    fun findProductSalesInRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<RemittanceProductSalePickerEntry> =
+        transaction {
+            ProductSaleTable
+                .innerJoin(BranchDayTable, { ProductSaleTable.branchDayId }, { BranchDayTable.id })
+                .selectAll()
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date greaterEq from) and
+                        (BranchDayTable.date lessEq to)
+                }.orderBy(
+                    BranchDayTable.date to SortOrder.ASC,
+                    ProductSaleTable.soldAt to SortOrder.ASC,
+                    ProductSaleTable.id to SortOrder.ASC,
+                ).map { row ->
+                    RemittanceProductSalePickerEntry(
+                        id = row[ProductSaleTable.id],
+                        productName = row[ProductSaleTable.productName],
+                        quantity = row[ProductSaleTable.quantity],
+                        totalAmountAtTime = row[ProductSaleTable.totalAmountAtTime],
+                        soldAt = row[ProductSaleTable.soldAt],
+                    )
+                }
+        }
+
+    fun findBranchDaysInRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<BranchDay> =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date greaterEq from) and
+                        (BranchDayTable.date lessEq to)
+                }.orderBy(
+                    BranchDayTable.date to SortOrder.ASC,
+                    BranchDayTable.id to SortOrder.ASC,
+                ).map { it.toBranchDay() }
+        }
+
+    private fun buildClientName(
+        firstName: String?,
+        middleName: String?,
+        lastName: String?,
+        suffix: String?,
+    ): String? {
+        val parts = listOfNotNull(firstName, middleName, lastName).filter { it.isNotBlank() }
+        val suffixPart = suffix?.takeIf { it.isNotBlank() }
+        val joined = parts.joinToString(" ").ifBlank { null }
+        return when {
+            joined == null -> suffixPart
+            suffixPart == null -> joined
+            else -> "$joined $suffixPart"
+        }
+    }
 
     fun createDraft(
         params: CreateDraftParams,
@@ -137,9 +301,9 @@ internal object RemittanceRepository {
                     .map { it[RemittanceDayBreakdownTable.branchDayId] }
 
             val grossIncome = calculateGrossIncome(remittanceId)
-            val totalCompensation = calculateTotalCompensation(breakdownIds)
-            val totalExpenses = calculateTotalExpenses(breakdownIds)
-            val netIncome = grossIncome.subtract(totalCompensation).subtract(totalExpenses)
+            val totalCompensation = calculateCompensationSum(breakdownIds)
+            val totalExpenses = calculateExpenseSum(breakdownIds)
+            val netIncome = netOf(grossIncome, totalCompensation, totalExpenses)
 
             writeFinancialSnapshot(
                 remittanceType,
@@ -258,25 +422,33 @@ internal object RemittanceRepository {
             }.map { it[RemittanceLineTable.amount] }
             .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
 
-    private fun calculateTotalCompensation(breakdownIds: List<UUID>): BigDecimal {
-        if (breakdownIds.isEmpty()) return BigDecimal.ZERO
-        return CompensationTable
-            .selectAll()
-            .where { CompensationTable.payingBranchDayId inList breakdownIds }
-            .map { it[CompensationTable.amount] }
-            .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
-    }
+    internal fun netOf(
+        grossIncome: BigDecimal,
+        totalCompensation: BigDecimal,
+        totalExpenses: BigDecimal,
+    ): BigDecimal = grossIncome.subtract(totalCompensation).subtract(totalExpenses)
 
-    private fun calculateTotalExpenses(breakdownIds: List<UUID>): BigDecimal {
-        if (breakdownIds.isEmpty()) return BigDecimal.ZERO
-        return ExpenseTable
-            .selectAll()
-            .where {
-                (ExpenseTable.branchDayId inList breakdownIds) and
-                    ExpenseTable.deletedAt.isNull()
-            }.map { it[ExpenseTable.amount] }
-            .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
-    }
+    internal fun calculateCompensationSum(breakdownIds: List<UUID>): BigDecimal =
+        transaction {
+            if (breakdownIds.isEmpty()) return@transaction BigDecimal.ZERO
+            CompensationTable
+                .selectAll()
+                .where { CompensationTable.payingBranchDayId inList breakdownIds }
+                .map { it[CompensationTable.amount] }
+                .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
+        }
+
+    internal fun calculateExpenseSum(breakdownIds: List<UUID>): BigDecimal =
+        transaction {
+            if (breakdownIds.isEmpty()) return@transaction BigDecimal.ZERO
+            ExpenseTable
+                .selectAll()
+                .where {
+                    (ExpenseTable.branchDayId inList breakdownIds) and
+                        ExpenseTable.deletedAt.isNull()
+                }.map { it[ExpenseTable.amount] }
+                .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
+        }
 
     private fun ResultRow.toBranchDay(): BranchDay =
         BranchDay(

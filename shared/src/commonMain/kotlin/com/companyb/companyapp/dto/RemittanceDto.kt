@@ -25,6 +25,7 @@ data class RemittanceResponse(
     val dateRangeEnd: String,
     val createdAt: String,
     val version: Int,
+    val netIncome: String? = null,
 )
 
 @Serializable
@@ -103,4 +104,48 @@ data class RemittanceDetailResponse(
     val lines: List<RemittanceLineResponse>,
     val totalAmount: String,
     val dayBreakdowns: List<RemittanceDayBreakdownResponse>,
+    val snapshot: RemittanceFinancialSnapshotResponse? = null,
+)
+
+@Serializable
+data class RemittanceFinancialSnapshotResponse(
+    val remittanceId: String,
+    val grossIncome: String,
+    val totalCompensation: String,
+    val totalExpenses: String,
+    val netIncome: String,
+    val snapshottedAt: String,
+)
+
+@Serializable
+data class RemittanceDriftResponse(
+    val frozen: RemittanceFinancialSnapshotResponse,
+    val currentCompensation: String,
+    val currentExpenses: String,
+    val currentNet: String,
+)
+
+@Serializable
+data class RemittanceSessionPickerEntryResponse(
+    val id: String,
+    val clientName: String?,
+    val bookedAt: String?,
+    val sessionStatus: String,
+    val finalPrice: String,
+)
+
+@Serializable
+data class RemittanceProductSalePickerEntryResponse(
+    val id: String,
+    val productName: String,
+    val quantity: Int,
+    val totalAmountAtTime: String,
+    val soldAt: String,
+)
+
+@Serializable
+data class RemittanceDayPickerEntryResponse(
+    val id: String,
+    val date: String,
+    val status: String,
 )

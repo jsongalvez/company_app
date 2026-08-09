@@ -4,10 +4,12 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
@@ -21,6 +23,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 
+@Suppress("TooManyFunctions")
 object RemittanceService {
     private val logger = KotlinLogging.logger {}
 
@@ -223,6 +226,40 @@ object RemittanceService {
     }
 
     @Suppress("ThrowsCount", "ReturnCount")
+    fun removeDayBreakdown(
+        callerId: UUID,
+        remittanceId: UUID,
+        breakdownId: UUID,
+    ): RemittanceDayBreakdown {
+        val remittance =
+            RemittanceRepository.findById(remittanceId)
+                ?: throw NotFoundException("Remittance not found")
+
+        if (remittance.status != RemittanceStatus.DRAFT) {
+            throw ValidationException("Can only remove day breakdowns from DRAFT remittances")
+        }
+
+        val breakdown =
+            RemittanceDayBreakdownRepository.deleteDayBreakdown(
+                breakdownId = breakdownId,
+                remittanceId = remittanceId,
+            ) { before ->
+                AuditLogRepository.recordDelete(
+                    tableName = RemittanceDayBreakdownTable.tableName,
+                    recordId = before.id,
+                    before = before,
+                    changedBy = callerId,
+                    branchId = remittance.branchId,
+                    auditFields = RemittanceDayBreakdownTable::auditFields,
+                )
+            }
+                ?: throw NotFoundException("Day breakdown not found")
+
+        logger.info { "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown $breakdownId removed from remittance $remittanceId" }
+        return breakdown
+    }
+
+    @Suppress("ReturnCount")
     fun getRemittance(remittanceId: UUID): RemittanceDetail {
         val remittance =
             RemittanceRepository.findById(remittanceId)
@@ -231,12 +268,14 @@ object RemittanceService {
         val lines = RemittanceLineRepository.findByRemittanceId(remittanceId)
         val totalAmount = RemittanceLineRepository.sumAmountsByRemittanceId(remittanceId)
         val dayBreakdowns = RemittanceDayBreakdownRepository.findByRemittanceId(remittanceId)
+        val snapshot = RemittanceFinancialSnapshotRepository.findByRemittanceId(remittanceId)
 
         return RemittanceDetail(
             remittance = remittance,
             lines = lines,
             totalAmount = totalAmount,
             dayBreakdowns = dayBreakdowns,
+            snapshot = snapshot,
         )
     }
 
@@ -246,6 +285,77 @@ object RemittanceService {
                 ?: throw NotFoundException("Remittance not found")
         return remittance.branchId
     }
+
+    @Suppress("ThrowsCount")
+    fun listRemittances(
+        branchId: UUID,
+        status: RemittanceStatus?,
+    ): List<RemittanceWithNet> {
+        BranchRepository.findById(branchId)
+            ?: throw NotFoundException("Branch not found")
+        return RemittanceRepository.findByBranchId(branchId, status)
+    }
+
+    @Suppress("ThrowsCount")
+    fun findSessionsInRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<RemittanceSessionPickerEntry> {
+        BranchRepository.findById(branchId)
+            ?: throw NotFoundException("Branch not found")
+        return RemittanceRepository.findSessionsInRange(branchId, from, to)
+    }
+
+    @Suppress("ThrowsCount")
+    fun findProductSalesInRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<RemittanceProductSalePickerEntry> {
+        BranchRepository.findById(branchId)
+            ?: throw NotFoundException("Branch not found")
+        return RemittanceRepository.findProductSalesInRange(branchId, from, to)
+    }
+
+    @Suppress("ThrowsCount")
+    fun findBranchDaysInRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<BranchDay> {
+        BranchRepository.findById(branchId)
+            ?: throw NotFoundException("Branch not found")
+        val today = LocalDate.now(BranchDayService.manilaZone)
+        return RemittanceRepository
+            .findBranchDaysInRange(branchId, from, to)
+            .map { day -> day.copy(status = BranchDayService.evaluateStatus(day.status, day.date, today)) }
+    }
+
+    @Suppress("ThrowsCount", "ReturnCount")
+    fun getDrift(remittanceId: UUID): RemittanceDrift {
+        RemittanceRepository.findById(remittanceId)
+            ?: throw NotFoundException("Remittance not found")
+
+        val snapshot =
+            RemittanceFinancialSnapshotRepository.findByRemittanceId(remittanceId)
+                ?: throw NotFoundException("No financial snapshot for this remittance")
+
+        val breakdownIds =
+            RemittanceDayBreakdownRepository
+                .findByRemittanceId(remittanceId)
+                .map { it.branchDayId }
+        val currentCompensation = RemittanceRepository.calculateCompensationSum(breakdownIds)
+        val currentExpenses = RemittanceRepository.calculateExpenseSum(breakdownIds)
+        val currentNet = RemittanceRepository.netOf(snapshot.grossIncome, currentCompensation, currentExpenses)
+
+        return RemittanceDrift(
+            frozen = snapshot,
+            currentCompensation = currentCompensation,
+            currentExpenses = currentExpenses,
+            currentNet = currentNet,
+        )
+    }
 }
 
 data class RemittanceDetail(
@@ -253,4 +363,12 @@ data class RemittanceDetail(
     val lines: List<RemittanceLine>,
     val totalAmount: BigDecimal,
     val dayBreakdowns: List<RemittanceDayBreakdown>,
+    val snapshot: RemittanceFinancialSnapshot? = null,
+)
+
+data class RemittanceDrift(
+    val frozen: RemittanceFinancialSnapshot,
+    val currentCompensation: BigDecimal,
+    val currentExpenses: BigDecimal,
+    val currentNet: BigDecimal,
 )

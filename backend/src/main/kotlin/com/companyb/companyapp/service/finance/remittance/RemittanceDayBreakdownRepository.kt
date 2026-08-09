@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -60,6 +61,37 @@ internal object RemittanceDayBreakdownRepository {
                 .selectAll()
                 .where { RemittanceDayBreakdownTable.remittanceId eq remittanceId }
                 .map { it.toRemittanceDayBreakdown() }
+        }
+
+    fun deleteDayBreakdown(
+        breakdownId: UUID,
+        remittanceId: UUID,
+        auditFn: (RemittanceDayBreakdown) -> Unit = {},
+    ): RemittanceDayBreakdown? =
+        transaction {
+            val existing =
+                RemittanceDayBreakdownTable
+                    .selectAll()
+                    .where {
+                        (RemittanceDayBreakdownTable.id eq breakdownId) and
+                            (RemittanceDayBreakdownTable.remittanceId eq remittanceId)
+                    }.singleOrNull() ?: return@transaction null
+
+            RemittanceDayBreakdownTable.deleteWhere {
+                (RemittanceDayBreakdownTable.id eq breakdownId) and
+                    (RemittanceDayBreakdownTable.remittanceId eq remittanceId)
+            }
+
+            val before = existing.toRemittanceDayBreakdown()
+            auditFn(before)
+            before
+        }.also { breakdown ->
+            if (breakdown != null) {
+                logger.info {
+                    "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id.toString().maskUUID()} " +
+                        "deleted from remittance ${breakdown.remittanceId.toString().maskUUID()}"
+                }
+            }
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittanceDayBreakdown(): RemittanceDayBreakdown =

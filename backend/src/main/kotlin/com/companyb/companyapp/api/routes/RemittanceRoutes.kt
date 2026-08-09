@@ -8,23 +8,36 @@ import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
 import com.companyb.companyapp.dto.RemittanceDayBreakdownResponse
+import com.companyb.companyapp.dto.RemittanceDayPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceDetailResponse
+import com.companyb.companyapp.dto.RemittanceDriftResponse
+import com.companyb.companyapp.dto.RemittanceFinancialSnapshotResponse
 import com.companyb.companyapp.dto.RemittanceLineResponse
+import com.companyb.companyapp.dto.RemittanceProductSalePickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceResponse
+import com.companyb.companyapp.dto.RemittanceSessionPickerEntryResponse
 import com.companyb.companyapp.dto.RemittanceSubmitResponse
 import com.companyb.companyapp.dto.SubmitRemittanceRequest
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceMethod
+import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.service.finance.remittance.RemittanceDetail
+import com.companyb.companyapp.service.finance.remittance.RemittanceDrift
+import com.companyb.companyapp.service.finance.remittance.RemittanceProductSalePickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.service.finance.remittance.RemittanceSessionPickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
+import com.companyb.companyapp.service.finance.remittance.RemittanceWithNet
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
+import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import java.time.LocalDate
@@ -32,11 +45,26 @@ import java.util.UUID
 
 @Suppress("TooManyFunctions")
 object RemittanceRoutes {
+    @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/remittances") { context ->
-            if (context.method() != io.javalin.http.HandlerType.POST) return@before
-            val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
-            val branchId = uuidOrThrow(request.branchId, "branch id")
+            val branchId =
+                when (context.method()) {
+                    HandlerType.POST -> {
+                        uuidOrThrow(
+                            context.bodyAsClass<CreateRemittanceDraftRequest>().branchId,
+                            "branch id",
+                        )
+                    }
+
+                    HandlerType.GET -> {
+                        context.uuidFromQuery("branchId")
+                    }
+
+                    else -> {
+                        return@before
+                    }
+                }
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,
@@ -49,12 +77,84 @@ object RemittanceRoutes {
             CapabilityFilter.requireBranchCapabilityForRemittance(context, remittanceId)
         }
 
+        config.routes.before("/api/remittances/{remittanceId}/lines") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
+        config.routes.before("/api/remittances/{remittanceId}/lines/{lineId}") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
+        config.routes.before("/api/remittances/{remittanceId}/day-breakdowns") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
+        config.routes.before("/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
+        config.routes.before("/api/remittances/{remittanceId}/submit") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
+        config.routes.before("/api/remittances/{remittanceId}/drift") { context ->
+            CapabilityFilter.requireBranchCapabilityForRemittance(
+                context,
+                context.pathParamAsUuid("remittanceId"),
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/remittance-sessions") { context ->
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                context.pathParamAsUuid("branchId"),
+                CapabilityCodes.SUBMIT_REMITTANCE,
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/remittance-product-sales") { context ->
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                context.pathParamAsUuid("branchId"),
+                CapabilityCodes.SUBMIT_REMITTANCE,
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/remittance-days") { context ->
+            CapabilityFilter.requireBranchCapabilityForBranchId(
+                context,
+                context.pathParamAsUuid("branchId"),
+                CapabilityCodes.SUBMIT_REMITTANCE,
+            )
+        }
+
         config.routes.post("/api/remittances", ::handleCreateDraft)
+        config.routes.get("/api/remittances", ::handleListRemittances)
         config.routes.get("/api/remittances/{remittanceId}", ::handleGetRemittance)
+        config.routes.get("/api/remittances/{remittanceId}/drift", ::handleGetDrift)
         config.routes.post("/api/remittances/{remittanceId}/lines", ::handleAddLine)
         config.routes.delete("/api/remittances/{remittanceId}/lines/{lineId}", ::handleRemoveLine)
         config.routes.post("/api/remittances/{remittanceId}/day-breakdowns", ::handleAddDayBreakdown)
+        config.routes.delete("/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}", ::handleRemoveDayBreakdown)
         config.routes.post("/api/remittances/{remittanceId}/submit", ::handleSubmit)
+        config.routes.get("/api/branches/{branchId}/remittance-sessions", ::handleListSessionsInRange)
+        config.routes.get("/api/branches/{branchId}/remittance-product-sales", ::handleListProductSalesInRange)
+        config.routes.get("/api/branches/{branchId}/remittance-days", ::handleListDaysInRange)
     }
 
     @Suppress("ThrowsCount")
@@ -109,6 +209,84 @@ object RemittanceRoutes {
 
         val detail = RemittanceService.getRemittance(remittanceId)
         context.json(detail.toResponse())
+    }
+
+    @Suppress("ThrowsCount")
+    private fun handleListRemittances(context: Context) {
+        val branchId = context.uuidFromQuery("branchId")
+        val rawStatus = context.queryParam("status")
+        val status =
+            when {
+                rawStatus == null || rawStatus.equals("ALL", ignoreCase = true) -> {
+                    null
+                }
+
+                else -> {
+                    runCatching { RemittanceStatus.valueOf(rawStatus.uppercase()) }
+                        .getOrElse {
+                            throw BadRequestResponse("Invalid status: must be DRAFT, SUBMITTED or ALL")
+                        }
+                }
+            }
+
+        val remittances = RemittanceService.listRemittances(branchId, status)
+        context.json(remittances.map { it.toListResponse() })
+    }
+
+    private fun handleGetDrift(context: Context) {
+        val remittanceId = context.pathParamAsUuid("remittanceId")
+
+        val drift = RemittanceService.getDrift(remittanceId)
+        context.json(drift.toResponse())
+    }
+
+    private fun handleRemoveDayBreakdown(context: Context) {
+        val callerId = context.callerUuid()
+        val remittanceId = context.pathParamAsUuid("remittanceId")
+        val breakdownId = context.pathParamAsUuid("breakdownId")
+
+        val breakdown = RemittanceService.removeDayBreakdown(callerId, remittanceId, breakdownId)
+        context.json(breakdown.toResponse())
+    }
+
+    @Suppress("ThrowsCount")
+    private fun handleListSessionsInRange(context: Context) {
+        val branchId = context.pathParamAsUuid("branchId")
+        val (from, to) = parseRange(context)
+
+        context.json(RemittanceService.findSessionsInRange(branchId, from, to).map { it.toResponse() })
+    }
+
+    @Suppress("ThrowsCount")
+    private fun handleListProductSalesInRange(context: Context) {
+        val branchId = context.pathParamAsUuid("branchId")
+        val (from, to) = parseRange(context)
+
+        context.json(RemittanceService.findProductSalesInRange(branchId, from, to).map { it.toResponse() })
+    }
+
+    @Suppress("ThrowsCount")
+    private fun handleListDaysInRange(context: Context) {
+        val branchId = context.pathParamAsUuid("branchId")
+        val (from, to) = parseRange(context)
+
+        context.json(RemittanceService.findBranchDaysInRange(branchId, from, to).map { it.toResponse() })
+    }
+
+    private fun parseRange(context: Context): Pair<LocalDate, LocalDate> {
+        val from = parseDateParam(context, "from")
+        val to = parseDateParam(context, "to")
+        if (to.isBefore(from)) throw BadRequestResponse("to must not be before from")
+        return from to to
+    }
+
+    private fun parseDateParam(
+        context: Context,
+        name: String,
+    ): LocalDate {
+        val raw = context.queryParam(name) ?: throw BadRequestResponse("$name is required")
+        return runCatching { LocalDate.parse(raw) }
+            .getOrElse { throw BadRequestResponse("Invalid $name") }
     }
 
     @Suppress("ThrowsCount")
@@ -217,6 +395,9 @@ object RemittanceRoutes {
             version = version,
         )
 
+    private fun RemittanceWithNet.toListResponse(): RemittanceResponse =
+        remittance.toResponse().copy(netIncome = netIncome?.toPlainString())
+
     private fun RemittanceLine.toResponse(): RemittanceLineResponse =
         RemittanceLineResponse(
             id = id.toString(),
@@ -254,6 +435,50 @@ object RemittanceRoutes {
             lines = lines.map { it.toResponse() },
             totalAmount = totalAmount.toPlainString(),
             dayBreakdowns = dayBreakdowns.map { it.toResponse() },
+            snapshot = snapshot?.toResponse(),
+        )
+
+    private fun RemittanceFinancialSnapshot.toResponse(): RemittanceFinancialSnapshotResponse =
+        RemittanceFinancialSnapshotResponse(
+            remittanceId = remittanceId.toString(),
+            grossIncome = grossIncome.toPlainString(),
+            totalCompensation = totalCompensation.toPlainString(),
+            totalExpenses = totalExpenses.toPlainString(),
+            netIncome = netIncome.toPlainString(),
+            snapshottedAt = snapshottedAt.toString(),
+        )
+
+    private fun RemittanceDrift.toResponse(): RemittanceDriftResponse =
+        RemittanceDriftResponse(
+            frozen = frozen.toResponse(),
+            currentCompensation = currentCompensation.toPlainString(),
+            currentExpenses = currentExpenses.toPlainString(),
+            currentNet = currentNet.toPlainString(),
+        )
+
+    private fun RemittanceSessionPickerEntry.toResponse(): RemittanceSessionPickerEntryResponse =
+        RemittanceSessionPickerEntryResponse(
+            id = id.toString(),
+            clientName = clientName,
+            bookedAt = bookedAt?.toString(),
+            sessionStatus = sessionStatus.name,
+            finalPrice = finalPrice.toPlainString(),
+        )
+
+    private fun RemittanceProductSalePickerEntry.toResponse(): RemittanceProductSalePickerEntryResponse =
+        RemittanceProductSalePickerEntryResponse(
+            id = id.toString(),
+            productName = productName,
+            quantity = quantity,
+            totalAmountAtTime = totalAmountAtTime.toPlainString(),
+            soldAt = soldAt.toString(),
+        )
+
+    private fun BranchDay.toResponse(): RemittanceDayPickerEntryResponse =
+        RemittanceDayPickerEntryResponse(
+            id = id.toString(),
+            date = date.toString(),
+            status = status.name,
         )
 
     private fun RemittanceSubmissionResult.toSubmitResponse(): RemittanceSubmitResponse =
