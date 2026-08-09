@@ -23,6 +23,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.CapabilityService
@@ -266,6 +267,37 @@ object DatabaseTestHelper {
                 it[BranchTable.branchType] = branchType
             }
         }
+    }
+
+    /**
+     * Inserts a [user_branch_assignment] row directly (bypasses
+     * [com.companyb.companyapp.repository.UserBranchAssignmentRepository]).
+     * NOTE: inside `insert {}` the lambda receiver is the TABLE, so unqualified
+     * names that collide with table columns resolve to COLUMNS, not to enclosing
+     * scope — function parameters and locals win, but object properties lose.
+     * Always pass local values or explicitly-qualified references (this is why
+     * the repository uses `params.*`).
+     */
+    @Suppress("LongParameterList")
+    fun insertTestAssignment(
+        id: UUID = UUID.randomUUID(),
+        userId: UUID,
+        branchId: UUID,
+        slot: Short,
+        assignedBy: UUID,
+        ended: Boolean = false,
+    ): UUID {
+        transaction {
+            UserBranchAssignmentTable.insert {
+                it[UserBranchAssignmentTable.id] = id
+                it[UserBranchAssignmentTable.userId] = userId
+                it[UserBranchAssignmentTable.branchId] = branchId
+                it[UserBranchAssignmentTable.slot] = slot
+                it[UserBranchAssignmentTable.assignedBy] = assignedBy
+                if (ended) it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
+            }
+        }
+        return id
     }
 
     fun createBranchDayForToday(branchId: UUID): UUID =

@@ -106,7 +106,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     AttendanceRoutes.clockOut(config)
     BranchRoutes.register(config)
     UserBranchAssignmentRoutes.register(config)
-    UserRoutes.deactivate(config)
+    UserRoutes.register(config)
     ReliefAccessRoutes.requestReliefAccess(config)
     ReliefAccessRoutes.grantReliefAccess(config)
     ReliefAccessRoutes.denyReliefAccess(config)

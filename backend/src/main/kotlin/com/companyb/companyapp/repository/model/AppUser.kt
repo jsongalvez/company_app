@@ -5,12 +5,15 @@ import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
+import java.time.OffsetDateTime
 
 data class AppUser(
     val id: String,
     val username: String,
     val passwordHash: String,
     val status: UserStatus = UserStatus.ACTIVE,
+    val displayName: String = "User",
+    val deactivatedAt: OffsetDateTime? = null,
 )
 
 enum class UserStatus { ACTIVE, INACTIVE }
@@ -38,6 +41,7 @@ object AppUserTable : Table("app_user") {
         ).default(UserStatus.ACTIVE)
     val email = varchar("email", EMAIL_LENGTH).uniqueIndex()
     val displayName = varchar("display_name", DISPLAY_NAME_LENGTH).default("User")
+    val deactivatedAt = timestampWithTimeZone("deactivated_at").nullable()
     val createdAt =
         timestampWithTimeZone("created_at")
             .defaultExpression(CurrentTimestampWithTimeZone)
@@ -49,5 +53,7 @@ object AppUserTable : Table("app_user") {
             "id" to entity.id,
             "username" to entity.username,
             "status" to entity.status.name,
+            "displayName" to entity.displayName,
+            "deactivatedAt" to (entity.deactivatedAt?.toString() ?: "null"),
         )
 }
