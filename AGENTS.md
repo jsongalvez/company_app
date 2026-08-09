@@ -21,6 +21,15 @@ When a fresh agent opens a GitHub issue to work on:
 5. Open the relevant doc from the Document Map below (e.g. `docs/architecture.md` for layering, `docs/engines.md` for pseudocode, `docs/business-requirements.md` for rules)
 6. Load the skill indicated by the workflow (`/implement`, `/code-review`, etc.)
 
+## Code review — two rounds
+
+Every `/implement` ticket gets **two** code-review rounds (round 2 added in session 20; applies to all future AFK builds):
+
+1. **Round 1 — full diff** (unchanged): parallel `/code-review` Standards + Spec sub-agents against the working tree, before commit; hand untracked files to the sub-agents explicitly.
+2. **Round 2 — fix delta**: after applying round-1 fixes, re-run both sub-agents against the fix delta only (`git diff <first-review-point>` — the working tree as of round 1). The fixes themselves must be reviewed: in session 20, round-1 fixes introduced two bugs (dropped in-flight-flag cleanup) that only tests caught. No third round — round 2 finds are fixed directly.
+
+The review points are recorded in the resolution comment (e.g. "#123 — review round 2 (fix delta) passed after N fixes").
+
 ## Document map
 
 This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `docs/adr/` (architecture decisions). Below is a quick-reference for where to find what.
