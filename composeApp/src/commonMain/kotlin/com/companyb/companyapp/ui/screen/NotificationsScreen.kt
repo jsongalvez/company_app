@@ -27,22 +27,11 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.UiState
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.format
-import kotlinx.datetime.format.DateTimeFormat
-import kotlinx.datetime.format.MonthNames
-import kotlinx.datetime.format.Padding
-import kotlinx.datetime.format.char
-import kotlinx.datetime.toLocalDateTime
-import kotlin.time.Clock
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Instant
 
 // D1/D3: unread queue (locked #102). Screen renders unread rows at full emphasis + a dimmed,
 // in-memory Read section (rows marked read this session). Platform tap behavior differs only in
@@ -131,34 +120,10 @@ fun NotificationsScreen(
                     )
                 } else {
                     // D5: in-place error card + retry.
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(Spacing.md),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(CornerRadius.md),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(Spacing.md),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                Text(
-                                    text = state.message,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                                TextButton(onClick = { viewModel.loadUnreadNotifications() }) {
-                                    Text("Retry")
-                                }
-                            }
-                        }
-                    }
+                    ErrorCard(
+                        message = state.message,
+                        onRetry = { viewModel.loadUnreadNotifications() },
+                    )
                 }
             }
 
@@ -272,44 +237,12 @@ private fun NotificationRow(
                 },
         )
         Text(
-            text = formatNotificationTimestamp(notification.createdAt),
+            text = formatRelativeTimestamp(notification.createdAt, logTag = "NotificationsScreen"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
     if (!dimmed) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-    }
-}
-
-// D2 timestamp: relative under 24h ("2m ago", "3h ago"), absolute date past 24h ("Aug 4").
-// Absolute format renders in Asia/Manila — the backend writes all domain timestamps in this
-// zone (see backend/AGENTS.md), so a device outside Manila still sees the notification's
-// business date.
-private val notificationDisplayZone = TimeZone.of("Asia/Manila")
-
-private val notificationAbsoluteFormat: DateTimeFormat<LocalDateTime> =
-    LocalDateTime.Format {
-        monthName(MonthNames.ENGLISH_ABBREVIATED)
-        char(' ')
-        dayOfMonth(Padding.NONE)
-    }
-
-internal fun formatNotificationTimestamp(
-    createdAtIso: String,
-    now: Instant = Clock.System.now(),
-): String {
-    val createdAt = runCatching { Instant.parse(createdAtIso) }.getOrNull()
-    if (createdAt == null) {
-        // malformed server timestamp = handled data error; blank rather than crash the row
-        logWarn("NotificationsScreen", "unparseable createdAt: $createdAtIso")
-        return ""
-    }
-    val elapsed = now - createdAt
-    return when {
-        elapsed < 1.minutes -> "now"
-        elapsed < 1.hours -> "${elapsed.inWholeMinutes}m ago"
-        elapsed < 24.hours -> "${elapsed.inWholeHours}h ago"
-        else -> createdAt.toLocalDateTime(notificationDisplayZone).format(notificationAbsoluteFormat)
     }
 }

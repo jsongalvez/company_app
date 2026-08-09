@@ -27,11 +27,14 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.drawer.DrawerContent
+import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
+import com.companyb.companyapp.ui.screen.AuditLogScreen
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
+import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
@@ -143,7 +146,35 @@ actual fun AppNavHost(
                         },
                     )
                 }
-                composable<Route.AuditLog> { PlaceholderRoute("Audit Log") }
+                // #123 — D9: no route gate (always-visible per #108; backend-authoritative read
+                // scoping). hasAnyCapability = zero-grant "No branch access" empty state.
+                composable<Route.AuditLog> {
+                    val capabilities by SessionState.capabilities.collectAsState()
+                    val currentUser by SessionState.currentUser.collectAsState()
+                    val auditLogViewModel: AuditLogViewModel = viewModel { AuditLogViewModel(apiClient) }
+                    AuditLogScreen(
+                        viewModel = auditLogViewModel,
+                        currentUserId = currentUser?.id,
+                        hasAnyCapability = capabilities.isNotEmpty(),
+                        onFullHistory = { entry ->
+                            navController.navigate(Route.AuditLogHistory(entry.tableName, entry.recordId))
+                        },
+                    )
+                }
+                // #123 — D8 per-record history: pushed route, entry-scoped VM (fresh entry
+                // self-cleans, #112 pattern).
+                composable<Route.AuditLogHistory> { entry ->
+                    val route = entry.toRoute<Route.AuditLogHistory>()
+                    val currentUser by SessionState.currentUser.collectAsState()
+                    val auditLogViewModel: AuditLogViewModel = viewModel { AuditLogViewModel(apiClient) }
+                    AuditLogHistoryScreen(
+                        viewModel = auditLogViewModel,
+                        tableName = route.tableName,
+                        recordId = route.recordId,
+                        currentUserId = currentUser?.id,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
                 composable<Route.Reports> { PlaceholderRoute("Reports") }
                 composable<Route.UserManagement> { PlaceholderRoute("User Management") }
                 // No composable<Route.SessionDetail> on desktop — locked by #91 (desktop inline-pane only).

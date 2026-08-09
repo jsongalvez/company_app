@@ -44,6 +44,15 @@ sealed class Route {
     @Serializable
     data object AuditLog : Route()
 
+    // #123 — D8 "Full history for this record": pushed on both platforms (#91 push-route lock,
+    // ClientDetail precedent — content-level Back TextButton; the pushed-route topbar pattern
+    // stays fog).
+    @Serializable
+    data class AuditLogHistory(
+        val tableName: String,
+        val recordId: String,
+    ) : Route()
+
     @Serializable
     data object Reports : Route()
 
