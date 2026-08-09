@@ -21,6 +21,19 @@ import java.util.UUID
 object UserBranchAssignmentService {
     private val logger = KotlinLogging.logger {}
 
+    private fun requireManageUsers(
+        callerId: UUID,
+        message: String,
+    ) {
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_USERS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = message,
+        )
+    }
+
     data class CreateResult(
         val assignment: UserBranchAssignment,
         val created: Boolean,
@@ -34,6 +47,8 @@ object UserBranchAssignmentService {
         userId: UUID,
         slot: Short,
     ): CreateResult {
+        requireManageUsers(callerId, "MANAGE_USERS capability required to create assignments")
+
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
@@ -91,6 +106,8 @@ object UserBranchAssignmentService {
         branchId: UUID,
         userId: UUID,
     ) {
+        requireManageUsers(callerId, "MANAGE_USERS capability required to remove assignments")
+
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
@@ -167,6 +184,19 @@ object UserBranchAssignmentService {
         userIdA: UUID,
         userIdB: UUID,
     ) {
+        val canManage =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = CapabilityCodes.MANAGE_USERS,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        val isParticipant = callerId == userIdA || callerId == userIdB
+
+        if (!canManage && !isParticipant) {
+            throw ForbiddenException("MANAGE_USERS capability required to swap slots")
+        }
+
         val (assignA, assignB) =
             UserBranchAssignmentRepository.swapSlots(
                 branchId,
@@ -198,6 +228,11 @@ object UserBranchAssignmentService {
         logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }
     }
 
-    fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =
-        UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    fun findActiveByBranch(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<UserBranchAssignment> {
+        requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
+        return UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    }
 }

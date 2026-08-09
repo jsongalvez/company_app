@@ -127,8 +127,13 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
 
     @Test
     fun `getBranches excludes ended assignments`() {
-        assignToBranch(branchA)
-        UserBranchAssignmentService.remove(userId, branchA, userId)
+        DatabaseTestHelper.insertTestAssignment(
+            userId = userId,
+            branchId = branchA,
+            slot = 1,
+            assignedBy = userId,
+            ended = true,
+        )
 
         val branches = MeService.getBranches(userId)
 
@@ -159,12 +164,11 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         assertEquals(BranchClockInStatus.NOT_CLOCKED_IN, branches.single().clockInStatus)
     }
 
-    private fun assignToBranch(branchId: UUID): UserBranchAssignmentService.CreateResult =
-        UserBranchAssignmentService.create(
-            callerId = userId,
-            id = UUID.randomUUID(),
-            branchId = branchId,
+    private fun assignToBranch(branchId: UUID): UUID =
+        DatabaseTestHelper.insertTestAssignment(
             userId = userId,
+            branchId = branchId,
             slot = 1,
+            assignedBy = userId,
         )
 }

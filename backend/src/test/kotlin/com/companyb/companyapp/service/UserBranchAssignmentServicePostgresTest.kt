@@ -22,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
@@ -124,15 +125,12 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `create without MANAGE_USERS is allowed at service layer`() {
+    fun `create without MANAGE_USERS is forbidden at service layer`() {
         val assignmentId = UUID.randomUUID()
 
-        val result = UserBranchAssignmentService.create(nonManagerId, assignmentId, branchId, userAId, 1)
-
-        assertTrue(result.created)
-        assertEquals(assignmentId, result.assignment.id)
-        assertEquals(userAId, result.assignment.userId)
-        assertEquals(1, result.assignment.slot)
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.create(nonManagerId, assignmentId, branchId, userAId, 1)
+        }
     }
 
     @Test
@@ -151,15 +149,17 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `remove without MANAGE_USERS is allowed at service layer`() {
+    fun `remove without MANAGE_USERS is forbidden at service layer`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val assignmentId = UUID.randomUUID()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
-        UserBranchAssignmentService.remove(nonManagerId, branchId, userAId)
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.remove(nonManagerId, branchId, userAId)
+        }
 
-        assertNotNull(assignmentEndedAt(assignmentId))
+        assertNull(assignmentEndedAt(assignmentId))
     }
 
     @Test
@@ -252,7 +252,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `swapSlots without MANAGE_USERS is allowed at service layer`() {
+    fun `swapSlots without MANAGE_USERS is forbidden at service layer`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         val idA = UUID.randomUUID()
@@ -260,7 +260,24 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
 
-        UserBranchAssignmentService.swapSlots(nonManagerId, branchId, userAId, userBId)
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.swapSlots(nonManagerId, branchId, userAId, userBId)
+        }
+
+        assertEquals(1, assignedSlot(idA))
+        assertEquals(2, assignedSlot(idB))
+    }
+
+    @Test
+    fun `swapSlots self-service by participant is allowed without MANAGE_USERS`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val idA = UUID.randomUUID()
+        val idB = UUID.randomUUID()
+        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
+        UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
+
+        UserBranchAssignmentService.swapSlots(userAId, branchId, userAId, userBId)
 
         assertEquals(2, assignedSlot(idA))
         assertEquals(1, assignedSlot(idB))
@@ -297,7 +314,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userBId, 5)
         UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
 
-        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
         assertEquals(2, assignments.size)
         assertEquals(userAId, assignments[0].userId)
@@ -315,15 +332,25 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
         UserBranchAssignmentService.remove(callerId, branchId, userBId)
 
-        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
+        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
         assertEquals(1, assignments.size)
         assertEquals(userAId, assignments[0].userId)
     }
 
     @Test
-    fun `findActiveByBranch without MANAGE_USERS is allowed at service layer`() {
-        val assignments = UserBranchAssignmentService.findActiveByBranch(branchId)
+    fun `findActiveByBranch without MANAGE_USERS is forbidden at service layer`() {
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.findActiveByBranch(nonManagerId, branchId)
+        }
+    }
+
+    @Test
+    fun `findActiveByBranch with MANAGE_USERS returns empty list`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
         assertTrue(assignments.isEmpty())
     }
