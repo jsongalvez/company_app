@@ -2,10 +2,12 @@
 
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
+import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.exception.ForbiddenException
@@ -13,15 +15,25 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
+import com.companyb.companyapp.repository.model.RemittanceMethod
+import com.companyb.companyapp.repository.model.RemittanceStatus
+import com.companyb.companyapp.repository.model.RemittanceTable
+import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.Javalin
+import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -34,9 +46,18 @@ import kotlin.test.assertTrue
  * picker endpoint (read window = distinct BRANCH grants, or all branches for
  * a GLOBAL VIEW_BRANCH_DATA holder).
  *
+ * #128 Public branch-type exports: /api/branches/export/provincial +
+ * /medical-mission are JWT-only (no capability gate). The 3-segment GLOBAL
+ * filter that used to sit at /api/branches/export never fired on the 4-segment
+ * routes (the #114 exact-segment lesson), so the target state already held —
+ * these tests lock it: zero-grant user passes (404/200, never 403), and the
+ * real JWT filter still blocks unauthenticated callers.
+ *
  * Gate-pass is proven by 404 (the handlers 404 on missing data AFTER the gate
- * passes); gate-block by 403. This keeps the matrix deterministic without
- * seeding financial data.
+ * passes); gate-block by 403. This keeps the authz matrix deterministic
+ * without seeding financial data — except one #128 test that seeds two
+ * minimal submitted remittances to prove the public download path returns
+ * 200 with data for a zero-grant user.
  */
 class ReportsReadScopeAuthzTest : BasePostgresTest() {
     private val viewA = UUID.randomUUID()
@@ -120,6 +141,32 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         }
     }
 
+    // The real JWT before-filter (Main.kt) — for the #128 "unauthenticated
+    // still 401" regression. The X-Test-User bypass app above can't exercise it.
+    private fun createAppWithJwt(): Javalin {
+        val config = AppConfig.parse()
+        JwtService.init(config)
+        Password.init(config.authDummyPassword)
+        return Javalin.create { cfg ->
+            cfg.jsonMapper(KotlinxSerializationMapper())
+            cfg.routes.before { ctx ->
+                Database.connect(DatabaseTestHelper.requireTestDataSource())
+            }
+            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
+                ctx.attribute("userId", userId)
+            }
+            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+            }
+            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+            }
+            ExportRoutes.register(cfg)
+        }
+    }
+
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
     private fun getStatus(
@@ -174,6 +221,142 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     fun `no-grant user is blocked on every read route`() {
         (branchAExportPaths + branchBExportPaths).forEach { path ->
             assertEquals(403, getStatus(noneUser, path), "expected 403 on $path")
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // #128: branch-type exports are public (JWT-only)
+    // ──────────────────────────────────────────────
+
+    private val branchTypeExportPaths =
+        listOf(
+            "/api/branches/export/provincial?format=csv",
+            "/api/branches/export/provincial?year=2026&month=8&format=csv",
+            "/api/branches/export/medical-mission?format=csv",
+            "/api/branches/export/medical-mission?year=2026&month=8&format=csv",
+        )
+
+    @Test
+    fun `branch-type exports are reachable by zero-grant user`() {
+        // 404 = gate-pass (handler ran, no data), never 403 — public reports.
+        branchTypeExportPaths.forEach { path ->
+            assertEquals(404, getStatus(noneUser, path), "expected gate-pass (404) on $path")
+        }
+    }
+
+    @Test
+    fun `branch-type export returns 200 with data for zero-grant user`() {
+        val provincialBranch = UUID.randomUUID()
+        val missionBranch = UUID.randomUUID()
+        seedSubmittedRemittance(
+            branchId = provincialBranch,
+            branchName = "Provincial Export Branch",
+            branchType = BranchType.PROVINCIAL_TOUR,
+            snapshot =
+                FinancialSnapshot(
+                    grossIncome = BigDecimal("2000.00"),
+                    totalCompensation = BigDecimal("400.00"),
+                    totalExpenses = BigDecimal("100.00"),
+                ),
+        )
+        seedSubmittedRemittance(
+            branchId = missionBranch,
+            branchName = "Mission Export Branch",
+            branchType = BranchType.MEDICAL_MISSION,
+            snapshot =
+                FinancialSnapshot(
+                    grossIncome = BigDecimal("1000.00"),
+                    totalCompensation = BigDecimal("200.00"),
+                    totalExpenses = BigDecimal("50.00"),
+                ),
+        )
+        JavalinTest.test(createApp()) { _, client ->
+            val provincial = client.get("/api/branches/export/provincial?format=csv", asUser(noneUser))
+            assertEquals(200, provincial.code)
+            assertTrue(
+                provincial
+                    .headers()
+                    .get("Content-Type")
+                    .orEmpty()
+                    .contains("text/csv"),
+            )
+            assertTrue(provincial.body.string().contains("Provincial Export Branch"))
+            assertTrue(provincial.body.string().contains("1500.00"))
+
+            val mission = client.get("/api/branches/export/medical-mission?format=csv", asUser(noneUser))
+            assertEquals(200, mission.code)
+            assertTrue(
+                mission
+                    .headers()
+                    .get("Content-Type")
+                    .orEmpty()
+                    .contains("text/csv"),
+            )
+            assertTrue(mission.body.string().contains("Mission Export Branch"))
+            assertTrue(mission.body.string().contains("750.00"))
+        }
+    }
+
+    @Test
+    fun `branch-type exports still require JWT auth`() {
+        JavalinTest.test(createAppWithJwt()) { _, client ->
+            assertEquals(401, client.get("/api/branches/export/provincial?format=csv").code)
+            assertEquals(401, client.get("/api/branches/export/medical-mission?format=csv").code)
+        }
+    }
+
+    @Test
+    fun `branch-type exports pass with a valid JWT`() {
+        val token = JwtService.generateToken(noneUser.toString())
+        JavalinTest.test(createAppWithJwt()) { _, client ->
+            val response =
+                client.get(
+                    "/api/branches/export/provincial?format=csv",
+                    Consumer { it.header("Authorization", "Bearer $token") },
+                )
+            assertEquals(404, response.code, "expected gate-pass (404) — JWT accepted, no data")
+        }
+    }
+
+    private data class FinancialSnapshot(
+        val grossIncome: BigDecimal,
+        val totalCompensation: BigDecimal,
+        val totalExpenses: BigDecimal,
+    )
+
+    private fun seedSubmittedRemittance(
+        branchId: UUID,
+        branchName: String,
+        branchType: BranchType,
+        snapshot: FinancialSnapshot,
+    ) {
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        DatabaseTestHelper.insertTestBranch(branchId, branchName, branchType)
+        val remittanceId = UUID.randomUUID()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        val today = LocalDate.now()
+        transaction {
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = remittanceId
+                it[RemittanceTable.branchId] = branchId
+                it[RemittanceTable.type] = RemittanceType.SESSION
+                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
+                it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
+                it[RemittanceTable.version] = 2
+                it[RemittanceTable.submittedDate] = today
+                it[RemittanceTable.submittedBy] = noneUser
+                it[RemittanceTable.dateRangeStart] = today
+                it[RemittanceTable.dateRangeEnd] = today
+            }
+            RemittanceFinancialSnapshotTable.insert {
+                it[RemittanceFinancialSnapshotTable.remittanceId] = remittanceId
+                it[RemittanceFinancialSnapshotTable.grossIncome] = snapshot.grossIncome
+                it[RemittanceFinancialSnapshotTable.totalCompensation] = snapshot.totalCompensation
+                it[RemittanceFinancialSnapshotTable.totalExpenses] = snapshot.totalExpenses
+                it[RemittanceFinancialSnapshotTable.netIncome] =
+                    snapshot.grossIncome - snapshot.totalCompensation - snapshot.totalExpenses
+            }
         }
     }
 
