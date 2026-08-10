@@ -34,6 +34,7 @@ import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.drawer.HamburgerWithBadge
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
+import com.companyb.companyapp.ui.screen.BranchSelectScreen
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
@@ -44,9 +45,11 @@ import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
+import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
+import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 
@@ -58,7 +61,15 @@ actual fun AppNavHost(
     navController: NavHostController,
     modifier: Modifier,
 ) {
-    val startDestination: Route = if (tokenStore.getToken() != null) Route.Dashboard else Route.Login
+    // #94-grad — start destination derives from the VALIDATED session, not raw token
+    // presence: App() only composes AppNavHost once launch validation resolved, so a
+    // non-null currentUser here means the token passed GET /api/me (silent-401 prevention).
+    val startDestination: Route =
+        if (SessionState.currentUser.value != null) {
+            Route.BranchSelect
+        } else {
+            Route.Login
+        }
     // #96 Q5 — shell wraps the post-clock-in sub-graph of one AppNavHost. Pre-shell routes
     // (Login, BranchSelect) render full-screen: empty `drawerContent` lambda is invisible
     // inside ModalNavigationDrawer's Box (drawer closed + Sheet has no measurable children);
@@ -119,6 +130,7 @@ actual fun AppNavHost(
                     composable<Route.Login> {
                         LoginScreen(
                             authViewModel = remember { AuthViewModel(apiClient) },
+                            bootstrapViewModel = remember { SessionBootstrapViewModel(apiClient) },
                             tokenStore = tokenStore,
                             onLoginSuccess = {
                                 // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
@@ -129,7 +141,20 @@ actual fun AppNavHost(
                             onRegisterClick = { /* register route — out of scope, pending #94-grad */ },
                         )
                     }
-                    composable<Route.BranchSelect> { PlaceholderRoute("BranchSelect") }
+                    composable<Route.BranchSelect> {
+                        val branchSelectViewModel: BranchSelectViewModel =
+                            remember { BranchSelectViewModel(apiClient) }
+                        BranchSelectScreen(
+                            viewModel = branchSelectViewModel,
+                            onClockInComplete = {
+                                // Per #91 — popUpTo(Login) inclusive on clock-in; #94 Phase 3:
+                                // navigate Dashboard only after the capability refresh succeeded.
+                                navController.navigate(Route.Dashboard) {
+                                    popUpTo(Route.Login) { inclusive = true }
+                                }
+                            },
+                        )
+                    }
                     composable<Route.Dashboard> { PlaceholderRoute("Dashboard") }
                     composable<Route.Clients> {
                         // #113 D7 — code-only route gate matching the implemented `Set<String>`

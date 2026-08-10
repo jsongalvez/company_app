@@ -10,6 +10,7 @@ import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,8 +26,14 @@ class AttendanceViewModel(
     private val _clockOutState = MutableStateFlow<UiState<ClockOutResponse>>(UiState.Idle)
     val clockOutState: StateFlow<UiState<ClockOutResponse>> = _clockOutState.asStateFlow()
 
-    fun clockIn(request: ClockInRequest) {
-        handler.launch(
+    fun clockIn(request: ClockInRequest): Job {
+        // Synchronous pre-set: the guard must hold from the caller's frame (a double-tap
+        // before any dispatch would otherwise launch two clock-ins — the #135 double-tap
+        // pattern; the #140 BranchSelect wrapper checks this state before delegating).
+        _clockInState.value = UiState.Loading
+        // Return type added for #140's chain — the caller joins the job to fire the
+        // ADR-0021 capability refresh only after the clock-in succeeded.
+        return handler.launch(
             state = _clockInState,
             operation = "clockIn",
             endpoint = "POST /api/attendance/clock-in",

@@ -47,8 +47,8 @@ class ClientViewModel(
     val detailChangedNotice: StateFlow<Boolean> = _detailChangedNotice.asStateFlow()
 
     // D2 — debounce + current-query guard. `onQueryChange` is the rebuild entry point (debounce
-    // lives in the VM so it's testable via virtual time); `search`/`clearSearch` stay for the
-    // orphan HomeScreen consumer (orphan-code fog) and for tests that want an immediate fire.
+    // lives in the VM so it's testable via virtual time); `search`/`clearSearch` stay for tests
+    // that want an immediate fire (the #94-grad orphan cleanup removed the last screen consumer).
     private var searchJob: Job? = null
     private var latestQuery: String = ""
 

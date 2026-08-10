@@ -26,9 +26,6 @@ class BranchViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "BranchVM")
 
-    private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
-    val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
-
     private val _branchDetail = MutableStateFlow<UiState<BranchResponse>>(UiState.Idle)
     val branchDetail: StateFlow<UiState<BranchResponse>> = _branchDetail.asStateFlow()
 
@@ -49,16 +46,6 @@ class BranchViewModel(
 
     private val _setRateState = MutableStateFlow<UiState<RateResponse>>(UiState.Idle)
     val setRateState: StateFlow<UiState<RateResponse>> = _setRateState.asStateFlow()
-
-    fun loadBranches() {
-        handler.launch(
-            state = _branches,
-            operation = "loadBranches",
-            endpoint = "GET /api/branches",
-            block = { apiClient.httpClient.get("/api/branches") },
-            transform = { it.body() },
-        )
-    }
 
     fun loadBranchDetail(branchId: String) {
         handler.launch(

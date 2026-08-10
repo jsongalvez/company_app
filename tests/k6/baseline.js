@@ -39,6 +39,12 @@ export default function (data) {
   metrics.branchesLatency.add(branchesRes.timings.duration);
   metrics.errorRate.add(branchesRes.status >= 400);
 
+  // #94-grad — the BranchSelect data source (GET /api/me/branches, #98) gained its first
+  // frontend consumer; baseline deferred by #98 until it saw real traffic.
+  const myBranchesRes = http.get(`${BASE_URL}/api/me/branches`, { headers });
+  metrics.myBranchesLatency.add(myBranchesRes.timings.duration);
+  metrics.errorRate.add(myBranchesRes.status >= 400);
+
   const clientsRes = http.get(`${BASE_URL}/api/clients?q=test`, { headers });
   metrics.clientsSearchLatency.add(clientsRes.timings.duration);
   metrics.errorRate.add(clientsRes.status >= 400);

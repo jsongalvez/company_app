@@ -1,6 +1,6 @@
 # k6 Baseline Results
 
-Last updated: 2026-07-14
+Last updated: 2026-08-10
 
 **How to use:** Run k6 against the test database and paste the summary output here. This file
 is the human-readable record of what "normal" looks like for each endpoint.
@@ -35,10 +35,15 @@ endpoint. Do NOT update if a threshold failed due to an unintentional regression
 | `branches_latency` | p95 < 500ms |
 | `clients_search_latency` | p95 < 1000ms |
 | `sessions_latency` | p95 < 1000ms |
+| `my_branches_latency` | p95 < 200ms |
 | `errors` | rate < 5% |
 
 ## Notes
 
+- `my_branches_latency` baselined 2026-08-10 (#140 — BranchSelect landed its first consumer):
+  3 runs on a clean test DB (owner user, no branch assignments — the empty-branch path of the
+  #98 union query) measured p95 15.3 / 8.3 / 7.3 ms. Threshold tightened to 200 ms (≈13–27×
+  headroom). Re-baseline when the endpoint sees real assignment data.
 - Thresholds are intentionally generous during early development.
 - Tighten thresholds after the app stabilizes in production with real traffic patterns.
 - A threshold violation with stable JMH scores indicates a DB or networking bottleneck — profile with JFR.
