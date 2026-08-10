@@ -1,0 +1,72 @@
+# Handoff — Wayfinder Map #89 (Frontend Rebuild), Session 38
+
+## What this is
+
+A wayfinder session on map **#89** ("Frontend rebuild — from scratch to fully-integrated UI"). Session 38 resolved the AFK task **#140** ("Build — Login + capabilities fetch + BranchSelect surface + SessionState writer integration") — `wayfinder:task`, driven by the agent alone (map remains 100% AFK). The #94-grad fog line graduated (user pick at session start: AFK #94-grad over the HITL #117-decide), resolved, closed. Resolution comment: https://github.com/jsongalvez/company_app/issues/140#issuecomment-5242880577. Commit `cd4a586` on `ralph/company-app-full-build` (23 files, +1475/−1150, not pushed; pre-commit gate passed: ktlint/detekt/765 tests/cleanliness/shared-compile). Map #89 updated (Decisions-so-far #140 entry, k6-baseline fog line + orphan-code fog line graduated, frontier paragraph rewritten).
+
+**Next-session state:** **0 unblocked tickets** — unchanged (the new ticket was created AND closed in-session).
+
+## Session outcome
+
+**#140 (Build — Login + capabilities fetch + BranchSelect surface + SessionState writer integration) — created + resolved + closed (AFK).**
+
+- **Created the ticket** (user pick: "Graduate #94-grad Build (AFK)" over the HITL #117-decide; asked via question tool since 0 unblocked). Wired as sub-issue of map #89, claimed, then the usual AFK flow.
+- **Shipped**: the #108-deferred SessionState writer call-sites + the whole #94-locked flow. Launch bootstrap: `SessionBootstrapViewModel.validateSession()` (GET /api/me → setUser → caps → **global slice**) shared by launch-validation splash (App.kt, pre-AppNavHost) + fresh login; startDestination from validated `currentUser` (BranchSelect) not raw token presence. Fresh login: one continuous loading through POST login → saveToken → validateSession; Q3-table error copy via pure `loginErrorText`. Mid-session 401: `ApiClient.onUnauthorized` carries the **401'd path** (credential-401s on login/register skip the global reaction); expired-notice consumed once by LoginScreen; launch 401s silent (`launchValidationActive` flag re-arms on retry/Loading, disarms on any token clear). BranchSelect: HomeScreen repurposed → `BranchSelectScreen` at Route.BranchSelect (both actuals), GET /api/me/branches with all four spec-185 labels, Clock In on NOT_CLOCKED_IN only; **Phase-3 chain** in new `BranchSelectViewModel` (composes AttendanceViewModel): clock-in → setSelectedBranch → ADR-0021 refresh (branch slice) → navigate Dashboard popUpTo(Login); retry phase-specific (refresh-fail re-runs refresh only). Cleanup: HomeScreen/ClientSearchScreen/SessionCreateScreen deleted, `BranchViewModel.loadBranches` removed, AttendanceViewModel **restored** (r1 spec fix), AuthViewModel.logout kept. Two-slice pure filters `globalCapabilities`/`capabilitiesForBranch` (BRANCH_DAY excluded — F7 stays fog). k6: `my_branches_latency` metric + threshold, 3-run baseline p95 15.3/8.3/7.3 ms (empty-branch path) → tightened to 200 ms, results recorded.
+- **Falsification**: HomeScreen orphanhood (no NavHost ref), loadBranches single-consumer, ClientSearch/SessionCreate HomeScreen-only, AttendanceViewModel HomeScreen-only, ApiClient 401 hook path-blind (login-401 would trip the expired-notice).
+- **Key decisions**: (1) caps-leg 401 = same silent session-401 class as me-leg (r1 fix — it used to throw → Error mislabeling auth as network + racing the notice; LoginScreen navigate token-gated for the residual ordering); (2) BranchSelectViewModel owns the chain (testable Phase-3 sequencing; screen residue = navigation trigger only); (3) `loginErrorText` matches "failed: NNN" suffix (bare "401" substring could false-positive on network messages); (4) launchValidationActive re-arms on Loading + disarms on token clear (r1 HARD fix — stuck-true would swallow all later mid-session 401s); (5) synchronous `UiState.Loading` pre-set before handler.launch in both new VMs + AttendanceViewModel (double-tap guard — tests caught the async-Loading race); (6) no ADR/migration/DTO (ADR-0021 consumed; #98 endpoint pre-existed).
+- **Tests** +24 (desktop suite 117→141): bootstrap 6, branch-select 6, slices 4, SessionState 2, loginErrorText 6.
+- **Review**: /code-review rounds 1+2. r1 — Standards: 1 HARD (launchValidationActive stuck-true → silently swallowed later mid-session 401s) + 3 SOFT fixed (logWarn gaps ×2, statusLabel @Composable misuse, loginErrorText fragility) + accepted (transform side-effect, default-arg retry path); Spec: 2 MISSING (NOT_CLOCKED_IN label per spec 185; SessionState tests) + 1 SCOPE-CREEP (AttendanceViewModel deletion) + 1 WRONG (caps-leg 401 mislabel). r2 (fix delta — all fixes enumerated since uncommitted): Standards 6/8 clean + 2 SOFT (stale class KDoc — fixed; caps-401 Success-race on fresh login — fixed via token gate); Spec all 4 CLOSED + 1 NEW stale-KDoc (fixed). No third round.
+- **Process notes**: (a) round-2 diff on uncommitted work = enumerate the fix list to the sub-agents (no commit existed); (b) the #138 compile-red pattern unnecessary — the new VMs' unit tests compiled against the new code; (c) k6 backend run needs `background: true` shell (a timed-out foreground shell kills the nohup'd gradle child); (d) `MockRequestHandler` is a **typealias to a suspend lambda** — `MockRequestHandler { }` constructor syntax fails; return plain lambdas (NotificationViewModelTest precedent); (e) Ktor 3.5.1 `HttpResponse` has no `.request` — use `response.call.request.url`; (f) `Job.join()` is a member, not an extension (no `kotlinx.coroutines.join` import).
+
+## Patterns + learnings (cumulative across sessions)
+
+- Session-38 additions:
+  - **Enumerated fix-delta review** — when round-1 fixes land on top of uncommitted work (no review-point commit), hand the sub-agents the numbered fix list + ask per-fix verification; works as well as `git diff <commit>`.
+  - **Synchronous Loading pre-set** — an in-flight guard reading `state is Loading` misses double-taps issued before the launched coroutine first runs; pre-set `state.value = Loading` in the caller's frame (the #135 double-tap pattern, test-proven).
+  - **401-path discrimination** — a global 401 flow carrying the request path lets the App handler skip credential 401s (login/register) and treat only session 401s as expired-session events; without it, login failures trip the "session expired" UX.
+  - **Silent-session-401 class** — the capabilities leg of a two-call bootstrap shares the me-leg's 401 semantics (global handler clears; never surface Error — an auth failure must not read as a connection problem).
+  - **Compose-VM chain** — a VM composing another VM (BranchSelectViewModel → AttendanceViewModel) + join-and-check makes a multi-call phase testable with zero screen-side sequencing logic.
+  - **k6 background run** — `nohup` + foreground shell dies with the shell; use the shell tool's own background mode.
+- Prior-session patterns unchanged: AFK flow = red-first falsification, quality gate, /code-review rounds 1+2 (round 2 on the fix delta), k6 3-run baseline before tightening, resolution comment → close → map Decisions-so-far + frontier paragraph + fog cleanup + handoff.
+- **iOS compile is pre-existing-broken** (from #120 handoff): `:composeApp:compileKotlinIosSimulatorArm64` fails on HEAD (no iOS actuals) — pre-push gate excludes iOS intentionally.
+- **Flyway migration numbering**: V1–V18 taken; next is **V19** (`ls backend/src/main/resources/db/migration/` before picking).
+- **Test-DB pollution on partial `--tests` runs**: running filtered test classes without a clean DB first can poison count-based assertions in later full runs — `bash scripts/clean-test-db.sh` before AND after partial runs.
+
+## Current frontier (verified live post-session)
+
+Per `gh issue list --state open`: only #89 (map), #110 (standalone hardcoded-month test fix, NOT a child), #139 (standalone OpenAPI map) open. **0 open children of #89** — all graduated tickets closed; #140 (created+closed this session) closed the #94-grad fog line and the #98-deferred k6 line.
+
+## Post-session addendum
+
+None — #140 was the session's only ticket. Map #89's Not-yet-specified gained a rewritten orphan-code line (SessionCreate rebuild stands alone post-deletion; legacy screens gone).
+
+## Recommended next picks
+
+- **#97-grad Build — Dashboard** (prototype exists: `prototype/0097-session-dashboard`, outline + locked Q1–Q6 decisions) — the natural next frontend build now that the login chain lands on the Dashboard placeholder. Includes the **clock-out → dashboard-state-clear transition** fog (#97 outline: "not fully specified in #94") — a decision the dashboard build must resolve (probably HITL-ish); also the shell-scoped poller/`NotificationState.clear()` maintenance notes apply to its session-end paths. AFK-able once the clock-out question is decided or scoped.
+- **Merged Finance & Reports build** (from #101 + #105) — the big remaining build; data surface fully built (feed #130, exports #128/#129/#131, accessible-branches #131, read-backs #117). **The gate is the #117 expense-GET-includes-soft-deleted question** (dimmed-deleted rows need a payload change per #101 D6) — HITL UX decision; the map is 100% AFK so far — flag to the user.
+- **Relief-request dialog on BranchSelect** — #91's one-liner ("relief-request = dialog, pick target user + send") became visible as a real gap in #140 (the screen deliberately shows no relief affordance; `ReliefAccessViewModel` still has zero UI consumers). Needs its own grilling (request/grant semantics ambiguous in #91's phrasing; grant viewed via Notifications). Also the branch-initiated **relief-invite flow** (fog, #106 placement: BranchSelect territory).
+- **Remaining Not-yet-specified candidates** — user-create flow (must assign roles; #132 machinery waiting), non-admin self-slot-edit (BR:67), `SessionState` context-model divergence (#99 F7 — its own decision session), desktop token-storage hardening, pushed-route topbar pattern, audit branch-name source, detekt gate strategy, hardcoded-month test fix (#110 — standalone), route-path constants.
+
+## How to drive the next session (wayfinder "Work through the map")
+
+1. Load the map (https://github.com/jsongalvez/company_app/issues/89), the wayfinder skill, tracker conventions (`docs/agents/issue-tracker.md` → "Wayfinding operations").
+2. Session-39 has NO unblocked ticket — pick from "Recommended next picks": graduate #97-grad (Dashboard; clock-out question is a decision inside it), decide #117 then graduate the merged Finance & Reports build (HITL — flag to the user), grill the relief-request dialog, or stop. If graduating a fog: `gh issue create` → sub-issue link → claim, then the usual AFK flow.
+3. Claim BEFORE work: `gh issue edit <N> --add-assignee @me` — verify no concurrent sessions.
+4. AFK flow: red-first falsification, /implement per module AGENTS.md (composeApp for frontend builds) + /code-review rounds 1+2 (parallel Standards + Spec; round 2 on the fix delta — enumerate the fix list when the delta is uncommitted).
+5. Post the answer as a **resolution comment**, then `gh issue close <N>`, then append a context pointer to map #89's **Decisions so far** (fetch body → modify → `gh issue edit 89 --body-file <modified>` — update the frontier paragraph AND clear graduated fog lines).
+6. Graduate fog (create-then-wire): `gh issue create --label wayfinder:task` → sub-issue via `gh issue edit <n> --parent 89` (verify via the child's `parent` field — the parent's sub_issues list can be stale).
+7. **One-ticket-per-session limit.** When done, stop and write `docs/agents/wayfinder-<N>-handoff.md` — follow this session's format.
+
+## Map state at session-end
+
+Map #89 body updated this session:
+- Decisions-so-far: new #140 entry (full shipped-scope summary + key decisions + tests 117→141 + review outcome + resolution link; "#94-grad fog line resolved; #98-deferred k6 line closed with it").
+- Not-yet-specified: **k6-baseline-for-/api/me/branches line removed** (closed); **orphan-code-paths line replaced** with the standalone SessionCreate-rebuild note (legacy screens deleted). All other fog unchanged.
+- Frontier paragraph: rewritten with the #140 session outcome first (created+closed, 2 review rounds, key lessons), rest reworded "closed previous session", 0 unblocked held, backend-fog-exhaustion note added.
+
+## Suggested skills for next session
+
+- **`/wayfinder`** — the parent workflow; re-load to follow "Work through the map" steps (note: next session must pick/graduate a ticket or decide #117 first — 0 unblocked).
+- **`/grilling` + `/domain-modeling`** — if the #97-grad Dashboard build graduates: the clock-out → dashboard-state-clear transition is a decision (HITL-ish); same for the merged Finance build's #117 gate.
+- **`/implement` + `/code-review`** — for the Dashboard build or a future backend hardening ticket (parallel Standards + Spec; round 2 on the fix delta — enumerate when uncommitted).
+- **`/handoff`** — when the chosen ticket is resolved and the session is near its limit, compact + write `docs/agents/wayfinder-<N>-handoff.md`.
