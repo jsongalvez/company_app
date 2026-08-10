@@ -38,6 +38,10 @@ Per `gh api repos/jsongalvez/company_app/issues/89/sub_issues`:
 
 (#110 "Fix hardcoded-month dates…" remains open + unassigned, standalone, NOT a child of map #89.)
 
+## Post-session addendum
+
+**New standalone map #139 created** (same session, user request): "Map: OpenAPI documentation for the backend API" (`wayfinder:map`, no tickets yet — route looks clear, single-session scale). #89 gained an **Out of scope** section pointing at it — OpenAPI docs are a backend-documentation effort, not a step toward the frontend rebuild; never graduates here.
+
 ## Recommended next picks
 
 - **Merged Finance & Reports build** (from #101 + #105) — the big remaining build; data surface fully built (feed #130, exports #128/#129/#131, accessible-branches #131, read-backs #117). **The gate is the #117 expense-GET-includes-soft-deleted question** (dimmed-deleted rows need a payload change per #101 D6) — still open (left as a fog note in #117's resolution). HITL-ish UX decision; the map is 100% AFK so far — flag to the user.
