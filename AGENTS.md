@@ -21,14 +21,25 @@ When a fresh agent opens a GitHub issue to work on:
 5. Open the relevant doc from the Document Map below (e.g. `docs/architecture.md` for layering, `docs/engines.md` for pseudocode, `docs/business-requirements.md` for rules)
 6. Load the skill indicated by the workflow (`/implement`, `/code-review`, etc.)
 
-## Code review — two rounds
+## Code review — phased loop
 
-Every `/implement` ticket gets **two** code-review rounds (round 2 added in session 20; applies to all future AFK builds):
+Every `/implement` ticket gets a **phased review loop** (adopted in session 38 after a round-3 sanity pass caught 7 issues rounds 1+2 missed — the two-round structure reviewed the same lens twice; distinct lenses + a real exit condition fix the class). The loop runs until **one full pass reports zero HARD findings**.
 
-1. **Round 1 — full diff** (unchanged): parallel `/code-review` Standards + Spec sub-agents against the working tree, before commit; hand untracked files to the sub-agents explicitly.
-2. **Round 2 — fix delta**: after applying round-1 fixes, re-run both sub-agents against the fix delta only (`git diff <first-review-point>` — the working tree as of round 1). The fixes themselves must be reviewed: in session 20, round-1 fixes introduced two bugs (dropped in-flight-flag cleanup) that only tests caught. No third round — round 2 finds are fixed directly.
+A **pass** = four phases, each a different review mode, run as parallel `/code-review` sub-agents per phase (Standards + Spec axes default; the phase templates in `docs/agents/code-review-loop.md` slot into them):
 
-The review points are recorded in the resolution comment (e.g. "#123 — review round 2 (fix delta) passed after N fixes").
+1. **P1 Spec conformance** — full delta vs the ticket line-by-line: missing / partial / scope-creep / wrong-implementation, quoted spec lines.
+2. **P2 Standards + constraints** — full delta vs documented standards **and every constraint source the code consumes** (theme mappings, shared DTOs/enums, ApiCallHandler contract, ADR axes, both platform actuals, k6 conventions) — constraint files often live outside the diff.
+3. **P3 Behavior trace** — end-to-end state machines on the **composed tree**: every user flow + error path *including repeated attempts* (attempt-1 fail → attempt-2 semantics) and the nav back-stack; each flow PASS/FAIL with evidence.
+4. **P4 Adversarial edges** — what breaks it: races/orderings, double-taps, stale state after clear/cancel, empty/zero states, dead branches, non-exhaustive `when`s, unmapped theme slots.
+
+**Loop mechanics:**
+
+- **Review points**: batch-fix commits per pass; each pass diffs `git diff <last-pass-commit>`. Untracked files are handed to the sub-agents explicitly on the first pass.
+- **Triage**: HARD (bug / regression / security / documented-standard breach) → must fix, loop continues. SOFT (smell / judgement call) → fix if cheap; else accept **with a logged reason**; ≤3 accepted SOFTs per pass; the accepted list is handed to the next pass with "re-examine from your angle" — acceptance is never load-bearing (round-1 SOFTs became round-3 HARDs).
+- **Exit**: one full pass with zero HARD findings across all four phases. Converges naturally — each pass's delta is fixes only (typically 2–3 passes for a build ticket).
+- Agents are never told "previous rounds passed" as authority; each pass re-derives flows from the ticket.
+
+The review points + each pass's outcome are recorded in the resolution comment (e.g. "#140 — pass 3 (P3 flow-2 catch) → pass 4: 0 HARD, 2 accepted SOFTs").
 
 ## Document map
 
