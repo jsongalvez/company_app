@@ -2,26 +2,295 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.SwapSlotsRequest
+import com.companyb.companyapp.dto.UpdateSlotRequest
+import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.network.ApiClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
 import io.ktor.client.request.patch
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.time.Clock
 
+const val USER_STATUS_ACTIVE = "ACTIVE"
+const val USER_STATUS_INACTIVE = "INACTIVE"
+
+/**
+ * One entry in the slot-order list for a branch (#106 D4). Derived from the users list's
+ * assignments: every user with an active assignment at the branch, slot ASC then display name
+ * tiebreak. `isDeactivated` powers the dimmed + controls-disabled treatment (D2).
+ */
+data class UserSlotRow(
+    val userId: String,
+    val displayName: String,
+    val isDeactivated: Boolean,
+    val slot: Short,
+)
+
+/** Client-side slot-order derivation (#106 D4): slot ASC, display name tiebreak. */
+fun slotOrderForBranch(
+    users: List<UserSummaryResponse>,
+    branchId: String,
+): List<UserSlotRow> =
+    users
+        .mapNotNull { user ->
+            user.assignments.firstOrNull { it.branchId == branchId }?.let { assignment ->
+                UserSlotRow(
+                    userId = user.id,
+                    displayName = user.displayName,
+                    isDeactivated = user.status == USER_STATUS_INACTIVE,
+                    slot = assignment.slot,
+                )
+            }
+        }.sortedWith(compareBy<UserSlotRow> { it.slot }.thenBy { it.displayName })
+
+/** Client-side slot-number validation mirroring the backend's "Slot must be 1 or greater" (400). */
+fun parseSlotInput(input: String): Short? = input.trim().toShortOrNull()?.takeIf { it >= 1 }
+
+/** D2 — client-side search on display name/username, instant (no extra round-trips, YAGNI). */
+fun filterUsers(
+    users: List<UserSummaryResponse>,
+    query: String,
+): List<UserSummaryResponse> {
+    val trimmed = query.trim()
+    if (trimmed.isEmpty()) return users
+    return users.filter {
+        it.displayName.contains(trimmed, ignoreCase = true) ||
+            it.username.contains(trimmed, ignoreCase = true)
+    }
+}
+
+/**
+ * State model for the User Management screen (#106 D2-D5, built in #135).
+ *
+ * - [users]: full flat user list (`GET /api/users`, GLOBAL MANAGE_USERS).
+ * - [branches]: picker source for the D4 slot manager (`GET /api/branches`, same gate).
+ * - Mutations (deactivate/reactivate/swap/update-slot) are pessimistic (ADR-0022): a 2xx
+ *   mutates the in-memory list in place (rows update without a reload); a failure keeps the row
+ *   and surfaces an inline per-action error ([actionErrors]) keyed by the same key as [inFlight].
+ */
 class UserViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "UserVM")
 
-    private val _deactivateState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val deactivateState: StateFlow<UiState<Unit>> = _deactivateState.asStateFlow()
+    private val _users = MutableStateFlow<UiState<List<UserSummaryResponse>>>(UiState.Idle)
+    val users: StateFlow<UiState<List<UserSummaryResponse>>> = _users.asStateFlow()
 
+    private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
+    val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
+
+    // Per-action in-flight guard + inline errors (ADR-0022 pessimistic axis). Keys:
+    // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$userIdA:$userIdB",
+    // "slot:$branchId:$userId".
+    private val _inFlight = MutableStateFlow<Set<String>>(emptySet())
+    val inFlight: StateFlow<Set<String>> = _inFlight.asStateFlow()
+
+    private val _actionErrors = MutableStateFlow<Map<String, String>>(emptyMap())
+    val actionErrors: StateFlow<Map<String, String>> = _actionErrors.asStateFlow()
+
+    // Throwaway flow: every mutation lands here so a failure/in-flight fetch can never clobber
+    // the accumulated users list (the #122/#120 keep-last-list shape).
+    private val mutation = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+
+    fun loadUsers() {
+        handler.launch(
+            state = _users,
+            operation = "loadUsers",
+            endpoint = "GET /api/users",
+            block = { apiClient.httpClient.get("/api/users") },
+            transform = { it.body() },
+        )
+    }
+
+    fun loadBranches() {
+        handler.launch(
+            state = _branches,
+            operation = "loadBranches",
+            endpoint = "GET /api/branches",
+            block = { apiClient.httpClient.get("/api/branches") },
+            transform = { it.body() },
+        )
+    }
+
+    // D3 — deactivate (confirmation dialog shown by the screen) → existing PATCH; the row flips
+    // to INACTIVE in place. Self-deactivate is hidden on the own row; a backend 400 would surface
+    // the inline error.
     fun deactivateUser(userId: String) {
-        handler.launchUnit(
-            state = _deactivateState,
+        runMutation(
+            key = "deactivate:$userId",
             operation = "deactivateUser",
             endpoint = "PATCH /api/users/$userId/deactivate",
             block = { apiClient.httpClient.patch("/api/users/$userId/deactivate") },
+            onSuccess = { mutateUser(userId) { it.withStatus(USER_STATUS_INACTIVE) } },
+            statusMessage = { "Deactivate failed: ${it.value}" },
         )
     }
+
+    // D3 — reactivate (direct row action) → symmetric PATCH; row flips to ACTIVE, deactivated_at
+    // cleared (mirrors #133's idempotent pair semantics).
+    fun reactivateUser(userId: String) {
+        runMutation(
+            key = "reactivate:$userId",
+            operation = "reactivateUser",
+            endpoint = "PATCH /api/users/$userId/reactivate",
+            block = { apiClient.httpClient.patch("/api/users/$userId/reactivate") },
+            onSuccess = { mutateUser(userId) { it.withStatus(USER_STATUS_ACTIVE) } },
+            statusMessage = { "Reactivate failed: ${it.value}" },
+        )
+    }
+
+    // D4 — pairwise swap (desktop up/down arrows; one move = one swap with the neighbor).
+    fun swapSlots(
+        branchId: String,
+        userIdA: String,
+        userIdB: String,
+    ) {
+        runMutation(
+            key = "swap:$branchId:$userIdA:$userIdB",
+            operation = "swapSlots",
+            endpoint = "POST /api/branches/$branchId/slots/swap",
+            block = {
+                apiClient.httpClient.post("/api/branches/$branchId/slots/swap") {
+                    setBody(SwapSlotsRequest(userIdA, userIdB))
+                }
+            },
+            onSuccess = { swapSlotsInPlace(branchId, userIdA, userIdB) },
+            statusMessage = { "Swap failed: ${it.value}" },
+        )
+    }
+
+    // D4 — tap-to-edit slot number (mobile primary; manual number fallback on both platforms).
+    fun updateSlot(
+        branchId: String,
+        userId: String,
+        slot: Short,
+    ) {
+        runMutation(
+            key = "slot:$branchId:$userId",
+            operation = "updateSlot",
+            endpoint = "PATCH /api/branches/$branchId/assignments/$userId/slot",
+            block = {
+                apiClient.httpClient.patch("/api/branches/$branchId/assignments/$userId/slot") {
+                    setBody(UpdateSlotRequest(slot))
+                }
+            },
+            onSuccess = { mutateAssignmentSlot(branchId, userId, slot) },
+            statusMessage = { "Slot update failed: ${it.value}" },
+        )
+    }
+
+    private fun runMutation(
+        key: String,
+        operation: String,
+        endpoint: String,
+        block: suspend () -> HttpResponse,
+        onSuccess: () -> Unit,
+        statusMessage: (HttpStatusCode) -> String,
+    ) {
+        if (key in _inFlight.value) return
+        _inFlight.value = _inFlight.value + key
+        _actionErrors.value = _actionErrors.value - key
+        handler.launch(
+            state = mutation,
+            operation = operation,
+            endpoint = endpoint,
+            block = {
+                try {
+                    block()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Network failure — clear the in-flight guard so buttons re-enable AND surface
+                    // an inline error (ADR-0022 pessimistic contract: the row is kept and the
+                    // failure is visible). The handler still assigns Error to the throwaway flow;
+                    // the inline error is what the screen renders. (transform never deserializes
+                    // for these 204 ops, so only block() can throw here.)
+                    clearKey(key)
+                    _actionErrors.value = _actionErrors.value + (key to (e.message ?: "$operation failed"))
+                    throw e
+                }
+            },
+            transform = {
+                clearKey(key)
+                onSuccess()
+                Unit
+            },
+            onNonSuccess = { response ->
+                clearKey(key)
+                _actionErrors.value = _actionErrors.value + (key to statusMessage(response.status))
+                true
+            },
+        )
+    }
+
+    private fun clearKey(key: String) {
+        _inFlight.value = _inFlight.value - key
+    }
+
+    private fun mutateUser(
+        userId: String,
+        transform: (UserSummaryResponse) -> UserSummaryResponse,
+    ) {
+        val current = (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data ?: return
+        _users.value = UiState.Success(current.map { if (it.id == userId) transform(it) else it })
+    }
+
+    private fun mutateAssignmentSlot(
+        branchId: String,
+        userId: String,
+        slot: Short,
+    ) {
+        mutateUser(userId) { user ->
+            user.copy(
+                assignments =
+                    user.assignments.map {
+                        if (it.branchId == branchId) it.copy(slot = slot) else it
+                    },
+            )
+        }
+    }
+
+    private fun swapSlotsInPlace(
+        branchId: String,
+        userIdA: String,
+        userIdB: String,
+    ) {
+        val users = (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data ?: return
+        val slotA =
+            users
+                .firstOrNull { it.id == userIdA }
+                ?.assignments
+                ?.firstOrNull { it.branchId == branchId }
+                ?.slot
+                ?: return
+        val slotB =
+            users
+                .firstOrNull { it.id == userIdB }
+                ?.assignments
+                ?.firstOrNull { it.branchId == branchId }
+                ?.slot
+                ?: return
+        mutateAssignmentSlot(branchId, userIdA, slotB)
+        mutateAssignmentSlot(branchId, userIdB, slotA)
+    }
 }
+
+private fun UserSummaryResponse.withStatus(status: String): UserSummaryResponse =
+    when (status) {
+        USER_STATUS_INACTIVE -> {
+            copy(status = status, deactivatedAt = deactivatedAt ?: Clock.System.now().toString())
+        }
+
+        else -> {
+            copy(status = status, deactivatedAt = null)
+        }
+    }

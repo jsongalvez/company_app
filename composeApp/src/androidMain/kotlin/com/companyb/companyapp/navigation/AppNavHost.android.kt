@@ -41,11 +41,13 @@ import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
+import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
+import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -236,7 +238,25 @@ actual fun AppNavHost(
                         )
                     }
                     composable<Route.Reports> { PlaceholderRoute("Reports") }
-                    composable<Route.UserManagement> { PlaceholderRoute("User Management") }
+                    // #135 — D5: code-only MANAGE_USERS route gate (the #99 D7 pattern; backend
+                    // GLOBAL gate + 403 paths stay authoritative). The drawer item stays hidden
+                    // until the #94-grad capability wiring populates SessionState.capabilities —
+                    // documented state, not hacked around (ticket note); pre-wiring the route
+                    // shows the gate card.
+                    composable<Route.UserManagement> {
+                        val capabilities by SessionState.capabilities.collectAsState()
+                        val currentUser by SessionState.currentUser.collectAsState()
+                        if (CapabilityCodes.MANAGE_USERS in capabilities) {
+                            val userViewModel: UserViewModel =
+                                viewModel { UserViewModel(apiClient) }
+                            UserManagementScreen(
+                                viewModel = userViewModel,
+                                currentUserId = currentUser?.id,
+                            )
+                        } else {
+                            RouteGateCard(label = "User Management")
+                        }
+                    }
                     composable<Route.SessionDetail> { PlaceholderRoute("Session Detail") }
                 }
             }
