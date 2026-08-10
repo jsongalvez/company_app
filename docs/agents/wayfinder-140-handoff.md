@@ -36,9 +36,17 @@ A wayfinder session on map **#89** ("Frontend rebuild — from scratch to fully-
 
 Per `gh issue list --state open`: only #89 (map), #110 (standalone hardcoded-month test fix, NOT a child), #139 (standalone OpenAPI map) open. **0 open children of #89** — all graduated tickets closed; #140 (created+closed this session) closed the #94-grad fog line and the #98-deferred k6 line.
 
-## Post-session addendum
+## Post-session addendum (session 38 tail, before handoff)
 
-None — #140 was the session's only ticket. Map #89's Not-yet-specified gained a rewritten orphan-code line (SessionCreate rebuild stands alone post-deletion; legacy screens gone).
+Three items landed after the #140 resolution — all committed on `ralph/company-app-full-build`:
+
+1. **Round-3 sanity pass (user-requested "one more review")** — commit `183cbed` "fix: round-3 sanity-check findings on the #140 flow (#140)" (7 files, +113/−76; pre-commit gate passed). Two fresh-lens sub-agents (behavior trace + adversarial edges — the first time the code was reviewed with those lenses) found **7 findings rounds 1+2 missed: 2 HARD** (unmapped `secondaryContainer` → Material3 default purple on the clocked-in-here card — legacy HomeScreen carried the same latent bug; stale bootstrap `UiState.Error` masking the NEXT attempt's credential error) **+ 4 SOFT fixed** (validationState stuck-Loading after me-leg 401 → now Idle; `popUpTo(Login)` no-op on the launch-validation path → `popUpTo(0)` on the clock-in navigate; "Go to Login" didn't cancel the in-flight validation → `cancelValidation()` + token now PRESERVED per the #94 outline; `statusLabel` now exhaustive enum `when`) **+ 1 spec deviation aligned** (goToLogin token preservation). Lesson: rounds 1+2 reviewed the same lens twice (diff/delta scope+standards); the round-3 lens (composed-tree behavior + constraint sources outside the diff) is what caught the class.
+
+2. **Phased code-review loop adopted** — commit `17e9452` "docs: phased code-review loop replacing the two-round rule (#140)". `AGENTS.md` "Code review — two rounds" → **"Code review — phased loop"**: a pass = 4 phases (P1 Spec conformance, P2 Standards + constraints [read constraint sources the code consumes even if outside the diff], P3 Behavior trace [composed tree, repeated attempts, back-stack], P4 Adversarial edges), loop until **one full pass reports zero HARD findings**; batch-fix commits per pass → each pass diffs `git diff <last-pass-commit>`; SOFTs fix-if-cheap else accept with reason (≤3/pass), accepted list handed to next pass with "re-examine from your angle" — acceptance never load-bearing. Prompt templates: **`docs/agents/code-review-loop.md`** (the operational artifact — read it before any future review). **This replaces every "rounds 1+2" reference in this handoff's process notes.**
+
+3. **Audit strategy for the pre-loop bug backlog (DECISION IN FLIGHT — next session's work)** — user asked how to handle potential bugs left by pre-loop sessions; the discussion concluded: NOT after the map completes (bugs compound through copied code — evidence: #140 copied the legacy theme bug; remaining builds sit on these surfaces; cold context at the end). Risk-tiered: **Tier 1 = audit now** (never-again-touched + interaction-heavy surfaces: Notifications chain, Clients screens, User Management screen, Audit Log screen, backend grants path #132–#134, day-gates #136–#138); **Tier 2 = no pre-audit, touch-triggered** (remittance/reports/me-branches — the remaining builds consume them; the new loop's P2/P3 covers touched files). Already-known fog items (#117 un-gated expense read, F7, #110, audit branch-name) are NOT audit material. **User chose: "Pilot audit now"** — one pilot audit ticket on the highest-risk surface to calibrate the finding rate before committing to the rest of Tier 1. **The pilot surface was NOT yet chosen when this handoff was written** — my lean: the **Notifications chain** (singleton state + poller + badge + cross-screen read/acknowledge matrix = exactly the stale-state/interaction class the old lens missed; pre-#93 test patterns in places), with Clients screens and User Management as alternates. Next session: pick the pilot surface (or ask the user), graduate "**Audit — <surface> (phased loop)**" as `wayfinder:task` child of #89, run it with the new loop (P1 spec = the ORIGINAL tickets' resolutions; P2–P4 per `docs/agents/code-review-loop.md`), fix HARDs in-ticket, record per-surface verdict in the resolution.
+
+**Map state:** 0 unblocked children; frontier paragraph already reflects #140; the audit stream is a NEW work stream on map #89 (not fog graduation — closed-ticket surface re-review).
 
 ## Recommended next picks
 
@@ -66,7 +74,8 @@ Map #89 body updated this session:
 
 ## Suggested skills for next session
 
-- **`/wayfinder`** — the parent workflow; re-load to follow "Work through the map" steps (note: next session must pick/graduate a ticket or decide #117 first — 0 unblocked).
+- **`/wayfinder`** — the parent workflow; re-load to follow "Work through the map" steps (note: next session must pick/graduate a ticket — 0 unblocked; the pilot audit is the pending pick).
+- **`/code-review` + `docs/agents/code-review-loop.md`** — the phased loop is now the mandatory review process for every ticket AND the pilot audit; read the phase templates before spawning sub-agents.
 - **`/grilling` + `/domain-modeling`** — if the #97-grad Dashboard build graduates: the clock-out → dashboard-state-clear transition is a decision (HITL-ish); same for the merged Finance build's #117 gate.
-- **`/implement` + `/code-review`** — for the Dashboard build or a future backend hardening ticket (parallel Standards + Spec; round 2 on the fix delta — enumerate when uncommitted).
+- **`/implement`** — for either the Dashboard build or a future backend hardening ticket.
 - **`/handoff`** — when the chosen ticket is resolved and the session is near its limit, compact + write `docs/agents/wayfinder-<N>-handoff.md`.
