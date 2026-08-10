@@ -7,6 +7,7 @@ import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ExportRepository
 import com.companyb.companyapp.repository.model.Branch
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.Month
 import java.util.UUID
@@ -41,6 +42,43 @@ object ExportService {
                 ),
             )
         return buildResult(title, headers, rows, format, "daily-sales-${branch.name}-$date")
+    }
+
+    fun exportRange(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+        format: ExportFormat,
+    ): ExportResult {
+        val branch = findBranch(branchId)
+
+        val summaries =
+            com.companyb.companyapp.repository.DailySalesSummaryRepository
+                .findRangeByBranch(branchId, from, to)
+        if (summaries.isEmpty()) {
+            throw NotFoundException("No data for this branch and date range")
+        }
+
+        val gross = summaries.fold(BigDecimal.ZERO) { acc, s -> acc + s.grossIncome }
+        val comp = summaries.fold(BigDecimal.ZERO) { acc, s -> acc + s.totalCompensation }
+        val exp = summaries.fold(BigDecimal.ZERO) { acc, s -> acc + s.totalExpenses }
+        val productSales = summaries.fold(BigDecimal.ZERO) { acc, s -> acc + s.totalProductSales }
+        val commission = summaries.fold(BigDecimal.ZERO) { acc, s -> acc + s.totalCommission }
+
+        val title = "Daily Sales Summary - ${branch.name} - $from to $to"
+        val headers = dailyHeaders()
+        val rows =
+            listOf(
+                listOf(
+                    gross.toPlainString(),
+                    comp.toPlainString(),
+                    exp.toPlainString(),
+                    (gross - comp - exp).toPlainString(),
+                    productSales.toPlainString(),
+                    commission.toPlainString(),
+                ),
+            )
+        return buildResult(title, headers, rows, format, "range-export-${branch.name}-$from-$to")
     }
 
     fun exportMonthly(

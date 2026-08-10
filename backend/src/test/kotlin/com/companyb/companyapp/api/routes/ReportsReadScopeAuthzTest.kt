@@ -200,6 +200,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             "/api/branches/$branchA/export/daily?date=2026-08-10&format=csv",
             "/api/branches/$branchA/export/monthly?year=2026&month=8&format=csv",
             "/api/branches/$branchA/export/all-time?format=csv",
+            "/api/branches/$branchA/export/range?from=2026-08-01&to=2026-08-10&format=csv",
             "/api/branches/$branchA/daily-summary?date=2026-08-10",
             "/api/branches/$branchA/monthly-summary?year=2026&month=8",
         )
@@ -209,6 +210,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
             "/api/branches/$branchB/export/daily?date=2026-08-10&format=csv",
             "/api/branches/$branchB/export/monthly?year=2026&month=8&format=csv",
             "/api/branches/$branchB/export/all-time?format=csv",
+            "/api/branches/$branchB/export/range?from=2026-08-01&to=2026-08-10&format=csv",
             "/api/branches/$branchB/daily-summary?date=2026-08-10",
             "/api/branches/$branchB/monthly-summary?year=2026&month=8",
         )

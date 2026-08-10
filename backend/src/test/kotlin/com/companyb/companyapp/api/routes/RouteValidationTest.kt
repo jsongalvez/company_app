@@ -765,6 +765,62 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `GET export range missing from returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/export/range?to=2024-01-15&format=csv").code)
+        }
+    }
+
+    @Test
+    fun `GET export range missing to returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/export/range?from=2024-01-15&format=csv").code)
+        }
+    }
+
+    @Test
+    fun `GET export range invalid date returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/$testBranchId/export/range?from=not-a-date&to=2024-01-15&format=csv").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET export range from after to returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/$testBranchId/export/range?from=2024-01-16&to=2024-01-15&format=csv").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET export range missing format returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET export range invalid format returns 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16&format=invalid")
+                    .code,
+            )
+        }
+    }
+
     // ──────────────────────────────────────────────
     // NotificationRoutes
     // ──────────────────────────────────────────────

@@ -12,6 +12,7 @@ import io.javalin.http.HttpStatus
 import java.time.LocalDate
 import java.util.UUID
 
+@Suppress("TooManyFunctions")
 object ExportRoutes {
     private const val MAX_MONTH = 12
     private const val MIN_MONTH = 1
@@ -21,6 +22,9 @@ object ExportRoutes {
         // #114 lesson, 4th occurrence: a 4-segment literal filter never fires
         // on the 5-segment routes below — the wildcard is what makes the gate
         // actually run (leak proven red-first by ReportsReadScopeAuthzTest).
+        // The 5-segment /range route (#129) rides the same wildcard — no new
+        // filter; ReportsReadScopeAuthzTest's matrix covers it (403 never 404
+        // for zero-grant callers).
         // #128: the sibling 3-segment before("/api/branches/export") filter was
         // equally dead on the 4-segment provincial/medical-mission routes, so
         // those exports were already public (JWT-only, the #105 D2 target
@@ -37,6 +41,9 @@ object ExportRoutes {
 
         config.routes.get("/api/branches/{branchId}/export/daily") { context ->
             handleDailyExport(context)
+        }
+        config.routes.get("/api/branches/{branchId}/export/range") { context ->
+            handleRangeExport(context)
         }
         config.routes.get("/api/branches/{branchId}/export/monthly") { context ->
             handleMonthlyExport(context)
@@ -64,6 +71,30 @@ object ExportRoutes {
 
         val result = ExportService.exportDaily(branchId, date, format)
         sendFileResponse(context, result)
+    }
+
+    private fun handleRangeExport(context: io.javalin.http.Context) {
+        val branchId = context.pathParamAsUuid("branchId")
+        val from = parseRequiredDate(context, "from")
+        val to = parseRequiredDate(context, "to")
+        if (from.isAfter(to)) {
+            throw BadRequestResponse("from must be on or before to")
+        }
+        val format = parseFormat(context.queryParam("format"))
+
+        val result = ExportService.exportRange(branchId, from, to, format)
+        sendFileResponse(context, result)
+    }
+
+    private fun parseRequiredDate(
+        context: io.javalin.http.Context,
+        paramName: String,
+    ): LocalDate {
+        val param =
+            context.queryParam(paramName)
+                ?: throw BadRequestResponse("$paramName query param is required")
+        return runCatching { LocalDate.parse(param) }
+            .getOrElse { throw BadRequestResponse("Invalid $paramName format (expected yyyy-MM-dd)") }
     }
 
     private fun handleMonthlyExport(context: io.javalin.http.Context) {

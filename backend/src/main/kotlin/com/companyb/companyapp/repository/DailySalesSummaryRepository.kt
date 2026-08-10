@@ -3,8 +3,11 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.repository.model.DailySalesSummary
 import com.companyb.companyapp.repository.model.DailySalesSummaryView
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
+import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -23,6 +26,22 @@ object DailySalesSummaryRepository {
                         (DailySalesSummaryView.date eq date)
                 }.singleOrNull()
                 ?.toDailySalesSummary()
+        }
+
+    fun findRangeByBranch(
+        branchId: UUID,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<DailySalesSummary> =
+        transaction {
+            DailySalesSummaryView
+                .selectAll()
+                .where {
+                    (DailySalesSummaryView.branchId eq branchId) and
+                        (DailySalesSummaryView.date greaterEq from) and
+                        (DailySalesSummaryView.date lessEq to)
+                }.orderBy(DailySalesSummaryView.date to SortOrder.ASC)
+                .map { it.toDailySalesSummary() }
         }
 
     private fun ResultRow.toDailySalesSummary(): DailySalesSummary {

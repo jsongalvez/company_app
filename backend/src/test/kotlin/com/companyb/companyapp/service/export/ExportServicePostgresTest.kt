@@ -10,8 +10,12 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.repository.model.ProductSaleTable
+import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -40,6 +44,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ExportServicePostgresTest : BasePostgresTest() {
@@ -138,6 +143,110 @@ class ExportServicePostgresTest : BasePostgresTest() {
         val missingBranch = UUID.randomUUID()
         assertFailsWith<NotFoundException> {
             ExportService.exportDaily(missingBranch, today, ExportFormat.CSV)
+        }
+    }
+
+    @Test
+    fun `range export CSV rolls up the window into one row`() {
+        val day1 = UUID.randomUUID()
+        insertBranchDay(day1, branchId, today.minusDays(1))
+        trackOwned(BranchDayTable, BranchDayTable.id, day1)
+        seedDayFinancials(
+            day1,
+            DayFinancials(
+                gross = BigDecimal("2500.00"),
+                comp = BigDecimal("500.00"),
+                expense = BigDecimal("200.00"),
+                productSales = BigDecimal("300.00"),
+                commission = BigDecimal("150.0000"),
+            ),
+        )
+        seedDayFinancials(
+            branchDayId,
+            DayFinancials(
+                gross = BigDecimal("1500.00"),
+                comp = BigDecimal("300.00"),
+                expense = BigDecimal("100.00"),
+                productSales = BigDecimal("100.00"),
+                commission = BigDecimal("50.0000"),
+            ),
+        )
+
+        val result = ExportService.exportRange(branchId, today.minusDays(1), today, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("Gross Income"), "expected header row but got: $csv")
+        assertEquals(1, csv.lines().count { it.isNotBlank() } - 1, "expected header + one rollup row but got: $csv")
+        assertEquals(
+            "4000.00,800.00,300.00,2900.00,400.00,200.0000",
+            csv.lines().first { it.isNotBlank() && !it.startsWith("Gross Income") },
+            "unexpected rollup row in: $csv",
+        )
+        assertTrue(csv.contains("4000.00"), "expected gross sum 4000.00 but got: $csv")
+        assertTrue(csv.contains("800.00"), "expected compensation sum 800.00 but got: $csv")
+        assertTrue(csv.contains("300.00"), "expected expense sum 300.00 but got: $csv")
+        assertTrue(csv.contains("2900.00"), "expected net sum 2900.00 but got: $csv")
+        assertTrue(csv.contains("400.00"), "expected product sales sum 400.00 but got: $csv")
+        assertTrue(csv.contains("200.0000"), "expected commission sum 200.0000 but got: $csv")
+        assertEquals("text/csv", result.contentType)
+        assertTrue(result.fileName.endsWith(".csv"))
+    }
+
+    @Test
+    fun `range export PDF returns valid PDF bytes`() {
+        seedDayFinancials(
+            branchDayId,
+            DayFinancials(
+                gross = BigDecimal("1500.00"),
+                comp = BigDecimal("300.00"),
+                expense = BigDecimal("100.00"),
+                productSales = BigDecimal.ZERO,
+                commission = BigDecimal.ZERO,
+            ),
+        )
+        val result = ExportService.exportRange(branchId, today, today, ExportFormat.PDF)
+        val pdfStart = byteArrayOf(0x25, 0x50, 0x44, 0x46)
+        assertContentEquals(pdfStart, result.bytes.take(4).toByteArray())
+        assertEquals("application/pdf", result.contentType)
+        assertTrue(result.fileName.endsWith(".pdf"))
+    }
+
+    @Test
+    fun `range export excludes days outside the window and keeps zero-activity days`() {
+        val dayOutside = UUID.randomUUID()
+        insertBranchDay(dayOutside, branchId, today.minusDays(5))
+        trackOwned(BranchDayTable, BranchDayTable.id, dayOutside)
+        seedDayFinancials(
+            dayOutside,
+            DayFinancials(
+                gross = BigDecimal("9999.00"),
+                comp = BigDecimal("100.00"),
+                expense = BigDecimal("100.00"),
+                productSales = BigDecimal("100.00"),
+                commission = BigDecimal("100.0000"),
+            ),
+        )
+
+        val result = ExportService.exportRange(branchId, today, today, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertFalse(csv.contains("9999.00"), "day outside the window must be excluded but got: $csv")
+        assertEquals(
+            "0.00,0.00,0.00,0.00,0.00,0.0000",
+            csv.lines().first { it.isNotBlank() && !it.startsWith("Gross Income") },
+            "zero-activity day in the window must yield its zero rollup row: $csv",
+        )
+    }
+
+    @Test
+    fun `range export throws 404 when no data in range`() {
+        assertFailsWith<NotFoundException> {
+            ExportService.exportRange(branchId, today.plusDays(10), today.plusDays(20), ExportFormat.CSV)
+        }
+    }
+
+    @Test
+    fun `range export throws 404 for non-existent branch`() {
+        assertFailsWith<NotFoundException> {
+            ExportService.exportRange(UUID.randomUUID(), today, today, ExportFormat.CSV)
         }
     }
 
@@ -299,6 +408,65 @@ class ExportServicePostgresTest : BasePostgresTest() {
             contextId = CapabilityService.GLOBAL_CONTEXT_ID,
             sourceId = sourceId,
         )
+    }
+
+    private data class DayFinancials(
+        val gross: BigDecimal,
+        val comp: BigDecimal,
+        val expense: BigDecimal,
+        val productSales: BigDecimal,
+        val commission: BigDecimal,
+    )
+
+    private fun seedDayFinancials(
+        dayId: UUID,
+        financials: DayFinancials,
+    ) {
+        val clientId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val categoryId = UUID.randomUUID()
+        val productId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestClient(clientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        DatabaseTestHelper.insertTestUser(userId, "range-user")
+        trackOwned(AppUserTable, AppUserTable.id, userId)
+        DatabaseTestHelper.insertTestCategory(categoryId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
+        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
+        DatabaseTestHelper.insertTestSession(
+            id = UUID.randomUUID(),
+            clientId = clientId,
+            branchDayId = dayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = financials.gross,
+            finalPrice = financials.gross,
+        )
+        trackOwned(SessionTable, SessionTable.branchDayId, dayId)
+        DatabaseTestHelper.insertTestCompensation(dayId, userId, financials.comp, assignedBy = callerId)
+        trackOwned(CompensationTable, CompensationTable.workBranchDayId, dayId)
+        trackOwned(CompensationTable, CompensationTable.payingBranchDayId, dayId)
+        DatabaseTestHelper.insertTestExpense(dayId, userId, financials.expense)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, dayId)
+        DatabaseTestHelper.insertTestProductSale(
+            id = UUID.randomUUID(),
+            branchDayId = dayId,
+            productId = productId,
+            handledBy = userId,
+            unitPrice = financials.productSales,
+            totalAmount = financials.productSales,
+        )
+        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, dayId)
+        transaction {
+            CommissionSplitTable.insert {
+                it[CommissionSplitTable.id] = UUID.randomUUID()
+                it[CommissionSplitTable.branchDayId] = dayId
+                it[CommissionSplitTable.userId] = userId
+                it[CommissionSplitTable.amount] = financials.commission
+            }
+        }
+        trackOwned(CommissionSplitTable, CommissionSplitTable.branchDayId, dayId)
     }
 
     private fun insertBranchDay(
