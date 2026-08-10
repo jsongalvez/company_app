@@ -18,9 +18,15 @@ object ExportRoutes {
 
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{branchId}/export") { context ->
+        // #114 lesson, 4th occurrence: a 4-segment literal filter never fires
+        // on the 5-segment routes below — the wildcard is what makes the gate
+        // actually run (leak proven red-first by ReportsReadScopeAuthzTest).
+        // The sibling 3-segment before("/api/branches/export") filter (below)
+        // is equally dead on the 4-segment provincial/medical-mission routes —
+        // #128's scope (public branch-type exports, gate dropped).
+        config.routes.before("/api/branches/{branchId}/export/*") { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            CapabilityFilter.requireBranchCapabilityForBranchId(
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,
                 CapabilityCodes.VIEW_BRANCH_DATA,

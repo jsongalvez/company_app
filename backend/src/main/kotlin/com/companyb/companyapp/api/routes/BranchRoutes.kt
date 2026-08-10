@@ -7,6 +7,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateBranchRequest
 import com.companyb.companyapp.repository.model.Branch
+import com.companyb.companyapp.service.BranchReadScope
 import com.companyb.companyapp.service.BranchService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -24,6 +25,25 @@ object BranchRoutes {
                 CapabilityCodes.MANAGE_USERS,
                 "MANAGE_USERS capability required to manage branches",
             )
+        }
+
+        // #131: the Reports picker data source — the caller's read window
+        // (distinct BRANCH grants, or all branches for a GLOBAL
+        // VIEW_BRANCH_DATA holder). No capability gate: zero-grant callers
+        // get an empty list (audit-log "zero-grant empty-not-403" pattern).
+        // The 2-segment MANAGE_USERS before-filter above is exact-match and
+        // does not fire on this 3-segment path (Javalin 7 segment matching).
+        config.routes.get("/api/branches/accessible") { context ->
+            val callerId = context.callerUuid()
+            val window = BranchReadScope.windowBranchIds(callerId)
+            val allBranches = BranchService.findAll()
+            val branches =
+                if (window == null) {
+                    allBranches
+                } else {
+                    allBranches.filter { it.id in window }
+                }
+            context.json(branches.map { it.toResponse() })
         }
 
         config.routes.post("/api/branches") { context ->

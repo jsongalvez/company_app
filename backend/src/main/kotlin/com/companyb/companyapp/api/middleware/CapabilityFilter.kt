@@ -135,6 +135,41 @@ object CapabilityFilter {
     }
 
     /**
+     * Enforces [capabilityCode] at the given [branchId] — either BRANCH-scoped
+     * at that branch OR GLOBAL (the #131 all-branches window: a GLOBAL
+     * `VIEW_BRANCH_DATA` holder reads every branch, e.g. Accountant/SUPERUSER).
+     *
+     * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if
+     * the caller holds neither form.
+     */
+    fun requireBranchOrGlobalCapabilityForBranchId(
+        context: Context,
+        branchId: UUID,
+        capabilityCode: String,
+    ) {
+        val callerId = context.callerUuid()
+        val branchScoped =
+            CapabilityService.hasCapability(
+                callerId,
+                capabilityCode,
+                CapabilityContextType.BRANCH,
+                branchId,
+            )
+        val global =
+            CapabilityService.hasCapability(
+                callerId,
+                capabilityCode,
+                CapabilityContextType.GLOBAL,
+                CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        if (!branchScoped && !global) {
+            throw com.companyb.companyapp.exception.ForbiddenException(
+                "$capabilityCode capability required for this branch",
+            )
+        }
+    }
+
+    /**
      * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
      * from a session record.
      *

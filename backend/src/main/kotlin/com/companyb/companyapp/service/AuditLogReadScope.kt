@@ -45,11 +45,9 @@ object AuditLogReadScope {
      * caller holds any active grant (#98 union pattern, capability-sourced).
      * `null` = all branches: the caller holds a GLOBAL `VIEW_BRANCH_DATA` grant
      * (the Accountant "read-only across all branches" shape; the dev Owner).
+     * Delegates to [BranchReadScope] — the shared all-branches window (#131).
      */
-    fun windowBranchIds(callerId: UUID): List<UUID>? {
-        if (hasGlobalView(callerId)) return null
-        return CapabilityService.findBranchWindow(callerId)
-    }
+    fun windowBranchIds(callerId: UUID): List<UUID>? = BranchReadScope.windowBranchIds(callerId)
 
     /**
      * Branchless tables whose declared policy the caller satisfies. Unlisted
@@ -78,7 +76,7 @@ object AuditLogReadScope {
      * NULL-branch rows on unlisted tables (legacy backfill) — Owner/Accountant
      * proxy per #104 D6: a GLOBAL `VIEW_BRANCH_DATA` grant.
      */
-    fun canReadNullRows(callerId: UUID): Boolean = hasGlobalView(callerId)
+    fun canReadNullRows(callerId: UUID): Boolean = BranchReadScope.hasGlobalView(callerId)
 
     /**
      * Single-entry read verdict — used by acknowledge and any per-row scope
@@ -92,19 +90,11 @@ object AuditLogReadScope {
     ): Boolean =
         when {
             branchId != null -> {
-                windowBranchIds(callerId)?.let { branchId in it } ?: true
+                BranchReadScope.isBranchReadable(callerId, branchId)
             }
 
             else -> {
                 tableName in branchlessTablesReadableBy(callerId) || canReadNullRows(callerId)
             }
         }
-
-    private fun hasGlobalView(callerId: UUID): Boolean =
-        CapabilityService.hasCapability(
-            callerId,
-            CapabilityCodes.VIEW_BRANCH_DATA,
-            CapabilityContextType.GLOBAL,
-            CapabilityService.GLOBAL_CONTEXT_ID,
-        )
 }

@@ -19,7 +19,7 @@ object MonthlyRemittanceSummaryRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/monthly-summary") { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            CapabilityFilter.requireBranchCapabilityForBranchId(
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,
                 CapabilityCodes.VIEW_BRANCH_DATA,
