@@ -24,6 +24,7 @@ import java.util.UUID
  * Day state is lazily evaluated against the current Asia/Manila calendar date: a day that is
  * still OPEN but whose calendar date is already in the past is treated as PAST.
  */
+@Suppress("TooManyFunctions")
 object BranchDayService {
     private val logger = KotlinLogging.logger {}
 
@@ -87,13 +88,7 @@ object BranchDayService {
         val today = LocalDate.now(manilaZone)
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val isRemitted = effectiveStatus == DayStatus.REMITTED
-        val hasEditPastDay =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = branchDay.branchId,
-            )
+        val hasEditPastDay = hasEditPastDayCapability(callerId, branchDay.branchId)
         assertEditableState(effectiveStatus, hasEditPastDay, reason)
         logger.info {
             "[CHECK-BRANCH-DAY-EDITABLE] branch_day=$branchDayId" +
@@ -101,6 +96,37 @@ object BranchDayService {
         }
         return branchDay to isRemitted
     }
+
+    /**
+     * Read-path variant of [checkBranchDayEditable]: asserts the caller may view data on a
+     * non-OPEN day. Reads on PAST/REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]
+     * (mirroring the write gate) but never a reason — a read mutates nothing.
+     *
+     * @return the resolved [BranchDay].
+     * @throws NotFoundException if the branch day does not exist.
+     * @throws ForbiddenException if the day is PAST/REMITTED and the user lacks EDIT_PAST_DAY.
+     */
+    fun checkBranchDayReadable(
+        callerId: UUID,
+        branchDayId: UUID,
+    ): BranchDay {
+        val branchDay = requireBranchDayExists(branchDayId)
+        val today = LocalDate.now(manilaZone)
+        val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
+        assertReadableState(effectiveStatus, hasEditPastDayCapability(callerId, branchDay.branchId))
+        return branchDay
+    }
+
+    private fun hasEditPastDayCapability(
+        callerId: UUID,
+        branchId: UUID,
+    ): Boolean =
+        CapabilityService.hasCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+        )
 
     /**
      * Pure day-state resolution: an OPEN day whose calendar date precedes [today] is treated as
@@ -135,6 +161,21 @@ object BranchDayService {
         if (effectiveStatus == DayStatus.REMITTED && reason.isNullOrBlank()) {
             throw ValidationException("A reason is required to write on a REMITTED day")
         }
+    }
+
+    /**
+     * Pure authorization for a read against an already-resolved [effectiveStatus].
+     * Reads on PAST/REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]; no reason is ever
+     * required — a read mutates nothing.
+     */
+    fun assertReadableState(
+        effectiveStatus: DayStatus,
+        hasEditPastDay: Boolean,
+    ) {
+        if (effectiveStatus == DayStatus.OPEN || hasEditPastDay) {
+            return
+        }
+        throw ForbiddenException("EDIT_PAST_DAY capability required to read on a $effectiveStatus day")
     }
 
     /**

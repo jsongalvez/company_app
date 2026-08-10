@@ -31,6 +31,7 @@ import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.Javalin
@@ -321,6 +322,25 @@ class RouteValidationTest : BasePostgresTest() {
         JavalinTest.test(createApp()) { _, client ->
             val body = mapOf("id" to UUID.randomUUID().toString(), "label" to "  ")
             assertEquals(400, client.post("/api/sessions/$testSessionId/promote-concern", body).code)
+        }
+    }
+
+    @Test
+    fun `GET session concerns on REMITTED day returns 200 with EDIT_PAST_DAY`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                testBranchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        val remittedSessionId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(200, client.get("/api/sessions/$remittedSessionId/concerns").code)
         }
     }
 

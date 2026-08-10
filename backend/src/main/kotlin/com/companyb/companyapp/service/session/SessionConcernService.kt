@@ -20,7 +20,7 @@ internal object SessionConcernService {
         sessionId: UUID,
     ): List<Concern> {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        BranchDayService.checkBranchDayReadable(callerId, session.branchDayId)
         return ConcernRepository.getConcernsForSession(sessionId)
     }
 

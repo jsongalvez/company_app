@@ -71,6 +71,37 @@ class BranchDayServiceTest {
         BranchDayService.assertEditableState(DayStatus.REMITTED, hasEditPastDay = true, reason = "late correction")
     }
 
+    // ---- assertReadableState ----
+
+    @Test
+    fun `open day is always readable without capability`() {
+        BranchDayService.assertReadableState(DayStatus.OPEN, hasEditPastDay = false)
+    }
+
+    @Test
+    fun `past day read without EDIT_PAST_DAY is forbidden`() {
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = false)
+        }
+    }
+
+    @Test
+    fun `past day read with EDIT_PAST_DAY is allowed`() {
+        BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = true)
+    }
+
+    @Test
+    fun `remitted day read with EDIT_PAST_DAY is allowed without reason`() {
+        BranchDayService.assertReadableState(DayStatus.REMITTED, hasEditPastDay = true)
+    }
+
+    @Test
+    fun `remitted day read without EDIT_PAST_DAY is forbidden`() {
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.assertReadableState(DayStatus.REMITTED, hasEditPastDay = false)
+        }
+    }
+
     // ---- expirationUtc ----
 
     @Test

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -249,6 +250,53 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val allConcerns = ConcernService.listAll()
         assertTrue(allConcerns.any { it.id == promoted.id })
         assertNotNull(allConcerns.find { it.id == promoted.id }?.createdBy)
+    }
+
+    @Test
+    fun `getForSession on REMITTED day with EDIT_PAST_DAY returns concerns without requiring a reason`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedSessionId = UUID.randomUUID()
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        SessionService.addSessionConcern(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
+        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, remittedSessionId)
+
+        val concerns = SessionService.getSessionConcerns(callerId, remittedSessionId)
+
+        assertEquals(1, concerns.size)
+        assertEquals(systemConcernId, concerns[0].id)
+    }
+
+    @Test
+    fun `getForSession on REMITTED day without EDIT_PAST_DAY is forbidden`() {
+        val otherCaller = UUID.randomUUID()
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-remitted-no-caps")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedSessionId = UUID.randomUUID()
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+
+        assertFailsWith<ForbiddenException> {
+            SessionService.getSessionConcerns(otherCaller, remittedSessionId)
+        }
     }
 
     @Test
