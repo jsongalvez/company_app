@@ -114,6 +114,7 @@ object BranchDayService {
         val today = LocalDate.now(manilaZone)
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         assertReadableState(effectiveStatus, hasEditPastDayCapability(callerId, branchDay.branchId))
+        logger.info { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
         return branchDay
     }
 
