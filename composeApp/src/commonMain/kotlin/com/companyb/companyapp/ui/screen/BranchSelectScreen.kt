@@ -213,7 +213,11 @@ private fun BranchCard(
             CardDefaults.cardColors(
                 containerColor =
                     if (branch.clockInStatus == BranchClockInStatus.CLOCKED_IN_HERE) {
-                        MaterialTheme.colorScheme.secondaryContainer
+                        // secondary = Surface3 — the clocked-in-here highlight. NOT
+                        // secondaryContainer: LinearDarkColors leaves it unmapped, which
+                        // falls back to Material3's default purple (the #140 round-3 catch;
+                        // the legacy HomeScreen carried the same bug).
+                        MaterialTheme.colorScheme.secondary
                     } else {
                         MaterialTheme.colorScheme.surfaceVariant
                     },
@@ -231,19 +235,17 @@ private fun BranchCard(
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 BranchTypeBadge(branch.branchType)
-                statusLabel(branch)?.let { label ->
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color =
-                            if (branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                    )
-                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = statusLabel(branch),
+                    style = MaterialTheme.typography.labelSmall,
+                    color =
+                        if (branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
+                )
             }
 
             Spacer(modifier = Modifier.width(Spacing.sm))
@@ -274,13 +276,23 @@ private fun BranchCard(
  * muted label alongside the Clock In button (the button is the action; the label is the
  * state per spec).
  */
-private fun statusLabel(branch: MeBranchResponse): String? =
-    when {
-        branch.clockInStatus == BranchClockInStatus.CLOCKED_IN_HERE && branch.isRelief -> "Relief duty"
-        branch.clockInStatus == BranchClockInStatus.CLOCKED_IN_HERE -> "Clocked in here"
-        branch.clockInStatus == BranchClockInStatus.CLOCKED_IN_ELSEWHERE -> "Clocked in elsewhere"
-        branch.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN -> "Not clocked in"
-        else -> null
+private fun statusLabel(branch: MeBranchResponse): String =
+    when (branch.clockInStatus) {
+        BranchClockInStatus.CLOCKED_IN_HERE -> {
+            if (branch.isRelief) {
+                "Relief duty"
+            } else {
+                "Clocked in here"
+            }
+        }
+
+        BranchClockInStatus.CLOCKED_IN_ELSEWHERE -> {
+            "Clocked in elsewhere"
+        }
+
+        BranchClockInStatus.NOT_CLOCKED_IN -> {
+            "Not clocked in"
+        }
     }
 
 @Composable

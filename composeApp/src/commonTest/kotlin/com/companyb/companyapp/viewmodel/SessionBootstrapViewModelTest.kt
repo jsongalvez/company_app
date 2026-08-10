@@ -120,8 +120,9 @@ class SessionBootstrapViewModelTest {
             advanceUntilIdle()
 
             // Not Error: the global onUnauthorized handler clears the token, which is what
-            // transitions the splash → Login. The validation state is not the discriminator.
-            assertFalse(vm.validationState.value is UiState.Error)
+            // transitions the splash → Login. Idle (not a lying stuck-Loading) so a
+            // re-composed LoginScreen's form isn't left disabled.
+            assertEquals(UiState.Idle, vm.validationState.value)
             assertNull(SessionState.currentUser.value)
             assertEquals(emptySet<String>(), SessionState.capabilities.value)
         }

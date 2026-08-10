@@ -55,11 +55,11 @@ fun App() {
     var launchValidationActive by remember { mutableStateOf(tokenStore.getToken() != null) }
 
     val goToLogin: () -> Unit = {
-        try {
-            tokenStore.clearToken()
-        } catch (e: Exception) {
-            logError("App", "Failed to clear token on go-to-login", e)
-        }
+        // #94 outline — "Go to Login (token preserved for next launch)": the network error
+        // carries no auth information, so the token survives; next launch re-validates it.
+        // The in-flight validation is cancelled so a late 200 can't repopulate the state
+        // we're clearing (round-3 catch).
+        bootstrapViewModel.cancelValidation()
         hasToken = false
         SessionState.clear()
         NotificationState.clear()

@@ -116,8 +116,12 @@ actual fun AppNavHost(
                         onClockInComplete = {
                             // Per #91 — popUpTo(Login) inclusive on clock-in; #94 Phase 3:
                             // navigate Dashboard only after the capability refresh succeeded.
+                            // popUpTo(0): on the launch-validation path BranchSelect IS the
+                            // start destination (empty back stack below) — popUpTo(Login)
+                            // would no-op there and leave a dead-end BranchSelect reachable
+                            // via back (clocked in, no clock-out — #97-grad fog).
                             navController.navigate(Route.Dashboard) {
-                                popUpTo(Route.Login) { inclusive = true }
+                                popUpTo(0) { inclusive = true }
                             }
                         },
                     )

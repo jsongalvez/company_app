@@ -120,7 +120,11 @@ fun LoginScreen(
     val isLoading = loginState is UiState.Loading || bootstrapState is UiState.Loading
     val inlineError =
         when {
-            bootstrapState is UiState.Error -> "Could not reach the server."
+            // Bootstrap copy only while the login itself isn't the failing leg: a stale
+            // bootstrap Error must not mask a fresh credential error on the next attempt
+            // (round-3 catch — wrong password after a failed bootstrap showed the network copy).
+            bootstrapState is UiState.Error && loginState !is UiState.Error -> "Could not reach the server."
+
             else -> loginErrorText(loginState)
         }
 
