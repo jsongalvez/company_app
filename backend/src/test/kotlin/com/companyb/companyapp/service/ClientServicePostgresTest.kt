@@ -1,11 +1,16 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.SessionStatus
+import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -27,6 +32,12 @@ class ClientServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val clientAId = UUID.randomUUID()
     private val clientBId = UUID.randomUUID()
+    private val branchId = UUID.randomUUID()
+    private var branchDayId: UUID = UUID.randomUUID()
+    private val pendingSessionId = UUID.randomUUID()
+    private val completedSessionId = UUID.randomUUID()
+    private val noShowSessionId = UUID.randomUUID()
+    private val cancelledSessionId = UUID.randomUUID()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "client-caller")
@@ -35,6 +46,14 @@ class ClientServicePostgresTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         trackOwned(ClientTable, ClientTable.id, clientAId)
         trackOwned(ClientTable, ClientTable.id, clientBId)
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        DatabaseTestHelper.insertTestBranch(branchId, "Client Test Branch $branchId")
+        branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
+        trackOwned(SessionTable, SessionTable.id, pendingSessionId)
+        trackOwned(SessionTable, SessionTable.id, completedSessionId)
+        trackOwned(SessionTable, SessionTable.id, noShowSessionId)
+        trackOwned(SessionTable, SessionTable.id, cancelledSessionId)
     }
 
     @Test
@@ -386,6 +405,50 @@ class ClientServicePostgresTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `anonymize client with pending session throws conflict and keeps PII`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang")
+        seedSession(pendingSessionId, clientAId, SessionStatus.PENDING)
+
+        assertFailsWith<ConflictException> {
+            ClientService.anonymize(callerId, clientAId)
+        }
+
+        val persisted = persistedClient(clientAId)
+        assertEquals("Alice", persisted.firstName)
+        assertEquals("Wang", persisted.lastName)
+        assertNull(persisted.deletedAt)
+        assertEquals(1L, auditEntryCount(clientAId))
+    }
+
+    @Test
+    fun `anonymize client with only completed sessions succeeds`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+        seedSession(completedSessionId, clientAId, SessionStatus.COMPLETED)
+
+        ClientService.anonymize(callerId, clientAId)
+
+        val persisted = persistedClient(clientAId)
+        assertNull(persisted.firstName)
+        assertNotNull(persisted.deletedAt)
+    }
+
+    @Test
+    fun `anonymize client with only cancelled and no-show sessions succeeds`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+        seedSession(noShowSessionId, clientAId, SessionStatus.NO_SHOW)
+        seedSession(cancelledSessionId, clientAId, SessionStatus.CANCELLED)
+
+        ClientService.anonymize(callerId, clientAId)
+
+        val persisted = persistedClient(clientAId)
+        assertNull(persisted.firstName)
+        assertNotNull(persisted.deletedAt)
+    }
+
     @Suppress("LongParameterList")
     private fun createClient(
         callerId: UUID,
@@ -450,4 +513,17 @@ class ClientServicePostgresTest : BasePostgresTest() {
                 .where { (AuditLogTable.auditTableName eq "client") and (AuditLogTable.recordId eq clientId) }
                 .count()
         }
+
+    private fun seedSession(
+        sessionId: UUID,
+        clientId: UUID,
+        status: SessionStatus,
+    ) {
+        DatabaseTestHelper.insertTestSession(
+            id = sessionId,
+            clientId = clientId,
+            branchDayId = branchDayId,
+            sessionStatus = status,
+        )
+    }
 }

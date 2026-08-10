@@ -147,9 +147,11 @@ object ClientRepository {
 
     fun anonymize(
         clientId: UUID,
+        guardFn: () -> Unit = {},
         auditFn: (Client) -> Unit = {},
     ): Boolean =
         transaction {
+            guardFn()
             val updatedCount =
                 ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
                     it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone

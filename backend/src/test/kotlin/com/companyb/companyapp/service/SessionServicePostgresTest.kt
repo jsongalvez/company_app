@@ -141,6 +141,15 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create session for anonymized client throws conflict`() {
+        ClientService.anonymize(callerId, clientId)
+
+        assertFailsWith<ConflictException> {
+            createSession(callerId, sessionId)
+        }
+    }
+
+    @Test
     fun `create session without EDIT_BRANCH_DATA is allowed at service layer`() {
         val otherCaller = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherCaller, "session-other")

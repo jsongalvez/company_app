@@ -197,6 +197,7 @@ object ProductSaleRepository {
                 (BranchInventoryTable.branchId eq branchId) and
                     (BranchInventoryTable.productId eq productId)
             }.forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
     }
 
     private fun findByIdInTransaction(id: UUID): ProductSale? =

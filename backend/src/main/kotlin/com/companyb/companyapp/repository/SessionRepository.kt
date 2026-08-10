@@ -11,6 +11,7 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -80,10 +81,13 @@ object SessionRepository {
         auditFn: (Session) -> Unit = {},
     ): SessionCreateResult =
         transaction {
-            acquireClientLock(params.clientId)
+            val clientRow = acquireClientLock(params.clientId)
             val hasActive = hasActivePendingSessionInTransaction(params.clientId)
             if (hasActive) {
                 throw ConflictException("Client already has an active PENDING session")
+            }
+            if (clientRow != null && clientRow[ClientTable.deletedAt] != null) {
+                throw ConflictException("Cannot create a session for an anonymized client")
             }
 
             val insertedCount =
@@ -174,24 +178,25 @@ object SessionRepository {
 
             updated
         }
-
-    private fun acquireClientLock(clientId: UUID) {
-        // Row-level lock on client to serialize concurrent session creation (CR-018 C2).
-        ClientTable
-            .selectAll()
-            .where { ClientTable.id eq clientId }
-            .forUpdate(ForUpdateOption.ForUpdate)
-    }
-
-    private fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
-        SessionTable
-            .selectAll()
-            .where {
-                (SessionTable.clientId eq clientId) and
-                    (SessionTable.sessionStatus eq SessionStatus.PENDING)
-            }.empty()
-            .not()
 }
+
+fun acquireClientLock(clientId: UUID): ResultRow? {
+    // Row-level lock on client to serialize concurrent client mutation (CR-018 C2).
+    return ClientTable
+        .selectAll()
+        .where { ClientTable.id eq clientId }
+        .forUpdate(ForUpdateOption.ForUpdate)
+        .singleOrNull()
+}
+
+fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
+    SessionTable
+        .selectAll()
+        .where {
+            (SessionTable.clientId eq clientId) and
+                (SessionTable.sessionStatus eq SessionStatus.PENDING)
+        }.empty()
+        .not()
 
 fun findSessionByIdInTransaction(id: UUID): Session? =
     SessionTable

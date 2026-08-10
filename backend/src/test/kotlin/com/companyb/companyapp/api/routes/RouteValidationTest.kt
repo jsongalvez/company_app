@@ -13,6 +13,7 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
@@ -57,11 +58,13 @@ class RouteValidationTest : BasePostgresTest() {
     private val testCategoryId = UUID.randomUUID()
     private val testProductId = UUID.randomUUID()
     private val testClientId = UUID.randomUUID()
+    private val testClientNoSessionsId = UUID.randomUUID()
     private val testSessionId = UUID.randomUUID()
 
     override fun initTestData() {
         trackOwned(AppUserTable, AppUserTable.id, testUserId)
         DatabaseTestHelper.insertTestUser(testUserId, "route-test")
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, testUserId)
         trackOwned(BranchTable, BranchTable.id, testBranchId)
         DatabaseTestHelper.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
         val allCodes =
@@ -101,6 +104,8 @@ class RouteValidationTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestProduct(testProductId, categoryId = testCategoryId)
         trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestClient(testClientId)
+        trackOwned(ClientTable, ClientTable.id, testClientNoSessionsId)
+        DatabaseTestHelper.insertTestClient(testClientNoSessionsId)
         trackOwned(SessionTable, SessionTable.id, testSessionId)
         DatabaseTestHelper.insertTestSession(
             id = testSessionId,
@@ -417,6 +422,36 @@ class RouteValidationTest : BasePostgresTest() {
     fun `PATCH client partial BP returns 400`() {
         JavalinTest.test(createApp()) { _, client ->
             assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("systolicBp" to 120)).code)
+        }
+    }
+
+    @Test
+    fun `POST anonymize client with pending session returns 409 and keeps PII`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.post("/api/clients/$testClientId/anonymize")
+
+            assertEquals(409, response.code)
+            transaction {
+                val row = ClientTable.selectAll().where { ClientTable.id eq testClientId }.single()
+                assertEquals("Test", row[ClientTable.firstName])
+                assertEquals("Client", row[ClientTable.lastName])
+                assertNull(row[ClientTable.deletedAt])
+            }
+        }
+    }
+
+    @Test
+    fun `POST anonymize client without sessions returns 204`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.post("/api/clients/$testClientNoSessionsId/anonymize")
+
+            assertEquals(204, response.code)
+            transaction {
+                val row =
+                    ClientTable.selectAll().where { ClientTable.id eq testClientNoSessionsId }.single()
+                assertNull(row[ClientTable.firstName])
+                assertNull(row[ClientTable.lastName])
+            }
         }
     }
 
