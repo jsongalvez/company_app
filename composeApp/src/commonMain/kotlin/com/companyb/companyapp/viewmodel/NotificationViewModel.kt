@@ -10,6 +10,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,12 +42,27 @@ class NotificationViewModel(
         )
     }
 
-    fun markRead(notificationId: String) {
+    fun markRead(notificationId: String): Job =
         handler.launch(
             state = _markReadResult,
             operation = "markRead",
             endpoint = "PATCH /api/notifications/$notificationId/read",
             block = { apiClient.httpClient.patch("/api/notifications/$notificationId/read") },
+            onNonSuccess = { response ->
+                if (response.status.value == 404) {
+                    // Stale-row self-heal: a 404 means the row left the unread set server-side
+                    // (read on another device, or a markAll-race where a slow initial GET landed
+                    // after markAll moved rows). The row is not an error — it is simply gone, so
+                    // reload and let the screen re-derive instead of surfacing a phantom failure.
+                    // Reset the in-flight marker: this response is fully handled here, and leaving
+                    // Loading would mark the action in-flight forever (#140 stuck-Loading class).
+                    _markReadResult.value = UiState.Idle
+                    loadUnreadNotifications()
+                    true
+                } else {
+                    false
+                }
+            },
             transform = {
                 val body = it.body<NotificationResponse>()
                 // Decrement only when the row actually left the unread list — a double-tap's
@@ -58,9 +74,8 @@ class NotificationViewModel(
                 body
             },
         )
-    }
 
-    fun markAllRead() {
+    fun markAllRead(): Job =
         handler.launch(
             state = _markAllResult,
             operation = "markAllRead",
@@ -82,7 +97,6 @@ class NotificationViewModel(
                 body
             },
         )
-    }
 
     private fun moveToReadThisSession(notification: NotificationResponse): Boolean {
         val current = currentUnreadList() ?: return false

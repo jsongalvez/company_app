@@ -48,7 +48,9 @@ object NotificationRepository {
                 .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
                 .orderBy(NotificationTable.createdAt, SortOrder.DESC)
                 .map { it.toNotification() }
-        }.also { logger.info { "[FIND-UNREAD] $it.size unread notifications for user $userId" } }
+        }.also {
+            logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
+        }
 
     fun markAllRead(userId: UUID): Int =
         transaction {
@@ -66,20 +68,22 @@ object NotificationRepository {
                 .toInt()
         }.also { logger.info { "[MARK-ALL-READ] user=${userId.toString().maskUUID()} unreadRemaining=$it" } }
 
-    fun markRead(notificationId: UUID): Notification? =
+    // Ownership in the WHERE clause (backend AGENTS.md parent-child scoping rule): a caller can
+    // never mutate another user's row — an update scoped to caller + id either hits the caller's
+    // own row or affects nothing, so the 404-on-foreign-row case leaves the row untouched.
+    fun markRead(
+        callerId: UUID,
+        notificationId: UUID,
+    ): Notification? =
         transaction {
-            val found =
-                NotificationTable
-                    .selectAll()
-                    .where { NotificationTable.id eq notificationId }
-                    .empty()
-                    .not()
-            if (!found) return@transaction null
-
-            NotificationTable.update({ NotificationTable.id eq notificationId }) {
-                it[isRead] = true
-                it[readAt] = CurrentTimestampWithTimeZone
-            }
+            val updated =
+                NotificationTable.update({
+                    (NotificationTable.id eq notificationId) and (NotificationTable.userId eq callerId)
+                }) {
+                    it[isRead] = true
+                    it[readAt] = CurrentTimestampWithTimeZone
+                }
+            if (updated == 0) return@transaction null
 
             NotificationTable
                 .selectAll()

@@ -32,6 +32,9 @@ class NotificationBadgeViewModel(
                     // accepted cost: optimistic markRead decrement + 60s authoritative poll overwrite bounces the
                     // badge count down-then-up ≤60s — accepted because grace-window would treat a local edit as
                     // authoritative for a window (small violation of "backend authoritative" axis, ADR-0022/#97).
+                    // The same up-bounce direction applies to a poll snapshot taken before markAll's
+                    // authoritative 0 lands (markAll sets the singleton directly, a pre-markAll poll in
+                    // flight then overwrites it with the stale pre-markAll count — self-corrects next poll).
                     NotificationState.setUnreadCount(state.data)
                 }
         }
@@ -48,6 +51,11 @@ class NotificationBadgeViewModel(
     }
 
     private fun refreshUnreadCount() {
+        // in-flight guard: a GET slower than the 60s interval would stack overlapping polls and
+        // let an out-of-order Success overwrite the singleton with a stale count. handler.launch
+        // pre-sets Loading synchronously in the launched coroutine's first statement, so the
+        // check is reliable once the previous poll's launch has started.
+        if (_pollResult.value is UiState.Loading) return
         handler.launch(
             state = _pollResult,
             operation = "refreshUnreadCount",

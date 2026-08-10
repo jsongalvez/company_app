@@ -19,7 +19,9 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class NotificationServicePostgresTest : BasePostgresTest() {
@@ -136,6 +138,18 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             NotificationService.markRead(callerId, notification.id)
         }
+
+        // the failed call must NOT have mutated the other user's row (#141: the pre-fix version
+        // updated by id first and only then threw 404 — the foreign row was silently consumed)
+        val row =
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.id eq notification.id }
+                    .single()
+            }
+        assertFalse(row[NotificationTable.isRead])
+        assertNull(row[NotificationTable.readAt])
     }
 
     @Test

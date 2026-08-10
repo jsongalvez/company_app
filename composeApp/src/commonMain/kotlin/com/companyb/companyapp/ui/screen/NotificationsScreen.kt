@@ -44,6 +44,7 @@ fun NotificationsScreen(
 ) {
     val notificationsState by viewModel.notifications.collectAsState()
     val readThisSession by viewModel.readThisSession.collectAsState()
+    val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -56,6 +57,19 @@ fun NotificationsScreen(
     LaunchedEffect(notificationsState) {
         val error = notificationsState as? UiState.Error ?: return@LaunchedEffect
         logWarn("NotificationsScreen", "notificationsState=Error: ${error.message}")
+    }
+
+    // Action failures surface inline (#135 round-1 precedent — silent network-failure paths are a
+    // bug class, not a design choice): a failed markRead/markAll must be visible, and the next
+    // attempt's Loading pre-set clears the line automatically. 404-on-markRead is NOT an error —
+    // the VM handles it internally (stale-row reload), so it never reaches this state.
+    val markReadError = (markReadState as? UiState.Error)?.message
+    val markAllError = (markAllState as? UiState.Error)?.message
+    LaunchedEffect(markReadError) {
+        markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
+    }
+    LaunchedEffect(markAllError) {
+        markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
     }
 
     // D5: cold-start spinner only while there's nothing to show. Loading/Error with prior data
@@ -87,6 +101,19 @@ fun NotificationsScreen(
                 ) {
                     Text("Mark all")
                 }
+            }
+        }
+
+        if (markAllError != null || markReadError != null) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.xs),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+            ) {
+                markAllError?.let { ActionErrorLine(it) }
+                markReadError?.let { ActionErrorLine(it) }
             }
         }
 
@@ -191,6 +218,15 @@ private fun SectionLabel(text: String) {
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.xs),
+    )
+}
+
+@Composable
+private fun ActionErrorLine(message: String) {
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
     )
 }
 

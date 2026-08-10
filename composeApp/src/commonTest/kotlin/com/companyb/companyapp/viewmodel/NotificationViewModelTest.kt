@@ -109,13 +109,48 @@ class NotificationViewModelTest {
             vm.loadUnreadNotifications()
             runCurrent()
 
-            vm.markRead("n1")
+            val job = vm.markRead("n1")
             runCurrent()
+            // 5xx mock responses complete the launch's continuation on a real thread (Ktor
+            // response-pipeline dispatch — 2xx drains inline, non-2xx does not), so the Error
+            // assignment lands after runCurrent; join() waits for the launch's completion, after
+            // which the Error assignment is visible (#93 harness note).
+            job.join()
 
             val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.notifications.value)
             assertEquals(expected = listOf("n1", "n2"), actual = state.data.map { it.id })
             assertEquals(expected = emptyList<String>(), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 2, actual = NotificationState.unreadCount.value)
+            // the failure must surface — the screen renders this inline (#135 class, audit #141)
+            assertIs<UiState.Error>(vm.markReadResult.value)
+        }
+
+    @Test
+    fun markRead_404_reloads_unread_list_and_skips_error_state() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(notificationsHandler(markStatus = HttpStatusCode.NotFound)),
+                )
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+
+            // The row was already read server-side (another device, or a markAll race where a
+            // slow initial GET landed after markAll moved rows) — a 404 is the row being gone,
+            // not an error: reload re-derives from the server, no phantom "failed" state.
+            val job = vm.markRead("n1")
+            runCurrent()
+            // 404 completes on a real thread (same 5xx dispatch class) — join, then drain the
+            // nested reload's GET (2xx — inline under runCurrent).
+            job.join()
+            runCurrent()
+
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.notifications.value)
+            assertEquals(expected = listOf("n3"), actual = state.data.map { it.id })
+            assertEquals(expected = emptyList<String>(), actual = vm.readThisSession.value.map { it.id })
+            assertIs<UiState.Idle>(vm.markReadResult.value)
         }
 
     @Test
@@ -148,13 +183,20 @@ class NotificationViewModelTest {
             vm.loadUnreadNotifications()
             runCurrent()
 
-            vm.markAllRead()
+            val job = vm.markAllRead()
             runCurrent()
+            // 5xx mock responses complete the launch's continuation on a real thread (Ktor
+            // response-pipeline dispatch — 2xx drains inline, non-2xx does not), so the Error
+            // assignment lands after runCurrent; join() waits for the launch's completion, after
+            // which the Error assignment is visible (#93 harness note).
+            job.join()
 
             val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.notifications.value)
             assertEquals(expected = listOf("n1", "n2"), actual = state.data.map { it.id })
             assertEquals(expected = emptyList<String>(), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 7, actual = NotificationState.unreadCount.value)
+            // the failure must surface — the screen renders this inline (#135 class, audit #141)
+            assertIs<UiState.Error>(vm.markAllResult.value)
         }
 
     @Test
