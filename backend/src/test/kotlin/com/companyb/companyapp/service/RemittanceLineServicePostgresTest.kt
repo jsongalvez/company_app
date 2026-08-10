@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
@@ -212,6 +213,147 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
         assertNotNull(line)
         assertEquals(RemittanceLineType.SESSION, line.type)
+    }
+
+    @Test
+    fun `add SESSION line already in another draft returns conflict`() {
+        val firstDraft = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, firstDraft.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, firstDraft.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, firstDraft.id)
+        val secondDraft = createDraftRemittance(RemittanceType.PRODUCT)
+        trackOwned(RemittanceTable, RemittanceTable.id, secondDraft.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, secondDraft.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, secondDraft.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = firstDraft.id,
+            id = UUID.randomUUID(),
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+
+        val error =
+            assertFailsWith<ConflictException> {
+                RemittanceService.addLine(
+                    callerId = callerId,
+                    remittanceId = secondDraft.id,
+                    id = UUID.randomUUID(),
+                    type = RemittanceLineType.SESSION,
+                    sessionId = sessionId,
+                    productSaleId = null,
+                    amount = BigDecimal("1500.00"),
+                )
+            }
+        assertEquals("Session already included in a remittance line", error.message)
+    }
+
+    @Test
+    fun `add SESSION line duplicate in same draft with different line id returns conflict`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = UUID.randomUUID(),
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+
+        assertFailsWith<ConflictException> {
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = UUID.randomUUID(),
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("1500.00"),
+            )
+        }
+    }
+
+    @Test
+    fun `add PRODUCT_SALE line duplicate returns conflict`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        createProductSale()
+
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = UUID.randomUUID(),
+            type = RemittanceLineType.PRODUCT_SALE,
+            sessionId = null,
+            productSaleId = productSaleId,
+            amount = BigDecimal("500.00"),
+        )
+
+        val error =
+            assertFailsWith<ConflictException> {
+                RemittanceService.addLine(
+                    callerId = callerId,
+                    remittanceId = remittance.id,
+                    id = UUID.randomUUID(),
+                    type = RemittanceLineType.PRODUCT_SALE,
+                    sessionId = null,
+                    productSaleId = productSaleId,
+                    amount = BigDecimal("500.00"),
+                )
+            }
+        assertEquals("Product sale already included in a remittance line", error.message)
+    }
+
+    @Test
+    fun `add SESSION line after soft-delete of previous line succeeds`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+
+        val firstLineId = UUID.randomUUID()
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = firstLineId,
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+        RemittanceService.removeLine(callerId, remittance.id, firstLineId)
+
+        val reAdded =
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = UUID.randomUUID(),
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("2000.00"),
+            )
+
+        assertNotNull(reAdded)
+        assertEquals("2000.00", reAdded.amount.toPlainString())
     }
 
     @Test
@@ -641,11 +783,11 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertTrue(auditCount > 0)
     }
 
-    private fun createDraftRemittance() =
+    private fun createDraftRemittance(type: RemittanceType = RemittanceType.SESSION) =
         RemittanceService.createDraft(
             callerId = callerId,
             id = UUID.randomUUID(),
-            type = RemittanceType.SESSION,
+            type = type,
             branchId = branchId,
             method = RemittanceMethod.BANK_TRANSFER,
             dateRangeStart = LocalDate.of(2026, 7, 1),

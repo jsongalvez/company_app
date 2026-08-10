@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceLine
@@ -10,6 +11,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -46,14 +48,28 @@ internal object RemittanceLineRepository {
                 return@transaction existing.toRemittanceLine()
             }
 
-            RemittanceLineTable.insertIgnore {
-                it[RemittanceLineTable.id] = params.id
-                it[RemittanceLineTable.remittanceId] = params.remittanceId
-                it[RemittanceLineTable.type] = params.type
-                it[RemittanceLineTable.sessionId] = params.sessionId
-                it[RemittanceLineTable.productSaleId] = params.productSaleId
-                it[RemittanceLineTable.amount] = params.amount
-                it[RemittanceLineTable.createdBy] = params.createdBy
+            assertNotAlreadyIncluded(params)
+
+            val inserted =
+                RemittanceLineTable.insertIgnore {
+                    it[RemittanceLineTable.id] = params.id
+                    it[RemittanceLineTable.remittanceId] = params.remittanceId
+                    it[RemittanceLineTable.type] = params.type
+                    it[RemittanceLineTable.sessionId] = params.sessionId
+                    it[RemittanceLineTable.productSaleId] = params.productSaleId
+                    it[RemittanceLineTable.amount] = params.amount
+                    it[RemittanceLineTable.createdBy] = params.createdBy
+                }
+            if (inserted.insertedCount == 0) {
+                val racedRetry =
+                    RemittanceLineTable
+                        .selectAll()
+                        .where { RemittanceLineTable.id eq params.id }
+                        .singleOrNull()
+                if (racedRetry != null) {
+                    return@transaction racedRetry.toRemittanceLine()
+                }
+                throw ConflictException(duplicateMessage(params.type))
             }
 
             val versionUpdated =
@@ -161,6 +177,43 @@ internal object RemittanceLineRepository {
                         RemittanceLineTable.deletedAt.isNull()
                 }.map { it[RemittanceLineTable.amount] }
                 .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
+        }
+
+    private fun assertNotAlreadyIncluded(params: AddLineParams) {
+        val existingLine =
+            when (params.type) {
+                RemittanceLineType.SESSION -> {
+                    RemittanceLineTable
+                        .selectAll()
+                        .where {
+                            (RemittanceLineTable.sessionId eq params.sessionId) and
+                                RemittanceLineTable.deletedAt.isNull() and
+                                (RemittanceLineTable.id neq params.id)
+                        }.singleOrNull()
+                }
+
+                RemittanceLineType.PRODUCT_SALE -> {
+                    RemittanceLineTable
+                        .selectAll()
+                        .where {
+                            (RemittanceLineTable.productSaleId eq params.productSaleId) and
+                                RemittanceLineTable.deletedAt.isNull() and
+                                (RemittanceLineTable.id neq params.id)
+                        }.singleOrNull()
+                }
+            }
+        if (existingLine != null) {
+            throw ConflictException(duplicateMessage(params.type))
+        }
+    }
+
+    private fun duplicateMessage(type: RemittanceLineType): String =
+        entityLabel(type) + " already included in a remittance line"
+
+    private fun entityLabel(type: RemittanceLineType): String =
+        when (type) {
+            RemittanceLineType.SESSION -> "Session"
+            RemittanceLineType.PRODUCT_SALE -> "Product sale"
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittanceLine(): RemittanceLine =

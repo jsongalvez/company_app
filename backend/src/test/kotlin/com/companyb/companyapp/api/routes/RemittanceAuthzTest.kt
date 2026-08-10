@@ -624,6 +624,23 @@ class RemittanceAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST line duplicate session in same draft returns 409`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body =
+                mapOf(
+                    "id" to UUID.randomUUID().toString(),
+                    "type" to "SESSION",
+                    "sessionId" to sessionId.toString(),
+                    "amount" to "50.00",
+                )
+            assertEquals(
+                409,
+                client.post("/api/remittances/$draftRemittanceId/lines", body, asUser(submitUser)).code,
+            )
+        }
+    }
+
+    @Test
     fun `POST line still allowed for granted user`() {
         val freshSessionId = UUID.randomUUID()
         val freshDayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
