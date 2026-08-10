@@ -3,19 +3,28 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.dto.DailySalesSummaryResponse
-import com.companyb.companyapp.repository.model.DailySalesSummary
+import com.companyb.companyapp.repository.DailySummaryBrowseCursor
+import com.companyb.companyapp.repository.decodeDailySummaryCursor
 import com.companyb.companyapp.service.DailySalesSummaryService
+import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import java.time.LocalDate
-import java.util.UUID
 
 object DailySalesSummaryRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/daily-summary") { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
+                context,
+                branchId,
+                CapabilityCodes.VIEW_BRANCH_DATA,
+            )
+        }
+
+        config.routes.before("/api/branches/{branchId}/daily-summaries") { context ->
             val branchId = context.pathParamAsUuid("branchId")
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
@@ -38,18 +47,22 @@ object DailySalesSummaryRoutes {
             context.status(HttpStatus.OK)
             context.json(summary.toResponse())
         }
+
+        config.routes.get("/api/branches/{branchId}/daily-summaries") { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            val cursor = parseCursor(context.queryParam("cursor"))
+            val limit = parseBrowseLimit(context.queryParam("limit"))
+
+            val response = DailySalesSummaryService.browseDailySummaries(branchId, cursor, limit)
+
+            context.status(HttpStatus.OK)
+            context.json(response)
+        }
     }
 
-    private fun DailySalesSummary.toResponse(): DailySalesSummaryResponse =
-        DailySalesSummaryResponse(
-            branchDayId = branchDayId.toString(),
-            branchId = branchId.toString(),
-            date = date.toString(),
-            grossIncome = grossIncome.toPlainString(),
-            totalCompensation = totalCompensation.toPlainString(),
-            totalExpenses = totalExpenses.toPlainString(),
-            netIncome = netIncome.toPlainString(),
-            totalProductSales = totalProductSales.toPlainString(),
-            totalCommission = totalCommission.toPlainString(),
-        )
+    private fun parseCursor(raw: String?): DailySummaryBrowseCursor? {
+        if (raw == null) return null
+        return runCatching { decodeDailySummaryCursor(raw) }
+            .getOrElse { throw BadRequestResponse("Invalid cursor") }
+    }
 }

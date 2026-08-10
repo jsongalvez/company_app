@@ -16,9 +16,6 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 
 object AuditLogRoutes {
-    private const val DEFAULT_LIMIT = 20
-    private const val MAX_LIMIT = 100
-
     @Suppress("LongMethod", "ThrowsCount")
     fun register(config: JavalinConfig) {
         // No route gate (D9: always-visible; backend-authoritative read scoping
@@ -40,7 +37,7 @@ object AuditLogRoutes {
             val dateFrom = parseStartOfDay(dateFromRaw)
             val dateTo = parseExclusiveEndOfDay(dateToRaw)
             val cursor = parseCursor(context.queryParam("cursor"))
-            val limit = parseLimit(context.queryParam("limit"))
+            val limit = parseBrowseLimit(context.queryParam("limit"))
 
             val response: AuditLogBrowseResponse =
                 AuditLogService.browse(
@@ -124,16 +121,5 @@ object AuditLogRoutes {
         if (raw == null) return null
         return runCatching { decodeCursor(raw) }
             .getOrElse { throw BadRequestResponse("Invalid cursor") }
-    }
-
-    private fun parseLimit(raw: String?): Int {
-        if (raw == null) return DEFAULT_LIMIT
-        val limit =
-            runCatching { raw.toInt() }
-                .getOrElse { throw BadRequestResponse("Invalid limit: $raw") }
-        if (limit < 1 || limit > MAX_LIMIT) {
-            throw BadRequestResponse("limit must be between 1 and $MAX_LIMIT")
-        }
-        return limit
     }
 }

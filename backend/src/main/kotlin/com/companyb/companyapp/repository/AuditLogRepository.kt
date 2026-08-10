@@ -31,7 +31,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
-import java.util.Base64
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -381,17 +380,12 @@ object AuditLogRepository {
  * Format is internal — decode with [decodeCursor]; never parse client-side.
  */
 fun encodeCursor(cursor: AuditBrowseCursor): String =
-    Base64
-        .getUrlEncoder()
-        .withoutPadding()
-        .encodeToString("${cursor.changedAt}|${cursor.id}".toByteArray(Charsets.UTF_8))
+    encodeOpaqueCursor(cursor.changedAt.toString(), cursor.id.toString())
 
 fun decodeCursor(raw: String): AuditBrowseCursor {
-    val decoded =
-        runCatching {
-            String(Base64.getUrlDecoder().decode(raw), Charsets.UTF_8)
-        }.getOrElse { throw IllegalArgumentException("Invalid audit cursor") }
-    val parts = decoded.split("|")
+    val parts =
+        runCatching { decodeOpaqueCursor(raw) }
+            .getOrElse { throw IllegalArgumentException("Invalid audit cursor") }
     require(parts.size == 2) { "Invalid audit cursor" }
     return AuditBrowseCursor(
         changedAt = OffsetDateTime.parse(parts[0]),

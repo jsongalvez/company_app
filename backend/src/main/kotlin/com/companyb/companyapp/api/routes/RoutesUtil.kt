@@ -22,6 +22,21 @@ fun Context.uuidFromQuery(name: String): UUID {
     return uuidOrThrow(value, name)
 }
 
+const val DEFAULT_BROWSE_LIMIT = 20
+const val MAX_BROWSE_LIMIT = 100
+
+/** Shared keyset-browse limit parsing (audit log + daily summaries). */
+fun parseBrowseLimit(raw: String?): Int {
+    if (raw == null) return DEFAULT_BROWSE_LIMIT
+    val limit =
+        runCatching { raw.toInt() }
+            .getOrElse { throw BadRequestResponse("Invalid limit: $raw") }
+    if (limit < 1 || limit > MAX_BROWSE_LIMIT) {
+        throw BadRequestResponse("limit must be between 1 and $MAX_BROWSE_LIMIT")
+    }
+    return limit
+}
+
 fun Context.uuidFromBody(key: String): UUID {
     val node = this.bodyAsClass(kotlinx.serialization.json.JsonObject::class.java)
     val value =

@@ -403,6 +403,40 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     }
 
     // ──────────────────────────────────────────────
+    // Gate: paged daily-summaries feed
+    // (gate-pass = 200 empty feed, NOT 404 — a browse feed is 200 when
+    // the branch has no days, unlike the single-date 404-on-missing-data)
+    // ──────────────────────────────────────────────
+
+    private val dailySummariesPaths =
+        listOf(
+            "/api/branches/$branchA/daily-summaries",
+            "/api/branches/$branchB/daily-summaries",
+        )
+
+    @Test
+    fun `no-grant user is blocked on daily-summaries`() {
+        dailySummariesPaths.forEach { path ->
+            assertEquals(403, getStatus(noneUser, path), "expected 403 on $path")
+        }
+    }
+
+    @Test
+    fun `branch-scoped holder passes on granted branch daily-summaries`() {
+        assertEquals(200, getStatus(viewA, "/api/branches/$branchA/daily-summaries"))
+    }
+
+    @Test
+    fun `branch-scoped holder is blocked on other branch daily-summaries`() {
+        assertEquals(403, getStatus(viewA, "/api/branches/$branchB/daily-summaries"))
+    }
+
+    @Test
+    fun `global holder passes on zero-grant branch daily-summaries`() {
+        assertEquals(200, getStatus(globalViewUser, "/api/branches/$branchB/daily-summaries"))
+    }
+
+    // ──────────────────────────────────────────────
     // GET /api/branches/accessible — the picker window
     // ──────────────────────────────────────────────
 

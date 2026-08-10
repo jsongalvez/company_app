@@ -7,6 +7,7 @@ import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -34,6 +35,7 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
 import io.javalin.testtools.JavalinTest
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -44,6 +46,7 @@ import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RouteValidationTest : BasePostgresTest() {
@@ -147,6 +150,7 @@ class RouteValidationTest : BasePostgresTest() {
             UserBranchAssignmentRoutes.register(config)
             RemittanceRoutes.register(config)
             ExportRoutes.register(config)
+            DailySalesSummaryRoutes.register(config)
             ExpenseRoutes.register(config)
             NotificationRoutes.register(config)
         }
@@ -818,6 +822,69 @@ class RouteValidationTest : BasePostgresTest() {
                     .get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16&format=invalid")
                     .code,
             )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // DailySalesSummaryRoutes — paged daily-summaries feed
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `GET daily-summaries returns 200 with seeded day`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$testBranchId/daily-summaries")
+            assertEquals(200, response.code)
+            val body =
+                Json { ignoreUnknownKeys = true }
+                    .decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            assertEquals(1, body.entries.size)
+            assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
+            assertEquals(LocalDate.now().toString(), body.entries.single().date)
+            assertNull(body.nextCursor)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries returns 200 empty feed for branch without days`() {
+        val noDaysBranchId = UUID.randomUUID()
+        trackOwned(BranchTable, BranchTable.id, noDaysBranchId)
+        DatabaseTestHelper.insertTestBranch(noDaysBranchId, "No-Days Branch")
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$noDaysBranchId/daily-summaries")
+            assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")
+            val body =
+                Json { ignoreUnknownKeys = true }
+                    .decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            assertTrue(body.entries.isEmpty())
+            assertNull(body.nextCursor)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects limit zero`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=0").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects limit above max`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=101").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects non-numeric limit`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=abc").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects malformed cursor`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?cursor=not-a-cursor").code)
         }
     }
 
