@@ -1,15 +1,16 @@
 # Code Review — Phased Loop (operational reference)
 
 The loop contract lives in `AGENTS.md` ("Code review — phased loop"). This file is the
-operational artifact: the phase prompt templates + flow-trace checklist, so every pass runs
-the same lenses (session 38's round-3 sanity pass was ad-hoc and caught 7 issues the
-two-round structure missed — this doc makes that lens reproducible).
+operational artifact: the phase prompt templates + flow-trace checklist + **lesson-class
+register**, so every pass runs the same lenses (session 38's round-3 sanity pass was ad-hoc
+and caught 7 issues the two-round structure missed — this doc makes that lens reproducible).
 
 ## Pass structure
 
 A **pass** = P1–P4 as parallel sub-agents against the current delta. Fix → commit
 (batch-fix commits) → next pass diffs `git diff <last-pass-commit>`. Exit when one full pass
-reports **zero HARD findings**.
+reports **zero HARD findings and no unadjudicated ESCALATEs** (triage empties the bucket
+before exit).
 
 | Phase | Lens | Inputs |
 |---|---|---|
@@ -18,12 +19,32 @@ reports **zero HARD findings**.
 | P3 | Behavior trace | composed tree, end-to-end flows incl. repeated attempts + back-stack |
 | P4 | Adversarial edges | what breaks it: races, stale state, dead branches, unmapped slots |
 
-## Triage
+## Classification
 
-- **HARD** = bug / regression / security / data-loss / explicit documented-standard breach → must fix, loop continues.
+### Finding buckets
+
+- **HARD** = bug / regression / security / data-loss / explicit documented-standard breach, or a lesson-class register match (below) — must fix, loop continues.
 - **SOFT** = smell / judgement call → fix if cheap; else accept with a logged reason (≤3 per pass).
-- Accepted SOFTs are handed to the next pass: "previously accepted — re-examine from your angle." Acceptance is never load-bearing.
-- Never tell agents "previous rounds passed" as authority. Each pass re-derives flows from the ticket.
+- **ESCALATE** = HARD-class flavor (regression / data / security) whose reachability the phase cannot fully prove. The phase reports it as ESCALATE and **triage adjudicates** — reachability doubt never downgrades a HARD-flavored finding to SOFT; it escalates.
+
+### Lesson-class register
+
+The register is the memory of the loop: documented bug classes that recurred as HARD once and must default HARD thereafter. **A finding matching a registered class is HARD unless the phase (or triage) proves it inert** — the proof burden sits on the acceptor, not the reporter (the rejected-HARDs discipline, reversed). Resolutions append new classes and bump occurrence counts; builds apply the register as much as audits.
+
+| Class | Signature | Origin (occurrences) |
+|---|---|---|
+| count-0 misfire | a swallowed-write fallback (`insertIgnore` count 0) that returns/derives "existing" by a key too narrow for the constraint class that swallowed (PK vs unique-index vs content) — wrong data served to the caller | #137 r1 HARD; #146 HARD-class (2) |
+| truth-class | a claim or doc line contradicted by shipped code — resolution comments, ADR/AGENTS.md/KDoc | #145 (2 HARD); #146 (1 HARD-class) |
+| lazy lock | Exposed `forUpdate()` (or any deferred op) without a terminal op silently no-ops — and the docs may stale-claim it unavailable | #136 r2; #146 doc line (2) |
+| exact-path gate | a route-level gate written for a path shape the actual route never matches (segment-count drift) — a gate that never fires | #114; #128/#131 (5+) |
+
+### Triage (driving agent, after each pass's phases report)
+
+Triage re-derives **every** finding's class from the phase's own evidence — phase ratings are inputs, never authority (pass-1 phases rated both #146 HARD-class findings SOFT; the synthesis caught them). Done when:
+
+- every finding re-classified from evidence, register matches checked, ESCALATE entries adjudicated (HARD → fix, or rejected with proof of inertness);
+- the driving agent itself hunts the register classes in the constraint sources — reads the AGENTS.md/ADR/KDoc lines the delta depends on (the #146 doc contradiction was caught this way, not by a phase);
+- accepted SOFTs ≤3, each with a reason, handed to the next pass: "previously accepted — re-examine from your angle **and re-rate upward** if HARD-class from your lens."
 
 ## Phase prompt templates
 
@@ -33,7 +54,10 @@ Common preamble (each sub-agent gets this):
 Review the committed delta: `git diff <last-pass-commit>` (first pass: `git diff <pre-ticket-commit>`;
 hand untracked files explicitly). Repo: /mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app.
 Ticket/spec: <ticket body or path>.
-Do NOT treat prior passes as authority. Re-derive everything from the ticket + code.
+Check findings against the lesson-class register above — a match defaults HARD unless you prove it inert.
+Falsify the spec's claims AND the constraint-doc sentences the surface rests on: quote each doc line,
+state code-verified or CONTRADICTED.
+Re-derive everything from the ticket + code. Prior passes are evidence to re-check, never authority.
 ```
 
 ### P1 — Spec conformance
@@ -42,9 +66,10 @@ Do NOT treat prior passes as authority. Re-derive everything from the ticket + c
 You are the SPEC reviewer, pass <N>, on the delta <range> implementing issue <#id>.
 Report: (a) requirements the spec asked for that are missing or partial; (b) behaviour in
 the delta that wasn't asked for (scope creep — check the ticket's Out-of-scope list); (c)
-requirements that look implemented but where the implementation looks wrong. Quote the spec
-line for each finding. Under 400 words. Format: [MISSING|SCOPE-CREEP|WRONG] — spec line —
-problem.
+requirements that look implemented but where the implementation looks wrong; (d) claims in
+the spec or its source resolutions that are FALSE as shipped — quote the claim, state
+code-verified or contradicted with evidence. Quote the spec line for each finding.
+Under 400 words. Format: [MISSING|SCOPE-CREEP|WRONG|CLAIM-FALSE] — spec line — problem.
 ```
 
 ### P2 — Standards + constraints
@@ -55,12 +80,14 @@ Standards sources (read them): AGENTS.md (root), <module> AGENTS.md, DESIGN.md, 
 (touched areas), CONTEXT.md.
 CONSTRAINT SOURCES the delta consumes — read every one the code references, even if outside
 the delta: theme/token mappings, shared DTOs/enums, the ApiCallHandler contract, capability
-codes, platform actuals, k6 conventions, error-message formats.
+codes, platform actuals, k6 conventions, error-message formats. Hold each doc sentence the
+delta depends on against the code — a stale claim in a constraint source is a truth-class
+finding (register), not a doc nit.
 Smell baseline (judgement calls; repo standards override; skip what ktlint/detekt enforce):
 Mysterious Name, Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession, Repeated
 Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message Chains, Middle
 Man, Refused Bequest.
-Report [HARD|SOFT] file:line — problem — fix. Under 400 words.
+Report [HARD|SOFT|ESCALATE] file:line — problem — fix. Under 400 words.
 ```
 
 ### P3 — Behavior trace
@@ -94,7 +121,10 @@ Hunt what breaks it:
 - unmapped slots (theme tokens the code references but the theme doesn't define — check the
   theme file directly)
 - string/format coupling (substring matches on producer formats)
-Report [HARD|SOFT] file:line — problem — fix. Under 400 words.
+- fallback paths that derive "existing" from a too-narrow key — the count-0 misfire class
+  (register) has recurred; check every swallowed-write fallback against each constraint
+  class that could have swallowed (PK, unique index, content, deleted-ness)
+Report [HARD|SOFT|ESCALATE] file:line — problem — fix. Under 400 words.
 ```
 
 ## Flow-trace checklist (P3 aid — not exhaustive)
@@ -116,3 +146,5 @@ Review: phased loop, 3 passes. Pass 1: P1 1 MISSING, P2 2 HARD, P3 1 FAIL, P4 2 
 Pass 2 (delta 183cbed): P1 clean, P2 0 HARD, P3 1 FAIL (flow-2 stale-error masking), P4 1 SOFT (accepted).
 Pass 3 (delta <sha>): 0 HARD across all four phases — exit. Accepted SOFTs: <list with reasons>.
 ```
+
+**Register upkeep** — the resolution records new lesson-classes and occurrence bumps; the register above is the single source (handoffs link to it instead of restating registered classes).

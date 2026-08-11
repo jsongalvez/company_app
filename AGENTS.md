@@ -35,7 +35,7 @@ A **pass** = four phases, each a different review mode, run as parallel `/code-r
 **Loop mechanics:**
 
 - **Review points**: batch-fix commits per pass; each pass diffs `git diff <last-pass-commit>`. Untracked files are handed to the sub-agents explicitly on the first pass.
-- **Triage**: HARD (bug / regression / security / documented-standard breach) → must fix, loop continues. SOFT (smell / judgement call) → fix if cheap; else accept **with a logged reason**; ≤3 accepted SOFTs per pass; the accepted list is handed to the next pass with "re-examine from your angle" — acceptance is never load-bearing (round-1 SOFTs became round-3 HARDs).
+- **Triage**: HARD (bug / regression / security / documented-standard breach / **lesson-class register match** — register in `docs/agents/code-review-loop.md`) → must fix, loop continues. SOFT (smell / judgement call) → fix if cheap; else accept **with a logged reason**; ≤3 accepted SOFTs per pass; the accepted list is handed to the next pass with "re-examine from your angle and re-rate upward if HARD-class from your lens" — acceptance is never load-bearing (round-1 SOFTs became round-3 HARDs).
 - **Exit**: one full pass with zero HARD findings across all four phases. Converges naturally — each pass's delta is fixes only (typically 2–3 passes for a build ticket).
 - Agents are never told "previous rounds passed" as authority; each pass re-derives flows from the ticket.
 
