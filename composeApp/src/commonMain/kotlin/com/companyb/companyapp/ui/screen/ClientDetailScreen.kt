@@ -218,11 +218,15 @@ private fun ClientDetailContent(
     var fieldError by remember { mutableStateOf<String?>(null) }
     var wasUpdateLoading by remember { mutableStateOf(false) }
     var showAnonymizeDialog by remember { mutableStateOf(false) }
+    val bpDraft = remember { BpDraftState() }
     // The field whose PATCH is in flight. With per-field edit ownership, a PATCH's Success/Error
     // only resolves the edit of ITS field: if the user has already switched to another field
     // (startEdit commits the superseded draft first), the landing response must not force-exit
     // the new field's edit nor pollute it with the old field's error.
     var pendingEditField by remember { mutableStateOf<ClientField?>(null) }
+
+    // Whether a landing PATCH outcome concerns the field currently being edited.
+    fun resolvesCurrentEdit(): Boolean = pendingEditField == null || editingField == pendingEditField
 
     // D4 pessimistic axes — edit mode exits only on success; failure keeps the attempted value +
     // inline error and stays in edit; Loading → Idle without Success in between = 403 silent exit.
@@ -231,7 +235,7 @@ private fun ClientDetailContent(
     LaunchedEffect(updateState) {
         when (val state = updateState) {
             is UiState.Success -> {
-                if (pendingEditField == null || editingField == pendingEditField) {
+                if (resolvesCurrentEdit()) {
                     editingField = null
                     draftValue = ""
                     fieldError = null
@@ -241,7 +245,7 @@ private fun ClientDetailContent(
             }
 
             is UiState.Idle -> {
-                if (wasUpdateLoading && (pendingEditField == null || editingField == pendingEditField)) {
+                if (wasUpdateLoading && resolvesCurrentEdit()) {
                     editingField = null
                     draftValue = ""
                     fieldError = null
@@ -258,7 +262,7 @@ private fun ClientDetailContent(
                 // 409 exits silently via Idle (the VM reloads); a plain failure (400 validation,
                 // 5xx) keeps edit mode with the inline error — but only when the failing PATCH
                 // belongs to the field being edited.
-                if (pendingEditField == null || editingField == pendingEditField) {
+                if (resolvesCurrentEdit()) {
                     fieldError = state.message
                 }
                 pendingEditField = null
@@ -293,20 +297,45 @@ private fun ClientDetailContent(
         }
     }
 
-    // D4 — BP pair commit: the editor validates + builds the request; unchanged pair → silent exit.
-    fun commitBpPair(patch: UpdateClientRequest) {
+    // D4 — BP pair commit (owned here, not in the editor): validates the hoisted drafts, builds
+    // the request; unchanged pair → silent exit. Enter/blur/supersede all route through this.
+    fun commitBpDrafts() {
         if (editingField != ClientField.BP_PAIR) return
         if (updateState is UiState.Loading) return
         if (anonymizeState is UiState.Loading) return
+        val sys = bpDraft.systolic.trim()
+        val dia = bpDraft.diastolic.trim()
+        if (sys.isEmpty() || dia.isEmpty()) {
+            fieldError = "Both BP fields are required"
+            return
+        }
+        val sysVal = sys.toShortOrNull()
+        val diaVal = dia.toShortOrNull()
+        if (sysVal == null || diaVal == null) {
+            fieldError = "Enter a valid number"
+            return
+        }
+        if (sysVal == client.systolicBp && diaVal == client.diastolicBp) {
+            exitEdit()
+            return
+        }
         pendingEditField = ClientField.BP_PAIR
-        viewModel.updateClient(client.id, patch)
+        viewModel.updateClient(client.id, UpdateClientRequest(systolicBp = sysVal, diastolicBp = diaVal))
     }
 
     fun startEdit(field: ClientField) {
         if (updateState is UiState.Loading) return
         if (anonymizeState is UiState.Loading) return
         if (editingField != null && editingField != field) {
-            commitEdit(editingField!!)
+            // Commit the superseded field's draft first — its typed value must not be silently
+            // dropped by the disposal-blur (which the editingField != field guard would drop).
+            // The pair routes through its own commit: its drafts live in [bpDraft], not the
+            // shared single-field draft, so commitEdit would see an "unchanged" empty draft.
+            if (editingField == ClientField.BP_PAIR) {
+                commitBpDrafts()
+            } else {
+                commitEdit(editingField!!)
+            }
         }
         editingField = field
         draftValue = currentFieldValue(client, field)
@@ -438,9 +467,9 @@ private fun ClientDetailContent(
                         diastolic = client.diastolicBp,
                         editing = editingField == ClientField.BP_PAIR,
                         fieldError = if (editingField == ClientField.BP_PAIR) fieldError else null,
-                        onError = { fieldError = it },
+                        draft = bpDraft,
                         onStartEdit = { startEdit(ClientField.BP_PAIR) },
-                        onCommitPair = ::commitBpPair,
+                        onCommit = ::commitBpDrafts,
                         onCancel = ::exitEdit,
                     )
                     ClientFieldEditor(
@@ -665,63 +694,53 @@ private fun ClientFieldEditor(
 }
 
 /**
- * D4 — blood-pressure pair editor. The pair is one logical field: both inputs or neither
- * (backend 400s otherwise). Commits both values in one partial PATCH; the pair can be entered
- * from null (both empty → type both → commit).
+ * D4 — blood-pressure pair draft state, hoisted into [ClientDetailContent]: a field-switch
+ * supersede must be able to commit the pair's typed drafts (the editor's local state would be
+ * unreachable from `startEdit`). The pair is one logical field: both inputs or neither
+ * (backend 400s otherwise); commits both values in one partial PATCH; enterable from null.
+ *
+ * Blur-commit fires only when BOTH sides were typed in this edit session: (a) with no typing at
+ * all, tapping systolic→diastolic blurs field 1 with both drafts holding the seeded values —
+ * commitPair would see "unchanged" and cancel the edit before the user typed anything; (b) with
+ * only one side typed, tapping the other side would blur-commit the pair with the seeded value
+ * for the side the user is on their way to edit — same premature-commit class. With both sides
+ * typed, blur commits (or surfaces the inline pair-required error, matching the single-field
+ * "Value required" on blank). Enter (Done) always commits explicitly, unchanged pair included
+ * (silent exit).
  */
+private class BpDraftState {
+    var systolic by mutableStateOf("")
+    var diastolic by mutableStateOf("")
+    var dirtySystolic by mutableStateOf(false)
+    var dirtyDiastolic by mutableStateOf(false)
+
+    fun seed(
+        systolic: Short?,
+        diastolic: Short?,
+    ) {
+        this.systolic = systolic?.toString().orEmpty()
+        this.diastolic = diastolic?.toString().orEmpty()
+        dirtySystolic = false
+        dirtyDiastolic = false
+    }
+}
+
 @Composable
 private fun BpPairEditor(
     systolic: Short?,
     diastolic: Short?,
     editing: Boolean,
     fieldError: String?,
-    onError: (String) -> Unit,
+    draft: BpDraftState,
     onStartEdit: () -> Unit,
-    onCommitPair: (UpdateClientRequest) -> Unit,
+    onCommit: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    var draftSystolic by remember { mutableStateOf("") }
-    var draftDiastolic by remember { mutableStateOf("") }
-    // Blur-commit fires only when BOTH sides were typed in this edit session: (a) with no typing
-    // at all, tapping systolic→diastolic blurs field 1 with both drafts holding the seeded
-    // values — commitPair() would see "unchanged" and cancel the edit before the user typed
-    // anything; (b) with only one side typed, tapping the other side would blur-commit the pair
-    // with the seeded value for the side the user is on their way to edit — same premature-commit
-    // class. With both sides typed, blur commits (or surfaces the inline pair-required error,
-    // matching the single-field "Value required" on blank). Enter (Done) always commits
-    // explicitly, unchanged pair included (silent exit).
-    var dirtySystolic by remember { mutableStateOf(false) }
-    var dirtyDiastolic by remember { mutableStateOf(false) }
-
     // Re-seed drafts each time edit mode is entered (values may have changed via a 409 reload).
     LaunchedEffect(editing) {
         if (editing) {
-            draftSystolic = systolic?.toString().orEmpty()
-            draftDiastolic = diastolic?.toString().orEmpty()
-            dirtySystolic = false
-            dirtyDiastolic = false
+            draft.seed(systolic, diastolic)
         }
-    }
-
-    fun commitPair() {
-        if (!editing) return
-        val sys = draftSystolic.trim()
-        val dia = draftDiastolic.trim()
-        if (sys.isEmpty() || dia.isEmpty()) {
-            onError("Both BP fields are required")
-            return
-        }
-        val sysVal = sys.toShortOrNull()
-        val diaVal = dia.toShortOrNull()
-        if (sysVal == null || diaVal == null) {
-            onError("Enter a valid number")
-            return
-        }
-        if (sysVal == systolic && diaVal == diastolic) {
-            onCancel()
-            return
-        }
-        onCommitPair(UpdateClientRequest(systolicBp = sysVal, diastolicBp = diaVal))
     }
 
     Column(
@@ -746,21 +765,21 @@ private fun BpPairEditor(
                 modifier =
                     Modifier
                         .onFocusChanged {
-                            if (!it.isFocused && dirtySystolic && dirtyDiastolic) {
-                                commitPair()
+                            if (!it.isFocused && draft.dirtySystolic && draft.dirtyDiastolic) {
+                                onCommit()
                             }
                         }.escapeCancels(onCancel),
             ) {
                 OutlinedTextField(
-                    value = draftSystolic,
+                    value = draft.systolic,
                     onValueChange = {
-                        draftSystolic = it
-                        dirtySystolic = true
+                        draft.systolic = it
+                        draft.dirtySystolic = true
                     },
                     singleLine = true,
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { commitPair() }),
+                    keyboardActions = KeyboardActions(onDone = { onCommit() }),
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -769,15 +788,15 @@ private fun BpPairEditor(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 OutlinedTextField(
-                    value = draftDiastolic,
+                    value = draft.diastolic,
                     onValueChange = {
-                        draftDiastolic = it
-                        dirtyDiastolic = true
+                        draft.diastolic = it
+                        draft.dirtyDiastolic = true
                     },
                     singleLine = true,
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { commitPair() }),
+                    keyboardActions = KeyboardActions(onDone = { onCommit() }),
                     modifier = Modifier.weight(1f),
                 )
             }
