@@ -30,7 +30,9 @@ class NotificationViewModel(
     // successful list survives Loading/Error so the screen keeps rendering it across reloads AND
     // composition re-entries (a screen-side remember would die on re-entry; the VM is
     // entry-scoped). It is also the fallback the markRead/markAll transforms operate on when
-    // _notifications is Loading/Error — actions must not no-op against a rendered list.
+    // _notifications is Loading/Error — actions must not no-op against a rendered list. The
+    // actionStamp (see loadUnreadNotifications) keeps a stale pre-action load from resurrecting
+    // read rows into it.
     private val _lastUnread = MutableStateFlow<List<NotificationResponse>?>(null)
     val lastUnread: StateFlow<List<NotificationResponse>?> = _lastUnread.asStateFlow()
 
@@ -46,8 +48,7 @@ class NotificationViewModel(
     init {
         // Single writer for lastUnread: every Success that lands on _notifications (load, the
         // markRead/markAll transforms' mutated lists) mirrors into it (the badge-VM collector
-        // pattern). A stale in-flight GET's snapshot can still overwrite it with a pre-action
-        // list — accepted grace-window class: the badge poll + re-taps re-sync.
+        // pattern).
         viewModelScope.launch {
             _notifications
                 .filterIsInstance<UiState.Success<List<NotificationResponse>>>()
@@ -56,12 +57,24 @@ class NotificationViewModel(
     }
 
     fun loadUnreadNotifications() {
+        val loadStamp = actionStamp
         handler.launch(
             state = _notifications,
             operation = "loadUnreadNotifications",
             endpoint = "GET /api/notifications",
             block = { apiClient.httpClient.get("/api/notifications") },
-            transform = { it.body() },
+            transform = { response ->
+                val body = response.body<List<NotificationResponse>>()
+                if (loadStamp != actionStamp) {
+                    // An action (markRead/markAll) succeeded while this load was in flight, so
+                    // the snapshot predates it — committing it would resurrect read rows under
+                    // the new badge count (audit #141 pass-6: the stale-overwrite class). The
+                    // handler still commits the stale body; the re-issue's Loading + fresh
+                    // Success then re-derive the list within a dispatch or two.
+                    loadUnreadNotifications()
+                }
+                body
+            },
         )
     }
 
@@ -94,7 +107,10 @@ class NotificationViewModel(
                 // Decrement only when the row actually left the unread list — a double-tap's
                 // second PATCH success must not decrement the badge twice (the first success
                 // already moved the row out; the poll overwrite catches drift, #109 Q6 axis).
+                // The Read-section dedupe also blocks the stale-re-render class: a row the
+                // reload resurrected after an action must not decrement again (#112 decision 4).
                 if (moveToReadThisSession(body)) {
+                    actionStamp++
                     NotificationState.decrementUnread()
                 }
                 body
@@ -113,6 +129,10 @@ class NotificationViewModel(
                 // never client arithmetic — an arrival committed before the count is included,
                 // an arrival after is caught by the next 60s poll.
                 NotificationState.setUnreadCount(body.unreadCount)
+                // Stamp BEFORE the reload launch: the markAll-triggered reload must carry the
+                // post-action stamp, and any pre-markAll load still in flight re-issues on
+                // landing instead of resurrecting the rows (audit #141 pass-6).
+                actionStamp++
                 moveAllToReadThisSession()
                 // Reload iff the authoritative count shows arrivals since this screen's fetch —
                 // the screen has no in-screen polling (D5), so a fresh fetch is the only way the
@@ -125,6 +145,9 @@ class NotificationViewModel(
         )
 
     private fun moveToReadThisSession(notification: NotificationResponse): Boolean {
+        // Read-section dedupe: a row already marked this session can never move or decrement
+        // again — not even when a stale reload re-renders it as unread (#112 decision 4).
+        if (_readThisSession.value.any { it.id == notification.id }) return false
         val current = currentUnreadList() ?: return false
         val remaining = current.filterNot { it.id == notification.id }
         if (remaining.size == current.size) return false
@@ -135,10 +158,13 @@ class NotificationViewModel(
 
     private fun moveAllToReadThisSession() {
         val current = currentUnreadList() ?: return
+        val newRead = current.filterNot { row -> _readThisSession.value.any { it.id == row.id } }
         _notifications.value = UiState.Success(emptyList())
-        _readThisSession.value = _readThisSession.value + current
+        _readThisSession.value = _readThisSession.value + newRead
     }
 
     private fun currentUnreadList(): List<NotificationResponse>? =
         (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data ?: _lastUnread.value
+
+    private var actionStamp = 0L
 }

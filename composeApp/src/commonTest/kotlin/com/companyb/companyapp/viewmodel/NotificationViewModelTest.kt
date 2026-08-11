@@ -18,6 +18,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -28,6 +29,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Tests for [NotificationViewModel]'s unread-queue behavior per the #112 build of the locked #102
@@ -227,6 +229,8 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n3"), actual = state.data.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
+            // the mirror keeps the re-derived list in sync
+            assertEquals(expected = listOf("n3"), actual = vm.lastUnread.value?.map { it.id })
         }
 
     @Test
@@ -282,6 +286,60 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
+
+            // The stale pre-action snapshot lands (+70s): the action stamp re-issues the load
+            // instead of resurrecting the read row — the re-issue's own GET is held another
+            // 70s (+140s), so the converged state needs both advances (the stale Success's
+            // mirror is skipped by StateFlow conflation — no resurrect frame at all).
+            advanceTimeBy(70_000.milliseconds)
+            runCurrent()
+            advanceTimeBy(70_000.milliseconds)
+            runCurrent()
+            assertEquals(expected = listOf("n3"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
+        }
+
+    @Test
+    fun markAllRead_mid_reload_stale_landing_does_not_resurrect_rows() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(
+                            secondGetDelayMs = 70_000,
+                            dispatcher = StandardTestDispatcher(testScheduler),
+                        ),
+                    ),
+                )
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+
+            // Reload in flight (held), then Mark all: the transform empties the rendered list via
+            // the lastUnread fallback + sets the authoritative badge.
+            vm.loadUnreadNotifications()
+            runCurrent()
+            val job = vm.markAllRead()
+            runCurrent()
+            job.join()
+
+            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
+
+            // The stale pre-markAll snapshot lands (+70s): the action stamp re-issues the load —
+            // rows must NOT resurrect under the zero badge, and Read stays duplicate-free. The
+            // re-issue's own GET is held another 70s (+140s), so the converged state needs both
+            // advances.
+            advanceTimeBy(70_000.milliseconds)
+            runCurrent()
+            advanceTimeBy(70_000.milliseconds)
+            runCurrent()
+            assertEquals(expected = listOf("n3"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
         }
 
     @Test
