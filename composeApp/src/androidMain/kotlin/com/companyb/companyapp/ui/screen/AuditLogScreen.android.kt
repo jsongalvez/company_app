@@ -19,12 +19,15 @@ import com.companyb.companyapp.ui.theme.Spacing
 // D11 (mobile) — card list (#113 D3 card precedent): each entry in a surfaceVariant card; the
 // shared AuditLogEntryRow handles the expandable content inside.
 @Composable
-internal actual fun AuditLogEntryList(state: AuditLogListState) {
+internal actual fun AuditLogEntryList(
+    args: AuditLogEntryListArgs,
+    modifier: Modifier,
+) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        items(state.entries, key = { it.id }) { entry ->
+        items(args.entries, key = { it.id }) { entry ->
             Surface(
                 shape = RoundedCornerShape(CornerRadius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -32,16 +35,16 @@ internal actual fun AuditLogEntryList(state: AuditLogListState) {
             ) {
                 AuditLogEntryRow(
                     entry = entry,
-                    tableLabel = state.tableLabels[entry.tableName] ?: entry.tableName,
-                    expanded = entry.id in state.expandedIds,
-                    onToggleExpanded = { state.onToggleExpanded(entry.id) },
-                    currentUserId = state.currentUserId,
-                    onAcknowledge = { state.onAcknowledge(entry) },
-                    acknowledging = entry.id in state.acknowledgingIds,
-                    ackError = state.ackErrors[entry.id],
-                    onFullHistory = { state.onFullHistory(entry) },
-                    showAcknowledge = state.showAcknowledge,
-                    showFullHistory = state.showFullHistory,
+                    tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
+                    expanded = entry.id in args.expandedIds,
+                    onToggleExpanded = { args.onToggleExpanded(entry.id) },
+                    currentUserId = args.currentUserId,
+                    onAcknowledge = { args.onAcknowledge(entry) },
+                    acknowledging = entry.id in args.acknowledgingIds,
+                    ackError = args.ackErrors[entry.id],
+                    onFullHistory = { args.onFullHistory(entry) },
+                    showAcknowledge = args.showAcknowledge,
+                    showFullHistory = args.showFullHistory,
                     modifier = Modifier.padding(horizontal = Spacing.sm),
                 )
             }

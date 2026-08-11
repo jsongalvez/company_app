@@ -14,27 +14,30 @@ import com.companyb.companyapp.ui.theme.Spacing
 // D11 (desktop) — dense rows: the shared AuditLogEntryRow with minimal chrome, hairline
 // dividers, the list itself scrolls. Desktop = scan persona (same reasoning as #113 D3).
 @Composable
-internal actual fun AuditLogEntryList(state: AuditLogListState) {
-    Box(modifier = Modifier.fillMaxSize()) {
+internal actual fun AuditLogEntryList(
+    args: AuditLogEntryListArgs,
+    modifier: Modifier,
+) {
+    Box(modifier = modifier) {
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState()),
         ) {
-            state.entries.forEach { entry ->
+            args.entries.forEach { entry ->
                 AuditLogEntryRow(
                     entry = entry,
-                    tableLabel = state.tableLabels[entry.tableName] ?: entry.tableName,
-                    expanded = entry.id in state.expandedIds,
-                    onToggleExpanded = { state.onToggleExpanded(entry.id) },
-                    currentUserId = state.currentUserId,
-                    onAcknowledge = { state.onAcknowledge(entry) },
-                    acknowledging = entry.id in state.acknowledgingIds,
-                    ackError = state.ackErrors[entry.id],
-                    onFullHistory = { state.onFullHistory(entry) },
-                    showAcknowledge = state.showAcknowledge,
-                    showFullHistory = state.showFullHistory,
+                    tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
+                    expanded = entry.id in args.expandedIds,
+                    onToggleExpanded = { args.onToggleExpanded(entry.id) },
+                    currentUserId = args.currentUserId,
+                    onAcknowledge = { args.onAcknowledge(entry) },
+                    acknowledging = entry.id in args.acknowledgingIds,
+                    ackError = args.ackErrors[entry.id],
+                    onFullHistory = { args.onFullHistory(entry) },
+                    showAcknowledge = args.showAcknowledge,
+                    showFullHistory = args.showFullHistory,
                     modifier = Modifier.padding(horizontal = Spacing.sm),
                 )
             }

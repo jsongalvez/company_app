@@ -396,9 +396,20 @@ class AuditLogViewModel(
                         // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
                         // guard). Cold only launches from Loading/Error/Idle, so Success at
                         // landing ⟺ a concurrent refresh already committed.
-                        val supersededByConcurrentFetch =
+                        val listAlreadyCommitted =
                             mode == FetchMode.Cold && _browseEntries.value is UiState.Success
-                        if (!supersededByConcurrentFetch) {
+                        if (listAlreadyCommitted) {
+                            logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
+                        } else {
+                            if (_browseRefreshError.value != null) {
+                                // A cold commit supersedes a failed refresh's error line: the
+                                // list below is fresh, so the line would be stale (pass-6 SOFT);
+                                // log rather than vanish silently.
+                                logWarn(
+                                    "AuditLogVM",
+                                    "cold commit cleared stale refresh error: ${_browseRefreshError.value}",
+                                )
+                            }
                             _browseRefreshError.value = null
                             _nextCursor.value = page.nextCursor
                             // A page snapshot taken before an ack commit may still carry the

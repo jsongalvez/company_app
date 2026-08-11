@@ -288,8 +288,8 @@ private fun ForReviewTab(
                     )
                 } else {
                     AuditLogEntryList(
-                        state =
-                            AuditLogListState(
+                        args =
+                            AuditLogEntryListArgs(
                                 entries = state.data,
                                 tableLabels = tableLabels,
                                 expandedIds = expandedIds,
@@ -405,8 +405,8 @@ private fun AllActivityTab(
                                 .weight(1f),
                     ) {
                         AuditLogEntryList(
-                            state =
-                                AuditLogListState(
+                            args =
+                                AuditLogEntryListArgs(
                                     entries = state.data,
                                     tableLabels = tableLabels,
                                     expandedIds = expandedIds,
@@ -419,6 +419,12 @@ private fun AllActivityTab(
                                     showAcknowledge = true,
                                     showFullHistory = true,
                                 ),
+                            // weight(1f), not fillMaxSize: the pinned Load-more affordances below
+                            // must keep their height (D5; pass-7 HARD).
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
                         )
                         if (loadMoreError != null) {
                             InlineErrorText(
@@ -1021,7 +1027,7 @@ private fun String.toDisplayValue(): String = if (this == "null") "—" else thi
 // (For-review, All-activity, history). A holder keeps the expect/actual signatures under
 // detekt's LongParameterList threshold (6) and dissolves the repeated 10-param clump (pass-6
 // HARD — the bare 11-param actuals failed :composeApp:detekt*).
-internal data class AuditLogListState(
+internal data class AuditLogEntryListArgs(
     val entries: List<AuditLogEntryResponse>,
     val tableLabels: Map<String, String>,
     val expandedIds: Set<String>,
@@ -1036,9 +1042,14 @@ internal data class AuditLogListState(
 )
 
 // D11 — desktop dense rows / mobile cards (#95 smallest-divergent-subtree); the row itself is
-// the shared [AuditLogEntryRow].
+// the shared [AuditLogEntryRow]. The modifier lets the All-activity tab weight the list so the
+// pinned Load-more affordances below it stay visible (D5; pass-7 HARD — the pre-fix
+// fillMaxSize consumed the weighted column's full height and clipped the button).
 @Composable
-internal expect fun AuditLogEntryList(state: AuditLogListState)
+internal expect fun AuditLogEntryList(
+    args: AuditLogEntryListArgs,
+    modifier: Modifier = Modifier.fillMaxSize(),
+)
 
 // D8 — "Full history for this record": pushed on both platforms (#91 push-route lock; ClientDetail
 // precedent — content-level Back TextButton, the pushed-route topbar pattern stays fog). The route
@@ -1107,8 +1118,8 @@ fun AuditLogHistoryScreen(
                     EmptyState("No history recorded for this record")
                 } else {
                     AuditLogEntryList(
-                        state =
-                            AuditLogListState(
+                        args =
+                            AuditLogEntryListArgs(
                                 entries = state.data,
                                 tableLabels = emptyMap(),
                                 expandedIds = expandedIds,
