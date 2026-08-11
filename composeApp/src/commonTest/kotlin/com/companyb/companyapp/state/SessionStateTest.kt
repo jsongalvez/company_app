@@ -22,11 +22,33 @@ class SessionStateTest {
         SessionState.setUser(user)
         SessionState.setCapabilities(setOf("MANAGE_USERS"))
         SessionState.setSelectedBranch("b1", "Main Branch")
+        SessionState.setClockState("a1", "d1")
 
         assertEquals(user, SessionState.currentUser.value)
         assertEquals(setOf("MANAGE_USERS"), SessionState.capabilities.value)
         assertEquals("b1", SessionState.selectedBranchId.value)
         assertEquals("Main Branch", SessionState.selectedBranchName.value)
+        assertEquals("a1", SessionState.attendanceId.value)
+        assertEquals("d1", SessionState.branchDayId.value)
+    }
+
+    // #147 (Q3) — clock-out transition: user stays logged in, branch + caps reset to empty,
+    // attendance slots cleared; clear() (logout/401) resets everything.
+    @Test
+    fun clear_clock_state_keeps_user_but_resets_branch_caps_and_attendance() {
+        SessionState.setUser(user)
+        SessionState.setCapabilities(setOf("MANAGE_USERS", "EDIT_BRANCH_DATA"))
+        SessionState.setSelectedBranch("b1", "Main Branch")
+        SessionState.setClockState("a1", "d1")
+
+        SessionState.clearClockState()
+
+        assertEquals(user, SessionState.currentUser.value, "clock-out must NOT log the user out")
+        assertNull(SessionState.selectedBranchId.value)
+        assertNull(SessionState.selectedBranchName.value)
+        assertEquals(emptySet<String>(), SessionState.capabilities.value)
+        assertNull(SessionState.attendanceId.value)
+        assertNull(SessionState.branchDayId.value)
     }
 
     @Test
@@ -34,6 +56,7 @@ class SessionStateTest {
         SessionState.setUser(user)
         SessionState.setCapabilities(setOf("MANAGE_USERS"))
         SessionState.setSelectedBranch("b1", "Main Branch")
+        SessionState.setClockState("a1", "d1")
         SessionState.setExpiredNotice(true)
 
         SessionState.clear()
@@ -42,6 +65,8 @@ class SessionStateTest {
         assertEquals(emptySet<String>(), SessionState.capabilities.value)
         assertNull(SessionState.selectedBranchId.value)
         assertNull(SessionState.selectedBranchName.value)
+        assertNull(SessionState.attendanceId.value)
+        assertNull(SessionState.branchDayId.value)
         // The notice is consumed by LoginScreen, not the session surface.
         assertTrue(SessionState.expiredNotice.value)
         SessionState.setExpiredNotice(false)

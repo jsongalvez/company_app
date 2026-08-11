@@ -46,8 +46,11 @@ class AttendanceViewModel(
         )
     }
 
-    fun clockOut(request: ClockOutRequest) {
-        handler.launch(
+    fun clockOut(request: ClockOutRequest): Job {
+        // #147 — mirrors clockIn (#140 r1 pattern): synchronous pre-set + Job return so the
+        // drawer's dialog can disable the confirm and chain navigation on success.
+        _clockOutState.value = UiState.Loading
+        return handler.launch(
             state = _clockOutState,
             operation = "clockOut",
             endpoint = "POST /api/attendance/clock-out",

@@ -120,6 +120,9 @@ class BranchSelectViewModelTest {
             assertIs<UiState.Success<Unit>>(vm.clockInState.value)
             assertEquals("b1", SessionState.selectedBranchId.value)
             assertEquals("Main Branch", SessionState.selectedBranchName.value)
+            // #147 — the clock-state slots persist for the drawer's clock-out request.
+            assertEquals("a1", SessionState.attendanceId.value)
+            assertEquals("d1", SessionState.branchDayId.value)
             // ADR-0021 second trigger — global + the selected branch's slice only.
             assertIs<UiState.Success<Unit>>(vm.refreshState.value)
             assertEquals(setOf("MANAGE_USERS", "SUBMIT_REMITTANCE"), SessionState.capabilities.value)

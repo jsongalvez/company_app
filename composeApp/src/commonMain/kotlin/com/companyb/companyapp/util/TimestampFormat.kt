@@ -45,3 +45,13 @@ internal fun formatRelativeTimestamp(
         else -> createdAt.toLocalDateTime(displayZone).format(absoluteFormat)
     }
 }
+
+private val timeOfDayFormat: DateTimeFormat<LocalDateTime> =
+    LocalDateTime.Format {
+        hour(Padding.ZERO)
+        char(':')
+        minute(Padding.ZERO)
+    }
+
+// #147 — dashboard "last updated" clock time (Asia/Manila, matching the backend's zone).
+internal fun formatTimeOfDay(instant: Instant): String = instant.toLocalDateTime(displayZone).format(timeOfDayFormat)

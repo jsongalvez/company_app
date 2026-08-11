@@ -42,6 +42,8 @@ import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
+import com.companyb.companyapp.ui.screen.SessionDashboardScreen
+import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
@@ -50,6 +52,7 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
+import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 
@@ -93,7 +96,7 @@ actual fun AppNavHost(
                     // `gesturesEnabled=false`. Closed drawer + gesturesEnabled=false registers NO
                     // back interceptor at the drawer, so pushed-route back-pop wins cleanly.
                     ModalDrawerSheet(drawerState = drawerState) {
-                        DrawerContent()
+                        DrawerContent(apiClient = apiClient)
                     }
                 }
             },
@@ -159,7 +162,20 @@ actual fun AppNavHost(
                             },
                         )
                     }
-                    composable<Route.Dashboard> { PlaceholderRoute("Dashboard") }
+                    composable<Route.Dashboard> {
+                        val dashboardViewModel: SessionDashboardViewModel =
+                            viewModel { SessionDashboardViewModel(apiClient) }
+                        val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+                        SessionDashboardScreen(
+                            viewModel = dashboardViewModel,
+                            selectedBranchName = selectedBranchName,
+                            onSessionClick = { row ->
+                                // #147 — mobile detail push carries the enriched row from the
+                                // poll (no session-detail GET; the #146-corrected fact).
+                                navController.navigate(Route.SessionDetail(row.id, row))
+                            },
+                        )
+                    }
                     composable<Route.Clients> {
                         // #113 D7 — code-only route gate matching the implemented `Set<String>`
                         // capabilities; backend GLOBAL gate + 403 paths stay authoritative (D8).
@@ -286,7 +302,13 @@ actual fun AppNavHost(
                             RouteGateCard(label = "User Management")
                         }
                     }
-                    composable<Route.SessionDetail> { PlaceholderRoute("Session Detail") }
+                    composable<Route.SessionDetail> { entry ->
+                        val route = entry.toRoute<Route.SessionDetail>()
+                        SessionDetailScreen(
+                            row = route.row,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                 }
             }
         }

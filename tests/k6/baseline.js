@@ -1,6 +1,6 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { BASE_URL, authHeaders, metrics } from "./helpers.js";
+import { BASE_URL, authHeaders, metrics, uuid } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
@@ -10,6 +10,8 @@ export const options = {
     branches_latency: ["p(95)<500"],
     clients_search_latency: ["p(95)<1000"],
     product_latency: ["p(95)<1000"],
+    my_branches_latency: ["p(95)<200"],
+    dashboard_latency: ["p(95)<200"],
     errors: ["rate<0.05"],
   },
   stages: [
@@ -29,7 +31,34 @@ export function setup() {
   }), { headers: { "Content-Type": "application/json" } });
 
   check(res, { "login success": (r) => r.status === 200 });
-  return { token: res.json("token") };
+  const headers = authHeaders(res.json("token"));
+
+  // #147 — the dashboard endpoint requires an active clock-in at a branch; the seeded dev
+  // user has no branches, so create one (owner has the GLOBAL create gate) and clock in.
+  // /api/me/branches is empty pre-clock-in for an unassigned owner — the created branch is
+  // the clock-in target directly.
+  let branches = http.get(`${BASE_URL}/api/branches`, { headers }).json();
+  let branch = branches.find((b) => b.branchType === "CLINIC");
+  if (!branch) {
+    const created = http.post(`${BASE_URL}/api/branches`, JSON.stringify({
+      id: uuid(),
+      name: `K6 Branch ${Date.now()}`,
+      branchType: "CLINIC",
+    }), { headers });
+    check(created, { "branch create success": (r) => r.status === 200 || r.status === 201 });
+    branch = created.json();
+  }
+
+  // BranchResponse carries `id` (MeBranchResponse uses branchId — different DTOs).
+  const clockIn = http.post(`${BASE_URL}/api/attendance/clock-in`, JSON.stringify({
+    attendanceId: uuid(),
+    branchId: branch.id,
+  }), { headers });
+  // 409 = already clocked in from an earlier run against the same test DB — fine, the
+  // existing active clock-in satisfies the dashboard gate.
+  check(clockIn, { "clock-in success": (r) => r.status === 200 || r.status === 201 || r.status === 409 });
+
+  return { token: res.json("token"), branchId: branch.id };
 }
 
 export default function (data) {
@@ -44,6 +73,11 @@ export default function (data) {
   const myBranchesRes = http.get(`${BASE_URL}/api/me/branches`, { headers });
   metrics.myBranchesLatency.add(myBranchesRes.timings.duration);
   metrics.errorRate.add(myBranchesRes.status >= 400);
+
+  // #147 — the session dashboard's 30s poll endpoint (attendance-gated).
+  const dashboardRes = http.get(`${BASE_URL}/api/branches/${data.branchId}/dashboard/today`, { headers });
+  metrics.dashboardLatency.add(dashboardRes.timings.duration);
+  metrics.errorRate.add(dashboardRes.status >= 400);
 
   const clientsRes = http.get(`${BASE_URL}/api/clients?q=test`, { headers });
   metrics.clientsSearchLatency.add(clientsRes.timings.duration);

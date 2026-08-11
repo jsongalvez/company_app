@@ -5,28 +5,38 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.navigation.LocalNavHostController
 import com.companyb.companyapp.navigation.Route
 import com.companyb.companyapp.navigation.currentRoute
+import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.DrawerItem
 import com.companyb.companyapp.viewmodel.DrawerViewModel
+import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #96 Q1 + Q4 + Q7 — stateless presentational composable in commonMain.
@@ -48,17 +58,42 @@ import com.companyb.companyapp.viewmodel.DrawerViewModel
  * `Modifier.fillMaxHeight().width(360.dp).background(MaterialTheme.colorScheme.surface)`.
  *
  * DrawerContent remains stateless presentational per #96 Q1 — only modifiers + interaction
- * source for hover/focus tracking; no business state ownership.
+ * source for hover/focus tracking; no business state ownership. It does own the clock-out
+ * affordance (footer row + confirm dialog) — a session-lifecycle action, wired through an
+ * AttendanceViewModel remembered here (the #109 host-pattern: VM created at the composition
+ * that needs it; the badge host precedent gates on isPostClockIn, the drawer content is
+ * only composed post-clock-in by both shell actuals).
  */
 @Composable
-fun DrawerContent(modifier: Modifier = Modifier) {
+fun DrawerContent(
+    apiClient: ApiClient,
+    modifier: Modifier = Modifier,
+) {
     val navController = LocalNavHostController.current
     val currentUser by SessionState.currentUser.collectAsState()
     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+    val attendanceId by SessionState.attendanceId.collectAsState()
     val drawerViewModel = remember { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
     val selectedRoute = navController.currentRoute()
+    val attendanceViewModel = remember { AttendanceViewModel(apiClient) }
+    val clockOutState by attendanceViewModel.clockOutState.collectAsState()
+    var showClockOutDialog by remember { mutableStateOf(false) }
+
+    // #147 — clock-out success → session-end transition: partial state clear (user stays
+    // logged in; branch + caps reset per the Q3 decision), badge count cleared (the map's
+    // logged maintenance point — the badge poll stops via the shell gate, the singleton
+    // count must not linger), land on BranchSelect with the whole stack popped.
+    LaunchedEffect(clockOutState) {
+        if (clockOutState is UiState.Success) {
+            SessionState.clearClockState()
+            NotificationState.clear()
+            navController.navigate(Route.BranchSelect) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     Column(modifier = modifier) {
         // Q4 — header: username above selectedBranchName (who-then-where), no app name
@@ -100,7 +135,90 @@ fun DrawerContent(modifier: Modifier = Modifier) {
                     badge = notificationBadge,
                 )
             }
+        // #147 (Q1) — clock-out footer: shell-level session-lifecycle action, reachable from
+        // every post-clock-in screen. Hidden if no attendance id is recorded (only possible
+        // pre-clock-in, where the drawer isn't composed anyway — fail closed).
+        if (attendanceId != null) {
+            Spacer(Modifier.weight(1f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            NavigationDrawerItem(
+                label = { Text("Clock out") },
+                selected = false,
+                onClick = { showClockOutDialog = true },
+                colors =
+                    NavigationDrawerItemDefaults.colors(
+                        selectedContainerColor = MaterialTheme.colorScheme.secondary,
+                        unselectedContainerColor = MaterialTheme.colorScheme.surface,
+                        selectedTextColor = InkSubtle,
+                        unselectedTextColor = InkSubtle,
+                        selectedBadgeColor = InkSubtle,
+                        unselectedBadgeColor = InkSubtle,
+                    ),
+            )
+        }
     }
+
+    if (showClockOutDialog) {
+        ClockOutDialog(
+            branchName = selectedBranchName,
+            clockOutState = clockOutState,
+            onConfirm = {
+                val id = attendanceId
+                if (id != null) {
+                    attendanceViewModel.clockOut(ClockOutRequest(attendanceId = id))
+                }
+            },
+            onDismiss = {
+                if (clockOutState !is UiState.Loading) {
+                    showClockOutDialog = false
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ClockOutDialog(
+    branchName: String?,
+    clockOutState: UiState<com.companyb.companyapp.dto.ClockOutResponse>,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Clock out?") },
+        text = {
+            Column {
+                Text(
+                    text =
+                        "End your shift at ${branchName ?: "this branch"}? " +
+                            "You'll return to the branch list.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (clockOutState is UiState.Error) {
+                    Text(
+                        text = clockOutState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = clockOutState !is UiState.Loading,
+            ) {
+                Text("Clock out")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 /**

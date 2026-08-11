@@ -1,0 +1,138 @@
+package com.companyb.companyapp.service.dashboard
+
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.repository.ClientNames
+import com.companyb.companyapp.repository.ConcernWithSessionId
+import com.companyb.companyapp.repository.DashboardRepository
+import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.SessionPractitionerWithName
+import com.companyb.companyapp.repository.model.CommissionManualInclusion
+import com.companyb.companyapp.repository.model.Session
+import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.commission.CommissionService
+import java.math.BigDecimal
+import java.time.OffsetDateTime
+import java.util.UUID
+
+data class CommissionSummary(
+    val amount: BigDecimal,
+    val productSalesCount: Int,
+)
+
+data class DashboardData(
+    val sessions: List<Session>,
+    val clientNames: Map<UUID, ClientNames>,
+    val voidedSessionIds: Set<UUID>,
+    val practitioners: List<SessionPractitionerWithName>,
+    val concerns: List<ConcernWithSessionId>,
+    val commission: CommissionSummary,
+)
+
+/**
+ * Session dashboard read model for today at a branch. The dashboard is universal post-clock-in
+ * (not capability-gated): the gate is the caller's own active clock-in at the branch — a
+ * clocked-in practitioner may view the day, a caller clocked in elsewhere cannot read this
+ * branch's data (no cross-branch window without a capability).
+ *
+ * Commission is computed live by replicating [CommissionService.recalculate]'s per-sale
+ * eligibility (clocked-in at sale time + manual inclusions) for the caller only — the split
+ * rows are authoritative while the day is OPEN but a live pass keeps the card consistent
+ * with the sales actually counted.
+ */
+object DashboardService {
+    /**
+     * @throws NotFoundException if the branch does not exist.
+     * @throws ForbiddenException if the caller has no active clock-in at the branch today.
+     */
+    fun getToday(
+        callerId: UUID,
+        branchId: UUID,
+    ): DashboardData {
+        val branchDay = BranchDayService.getToday(branchId)
+
+        if (!AttendanceService.hasActiveClockIn(callerId, branchDay.id)) {
+            throw ForbiddenException("You are not clocked in at this branch")
+        }
+
+        val sessions = DashboardRepository.findSessionsByBranchDay(branchDay.id)
+        val sessionIds = sessions.map { it.id }
+        val clientNames = DashboardRepository.findClientNames(sessions.map { it.clientId })
+        val voidedSessionIds = DashboardRepository.findVoidedSessionIds(sessionIds)
+        val practitioners = DashboardRepository.findPractitioners(sessionIds)
+        val concerns = DashboardRepository.findConcernsForSessionIds(sessionIds)
+        val commission = computeCommission(callerId, branchDay.id)
+
+        return DashboardData(
+            sessions = sessions,
+            clientNames = clientNames,
+            voidedSessionIds = voidedSessionIds,
+            practitioners = practitioners,
+            concerns = concerns,
+            commission = commission,
+        )
+    }
+
+    /**
+     * Replicates [CommissionService.recalculate]'s per-sale eligibility for the caller: for each
+     * non-voided sale, the eligible set is the users clocked in at sale time plus manual
+     * inclusions (isIncluded adds, otherwise removes). The caller's share of a sale equals
+     * [CommissionService.splitCommission]'s formula; the count is the number of sales the
+     * caller was eligible for.
+     */
+    private fun computeCommission(
+        callerId: UUID,
+        branchDayId: UUID,
+    ): CommissionSummary {
+        val sales = ProductSaleRepository.findNonVoidedSalesByBranchDay(branchDayId)
+        if (sales.isEmpty()) {
+            return CommissionSummary(BigDecimal.ZERO, 0)
+        }
+
+        val attendance = DashboardRepository.findAttendanceByBranchDay(branchDayId)
+        val inclusions = DashboardRepository.findInclusionsBySaleIds(sales.map { it.id })
+
+        var amount = BigDecimal.ZERO
+        var count = 0
+
+        for (sale in sales) {
+            val eligibleUsers = mutableSetOf<UUID>()
+
+            attendance
+                .filter { it.isClockedInAt(sale.soldAt) }
+                .forEach { eligibleUsers.add(it.userId) }
+
+            applyInclusions(eligibleUsers, inclusions.filter { it.productSaleId == sale.id })
+
+            if (callerId in eligibleUsers) {
+                count++
+                amount =
+                    amount.add(
+                        CommissionService.splitCommission(
+                            commissionAmount = sale.commissionAmountAtTime,
+                            quantity = sale.quantity,
+                            eligibleUserCount = eligibleUsers.size,
+                        ),
+                    )
+            }
+        }
+
+        return CommissionSummary(amount, count)
+    }
+
+    private fun applyInclusions(
+        eligibleUsers: MutableSet<UUID>,
+        inclusions: List<CommissionManualInclusion>,
+    ) {
+        for (inclusion in inclusions) {
+            if (inclusion.isIncluded) {
+                eligibleUsers.add(inclusion.userId)
+            } else {
+                eligibleUsers.remove(inclusion.userId)
+            }
+        }
+    }
+}
+
+private fun com.companyb.companyapp.repository.model.Attendance.isClockedInAt(at: OffsetDateTime): Boolean =
+    clockIn <= at && (clockOut == null || clockOut >= at)

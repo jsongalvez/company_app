@@ -12,6 +12,7 @@ import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
 import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
+import com.companyb.companyapp.api.routes.DashboardRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
@@ -71,6 +72,7 @@ fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
 
+@Suppress("LongMethod")
 private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     config.jsonMapper(KotlinxSerializationMapper())
     config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
@@ -119,6 +121,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     ProductRoutes.register(config)
     BranchInventoryRoutes.register(config)
     BranchDayRoutes.register(config)
+    DashboardRoutes.register(config)
     ProductSaleRoutes.register(config)
     CompensationRoutes.register(config)
     CommissionRoutes.register(config)

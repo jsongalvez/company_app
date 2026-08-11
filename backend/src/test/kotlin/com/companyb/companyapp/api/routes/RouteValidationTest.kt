@@ -148,6 +148,7 @@ class RouteValidationTest : BasePostgresTest() {
         private fun registerAllRoutes(config: JavalinConfig) {
             AllowanceRoutes.register(config)
             CompensationRoutes.register(config)
+            DashboardRoutes.register(config)
             SessionRoutes.register(config)
             ClientRoutes.register(config)
             ProductRoutes.register(config)

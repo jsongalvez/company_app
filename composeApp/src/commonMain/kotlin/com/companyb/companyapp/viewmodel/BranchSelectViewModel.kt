@@ -69,8 +69,12 @@ class BranchSelectViewModel(
         // Chain the second trigger (ADR-0021): only after the clock-in succeeded.
         viewModelScope.launch {
             clockInJob.join()
-            if (attendanceViewModel.clockInState.value is UiState.Success) {
+            val clockInState = attendanceViewModel.clockInState.value
+            if (clockInState is UiState.Success) {
                 SessionState.setSelectedBranch(branch.branchId, branch.branchName)
+                // #147 — persist the clock-state slots (attendance id + branchDayId) at
+                // clock-in: the drawer's clock-out request sources the attendance id here.
+                SessionState.setClockState(clockInState.data.id, clockInState.data.branchDayId)
                 refreshCapabilities(branch.branchId)
             }
         }

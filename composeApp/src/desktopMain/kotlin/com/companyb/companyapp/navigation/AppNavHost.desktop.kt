@@ -13,7 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,8 @@ import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
+import com.companyb.companyapp.ui.screen.SessionDashboardScreen
+import com.companyb.companyapp.ui.screen.SessionDetailContent
 import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
@@ -45,6 +49,7 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
+import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
 
 @Composable
@@ -83,6 +88,7 @@ actual fun AppNavHost(
                     // width 360 (Material3 PermanentDrawerContainerWidth). Mobile ModalDrawerSheet
                     // provides these defaults.
                     DrawerContent(
+                        apiClient = apiClient,
                         modifier =
                             Modifier
                                 .fillMaxHeight()
@@ -127,14 +133,26 @@ actual fun AppNavHost(
                     )
                 }
                 // Per ADR-0020 + #91: desktop Dashboard composes a master-detail Row with SessionDetail pane inline
-                // (no SessionDetail route navigation on desktop).
+                // (no SessionDetail route navigation on desktop). Master = the dashboard screen (cards + table),
+                // detail = SessionDetailContent keyed on the selected row (weights 0.6/0.4 per #91).
                 composable<Route.Dashboard> {
+                    val dashboardViewModel: SessionDashboardViewModel =
+                        viewModel { SessionDashboardViewModel(apiClient) }
+                    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+                    val lastData by dashboardViewModel.lastData.collectAsState()
+                    var selectedSessionId by remember { mutableStateOf<String?>(null) }
                     Row(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                            PlaceholderRoute("Dashboard — master pane")
+                        Box(modifier = Modifier.weight(DESKTOP_MASTER_WEIGHT).fillMaxSize()) {
+                            SessionDashboardScreen(
+                                viewModel = dashboardViewModel,
+                                selectedBranchName = selectedBranchName,
+                                onSessionClick = { session -> selectedSessionId = session.id },
+                            )
                         }
-                        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                            PlaceholderRoute("Session detail pane (inline)")
+                        Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
+                            SessionDetailContent(
+                                session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
+                            )
                         }
                     }
                 }
@@ -261,6 +279,9 @@ actual fun AppNavHost(
         }
     }
 }
+
+private const val DESKTOP_MASTER_WEIGHT = 0.6f
+private const val DESKTOP_DETAIL_WEIGHT = 0.4f
 
 @Composable
 private fun PlaceholderRoute(label: String) {

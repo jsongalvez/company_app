@@ -1,0 +1,88 @@
+package com.companyb.companyapp.api.routes
+
+import com.companyb.companyapp.api.callerUuid
+import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.dto.ConcernResponse
+import com.companyb.companyapp.dto.DashboardCommissionResponse
+import com.companyb.companyapp.dto.DashboardPractitionerResponse
+import com.companyb.companyapp.dto.DashboardResponse
+import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.service.dashboard.DashboardData
+import com.companyb.companyapp.service.dashboard.DashboardService
+import io.javalin.config.JavalinConfig
+import io.javalin.http.Context
+
+object DashboardRoutes {
+    private const val BRANCH_ID_PARAM = "branchId"
+
+    fun register(config: JavalinConfig) {
+        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/dashboard/today", ::handleGetToday)
+    }
+
+    private fun handleGetToday(context: Context) {
+        val callerId = context.callerUuid()
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+        val data = DashboardService.getToday(callerId, branchId)
+        context.json(data.toResponse())
+    }
+
+    private fun DashboardData.toResponse(): DashboardResponse {
+        val practitionerBySession =
+            practitioners.groupBy { it.sessionId }
+        val concernsBySession =
+            concerns.groupBy { it.sessionId }
+
+        return DashboardResponse(
+            sessions =
+                sessions.map { session ->
+                    val client = clientNames[session.clientId]
+                    DashboardSessionResponse(
+                        id = session.id.toString(),
+                        clientId = session.clientId.toString(),
+                        clientName =
+                            listOfNotNull(client?.firstName, client?.lastName)
+                                .joinToString(" ")
+                                .ifBlank { null },
+                        sessionType = session.sessionType,
+                        isWalkIn = session.isWalkIn,
+                        sessionStatus = session.sessionStatus,
+                        basePrice = session.basePrice.toPlainString(),
+                        finalPrice = session.finalPrice.toPlainString(),
+                        remarks = session.remarks,
+                        otherConcerns = session.otherConcerns,
+                        bookedAt = session.bookedAt?.toString(),
+                        nextAppointmentDate = session.nextAppointmentDate?.toString(),
+                        version = session.version,
+                        isVoided = session.id in voidedSessionIds,
+                        practitioners =
+                            practitionerBySession[session.id]
+                                .orEmpty()
+                                .map {
+                                    DashboardPractitionerResponse(
+                                        practitionerId = it.practitionerId.toString(),
+                                        displayName = it.displayName,
+                                        remarks = it.remarks,
+                                        slotAtTime = it.slotAtTime,
+                                    )
+                                },
+                        concerns =
+                            concernsBySession[session.id]
+                                .orEmpty()
+                                .map {
+                                    ConcernResponse(
+                                        id = it.concern.id.toString(),
+                                        label = it.concern.label,
+                                        createdBy = it.concern.createdBy?.toString(),
+                                        createdAt = it.concern.createdAt?.toString(),
+                                    )
+                                },
+                    )
+                },
+            commission =
+                DashboardCommissionResponse(
+                    amount = commission.amount.toPlainString(),
+                    productSalesCount = commission.productSalesCount,
+                ),
+        )
+    }
+}
