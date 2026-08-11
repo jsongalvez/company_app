@@ -70,7 +70,7 @@ fun AuditLogScreen(
     val acknowledgingIds by viewModel.acknowledgingIds.collectAsState()
     val ackErrors by viewModel.ackErrors.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val isFlaggedLoadInFlight by viewModel.isFlaggedLoadInFlight.collectAsState()
+    val flaggedLoadInFlight by viewModel.flaggedLoadInFlight.collectAsState()
     val flaggedRefreshError by viewModel.flaggedRefreshError.collectAsState()
     val browseRefreshError by viewModel.browseRefreshError.collectAsState()
     val appliedFilters by viewModel.appliedFilters.collectAsState()
@@ -80,10 +80,6 @@ fun AuditLogScreen(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_FOR_REVIEW) }
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
-    // D10 — the cold loud load runs once per saveable lifetime (first composition); nav
-    // round-trips (history push → back, rotation, drawer away → back) take the silent refresh
-    // path so the loaded list survives (keep-last-list, pass-3 HARD).
-    var hasLoadedFlaggedOnce by rememberSaveable { mutableStateOf(false) }
     // Hoisted filter-bar draft state: the bar lives inside the All-activity tab branch, so its
     // local remember would be disposed on every tab switch — the hoist keeps the typed values
     // across switches (and nav round-trips, via the saver) so the bar can't drift from the
@@ -106,13 +102,15 @@ fun AuditLogScreen(
             .orEmpty()
 
     LaunchedEffect(Unit) {
-        logInfo("AuditLogScreen", "composable entered (first composition)")
+        logInfo("AuditLogScreen", "composable entered")
         viewModel.loadTables()
-        if (hasLoadedFlaggedOnce) {
-            // Re-entry (history round-trip, rotation): the loaded list survives — silent path.
+        // Cold loud load only when this VM has nothing loaded (first composition, or a fresh VM
+        // after process death — saveable flags don't survive into a fresh VM's list state). A
+        // surviving VM (rotation, history round-trip) with a loaded list takes the silent refresh
+        // path so the list never wipes (D10 keep-last-list).
+        if (viewModel.flaggedEntries.value is UiState.Success) {
             viewModel.refreshFlagged()
         } else {
-            hasLoadedFlaggedOnce = true
             viewModel.loadFlaggedEntries()
         }
     }
@@ -125,7 +123,9 @@ fun AuditLogScreen(
                 // Not the first composition: this is a re-entry (tab switch back).
                 viewModel.refreshFlagged()
             }
-        } else if (!hasVisitedAllActivity) {
+        } else if (!hasVisitedAllActivity || viewModel.browseEntries.value is UiState.Idle) {
+            // First visit, OR a fresh VM after process death whose saveable flag restored true —
+            // a VM that never loaded has no list to keep, so cold load (D10 load-on-entry).
             hasVisitedAllActivity = true
             // D10 — the first visit is a load-on-entry: the cold loud path (Loading → error
             // card + retry), unlike later re-entries which refresh silently (keep-last-list).
@@ -161,7 +161,7 @@ fun AuditLogScreen(
                 // authoritative against double-fires either way).
                 enabled =
                     if (selectedTab == TAB_FOR_REVIEW) {
-                        !isFlaggedLoadInFlight
+                        !flaggedLoadInFlight
                     } else {
                         !isRefreshing && !isLoadingMore
                     },
@@ -567,17 +567,18 @@ private val AuditLogFilterDraftSaver =
                 draft.callerName,
                 draft.dateFrom,
                 draft.dateTo,
-                draft.dateError,
+                // dateError deliberately excluded: a stale validation message must not resurrect
+                // across a save/restore cycle.
             )
         },
         restore = { values ->
+            require(values.size == 5) { "AuditLogFilterDraft saver shape changed" }
             AuditLogFilterDraft().apply {
                 selectedTableName = values[0]
                 selectedAction = values[1]
                 callerName = values[2] ?: ""
                 dateFrom = values[3] ?: ""
                 dateTo = values[4] ?: ""
-                dateError = values[5]
             }
         },
     )

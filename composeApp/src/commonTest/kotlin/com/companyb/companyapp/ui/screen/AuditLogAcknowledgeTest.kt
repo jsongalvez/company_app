@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
  * 404 on tap — the affordance must also require `acknowledgedAt == null`.
  */
 class AuditLogAcknowledgeTest {
-    private fun entry(
+    private fun flaggedEntry(
         id: String = "e1",
         isFlagged: Boolean = true,
         acknowledgedAt: String? = null,
@@ -34,27 +34,29 @@ class AuditLogAcknowledgeTest {
 
     @Test
     fun flagged_unacknowledged_other_reviewer_is_acknowledgeable() {
-        assertTrue(canAcknowledgeEntry(showAcknowledge = true, entry = entry(), currentUserId = "u2"))
+        assertTrue(canAcknowledgeEntry(showAcknowledge = true, entry = flaggedEntry(), currentUserId = "u2"))
     }
 
     @Test
     fun own_row_is_hidden() {
-        assertFalse(canAcknowledgeEntry(showAcknowledge = true, entry = entry(), currentUserId = "u1"))
+        assertFalse(canAcknowledgeEntry(showAcknowledge = true, entry = flaggedEntry(), currentUserId = "u1"))
     }
 
     @Test
     fun already_acknowledged_row_is_hidden() {
-        val acked = entry(acknowledgedAt = "2026-08-05T07:00:00+08:00")
+        val acked = flaggedEntry(acknowledgedAt = "2026-08-05T07:00:00+08:00")
         assertFalse(canAcknowledgeEntry(showAcknowledge = true, entry = acked, currentUserId = "u2"))
     }
 
     @Test
     fun unflagged_row_is_hidden() {
-        assertFalse(canAcknowledgeEntry(showAcknowledge = true, entry = entry(isFlagged = false), currentUserId = "u2"))
+        assertFalse(
+            canAcknowledgeEntry(showAcknowledge = true, entry = flaggedEntry(isFlagged = false), currentUserId = "u2"),
+        )
     }
 
     @Test
     fun show_acknowledge_false_is_hidden() {
-        assertFalse(canAcknowledgeEntry(showAcknowledge = false, entry = entry(), currentUserId = "u2"))
+        assertFalse(canAcknowledgeEntry(showAcknowledge = false, entry = flaggedEntry(), currentUserId = "u2"))
     }
 }

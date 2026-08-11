@@ -55,7 +55,7 @@ class AuditLogViewModel(
     // mutually exclusive (two overlapping snapshots would last-writer-win). StateFlow so the
     // Refresh button can disable per tab.
     private val _flaggedLoadInFlight = MutableStateFlow(false)
-    val isFlaggedLoadInFlight: StateFlow<Boolean> = _flaggedLoadInFlight.asStateFlow()
+    val flaggedLoadInFlight: StateFlow<Boolean> = _flaggedLoadInFlight.asStateFlow()
 
     // Entries acknowledged in this VM's lifetime (D2). The server removes them from /flagged, but
     // a refresh GET whose snapshot was taken pre-ack-commit could resurrect a just-acked row — the
@@ -204,14 +204,9 @@ class AuditLogViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // Network failure — clear the in-flight guard so the row's button re-enables
-                    // and the tab's re-entry reload isn't skipped forever, and surface an inline
-                    // error (ADR-0022 pessimistic axis; #123 decision 2: every failure path
-                    // clears the in-flight flags).
-                    _acknowledgingIds.value = _acknowledgingIds.value - entry.id
-                    _ackErrors.value =
-                        _ackErrors.value +
-                        (entry.id to (e.message ?: "Acknowledge failed"))
+                    // Network failure — every failure path clears the in-flight guard and
+                    // surfaces an inline per-row error (ADR-0022; #123 decision 2).
+                    failAcknowledge(entry.id, e.message ?: "Acknowledge failed")
                     throw e
                 }
             },
@@ -231,29 +226,31 @@ class AuditLogViewModel(
                 } catch (e: Exception) {
                     // Deserialization failure — clear the in-flight guard so the row's button
                     // re-enables, and surface an inline error (ADR-0022 pessimistic axis).
-                    _acknowledgingIds.value = _acknowledgingIds.value - entry.id
-                    _ackErrors.value =
-                        _ackErrors.value +
-                        (entry.id to (e.message ?: "Acknowledge failed"))
+                    failAcknowledge(entry.id, e.message ?: "Acknowledge failed")
                     throw e
                 }
             },
             onNonSuccess = { response ->
-                _acknowledgingIds.value = _acknowledgingIds.value - entry.id
-                _ackErrors.value =
-                    _ackErrors.value +
-                    (
-                        entry.id to
-                            if (response.status == HttpStatusCode.Conflict) {
-                                // Self-acknowledge (D2: the editor can't clear their own flag).
-                                "Only another reviewer can acknowledge this entry"
-                            } else {
-                                "Acknowledge failed: ${response.status.value}"
-                            }
-                    )
+                failAcknowledge(
+                    entry.id,
+                    if (response.status == HttpStatusCode.Conflict) {
+                        // Self-acknowledge (D2: the editor can't clear their own flag).
+                        "Only another reviewer can acknowledge this entry"
+                    } else {
+                        "Acknowledge failed: ${response.status.value}"
+                    },
+                )
                 true
             },
         )
+    }
+
+    private fun failAcknowledge(
+        entryId: String,
+        message: String,
+    ) {
+        _acknowledgingIds.value = _acknowledgingIds.value - entryId
+        _ackErrors.value = _ackErrors.value + (entryId to message)
     }
 
     // D8 — apply filter bar values: fresh page-1 load, previous pages discarded. Unguarded by
