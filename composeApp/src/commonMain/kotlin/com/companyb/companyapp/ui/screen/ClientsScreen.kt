@@ -174,7 +174,12 @@ fun ClientsScreen(
                         }
                     }
 
-                    errorMessage != null && cachedResults == null -> {
+                    // D2 error state. The empty-cache case is included: after a successful
+                    // no-results search the cache holds an empty list, and a RE-search failure
+                    // with nothing to keep must surface the error + retry — a blank list would
+                    // be a silent failure with no affordance (keep-last only applies when there
+                    // is content to keep).
+                    errorMessage != null && cachedResults.isNullOrEmpty() -> {
                         ErrorCard(
                             message = errorMessage,
                             onRetry = { viewModel.retrySearch() },

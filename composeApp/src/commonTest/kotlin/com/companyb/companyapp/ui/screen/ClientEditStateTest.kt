@@ -5,10 +5,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Unit tests for the per-field edit supersede gate ([shouldAbandonFailedDraft]) — the decision
- * that regressed twice during the #142 audit loop (pass-9's stale-Error abandonment, pass-10's
- * fieldError-scoped misfire). The gate is the screen's only pure decision point; the rest of
- * the edit state machine is composable code, covered by convention via the phased loop.
+ * Unit tests for the Clients edit screen's pure decision points, extracted during the #142
+ * audit loop (each regressed at least once before extraction): the per-field edit supersede
+ * gate ([shouldAbandonFailedDraft] + [DispatchedDraft]) and the reload bail guard
+ * ([shouldBailOnReload]). The rest of the edit state machine is composable code, covered by
+ * convention via the phased loop.
  */
 class ClientEditStateTest {
     private val error = UiState.Error("updateClient failed: 500")
