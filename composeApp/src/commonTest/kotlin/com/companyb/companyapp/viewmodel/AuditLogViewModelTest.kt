@@ -274,18 +274,26 @@ class AuditLogViewModelTest {
         }
 
     @Test
-    fun loadHistory_not_found_shows_trail_message() =
+    fun refreshBrowse_excludes_entries_acknowledged_this_session() =
         runTest(testScheduler) {
-            val harness = AuditHarness(historyStatus = HttpStatusCode.NotFound)
+            val harness = AuditHarness(browseBodies = mutableListOf(PAGE1_JSON, PAGE1_JSON, PAGE1_JSON))
             val vm = AuditLogViewModel(mockApiClient(harness.handler()))
 
-            vm.loadHistory(tableName = "session", recordId = "r1")
+            vm.loadFlaggedEntries()
+            advanceUntilIdle()
+            vm.refreshBrowse()
+            advanceUntilIdle()
+            vm.acknowledge(entry("e1"))
+            advanceUntilIdle()
+            vm.refreshBrowse()
             advanceUntilIdle()
 
-            // 404 = the record has no audit trail — a truthful message, not "history failed: 404"
-            // (an absent record is not an outage).
-            val state = assertIs<UiState.Error>(vm.history.value)
-            assertEquals(expected = "No audit trail found for this record", actual = state.message)
+            // The harness still serves e1 as flagged (it doesn't model the server-side ack) — a
+            // pre-ack-commit snapshot must not resurrect the badge on browse (pass-2 HARD: the
+            // applyPage transform now clears locally-acknowledged ids' flags).
+            val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.browseEntries.value)
+            assertEquals(expected = listOf("e1", "e2"), actual = state.data.map { it.id })
+            assertFalse(state.data.first { it.id == "e1" }.isFlagged)
         }
 
     @Test

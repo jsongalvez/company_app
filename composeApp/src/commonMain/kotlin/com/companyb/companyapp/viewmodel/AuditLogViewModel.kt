@@ -307,17 +307,9 @@ class AuditLogViewModel(
                 }
             },
             transform = { it.body() },
-            onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.NotFound) {
-                    // The record has no audit trail (never audited / scrubbed): a truthful
-                    // message, not the generic "history failed: 404" (an absent record is not
-                    // an outage — D8 trail semantics).
-                    _history.value = UiState.Error("No audit trail found for this record")
-                    true
-                } else {
-                    false
-                }
-            },
+            // No onNonSuccess: the per-record endpoint returns 200 + empty for absent/out-of-
+            // window records ("the rows are invisible, not an error" — backend contract), so the
+            // empty state renders; a 4xx/5xx here is a genuine outage → generic ErrorCard + retry.
         )
     }
 
@@ -382,7 +374,15 @@ class AuditLogViewModel(
                     // (applyFilters already reset the flags).
                     if (generation == browseGeneration) {
                         _nextCursor.value = page.nextCursor
-                        applyPage(mode, page)
+                        // A page snapshot taken before an ack commit may still carry the
+                        // now-acked row's flag — clear it for locally-acknowledged ids (the
+                        // flagged-transform mirror; the badge must not resurrect on browse).
+                        applyPage(
+                            mode,
+                            page.entries.map { entry ->
+                                if (entry.id in acknowledgedIds) entry.copy(isFlagged = false) else entry
+                            },
+                        )
                         finish(mode)
                     }
                     Unit
@@ -423,15 +423,15 @@ class AuditLogViewModel(
 
     private fun applyPage(
         mode: FetchMode,
-        page: AuditLogBrowseResponse,
+        entries: List<AuditLogEntryResponse>,
     ) {
         when (mode) {
             FetchMode.Cold -> {
-                _browseEntries.value = UiState.Success(page.entries)
+                _browseEntries.value = UiState.Success(entries)
             }
 
             FetchMode.Refresh -> {
-                _browseEntries.value = UiState.Success(page.entries)
+                _browseEntries.value = UiState.Success(entries)
             }
 
             FetchMode.LoadMore -> {
@@ -439,7 +439,7 @@ class AuditLogViewModel(
                     (_browseEntries.value as? UiState.Success<List<AuditLogEntryResponse>>)
                         ?.data
                         .orEmpty()
-                _browseEntries.value = UiState.Success(current + page.entries)
+                _browseEntries.value = UiState.Success(current + entries)
             }
         }
     }

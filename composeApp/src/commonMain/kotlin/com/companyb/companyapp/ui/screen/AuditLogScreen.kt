@@ -432,12 +432,7 @@ private fun AuditLogFilterBar(
     }
 
     fun reset() {
-        draft.selectedTableName = null
-        draft.selectedAction = null
-        draft.callerName = ""
-        draft.dateFrom = ""
-        draft.dateTo = ""
-        draft.dateError = null
+        draft.reset()
         onApply(AuditLogFilters())
     }
 
@@ -522,6 +517,7 @@ private fun AuditLogFilterBar(
 }
 
 // Hoisted filter-bar draft (see AuditLogScreen) — plain state holder, remembered at screen scope.
+// Mutation lives on the holder (#142 BpDraftState precedent); the composable only reads + applies.
 private class AuditLogFilterDraft {
     var selectedTableName by mutableStateOf<String?>(null)
     var selectedAction by mutableStateOf<String?>(null)
@@ -529,6 +525,15 @@ private class AuditLogFilterDraft {
     var dateFrom by mutableStateOf("")
     var dateTo by mutableStateOf("")
     var dateError by mutableStateOf<String?>(null)
+
+    fun reset() {
+        selectedTableName = null
+        selectedAction = null
+        callerName = ""
+        dateFrom = ""
+        dateTo = ""
+        dateError = null
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -544,6 +549,9 @@ private fun TableDropdown(
     val isError = tables is UiState.Error
     val isIdle = tables is UiState.Idle
     val isLoading = tables is UiState.Loading
+    if (isError) {
+        logWarn("AuditLogScreen", "tablesState=Error: ${(tables as UiState.Error).message}")
+    }
     val tableOptions = (tables as? UiState.Success<List<AuditLogTableResponse>>)?.data.orEmpty()
     val selectedLabel =
         tableOptions.find { it.tableName == selectedTableName }?.label ?: "All tables"
@@ -715,8 +723,7 @@ internal fun AuditLogEntryRow(
             ) {
                 val (fields, malformedDiff) =
                     remember(entry.oldValue, entry.newValue) {
-                        val malformed = diffHasMalformedSide(entry.oldValue, entry.newValue)
-                        parseChangedFields(entry.oldValue, entry.newValue) to malformed
+                        parseDiff(entry.oldValue, entry.newValue)
                     }
                 when {
                     // D3 — a present-but-unparseable diff side is server-data corruption: render
@@ -856,15 +863,30 @@ internal data class ChangedField(
 internal fun parseChangedFields(
     oldValue: String?,
     newValue: String?,
-): List<ChangedField> {
+): List<ChangedField> = parseDiff(oldValue, newValue).first
+
+// D3 — distinguishes a genuinely empty diff (both sides absent — the "No field changes recorded"
+// line) from a present-but-unparseable side (server-data corruption — the row renders nothing).
+internal fun diffHasMalformedSide(
+    oldValue: String?,
+    newValue: String?,
+): Boolean = parseDiff(oldValue, newValue).second
+
+// Parses both diff sides ONCE (single JSON parse + single corruption logWarn per side) and
+// returns the renderable fields + whether either side was malformed (the row renders nothing on
+// the latter; "No field changes recorded" only when both sides are genuinely absent/empty).
+internal fun parseDiff(
+    oldValue: String?,
+    newValue: String?,
+): Pair<List<ChangedField>, Boolean> {
     val old = parseFieldMap(oldValue)
     val new = parseFieldMap(newValue)
     // A present-but-unparseable side is server-data corruption — render nothing rather than a
     // partial diff from the healthy side.
-    if (old is FieldMap.Malformed || new is FieldMap.Malformed) return emptyList()
+    if (old is FieldMap.Malformed || new is FieldMap.Malformed) return emptyList<ChangedField>() to true
     val oldFields = (old as? FieldMap.Valid)?.fields
     val newFields = (new as? FieldMap.Valid)?.fields
-    if (oldFields == null && newFields == null) return emptyList()
+    if (oldFields == null && newFields == null) return emptyList<ChangedField>() to false
     val keys = (oldFields?.keys ?: emptySet()) + (newFields?.keys ?: emptySet())
     return keys.sorted().map { key ->
         ChangedField(
@@ -874,15 +896,8 @@ internal fun parseChangedFields(
             old = oldFields?.let { it[key]?.toDisplayValue() ?: "—" },
             new = newFields?.let { it[key]?.toDisplayValue() ?: "—" },
         )
-    }
+    } to false
 }
-
-// D3 — distinguishes a genuinely empty diff (both sides absent — the "No field changes recorded"
-// line) from a present-but-unparseable side (server-data corruption — the row renders nothing).
-internal fun diffHasMalformedSide(
-    oldValue: String?,
-    newValue: String?,
-): Boolean = parseFieldMap(oldValue) is FieldMap.Malformed || parseFieldMap(newValue) is FieldMap.Malformed
 
 private sealed interface FieldMap {
     data object Absent : FieldMap
