@@ -91,8 +91,11 @@ class NotificationViewModelTest {
                     ),
                 )
 
-            vm.loadUnreadNotifications()
+            val job = vm.loadUnreadNotifications()
             runCurrent()
+            // 401 → the bearer-auth re-attempt → final 401: the Error lands via the non-2xx
+            // real-thread completion — join per the class KDoc idiom.
+            job.join()
 
             assertIs<UiState.Error>(vm.notifications.value)
         }
@@ -261,7 +264,7 @@ class NotificationViewModelTest {
                 NotificationViewModel(
                     mockApiClient(
                         notificationsHandler(
-                            secondGetDelayMs = 70_000,
+                            secondGetDelayMs = HOLD_MS,
                             // The held reload serves the PRE-action snapshot (the read row still
                             // in it) — the genuinely stale body the stamp must neutralize. The
                             // re-issue (GET #3) serves the post-action truth [n2].
@@ -295,14 +298,14 @@ class NotificationViewModelTest {
             // The stale pre-action snapshot lands: the stamp substitutes the post-action list —
             // n1 must NOT resurrect (a resurrect would re-render it unread under the decremented
             // badge and let a re-tap double-decrement).
-            advanceTimeBy(70_000.milliseconds)
+            advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
             assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
 
             // The re-issue lands the post-action truth and converges.
-            advanceTimeBy(70_000.milliseconds)
+            advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
             assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
@@ -317,7 +320,7 @@ class NotificationViewModelTest {
                 NotificationViewModel(
                     mockApiClient(
                         notificationsHandler(
-                            secondGetDelayMs = 70_000,
+                            secondGetDelayMs = HOLD_MS,
                             secondGetBody = NOTIFICATIONS_JSON,
                             thirdGetBody = EMPTY_JSON,
                             dispatcher = StandardTestDispatcher(testScheduler),
@@ -344,14 +347,14 @@ class NotificationViewModelTest {
             // rows must NOT resurrect under the zero badge (they would re-render unread with the
             // Mark-all button back, unreachable by any in-screen refresh); Read stays
             // duplicate-free.
-            advanceTimeBy(70_000.milliseconds)
+            advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
             assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
 
             // The re-issue lands the post-action truth (empty) and converges.
-            advanceTimeBy(70_000.milliseconds)
+            advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
             assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
@@ -465,6 +468,8 @@ class NotificationViewModelTest {
 
         const val N2_JSON =
             """[{"id":"n2","sessionId":"s2","branchId":"b2","message":"Session at 10:00 AM — Maria Santos","isRead":false,"readAt":null,"createdAt":"2026-08-05T02:00:00+08:00"}]"""
+
+        const val HOLD_MS = 70_000L
 
         const val MARK_ALL_JSON = """{"unreadCount":0}"""
 

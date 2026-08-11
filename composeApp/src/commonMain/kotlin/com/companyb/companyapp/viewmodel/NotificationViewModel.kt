@@ -60,9 +60,9 @@ class NotificationViewModel(
         }
     }
 
-    fun loadUnreadNotifications() {
+    fun loadUnreadNotifications(): Job {
         val loadStamp = actionStamp
-        handler.launch(
+        return handler.launch(
             state = _notifications,
             operation = "loadUnreadNotifications",
             endpoint = "GET /api/notifications",
@@ -73,17 +73,13 @@ class NotificationViewModel(
                     // An action (markRead/markAll) succeeded while this load was in flight, so
                     // the snapshot predates it — committing it would resurrect read rows under
                     // the new badge count (audit #141 pass-6/7). Substitute the post-action
-                    // list: read the CURRENT Success first — the action's assignment is
-                    // synchronous on the same thread, so it is race-free (a scheduling-queued
-                    // collector mirror could still lag); lastUnread is the next-freshest. The
+                    // list: the current Success read is race-free (the action's assignment is
+                    // synchronous same-thread); lastUnread is the next-freshest; fail toward
+                    // the invariant (emptyList) rather than committing the stale body. The
                     // resurrect frame is eliminated even if the re-issue GET below fails; the
                     // re-issue still runs so post-action arrivals surface.
                     loadUnreadNotifications()
-                    (
-                        (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data
-                            ?: _lastUnread.value
-                            ?: body
-                    )
+                    currentUnreadList() ?: emptyList()
                 } else {
                     body
                 }
@@ -107,8 +103,10 @@ class NotificationViewModel(
                     // future deletion/expiry surface. Handle it as "the row is gone": reload and
                     // let the screen re-derive instead of surfacing a phantom failure, and reset
                     // the in-flight marker — leaving Loading would mark the action in-flight
-                    // forever (#140 stuck-Loading class).
+                    // forever (#140 stuck-Loading class). The stamp bump keeps any pre-404 load
+                    // in flight from committing its snapshot as if nothing happened.
                     _markReadResult.value = UiState.Idle
+                    actionStamp++
                     loadUnreadNotifications()
                     true
                 } else {
