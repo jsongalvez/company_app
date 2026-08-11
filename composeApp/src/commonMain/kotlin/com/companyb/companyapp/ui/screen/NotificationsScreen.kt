@@ -22,9 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.NotificationResponse
@@ -46,6 +43,7 @@ fun NotificationsScreen(
     onNotificationClick: (NotificationResponse) -> Unit,
 ) {
     val notificationsState by viewModel.notifications.collectAsState()
+    val lastUnread by viewModel.lastUnread.collectAsState()
     val readThisSession by viewModel.readThisSession.collectAsState()
     val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
@@ -76,12 +74,12 @@ fun NotificationsScreen(
     }
 
     // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
-    // list has loaded, a reload (re-entry, post-markAll arrival) must not flash a spinner over
-    // it. Screen-side last-results cache, the ClientsScreen precedent (#113 D2 keep-last-results
-    // — assigned on Success, rendered during Loading/Error). Cold start keeps the spinner:
-    // cache is null until the first Success lands.
-    var lastUnread by remember { mutableStateOf<List<NotificationResponse>?>(null) }
-    (notificationsState as? UiState.Success<List<NotificationResponse>>)?.let { lastUnread = it.data }
+    // list has content, a reload (re-entry, post-markAll arrival) must not flash a spinner over
+    // it. `unread` derives from the VM's lastUnread (keep-last-results — ClientsScreen #113 D2
+    // precedent, VM-side so it survives composition re-entries; audit #141 pass-5). Cold start
+    // keeps the spinner: lastUnread is null until the first Success lands. The empty-list
+    // reload case (All caught up → re-entry → reload) still flashes the spinner — nothing is on
+    // screen, so D5's "nothing to show → spinner" clause covers it.
     val unread = lastUnread.orEmpty()
     val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty()
 

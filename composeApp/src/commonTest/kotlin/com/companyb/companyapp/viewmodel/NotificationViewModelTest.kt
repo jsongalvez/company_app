@@ -12,14 +12,17 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -76,7 +79,14 @@ class NotificationViewModelTest {
         runTest(testScheduler) {
             val vm =
                 NotificationViewModel(
-                    mockApiClient(notificationsHandler(listStatus = HttpStatusCode.Unauthorized)),
+                    mockApiClient(
+                        // the bearer-auth plugin re-issues once on a 401, so the re-attempt must
+                        // fail too (secondGetStatus) for the final response to be the 401
+                        notificationsHandler(
+                            listStatus = HttpStatusCode.Unauthorized,
+                            secondGetStatus = HttpStatusCode.Unauthorized,
+                        ),
+                    ),
                 )
 
             vm.loadUnreadNotifications()
@@ -239,20 +249,101 @@ class NotificationViewModelTest {
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
         }
 
+    @Test
+    fun markRead_during_reload_operates_on_last_list() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(
+                            secondGetDelayMs = 70_000,
+                            dispatcher = StandardTestDispatcher(testScheduler),
+                        ),
+                    ),
+                )
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.lastUnread.value?.map { it.id })
+
+            // Reload in flight (GET held at +70s virtual): the rendered list stays via lastUnread,
+            // and a markRead during the reload must still move the row + decrement the badge —
+            // the transform falls back to lastUnread when _notifications is Loading.
+            vm.loadUnreadNotifications()
+            runCurrent()
+            assertIs<UiState.Loading>(vm.notifications.value)
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.lastUnread.value?.map { it.id })
+
+            val job = vm.markRead("n1")
+            runCurrent()
+            job.join()
+
+            assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
+        }
+
+    @Test
+    fun markAllRead_from_error_with_rendered_list_still_empties_it() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        notificationsHandler(secondGetStatus = HttpStatusCode.Forbidden),
+                    ),
+                )
+
+            vm.loadUnreadNotifications()
+            runCurrent()
+
+            // The reload fails (403 — non-retried by the retry plugin, so the Error lands
+            // deterministically) → Error; lastUnread keeps the rendered list (keep-last-results),
+            // so Mark all stays reachable and must empty the list + badge instead of no-oping
+            // into a persistent rows-with-zero-badge divergence.
+            vm.loadUnreadNotifications()
+            runCurrent()
+            assertIs<UiState.Error>(vm.notifications.value)
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.lastUnread.value?.map { it.id })
+
+            val job = vm.markAllRead()
+            runCurrent()
+            job.join()
+
+            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
+        }
+
     private fun notificationsHandler(
         listStatus: HttpStatusCode = HttpStatusCode.OK,
         markStatus: HttpStatusCode = HttpStatusCode.OK,
         markAllStatus: HttpStatusCode = HttpStatusCode.OK,
         markAllBody: String = MARK_ALL_JSON,
+        secondGetDelayMs: Long = 0,
+        secondGetStatus: HttpStatusCode = HttpStatusCode.OK,
+        dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MockRequestHandler {
         // First GET serves the two known rows; a reload GET (post-markAllRead with a nonzero
-        // unreadCount) serves the arrival-only list — mirrors the #111 concurrent-arrival shape.
+        // unreadCount, or an explicit second load) serves the arrival-only list — mirrors the
+        // #111 concurrent-arrival shape.
         var getCount = 0
         return { request ->
             when {
                 request.method == HttpMethod.Get && request.url.encodedPath == "/api/notifications" -> {
                     getCount++
-                    jsonRespond(status = listStatus, body = if (getCount == 1) NOTIFICATIONS_JSON else ARRIVAL_JSON)
+                    if (getCount == 1) {
+                        jsonRespond(status = listStatus, body = NOTIFICATIONS_JSON)
+                    } else {
+                        // Virtualized hold (the badge-test pattern — withContext puts the delay on
+                        // the test scheduler): keeps a reload in flight while the test drives
+                        // actions against the rendered list.
+                        if (secondGetDelayMs > 0) {
+                            withContext(dispatcher) { delay(secondGetDelayMs) }
+                        }
+                        jsonRespond(status = secondGetStatus, body = ARRIVAL_JSON)
+                    }
                 }
 
                 request.method == HttpMethod.Patch && request.url.encodedPath.startsWith("/api/notifications/") -> {

@@ -15,6 +15,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.launch
 
 class NotificationViewModel(
     private val apiClient: ApiClient,
@@ -24,6 +26,14 @@ class NotificationViewModel(
     private val _notifications = MutableStateFlow<UiState<List<NotificationResponse>>>(UiState.Idle)
     val notifications: StateFlow<UiState<List<NotificationResponse>>> = _notifications.asStateFlow()
 
+    // #97 Q5 silent-refresh / #113 D2 keep-last-results, VM-side (audit #141 pass-5): the last
+    // successful list survives Loading/Error so the screen keeps rendering it across reloads AND
+    // composition re-entries (a screen-side remember would die on re-entry; the VM is
+    // entry-scoped). It is also the fallback the markRead/markAll transforms operate on when
+    // _notifications is Loading/Error — actions must not no-op against a rendered list.
+    private val _lastUnread = MutableStateFlow<List<NotificationResponse>?>(null)
+    val lastUnread: StateFlow<List<NotificationResponse>?> = _lastUnread.asStateFlow()
+
     private val _markReadResult = MutableStateFlow<UiState<NotificationResponse>>(UiState.Idle)
     val markReadResult: StateFlow<UiState<NotificationResponse>> = _markReadResult.asStateFlow()
 
@@ -32,6 +42,18 @@ class NotificationViewModel(
 
     private val _readThisSession = MutableStateFlow<List<NotificationResponse>>(emptyList())
     val readThisSession: StateFlow<List<NotificationResponse>> = _readThisSession.asStateFlow()
+
+    init {
+        // Single writer for lastUnread: every Success that lands on _notifications (load, the
+        // markRead/markAll transforms' mutated lists) mirrors into it (the badge-VM collector
+        // pattern). A stale in-flight GET's snapshot can still overwrite it with a pre-action
+        // list — accepted grace-window class: the badge poll + re-taps re-sync.
+        viewModelScope.launch {
+            _notifications
+                .filterIsInstance<UiState.Success<List<NotificationResponse>>>()
+                .collect { state -> _lastUnread.value = state.data }
+        }
+    }
 
     fun loadUnreadNotifications() {
         handler.launch(
@@ -53,7 +75,7 @@ class NotificationViewModel(
                 if (response.status == HttpStatusCode.NotFound) {
                     // Defense-in-depth: the backend 200s an already-read OWN row (WHERE id+user
                     // matches, readAt refreshed — idempotent), so a 404 can only mean the row is
-                    // absent or not the caller's — unreachable from this UI today, and no fogged
+                    // absent or not the caller's — unreachable from this UI today, and no planned
                     // backend expansion (the #102 read-history/un-read endpoints neither delete
                     // nor transfer rows) makes it reachable; kept as pure defense against a
                     // future deletion/expiry surface. Handle it as "the row is gone": reload and
@@ -118,5 +140,5 @@ class NotificationViewModel(
     }
 
     private fun currentUnreadList(): List<NotificationResponse>? =
-        (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data
+        (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data ?: _lastUnread.value
 }
