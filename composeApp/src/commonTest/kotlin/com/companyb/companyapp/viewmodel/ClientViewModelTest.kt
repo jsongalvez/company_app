@@ -112,9 +112,30 @@ class ClientViewModelTest {
     @Test
     fun lastFiredQuery_tracks_the_latest_fire_across_rapid_retyping() =
         runTest(testScheduler) {
-            // Consecutive Loading emissions are equal (data object) — the flow suppresses the
-            // second, so the fire point (not Loading observation) is the authoritative record.
-            val vm = ClientViewModel(mockApiClient(clientHandler()))
+            // The first request stays in flight (virtual-time delay): the second fire's Loading
+            // emission is equal to the first's (data object — StateFlow suppresses it), so only
+            // the fire point can record the second query — Loading observation would miss it.
+            val recorded = mutableListOf<String>()
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/clients" -> {
+                                val q = request.url.parameters["q"].orEmpty()
+                                recorded.add(q)
+                                if (q == "jo") {
+                                    delay(10_000)
+                                }
+                                jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
 
             vm.onQueryChange("jo")
             advanceTimeByAndRun(300)
@@ -123,6 +144,7 @@ class ClientViewModelTest {
             vm.onQueryChange("joh")
             advanceTimeByAndRun(300)
             assertEquals(expected = "joh", actual = vm.lastFiredQuery.value)
+            assertEquals(expected = listOf("jo", "joh"), actual = recorded)
         }
 
     @Test

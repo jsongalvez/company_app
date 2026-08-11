@@ -352,7 +352,11 @@ private fun ClientDetailContent(
         // Unchanged vs the seeded values (string compare — drafts equal the seed, e.g. the
         // untouched null-BP pair: empty drafts vs null values). The blank-validation would
         // otherwise misreport the untouched null-BP pair as "Both BP fields are required" and
-        // abort a supersede, trapping the user in the editor (no Esc on mobile).
+        // abort a supersede, trapping the user in the editor (no Esc on mobile). Note the
+        // string compare is stricter than a numeric one: a leading-zero alias of the seed
+        // ("0120" vs "120") counts as an edit and dispatches a redundant-but-idempotent PATCH,
+        // and clearing a seeded pair reports "Both BP fields are required" (not "valid
+        // number") — both acceptable; the abandon gate canonicalizes numerically downstream.
         val seedSystolic = client.systolicBp?.toString().orEmpty()
         val seedDiastolic = client.diastolicBp?.toString().orEmpty()
         if (sys == seedSystolic && dia == seedDiastolic) {
