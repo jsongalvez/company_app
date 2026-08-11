@@ -25,9 +25,9 @@ import java.util.concurrent.ConcurrentHashMap
  * pre-deny token must stay dead; a same-second fresh login self-heals on the
  * next attempt).
  *
- * Entries are evicted once they are older than [TOKEN_MAX_AGE] because any
- * JWT that could belong to them is guaranteed to have expired by then (JWT
- * max expiry is 24h).
+ * Entries are evicted once they are older than [TOKEN_MAX_AGE] — the 24h JWT
+ * max expiry plus the 60s `acceptLeeway` JwtService applies to `exp` — because
+ * any JWT that could belong to them is guaranteed to have expired by then.
  *
  * The list is per-process: a restart loses entries (startup re-stamps only
  * users currently INACTIVE), so revocation is a process-lifetime guarantee.
@@ -37,7 +37,9 @@ object DenyList {
     private val logger = KotlinLogging.logger {}
 
     private const val TOKEN_MAX_AGE_HOURS = 24L
-    private val TOKEN_MAX_AGE: Duration = Duration.ofHours(TOKEN_MAX_AGE_HOURS)
+    private const val VERIFIER_LEEWAY_SECONDS = 60L
+    private val TOKEN_MAX_AGE: Duration =
+        Duration.ofHours(TOKEN_MAX_AGE_HOURS).plusSeconds(VERIFIER_LEEWAY_SECONDS)
 
     private val denied = ConcurrentHashMap<UUID, Instant>()
 

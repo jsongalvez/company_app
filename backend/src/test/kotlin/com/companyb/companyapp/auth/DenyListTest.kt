@@ -39,20 +39,22 @@ class DenyListTest {
     }
 
     @Test
-    fun entryIsKeptJustBefore24Hours() {
+    fun entryIsKeptJustBeforeEviction() {
         val userId = UUID.randomUUID()
         DenyList.denyAt(userId, base)
-        val almostExpired = base.plus(Duration.ofHours(24)).minusSeconds(1)
+        val almostExpired = base.plus(Duration.ofHours(24)).plusSeconds(59)
         assertTrue(DenyList.isDeniedAt(userId, base, almostExpired))
         // A token issued after the deny is allowed even while the entry lives.
         assertFalse(DenyList.isDeniedAt(userId, base.plusSeconds(1), almostExpired))
     }
 
     @Test
-    fun entryIsEvictedAfter24Hours() {
+    fun entryIsEvictedAfterTokenMaxAgePlusLeeway() {
         val userId = UUID.randomUUID()
         DenyList.denyAt(userId, base)
-        val expired = base.plus(Duration.ofHours(24))
+        // An entry must outlive the last pre-deny token: 24h JWT max age + the 60s
+        // acceptLeeway JwtService applies to exp validation.
+        val expired = base.plus(Duration.ofHours(24)).plusSeconds(60)
         assertFalse(DenyList.isDeniedAt(userId, base, expired))
         // Lazy eviction removes the stale entry on read.
         assertEquals(0, DenyList.size())
@@ -64,7 +66,7 @@ class DenyListTest {
         val stale = UUID.randomUUID()
         DenyList.denyAt(fresh, base.plus(Duration.ofHours(23)))
         DenyList.denyAt(stale, base)
-        val now = base.plus(Duration.ofHours(24))
+        val now = base.plus(Duration.ofHours(24)).plusSeconds(61)
 
         DenyList.evictExpiredAt(now)
 

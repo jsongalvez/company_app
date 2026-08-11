@@ -60,7 +60,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
             id = inactiveOwnerUser,
             username = "inactive-owner-${inactiveOwnerUser.toString().take(8)}",
             passwordHash = "test-password-hash",
-            email = "inactive@t.st",
+            email = "inactive-owner-${inactiveOwnerUser.toString().take(8)}@t.st",
             displayName = "Test Inactive Owner",
             status = UserStatus.INACTIVE,
         )

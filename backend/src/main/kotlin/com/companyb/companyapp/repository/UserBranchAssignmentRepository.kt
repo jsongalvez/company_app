@@ -68,7 +68,7 @@ object UserBranchAssignmentRepository {
     private fun findActiveByBranchAndUserInTransaction(
         branchId: UUID,
         userId: UUID,
-        forUpdate: Boolean = false,
+        forUpdate: Boolean,
     ): UserBranchAssignment? {
         val query =
             UserBranchAssignmentTable
@@ -87,14 +87,7 @@ object UserBranchAssignmentRepository {
         userId: UUID,
     ): UserBranchAssignment? =
         transaction {
-            UserBranchAssignmentTable
-                .selectAll()
-                .where {
-                    (UserBranchAssignmentTable.branchId eq branchId) and
-                        (UserBranchAssignmentTable.userId eq userId) and
-                        (UserBranchAssignmentTable.endedAt.isNull())
-                }.singleOrNull()
-                ?.toAssignment()
+            findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
         }
 
     fun findById(id: UUID): UserBranchAssignment? =
