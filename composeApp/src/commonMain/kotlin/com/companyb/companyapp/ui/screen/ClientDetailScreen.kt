@@ -218,23 +218,35 @@ private fun ClientDetailContent(
     var fieldError by remember { mutableStateOf<String?>(null) }
     var wasUpdateLoading by remember { mutableStateOf(false) }
     var showAnonymizeDialog by remember { mutableStateOf(false) }
+    // The field whose PATCH is in flight. With per-field edit ownership, a PATCH's Success/Error
+    // only resolves the edit of ITS field: if the user has already switched to another field
+    // (startEdit commits the superseded draft first), the landing response must not force-exit
+    // the new field's edit nor pollute it with the old field's error.
+    var pendingEditField by remember { mutableStateOf<ClientField?>(null) }
 
     // D4 pessimistic axes — edit mode exits only on success; failure keeps the attempted value +
     // inline error and stays in edit; Loading → Idle without Success in between = 403 silent exit.
+    // Per-field ownership: a resolved PATCH touches edit state only when it belongs to the
+    // currently-editing field.
     LaunchedEffect(updateState) {
         when (val state = updateState) {
             is UiState.Success -> {
-                editingField = null
-                fieldError = null
-                wasUpdateLoading = false
-            }
-
-            is UiState.Idle -> {
-                if (wasUpdateLoading) {
+                if (pendingEditField == null || editingField == pendingEditField) {
                     editingField = null
                     draftValue = ""
                     fieldError = null
                 }
+                pendingEditField = null
+                wasUpdateLoading = false
+            }
+
+            is UiState.Idle -> {
+                if (wasUpdateLoading && (pendingEditField == null || editingField == pendingEditField)) {
+                    editingField = null
+                    draftValue = ""
+                    fieldError = null
+                }
+                pendingEditField = null
                 wasUpdateLoading = false
             }
 
@@ -244,24 +256,21 @@ private fun ClientDetailContent(
 
             is UiState.Error -> {
                 // 409 exits silently via Idle (the VM reloads); a plain failure (400 validation,
-                // 5xx) keeps edit mode with the inline error.
-                fieldError = state.message
+                // 5xx) keeps edit mode with the inline error — but only when the failing PATCH
+                // belongs to the field being edited.
+                if (pendingEditField == null || editingField == pendingEditField) {
+                    fieldError = state.message
+                }
+                pendingEditField = null
                 wasUpdateLoading = false
             }
         }
     }
 
     // H4 — mutual exclusion with in-flight mutations: a new edit can't open while a PATCH or the
-    // anonymize POST is in flight (an unrelated Success would otherwise force-exit the new edit,
-    // silently discarding its draft; an anonymize in flight must never race a fresh PATCH).
-    fun startEdit(field: ClientField) {
-        if (updateState is UiState.Loading) return
-        if (anonymizeState is UiState.Loading) return
-        editingField = field
-        draftValue = currentFieldValue(client, field)
-        fieldError = null
-    }
-
+    // anonymize POST is in flight (an anonymize in flight must never race a fresh PATCH).
+    // Switching fields commits the superseded field's draft first — its typed value must not be
+    // silently dropped by the disposal-blur (which the editingField != field guard would drop).
     fun exitEdit() {
         editingField = null
         draftValue = ""
@@ -279,6 +288,7 @@ private fun ClientDetailContent(
         }
         val patch = patchFor(field, trimmed) { fieldError = it }
         if (patch != null) {
+            pendingEditField = field
             viewModel.updateClient(client.id, patch)
         }
     }
@@ -288,7 +298,19 @@ private fun ClientDetailContent(
         if (editingField != ClientField.BP_PAIR) return
         if (updateState is UiState.Loading) return
         if (anonymizeState is UiState.Loading) return
+        pendingEditField = ClientField.BP_PAIR
         viewModel.updateClient(client.id, patch)
+    }
+
+    fun startEdit(field: ClientField) {
+        if (updateState is UiState.Loading) return
+        if (anonymizeState is UiState.Loading) return
+        if (editingField != null && editingField != field) {
+            commitEdit(editingField!!)
+        }
+        editingField = field
+        draftValue = currentFieldValue(client, field)
+        fieldError = null
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -436,8 +458,11 @@ private fun ClientDetailContent(
                 },
                 actions = {
                     // D5 — destructive styling (error/onError tokens per the #96 badge precedent).
+                    // Disabled while a POST is in flight — re-tapping mid-anonymize would fire a
+                    // second destructive request (a redundant 404 after the first 204).
                     OutlinedButton(
                         onClick = { showAnonymizeDialog = true },
+                        enabled = anonymizeState !is UiState.Loading,
                         colors =
                             ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error,
@@ -545,6 +570,17 @@ private fun SectionLabel(text: String) {
     )
 }
 
+/** Esc cancels an in-progress edit — shared by the single-field and BP-pair editors. */
+private fun Modifier.escapeCancels(onCancel: () -> Unit): Modifier =
+    onPreviewKeyEvent {
+        if (it.key == Key.Escape) {
+            onCancel()
+            true
+        } else {
+            false
+        }
+    }
+
 /**
  * D4 — inline per-field editor: pencil affordance → edit in place → commit on Enter/blur.
  * Pessimistic: the display value only changes via PATCH success (the VM state); while editing,
@@ -594,14 +630,7 @@ private fun ClientFieldEditor(
                         Modifier
                             .weight(1f)
                             .onFocusChanged { if (!it.isFocused) onCommit(field) }
-                            .onPreviewKeyEvent {
-                                if (it.key == Key.Escape) {
-                                    onCancel()
-                                    true
-                                } else {
-                                    false
-                                }
-                            },
+                            .escapeCancels(onCancel),
                 )
             } else {
                 Text(
@@ -707,25 +736,21 @@ private fun BpPairEditor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (editing) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Blur fires when focus leaves either field; both fields share one handler (they
-                // read the same drafts + dirty flags). Built inside the Row: weight is a
-                // RowScope extension. Esc cancels the edit.
-                val blurAndEscapeModifier: Modifier =
+            // Blur-commit lives on the ROW, not the fields: isFocused on the row is false only
+            // when the whole pair lost focus (moving systolic↔diastolic keeps a descendant
+            // focused — a per-field handler would blur-commit mid-correction the moment the user
+            // taps back into the other side after typing both). Fires once per pair-focus-loss,
+            // disposal included. Esc cancels the edit.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier =
                     Modifier
-                        .weight(1f)
                         .onFocusChanged {
                             if (!it.isFocused && dirtySystolic && dirtyDiastolic) {
                                 commitPair()
                             }
-                        }.onPreviewKeyEvent {
-                            if (it.key == Key.Escape) {
-                                onCancel()
-                                true
-                            } else {
-                                false
-                            }
-                        }
+                        }.escapeCancels(onCancel),
+            ) {
                 OutlinedTextField(
                     value = draftSystolic,
                     onValueChange = {
@@ -736,7 +761,7 @@ private fun BpPairEditor(
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { commitPair() }),
-                    modifier = blurAndEscapeModifier,
+                    modifier = Modifier.weight(1f),
                 )
                 Text(
                     text = "/",
@@ -753,7 +778,7 @@ private fun BpPairEditor(
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { commitPair() }),
-                    modifier = blurAndEscapeModifier,
+                    modifier = Modifier.weight(1f),
                 )
             }
         } else {

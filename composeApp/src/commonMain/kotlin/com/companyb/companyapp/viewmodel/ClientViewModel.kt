@@ -143,8 +143,10 @@ class ClientViewModel(
             // flow so the display shows the new value when edit mode exits (the screen renders
             // clientDetail, not updateClientState — without this the edit would look lost). The
             // reload-cancel keeps the commit from being overwritten by a stale in-flight GET.
+            // A success also retires any changed-elsewhere banner: the user's edit just won.
             transform = { response ->
                 detailJob?.cancel()
+                _detailChangedNotice.value = false
                 val updated = response.body<ClientResponse>()
                 _clientDetail.value = UiState.Success(updated)
                 updated

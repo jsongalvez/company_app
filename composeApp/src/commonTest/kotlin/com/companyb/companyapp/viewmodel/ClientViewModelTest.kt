@@ -318,7 +318,7 @@ class ClientViewModelTest {
         runTest(testScheduler) {
             val vm = ClientViewModel(mockApiClient(clientHandler(detailBody = ANONYMIZED_JSON)))
 
-            vm.loadClient("c9")
+            vm.loadClient("c1")
             runCurrent()
 
             val state = assertIs<UiState.Success<ClientResponse>>(vm.clientDetail.value)
@@ -457,6 +457,45 @@ class ClientViewModelTest {
             val detail = assertIs<UiState.Success<ClientResponse>>(vm.clientDetail.value)
             assertEquals(expected = null, actual = detail.data.firstName)
             assertEquals(expected = null, actual = detail.data.lastName)
+        }
+
+    @Test
+    fun updateClient_success_clears_changed_elsewhere_notice() =
+        runTest(testScheduler) {
+            var patches = 0
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Patch &&
+                                request.url.encodedPath.startsWith("/api/clients/") -> {
+                                patches++
+                                if (patches == 1) {
+                                    jsonRespond(status = HttpStatusCode.Conflict, body = "")
+                                } else {
+                                    jsonRespond(status = HttpStatusCode.OK, body = UPDATED_JSON)
+                                }
+                            }
+
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath.startsWith("/api/clients/") -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
+
+            vm.updateClient("c1", UpdateClientRequest(phoneNumber = "0999"))
+            runCurrent()
+            assertTrue(vm.detailChangedNotice.value)
+
+            vm.updateClient("c1", UpdateClientRequest(phoneNumber = "0999"))
+            runCurrent()
+            assertFalse(vm.detailChangedNotice.value)
         }
 
     @Test
@@ -602,6 +641,6 @@ class ClientViewModelTest {
 
         // F3/D10 — anonymized: all PII null, gender + age retained.
         const val ANONYMIZED_JSON =
-            """{"id":"c9","firstName":null,"lastName":null,"middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"F","age":44,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}"""
+            """{"id":"c1","firstName":null,"lastName":null,"middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"F","age":44,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}"""
     }
 }

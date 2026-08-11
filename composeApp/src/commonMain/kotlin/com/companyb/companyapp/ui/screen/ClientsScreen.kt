@@ -88,6 +88,16 @@ fun ClientsScreen(
         errorMessage?.let { logWarn("ClientsScreen", "searchState=Error: $it") }
     }
 
+    // The query the cached results belong to: while a newer query sits in the debounce window,
+    // the still-visible empty-Success belongs to the query whose request last FIRED — labeling
+    // it with the current query would lie for the whole debounce+roundtrip.
+    var lastFiredQuery by remember { mutableStateOf("") }
+    LaunchedEffect(searchState) {
+        if (searchState is UiState.Loading) {
+            lastFiredQuery = query
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier =
@@ -151,7 +161,7 @@ fun ClientsScreen(
                             verticalArrangement = Arrangement.Center,
                         ) {
                             Text(
-                                text = "No clients found for \"$query\"",
+                                text = "No clients found for \"$lastFiredQuery\"",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                             )
