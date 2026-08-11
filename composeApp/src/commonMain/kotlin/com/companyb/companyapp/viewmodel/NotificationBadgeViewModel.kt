@@ -52,9 +52,10 @@ class NotificationBadgeViewModel(
 
     private fun refreshUnreadCount() {
         // in-flight guard: a GET slower than the 60s interval would stack overlapping polls and
-        // let an out-of-order Success overwrite the singleton with a stale count. handler.launch
-        // pre-sets Loading synchronously in the launched coroutine's first statement, so the
-        // check is reliable once the previous poll's launch has started.
+        // let an out-of-order Success overwrite the singleton with a stale count. The check is
+        // reliable because viewModelScope's Main.immediate dispatcher runs handler.launch's body
+        // (which pre-sets Loading as its first statement) synchronously in the poll loop's frame —
+        // so by the next 60s iteration, a started-but-slow poll is already visible as Loading.
         if (_pollResult.value is UiState.Loading) return
         handler.launch(
             state = _pollResult,

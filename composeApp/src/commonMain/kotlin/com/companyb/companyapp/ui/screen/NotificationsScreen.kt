@@ -72,9 +72,13 @@ fun NotificationsScreen(
         markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
     }
 
-    // D5: cold-start spinner only while there's nothing to show. Loading/Error with prior data
-    // keep rendering the last successful list (silent-refresh axis from #97 Q5) — the reload
-    // markAllRead triggers after a concurrent arrival must not flash a spinner over the list.
+    // D5: cold-start spinner only while there's nothing to show. During a reload (re-entry, the
+    // post-markAll arrival reload) `unread` re-derives from Success-only, so the unread section
+    // transiently blanks while the Read section stays — invisible for the markAll arrival reload
+    // (unread was already empty), a brief flash on re-entry. Accepted transient: the alternative
+    // (caching last Success data across Loading) is the exact stale-data class the silent-refresh
+    // axis rejects. A reload failure with Read content likewise leaves the unread section blank
+    // with no in-place card (cold-start-only per D5) — recovery is re-entry.
     val unread = (notificationsState as? UiState.Success<List<NotificationResponse>>)?.data.orEmpty()
     val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty()
 

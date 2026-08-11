@@ -35,6 +35,12 @@ import kotlin.test.assertIs
  * Uses the #93 handler-based MockEngine (URL routing via `HttpRequestData`), `runTest(testScheduler)`
  * + `StandardTestDispatcher` main, and `runCurrent` drain — no poll loop here, so no `dispose()`
  * needed (the launches complete once drained).
+ *
+ * Join idiom (audit #141): 2xx mock responses drain inline under `runCurrent`, but NON-2xx
+ * responses complete the launch's continuation on a real thread (Ktor response-pipeline dispatch),
+ * so the state assignment lands after the drain. Where a test asserts the action-result state of a
+ * failing call, capture the returned Job and `job.join()` after `runCurrent` — the assignment
+ * happens before the launch completes, so the join makes the assertion deterministic.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationViewModelTest {
@@ -111,10 +117,6 @@ class NotificationViewModelTest {
 
             val job = vm.markRead("n1")
             runCurrent()
-            // 5xx mock responses complete the launch's continuation on a real thread (Ktor
-            // response-pipeline dispatch — 2xx drains inline, non-2xx does not), so the Error
-            // assignment lands after runCurrent; join() waits for the launch's completion, after
-            // which the Error assignment is visible (#93 harness note).
             job.join()
 
             val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.notifications.value)
@@ -126,7 +128,7 @@ class NotificationViewModelTest {
         }
 
     @Test
-    fun markRead_404_reloads_unread_list_and_skips_error_state() =
+    fun markRead_404_on_absent_row_reloads_list_and_skips_error_state() =
         runTest(testScheduler) {
             NotificationState.setUnreadCount(2)
             val vm =
@@ -137,15 +139,13 @@ class NotificationViewModelTest {
             vm.loadUnreadNotifications()
             runCurrent()
 
-            // The row was already read server-side (another device, or a markAll race where a
-            // slow initial GET landed after markAll moved rows) — a 404 is the row being gone,
-            // not an error: reload re-derives from the server, no phantom "failed" state.
+            // Defense-in-depth: the backend 200s an already-read OWN row (idempotent), so a 404
+            // can only mean absent/foreign — unreachable from this UI today; the VM handles it as
+            // "the row is gone" (reload, no phantom error) if a future surface makes it reachable.
             val job = vm.markRead("n1")
             runCurrent()
-            // 404 completes on a real thread (same 5xx dispatch class) — join, then drain the
-            // nested reload's GET (2xx — inline under runCurrent).
             job.join()
-            runCurrent()
+            runCurrent() // drain the nested reload's GET (2xx — inline under runCurrent)
 
             val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.notifications.value)
             assertEquals(expected = listOf("n3"), actual = state.data.map { it.id })
@@ -185,10 +185,6 @@ class NotificationViewModelTest {
 
             val job = vm.markAllRead()
             runCurrent()
-            // 5xx mock responses complete the launch's continuation on a real thread (Ktor
-            // response-pipeline dispatch — 2xx drains inline, non-2xx does not), so the Error
-            // assignment lands after runCurrent; join() waits for the launch's completion, after
-            // which the Error assignment is visible (#93 harness note).
             job.join()
 
             val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.notifications.value)

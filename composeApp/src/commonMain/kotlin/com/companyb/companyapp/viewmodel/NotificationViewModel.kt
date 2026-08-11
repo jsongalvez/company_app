@@ -10,6 +10,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,13 +50,15 @@ class NotificationViewModel(
             endpoint = "PATCH /api/notifications/$notificationId/read",
             block = { apiClient.httpClient.patch("/api/notifications/$notificationId/read") },
             onNonSuccess = { response ->
-                if (response.status.value == 404) {
-                    // Stale-row self-heal: a 404 means the row left the unread set server-side
-                    // (read on another device, or a markAll-race where a slow initial GET landed
-                    // after markAll moved rows). The row is not an error — it is simply gone, so
-                    // reload and let the screen re-derive instead of surfacing a phantom failure.
-                    // Reset the in-flight marker: this response is fully handled here, and leaving
-                    // Loading would mark the action in-flight forever (#140 stuck-Loading class).
+                if (response.status == HttpStatusCode.NotFound) {
+                    // Defense-in-depth: the backend 200s an already-read OWN row (WHERE id+user
+                    // matches, readAt refreshed — idempotent), so a 404 can only mean the row is
+                    // absent or not the caller's — unreachable from this UI today, but a future
+                    // notification-deletion surface (the #102 read-history fog) would make it
+                    // reachable. Handle it as "the row is gone": reload and let the screen
+                    // re-derive instead of surfacing a phantom failure, and reset the in-flight
+                    // marker — leaving Loading would mark the action in-flight forever (#140
+                    // stuck-Loading class).
                     _markReadResult.value = UiState.Idle
                     loadUnreadNotifications()
                     true
