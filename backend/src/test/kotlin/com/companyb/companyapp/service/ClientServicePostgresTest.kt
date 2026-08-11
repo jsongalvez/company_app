@@ -333,6 +333,8 @@ class ClientServicePostgresTest : BasePostgresTest() {
         assertNull(persisted.lastName)
         assertNull(persisted.phoneNumber)
         assertNotNull(persisted.deletedAt)
+        // And no audit row for the blocked write (create 1 + anonymize 1).
+        assertEquals(expected = 2L, actual = auditEntryCount(clientAId))
     }
 
     @Test

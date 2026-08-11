@@ -469,7 +469,8 @@ private fun ClientDetailContent(
             // H4 — clicking Anonymize blurs an editing field, which blur-commits a PATCH in
             // flight; confirming while that PATCH is still saving would race it against the
             // anonymize POST (a slow PATCH could land after the anonymize and re-populate PII on
-            // the soft-deleted row). Confirm stays disabled until the edit resolves.
+            // the soft-deleted row). Confirm stays disabled until the blur-committed PATCH
+            // resolves.
             editInFlight = updateState is UiState.Loading,
             onConfirm = {
                 showAnonymizeDialog = false
@@ -652,17 +653,23 @@ private fun BpPairEditor(
 ) {
     var draftSystolic by remember { mutableStateOf("") }
     var draftDiastolic by remember { mutableStateOf("") }
-    // H3 — blur-commit fires only when the user actually typed: without this, tapping from
-    // systolic to diastolic blurs field 1 with both drafts still holding the seeded values →
-    // commitPair() sees "unchanged" and cancels the edit before the user typed anything.
-    var dirty by remember { mutableStateOf(false) }
+    // Per-side dirty flags — blur-commit fires only when BOTH sides were typed in this edit
+    // session: (a) with no typing at all, tapping systolic→diastolic blurs field 1 with both
+    // drafts holding the seeded values — commitPair() would see "unchanged" and cancel the edit
+    // before the user typed anything; (b) with only one side typed, tapping the other side would
+    // blur-commit the pair with the seeded value for the side the user is on their way to edit —
+    // same premature-commit class. Enter (Done) always commits explicitly, unchanged pair
+    // included (silent exit).
+    var dirtySystolic by remember { mutableStateOf(false) }
+    var dirtyDiastolic by remember { mutableStateOf(false) }
 
     // Re-seed drafts each time edit mode is entered (values may have changed via a 409 reload).
     LaunchedEffect(editing) {
         if (editing) {
             draftSystolic = systolic?.toString().orEmpty()
             draftDiastolic = diastolic?.toString().orEmpty()
-            dirty = false
+            dirtySystolic = false
+            dirtyDiastolic = false
         }
     }
 
@@ -704,7 +711,7 @@ private fun BpPairEditor(
                     value = draftSystolic,
                     onValueChange = {
                         draftSystolic = it
-                        dirty = true
+                        dirtySystolic = true
                     },
                     singleLine = true,
                     isError = fieldError != null,
@@ -713,12 +720,12 @@ private fun BpPairEditor(
                     modifier =
                         Modifier
                             .weight(1f)
-                            // Blur commits only once the pair is complete AND the user typed —
-                            // otherwise tapping the second field would prematurely surface
-                            // "Both BP fields are required" or silently cancel the edit.
+                            // Blur commits only once BOTH sides were typed and the pair is
+                            // complete — otherwise tapping the second field (or away) would
+                            // prematurely commit the seeded/unfinished pair. Enter always commits.
                             .onFocusChanged {
-                                if (!it.isFocused && dirty && draftSystolic.isNotBlank() &&
-                                    draftDiastolic.isNotBlank()
+                                if (!it.isFocused && dirtySystolic && dirtyDiastolic &&
+                                    draftSystolic.isNotBlank() && draftDiastolic.isNotBlank()
                                 ) {
                                     commitPair()
                                 }
@@ -740,7 +747,7 @@ private fun BpPairEditor(
                     value = draftDiastolic,
                     onValueChange = {
                         draftDiastolic = it
-                        dirty = true
+                        dirtyDiastolic = true
                     },
                     singleLine = true,
                     isError = fieldError != null,
@@ -750,8 +757,8 @@ private fun BpPairEditor(
                         Modifier
                             .weight(1f)
                             .onFocusChanged {
-                                if (!it.isFocused && dirty && draftSystolic.isNotBlank() &&
-                                    draftDiastolic.isNotBlank()
+                                if (!it.isFocused && dirtySystolic && dirtyDiastolic &&
+                                    draftSystolic.isNotBlank() && draftDiastolic.isNotBlank()
                                 ) {
                                     commitPair()
                                 }

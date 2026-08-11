@@ -13,6 +13,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,6 +49,7 @@ class ClientViewModel(
     // untracked retry could otherwise resurrect results under a cleared/newer query).
     private var searchJob: Job? = null
     private var latestQuery: String = ""
+    private var detailJob: Job? = null
 
     fun onQueryChange(query: String) {
         latestQuery = query
@@ -60,26 +62,7 @@ class ClientViewModel(
         searchJob =
             viewModelScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
-                // D2 current-query guard, implemented as structured cancellation: the request
-                // launches as a CHILD of this debounce job (handler scope override), so any newer
-                // keystroke cancels both the pending debounce AND the in-flight request. The
-                // stale response dies at the cancellation (ApiCallHandler rethrows
-                // CancellationException instead of surfacing an Error), so only the latest
-                // query's response can ever commit — out-of-order writes are structurally
-                // impossible. An X-clear likewise cancels a mid-flight response.
-                handler.launch(
-                    scope = this,
-                    state = _searchResults,
-                    operation = "search",
-                    endpoint = "GET /api/clients",
-                    entryMessage = "search called: query=$trimmed",
-                    block = {
-                        apiClient.httpClient.get("/api/clients") {
-                            parameter("q", trimmed)
-                        }
-                    },
-                    transform = { it.body() },
-                )
+                launchSearch(trimmed, this)
             }
     }
 
@@ -89,23 +72,32 @@ class ClientViewModel(
         searchJob?.cancel()
         searchJob =
             viewModelScope.launch {
-                // Same structured-cancellation shape as onQueryChange: the retry launches as a
-                // CHILD of searchJob, so a newer keystroke or X-clear cancels it before its stale
-                // response can commit (D2 current-query guard).
-                handler.launch(
-                    scope = this,
-                    state = _searchResults,
-                    operation = "search",
-                    endpoint = "GET /api/clients",
-                    entryMessage = "search retried: query=$trimmed",
-                    block = {
-                        apiClient.httpClient.get("/api/clients") {
-                            parameter("q", trimmed)
-                        }
-                    },
-                    transform = { it.body() },
-                )
+                launchSearch(trimmed, this)
             }
+    }
+
+    // D2 current-query guard, implemented as structured cancellation: the request launches as a
+    // CHILD of the caller's job (handler scope override), so any newer keystroke, X-clear, or
+    // retry cancels the in-flight request. The stale response dies at the cancellation
+    // (ApiCallHandler rethrows CancellationException instead of surfacing an Error), so only the
+    // latest query's response can ever commit — out-of-order writes are structurally impossible.
+    private fun launchSearch(
+        query: String,
+        scope: CoroutineScope,
+    ) {
+        handler.launch(
+            scope = scope,
+            state = _searchResults,
+            operation = "search",
+            endpoint = "GET /api/clients",
+            entryMessage = "search called: query=$query",
+            block = {
+                apiClient.httpClient.get("/api/clients") {
+                    parameter("q", query)
+                }
+            },
+            transform = { it.body() },
+        )
     }
 
     fun loadClient(
@@ -117,14 +109,19 @@ class ClientViewModel(
         if (resetNotice) {
             _detailChangedNotice.value = false
         }
-        handler.launch(
-            state = _clientDetail,
-            operation = "loadClient",
-            endpoint = "GET /api/clients/$clientId",
-            entryMessage = "loadClient called: clientId=$clientId",
-            block = { apiClient.httpClient.get("/api/clients/$clientId") },
-            transform = { it.body() },
-        )
+        // Tracked so a PATCH commit can cancel an in-flight reload (see updateClient): the detail
+        // flow has two writers, and a stale GET landing after a fresher PATCH commit would
+        // revert the display to pre-edit data.
+        detailJob?.cancel()
+        detailJob =
+            handler.launch(
+                state = _clientDetail,
+                operation = "loadClient",
+                endpoint = "GET /api/clients/$clientId",
+                entryMessage = "loadClient called: clientId=$clientId",
+                block = { apiClient.httpClient.get("/api/clients/$clientId") },
+                transform = { it.body() },
+            )
     }
 
     fun updateClient(
@@ -143,8 +140,10 @@ class ClientViewModel(
             },
             // D4 — the PATCH response IS the updated record: commit it straight into the detail
             // flow so the display shows the new value when edit mode exits (the screen renders
-            // clientDetail, not updateClientState — without this the edit would look lost).
+            // clientDetail, not updateClientState — without this the edit would look lost). The
+            // reload-cancel keeps the commit from being overwritten by a stale in-flight GET.
             transform = { response ->
+                detailJob?.cancel()
                 val updated = response.body<ClientResponse>()
                 _clientDetail.value = UiState.Success(updated)
                 updated
@@ -154,6 +153,7 @@ class ClientViewModel(
             //      backend-authoritative, ADR-0007 — the screen stays on stale data until reload).
             // 409 = changed elsewhere → reload + changed-fields indication; the fresh payload
             //      replaces the value the user was editing (their edit didn't win).
+            // 404 = the record is gone (anonymized elsewhere) → reload renders the husk (D10).
             // Any other non-success (400 blank names / BP pair / validation) → generic Error →
             //      screen shows the inline error + stays in edit mode.
             onNonSuccess = { response ->
@@ -163,9 +163,11 @@ class ClientViewModel(
                         true
                     }
 
-                    HttpStatusCode.Conflict -> {
+                    HttpStatusCode.Conflict, HttpStatusCode.NotFound -> {
                         _updateClientState.value = UiState.Idle
-                        _detailChangedNotice.value = true
+                        if (response.status == HttpStatusCode.Conflict) {
+                            _detailChangedNotice.value = true
+                        }
                         loadClient(clientId, resetNotice = false)
                         true
                     }

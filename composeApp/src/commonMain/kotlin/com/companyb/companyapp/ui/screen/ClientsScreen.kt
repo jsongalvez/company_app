@@ -69,12 +69,16 @@ fun ClientsScreen(
         viewModel.onQueryChange(query)
     }
 
-    LaunchedEffect(anonymizeNotice) {
-        val notice = anonymizeNotice ?: return@LaunchedEffect
-        // Consume BEFORE showing: if the screen leaves composition while showSnackbar suspends,
-        // the notice is already gone — no stale re-snackbar on a later visit.
-        ClientState.consumeAnonymizeNotice()
-        snackbarHostState.showSnackbar(notice)
+    // D1 — the confirmation crosses the VM boundary via ClientState; consume-before-show, and
+    // collect (not keyed on the notice): consuming inside a LaunchedEffect(notice) key would
+    // restart the effect (key change) and cancel showSnackbar mid-display.
+    LaunchedEffect(Unit) {
+        ClientState.anonymizeNotice.collect { notice ->
+            if (notice != null) {
+                ClientState.consumeAnonymizeNotice()
+                snackbarHostState.showSnackbar(notice)
+            }
+        }
     }
 
     (searchState as? UiState.Success<List<ClientResponse>>)?.let { cachedResults = it.data }

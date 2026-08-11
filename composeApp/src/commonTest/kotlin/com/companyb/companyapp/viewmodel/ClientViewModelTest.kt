@@ -28,6 +28,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -411,6 +412,72 @@ class ClientViewModelTest {
             assertEquals(expected = 2, actual = detailGets)
             assertTrue(vm.detailChangedNotice.value)
             assertIs<UiState.Idle>(vm.updateClientState.value)
+        }
+
+    @Test
+    fun updateClient_404_reloads_detail_and_leaves_state_idle() =
+        runTest(testScheduler) {
+            val handler = clientHandler(updateStatus = HttpStatusCode.NotFound)
+            var detailGets = 0
+            val wrapped: MockRequestHandler = { request ->
+                if (request.method == HttpMethod.Get && request.url.encodedPath == "/api/clients/c1") {
+                    detailGets++
+                }
+                handler(request)
+            }
+            val vm = ClientViewModel(mockApiClient(wrapped))
+            vm.loadClient("c1")
+            runCurrent()
+
+            vm.updateClient("c1", UpdateClientRequest(phoneNumber = "0999"))
+            runCurrent()
+
+            // 404 axis: the record is gone (anonymized elsewhere) → reload renders the husk
+            // (D10) instead of trapping the edit in Error forever; no changed-elsewhere notice.
+            assertEquals(expected = 2, actual = detailGets)
+            assertFalse(vm.detailChangedNotice.value)
+            assertIs<UiState.Idle>(vm.updateClientState.value)
+        }
+
+    @Test
+    fun updateClient_success_cancels_inflight_reload_stale_get_never_reverts_detail() =
+        runTest(testScheduler) {
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/clients/c1" -> {
+                                // The reload GET stays in flight past the PATCH's commit — the
+                                // detail flow has two writers, and a stale GET landing after a
+                                // fresher PATCH commit would revert the display to pre-edit data.
+                                delay(10_000)
+                                jsonRespond(status = HttpStatusCode.OK, body = DETAIL_JSON)
+                            }
+
+                            request.method == HttpMethod.Patch &&
+                                request.url.encodedPath.startsWith("/api/clients/") -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = UPDATED_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
+
+            vm.loadClient("c1")
+            advanceTimeByAndRun(100)
+            vm.updateClient("c1", UpdateClientRequest(phoneNumber = "0999"))
+            runCurrent()
+
+            var detail = assertIs<UiState.Success<ClientResponse>>(vm.clientDetail.value)
+            assertEquals(expected = "0999", actual = detail.data.phoneNumber)
+
+            advanceTimeByAndRun(20_000)
+            detail = assertIs<UiState.Success<ClientResponse>>(vm.clientDetail.value)
+            assertEquals(expected = "0999", actual = detail.data.phoneNumber)
         }
 
     @Test
