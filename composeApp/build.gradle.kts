@@ -60,6 +60,12 @@ kotlin {
             implementation(libs.ktor.client.cio)
             implementation(libs.logback.classic)
         }
+        val desktopTest by getting {
+            dependencies {
+                // Route::class.sealedSubclasses is kotlin-reflect-backed on JVM
+                implementation(kotlin("reflect"))
+            }
+        }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
