@@ -225,8 +225,10 @@ private fun ClientDetailContent(
     // the new field's edit nor pollute it with the old field's error.
     var pendingEditField by remember { mutableStateOf<ClientField?>(null) }
 
-    // Whether a landing PATCH outcome concerns the field currently being edited.
-    fun resolvesCurrentEdit(): Boolean = pendingEditField == null || editingField == pendingEditField
+    // Whether a landing PATCH outcome concerns the field currently being edited. Both commit
+    // paths set the pending field synchronously before dispatching, so a non-null pending field
+    // always identifies the in-flight PATCH.
+    fun resolvesCurrentEdit(): Boolean = editingField == pendingEditField
 
     // D4 pessimistic axes — edit mode exits only on success; failure keeps the attempted value +
     // inline error and stays in edit; Loading → Idle without Success in between = 403 silent exit.
@@ -281,46 +283,51 @@ private fun ClientDetailContent(
         fieldError = null
     }
 
-    fun commitEdit(field: ClientField) {
-        if (editingField != field) return
-        if (updateState is UiState.Loading) return
-        if (anonymizeState is UiState.Loading) return
+    // Returns false when the draft is invalid — the caller (startEdit's supersede) then aborts
+    // the field switch so the error stays visible on the field that owns it (the draft is not
+    // silently dropped, and the error write is not instantly wiped).
+    fun commitEdit(field: ClientField): Boolean {
+        if (editingField != field) return true
+        if (updateState is UiState.Loading) return true
+        if (anonymizeState is UiState.Loading) return true
         val trimmed = draftValue.trim()
         if (trimmed == currentFieldValue(client, field)) {
             exitEdit()
-            return
+            return true
         }
         val patch = patchFor(field, trimmed) { fieldError = it }
-        if (patch != null) {
-            pendingEditField = field
-            viewModel.updateClient(client.id, patch)
-        }
+        if (patch == null) return false
+        pendingEditField = field
+        viewModel.updateClient(client.id, patch)
+        return true
     }
 
     // D4 — BP pair commit (owned here, not in the editor): validates the hoisted drafts, builds
     // the request; unchanged pair → silent exit. Enter/blur/supersede all route through this.
-    fun commitBpDrafts() {
-        if (editingField != ClientField.BP_PAIR) return
-        if (updateState is UiState.Loading) return
-        if (anonymizeState is UiState.Loading) return
+    // Returns false on invalid drafts (see [commitEdit]).
+    fun commitBpDrafts(): Boolean {
+        if (editingField != ClientField.BP_PAIR) return true
+        if (updateState is UiState.Loading) return true
+        if (anonymizeState is UiState.Loading) return true
         val sys = bpDraft.systolic.trim()
         val dia = bpDraft.diastolic.trim()
         if (sys.isEmpty() || dia.isEmpty()) {
             fieldError = "Both BP fields are required"
-            return
+            return false
         }
         val sysVal = sys.toShortOrNull()
         val diaVal = dia.toShortOrNull()
         if (sysVal == null || diaVal == null) {
             fieldError = "Enter a valid number"
-            return
+            return false
         }
         if (sysVal == client.systolicBp && diaVal == client.diastolicBp) {
             exitEdit()
-            return
+            return true
         }
         pendingEditField = ClientField.BP_PAIR
         viewModel.updateClient(client.id, UpdateClientRequest(systolicBp = sysVal, diastolicBp = diaVal))
+        return true
     }
 
     fun startEdit(field: ClientField) {
@@ -331,11 +338,14 @@ private fun ClientDetailContent(
             // dropped by the disposal-blur (which the editingField != field guard would drop).
             // The pair routes through its own commit: its drafts live in [bpDraft], not the
             // shared single-field draft, so commitEdit would see an "unchanged" empty draft.
-            if (editingField == ClientField.BP_PAIR) {
-                commitBpDrafts()
-            } else {
-                commitEdit(editingField!!)
-            }
+            // An invalid draft aborts the switch — the error stays on the field that owns it.
+            val committed =
+                if (editingField == ClientField.BP_PAIR) {
+                    commitBpDrafts()
+                } else {
+                    commitEdit(editingField!!)
+                }
+            if (!committed) return
         }
         editingField = field
         draftValue = currentFieldValue(client, field)
@@ -736,8 +746,10 @@ private fun BpPairEditor(
     onCommit: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    // Re-seed drafts each time edit mode is entered (values may have changed via a 409 reload).
-    LaunchedEffect(editing) {
+    // Re-seed drafts when edit mode is entered OR the client's values change mid-edit (a reload
+    // landing while the pair is open): stale drafts would compare against the new values on an
+    // unchanged Enter and PATCH-revert the elsewhere-change.
+    LaunchedEffect(editing, systolic, diastolic) {
         if (editing) {
             draft.seed(systolic, diastolic)
         }
