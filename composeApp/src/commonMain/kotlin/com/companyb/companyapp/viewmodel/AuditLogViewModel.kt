@@ -402,12 +402,12 @@ class AuditLogViewModel(
                             logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
                         } else {
                             if (_browseRefreshError.value != null) {
-                                // A cold commit supersedes a failed refresh's error line: the
-                                // list below is fresh, so the line would be stale (pass-6 SOFT);
-                                // log rather than vanish silently.
+                                // Any successful commit supersedes a failed refresh's error line:
+                                // the list below is fresh, so the line would be stale (pass-6
+                                // SOFT); log rather than vanish silently.
                                 logWarn(
                                     "AuditLogVM",
-                                    "cold commit cleared stale refresh error: ${_browseRefreshError.value}",
+                                    "browse commit cleared stale refresh error: ${_browseRefreshError.value}",
                                 )
                             }
                             _browseRefreshError.value = null
