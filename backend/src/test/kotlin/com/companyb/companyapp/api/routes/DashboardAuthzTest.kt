@@ -137,21 +137,16 @@ class DashboardAuthzTest : BasePostgresTest() {
             cfg.routes.before { ctx ->
                 Database.connect(DatabaseTestHelper.requireTestDataSource())
             }
-            cfg.routes.before("/api/*") { ctx ->
-                val token =
-                    ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw io.javalin.http.UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw io.javalin.http.UnauthorizedResponse()
+            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
                 ctx.attribute("userId", userId)
             }
             cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(
-                    mapOf("error" to (e.message ?: "Forbidden")),
-                )
+                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
             }
             cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(
-                    mapOf("error" to (e.message ?: "Not Found")),
-                )
+                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
             }
             DashboardRoutes.register(cfg)
         }
