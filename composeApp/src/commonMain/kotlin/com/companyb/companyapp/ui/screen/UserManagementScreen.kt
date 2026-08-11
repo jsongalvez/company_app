@@ -132,6 +132,10 @@ fun UserManagementScreen(
                     viewModel.loadUsers()
                     viewModel.loadBranches()
                 },
+                // A refresh landing mid-mutation lets the mutation's in-place transform re-apply
+                // to the fresh list (swap would double-apply — pass-1 P2/P4 HARD). The load sets
+                // Loading synchronously, so gating the button here closes the whole window.
+                enabled = !mutationsDisabled,
             ) {
                 Text("Refresh")
             }
@@ -143,6 +147,9 @@ fun UserManagementScreen(
             label = { Text("Search users") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
+            // Typing against an Error state does nothing visible (ErrorCard renders instead of
+            // the list) — disable so the field doesn't look interactive (pass-1 P4 SOFT).
+            enabled = users !is UiState.Error,
         )
 
         Spacer(Modifier.size(Spacing.sm))
@@ -184,16 +191,28 @@ fun UserManagementScreen(
                                 rows = slotRows,
                                 mutationsDisabled = mutationsDisabled,
                                 onSwap = { a, b -> viewModel.swapSlots(selectedBranchId!!, a, b) },
-                                onEditSlot = { userId ->
+                                onEditSlot = { row ->
                                     slotEditTarget =
-                                        slotEditTargetFor(slotRows, loadedBranches, selectedBranchId, userId)
+                                        SlotEditTarget(
+                                            branchId = selectedBranchId!!,
+                                            branchName = selectedBranchName ?: "",
+                                            userId = row.userId,
+                                            displayName = row.displayName,
+                                            currentSlot = row.slot,
+                                        )
                                 },
                                 errors =
                                     actionErrors
-                                        // Swap errors surface in the slot card only (the swap
-                                        // trigger); slot-edit errors surface on the user row.
-                                        .filterKeys { it.startsWith("swap:$selectedBranchId:") }
-                                        .values
+                                        // Swap AND slot-edit errors for the selected branch surface
+                                        // in the slot card (the trigger surface). Slot edits opened
+                                        // from the card can fail on a COLLAPSED user row — the
+                                        // row-level rendering was invisible there (pass-1 P1 HARD);
+                                        // the row filter below excludes these keys so nothing
+                                        // double-renders.
+                                        .filterKeys {
+                                            it.startsWith("swap:$selectedBranchId:") ||
+                                                it.startsWith("slot:$selectedBranchId:")
+                                        }.values
                                         .toList(),
                             )
                         }
@@ -244,8 +263,13 @@ fun UserManagementScreen(
                                 },
                                 errors =
                                     actionErrors
-                                        .filterKeys { !it.startsWith("swap:") && it.endsWith(":${user.id}") }
-                                        .values
+                                        .filterKeys {
+                                            !it.startsWith("swap:") &&
+                                                // Slot errors for the selected branch are claimed
+                                                // by the slot card (see the card's filter above).
+                                                !it.startsWith("slot:$selectedBranchId:") &&
+                                                it.endsWith(":${user.id}")
+                                        }.values
                                         .toList(),
                             )
                         }
@@ -278,30 +302,14 @@ fun UserManagementScreen(
     }
 }
 
-private fun slotEditTargetFor(
-    slotRows: List<UserSlotRow>,
-    branches: List<BranchResponse>,
-    branchId: String?,
-    userId: String,
-): SlotEditTarget? {
-    val branch = branches.firstOrNull { it.id == branchId } ?: return null
-    val row = slotRows.firstOrNull { it.userId == userId } ?: return null
-    return SlotEditTarget(
-        branchId = branch.id,
-        branchName = branch.name,
-        userId = row.userId,
-        displayName = row.displayName,
-        currentSlot = row.slot,
-    )
-}
-
 /**
  * #135 D4 — platform-split slot-order list: desktop = up/down arrows (pairwise swap with the
  * neighbor row) + an edit button (manual number fallback); android = tap-to-edit (PATCH slot).
  * Rows arrive slot ASC (display name tiebreak); deactivated rows are dimmed with disabled
- * controls (D2). `errors` renders the branch's inline swap errors (ADR-0022). The shared card
- * chrome (Surface/header/empty-state/errors) lives in [UserSlotOrderCard]; each platform actual
- * supplies only the row content.
+ * controls (D2). `errors` renders the branch's inline swap + slot-edit errors (ADR-0022). The
+ * shared card chrome (Surface/header/empty-state/errors) lives in [UserSlotOrderCard]; each
+ * platform actual supplies only the row content. `onEditSlot` receives the tapped row (the
+ * screen builds the edit target straight from it — no id lookup, no silent no-op).
  */
 @Composable
 expect fun UserSlotOrderList(
@@ -309,7 +317,7 @@ expect fun UserSlotOrderList(
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
     onSwap: (userIdA: String, userIdB: String) -> Unit,
-    onEditSlot: (userId: String) -> Unit,
+    onEditSlot: (row: UserSlotRow) -> Unit,
     errors: List<String>,
 )
 
@@ -552,7 +560,14 @@ private fun UserRow(
 
 @Composable
 private fun StatusBadge(status: String) {
-    val label = if (status == USER_STATUS_ACTIVE) "ACTIVE" else "INACTIVE"
+    // Unknown statuses render raw (backend enum is ACTIVE/INACTIVE today; a future status must
+    // not masquerade as INACTIVE — pass-1 P2 SOFT).
+    val label =
+        when (status) {
+            USER_STATUS_ACTIVE -> "ACTIVE"
+            USER_STATUS_INACTIVE -> "INACTIVE"
+            else -> status
+        }
     Surface(
         shape = RoundedCornerShape(CornerRadius.sm),
         color = MaterialTheme.colorScheme.secondary,
@@ -651,7 +666,17 @@ private fun EditSlotDialog(
                 onClick = {
                     val slot = parseSlotInput(input)
                     if (slot == null) {
-                        inputError = "Slot must be 1 or greater"
+                        // Distinguish the two rejection classes: parseSlotInput returns null both
+                        // for invalid input and for values beyond Short (the shared DTO + backend
+                        // column are SMALLINT) — one message would lie for the other (pass-1 P2).
+                        val numeric =
+                            input.trim().toIntOrNull()?.let { it >= 1 } == true
+                        inputError =
+                            if (numeric) {
+                                "Slot number too large (max 32767)"
+                            } else {
+                                "Slot must be 1 or greater"
+                            }
                     } else {
                         onSave(slot)
                     }

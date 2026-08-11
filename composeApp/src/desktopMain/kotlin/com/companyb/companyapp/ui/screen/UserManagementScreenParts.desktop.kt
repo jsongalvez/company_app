@@ -27,7 +27,7 @@ actual fun UserSlotOrderList(
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
     onSwap: (userIdA: String, userIdB: String) -> Unit,
-    onEditSlot: (userId: String) -> Unit,
+    onEditSlot: (row: UserSlotRow) -> Unit,
     errors: List<String>,
 ) {
     UserSlotOrderCard(
@@ -42,7 +42,13 @@ actual fun UserSlotOrderList(
             val canSwapDown =
                 editable && index < rows.lastIndex && !rows[index + 1].isDeactivated
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        // Whole-row dimming for deactivated users — the android actual dims the
+                        // row too; the two platforms must not diverge (pass-1 P1 SOFT).
+                        .alpha(if (row.isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
+                        .padding(vertical = Spacing.xxs),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
@@ -54,10 +60,7 @@ actual fun UserSlotOrderList(
                 Text(
                     text = row.displayName,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .alpha(if (row.isDeactivated) DEACTIVATED_ROW_ALPHA else 1f),
+                    modifier = Modifier.weight(1f),
                 )
                 // Swap with the neighbor above (▲) / below (▼); first/last rows get a single
                 // direction. Buttons always render (stable column footprint); disabled while any
@@ -81,7 +84,7 @@ actual fun UserSlotOrderList(
                     }
                 }
                 TextButton(
-                    onClick = { onEditSlot(row.userId) },
+                    onClick = { onEditSlot(row) },
                     enabled = editable,
                 ) {
                     Text("Edit")

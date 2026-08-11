@@ -102,6 +102,9 @@ class UserViewModel(
     private val mutation = MutableStateFlow<UiState<Unit>>(UiState.Idle)
 
     fun loadUsers() {
+        // A reload replaces the list; the errors describe actions against the pre-reload list
+        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
+        _actionErrors.value = emptyMap()
         handler.launch(
             state = _users,
             operation = "loadUsers",
@@ -149,13 +152,17 @@ class UserViewModel(
     }
 
     // D4 — pairwise swap (desktop up/down arrows; one move = one swap with the neighbor).
+    // The in-flight key normalizes the pair order so a same-frame reversed double-tap
+    // (row-B ▼ then row-C ▲) hits the same guard key instead of dispatching twice (pass-1
+    // P3 finding — benign when both land, but concurrent duplicates are still waste).
     fun swapSlots(
         branchId: String,
         userIdA: String,
         userIdB: String,
     ) {
+        val (first, second) = listOf(userIdA, userIdB).sorted()
         runMutation(
-            key = "swap:$branchId:$userIdA:$userIdB",
+            key = "swap:$branchId:$first:$second",
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {

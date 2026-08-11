@@ -70,6 +70,28 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun loadUsers_clears_stale_action_errors() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.deactivateStatus = HttpStatusCode.InternalServerError
+            vm.deactivateUser("u2")
+            advanceUntilIdle()
+            assertEquals(expected = "Deactivate failed: 500", actual = vm.actionErrors.value["deactivate:u2"])
+
+            // A reload replaces the list — the error described the pre-reload state and must not
+            // linger beside fresh data (pass-1 P4 HARD: stale errors persisted for the VM's
+            // lifetime, only cleared on same-key retry).
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            assertTrue(vm.actionErrors.value.isEmpty())
+        }
+
+    @Test
     fun loadUsers_failure_emits_error() =
         runTest(testScheduler) {
             val vm =
@@ -279,6 +301,24 @@ class UserManagementViewModelTest {
             val body = harness.swapBodies.single()
             assertTrue("u1" in body, "expected userIdA in body, got $body")
             assertTrue("u2" in body, "expected userIdB in body, got $body")
+        }
+
+    @Test
+    fun swap_reversed_pair_same_frame_fires_single_request() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            // Row-B ▼ dispatches (u1,u2); row-C ▲ in the same frame dispatches (u2,u1) — the
+            // normalized in-flight key must dedupe them (pass-1 P3 finding).
+            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.swapSlots(branchId = "b1", userIdA = "u2", userIdB = "u1")
+            advanceUntilIdle()
+
+            assertEquals(expected = 1, actual = harness.swapBodies.size)
+            assertTrue(vm.inFlight.value.isEmpty())
         }
 
     @Test

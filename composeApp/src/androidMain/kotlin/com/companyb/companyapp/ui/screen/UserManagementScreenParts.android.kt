@@ -23,7 +23,7 @@ actual fun UserSlotOrderList(
     rows: List<UserSlotRow>,
     mutationsDisabled: Boolean,
     onSwap: (userIdA: String, userIdB: String) -> Unit,
-    onEditSlot: (userId: String) -> Unit,
+    onEditSlot: (row: UserSlotRow) -> Unit,
     errors: List<String>,
 ) {
     UserSlotOrderCard(
@@ -37,7 +37,7 @@ actual fun UserSlotOrderList(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = tappable) { onEditSlot(row.userId) }
+                        .clickable(enabled = tappable) { onEditSlot(row) }
                         .alpha(if (row.isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
                         .padding(vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
