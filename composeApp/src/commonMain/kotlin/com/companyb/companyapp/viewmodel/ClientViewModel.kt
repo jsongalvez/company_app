@@ -29,6 +29,13 @@ class ClientViewModel(
     private val _searchResults = MutableStateFlow<UiState<List<ClientResponse>>>(UiState.Idle)
     val searchResults: StateFlow<UiState<List<ClientResponse>>> = _searchResults.asStateFlow()
 
+    // The query whose request last FIRED — recorded at the fire point (launchSearch), where it
+    // is authoritative. The screen's no-results label binds to this: observing Loading
+    // transitions would miss re-fires (consecutive Loading emissions are equal, so the flow
+    // suppresses the second — the label would show the PREVIOUS query).
+    private val _lastFiredQuery = MutableStateFlow("")
+    val lastFiredQuery: StateFlow<String> = _lastFiredQuery.asStateFlow()
+
     private val _clientDetail = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
     val clientDetail: StateFlow<UiState<ClientResponse>> = _clientDetail.asStateFlow()
 
@@ -86,6 +93,7 @@ class ClientViewModel(
         scope: CoroutineScope,
         entryMessage: String,
     ) {
+        _lastFiredQuery.value = query
         handler.launch(
             scope = scope,
             state = _searchResults,

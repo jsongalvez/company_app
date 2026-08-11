@@ -56,6 +56,7 @@ fun ClientsScreen(
     onClientClick: (ClientResponse) -> Unit,
 ) {
     val searchState by viewModel.searchResults.collectAsState()
+    val lastFiredQuery by viewModel.lastFiredQuery.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var query by remember { mutableStateOf("") }
     var cachedResults by remember { mutableStateOf<List<ClientResponse>?>(null) }
@@ -86,16 +87,6 @@ fun ClientsScreen(
     val errorMessage = (searchState as? UiState.Error)?.message
     LaunchedEffect(errorMessage) {
         errorMessage?.let { logWarn("ClientsScreen", "searchState=Error: $it") }
-    }
-
-    // The query the cached results belong to: while a newer query sits in the debounce window,
-    // the still-visible empty-Success belongs to the query whose request last FIRED — labeling
-    // it with the current query would lie for the whole debounce+roundtrip.
-    var lastFiredQuery by remember { mutableStateOf("") }
-    LaunchedEffect(searchState) {
-        if (searchState is UiState.Loading) {
-            lastFiredQuery = query
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

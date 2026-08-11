@@ -104,8 +104,25 @@ class ClientViewModelTest {
             advanceTimeByAndRun(1)
 
             assertEquals(expected = listOf("jo"), actual = recorded)
+            assertEquals(expected = "jo", actual = vm.lastFiredQuery.value)
             val state = assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value)
             assertEquals(expected = listOf("c1"), actual = state.data.map { it.id })
+        }
+
+    @Test
+    fun lastFiredQuery_tracks_the_latest_fire_across_rapid_retyping() =
+        runTest(testScheduler) {
+            // Consecutive Loading emissions are equal (data object) — the flow suppresses the
+            // second, so the fire point (not Loading observation) is the authoritative record.
+            val vm = ClientViewModel(mockApiClient(clientHandler()))
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            assertEquals(expected = "jo", actual = vm.lastFiredQuery.value)
+
+            vm.onQueryChange("joh")
+            advanceTimeByAndRun(300)
+            assertEquals(expected = "joh", actual = vm.lastFiredQuery.value)
         }
 
     @Test

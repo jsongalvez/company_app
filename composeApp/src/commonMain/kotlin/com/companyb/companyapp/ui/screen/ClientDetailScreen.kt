@@ -349,6 +349,16 @@ private fun ClientDetailContent(
         if (shouldBailOnReload(viewModel.clientDetail.value)) return true
         val sys = bpDraft.systolic.trim()
         val dia = bpDraft.diastolic.trim()
+        // Unchanged vs the seeded values (string compare — drafts equal the seed, e.g. the
+        // untouched null-BP pair: empty drafts vs null values). The blank-validation would
+        // otherwise misreport the untouched null-BP pair as "Both BP fields are required" and
+        // abort a supersede, trapping the user in the editor (no Esc on mobile).
+        val seedSystolic = client.systolicBp?.toString().orEmpty()
+        val seedDiastolic = client.diastolicBp?.toString().orEmpty()
+        if (sys == seedSystolic && dia == seedDiastolic) {
+            exitEdit()
+            return true
+        }
         if (sys.isEmpty() || dia.isEmpty()) {
             fieldError = "Both BP fields are required"
             return false
@@ -358,10 +368,6 @@ private fun ClientDetailContent(
         if (sysVal == null || diaVal == null) {
             fieldError = "Enter a valid number"
             return false
-        }
-        if (sysVal == client.systolicBp && diaVal == client.diastolicBp) {
-            exitEdit()
-            return true
         }
         recordDispatchedDraft(ClientField.BP_PAIR, sys, dia)
         pendingEditField = ClientField.BP_PAIR
