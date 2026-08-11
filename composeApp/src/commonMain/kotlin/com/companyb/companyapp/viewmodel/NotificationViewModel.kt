@@ -73,12 +73,17 @@ class NotificationViewModel(
                     // An action (markRead/markAll) succeeded while this load was in flight, so
                     // the snapshot predates it — committing it would resurrect read rows under
                     // the new badge count (audit #141 pass-6/7). Substitute the post-action
-                    // list: the action's Success was mirrored into lastUnread a moment ago
-                    // (Main FIFO guarantees the mirror precedes this landing), so the commit
-                    // shows the correct list with no resurrect frame — even if the re-issue
-                    // GET below fails. The re-issue still runs so post-action arrivals surface.
+                    // list: read the CURRENT Success first — the action's assignment is
+                    // synchronous on the same thread, so it is race-free (a scheduling-queued
+                    // collector mirror could still lag); lastUnread is the next-freshest. The
+                    // resurrect frame is eliminated even if the re-issue GET below fails; the
+                    // re-issue still runs so post-action arrivals surface.
                     loadUnreadNotifications()
-                    _lastUnread.value ?: body
+                    (
+                        (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data
+                            ?: _lastUnread.value
+                            ?: body
+                    )
                 } else {
                     body
                 }

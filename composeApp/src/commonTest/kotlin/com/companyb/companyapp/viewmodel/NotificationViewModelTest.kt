@@ -263,8 +263,10 @@ class NotificationViewModelTest {
                         notificationsHandler(
                             secondGetDelayMs = 70_000,
                             // The held reload serves the PRE-action snapshot (the read row still
-                            // in it) — the genuinely stale body the stamp must neutralize.
+                            // in it) — the genuinely stale body the stamp must neutralize. The
+                            // re-issue (GET #3) serves the post-action truth [n2].
                             secondGetBody = NOTIFICATIONS_JSON,
+                            thirdGetBody = N2_JSON,
                             dispatcher = StandardTestDispatcher(testScheduler),
                         ),
                     ),
@@ -292,8 +294,14 @@ class NotificationViewModelTest {
 
             // The stale pre-action snapshot lands: the stamp substitutes the post-action list —
             // n1 must NOT resurrect (a resurrect would re-render it unread under the decremented
-            // badge and let a re-tap double-decrement); the re-issue converges arrivals in the
-            // drain.
+            // badge and let a re-tap double-decrement).
+            advanceTimeBy(70_000.milliseconds)
+            runCurrent()
+            assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
+
+            // The re-issue lands the post-action truth and converges.
             advanceTimeBy(70_000.milliseconds)
             runCurrent()
             assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
@@ -311,6 +319,7 @@ class NotificationViewModelTest {
                         notificationsHandler(
                             secondGetDelayMs = 70_000,
                             secondGetBody = NOTIFICATIONS_JSON,
+                            thirdGetBody = EMPTY_JSON,
                             dispatcher = StandardTestDispatcher(testScheduler),
                         ),
                     ),
@@ -334,7 +343,14 @@ class NotificationViewModelTest {
             // The stale pre-markAll snapshot lands: the stamp substitutes the post-action list —
             // rows must NOT resurrect under the zero badge (they would re-render unread with the
             // Mark-all button back, unreachable by any in-screen refresh); Read stays
-            // duplicate-free; the re-issue converges arrivals in the drain.
+            // duplicate-free.
+            advanceTimeBy(70_000.milliseconds)
+            runCurrent()
+            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
+            assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
+
+            // The re-issue lands the post-action truth (empty) and converges.
             advanceTimeBy(70_000.milliseconds)
             runCurrent()
             assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
@@ -382,11 +398,14 @@ class NotificationViewModelTest {
         secondGetDelayMs: Long = 0,
         secondGetStatus: HttpStatusCode = HttpStatusCode.OK,
         secondGetBody: String = ARRIVAL_JSON,
+        thirdGetBody: String = ARRIVAL_JSON,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MockRequestHandler {
         // First GET serves the two known rows; a reload GET (post-markAllRead with a nonzero
         // unreadCount, or an explicit second load) serves secondGetBody — the arrival-only list
         // by default, or a held STALE snapshot (the pre-action rows) for the stale-landing tests.
+        // GET #3+ (the stamp's re-issued load) serves thirdGetBody — the post-action truth for
+        // the stale-landing tests' converged state.
         var getCount = 0
         return { request ->
             when {
@@ -401,7 +420,10 @@ class NotificationViewModelTest {
                         if (secondGetDelayMs > 0) {
                             withContext(dispatcher) { delay(secondGetDelayMs) }
                         }
-                        jsonRespond(status = secondGetStatus, body = secondGetBody)
+                        jsonRespond(
+                            status = secondGetStatus,
+                            body = if (getCount == 2) secondGetBody else thirdGetBody,
+                        )
                     }
                 }
 
@@ -438,6 +460,11 @@ class NotificationViewModelTest {
 
         const val READ_JSON =
             """{"id":"n1","sessionId":"s1","branchId":"b1","message":"Session at 2:00 PM — John Doe","isRead":true,"readAt":"2026-08-05T06:00:01+08:00","createdAt":"2026-08-05T06:00:00+08:00"}"""
+
+        const val EMPTY_JSON = """[]"""
+
+        const val N2_JSON =
+            """[{"id":"n2","sessionId":"s2","branchId":"b2","message":"Session at 10:00 AM — Maria Santos","isRead":false,"readAt":null,"createdAt":"2026-08-05T02:00:00+08:00"}]"""
 
         const val MARK_ALL_JSON = """{"unreadCount":0}"""
 
