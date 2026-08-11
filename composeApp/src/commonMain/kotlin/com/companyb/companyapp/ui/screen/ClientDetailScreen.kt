@@ -318,6 +318,14 @@ private fun ClientDetailContent(
         if (editingField != field) return true
         if (updateState is UiState.Loading) return true
         if (anonymizeState is UiState.Loading) return true
+        // 409/404 reload guard: the reload's own PATCH already failed and the detail is being
+        // re-fetched (clientDetail Loading). The composed updateState has already flipped to
+        // Idle by the time the disposal-blur fires on the reload's unmount, so the Loading
+        // guard above passes — without this, the identical failed payload would re-dispatch,
+        // clobber the reloaded (elsewhere-changed) record and clear the changed-elsewhere
+        // banner. The reload owns the exit (the Idle-branch effect). Live flow value —
+        // synchronous, no composition lag.
+        if (viewModel.clientDetail.value is UiState.Loading) return true
         val trimmed = draftValue.trim()
         if (trimmed == currentFieldValue(client, field)) {
             exitEdit()
@@ -338,6 +346,7 @@ private fun ClientDetailContent(
         if (editingField != ClientField.BP_PAIR) return true
         if (updateState is UiState.Loading) return true
         if (anonymizeState is UiState.Loading) return true
+        if (viewModel.clientDetail.value is UiState.Loading) return true
         val sys = bpDraft.systolic.trim()
         val dia = bpDraft.diastolic.trim()
         if (sys.isEmpty() || dia.isEmpty()) {
