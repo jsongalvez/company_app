@@ -18,7 +18,9 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -49,7 +51,7 @@ class UserServicePostgresTest : BasePostgresTest() {
         UserService.deactivate(callerId, targetUserId)
 
         assertEquals(UserStatus.INACTIVE, userStatus(targetUserId))
-        assertTrue(DenyList.isDenied(targetUserId))
+        assertTrue(DenyList.isDenied(targetUserId, Instant.EPOCH), "pre-deny token must stay denied")
         assertNull(JwtService.verifyToken(targetToken))
 
         val auditEntry = latestAuditEntry(targetUserId)
@@ -73,7 +75,7 @@ class UserServicePostgresTest : BasePostgresTest() {
     fun `deactivate self throws validation error`() {
         val error = assertFailsWith<ValidationException> { UserService.deactivate(callerId, callerId) }
 
-        assertEquals("cannot deactivate yourself", error.message)
+        assertEquals("Cannot deactivate yourself", error.message)
         assertEquals(UserStatus.ACTIVE, userStatus(callerId))
         assertEquals(0L, auditEntryCount(callerId))
     }
@@ -108,12 +110,50 @@ class UserServicePostgresTest : BasePostgresTest() {
 
         assertEquals(UserStatus.ACTIVE, userStatus(targetUserId))
         assertNull(deactivatedAt(targetUserId))
-        assertTrue(DenyList.isDenied(targetUserId), "old tokens stay dead — DenyList is not cleared by reactivate")
+        assertTrue(
+            DenyList.isDenied(targetUserId, Instant.EPOCH),
+            "old tokens stay dead — DenyList is not cleared by reactivate",
+        )
         val auditEntry = latestAuditEntry(targetUserId)
         assertEquals("UPDATE", auditEntry.action)
         assertEquals("INACTIVE", auditEntry.oldStatus)
         assertEquals("ACTIVE", auditEntry.newStatus)
         assertEquals(2L, auditEntryCount(targetUserId))
+    }
+
+    @Test
+    fun `reactivated user can authenticate with a fresh token while the pre-deactivation token stays dead`() {
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        val preDeactivationToken = JwtService.generateToken(targetUserId.toString())
+
+        UserService.deactivate(callerId, targetUserId)
+        assertNull(
+            JwtService.verifyToken(preDeactivationToken),
+            "pre-deactivation token must be dead after deactivation",
+        )
+
+        UserService.reactivate(callerId, targetUserId)
+        assertNull(
+            JwtService.verifyToken(preDeactivationToken),
+            "pre-deactivation token must stay dead after reactivation",
+        )
+
+        // JWT iat is second-precision: a token generated in the same second as the deny
+        // is indistinguishable from a pre-deny token and stays denied (DenyList KDoc).
+        waitForNextSecond()
+        val freshToken = JwtService.generateToken(targetUserId.toString())
+        assertEquals(
+            targetUserId.toString(),
+            JwtService.verifyToken(freshToken),
+            "fresh token issued after reactivation must verify",
+        )
+    }
+
+    private fun waitForNextSecond() {
+        val boundary = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1)
+        while (Instant.now().isBefore(boundary)) {
+            Thread.sleep(10)
+        }
     }
 
     @Test

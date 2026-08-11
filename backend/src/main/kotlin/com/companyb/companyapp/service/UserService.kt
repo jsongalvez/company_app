@@ -19,7 +19,7 @@ import java.util.UUID
  */
 object UserService {
     private val logger = KotlinLogging.logger {}
-    private const val SELF_DEACTIVATE_MESSAGE = "cannot deactivate yourself"
+    private const val SELF_DEACTIVATE_MESSAGE = "Cannot deactivate yourself"
 
     fun deactivate(
         callerId: UUID,

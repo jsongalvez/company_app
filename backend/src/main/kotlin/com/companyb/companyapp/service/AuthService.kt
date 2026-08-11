@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.RateLimiter
@@ -41,7 +40,6 @@ object AuthService {
         }
 
         val token: String = JwtService.generateToken(appUser.id)
-        DenyList.allow(UUID.fromString(appUser.id)) // safe: appUser is null-checked above, .id is non-null String
         logger.info { "[LOGIN] User has logged in successfully " }
         return LoginResult.Success(token)
     }

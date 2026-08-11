@@ -64,8 +64,9 @@ object JwtService {
     fun verifyToken(token: String): String? =
         try {
             val v = verifier ?: error("JwtService.init() must be called before verifyToken()")
+            val decoded = v.verify(token)
             val subj =
-                v.verify(token).subject ?: return null.also {
+                decoded.subject ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no subject" }
                 }
             val parsedId =
@@ -74,8 +75,11 @@ object JwtService {
                         logger.warn { "[VERIFY-TOKEN] Invalid UUID in subject: ${subj.maskUUID()}" }
                         return null
                     }
+            // Missing iat fails closed (treated as epoch — denied while any deny entry exists);
+            // tokens we sign always carry iat.
+            val issuedAt = decoded.issuedAt?.toInstant() ?: Instant.EPOCH
             when {
-                DenyList.isDenied(parsedId) -> {
+                DenyList.isDenied(parsedId, issuedAt) -> {
                     null.also { logger.warn { "[VERIFY-TOKEN] User ${subj.maskUUID()} is on the deny list" } }
                 }
 

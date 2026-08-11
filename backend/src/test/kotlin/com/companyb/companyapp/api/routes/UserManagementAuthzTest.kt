@@ -169,7 +169,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
             body = response.body?.string().orEmpty()
         }
         assertEquals(400, status)
-        assertTrue(body.contains("cannot deactivate yourself"), "body must carry the self-guard message: $body")
+        assertTrue(body.contains("Cannot deactivate yourself"), "body must carry the self-guard message: $body")
     }
 
     @Test

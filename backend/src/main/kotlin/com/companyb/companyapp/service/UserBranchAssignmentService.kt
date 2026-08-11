@@ -184,6 +184,10 @@ object UserBranchAssignmentService {
         userIdA: UUID,
         userIdB: UUID,
     ) {
+        if (userIdA == userIdB) {
+            throw ValidationException("Cannot swap a user with themselves")
+        }
+
         val canManage =
             CapabilityService.hasCapability(
                 userId = callerId,

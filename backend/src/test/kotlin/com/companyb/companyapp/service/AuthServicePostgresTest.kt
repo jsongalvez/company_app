@@ -3,10 +3,13 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,6 +51,22 @@ class AuthServicePostgresTest : BasePostgresTest() {
     fun `logout is idempotent`() {
         DenyList.deny(userId)
         DenyList.deny(userId)
+    }
+
+    @Test
+    fun `login after deny issues a fresh token that verifies`() {
+        DenyList.deny(userId)
+        // JWT iat is second-precision: a token generated in the same second as the deny
+        // is indistinguishable from a pre-deny token and stays denied (DenyList KDoc).
+        val boundary = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1)
+        while (Instant.now().isBefore(boundary)) {
+            Thread.sleep(10)
+        }
+
+        val result = AuthService.login("logout-test-$userId", "test-password", "203.0.113.${userId.toString().take(8)}")
+
+        val token = (result as? LoginResult.Success)?.token ?: error("login must succeed after deny for an ACTIVE user")
+        assertNotNull(JwtService.verifyToken(token), "fresh token issued after deny must verify")
     }
 
     @Test

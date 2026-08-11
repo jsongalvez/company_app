@@ -284,6 +284,21 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `swapSlots with the same user on both sides throws validation without audit rows`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val idA = UUID.randomUUID()
+        UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
+
+        assertFailsWith<ValidationException> {
+            UserBranchAssignmentService.swapSlots(callerId, branchId, userAId, userAId)
+        }
+
+        assertEquals(1, assignedSlot(idA))
+        assertEquals(1L, auditEntryCount(idA))
+    }
+
+    @Test
     fun `swapSlots with missing assignment A throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)

@@ -225,6 +225,25 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `DELETE own assignment by manager succeeds`() {
+        val managerAssignmentId =
+            DatabaseTestHelper.insertTestAssignment(
+                userId = managerUser,
+                branchId = branchId,
+                slot = 3,
+                assignedBy = managerUser,
+            )
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, managerAssignmentId)
+
+        var status = 0
+        JavalinTest.test(createApp()) { _, client ->
+            status = client.delete("/api/branches/$branchId/assignments/$managerUser", null, asUser(managerUser)).code
+        }
+        assertEquals(204, status)
+        assertTrue(hasEnded(managerAssignmentId))
+    }
+
+    @Test
     fun `PATCH slot is forbidden without MANAGE_USERS for another user`() {
         var status = 0
         JavalinTest.test(createApp()) { _, client ->

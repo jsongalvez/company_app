@@ -79,6 +79,18 @@ config.routes.before("/api/expenses/{expenseId}") { context ->
   `requireBranchCapabilityForRemittance`, `requireBranchCapabilityForBranchId` (from direct branch UUID),
   `requireBranchCapabilityForSession` (from sessionId), and `requireGlobalCapability` for system-wide checks.
 
+## Deviation (2026-08-09, #134)
+
+The UserBranchAssignment surface enforces at the **service layer**, not the route layer:
+`create`, `remove`, and `findActiveByBranch` gate on GLOBAL `MANAGE_USERS` inside the
+service; `swapSlots` requires GLOBAL `MANAGE_USERS` OR the caller is one of the two
+swapped users — a participant-exception rule no path filter can express. The 4-segment
+`before("/api/branches/{branchId}/slots")` and `/assignments` filters never matched the
+5-segment `/slots/swap` and assignment-DELETE paths (the #114 exact-path lesson, third
+occurrence) and were removed as misleading; the service-level checks are now the only
+authorization surface for that route group. All other surfaces keep route-filter
+enforcement. See #134's resolution for the leak-falsification record.
+
 **Negative:**
 - The DELETE filter looks up the expense and branch day to resolve the branch ID,
   duplicating the DB calls that the service handler already makes. This is acceptable

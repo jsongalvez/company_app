@@ -27,3 +27,4 @@ Chosen over:
 - Runtime is unchanged for direct grants; derived rows behave identically (INACTIVE users excluded by the view's status filter — deactivation still revokes everything).
 - Any future user-create flow must assign a role at creation (#106 fog, tracked).
 - `role_capability`'s lack of a context column is now an explicit boundary: roles express *scope class* (GLOBAL), never branch membership.
+- Derived GLOBAL `ASSIGN_COMPENSATION` is consumed only by GLOBAL-scoped endpoints (e.g. `/api/commission-inclusions`); the BRANCH-scoped compensation surfaces (CompensationRoutes/AllowanceRoutes) check `ASSIGN_COMPENSATION` on BRANCH, where role-derived GLOBAL rows are inert by the same boundary — a role cannot express which branch. Known limitation, deliberately not bridged.

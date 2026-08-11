@@ -10,6 +10,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -64,18 +65,22 @@ object UserBranchAssignmentRepository {
                 ).map { it.toAssignment() }
         }.also { logger.info { "[FIND-ASSIGNMENTS-BY-BRANCH] Fetched ${it.size} active assignments" } }
 
-    fun findActiveByBranchAndUserInTransaction(
+    private fun findActiveByBranchAndUserInTransaction(
         branchId: UUID,
         userId: UUID,
-    ): UserBranchAssignment? =
-        UserBranchAssignmentTable
-            .selectAll()
-            .where {
-                (UserBranchAssignmentTable.branchId eq branchId) and
-                    (UserBranchAssignmentTable.userId eq userId) and
-                    (UserBranchAssignmentTable.endedAt.isNull())
-            }.singleOrNull()
-            ?.toAssignment()
+        forUpdate: Boolean = false,
+    ): UserBranchAssignment? {
+        val query =
+            UserBranchAssignmentTable
+                .selectAll()
+                .where {
+                    (UserBranchAssignmentTable.branchId eq branchId) and
+                        (UserBranchAssignmentTable.userId eq userId) and
+                        (UserBranchAssignmentTable.endedAt.isNull())
+                }
+        val materialized = if (forUpdate) query.forUpdate(ForUpdateOption.ForUpdate) else query
+        return materialized.singleOrNull()?.toAssignment()
+    }
 
     fun findActiveByBranchAndUser(
         branchId: UUID,
@@ -186,11 +191,13 @@ object UserBranchAssignmentRepository {
         auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
     ): Pair<UserBranchAssignment, UserBranchAssignment> =
         transaction {
+            // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
+            // lesson) serializes swap against concurrent remove/updateSlot on either user.
             val a =
-                findActiveByBranchAndUserInTransaction(branchId, userIdA)
+                findActiveByBranchAndUserInTransaction(branchId, userIdA, forUpdate = true)
                     ?: throw NotFoundException("Active assignment not found for user A at this branch")
             val b =
-                findActiveByBranchAndUserInTransaction(branchId, userIdB)
+                findActiveByBranchAndUserInTransaction(branchId, userIdB, forUpdate = true)
                     ?: throw NotFoundException("Active assignment not found for user B at this branch")
 
             val slotA = a.slot

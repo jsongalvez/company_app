@@ -16,8 +16,13 @@ import java.util.UUID
  *
  * Moves capability checks from the service layer to the HTTP layer so that
  * each route declares its authorization requirements upfront. The service
- * layer retains day-state assertions (e.g. [com.companyb.companyapp.service.BranchDayService.checkBranchDayEditable])
- * but no longer performs capability checks.
+ * layer retains day-state assertions (e.g. [com.companyb.companyapp.service.BranchDayService.checkBranchDayEditable]).
+ *
+ * Exception (ADR-0007 deviation, #134): the UserBranchAssignment surface
+ * enforces at the service layer — `swapSlots`' participant rule (MANAGE_USERS
+ * OR caller is one of the swapped users) cannot be expressed as a path filter,
+ * and the 4-segment before-filters never matched the 5-segment sub-paths (the
+ * #114 exact-path lesson).
  *
  * Usage in a route object's `register`:
  * ```

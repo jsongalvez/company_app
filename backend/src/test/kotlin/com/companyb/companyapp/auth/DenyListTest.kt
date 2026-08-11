@@ -23,12 +23,19 @@ class DenyListTest {
     fun deniedUserIsBlocked() {
         val userId = UUID.randomUUID()
         DenyList.deny(userId)
-        assertTrue(DenyList.isDenied(userId))
+        assertTrue(DenyList.isDenied(userId, Instant.EPOCH))
+    }
+
+    @Test
+    fun tokenIssuedAfterDenyIsAllowed() {
+        val userId = UUID.randomUUID()
+        DenyList.denyAt(userId, base)
+        assertFalse(DenyList.isDenied(userId, base.plusSeconds(1)))
     }
 
     @Test
     fun unknownUserIsNotDenied() {
-        assertFalse(DenyList.isDenied(UUID.randomUUID()))
+        assertFalse(DenyList.isDenied(UUID.randomUUID(), Instant.EPOCH))
     }
 
     @Test
@@ -36,7 +43,9 @@ class DenyListTest {
         val userId = UUID.randomUUID()
         DenyList.denyAt(userId, base)
         val almostExpired = base.plus(Duration.ofHours(24)).minusSeconds(1)
-        assertTrue(DenyList.isDeniedAt(userId, almostExpired))
+        assertTrue(DenyList.isDeniedAt(userId, base, almostExpired))
+        // A token issued after the deny is allowed even while the entry lives.
+        assertFalse(DenyList.isDeniedAt(userId, base.plusSeconds(1), almostExpired))
     }
 
     @Test
@@ -44,7 +53,7 @@ class DenyListTest {
         val userId = UUID.randomUUID()
         DenyList.denyAt(userId, base)
         val expired = base.plus(Duration.ofHours(24))
-        assertFalse(DenyList.isDeniedAt(userId, expired))
+        assertFalse(DenyList.isDeniedAt(userId, base, expired))
         // Lazy eviction removes the stale entry on read.
         assertEquals(0, DenyList.size())
     }
@@ -60,7 +69,7 @@ class DenyListTest {
         DenyList.evictExpiredAt(now)
 
         assertEquals(1, DenyList.size())
-        assertTrue(DenyList.isDeniedAt(fresh, now))
-        assertFalse(DenyList.isDeniedAt(stale, now))
+        assertTrue(DenyList.isDeniedAt(fresh, base, now))
+        assertFalse(DenyList.isDeniedAt(stale, base, now))
     }
 }
