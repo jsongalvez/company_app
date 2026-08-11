@@ -54,6 +54,7 @@ import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.UserViewModel
 import com.companyb.companyapp.viewmodel.filterUsers
 import com.companyb.companyapp.viewmodel.parseSlotInput
+import com.companyb.companyapp.viewmodel.slotInputError
 import com.companyb.companyapp.viewmodel.slotOrderForBranch
 
 /**
