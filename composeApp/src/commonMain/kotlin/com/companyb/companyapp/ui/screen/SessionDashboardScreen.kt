@@ -4,10 +4,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -172,7 +174,14 @@ private fun SummaryCardsRow(
     productSalesCount: Int,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(Spacing.md),
+        // IntrinsicSize.Min: the VerticalDivider's fillMaxHeight must size the Row to the
+        // cards' intrinsic height — otherwise the divider forces the Row to the full pane
+        // and the list below starves to zero height (the #144 layout class; pass-2 HARD).
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md)
+                .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
         // #97 Q2 Variant A — equal peers: two equal-weight cards + thin vertical hairline

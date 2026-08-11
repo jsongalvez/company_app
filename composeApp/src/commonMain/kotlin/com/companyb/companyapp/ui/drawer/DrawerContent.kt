@@ -168,6 +168,10 @@ fun DrawerContent(
             branchName = selectedBranchName,
             clockOutState = clockOutState,
             onConfirm = {
+                // pass-2 — guard in the caller's frame: the confirm button's enabled=false
+                // only lands after recomposition, so a same-frame double-tap could otherwise
+                // dispatch twice (the clockIn caller-side guard precedent, #140).
+                if (clockOutState is UiState.Loading) return@ClockOutDialog
                 val id = attendanceId
                 if (id != null) {
                     attendanceViewModel.clockOut(ClockOutRequest(attendanceId = id))

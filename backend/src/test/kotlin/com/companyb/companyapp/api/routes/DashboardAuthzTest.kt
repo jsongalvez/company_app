@@ -114,4 +114,44 @@ class DashboardAuthzTest : BasePostgresTest() {
             assertEquals(404, client.get("/api/branches/$missingBranch/dashboard/today", asUser(clockedInUser)).code)
         }
     }
+
+    // #128 lesson — the X-Test-User bypass harness can't exercise the real auth filter;
+    // the #147 ticket's spec lists "unauthenticated 401", and the in-repo precedent
+    // (ReportsReadScopeAuthzTest.createAppWithJwt) is to add the JWT harness when 401
+    // verification matters, not to skip it (pass-2 re-rate).
+    @Test
+    fun `unauthenticated request gets 401`() {
+        JavalinTest.test(createAppWithJwt()) { _, client ->
+            assertEquals(401, client.get("/api/branches/$branchId/dashboard/today").code)
+        }
+    }
+
+    private fun createAppWithJwt(): Javalin {
+        val config = AppConfig.parse()
+        JwtService.init(config)
+        Password.init(config.authDummyPassword)
+        return Javalin.create { cfg ->
+            cfg.jsonMapper(KotlinxSerializationMapper())
+            cfg.routes.before { ctx ->
+                Database.connect(DatabaseTestHelper.requireTestDataSource())
+            }
+            cfg.routes.before("/api/*") { ctx ->
+                val token =
+                    ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw io.javalin.http.UnauthorizedResponse()
+                val userId = JwtService.verifyToken(token) ?: throw io.javalin.http.UnauthorizedResponse()
+                ctx.attribute("userId", userId)
+            }
+            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                ctx.status(403).json(
+                    mapOf("error" to (e.message ?: "Forbidden")),
+                )
+            }
+            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                ctx.status(404).json(
+                    mapOf("error" to (e.message ?: "Not Found")),
+                )
+            }
+            DashboardRoutes.register(cfg)
+        }
+    }
 }
