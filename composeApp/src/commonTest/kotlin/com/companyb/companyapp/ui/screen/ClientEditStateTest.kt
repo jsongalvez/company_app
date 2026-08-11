@@ -92,6 +92,65 @@ class ClientEditStateTest {
         )
     }
 
+    @Test
+    fun `same value on a different field never abandons`() {
+        // The record's field must match the editing field — a coincidentally identical draft
+        // value on another field is a different attempt.
+        assertAbandon(
+            expected = false,
+            updateState = error,
+            lastDispatched = ClientField.AGE,
+            editing = ClientField.PHONE,
+            draftMatches = true,
+        )
+    }
+
+    @Test
+    fun `matches trims the live draft - trailing space is not a modification`() {
+        val record = DispatchedDraft(field = ClientField.PHONE, value = "09171234567")
+        // The dispatch trimmed the payload; the user's draft still carries the trailing space —
+        // byte-comparing raw would see a 'modification' and phantom-re-dispatch the same payload.
+        assertEquals(
+            expected = true,
+            actual = record.matches(draftValue = "09171234567 ", bpSystolic = "", bpDiastolic = ""),
+        )
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "09179999999", bpSystolic = "", bpDiastolic = ""),
+        )
+    }
+
+    @Test
+    fun `matches trims both bp sides - trailing spaces are not a modification`() {
+        val record = DispatchedDraft(field = ClientField.BP_PAIR, value = "120", bpDiastolic = "80")
+        assertEquals(
+            expected = true,
+            actual = record.matches(draftValue = "", bpSystolic = "120 ", bpDiastolic = " 80"),
+        )
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "", bpSystolic = "120", bpDiastolic = "79"),
+        )
+    }
+
+    @Test
+    fun `bp record never matches a single-field draft`() {
+        val record = DispatchedDraft(field = ClientField.BP_PAIR, value = "120", bpDiastolic = "80")
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "120", bpSystolic = "", bpDiastolic = ""),
+        )
+    }
+
+    @Test
+    fun `null record never matches`() {
+        val record = DispatchedDraft(field = null, value = "")
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "", bpSystolic = "", bpDiastolic = ""),
+        )
+    }
+
     private fun assertAbandon(
         expected: Boolean,
         updateState: UiState<*>,

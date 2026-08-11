@@ -225,32 +225,13 @@ private fun ClientDetailContent(
     // the new field's edit nor pollute it with the old field's error.
     var pendingEditField by remember { mutableStateOf<ClientField?>(null) }
 
-    // The draft value of the LAST dispatched PATCH, recorded synchronously at dispatch. The
-    // supersede gate compares the current draft against these: an unchanged draft whose PATCH
-    // already failed abandons on switch (no phantom re-dispatch); a modified draft is a fresh
-    // attempt and dispatches. Written only at dispatch, so validation errors (which never
-    // dispatch) can never match.
-    var lastDispatchedField by remember { mutableStateOf<ClientField?>(null) }
-    var lastDispatchedDraftValue by remember { mutableStateOf("") }
-    var lastDispatchedBpSystolic by remember { mutableStateOf("") }
-    var lastDispatchedBpDiastolic by remember { mutableStateOf("") }
-
-    // Whether the current draft equals the last dispatched PATCH's payload (per field kind).
-    fun draftMatchesLastDispatched(): Boolean =
-        when (lastDispatchedField) {
-            null -> {
-                false
-            }
-
-            ClientField.BP_PAIR -> {
-                bpDraft.systolic == lastDispatchedBpSystolic &&
-                    bpDraft.diastolic == lastDispatchedBpDiastolic
-            }
-
-            else -> {
-                draftValue == lastDispatchedDraftValue
-            }
-        }
+    // The last dispatched PATCH's payload, recorded synchronously at dispatch. The supersede
+    // gate compares the current draft against it: an unchanged draft whose PATCH already failed
+    // abandons on switch (no phantom re-dispatch); a modified draft is a fresh attempt and
+    // dispatches. Written only at dispatch, so validation errors (which never dispatch) can
+    // never match. Cleared when the edit session ends (exit/Esc/landing exits) — a re-entered
+    // identical value is a fresh attempt, not the same failure.
+    var lastDispatched by remember { mutableStateOf<DispatchedDraft?>(null) }
 
     // Whether a landing PATCH outcome concerns the field currently being edited. Both commit
     // paths set the pending field synchronously before dispatching, so a non-null pending field
@@ -268,6 +249,7 @@ private fun ClientDetailContent(
                     editingField = null
                     draftValue = ""
                     fieldError = null
+                    lastDispatched = null
                 }
                 pendingEditField = null
                 wasUpdateLoading = false
@@ -278,6 +260,7 @@ private fun ClientDetailContent(
                     editingField = null
                     draftValue = ""
                     fieldError = null
+                    lastDispatched = null
                 }
                 pendingEditField = null
                 wasUpdateLoading = false
@@ -308,6 +291,7 @@ private fun ClientDetailContent(
         editingField = null
         draftValue = ""
         fieldError = null
+        lastDispatched = null
     }
 
     // Typing clears the live error: a draft modified after a failed PATCH is a fresh attempt
@@ -322,13 +306,10 @@ private fun ClientDetailContent(
     // the current draft against it (no composition-lagged reads in the gate).
     fun recordDispatchedDraft(
         field: ClientField,
-        draft: String,
+        value: String,
         bpDiastolic: String = "",
     ) {
-        lastDispatchedField = field
-        lastDispatchedDraftValue = draft
-        lastDispatchedBpSystolic = draft
-        lastDispatchedBpDiastolic = bpDiastolic
+        lastDispatched = DispatchedDraft(field = field, value = value, bpDiastolic = bpDiastolic)
     }
 
     // Returns false when the draft is invalid — the caller (startEdit's supersede) then aborts
@@ -400,9 +381,10 @@ private fun ClientDetailContent(
                 when {
                     shouldAbandonFailedDraft(
                         updateState = viewModel.updateClientState.value,
-                        lastDispatchedField = lastDispatchedField,
+                        lastDispatchedField = lastDispatched?.field,
                         editingField = editingField,
-                        draftMatchesLastDispatched = draftMatchesLastDispatched(),
+                        draftMatchesLastDispatched =
+                            lastDispatched?.matches(draftValue, bpDraft.systolic, bpDraft.diastolic) == true,
                     ) -> true
 
                     editingField == ClientField.BP_PAIR -> commitBpDrafts()
@@ -707,6 +689,29 @@ internal fun shouldAbandonFailedDraft(
         lastDispatchedField != null &&
         lastDispatchedField == editingField &&
         draftMatchesLastDispatched
+
+/**
+ * Synchronous record of the last dispatched PATCH's payload (see [shouldAbandonFailedDraft]).
+ * [value] holds the TRIMMED payload (dispatch trims before sending); the comparison trims the
+ * live drafts so a trailing-space draft can't masquerade as a modification. Internal for the
+ * unit test (commonTest friend path).
+ */
+internal data class DispatchedDraft(
+    val field: ClientField?,
+    val value: String,
+    val bpDiastolic: String = "",
+) {
+    fun matches(
+        draftValue: String,
+        bpSystolic: String,
+        bpDiastolic: String,
+    ): Boolean =
+        when (field) {
+            null -> false
+            ClientField.BP_PAIR -> bpSystolic.trim() == value && bpDiastolic.trim() == this.bpDiastolic
+            else -> draftValue.trim() == value
+        }
+}
 
 /**
  * D4 — inline per-field editor: pencil affordance → edit in place → commit on Enter/blur.
