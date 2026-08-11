@@ -69,13 +69,24 @@ fun AuditLogScreen(
     val acknowledgingIds by viewModel.acknowledgingIds.collectAsState()
     val ackErrors by viewModel.ackErrors.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val refreshError by viewModel.refreshError.collectAsState()
+    val flaggedRefreshError by viewModel.flaggedRefreshError.collectAsState()
+    val browseRefreshError by viewModel.browseRefreshError.collectAsState()
+    val appliedFilters by viewModel.appliedFilters.collectAsState()
     val nextCursor by viewModel.nextCursor.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val loadMoreError by viewModel.loadMoreError.collectAsState()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_FOR_REVIEW) }
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+    // Hoisted filter-bar draft state: the bar lives inside the All-activity tab branch, so its
+    // local remember would be disposed on every tab switch — the hoist keeps the typed values
+    // across switches so the bar can't drift from the applied filters it rendered.
+    val filterDraft = remember { AuditLogFilterDraft() }
+
+    val onToggleExpanded: (String) -> Unit = { id ->
+        expandedIds =
+            if (id in expandedIds) expandedIds - id else expandedIds + id
+    }
     // D10 — the All-activity list loads on first visit and keeps its accumulated pages across
     // tab switches; For-review reloads on every re-entry (new flags must appear).
     var hasVisitedAllActivity by remember { mutableStateOf(false) }
@@ -102,7 +113,9 @@ fun AuditLogScreen(
             }
         } else if (!hasVisitedAllActivity) {
             hasVisitedAllActivity = true
-            viewModel.refreshBrowse()
+            // D10 — the first visit is a load-on-entry: the cold loud path (Loading → error
+            // card + retry), unlike later re-entries which refresh silently (keep-last-list).
+            viewModel.loadBrowse()
         }
     }
 
@@ -151,15 +164,12 @@ fun AuditLogScreen(
         if (selectedTab == TAB_FOR_REVIEW) {
             ForReviewTab(
                 state = flaggedEntries,
-                refreshError = refreshError,
+                refreshError = flaggedRefreshError,
                 currentUserId = currentUserId,
                 hasAnyCapability = hasAnyCapability,
                 tableLabels = tableLabels,
                 expandedIds = expandedIds,
-                onToggleExpanded = { id ->
-                    expandedIds =
-                        if (id in expandedIds) expandedIds - id else expandedIds + id
-                },
+                onToggleExpanded = onToggleExpanded,
                 acknowledgingIds = acknowledgingIds,
                 ackErrors = ackErrors,
                 onAcknowledge = viewModel::acknowledge,
@@ -170,19 +180,18 @@ fun AuditLogScreen(
             AllActivityTab(
                 state = browseEntries,
                 tables = tables,
-                refreshError = refreshError,
+                refreshError = browseRefreshError,
                 currentUserId = currentUserId,
                 hasAnyCapability = hasAnyCapability,
                 tableLabels = tableLabels,
                 expandedIds = expandedIds,
-                onToggleExpanded = { id ->
-                    expandedIds =
-                        if (id in expandedIds) expandedIds - id else expandedIds + id
-                },
+                onToggleExpanded = onToggleExpanded,
                 acknowledgingIds = acknowledgingIds,
                 ackErrors = ackErrors,
                 onAcknowledge = viewModel::acknowledge,
                 onFullHistory = onFullHistory,
+                filterDraft = filterDraft,
+                filtersApplied = appliedFilters != AuditLogFilters(),
                 onApplyFilters = viewModel::applyFilters,
                 onRetryBrowse = viewModel::retryBrowse,
                 onRetryTables = viewModel::loadTables,
@@ -222,6 +231,7 @@ private fun ForReviewTab(
             }
 
             is UiState.Error -> {
+                logWarn("AuditLogScreen", "flaggedState=Error: ${state.message}")
                 ErrorCard(
                     message = state.message,
                     onRetry = onRetry,
@@ -259,13 +269,21 @@ private fun ForReviewTab(
 @Composable
 private fun RefreshErrorLine(refreshError: String?) {
     if (refreshError != null) {
-        Text(
-            text = refreshError,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(top = Spacing.xs),
-        )
+        InlineErrorText(text = refreshError, modifier = Modifier.padding(top = Spacing.xs))
     }
+}
+
+@Composable
+private fun InlineErrorText(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = modifier,
+    )
 }
 
 @Composable
@@ -282,6 +300,8 @@ private fun AllActivityTab(
     ackErrors: Map<String, String>,
     onAcknowledge: (AuditLogEntryResponse) -> Unit,
     onFullHistory: (AuditLogEntryResponse) -> Unit,
+    filterDraft: AuditLogFilterDraft,
+    filtersApplied: Boolean,
     onApplyFilters: (AuditLogFilters) -> Unit,
     onRetryBrowse: () -> Unit,
     onRetryTables: () -> Unit,
@@ -290,17 +310,13 @@ private fun AllActivityTab(
     isLoadingMore: Boolean,
     loadMoreError: String?,
 ) {
-    var filtersApplied by remember { mutableStateOf(false) }
-
     Column(modifier = Modifier.fillMaxSize()) {
         RefreshErrorLine(refreshError)
         AuditLogFilterBar(
             tables = tables,
             onRetryTables = onRetryTables,
-            onApply = { filters ->
-                filtersApplied = filters != AuditLogFilters()
-                onApplyFilters(filters)
-            },
+            draft = filterDraft,
+            onApply = onApplyFilters,
         )
 
         when (state) {
@@ -319,6 +335,7 @@ private fun AllActivityTab(
             }
 
             is UiState.Error -> {
+                logWarn("AuditLogScreen", "browseState=Error: ${state.message}")
                 ErrorCard(
                     message = state.message,
                     onRetry = onRetryBrowse,
@@ -356,10 +373,8 @@ private fun AllActivityTab(
                             onFullHistory = onFullHistory,
                         )
                         if (loadMoreError != null) {
-                            Text(
+                            InlineErrorText(
                                 text = loadMoreError,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(Spacing.xs),
                             )
                         }
@@ -382,39 +397,34 @@ private fun AllActivityTab(
 // D4/D8 — filter bar: server-driven table dropdown (loading/error states + retry; never
 // hardcode labels), action dropdown, date range from/to (inclusive Manila days, yyyy-MM-dd),
 // caller-name text. Validation is light (format + ordering); the backend remains authoritative
-// (400 → in-place error card).
+// (400 → in-place error card). The draft state is hoisted to the screen so tab switches don't
+// dispose the typed values.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AuditLogFilterBar(
     tables: UiState<List<AuditLogTableResponse>>,
     onRetryTables: () -> Unit,
+    draft: AuditLogFilterDraft,
     onApply: (AuditLogFilters) -> Unit,
 ) {
-    var selectedTableName by remember { mutableStateOf<String?>(null) }
-    var selectedAction by remember { mutableStateOf<String?>(null) }
-    var callerName by remember { mutableStateOf("") }
-    var dateFrom by remember { mutableStateOf("") }
-    var dateTo by remember { mutableStateOf("") }
-    var dateError by remember { mutableStateOf<String?>(null) }
-
     fun apply() {
-        val from = dateFrom.trim().takeIf { it.isNotEmpty() }
-        val to = dateTo.trim().takeIf { it.isNotEmpty() }
+        val from = draft.dateFrom.trim().takeIf { it.isNotEmpty() }
+        val to = draft.dateTo.trim().takeIf { it.isNotEmpty() }
         val malformed = listOfNotNull(from, to).any { !DATE_PATTERN.matches(it) }
         if (malformed) {
-            dateError = "Dates must be yyyy-MM-dd"
+            draft.dateError = "Dates must be yyyy-MM-dd"
             return
         }
         if (from != null && to != null && from > to) {
-            dateError = "From must be before To"
+            draft.dateError = "From must be before To"
             return
         }
-        dateError = null
+        draft.dateError = null
         onApply(
             AuditLogFilters(
-                tableName = selectedTableName,
-                action = selectedAction,
-                callerName = callerName.trim().takeIf { it.isNotBlank() },
+                tableName = draft.selectedTableName,
+                action = draft.selectedAction,
+                callerName = draft.callerName.trim().takeIf { it.isNotBlank() },
                 dateFrom = from,
                 dateTo = to,
             ),
@@ -422,12 +432,12 @@ private fun AuditLogFilterBar(
     }
 
     fun reset() {
-        selectedTableName = null
-        selectedAction = null
-        callerName = ""
-        dateFrom = ""
-        dateTo = ""
-        dateError = null
+        draft.selectedTableName = null
+        draft.selectedAction = null
+        draft.callerName = ""
+        draft.dateFrom = ""
+        draft.dateTo = ""
+        draft.dateError = null
         onApply(AuditLogFilters())
     }
 
@@ -443,14 +453,14 @@ private fun AuditLogFilterBar(
         ) {
             TableDropdown(
                 tables = tables,
-                selectedTableName = selectedTableName,
-                onTableSelected = { selectedTableName = it },
+                selectedTableName = draft.selectedTableName,
+                onTableSelected = { draft.selectedTableName = it },
                 onRetryTables = onRetryTables,
                 modifier = Modifier.weight(1f),
             )
             ActionDropdown(
-                selectedAction = selectedAction,
-                onActionSelected = { selectedAction = it },
+                selectedAction = draft.selectedAction,
+                onActionSelected = { draft.selectedAction = it },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -462,10 +472,10 @@ private fun AuditLogFilterBar(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             OutlinedTextField(
-                value = dateFrom,
+                value = draft.dateFrom,
                 onValueChange = {
-                    dateFrom = it
-                    dateError = null
+                    draft.dateFrom = it
+                    draft.dateError = null
                 },
                 label = { Text("From") },
                 placeholder = { Text("yyyy-MM-dd") },
@@ -473,10 +483,10 @@ private fun AuditLogFilterBar(
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                value = dateTo,
+                value = draft.dateTo,
                 onValueChange = {
-                    dateTo = it
-                    dateError = null
+                    draft.dateTo = it
+                    draft.dateError = null
                 },
                 label = { Text("To") },
                 placeholder = { Text("yyyy-MM-dd") },
@@ -484,8 +494,8 @@ private fun AuditLogFilterBar(
                 modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
-                value = callerName,
-                onValueChange = { callerName = it },
+                value = draft.callerName,
+                onValueChange = { draft.callerName = it },
                 label = { Text("Caller") },
                 singleLine = true,
                 modifier = Modifier.weight(2f),
@@ -504,15 +514,21 @@ private fun AuditLogFilterBar(
                     Text("Reset")
                 }
             }
-            if (dateError != null) {
-                Text(
-                    text = dateError.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
+            if (draft.dateError != null) {
+                InlineErrorText(text = draft.dateError.orEmpty())
             }
         }
     }
+}
+
+// Hoisted filter-bar draft (see AuditLogScreen) — plain state holder, remembered at screen scope.
+private class AuditLogFilterDraft {
+    var selectedTableName by mutableStateOf<String?>(null)
+    var selectedAction by mutableStateOf<String?>(null)
+    var callerName by mutableStateOf("")
+    var dateFrom by mutableStateOf("")
+    var dateTo by mutableStateOf("")
+    var dateError by mutableStateOf<String?>(null)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -697,18 +713,29 @@ internal fun AuditLogEntryRow(
             Column(
                 modifier = Modifier.padding(start = Spacing.lg, top = Spacing.xs),
             ) {
-                val fields =
+                val (fields, malformedDiff) =
                     remember(entry.oldValue, entry.newValue) {
-                        parseChangedFields(entry.oldValue, entry.newValue)
+                        val malformed = diffHasMalformedSide(entry.oldValue, entry.newValue)
+                        parseChangedFields(entry.oldValue, entry.newValue) to malformed
                     }
-                if (fields.isEmpty()) {
-                    Text(
-                        text = "No field changes recorded",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    ChangedFieldsList(fields = fields, action = entry.action)
+                when {
+                    // D3 — a present-but-unparseable diff side is server-data corruption: render
+                    // nothing rather than a misleading "no changes" line (corruption ≠ absence).
+                    malformedDiff -> {
+                        Unit
+                    }
+
+                    fields.isEmpty() -> {
+                        Text(
+                            text = "No field changes recorded",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    else -> {
+                        ChangedFieldsList(fields = fields, action = entry.action)
+                    }
                 }
                 entry.reason?.let { reason ->
                     Text(
@@ -737,11 +764,7 @@ internal fun AuditLogEntryRow(
                     }
                 }
                 if (ackError != null) {
-                    Text(
-                        text = ackError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                    InlineErrorText(text = ackError)
                 }
             }
         }
@@ -854,6 +877,13 @@ internal fun parseChangedFields(
     }
 }
 
+// D3 — distinguishes a genuinely empty diff (both sides absent — the "No field changes recorded"
+// line) from a present-but-unparseable side (server-data corruption — the row renders nothing).
+internal fun diffHasMalformedSide(
+    oldValue: String?,
+    newValue: String?,
+): Boolean = parseFieldMap(oldValue) is FieldMap.Malformed || parseFieldMap(newValue) is FieldMap.Malformed
+
 private sealed interface FieldMap {
     data object Absent : FieldMap
 
@@ -948,6 +978,7 @@ fun AuditLogHistoryScreen(
             }
 
             is UiState.Error -> {
+                logWarn("AuditLogHistoryScreen", "historyState=Error: ${state.message}")
                 ErrorCard(
                     message = state.message,
                     onRetry = { viewModel.loadHistory(tableName, recordId) },

@@ -2,6 +2,8 @@ package com.companyb.companyapp.ui.screen
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Tests for [parseChangedFields] (#123 build of the locked #104 D3 — the backend stores only
@@ -114,5 +116,22 @@ class AuditLogDiffTest {
             expected = emptyList<ChangedField>(),
             actual = parseChangedFields(oldValue = """{}""", newValue = """{}"""),
         )
+    }
+
+    // #144 pass-1: the row must distinguish a malformed diff side (render nothing — D3 corruption
+    // axis) from a genuinely empty diff (render "No field changes recorded").
+    @Test
+    fun malformed_side_is_detected() {
+        assertTrue(diffHasMalformedSide(oldValue = "not-json", newValue = null))
+        assertTrue(diffHasMalformedSide(oldValue = """{"a":"1"}""", newValue = "also-not-json"))
+        assertTrue(diffHasMalformedSide(oldValue = "[1,2]", newValue = """{"a":"1"}"""))
+    }
+
+    @Test
+    fun valid_or_absent_sides_are_not_malformed() {
+        assertFalse(diffHasMalformedSide(oldValue = null, newValue = null))
+        assertFalse(diffHasMalformedSide(oldValue = """{"a":"1"}""", newValue = null))
+        assertFalse(diffHasMalformedSide(oldValue = """{"a":"1"}""", newValue = """{"a":"2"}"""))
+        assertFalse(diffHasMalformedSide(oldValue = """{}""", newValue = """{}"""))
     }
 }

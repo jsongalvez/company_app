@@ -36,7 +36,7 @@ actual fun AuditLogEntryList(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        items(entries) { entry ->
+        items(entries, key = { it.id }) { entry ->
             Surface(
                 shape = RoundedCornerShape(CornerRadius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant,
