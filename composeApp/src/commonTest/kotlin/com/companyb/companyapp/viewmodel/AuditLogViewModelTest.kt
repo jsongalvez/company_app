@@ -274,7 +274,7 @@ class AuditLogViewModelTest {
         }
 
     @Test
-    fun refreshBrowse_excludes_entries_acknowledged_this_session() =
+    fun refreshBrowse_keeps_acknowledged_entries_with_flag_cleared() =
         runTest(testScheduler) {
             val harness = AuditHarness(browseBodies = mutableListOf(PAGE1_JSON, PAGE1_JSON, PAGE1_JSON))
             val vm = AuditLogViewModel(mockApiClient(harness.handler()))
@@ -294,6 +294,28 @@ class AuditLogViewModelTest {
             val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.browseEntries.value)
             assertEquals(expected = listOf("e1", "e2"), actual = state.data.map { it.id })
             assertFalse(state.data.first { it.id == "e1" }.isFlagged)
+        }
+
+    @Test
+    fun acknowledge_network_failure_clears_inflight_and_sets_inline_error() =
+        runTest(testScheduler) {
+            val harness = AuditHarness()
+            val vm = AuditLogViewModel(mockApiClient(harness.handler()))
+
+            vm.loadFlaggedEntries()
+            advanceUntilIdle()
+            harness.ackFailure = true
+            vm.acknowledge(entry("e1"))
+            advanceUntilIdle()
+
+            // A network exception in block() must clear the in-flight guard (the row's button
+            // re-enables, the tab's re-entry reload isn't skipped forever) and surface an inline
+            // error — #123 decision 2: every failure path clears the in-flight flags (pass-3
+            // HARD-1: the pre-fix block had no catch → stuck "Acknowledging…" forever).
+            assertTrue(vm.acknowledgingIds.value.isEmpty())
+            assertTrue(vm.ackErrors.value.containsKey("e1"))
+            val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.flaggedEntries.value)
+            assertEquals(expected = listOf("e1", "e2"), actual = state.data.map { it.id })
         }
 
     @Test
@@ -409,7 +431,7 @@ class AuditLogViewModelTest {
         }
 
     @Test
-    fun refreshFlagged_skipped_while_ack_in_flight() =
+    fun refreshFlagged_during_ack_converges_without_resurrection() =
         runTest(testScheduler) {
             val harness = AuditHarness()
             val vm = AuditLogViewModel(mockApiClient(harness.handler()))
@@ -417,12 +439,16 @@ class AuditLogViewModelTest {
             vm.loadFlaggedEntries()
             advanceUntilIdle()
             vm.acknowledge(entry("e1"))
-            // No advance: the ack is in flight, so a re-entry reload must not fire a GET whose
-            // pre-commit snapshot could resurrect the just-acked row.
+            // No advance: the ack is in flight. The re-entry reload may fire concurrently — the
+            // acknowledgedIds transform filter (not a skip) is what prevents a pre-commit
+            // snapshot from resurrecting the just-acked row; skipping would silently drop the
+            // reload's new flags (pass-3 SOFT-1).
             vm.refreshFlagged()
             advanceUntilIdle()
 
-            assertEquals(expected = 1, actual = harness.flaggedCount)
+            // Both requests fired; the acked row is gone either ordering (ack-transform
+            // removal or the refresh-transform filter).
+            assertEquals(expected = 2, actual = harness.flaggedCount)
             val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.flaggedEntries.value)
             assertEquals(expected = listOf("e2"), actual = state.data.map { it.id })
         }
@@ -605,6 +631,20 @@ class AuditLogViewModelTest {
             assertEquals(expected = "r1", actual = request.parameters["recordId"] ?: "")
         }
 
+    @Test
+    fun loadHistory_failure_emits_error() =
+        runTest(testScheduler) {
+            val harness = AuditHarness(historyStatus = HttpStatusCode.InternalServerError)
+            val vm = AuditLogViewModel(mockApiClient(harness.handler()))
+
+            vm.loadHistory(tableName = "session", recordId = "r1")
+            advanceUntilIdle()
+
+            // Genuine server errors surface via the generic ErrorCard + retry; the absent-record
+            // case is 200 + empty (backend contract), which renders the empty state instead.
+            assertIs<UiState.Error>(vm.history.value)
+        }
+
     private fun entry(id: String): AuditLogEntryResponse =
         AuditLogEntryResponse(
             id = id,
@@ -632,6 +672,9 @@ class AuditLogViewModelTest {
         var flaggedCount: Int = 0
         var flaggedBody: String = FLAGGED_JSON
 
+        // When true the acknowledge handler throws — a network failure before any response.
+        var ackFailure: Boolean = false
+
         // When true the entries handler throws — a network failure before any response.
         var browseFailure: Boolean = false
 
@@ -656,6 +699,9 @@ class AuditLogViewModelTest {
                     request.method == HttpMethod.Patch &&
                         request.url.encodedPath.startsWith("/api/audit-log/") &&
                         request.url.encodedPath.endsWith("/acknowledge") -> {
+                        if (ackFailure) {
+                            throw IOException("network down")
+                        }
                         ackCount++
                         jsonRespond(ackStatus, ackBody)
                     }

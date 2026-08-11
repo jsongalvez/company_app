@@ -52,8 +52,10 @@ class AuditLogViewModel(
     // Synchronous in-flight guard shared by the cold load and the silent refresh (the handler's
     // Loading lands on flaggedPage only after launch, so a state-based guard would race a rapid
     // double-tap). One slot for both: cold and refresh write the same list, so they must be
-    // mutually exclusive (two overlapping snapshots would last-writer-win).
-    private var flaggedLoadInFlight = false
+    // mutually exclusive (two overlapping snapshots would last-writer-win). StateFlow so the
+    // Refresh button can disable per tab.
+    private val _flaggedLoadInFlight = MutableStateFlow(false)
+    val isFlaggedLoadInFlight: StateFlow<Boolean> = _flaggedLoadInFlight.asStateFlow()
 
     // Entries acknowledged in this VM's lifetime (D2). The server removes them from /flagged, but
     // a refresh GET whose snapshot was taken pre-ack-commit could resurrect a just-acked row — the
@@ -110,7 +112,7 @@ class AuditLogViewModel(
 
     // D10 — For-review tab load: cold loud path (Loading → error card + retry).
     fun loadFlaggedEntries() {
-        if (flaggedLoadInFlight) return
+        if (_flaggedLoadInFlight.value) return
         _flaggedRefreshError.value = null
         _flaggedEntries.value = UiState.Loading
         fetchFlagged(cold = true)
@@ -118,11 +120,12 @@ class AuditLogViewModel(
 
     // D10 — silent refresh of the For-review tab (keep-last-list: the list stays rendered while
     // in-flight and on failure); the failure surfaces as the tab's refresh error line. Also the
-    // tab re-entry reload (D10: new flags must appear on re-entry without wiping the list).
-    // Skips while an acknowledge is in flight: a refresh GET could snapshot the pre-ack-commit
-    // flagged list and resurrect the just-acked row (the ack transform is the authority).
+    // tab re-entry reload (D10: new flags must appear on re-entry without wiping the list). No
+    // ack-in-flight skip: the transform's acknowledgedIds filter already kills the pre-commit-
+    // snapshot resurrection deterministically, and skipping would silently drop the re-entry
+    // reload's new flags.
     fun refreshFlagged() {
-        if (flaggedLoadInFlight || _acknowledgingIds.value.isNotEmpty()) return
+        if (_flaggedLoadInFlight.value) return
         _flaggedRefreshError.value = null
         fetchFlagged(cold = false)
     }
@@ -132,7 +135,7 @@ class AuditLogViewModel(
     // neither path can wedge the other (the ack and page transforms were already guarded; this
     // closes the flagged side).
     private fun fetchFlagged(cold: Boolean) {
-        flaggedLoadInFlight = true
+        _flaggedLoadInFlight.value = true
         handler.launch(
             state = flaggedPage,
             operation = if (cold) "loadFlaggedEntries" else "refreshFlagged",
@@ -144,7 +147,7 @@ class AuditLogViewModel(
                     throw e
                 } catch (e: Exception) {
                     flagLoadFailure(cold, e.message ?: "flagged load failed")
-                    flaggedLoadInFlight = false
+                    _flaggedLoadInFlight.value = false
                     throw e
                 }
             },
@@ -156,19 +159,19 @@ class AuditLogViewModel(
                                 entry.id in acknowledgedIds
                             },
                         )
-                    flaggedLoadInFlight = false
+                    _flaggedLoadInFlight.value = false
                     Unit
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     flagLoadFailure(cold, e.message ?: "flagged load failed")
-                    flaggedLoadInFlight = false
+                    _flaggedLoadInFlight.value = false
                     throw e
                 }
             },
             onNonSuccess = { response ->
                 flagLoadFailure(cold, "flagged load failed: ${response.status.value}")
-                flaggedLoadInFlight = false
+                _flaggedLoadInFlight.value = false
                 true
             },
         )
@@ -195,7 +198,23 @@ class AuditLogViewModel(
             state = acknowledgeResult,
             operation = "acknowledgeEntry",
             endpoint = "PATCH /api/audit-log/${entry.id}/acknowledge",
-            block = { apiClient.httpClient.patch("/api/audit-log/${entry.id}/acknowledge") },
+            block = {
+                try {
+                    apiClient.httpClient.patch("/api/audit-log/${entry.id}/acknowledge")
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Network failure — clear the in-flight guard so the row's button re-enables
+                    // and the tab's re-entry reload isn't skipped forever, and surface an inline
+                    // error (ADR-0022 pessimistic axis; #123 decision 2: every failure path
+                    // clears the in-flight flags).
+                    _acknowledgingIds.value = _acknowledgingIds.value - entry.id
+                    _ackErrors.value =
+                        _ackErrors.value +
+                        (entry.id to (e.message ?: "Acknowledge failed"))
+                    throw e
+                }
+            },
             transform = {
                 try {
                     val acknowledged = it.body<AuditLogEntryResponse>()

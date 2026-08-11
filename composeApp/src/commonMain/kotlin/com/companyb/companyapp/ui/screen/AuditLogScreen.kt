@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +70,7 @@ fun AuditLogScreen(
     val acknowledgingIds by viewModel.acknowledgingIds.collectAsState()
     val ackErrors by viewModel.ackErrors.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val isFlaggedLoadInFlight by viewModel.isFlaggedLoadInFlight.collectAsState()
     val flaggedRefreshError by viewModel.flaggedRefreshError.collectAsState()
     val browseRefreshError by viewModel.browseRefreshError.collectAsState()
     val appliedFilters by viewModel.appliedFilters.collectAsState()
@@ -78,18 +80,24 @@ fun AuditLogScreen(
 
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_FOR_REVIEW) }
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
+    // D10 — the cold loud load runs once per saveable lifetime (first composition); nav
+    // round-trips (history push → back, rotation, drawer away → back) take the silent refresh
+    // path so the loaded list survives (keep-last-list, pass-3 HARD).
+    var hasLoadedFlaggedOnce by rememberSaveable { mutableStateOf(false) }
     // Hoisted filter-bar draft state: the bar lives inside the All-activity tab branch, so its
     // local remember would be disposed on every tab switch — the hoist keeps the typed values
-    // across switches so the bar can't drift from the applied filters it rendered.
-    val filterDraft = remember { AuditLogFilterDraft() }
+    // across switches (and nav round-trips, via the saver) so the bar can't drift from the
+    // applied filters it rendered.
+    val filterDraft = rememberSaveable(saver = AuditLogFilterDraftSaver) { AuditLogFilterDraft() }
 
     val onToggleExpanded: (String) -> Unit = { id ->
         expandedIds =
             if (id in expandedIds) expandedIds - id else expandedIds + id
     }
     // D10 — the All-activity list loads on first visit and keeps its accumulated pages across
-    // tab switches; For-review reloads on every re-entry (new flags must appear).
-    var hasVisitedAllActivity by remember { mutableStateOf(false) }
+    // tab switches; the flag survives nav round-trips (saveable) so a history push → back
+    // re-entry stays silent instead of re-colding over the accumulated list.
+    var hasVisitedAllActivity by rememberSaveable { mutableStateOf(false) }
 
     val tableLabels =
         (tables as? UiState.Success<List<AuditLogTableResponse>>)
@@ -99,8 +107,14 @@ fun AuditLogScreen(
 
     LaunchedEffect(Unit) {
         logInfo("AuditLogScreen", "composable entered (first composition)")
-        viewModel.loadFlaggedEntries()
         viewModel.loadTables()
+        if (hasLoadedFlaggedOnce) {
+            // Re-entry (history round-trip, rotation): the loaded list survives — silent path.
+            viewModel.refreshFlagged()
+        } else {
+            hasLoadedFlaggedOnce = true
+            viewModel.loadFlaggedEntries()
+        }
     }
 
     // D10 — For-review refreshes on tab re-entry via the SILENT path (refreshFlagged), so the
@@ -142,7 +156,15 @@ fun AuditLogScreen(
                         viewModel.refreshBrowse()
                     }
                 },
-                enabled = !isRefreshing && !isLoadingMore,
+                // Per-tab in-flight coupling: the flagged tab's button tracks the flagged load
+                // guard; the All-activity tab's tracks the browse flags (the VM guards remain
+                // authoritative against double-fires either way).
+                enabled =
+                    if (selectedTab == TAB_FOR_REVIEW) {
+                        !isFlaggedLoadInFlight
+                    } else {
+                        !isRefreshing && !isLoadingMore
+                    },
             ) {
                 Text("Refresh")
             }
@@ -536,6 +558,30 @@ private class AuditLogFilterDraft {
     }
 }
 
+private val AuditLogFilterDraftSaver =
+    Saver<AuditLogFilterDraft, List<String?>>(
+        save = { draft ->
+            listOf(
+                draft.selectedTableName,
+                draft.selectedAction,
+                draft.callerName,
+                draft.dateFrom,
+                draft.dateTo,
+                draft.dateError,
+            )
+        },
+        restore = { values ->
+            AuditLogFilterDraft().apply {
+                selectedTableName = values[0]
+                selectedAction = values[1]
+                callerName = values[2] ?: ""
+                dateFrom = values[3] ?: ""
+                dateTo = values[4] ?: ""
+                dateError = values[5]
+            }
+        },
+    )
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TableDropdown(
@@ -549,8 +595,10 @@ private fun TableDropdown(
     val isError = tables is UiState.Error
     val isIdle = tables is UiState.Idle
     val isLoading = tables is UiState.Loading
-    if (isError) {
-        logWarn("AuditLogScreen", "tablesState=Error: ${(tables as UiState.Error).message}")
+    LaunchedEffect(tables) {
+        if (tables is UiState.Error) {
+            logWarn("AuditLogScreen", "tablesState=Error: ${tables.message}")
+        }
     }
     val tableOptions = (tables as? UiState.Success<List<AuditLogTableResponse>>)?.data.orEmpty()
     val selectedLabel =
@@ -672,7 +720,7 @@ internal fun AuditLogEntryRow(
     showFullHistory: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
-    val canAcknowledge = showAcknowledge && entry.isFlagged && entry.changedBy != currentUserId
+    val canAcknowledge = canAcknowledgeEntry(showAcknowledge, entry, currentUserId)
 
     Column(
         modifier =
@@ -778,6 +826,16 @@ internal fun AuditLogEntryRow(
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 }
+
+// D2 — the Acknowledge affordance: hidden on the caller's own flagged rows (self-ack is
+// server-409'd), and on already-acknowledged rows (the backend leaves `isFlagged` true and sets
+// `acknowledgedAt` — offering Acknowledge there would 404 on tap for other reviewers / fresh
+// VMs). Extracted pure so the rule is test-pinned.
+internal fun canAcknowledgeEntry(
+    showAcknowledge: Boolean,
+    entry: AuditLogEntryResponse,
+    currentUserId: String?,
+): Boolean = showAcknowledge && entry.isFlagged && entry.acknowledgedAt == null && entry.changedBy != currentUserId
 
 @Composable
 private fun ActionPill(action: String) {
