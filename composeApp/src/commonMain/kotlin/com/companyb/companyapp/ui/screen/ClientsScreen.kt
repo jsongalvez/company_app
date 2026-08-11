@@ -71,8 +71,10 @@ fun ClientsScreen(
 
     LaunchedEffect(anonymizeNotice) {
         val notice = anonymizeNotice ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(notice)
+        // Consume BEFORE showing: if the screen leaves composition while showSnackbar suspends,
+        // the notice is already gone — no stale re-snackbar on a later visit.
         ClientState.consumeAnonymizeNotice()
+        snackbarHostState.showSnackbar(notice)
     }
 
     (searchState as? UiState.Success<List<ClientResponse>>)?.let { cachedResults = it.data }

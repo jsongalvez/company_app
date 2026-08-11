@@ -3,7 +3,6 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.dto.ClientResponse
-import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.ClientState
@@ -32,9 +31,6 @@ class ClientViewModel(
     private val _clientDetail = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
     val clientDetail: StateFlow<UiState<ClientResponse>> = _clientDetail.asStateFlow()
 
-    private val _createClientState = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
-    val createClientState: StateFlow<UiState<ClientResponse>> = _createClientState.asStateFlow()
-
     private val _updateClientState = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
     val updateClientState: StateFlow<UiState<ClientResponse>> = _updateClientState.asStateFlow()
 
@@ -47,8 +43,9 @@ class ClientViewModel(
     val detailChangedNotice: StateFlow<Boolean> = _detailChangedNotice.asStateFlow()
 
     // D2 — debounce + current-query guard. `onQueryChange` is the rebuild entry point (debounce
-    // lives in the VM so it's testable via virtual time); `search`/`clearSearch` stay for tests
-    // that want an immediate fire (the #94-grad orphan cleanup removed the last screen consumer).
+    // lives in the VM so it's testable via virtual time); `retrySearch` refires the latest query
+    // through the SAME tracked job so typing or X-clearing also cancels a retry in flight (an
+    // untracked retry could otherwise resurrect results under a cleared/newer query).
     private var searchJob: Job? = null
     private var latestQuery: String = ""
 
@@ -87,31 +84,28 @@ class ClientViewModel(
     }
 
     fun retrySearch() {
-        if (latestQuery.trim().length >= MIN_SEARCH_CHARS) {
-            search(latestQuery.trim())
-        }
-    }
-
-    fun clearSearch() {
-        latestQuery = ""
+        val trimmed = latestQuery.trim()
+        if (trimmed.length < MIN_SEARCH_CHARS) return
         searchJob?.cancel()
-        _searchResults.value = UiState.Idle
-    }
-
-    fun search(query: String) {
-        if (query.isBlank()) return
-        handler.launch(
-            state = _searchResults,
-            operation = "search",
-            endpoint = "GET /api/clients",
-            entryMessage = "search called: query=$query",
-            block = {
-                apiClient.httpClient.get("/api/clients") {
-                    parameter("q", query)
-                }
-            },
-            transform = { it.body() },
-        )
+        searchJob =
+            viewModelScope.launch {
+                // Same structured-cancellation shape as onQueryChange: the retry launches as a
+                // CHILD of searchJob, so a newer keystroke or X-clear cancels it before its stale
+                // response can commit (D2 current-query guard).
+                handler.launch(
+                    scope = this,
+                    state = _searchResults,
+                    operation = "search",
+                    endpoint = "GET /api/clients",
+                    entryMessage = "search retried: query=$trimmed",
+                    block = {
+                        apiClient.httpClient.get("/api/clients") {
+                            parameter("q", trimmed)
+                        }
+                    },
+                    transform = { it.body() },
+                )
+            }
     }
 
     fun loadClient(
@@ -133,20 +127,6 @@ class ClientViewModel(
         )
     }
 
-    fun createClient(request: CreateClientRequest) {
-        handler.launch(
-            state = _createClientState,
-            operation = "createClient",
-            endpoint = "POST /api/clients",
-            block = {
-                apiClient.httpClient.post("/api/clients") {
-                    setBody(request)
-                }
-            },
-            transform = { it.body() },
-        )
-    }
-
     fun updateClient(
         clientId: String,
         request: UpdateClientRequest,
@@ -161,7 +141,14 @@ class ClientViewModel(
                     setBody(request)
                 }
             },
-            transform = { it.body() },
+            // D4 — the PATCH response IS the updated record: commit it straight into the detail
+            // flow so the display shows the new value when edit mode exits (the screen renders
+            // clientDetail, not updateClientState — without this the edit would look lost).
+            transform = { response ->
+                val updated = response.body<ClientResponse>()
+                _clientDetail.value = UiState.Success(updated)
+                updated
+            },
             // D4 — pessimistic per-field edit axes:
             // 403 = capability revoked mid-session → silent exit (no error, no inline message;
             //      backend-authoritative, ADR-0007 — the screen stays on stale data until reload).

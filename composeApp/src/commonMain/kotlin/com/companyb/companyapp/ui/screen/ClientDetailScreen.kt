@@ -104,8 +104,22 @@ fun ClientDetailScreen(
     // D1 — 204 → pop back to search; the confirmation snackbar is shown by ClientsScreen
     // (ClientState.anonymizeNotice).
     LaunchedEffect(anonymizeState) {
-        if (anonymizeState is UiState.Success) {
-            onAnonymized()
+        when (val state = anonymizeState) {
+            is UiState.Success -> {
+                onAnonymized()
+            }
+
+            is UiState.Error -> {
+                logWarn("ClientDetailScreen", "anonymizeState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(detailState) {
+        (detailState as? UiState.Error)?.let {
+            logWarn("ClientDetailScreen", "detailState=Error: ${it.message}")
         }
     }
 
@@ -237,7 +251,12 @@ private fun ClientDetailContent(
         }
     }
 
+    // H4 — mutual exclusion with in-flight mutations: a new edit can't open while a PATCH or the
+    // anonymize POST is in flight (an unrelated Success would otherwise force-exit the new edit,
+    // silently discarding its draft; an anonymize in flight must never race a fresh PATCH).
     fun startEdit(field: ClientField) {
+        if (updateState is UiState.Loading) return
+        if (anonymizeState is UiState.Loading) return
         editingField = field
         draftValue = currentFieldValue(client, field)
         fieldError = null
@@ -252,6 +271,7 @@ private fun ClientDetailContent(
     fun commitEdit(field: ClientField) {
         if (editingField != field) return
         if (updateState is UiState.Loading) return
+        if (anonymizeState is UiState.Loading) return
         val trimmed = draftValue.trim()
         if (trimmed == currentFieldValue(client, field)) {
             exitEdit()
@@ -267,6 +287,7 @@ private fun ClientDetailContent(
     fun commitBpPair(patch: UpdateClientRequest) {
         if (editingField != ClientField.BP_PAIR) return
         if (updateState is UiState.Loading) return
+        if (anonymizeState is UiState.Loading) return
         viewModel.updateClient(client.id, patch)
     }
 
@@ -445,6 +466,11 @@ private fun ClientDetailContent(
     if (showAnonymizeDialog) {
         AnonymizeDialog(
             clientName = clientDisplayName(client),
+            // H4 — clicking Anonymize blurs an editing field, which blur-commits a PATCH in
+            // flight; confirming while that PATCH is still saving would race it against the
+            // anonymize POST (a slow PATCH could land after the anonymize and re-populate PII on
+            // the soft-deleted row). Confirm stays disabled until the edit resolves.
+            editInFlight = updateState is UiState.Loading,
             onConfirm = {
                 showAnonymizeDialog = false
                 viewModel.anonymizeClient(client.id)
@@ -458,6 +484,7 @@ private fun ClientDetailContent(
 @Composable
 private fun AnonymizeDialog(
     clientName: String,
+    editInFlight: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -478,11 +505,20 @@ private fun AnonymizeDialog(
                             "Gender and age are kept for reporting.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                if (editInFlight) {
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text(
+                        text = "Saving your edit…",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
+                enabled = !editInFlight,
                 colors =
                     ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
@@ -616,12 +652,17 @@ private fun BpPairEditor(
 ) {
     var draftSystolic by remember { mutableStateOf("") }
     var draftDiastolic by remember { mutableStateOf("") }
+    // H3 — blur-commit fires only when the user actually typed: without this, tapping from
+    // systolic to diastolic blurs field 1 with both drafts still holding the seeded values →
+    // commitPair() sees "unchanged" and cancels the edit before the user typed anything.
+    var dirty by remember { mutableStateOf(false) }
 
     // Re-seed drafts each time edit mode is entered (values may have changed via a 409 reload).
     LaunchedEffect(editing) {
         if (editing) {
             draftSystolic = systolic?.toString().orEmpty()
             draftDiastolic = diastolic?.toString().orEmpty()
+            dirty = false
         }
     }
 
@@ -661,7 +702,10 @@ private fun BpPairEditor(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = draftSystolic,
-                    onValueChange = { draftSystolic = it },
+                    onValueChange = {
+                        draftSystolic = it
+                        dirty = true
+                    },
                     singleLine = true,
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
@@ -669,10 +713,11 @@ private fun BpPairEditor(
                     modifier =
                         Modifier
                             .weight(1f)
-                            // Blur commits only once the pair is complete — otherwise tapping the
-                            // second field would prematurely surface "Both BP fields are required".
+                            // Blur commits only once the pair is complete AND the user typed —
+                            // otherwise tapping the second field would prematurely surface
+                            // "Both BP fields are required" or silently cancel the edit.
                             .onFocusChanged {
-                                if (!it.isFocused && draftSystolic.isNotBlank() &&
+                                if (!it.isFocused && dirty && draftSystolic.isNotBlank() &&
                                     draftDiastolic.isNotBlank()
                                 ) {
                                     commitPair()
@@ -693,7 +738,10 @@ private fun BpPairEditor(
                 )
                 OutlinedTextField(
                     value = draftDiastolic,
-                    onValueChange = { draftDiastolic = it },
+                    onValueChange = {
+                        draftDiastolic = it
+                        dirty = true
+                    },
                     singleLine = true,
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
@@ -702,7 +750,7 @@ private fun BpPairEditor(
                         Modifier
                             .weight(1f)
                             .onFocusChanged {
-                                if (!it.isFocused && draftSystolic.isNotBlank() &&
+                                if (!it.isFocused && dirty && draftSystolic.isNotBlank() &&
                                     draftDiastolic.isNotBlank()
                                 ) {
                                     commitPair()

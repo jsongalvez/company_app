@@ -304,6 +304,38 @@ class ClientServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `update client after anonymize returns 404 and keeps PII null`() {
+        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        createClient(callerId, clientAId)
+        ClientService.anonymize(callerId, clientAId)
+
+        assertFailsWith<NotFoundException> {
+            ClientService.update(
+                callerId = callerId,
+                clientId = clientAId,
+                firstName = "Jane",
+                lastName = "Smith",
+                middleName = null,
+                suffix = null,
+                phoneNumber = "1112223333",
+                address = "456 Oak St",
+                gender = null,
+                age = null,
+                systolicBp = null,
+                diastolicBp = null,
+                medicalConditions = null,
+            )
+        }
+
+        // The anonymized row is untouched — the stale PATCH could not re-populate PII.
+        val persisted = persistedClient(clientAId)
+        assertNull(persisted.firstName)
+        assertNull(persisted.lastName)
+        assertNull(persisted.phoneNumber)
+        assertNotNull(persisted.deletedAt)
+    }
+
+    @Test
     fun `update client writes audit log`() {
         DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
         createClient(callerId, clientAId)

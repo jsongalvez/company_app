@@ -123,8 +123,11 @@ object ClientRepository {
         auditFn: (Client) -> Unit = {},
     ): Client? =
         transaction {
+            // H4 — the WHERE clause excludes anonymized rows (the anonymize guard's mirror): an
+            // update can never write PII onto a soft-deleted record, even if a stale in-flight
+            // PATCH lands after the anonymize. The re-read below additionally 404s them.
             val updatedCount =
-                ClientTable.update({ ClientTable.id eq params.clientId }) {
+                ClientTable.update({ (ClientTable.id eq params.clientId) and (ClientTable.deletedAt.isNull()) }) {
                     if (params.firstName != null) it[ClientTable.firstName] = params.firstName
                     if (params.lastName != null) it[ClientTable.lastName] = params.lastName
                     if (params.middleName != null) it[ClientTable.middleName] = params.middleName
@@ -138,6 +141,7 @@ object ClientRepository {
                     if (params.medicalConditions != null) it[ClientTable.medicalConditions] = params.medicalConditions
                 }
             val updated = findByIdInTransaction(params.clientId) ?: return@transaction null
+            if (updated.deletedAt != null) return@transaction null
 
             if (updatedCount > 0) {
                 auditFn(updated)

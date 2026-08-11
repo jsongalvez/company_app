@@ -182,6 +182,92 @@ class ClientViewModelTest {
         }
 
     @Test
+    fun retrySearch_inflight_cancelled_by_clear_stale_response_never_commits() =
+        runTest(testScheduler) {
+            val recorded = mutableListOf<String>()
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/clients" -> {
+                                val q = request.url.parameters["q"].orEmpty()
+                                recorded.add(q)
+                                // The retried request stays in flight (virtual-time delay) — the
+                                // D2 current-query guard must kill it on X-clear, or its stale
+                                // response resurrects a list under an empty query.
+                                if (q == "jo") {
+                                    delay(10_000)
+                                }
+                                jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.retrySearch()
+            advanceTimeByAndRun(1_000)
+            assertIs<UiState.Loading>(vm.searchResults.value)
+
+            vm.onQueryChange("")
+            runCurrent()
+            assertIs<UiState.Idle>(vm.searchResults.value)
+
+            advanceTimeByAndRun(20_000)
+            assertIs<UiState.Idle>(vm.searchResults.value)
+        }
+
+    @Test
+    fun retrySearch_then_type_new_query_stale_retry_never_overwrites_newer_results() =
+        runTest(testScheduler) {
+            val recorded = mutableListOf<String>()
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/clients" -> {
+                                val q = request.url.parameters["q"].orEmpty()
+                                recorded.add(q)
+                                if (q == "jo") {
+                                    // Stale retry held in flight beyond the newer query's response.
+                                    delay(10_000)
+                                    jsonRespond(status = HttpStatusCode.OK, body = STALE_JSON)
+                                } else {
+                                    jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
+                                }
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(300)
+            vm.retrySearch()
+            advanceTimeByAndRun(1_000)
+
+            vm.onQueryChange("joh")
+            advanceTimeByAndRun(300)
+            var state = assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value)
+            assertEquals(expected = listOf("c1"), actual = state.data.map { it.id })
+
+            advanceTimeByAndRun(20_000)
+            state = assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value)
+            assertEquals(expected = listOf("c1"), actual = state.data.map { it.id })
+            assertEquals(expected = listOf("jo", "jo", "joh"), actual = recorded)
+        }
+
+    @Test
     fun search_success_empty_list_emits_success() =
         runTest(testScheduler) {
             val vm =
@@ -250,6 +336,22 @@ class ClientViewModelTest {
 
             val state = assertIs<UiState.Success<ClientResponse>>(vm.updateClientState.value)
             assertEquals(expected = "0999", actual = state.data.phoneNumber)
+        }
+
+    @Test
+    fun updateClient_success_commits_updated_record_into_detail_state() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(clientHandler()))
+
+            vm.updateClient("c1", UpdateClientRequest(phoneNumber = "0999"))
+            runCurrent()
+
+            // D4 — the screen renders clientDetail, not updateClientState: a successful PATCH
+            // must commit the response into the detail flow, or the display reverts to the
+            // pre-edit value when edit mode exits.
+            val detail = assertIs<UiState.Success<ClientResponse>>(vm.clientDetail.value)
+            assertEquals(expected = "0999", actual = detail.data.phoneNumber)
+            assertEquals(expected = "John", actual = detail.data.firstName)
         }
 
     @Test
@@ -396,6 +498,13 @@ class ClientViewModelTest {
         const val SEARCH_JSON =
             """[
                 {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":"09171234567","address":null,"gender":"M","age":30,"systolicBp":120,"diastolicBp":80,"medicalConditions":null}
+            ]"""
+
+        // Distinct payload for the stale-retry test: if the stale "jo" response ever commits
+        // after "joh", the list would show c2 instead of c1.
+        const val STALE_JSON =
+            """[
+                {"id":"c2","firstName":"Old","lastName":"Result","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":50,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}
             ]"""
 
         const val DETAIL_JSON =
