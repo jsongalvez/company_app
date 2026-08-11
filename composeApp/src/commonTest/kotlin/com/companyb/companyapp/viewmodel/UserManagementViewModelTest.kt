@@ -92,6 +92,39 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun loadUsers_during_inflight_mutation_is_skipped() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            assertEquals(expected = 1, actual = harness.usersGetCount)
+
+            // A reload mid-mutation would let the swap transform re-apply on the fresh list
+            // (pass-2 HARD class: non-click triggers like LaunchedEffect refires on rotation/
+            // re-entry bypass the Refresh-button gate). The guard skips the fetch entirely.
+            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            assertTrue(vm.inFlight.value.isNotEmpty())
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            assertEquals(expected = 1, actual = harness.usersGetCount)
+            assertTrue(vm.inFlight.value.isEmpty())
+            // The in-place mutation still landed.
+            val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(
+                expected = 2,
+                actual =
+                    state.data
+                        .first { it.id == "u1" }
+                        .assignments
+                        .first { it.branchId == "b1" }
+                        .slot,
+            )
+        }
+
+    @Test
     fun loadUsers_failure_emits_error() =
         runTest(testScheduler) {
             val vm =
@@ -478,6 +511,7 @@ class UserManagementViewModelTest {
         var updateSlotStatus: HttpStatusCode = HttpStatusCode.OK,
     ) {
         var deactivateCount: Int = 0
+        var usersGetCount: Int = 0
         val swapBodies = mutableListOf<String>()
         val updateSlotBodies = mutableListOf<String>()
 
@@ -488,6 +522,7 @@ class UserManagementViewModelTest {
             { request ->
                 when {
                     request.method == HttpMethod.Get && request.url.encodedPath == "/api/users" -> {
+                        usersGetCount++
                         jsonResponse(usersStatus, USERS_JSON)
                     }
 

@@ -133,8 +133,9 @@ fun UserManagementScreen(
                     viewModel.loadBranches()
                 },
                 // A refresh landing mid-mutation lets the mutation's in-place transform re-apply
-                // to the fresh list (swap would double-apply — pass-1 P2/P4 HARD). The load sets
-                // Loading synchronously, so gating the button here closes the whole window.
+                // to the fresh list (swap would double-apply — pass-1 P2/P4 HARD). Belt: the
+                // button gate here; suspenders: UserViewModel.loadUsers also skips while any
+                // mutation is in flight (covers non-click triggers like LaunchedEffect refires).
                 enabled = !mutationsDisabled,
             ) {
                 Text("Refresh")
@@ -576,6 +577,10 @@ private fun StatusBadge(status: String) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Unknown statuses render raw — a long value must not inflate the clickable row
+            // (pass-2 P4 SOFT).
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
         )
     }
@@ -669,8 +674,10 @@ private fun EditSlotDialog(
                         // Distinguish the two rejection classes: parseSlotInput returns null both
                         // for invalid input and for values beyond Short (the shared DTO + backend
                         // column are SMALLINT) — one message would lie for the other (pass-1 P2).
+                        // toLongOrNull (not toIntOrNull): a 20-digit number must classify as
+                        // too-large, not as invalid (pass-2 P1/P4).
                         val numeric =
-                            input.trim().toIntOrNull()?.let { it >= 1 } == true
+                            input.trim().toLongOrNull()?.let { it >= 1 } == true
                         inputError =
                             if (numeric) {
                                 "Slot number too large (max 32767)"

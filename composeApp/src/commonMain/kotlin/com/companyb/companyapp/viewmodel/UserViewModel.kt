@@ -105,6 +105,13 @@ class UserViewModel(
         // A reload replaces the list; the errors describe actions against the pre-reload list
         // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
         _actionErrors.value = emptyMap()
+        // Guard: a reload mid-mutation would let the mutation's in-place transform re-apply to
+        // the fresh list (swap double-applies — pass-1 P2/P4 HARD class; the Refresh-button gate
+        // alone couldn't cover non-click triggers like LaunchedEffect refires on rotation/
+        // re-entry, pass-2 P2/P4). While any mutation is in flight the locally-mutated list IS
+        // the authority (mutations only exist once the list loaded Success), so skipping is safe:
+        // the only way inFlight is non-empty is a Success list that in-place updates keep current.
+        if (_inFlight.value.isNotEmpty()) return
         handler.launch(
             state = _users,
             operation = "loadUsers",
