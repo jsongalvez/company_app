@@ -339,14 +339,18 @@ private fun ClientDetailContent(
             // The pair routes through its own commit: its drafts live in [bpDraft], not the
             // shared single-field draft, so commitEdit would see an "unchanged" empty draft.
             // An invalid draft aborts the switch — the error stays on the field that owns it.
-            // An already-FAILED draft (updateState Error — the failure belongs to this field:
-            // a switch is blocked while Loading, so no other PATCH can own the error) abandons
-            // on switch instead of re-dispatching: a phantom retry whose second failure would
-            // be suppressed (resolvesCurrentEdit false after the switch) — the attempted value
-            // and error would vanish with zero feedback, breaching D4's pessimistic contract.
+            // An UNCHANGED failed draft abandons on switch: updateState Error + a live
+            // fieldError means the current edit's own PATCH failed and the draft is untouched
+            // (typing clears fieldError, so a modified draft dispatches as a fresh attempt).
+            // Re-dispatching the identical failed value would be a phantom retry whose second
+            // failure is suppressed after the switch (resolvesCurrentEdit false) — the
+            // attempted value and error would vanish with zero feedback, breaching D4.
+            // The gate is fieldError-scoped, not updateState-scoped: a stale Error from a
+            // superseded field (suppressed landing, or a failure cleared by the switch) must
+            // not abandon a different field's never-dispatched draft.
             val committed =
                 when {
-                    updateState is UiState.Error -> true
+                    updateState is UiState.Error && fieldError != null -> true
                     editingField == ClientField.BP_PAIR -> commitBpDrafts()
                     else -> commitEdit(editingField!!)
                 }
@@ -383,7 +387,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -395,7 +405,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -407,7 +423,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -419,7 +441,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -430,7 +458,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                     )
@@ -441,7 +475,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -458,7 +498,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -471,7 +517,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -487,6 +539,7 @@ private fun ClientDetailContent(
                         onStartEdit = { startEdit(ClientField.BP_PAIR) },
                         onCommit = ::commitBpDrafts,
                         onCancel = ::exitEdit,
+                        onDraftChanged = { fieldError = null },
                     )
                     ClientFieldEditor(
                         label = "Medical conditions",
@@ -495,7 +548,13 @@ private fun ClientDetailContent(
                         editingField = editingField,
                         draftValue = draftValue,
                         fieldError = fieldError,
-                        onDraftChange = { draftValue = it },
+                        onDraftChange = {
+                            draftValue = it
+                            // Typing clears the live error: a draft modified after a failed
+                            // PATCH is a fresh attempt (the supersede gate checks fieldError),
+                            // and a validation error vanishes once the input is corrected.
+                            fieldError = null
+                        },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
                         onCancel = ::exitEdit,
@@ -751,6 +810,7 @@ private fun BpPairEditor(
     onStartEdit: () -> Unit,
     onCommit: () -> Unit,
     onCancel: () -> Unit,
+    onDraftChanged: () -> Unit,
 ) {
     // Re-seed drafts each time edit mode is entered. No value-change key needed: any reload
     // (409/404 reload, entry re-fetch) writes UiState.Loading into the detail flow, which
@@ -796,6 +856,7 @@ private fun BpPairEditor(
                     onValueChange = {
                         draft.systolic = it
                         draft.dirtySystolic = true
+                        onDraftChanged()
                     },
                     singleLine = true,
                     isError = fieldError != null,
@@ -813,6 +874,7 @@ private fun BpPairEditor(
                     onValueChange = {
                         draft.diastolic = it
                         draft.dirtyDiastolic = true
+                        onDraftChanged()
                     },
                     singleLine = true,
                     isError = fieldError != null,
