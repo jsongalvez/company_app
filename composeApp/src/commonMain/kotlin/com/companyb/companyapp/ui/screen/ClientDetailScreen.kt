@@ -339,11 +339,16 @@ private fun ClientDetailContent(
             // The pair routes through its own commit: its drafts live in [bpDraft], not the
             // shared single-field draft, so commitEdit would see an "unchanged" empty draft.
             // An invalid draft aborts the switch — the error stays on the field that owns it.
+            // An already-FAILED draft (updateState Error — the failure belongs to this field:
+            // a switch is blocked while Loading, so no other PATCH can own the error) abandons
+            // on switch instead of re-dispatching: a phantom retry whose second failure would
+            // be suppressed (resolvesCurrentEdit false after the switch) — the attempted value
+            // and error would vanish with zero feedback, breaching D4's pessimistic contract.
             val committed =
-                if (editingField == ClientField.BP_PAIR) {
-                    commitBpDrafts()
-                } else {
-                    commitEdit(editingField!!)
+                when {
+                    updateState is UiState.Error -> true
+                    editingField == ClientField.BP_PAIR -> commitBpDrafts()
+                    else -> commitEdit(editingField!!)
                 }
             if (!committed) return
         }
@@ -892,6 +897,7 @@ private fun GenderFieldEditor(
                     onValueChange = {},
                     singleLine = true,
                     readOnly = true,
+                    isError = error != null,
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -938,7 +944,7 @@ private fun GenderFieldEditor(
                 )
             }
         }
-        // D4 inline error — the dropdown has no blur/Enter surface, so a failed PATCH (5xx) must
+        // D4 inline error — the dropdown has no blur/Enter surface, so a failed PATCH must
         // surface here or it is invisible (re-selecting the same value exits the edit).
         if (error != null) {
             Text(
