@@ -196,6 +196,14 @@ class ClientEditStateTest {
         )
     }
 
+    @Test
+    fun `reload state bails the commit - phantom re-dispatch guard`() {
+        assertEquals(expected = true, actual = shouldBailOnReload(UiState.Loading))
+        assertEquals(expected = false, actual = shouldBailOnReload(UiState.Idle))
+        assertEquals(expected = false, actual = shouldBailOnReload(UiState.Success("ok")))
+        assertEquals(expected = false, actual = shouldBailOnReload(UiState.Error("updateClient failed: 500")))
+    }
+
     private fun assertAbandon(
         expected: Boolean,
         updateState: UiState<*>,

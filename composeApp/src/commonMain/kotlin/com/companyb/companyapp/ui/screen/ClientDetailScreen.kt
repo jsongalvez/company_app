@@ -323,9 +323,9 @@ private fun ClientDetailContent(
         // Idle by the time the disposal-blur fires on the reload's unmount, so the Loading
         // guard above passes — without this, the identical failed payload would re-dispatch,
         // clobber the reloaded (elsewhere-changed) record and clear the changed-elsewhere
-        // banner. The reload owns the exit (the Idle-branch effect). Live flow value —
-        // synchronous, no composition lag.
-        if (viewModel.clientDetail.value is UiState.Loading) return true
+        // banner. The reload owns the exit (the unmount discards the edit state). Live flow
+        // value — synchronous, no composition lag.
+        if (shouldBailOnReload(viewModel.clientDetail.value)) return true
         val trimmed = draftValue.trim()
         if (trimmed == currentFieldValue(client, field)) {
             exitEdit()
@@ -346,7 +346,7 @@ private fun ClientDetailContent(
         if (editingField != ClientField.BP_PAIR) return true
         if (updateState is UiState.Loading) return true
         if (anonymizeState is UiState.Loading) return true
-        if (viewModel.clientDetail.value is UiState.Loading) return true
+        if (shouldBailOnReload(viewModel.clientDetail.value)) return true
         val sys = bpDraft.systolic.trim()
         val dia = bpDraft.diastolic.trim()
         if (sys.isEmpty() || dia.isEmpty()) {
@@ -675,6 +675,16 @@ private fun Modifier.escapeCancels(onCancel: () -> Unit): Modifier =
             false
         }
     }
+
+/**
+ * Reload bail guard: while the detail flow is Loading, a commit must not dispatch — the
+ * 409/404 reload's unmount fires the editing field's disposal-blur, and the composed
+ * updateState has already flipped to Idle by then (the 409 handler wrote Idle + triggered the
+ * reload in one turn), so the commit's Loading guard alone would let the identical failed
+ * payload re-dispatch and clobber the reloaded record. The reload owns the exit. Internal for
+ * the unit test (commonTest friend path).
+ */
+internal fun shouldBailOnReload(detailState: UiState<*>): Boolean = detailState is UiState.Loading
 
 /**
  * Supersede gate: abandon (don't re-dispatch) a draft whose PATCH already failed UNCHANGED.
