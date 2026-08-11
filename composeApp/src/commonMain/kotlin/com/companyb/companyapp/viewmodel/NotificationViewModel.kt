@@ -54,11 +54,11 @@ class NotificationViewModel(
                     // Defense-in-depth: the backend 200s an already-read OWN row (WHERE id+user
                     // matches, readAt refreshed — idempotent), so a 404 can only mean the row is
                     // absent or not the caller's — unreachable from this UI today, but a future
-                    // notification-deletion surface (the #102 read-history fog) would make it
-                    // reachable. Handle it as "the row is gone": reload and let the screen
-                    // re-derive instead of surfacing a phantom failure, and reset the in-flight
-                    // marker — leaving Loading would mark the action in-flight forever (#140
-                    // stuck-Loading class).
+                    // notification lifecycle surface (purge/expiry riding the #102 read-history
+                    // backend expansion) would make it reachable. Handle it as "the row is gone":
+                    // reload and let the screen re-derive instead of surfacing a phantom failure,
+                    // and reset the in-flight marker — leaving Loading would mark the action
+                    // in-flight forever (#140 stuck-Loading class).
                     _markReadResult.value = UiState.Idle
                     loadUnreadNotifications()
                     true

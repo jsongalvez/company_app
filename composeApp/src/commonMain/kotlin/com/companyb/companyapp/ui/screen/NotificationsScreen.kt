@@ -62,7 +62,7 @@ fun NotificationsScreen(
     // Action failures surface inline (#135 round-1 precedent — silent network-failure paths are a
     // bug class, not a design choice): a failed markRead/markAll must be visible, and the next
     // attempt's Loading pre-set clears the line automatically. 404-on-markRead is NOT an error —
-    // the VM handles it internally (stale-row reload), so it never reaches this state.
+    // the VM handles it internally (absent-row defense reload), so it never reaches this state.
     val markReadError = (markReadState as? UiState.Error)?.message
     val markAllError = (markAllState as? UiState.Error)?.message
     LaunchedEffect(markReadError) {
@@ -72,13 +72,13 @@ fun NotificationsScreen(
         markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
     }
 
-    // D5: cold-start spinner only while there's nothing to show. During a reload (re-entry, the
-    // post-markAll arrival reload) `unread` re-derives from Success-only, so the unread section
-    // transiently blanks while the Read section stays — invisible for the markAll arrival reload
-    // (unread was already empty), a brief flash on re-entry. Accepted transient: the alternative
-    // (caching last Success data across Loading) is the exact stale-data class the silent-refresh
-    // axis rejects. A reload failure with Read content likewise leaves the unread section blank
-    // with no in-place card (cold-start-only per D5) — recovery is re-entry.
+    // D5: cold-start spinner only while there's nothing to show. `unread` re-derives from
+    // Success-only (the app-wide state-derivation shape — every screen does this), so a reload
+    // drops the previous list: the post-markAll arrival reload is invisible (unread was already
+    // emptied by moveAllToReadThisSession), while a re-entry reload with an empty Read section
+    // briefly flashes the cold spinner over the prior list (hasContent false). Accepted transient
+    // (pass-1 F2 / pass-3 re-confirmed): the alternative is a VM-level last-Success cache, which
+    // no screen in the app has — fixing it here alone would diverge the chain's shape.
     val unread = (notificationsState as? UiState.Success<List<NotificationResponse>>)?.data.orEmpty()
     val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty()
 
