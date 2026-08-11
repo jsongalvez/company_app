@@ -21,7 +21,6 @@ import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
