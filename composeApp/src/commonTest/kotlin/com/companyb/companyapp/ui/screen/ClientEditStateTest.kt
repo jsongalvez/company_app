@@ -58,6 +58,17 @@ class ClientEditStateTest {
     }
 
     @Test
+    fun `no dispatch record never abandons even when the draft matches`() {
+        assertAbandon(
+            expected = false,
+            updateState = error,
+            lastDispatched = null,
+            editing = ClientField.AGE,
+            draftMatches = true,
+        )
+    }
+
+    @Test
     fun `validation error state never abandons - nothing dispatched`() {
         // updateState Idle: the last PATCH resolved (403/409) or never fired — the draft is a
         // never-dispatched edit, so it must take the commit path (which aborts on invalid).
@@ -134,6 +145,30 @@ class ClientEditStateTest {
     }
 
     @Test
+    fun `matches parses bp numerics - leading zeros are not a modification`() {
+        // "0121" and "121" parse to the same payload the server received — re-dispatching the
+        // identical value must be treated as unchanged (the phantom class).
+        val record = DispatchedDraft(field = ClientField.BP_PAIR, value = "121", bpDiastolic = "80")
+        assertEquals(
+            expected = true,
+            actual = record.matches(draftValue = "", bpSystolic = "0121", bpDiastolic = "080"),
+        )
+    }
+
+    @Test
+    fun `matches parses age numerics - leading zeros are not a modification`() {
+        val record = DispatchedDraft(field = ClientField.AGE, value = "30")
+        assertEquals(
+            expected = true,
+            actual = record.matches(draftValue = "030", bpSystolic = "", bpDiastolic = ""),
+        )
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "abc", bpSystolic = "", bpDiastolic = ""),
+        )
+    }
+
+    @Test
     fun `bp record never matches a single-field draft`() {
         val record = DispatchedDraft(field = ClientField.BP_PAIR, value = "120", bpDiastolic = "80")
         assertEquals(
@@ -144,10 +179,10 @@ class ClientEditStateTest {
 
     @Test
     fun `null record never matches`() {
-        val record = DispatchedDraft(field = null, value = "")
+        val record = DispatchedDraft(field = ClientField.PHONE, value = "")
         assertEquals(
             expected = false,
-            actual = record.matches(draftValue = "", bpSystolic = "", bpDiastolic = ""),
+            actual = record.matches(draftValue = "123", bpSystolic = "", bpDiastolic = ""),
         )
     }
 

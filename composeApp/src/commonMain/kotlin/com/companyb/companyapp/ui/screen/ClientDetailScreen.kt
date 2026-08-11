@@ -692,12 +692,14 @@ internal fun shouldAbandonFailedDraft(
 
 /**
  * Synchronous record of the last dispatched PATCH's payload (see [shouldAbandonFailedDraft]).
- * [value] holds the TRIMMED payload (dispatch trims before sending); the comparison trims the
- * live drafts so a trailing-space draft can't masquerade as a modification. Internal for the
- * unit test (commonTest friend path).
+ * For BP pairs, [value] holds the systolic and [bpDiastolic] the diastolic; for single fields,
+ * [value] holds the field's value and [bpDiastolic] is unused. The comparison canonicalizes
+ * numeric fields by parsing (a leading-zero alias like "0121" vs "121" is the same payload, not
+ * a modification) and trims strings, so a trailing-space draft can't masquerade as a
+ * modification. Internal for the unit test (commonTest friend path).
  */
 internal data class DispatchedDraft(
-    val field: ClientField?,
+    val field: ClientField,
     val value: String,
     val bpDiastolic: String = "",
 ) {
@@ -707,9 +709,18 @@ internal data class DispatchedDraft(
         bpDiastolic: String,
     ): Boolean =
         when (field) {
-            null -> false
-            ClientField.BP_PAIR -> bpSystolic.trim() == value && bpDiastolic.trim() == this.bpDiastolic
-            else -> draftValue.trim() == value
+            ClientField.BP_PAIR -> {
+                bpSystolic.trim().toShortOrNull() == value.toShortOrNull() &&
+                    bpDiastolic.trim().toShortOrNull() == this.bpDiastolic.toShortOrNull()
+            }
+
+            ClientField.AGE -> {
+                draftValue.trim().toIntOrNull() == value.toIntOrNull()
+            }
+
+            else -> {
+                draftValue.trim() == value
+            }
         }
 }
 
