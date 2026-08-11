@@ -103,7 +103,11 @@ fun AuditLogScreen(
 
     LaunchedEffect(Unit) {
         logInfo("AuditLogScreen", "composable entered")
-        viewModel.loadTables()
+        // D4 server-driven registry: load once per VM lifetime (+ re-fire from an error state);
+        // a nav round-trip must not reset a loaded registry to "Loading tables…" (pass-5 SOFT).
+        if (viewModel.tables.value !is UiState.Success) {
+            viewModel.loadTables()
+        }
         // Cold loud load only when this VM has nothing loaded (first composition, or a fresh VM
         // after process death — saveable flags don't survive into a fresh VM's list state). A
         // surviving VM (rotation, history round-trip) with a loaded list takes the silent refresh
@@ -119,13 +123,23 @@ fun AuditLogScreen(
     // loaded list survives the reload (keep-last-list); a cold first load is the loud path above.
     LaunchedEffect(selectedTab) {
         if (selectedTab == TAB_FOR_REVIEW) {
-            if (hasVisitedAllActivity) {
+            // Idle-check: on a fresh VM after process death the flag restores true while the
+            // list is Idle — the Unit effect cold-loads it; the tab effect must not fire a
+            // silent refresh over an empty list (a failed one would leave Idle + error line,
+            // no ErrorCard). Declaration order makes this safe today; the check removes the
+            // coupling.
+            if (hasVisitedAllActivity && viewModel.flaggedEntries.value !is UiState.Idle) {
                 // Not the first composition: this is a re-entry (tab switch back).
                 viewModel.refreshFlagged()
             }
-        } else if (!hasVisitedAllActivity || viewModel.browseEntries.value is UiState.Idle) {
-            // First visit, OR a fresh VM after process death whose saveable flag restored true —
-            // a VM that never loaded has no list to keep, so cold load (D10 load-on-entry).
+        } else if (
+            !hasVisitedAllActivity ||
+            viewModel.browseEntries.value is UiState.Idle ||
+            viewModel.browseEntries.value is UiState.Error
+        ) {
+            // First visit, OR a fresh VM after process death whose saveable flag restored true
+            // (a VM that never loaded has no list to keep), OR a failed load with only an error
+            // card to show — all take the cold loud path (D10 load-on-entry + auto-retry).
             hasVisitedAllActivity = true
             // D10 — the first visit is a load-on-entry: the cold loud path (Loading → error
             // card + retry), unlike later re-entries which refresh silently (keep-last-list).
@@ -572,13 +586,19 @@ private val AuditLogFilterDraftSaver =
             )
         },
         restore = { values ->
-            require(values.size == 5) { "AuditLogFilterDraft saver shape changed" }
-            AuditLogFilterDraft().apply {
-                selectedTableName = values[0]
-                selectedAction = values[1]
-                callerName = values[2] ?: ""
-                dateFrom = values[3] ?: ""
-                dateTo = values[4] ?: ""
+            if (values.size == 5) {
+                AuditLogFilterDraft().apply {
+                    selectedTableName = values[0]
+                    selectedAction = values[1]
+                    callerName = values[2] ?: ""
+                    dateFrom = values[3] ?: ""
+                    dateTo = values[4] ?: ""
+                }
+            } else {
+                // Shape drift (code updated between save and restore) — degrade to defaults
+                // rather than crash the composition (TimestampFormat precedent).
+                logWarn("AuditLogScreen", "filter draft saver shape drift: ${values.size} values")
+                AuditLogFilterDraft()
             }
         },
     )
@@ -1020,7 +1040,11 @@ fun AuditLogHistoryScreen(
 
     LaunchedEffect(Unit) {
         logInfo("AuditLogHistoryScreen", "composable entered (first composition)")
-        viewModel.loadHistory(tableName, recordId)
+        // Load once per VM lifetime: a rotation/re-entry refire must not wipe the loaded
+        // history back to a spinner (pass-5 SOFT).
+        if (viewModel.history.value is UiState.Idle) {
+            viewModel.loadHistory(tableName, recordId)
+        }
     }
 
     Column(

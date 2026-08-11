@@ -146,7 +146,7 @@ class AuditLogViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    flagLoadFailure(cold, e.message ?: "flagged load failed")
+                    flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "network error"}")
                     _flaggedLoadInFlight.value = false
                     throw e
                 }
@@ -164,20 +164,20 @@ class AuditLogViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    flagLoadFailure(cold, e.message ?: "flagged load failed")
+                    flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "parse error"}")
                     _flaggedLoadInFlight.value = false
                     throw e
                 }
             },
             onNonSuccess = { response ->
-                flagLoadFailure(cold, "flagged load failed: ${response.status.value}")
+                flaggedLoadFailure(cold, "flagged load failed: ${response.status.value}")
                 _flaggedLoadInFlight.value = false
                 true
             },
         )
     }
 
-    private fun flagLoadFailure(
+    private fun flaggedLoadFailure(
         cold: Boolean,
         message: String,
     ) {
@@ -206,7 +206,7 @@ class AuditLogViewModel(
                 } catch (e: Exception) {
                     // Network failure — every failure path clears the in-flight guard and
                     // surfaces an inline per-row error (ADR-0022; #123 decision 2).
-                    failAcknowledge(entry.id, e.message ?: "Acknowledge failed")
+                    failAcknowledge(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
                     throw e
                 }
             },
@@ -226,7 +226,7 @@ class AuditLogViewModel(
                 } catch (e: Exception) {
                     // Deserialization failure — clear the in-flight guard so the row's button
                     // re-enables, and surface an inline error (ADR-0022 pessimistic axis).
-                    failAcknowledge(entry.id, e.message ?: "Acknowledge failed")
+                    failAcknowledge(entry.id, "Acknowledge failed: ${e.message ?: "parse error"}")
                     throw e
                 }
             },
@@ -465,9 +465,23 @@ class AuditLogViewModel(
         message: String,
     ) {
         when (mode) {
-            FetchMode.Cold -> _browseEntries.value = UiState.Error(message)
-            FetchMode.Refresh -> _browseRefreshError.value = message
-            FetchMode.LoadMore -> _loadMoreError.value = message
+            FetchMode.Cold -> {
+                // D10 keep-last: a cold failure only surfaces as the error card when the list
+                // holds nothing current. A concurrent same-generation fetch (e.g. a Refresh
+                // tapped while the first-visit cold was in flight) may have already written a
+                // Success list — a stale cold failure must not clobber it (pass-5 HARD).
+                if (_browseEntries.value !is UiState.Success) {
+                    _browseEntries.value = UiState.Error(message)
+                }
+            }
+
+            FetchMode.Refresh -> {
+                _browseRefreshError.value = message
+            }
+
+            FetchMode.LoadMore -> {
+                _loadMoreError.value = message
+            }
         }
     }
 
