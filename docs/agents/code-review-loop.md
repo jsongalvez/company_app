@@ -37,6 +37,8 @@ The register is the memory of the loop: documented bug classes that recurred as 
 | truth-class | a claim or doc line contradicted by shipped code — resolution comments, ADR/AGENTS.md/KDoc | #145 (2 HARD); #146 (1 HARD-class) |
 | lazy lock | Exposed `forUpdate()` (or any deferred op) without a terminal op silently no-ops — and the docs may stale-claim it unavailable | #136 r2; #146 doc line (2) |
 | exact-path gate | a route-level gate written for a path shape the actual route never matches (segment-count drift) — a gate that never fires | #114; #128/#131 (5+) |
+| layout starvation | a `fillMaxSize`/`fillMaxHeight`/intrinsic-measure misuse that gives a pinned sibling (button, list, divider) zero height inside a wrap-content parent — UI silently invisible | #144 D5; #147 pass-2 divider (2) |
+| fix-that-didn't-land | a claimed fix that never reached the file — imports/params added but the body replacement silently missed (string-mismatch edits); the commit message and the phases disagree — verified by reading the file, never the commit | #147 pass-4 (1) |
 
 ### Triage (driving agent, after each pass's phases report)
 
