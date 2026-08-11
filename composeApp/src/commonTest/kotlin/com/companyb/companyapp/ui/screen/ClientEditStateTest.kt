@@ -187,8 +187,8 @@ class ClientEditStateTest {
 
     @Test
     fun `empty-value record never matches a real draft`() {
-        // Production records always hold validated payloads (never empty); the empty case pins
-        // that a record can't be forged into a match by a blank draft.
+        // Production records always hold validated payloads (never empty) — the invariant is
+        // what makes the parse-based comparison null-safe; this pins the comparison itself.
         val record = DispatchedDraft(field = ClientField.PHONE, value = "")
         assertEquals(
             expected = false,
