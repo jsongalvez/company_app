@@ -56,7 +56,6 @@ fun ClientsScreen(
     onClientClick: (ClientResponse) -> Unit,
 ) {
     val searchState by viewModel.searchResults.collectAsState()
-    val anonymizeNotice by ClientState.anonymizeNotice.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var query by remember { mutableStateOf("") }
     var cachedResults by remember { mutableStateOf<List<ClientResponse>?>(null) }

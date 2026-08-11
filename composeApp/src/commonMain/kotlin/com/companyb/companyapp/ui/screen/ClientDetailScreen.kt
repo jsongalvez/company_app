@@ -653,13 +653,14 @@ private fun BpPairEditor(
 ) {
     var draftSystolic by remember { mutableStateOf("") }
     var draftDiastolic by remember { mutableStateOf("") }
-    // Per-side dirty flags — blur-commit fires only when BOTH sides were typed in this edit
-    // session: (a) with no typing at all, tapping systolic→diastolic blurs field 1 with both
-    // drafts holding the seeded values — commitPair() would see "unchanged" and cancel the edit
-    // before the user typed anything; (b) with only one side typed, tapping the other side would
-    // blur-commit the pair with the seeded value for the side the user is on their way to edit —
-    // same premature-commit class. Enter (Done) always commits explicitly, unchanged pair
-    // included (silent exit).
+    // Blur-commit fires only when BOTH sides were typed in this edit session: (a) with no typing
+    // at all, tapping systolic→diastolic blurs field 1 with both drafts holding the seeded
+    // values — commitPair() would see "unchanged" and cancel the edit before the user typed
+    // anything; (b) with only one side typed, tapping the other side would blur-commit the pair
+    // with the seeded value for the side the user is on their way to edit — same premature-commit
+    // class. With both sides typed, blur commits (or surfaces the inline pair-required error,
+    // matching the single-field "Value required" on blank). Enter (Done) always commits
+    // explicitly, unchanged pair included (silent exit).
     var dirtySystolic by remember { mutableStateOf(false) }
     var dirtyDiastolic by remember { mutableStateOf(false) }
 
@@ -707,6 +708,24 @@ private fun BpPairEditor(
         )
         if (editing) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Blur fires when focus leaves either field; both fields share one handler (they
+                // read the same drafts + dirty flags). Built inside the Row: weight is a
+                // RowScope extension. Esc cancels the edit.
+                val blurAndEscapeModifier: Modifier =
+                    Modifier
+                        .weight(1f)
+                        .onFocusChanged {
+                            if (!it.isFocused && dirtySystolic && dirtyDiastolic) {
+                                commitPair()
+                            }
+                        }.onPreviewKeyEvent {
+                            if (it.key == Key.Escape) {
+                                onCancel()
+                                true
+                            } else {
+                                false
+                            }
+                        }
                 OutlinedTextField(
                     value = draftSystolic,
                     onValueChange = {
@@ -717,26 +736,7 @@ private fun BpPairEditor(
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { commitPair() }),
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            // Blur commits only once BOTH sides were typed and the pair is
-                            // complete — otherwise tapping the second field (or away) would
-                            // prematurely commit the seeded/unfinished pair. Enter always commits.
-                            .onFocusChanged {
-                                if (!it.isFocused && dirtySystolic && dirtyDiastolic &&
-                                    draftSystolic.isNotBlank() && draftDiastolic.isNotBlank()
-                                ) {
-                                    commitPair()
-                                }
-                            }.onPreviewKeyEvent {
-                                if (it.key == Key.Escape) {
-                                    onCancel()
-                                    true
-                                } else {
-                                    false
-                                }
-                            },
+                    modifier = blurAndEscapeModifier,
                 )
                 Text(
                     text = "/",
@@ -753,23 +753,7 @@ private fun BpPairEditor(
                     isError = fieldError != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { commitPair() }),
-                    modifier =
-                        Modifier
-                            .weight(1f)
-                            .onFocusChanged {
-                                if (!it.isFocused && dirtySystolic && dirtyDiastolic &&
-                                    draftSystolic.isNotBlank() && draftDiastolic.isNotBlank()
-                                ) {
-                                    commitPair()
-                                }
-                            }.onPreviewKeyEvent {
-                                if (it.key == Key.Escape) {
-                                    onCancel()
-                                    true
-                                } else {
-                                    false
-                                }
-                            },
+                    modifier = blurAndEscapeModifier,
                 )
             }
         } else {

@@ -415,17 +415,34 @@ class ClientViewModelTest {
         }
 
     @Test
-    fun updateClient_404_reloads_detail_and_leaves_state_idle() =
+    fun updateClient_404_reloads_husk_and_leaves_state_idle() =
         runTest(testScheduler) {
-            val handler = clientHandler(updateStatus = HttpStatusCode.NotFound)
             var detailGets = 0
-            val wrapped: MockRequestHandler = { request ->
-                if (request.method == HttpMethod.Get && request.url.encodedPath == "/api/clients/c1") {
-                    detailGets++
-                }
-                handler(request)
-            }
-            val vm = ClientViewModel(mockApiClient(wrapped))
+            val vm =
+                ClientViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/clients/c1" -> {
+                                detailGets++
+                                // The record was anonymized elsewhere: the first load returns the
+                                // full record, the post-404 reload returns the husk (backend GET
+                                // has no deletedAt filter — the row still 200s with null PII).
+                                val body = if (detailGets == 1) DETAIL_JSON else ANONYMIZED_JSON
+                                jsonRespond(status = HttpStatusCode.OK, body = body)
+                            }
+
+                            request.method == HttpMethod.Patch &&
+                                request.url.encodedPath.startsWith("/api/clients/") -> {
+                                jsonRespond(status = HttpStatusCode.NotFound, body = "")
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                )
             vm.loadClient("c1")
             runCurrent()
 
@@ -437,6 +454,9 @@ class ClientViewModelTest {
             assertEquals(expected = 2, actual = detailGets)
             assertFalse(vm.detailChangedNotice.value)
             assertIs<UiState.Idle>(vm.updateClientState.value)
+            val detail = assertIs<UiState.Success<ClientResponse>>(vm.clientDetail.value)
+            assertEquals(expected = null, actual = detail.data.firstName)
+            assertEquals(expected = null, actual = detail.data.lastName)
         }
 
     @Test

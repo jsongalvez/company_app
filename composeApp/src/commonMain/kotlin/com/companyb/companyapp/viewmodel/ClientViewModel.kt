@@ -62,7 +62,7 @@ class ClientViewModel(
         searchJob =
             viewModelScope.launch {
                 delay(SEARCH_DEBOUNCE_MS)
-                launchSearch(trimmed, this)
+                launchSearch(trimmed, this, "search called: query=$trimmed")
             }
     }
 
@@ -72,7 +72,7 @@ class ClientViewModel(
         searchJob?.cancel()
         searchJob =
             viewModelScope.launch {
-                launchSearch(trimmed, this)
+                launchSearch(trimmed, this, "search retried: query=$trimmed")
             }
     }
 
@@ -84,13 +84,14 @@ class ClientViewModel(
     private fun launchSearch(
         query: String,
         scope: CoroutineScope,
+        entryMessage: String,
     ) {
         handler.launch(
             scope = scope,
             state = _searchResults,
             operation = "search",
             endpoint = "GET /api/clients",
-            entryMessage = "search called: query=$query",
+            entryMessage = entryMessage,
             block = {
                 apiClient.httpClient.get("/api/clients") {
                     parameter("q", query)
