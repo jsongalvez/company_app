@@ -30,7 +30,7 @@ class DenyListTest {
     fun tokenIssuedAfterDenyIsAllowed() {
         val userId = UUID.randomUUID()
         DenyList.denyAt(userId, base)
-        assertFalse(DenyList.isDenied(userId, base.plusSeconds(1)))
+        assertFalse(DenyList.isDeniedAt(userId, base.plusSeconds(1), base.plusSeconds(3600)))
     }
 
     @Test

@@ -9,7 +9,6 @@ import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,13 +54,9 @@ class AuthServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `login after deny issues a fresh token that verifies`() {
-        DenyList.deny(userId)
-        // JWT iat is second-precision: a token generated in the same second as the deny
-        // is indistinguishable from a pre-deny token and stays denied (DenyList KDoc).
-        val boundary = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1)
-        while (Instant.now().isBefore(boundary)) {
-            Thread.sleep(10)
-        }
+        // Stamp the deny 5s in the past: JWT iat is second-precision, so any token
+        // minted now has iat strictly after the deny — no clock boundary to cross.
+        DenyList.denyAt(userId, Instant.now().minusSeconds(5))
 
         val result = AuthService.login("logout-test-$userId", "test-password", "203.0.113.${userId.toString().take(8)}")
 

@@ -193,12 +193,16 @@ object UserBranchAssignmentRepository {
         transaction {
             // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
             // lesson) serializes swap against concurrent remove/updateSlot on either user.
-            val a =
-                findActiveByBranchAndUserInTransaction(branchId, userIdA, forUpdate = true)
-                    ?: throw NotFoundException("Active assignment not found for user A at this branch")
-            val b =
-                findActiveByBranchAndUserInTransaction(branchId, userIdB, forUpdate = true)
-                    ?: throw NotFoundException("Active assignment not found for user B at this branch")
+            // Locks are taken in ascending user-ID order so concurrent opposite-direction
+            // swaps (A,B vs B,A) cannot cross-deadlock.
+            val lockOrder = listOf(userIdA, userIdB).sorted()
+            val assignments =
+                lockOrder.associateWith { id ->
+                    findActiveByBranchAndUserInTransaction(branchId, id, forUpdate = true)
+                        ?: throw NotFoundException("Active assignment not found for user $id at this branch")
+                }
+            val a = assignments.getValue(userIdA)
+            val b = assignments.getValue(userIdB)
 
             val slotA = a.slot
             val slotB = b.slot

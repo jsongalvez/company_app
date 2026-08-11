@@ -28,6 +28,9 @@ import java.util.concurrent.ConcurrentHashMap
  * Entries are evicted once they are older than [TOKEN_MAX_AGE] because any
  * JWT that could belong to them is guaranteed to have expired by then (JWT
  * max expiry is 24h).
+ *
+ * The list is per-process: a restart loses entries (startup re-stamps only
+ * users currently INACTIVE), so revocation is a process-lifetime guarantee.
  */
 @Suppress("TooManyFunctions")
 object DenyList {
@@ -76,7 +79,9 @@ object DenyList {
     ): Boolean {
         val deniedAt = denied[userId]
         if (deniedAt == null || isExpired(deniedAt, now)) {
-            if (deniedAt != null) denied.remove(userId)
+            // Conditional remove: never delete a fresher entry written between
+            // the read above and this removal.
+            denied.remove(userId, deniedAt)
             return false
         }
         return !tokenIssuedAt.isAfter(deniedAt)
