@@ -746,10 +746,13 @@ private fun BpPairEditor(
     onCommit: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    // Re-seed drafts when edit mode is entered OR the client's values change mid-edit (a reload
-    // landing while the pair is open): stale drafts would compare against the new values on an
-    // unchanged Enter and PATCH-revert the elsewhere-change.
-    LaunchedEffect(editing, systolic, diastolic) {
+    // Re-seed drafts each time edit mode is entered. No value-change key needed: any reload
+    // (409/404 reload, entry re-fetch) writes UiState.Loading into the detail flow, which
+    // unmounts this whole editor (ClientDetailScreen renders ClientDetailContent only on
+    // Success) — the drafts die with it, and re-entry seeds fresh. The only client-value change
+    // that keeps the editor mounted is the user's own PATCH success (transform commits the
+    // detail before updateState flips), and there the drafts already equal the committed values.
+    LaunchedEffect(editing) {
         if (editing) {
             draft.seed(systolic, diastolic)
         }
