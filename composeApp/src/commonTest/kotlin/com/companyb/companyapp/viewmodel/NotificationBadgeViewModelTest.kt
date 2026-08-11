@@ -50,8 +50,9 @@ import kotlin.time.Duration.Companion.milliseconds
  * drain runs after [resetMain] (via [AfterTest]) in the per-class fixture pattern, so any viewModel
  * continuation there would find `Dispatchers.Main` unset and throw "platform dispatcher absent".
  * dispose() must also run even when an assertion fails mid-test — an uncancelled poll loop makes
- * runTest's final drain spin forever (virtual time never idles), so the poll-based tests dispose
- * in a `finally` block.
+ * runTest's final drain spin forever (virtual time never idles), so the poll-behavior tests dispose
+ * in a `finally` block; the dispose-semantics test is the exception (dispose is its subject, so it
+ * runs before the asserts by design).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationBadgeViewModelTest {
@@ -105,7 +106,7 @@ class NotificationBadgeViewModelTest {
                 // event is *not* auto-run by advanceTimeBy itself); runCurrent then drains the now-due
                 // events (poll-loop resume + the inner launch the resume schedules). The poll loop's
                 // next delay queues at +120s — outside advanceTimeBy's range.
-                advanceTimeBy(60_000)
+                advanceTimeBy(60_000.milliseconds)
                 runCurrent()
 
                 assertEquals(expected = 2, actual = requestCount)
@@ -130,9 +131,11 @@ class NotificationBadgeViewModelTest {
 
             // dispose() → viewModelScope.cancel(): the pending delay(REFRESH_INTERVAL_MS) resume is
             // removed from the scheduler (delay's continuation cancellation disposes its event).
+            // Dispose is the subject here, so it deliberately runs before the asserts (the other
+            // poll tests dispose in finally — their subject is the poll behavior).
             vm.dispose()
 
-            advanceTimeBy(180_000)
+            advanceTimeBy(180_000.milliseconds)
             runCurrent()
             assertEquals(
                 expected = 1,

@@ -22,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.NotificationResponse
@@ -72,14 +75,14 @@ fun NotificationsScreen(
         markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
     }
 
-    // D5: cold-start spinner only while there's nothing to show. `unread` re-derives from
-    // Success-only (the app-wide state-derivation shape — every screen does this), so a reload
-    // drops the previous list: the post-markAll arrival reload is invisible (unread was already
-    // emptied by moveAllToReadThisSession), while a re-entry reload with an empty Read section
-    // briefly flashes the cold spinner over the prior list (hasContent false). Accepted transient
-    // (pass-1 F2 / pass-3 re-confirmed): the alternative is a VM-level last-Success cache, which
-    // no screen in the app has — fixing it here alone would diverge the chain's shape.
-    val unread = (notificationsState as? UiState.Success<List<NotificationResponse>>)?.data.orEmpty()
+    // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
+    // list has loaded, a reload (re-entry, post-markAll arrival) must not flash a spinner over
+    // it. Screen-side last-results cache, the ClientsScreen precedent (#113 D2 keep-last-results
+    // — assigned on Success, rendered during Loading/Error). Cold start keeps the spinner:
+    // cache is null until the first Success lands.
+    var lastUnread by remember { mutableStateOf<List<NotificationResponse>?>(null) }
+    (notificationsState as? UiState.Success<List<NotificationResponse>>)?.let { lastUnread = it.data }
+    val unread = lastUnread.orEmpty()
     val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty()
 
     Column(
