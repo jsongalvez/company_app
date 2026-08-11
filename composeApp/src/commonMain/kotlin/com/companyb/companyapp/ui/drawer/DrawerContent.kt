@@ -168,17 +168,19 @@ fun DrawerContent(
             branchName = selectedBranchName,
             clockOutState = clockOutState,
             onConfirm = {
-                // pass-2 — guard in the caller's frame: the confirm button's enabled=false
-                // only lands after recomposition, so a same-frame double-tap could otherwise
-                // dispatch twice (the clockIn caller-side guard precedent, #140).
-                if (clockOutState is UiState.Loading) return@ClockOutDialog
+                // pass-3 — LIVE state read (the #140 clockIn guard precedent): the
+                // collectAsState() snapshot below would be stale within the same frame —
+                // a second tap before recomposition reads the pre-dispatch value and the
+                // guard would no-op in exactly the window it exists to close. The VM's
+                // sync Loading pre-set makes this read airtight from the caller's frame.
+                if (attendanceViewModel.clockOutState.value is UiState.Loading) return@ClockOutDialog
                 val id = attendanceId
                 if (id != null) {
                     attendanceViewModel.clockOut(ClockOutRequest(attendanceId = id))
                 }
             },
             onDismiss = {
-                if (clockOutState !is UiState.Loading) {
+                if (attendanceViewModel.clockOutState.value !is UiState.Loading) {
                     showClockOutDialog = false
                 }
             },

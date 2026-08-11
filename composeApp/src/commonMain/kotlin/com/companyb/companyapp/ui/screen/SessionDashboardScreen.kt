@@ -190,7 +190,9 @@ private fun SummaryCardsRow(
             label = "Gross income",
             value = "₱${centsToMoney(grossCents)}",
             sublabel = "Today · completed, non-voided",
-            modifier = Modifier.weight(1f),
+            // fillMaxHeight (within the IntrinsicSize.Min row): equal card heights so the
+            // divider spans flush even when sublabels wrap to different line counts.
+            modifier = Modifier.weight(1f).fillMaxHeight(),
         )
         VerticalDivider(
             color = MaterialTheme.colorScheme.outline,
@@ -200,7 +202,7 @@ private fun SummaryCardsRow(
             label = "Your commission",
             value = "₱${centsToMoney(commissionCents)}",
             sublabel = commissionLabel(productSalesCount),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
         )
     }
 }

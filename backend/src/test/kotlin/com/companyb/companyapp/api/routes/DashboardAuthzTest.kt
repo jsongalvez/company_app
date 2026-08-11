@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -16,6 +17,7 @@ import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import io.javalin.Javalin
+import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
