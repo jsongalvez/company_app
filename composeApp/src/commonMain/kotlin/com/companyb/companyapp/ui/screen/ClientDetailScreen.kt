@@ -695,8 +695,11 @@ internal fun shouldAbandonFailedDraft(
  * For BP pairs, [value] holds the systolic and [bpDiastolic] the diastolic; for single fields,
  * [value] holds the field's value and [bpDiastolic] is unused. The comparison canonicalizes
  * numeric fields by parsing (a leading-zero alias like "0121" vs "121" is the same payload, not
- * a modification) and trims strings, so a trailing-space draft can't masquerade as a
- * modification. Internal for the unit test (commonTest friend path).
+ * a modification) and trims before comparing (trailing spaces tolerated on both numeric and
+ * string drafts), so a cosmetic draft difference can't masquerade as a modification. INVARIANT:
+ * [value] and [bpDiastolic] always hold validated, parseable payloads — both dispatch sites
+ * record only after validation, which is what makes the parse-based comparison null-safe.
+ * Internal for the unit test (commonTest friend path).
  */
 internal data class DispatchedDraft(
     val field: ClientField,

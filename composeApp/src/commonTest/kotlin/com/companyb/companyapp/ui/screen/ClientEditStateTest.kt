@@ -153,6 +153,10 @@ class ClientEditStateTest {
             expected = true,
             actual = record.matches(draftValue = "", bpSystolic = "0121", bpDiastolic = "080"),
         )
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "", bpSystolic = "0122", bpDiastolic = "080"),
+        )
     }
 
     @Test
@@ -161,6 +165,10 @@ class ClientEditStateTest {
         assertEquals(
             expected = true,
             actual = record.matches(draftValue = "030", bpSystolic = "", bpDiastolic = ""),
+        )
+        assertEquals(
+            expected = false,
+            actual = record.matches(draftValue = "31", bpSystolic = "", bpDiastolic = ""),
         )
         assertEquals(
             expected = false,
@@ -178,7 +186,9 @@ class ClientEditStateTest {
     }
 
     @Test
-    fun `null record never matches`() {
+    fun `empty-value record never matches a real draft`() {
+        // Production records always hold validated payloads (never empty); the empty case pins
+        // that a record can't be forged into a match by a blank draft.
         val record = DispatchedDraft(field = ClientField.PHONE, value = "")
         assertEquals(
             expected = false,
