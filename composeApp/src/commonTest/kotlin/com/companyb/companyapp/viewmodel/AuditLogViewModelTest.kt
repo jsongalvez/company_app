@@ -342,6 +342,31 @@ class AuditLogViewModelTest {
         }
 
     @Test
+    fun stale_cold_success_does_not_clobber_newer_refresh_list() =
+        runTest(testScheduler) {
+            val harness = AuditHarness(browseBodies = mutableListOf(PAGE1_JSON, PAGE1_JSON, PAGE2_JSON))
+            val vm = AuditLogViewModel(mockApiClient(harness.handler()))
+
+            val coldGate = CompletableDeferred<Unit>()
+            harness.entryGates.addLast(coldGate)
+            vm.loadBrowse()
+            advanceUntilIdle() // first-visit cold suspended on the gate
+            vm.refreshBrowse()
+            advanceUntilIdle() // refresh → Success([e1, e2]), cursor c1
+            vm.loadMore()
+            advanceUntilIdle() // load-more → [e1, e2, e3], cursor null
+
+            coldGate.complete(Unit)
+            advanceUntilIdle() // the stale cold snapshot lands last
+
+            // The older cold page must neither truncate the accumulated list nor regress the
+            // cursor (pass-6 HARD — the success-side mirror of the pass-5 failure guard).
+            val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.browseEntries.value)
+            assertEquals(expected = listOf("e1", "e2", "e3"), actual = state.data.map { it.id })
+            assertNull(vm.nextCursor.value)
+        }
+
+    @Test
     fun loadMore_malformed_response_keeps_list_and_reports_error() =
         runTest(testScheduler) {
             val harness = AuditHarness(browseBodies = mutableListOf(PAGE1_JSON, "not-json"))

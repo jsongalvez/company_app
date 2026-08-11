@@ -6,6 +6,7 @@ import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
@@ -376,7 +377,7 @@ class AuditLogViewModel(
                     // if this fetch belongs to the current filter generation (a superseded
                     // fetch's failure must not surface as an error on the new list).
                     if (generation == browseGeneration) {
-                        handlePageFailure(mode, e.message ?: "browse failed")
+                        handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
                         finish(mode)
                     }
                     throw e
@@ -389,16 +390,31 @@ class AuditLogViewModel(
                     // in flight) is inert: no list write, no cursor write, no flag cleanup
                     // (applyFilters already reset the flags).
                     if (generation == browseGeneration) {
-                        _nextCursor.value = page.nextCursor
-                        // A page snapshot taken before an ack commit may still carry the
-                        // now-acked row's flag — clear it for locally-acknowledged ids (the
-                        // flagged-transform mirror; the badge must not resurrect on browse).
-                        applyPage(
-                            mode,
-                            page.entries.map { entry ->
-                                if (entry.id in acknowledgedIds) entry.copy(isFlagged = false) else entry
-                            },
-                        )
+                        // A cold response that lands after a concurrent same-generation fetch
+                        // already wrote Success is the older snapshot (older rows + older
+                        // cursor — accumulated load-more pages would truncate): skip the whole
+                        // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
+                        // guard). Cold only launches from Loading/Error/Idle, so Success at
+                        // landing ⟺ a concurrent refresh already committed.
+                        val supersededByConcurrentFetch =
+                            mode == FetchMode.Cold && _browseEntries.value is UiState.Success
+                        if (!supersededByConcurrentFetch) {
+                            _browseRefreshError.value = null
+                            _nextCursor.value = page.nextCursor
+                            // A page snapshot taken before an ack commit may still carry the
+                            // now-acked row's flag — clear it for locally-acknowledged ids (the
+                            // flagged-transform mirror; the badge must not resurrect on browse).
+                            applyPage(
+                                mode,
+                                page.entries.map { entry ->
+                                    if (entry.id in acknowledgedIds) {
+                                        entry.copy(isFlagged = false)
+                                    } else {
+                                        entry
+                                    }
+                                },
+                            )
+                        }
                         finish(mode)
                     }
                     Unit
@@ -408,7 +424,7 @@ class AuditLogViewModel(
                     // Deserialization failure — same error surface + flag cleanup as a network
                     // failure so the list state and buttons never freeze (keep-last-list).
                     if (generation == browseGeneration) {
-                        handlePageFailure(mode, e.message ?: "browse failed")
+                        handlePageFailure(mode, "browse failed: ${e.message ?: "parse error"}")
                         finish(mode)
                     }
                     throw e
@@ -472,6 +488,10 @@ class AuditLogViewModel(
                 // Success list — a stale cold failure must not clobber it (pass-5 HARD).
                 if (_browseEntries.value !is UiState.Success) {
                     _browseEntries.value = UiState.Error(message)
+                } else {
+                    // The suppressed failure has no user-visible loss (the list is newer), but
+                    // it must not vanish silently (pass-6 SOFT).
+                    logWarn("AuditLogVM", "cold browse failure suppressed — list superseded: $message")
                 }
             }
 

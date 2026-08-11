@@ -103,9 +103,11 @@ fun AuditLogScreen(
 
     LaunchedEffect(Unit) {
         logInfo("AuditLogScreen", "composable entered")
-        // D4 server-driven registry: load once per VM lifetime (+ re-fire from an error state);
-        // a nav round-trip must not reset a loaded registry to "Loading tables…" (pass-5 SOFT).
-        if (viewModel.tables.value !is UiState.Success) {
+        // D4 server-driven registry: load once per VM lifetime (Idle), re-fire from an error
+        // state (auto-retry — same policy as the lists); a nav round-trip with a loaded
+        // registry must not reset it to "Loading tables…" (pass-5 SOFT). Loading skips: an
+        // in-flight fetch owns the slot.
+        if (viewModel.tables.value is UiState.Idle || viewModel.tables.value is UiState.Error) {
             viewModel.loadTables()
         }
         // Cold loud load only when this VM has nothing loaded (first composition, or a fresh VM
@@ -286,15 +288,20 @@ private fun ForReviewTab(
                     )
                 } else {
                     AuditLogEntryList(
-                        entries = state.data,
-                        tableLabels = tableLabels,
-                        expandedIds = expandedIds,
-                        onToggleExpanded = onToggleExpanded,
-                        currentUserId = currentUserId,
-                        onAcknowledge = onAcknowledge,
-                        acknowledgingIds = acknowledgingIds,
-                        ackErrors = ackErrors,
-                        onFullHistory = onFullHistory,
+                        state =
+                            AuditLogListState(
+                                entries = state.data,
+                                tableLabels = tableLabels,
+                                expandedIds = expandedIds,
+                                onToggleExpanded = onToggleExpanded,
+                                currentUserId = currentUserId,
+                                onAcknowledge = onAcknowledge,
+                                acknowledgingIds = acknowledgingIds,
+                                ackErrors = ackErrors,
+                                onFullHistory = onFullHistory,
+                                showAcknowledge = true,
+                                showFullHistory = true,
+                            ),
                     )
                 }
             }
@@ -398,15 +405,20 @@ private fun AllActivityTab(
                                 .weight(1f),
                     ) {
                         AuditLogEntryList(
-                            entries = state.data,
-                            tableLabels = tableLabels,
-                            expandedIds = expandedIds,
-                            onToggleExpanded = onToggleExpanded,
-                            currentUserId = currentUserId,
-                            onAcknowledge = onAcknowledge,
-                            acknowledgingIds = acknowledgingIds,
-                            ackErrors = ackErrors,
-                            onFullHistory = onFullHistory,
+                            state =
+                                AuditLogListState(
+                                    entries = state.data,
+                                    tableLabels = tableLabels,
+                                    expandedIds = expandedIds,
+                                    onToggleExpanded = onToggleExpanded,
+                                    currentUserId = currentUserId,
+                                    onAcknowledge = onAcknowledge,
+                                    acknowledgingIds = acknowledgingIds,
+                                    ackErrors = ackErrors,
+                                    onFullHistory = onFullHistory,
+                                    showAcknowledge = true,
+                                    showFullHistory = true,
+                                ),
                         )
                         if (loadMoreError != null) {
                             InlineErrorText(
@@ -1005,22 +1017,28 @@ private fun parseFieldMap(raw: String?): FieldMap {
 
 private fun String.toDisplayValue(): String = if (this == "null") "—" else this
 
+// D11 — the shared row-affordance bundle across the list actuals and all three list call sites
+// (For-review, All-activity, history). A holder keeps the expect/actual signatures under
+// detekt's LongParameterList threshold (6) and dissolves the repeated 10-param clump (pass-6
+// HARD — the bare 11-param actuals failed :composeApp:detekt*).
+internal data class AuditLogListState(
+    val entries: List<AuditLogEntryResponse>,
+    val tableLabels: Map<String, String>,
+    val expandedIds: Set<String>,
+    val onToggleExpanded: (String) -> Unit,
+    val currentUserId: String?,
+    val onAcknowledge: (AuditLogEntryResponse) -> Unit,
+    val acknowledgingIds: Set<String>,
+    val ackErrors: Map<String, String>,
+    val onFullHistory: (AuditLogEntryResponse) -> Unit,
+    val showAcknowledge: Boolean,
+    val showFullHistory: Boolean,
+)
+
 // D11 — desktop dense rows / mobile cards (#95 smallest-divergent-subtree); the row itself is
 // the shared [AuditLogEntryRow].
 @Composable
-expect fun AuditLogEntryList(
-    entries: List<AuditLogEntryResponse>,
-    tableLabels: Map<String, String>,
-    expandedIds: Set<String>,
-    onToggleExpanded: (String) -> Unit,
-    currentUserId: String?,
-    onAcknowledge: (AuditLogEntryResponse) -> Unit,
-    acknowledgingIds: Set<String>,
-    ackErrors: Map<String, String>,
-    onFullHistory: (AuditLogEntryResponse) -> Unit,
-    showAcknowledge: Boolean = true,
-    showFullHistory: Boolean = true,
-)
+internal expect fun AuditLogEntryList(state: AuditLogListState)
 
 // D8 — "Full history for this record": pushed on both platforms (#91 push-route lock; ClientDetail
 // precedent — content-level Back TextButton, the pushed-route topbar pattern stays fog). The route
@@ -1040,9 +1058,10 @@ fun AuditLogHistoryScreen(
 
     LaunchedEffect(Unit) {
         logInfo("AuditLogHistoryScreen", "composable entered (first composition)")
-        // Load once per VM lifetime: a rotation/re-entry refire must not wipe the loaded
-        // history back to a spinner (pass-5 SOFT).
-        if (viewModel.history.value is UiState.Idle) {
+        // Load once per VM lifetime (Idle), re-fire from an error state (auto-retry — the
+        // same policy as the main screen's loads); a rotation/re-entry refire must not wipe
+        // the loaded history back to a spinner (pass-5 SOFT).
+        if (viewModel.history.value is UiState.Idle || viewModel.history.value is UiState.Error) {
             viewModel.loadHistory(tableName, recordId)
         }
     }
@@ -1088,22 +1107,25 @@ fun AuditLogHistoryScreen(
                     EmptyState("No history recorded for this record")
                 } else {
                     AuditLogEntryList(
-                        entries = state.data,
-                        tableLabels = emptyMap(),
-                        expandedIds = expandedIds,
-                        onToggleExpanded = { id ->
-                            expandedIds =
-                                if (id in expandedIds) expandedIds - id else expandedIds + id
-                        },
-                        currentUserId = currentUserId,
-                        onAcknowledge = viewModel::acknowledge,
-                        acknowledgingIds = acknowledgingIds,
-                        ackErrors = ackErrors,
-                        onFullHistory = {},
-                        // D8 — the per-record screen is the record's trail + breadcrumb back
-                        // only: no acknowledge affordance, no further drill-down (prototype D8).
-                        showAcknowledge = false,
-                        showFullHistory = false,
+                        state =
+                            AuditLogListState(
+                                entries = state.data,
+                                tableLabels = emptyMap(),
+                                expandedIds = expandedIds,
+                                onToggleExpanded = { id ->
+                                    expandedIds =
+                                        if (id in expandedIds) expandedIds - id else expandedIds + id
+                                },
+                                currentUserId = currentUserId,
+                                onAcknowledge = viewModel::acknowledge,
+                                acknowledgingIds = acknowledgingIds,
+                                ackErrors = ackErrors,
+                                onFullHistory = {},
+                                // D8 — the per-record screen is the record's trail + breadcrumb back
+                                // only: no acknowledge affordance, no further drill-down (prototype D8).
+                                showAcknowledge = false,
+                                showFullHistory = false,
+                            ),
                     )
                 }
             }
