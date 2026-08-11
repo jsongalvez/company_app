@@ -52,6 +52,20 @@ internal actual fun SessionList(
 
 @Composable
 private fun TableHeaderRow(onRefresh: () -> Unit) {
+    // Right-aligned action row (pass-2: the Refresh button must NOT occupy the VOIDED
+    // column — the spec's 22% slot is data, not chrome).
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
+    ) {
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = onRefresh) {
+            Text("Refresh", style = MaterialTheme.typography.labelSmall)
+        }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
@@ -71,11 +85,7 @@ private fun TableHeaderRow(onRefresh: () -> Unit) {
                     .weight(DESKTOP_VOIDED_SLOT_WEIGHT)
                     .padding(end = Spacing.xs),
             contentAlignment = Alignment.CenterEnd,
-        ) {
-            TextButton(onClick = onRefresh) {
-                Text("Refresh", style = MaterialTheme.typography.labelSmall)
-            }
-        }
+        ) {}
     }
 }
 

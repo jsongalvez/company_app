@@ -293,9 +293,10 @@ class SessionDashboardViewModelTest {
                 assertEquals(DashboardPollStatus.FRESH, vm.pollStatus.value)
                 assertNull(vm.lastData.value)
 
+                // pass-2: 401 pauses polling (the session is dead — symmetric with 403).
                 advanceTimeBy(30_000.milliseconds)
                 runCurrent()
-                assertEquals(4, hits)
+                assertEquals(2, hits, "401 must stop the poll loop")
                 assertEquals(DashboardPollStatus.FRESH, vm.pollStatus.value, "401s must never reach the stale counters")
             } finally {
                 vm.pause()
@@ -360,9 +361,10 @@ class SessionDashboardViewModelTest {
 
                 advanceTimeBy(30_000.milliseconds)
                 runCurrent()
-                // hit1 = 403; hits 2-3 = the direct refresh + the restarted loop's first
-                // iteration; hit 4 = the loop's next 30s iteration — polling is alive again.
-                assertEquals(4, requestCount, "retry must restart the poll loop")
+                // hit1 = 403; hit 2 = the direct refresh (the sync Loading pre-set makes the
+                // restarted loop's first iteration skip it — pass-2 double-launch fix);
+                // hit 3 = the loop's next 30s iteration — polling is alive again.
+                assertEquals(3, requestCount, "retry must restart the poll loop without double-fetching")
             } finally {
                 vm.pause()
             }
@@ -396,6 +398,74 @@ class SessionDashboardViewModelTest {
                 advanceTimeBy(30_000.milliseconds)
                 runCurrent()
                 assertEquals(3, requestCount)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun transport_exceptions_count_against_stale_thresholds() =
+        runTest(testScheduler) {
+            var hits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        dashboardHandler {
+                            hits++
+                            throw java.io.IOException("connection refused")
+                        },
+                    ),
+                )
+            try {
+                // An exception path never reaches onNonSuccess (pass-1 HARD): the VM must
+                // count it via the handler's onError hook, or a dead network would silently
+                // freeze the last data with no stale banner and no escalation. Ktor's
+                // HttpRequestRetry retries thrown exceptions (3x, virtual delays) — poll 1
+                // exhausts its retries at ~+7s.
+                runCurrent()
+                advanceTimeBy(10_000.milliseconds)
+                runCurrent()
+                assertEquals(4, hits, "initial attempt + 3 retries per poll")
+                assertIs<UiState.Error>(vm.dashboardState.value)
+                assertEquals(DashboardPollStatus.FRESH, vm.pollStatus.value)
+
+                // Poll 2 fires ~+37s (completion + 30s), exhausts retries by ~+44s.
+                advanceTimeBy(30_000.milliseconds)
+                runCurrent()
+                advanceTimeBy(10_000.milliseconds)
+                runCurrent()
+                assertEquals(8, hits)
+                assertEquals(
+                    DashboardPollStatus.STALE,
+                    vm.pollStatus.value,
+                    "exception-path failures must reach the stale thresholds",
+                )
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun back_to_back_refresh_calls_launch_single_fetch() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        dashboardHandler {
+                            requestCount++
+                            null
+                        },
+                    ),
+                )
+            try {
+                // The synchronous Loading pre-set must hold from the caller's frame — two
+                // back-to-back calls (e.g. retryAfterForbidden's refresh + the restarted
+                // poll's first iteration) must not both dispatch.
+                vm.refresh()
+                vm.refresh()
+                runCurrent()
+                assertEquals(1, requestCount)
             } finally {
                 vm.pause()
             }

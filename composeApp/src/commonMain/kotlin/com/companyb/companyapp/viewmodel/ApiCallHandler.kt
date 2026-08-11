@@ -27,6 +27,11 @@ class ApiCallHandler(
         // Error assignment is then skipped. Default false keeps the historical behavior.
         // #113: D4's 403 silent-exit + 409 reload paths branch on status here.
         onNonSuccess: suspend (HttpResponse) -> Boolean = { false },
+        // Failure hook invoked on the EXCEPTION path (transport/timeout/deserialization
+        // failures caught below) — onNonSuccess only sees HTTP-status responses, so a
+        // caller counting failures (e.g. #147's stale/error poll thresholds) must hook
+        // here to see thrown failures too. Additive; default no-op keeps existing callers.
+        onError: (Throwable) -> Unit = {},
         // Job-scoping override — the launch adopts the caller's scope (structured concurrency)
         // instead of the handler's construction scope. #113's debounced search launches through a
         // per-query Job so a newer keystroke cancels the in-flight request (D2 current-query
@@ -54,6 +59,7 @@ class ApiCallHandler(
                 throw e
             } catch (e: Exception) {
                 logError(tag, "$operation exception on $endpoint", e)
+                onError(e)
                 state.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -66,6 +72,18 @@ class ApiCallHandler(
         block: suspend () -> HttpResponse,
         entryMessage: String = "$operation called",
         onNonSuccess: suspend (HttpResponse) -> Boolean = { false },
+        onError: (Throwable) -> Unit = {},
         scope: CoroutineScope = this.scope,
-    ): Job = launch(state, operation, endpoint, block, { Unit }, entryMessage, onNonSuccess, scope)
+    ): Job =
+        launch(
+            state = state,
+            operation = operation,
+            endpoint = endpoint,
+            block = block,
+            transform = { Unit },
+            entryMessage = entryMessage,
+            onNonSuccess = onNonSuccess,
+            onError = onError,
+            scope = scope,
+        )
 }

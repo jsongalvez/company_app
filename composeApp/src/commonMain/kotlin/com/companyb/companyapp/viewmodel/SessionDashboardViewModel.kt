@@ -73,6 +73,21 @@ class SessionDashboardViewModel(
         resume()
     }
 
+    private fun countFailure() {
+        // NOTE the counting cannot live in a _dashboardState collector — StateFlow conflates
+        // equal Error values, so consecutive identical errors would never re-emit
+        // (probe-proven in the #147 build). Hooked from both failure paths below.
+        consecutiveFailures++
+        _pollStatus.value =
+            if (consecutiveFailures >= ERROR_THRESHOLD) {
+                DashboardPollStatus.ERRORED
+            } else if (consecutiveFailures >= STALE_THRESHOLD) {
+                DashboardPollStatus.STALE
+            } else {
+                DashboardPollStatus.FRESH
+            }
+    }
+
     fun resume() {
         if (pollJob?.isActive == true) return
         logInfo("DashboardVM", "poll resume")
@@ -102,10 +117,14 @@ class SessionDashboardViewModel(
             return Job().also { it.cancel() }
         }
         // In-flight guard (manual refresh overlapping a poll): a cancelled job keeps the
-        // poll loop's join() from hanging — a bare `Job()` never completes.
+        // poll loop's join() from hanging — a bare `Job()` never completes. The synchronous
+        // Loading pre-set below makes the guard hold from the CALLER's frame (the #135
+        // double-tap pattern — handler.launch pre-sets Loading only inside its coroutine,
+        // so two back-to-back refresh() calls would both pass the guard otherwise).
         if (_dashboardState.value is UiState.Loading) {
             return Job().also { it.cancel() }
         }
+        _dashboardState.value = UiState.Loading
         return handler.launch(
             state = _dashboardState,
             operation = "loadDashboard",
@@ -125,9 +144,10 @@ class SessionDashboardViewModel(
                     // 401 — session termination: the global ApiClient.onUnauthorized path
                     // handles the redirect; never counts as poll degradation (Q5b). The
                     // handler pre-set Loading, so reset the state or the in-flight guard
-                    // wedges every future poll.
+                    // wedges every future poll. Polling stops too — the session is dead.
                     401 -> {
                         _dashboardState.value = UiState.Idle
+                        pause()
                         true
                     }
 
@@ -140,24 +160,17 @@ class SessionDashboardViewModel(
                         true
                     }
 
-                    // Generic failure: counted against the stale/error thresholds. NOTE the
-                    // counting cannot live in a _dashboardState collector — StateFlow
-                    // conflates equal Error values, so consecutive identical errors would
-                    // never re-emit (probe-proven).
+                    // Generic HTTP failure: counted against the stale/error thresholds.
                     else -> {
-                        consecutiveFailures++
-                        _pollStatus.value =
-                            if (consecutiveFailures >= ERROR_THRESHOLD) {
-                                DashboardPollStatus.ERRORED
-                            } else if (consecutiveFailures >= STALE_THRESHOLD) {
-                                DashboardPollStatus.STALE
-                            } else {
-                                DashboardPollStatus.FRESH
-                            }
+                        countFailure()
                         false
                     }
                 }
             },
+            // Transport/deserialization failures land here (onNonSuccess only sees HTTP
+            // statuses) — without this hook a dead network would silently freeze the last
+            // data with no stale banner, no escalation, no retry (pass-1 HARD).
+            onError = { countFailure() },
         )
     }
 

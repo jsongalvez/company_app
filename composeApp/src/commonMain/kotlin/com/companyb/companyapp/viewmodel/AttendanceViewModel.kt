@@ -46,6 +46,13 @@ class AttendanceViewModel(
         )
     }
 
+    fun resetClockOut() {
+        // #147 pass-2 — the drawer dialog reopens after a failed attempt: a stale Error must
+        // not persist into the fresh attempt's frame (the sync Loading pre-set below would
+        // overwrite it, but only AFTER the confirm tap — the dialog would show the old error).
+        _clockOutState.value = UiState.Idle
+    }
+
     fun clockOut(request: ClockOutRequest): Job {
         // #147 — mirrors clockIn (#140 r1 pattern): synchronous pre-set + Job return so the
         // drawer's dialog can disable the confirm and chain navigation on success.

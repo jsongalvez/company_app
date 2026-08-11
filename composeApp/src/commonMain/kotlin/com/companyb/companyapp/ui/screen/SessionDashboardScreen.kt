@@ -1,33 +1,34 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
@@ -36,47 +37,7 @@ import com.companyb.companyapp.util.formatTimeOfDay
 import com.companyb.companyapp.viewmodel.DashboardPollStatus
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
 import com.companyb.companyapp.viewmodel.UiState
-import kotlin.math.abs
 import kotlin.time.Instant
-
-private const val SESSION_STATUS_COMPLETED = "COMPLETED"
-private const val WALK_IN_DOT_SIZE = 8
-
-/**
- * Fixed-point money helpers (commonMain has no BigDecimal): backend money strings are
- * non-negative decimal strings (parseNonNegativeBigDecimal server-side), commission at scale 4
- * ("200.0000"), prices at scale 2. Cents arithmetic keeps the gross sum exact; scale-4 inputs
- * truncate at the second decimal (display-only — the backend amount is authoritative).
- */
-internal fun moneyToCents(raw: String): Long {
-    val parts = raw.split('.')
-    val whole = parts.firstOrNull()?.toLongOrNull() ?: return 0L
-    val frac =
-        parts
-            .getOrNull(1)
-            ?.take(2)
-            ?.padEnd(2, '0')
-            ?.toLongOrNull() ?: 0L
-    return whole * 100 + frac
-}
-
-internal fun centsToMoney(cents: Long): String {
-    val sign = if (cents < 0) "-" else ""
-    val absValue = abs(cents)
-    return "$sign${absValue / 100}.${(absValue % 100).toString().padStart(2, '0')}"
-}
-
-/**
- * #97 Q2 — gross income excludes voided rows AND non-completed sessions at the state layer
- * ("Today · completed, non-voided"); rendering only shows voided-ness.
- */
-internal fun grossIncomeCents(sessions: List<DashboardSessionResponse>): Long =
-    sessions
-        .filter { it.sessionStatus == SESSION_STATUS_COMPLETED && !it.isVoided }
-        .sumOf { moneyToCents(it.finalPrice) }
-
-internal fun commissionLabel(productSalesCount: Int): String =
-    "from $productSalesCount product sale${if (productSalesCount == 1) "" else "s"}"
 
 data class SessionListArgs(
     val sessions: List<DashboardSessionResponse>,
@@ -105,6 +66,7 @@ internal expect fun SessionList(
 fun SessionDashboardScreen(
     viewModel: SessionDashboardViewModel,
     selectedBranchName: String?,
+    selectedSessionId: String?,
     onSessionClick: (DashboardSessionResponse) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -113,6 +75,14 @@ fun SessionDashboardScreen(
     val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsState()
     val pollStatus by viewModel.pollStatus.collectAsState()
     val isForbidden by viewModel.isForbidden.collectAsState()
+    // Q5 "silent polling": the pull-to-refresh indicator must show ONLY for a user-initiated
+    // refresh, never for the 30s poll cycle's Loading frame (pass-1 HARD).
+    var isManualRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        if (state !is UiState.Loading) {
+            isManualRefreshing = false
+        }
+    }
 
     DisposableEffect(Unit) {
         viewModel.resume()
@@ -178,10 +148,13 @@ fun SessionDashboardScreen(
                                 args =
                                     SessionListArgs(
                                         sessions = data.sessions,
-                                        selectedSessionId = null,
+                                        selectedSessionId = selectedSessionId,
                                         onSessionClick = onSessionClick,
-                                        onRefresh = viewModel::refresh,
-                                        isRefreshing = state is UiState.Loading,
+                                        onRefresh = {
+                                            isManualRefreshing = true
+                                            viewModel.refresh()
+                                        },
+                                        isRefreshing = isManualRefreshing && state is UiState.Loading,
                                     ),
                             )
                         }
@@ -202,12 +175,17 @@ private fun SummaryCardsRow(
         modifier = Modifier.fillMaxWidth().padding(Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        // #97 Q2 Variant A — equal peers: two equal-weight cards, hairline border each.
+        // #97 Q2 Variant A — equal peers: two equal-weight cards + thin vertical hairline
+        // between them, hairline border each (pass-2 restored the locked treatment).
         SummaryCard(
             label = "Gross income",
             value = "₱${centsToMoney(grossCents)}",
             sublabel = "Today · completed, non-voided",
             modifier = Modifier.weight(1f),
+        )
+        VerticalDivider(
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.fillMaxHeight(),
         )
         SummaryCard(
             label = "Your commission",
@@ -233,6 +211,8 @@ private fun SummaryCard(
                 // surfaceVariant = Surface2 (#141516) — the Q2 card surface.
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
             ),
+        // Q2 — hairline border on the card surface.
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         Column(Modifier.padding(Spacing.md)) {
             // eyebrow — ink-subtle labelSmall above the value (Q2 typography ladder).
@@ -340,231 +320,4 @@ private fun InPlaceCard(
     }
 }
 
-/**
- * Shared detail pane — desktop master-detail inline pane AND the mobile pushed
- * SessionDetail route render the same content (Q1 secondary fields: base price,
- * practitioners, next appointment, remarks, concerns).
- */
-@Composable
-fun SessionDetailContent(
-    session: DashboardSessionResponse?,
-    modifier: Modifier = Modifier,
-) {
-    if (session == null) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Select a session",
-                style = MaterialTheme.typography.bodyMedium,
-                color = InkSubtle,
-            )
-        }
-        return
-    }
-    Column(
-        modifier = modifier.fillMaxSize().padding(Spacing.md),
-        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = session.clientName ?: "Unknown client",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            if (session.isWalkIn) {
-                WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            SessionTypeBadge(session)
-            SessionStatusBadge(session)
-            if (session.isVoided) {
-                VoidedPill()
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-        DetailRow("Base price", "₱${session.basePrice}")
-        DetailRow("Final price", "₱${session.finalPrice}")
-        if (session.bookedAt != null) {
-            DetailRow("Booked time", bookedTimeLabel(session.bookedAt))
-        }
-        session.nextAppointmentDate?.let { nextAppointment ->
-            DetailRow("Next appointment", nextAppointment)
-        }
-        if (session.practitioners.isNotEmpty()) {
-            DetailRow("Practitioners", "")
-            session.practitioners.forEach { practitioner ->
-                PractitionerRow(practitioner)
-            }
-        }
-        session.remarks?.takeIf { it.isNotBlank() }?.let { remarks ->
-            DetailRow("Remarks", remarks)
-        }
-        if (session.concerns.isNotEmpty()) {
-            DetailRow("Concerns", session.concerns.joinToString { it.label })
-        }
-    }
-}
-
-@Composable
-private fun DetailRow(
-    label: String,
-    value: String,
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = InkSubtle,
-            modifier = Modifier.weight(0.35f),
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(0.65f),
-        )
-    }
-}
-
-@Composable
-private fun PractitionerRow(practitioner: DashboardPractitionerResponse) {
-    Row(modifier = Modifier.fillMaxWidth().padding(start = Spacing.lg)) {
-        Text(
-            text = practitioner.displayName,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        practitioner.remarks?.takeIf { it.isNotBlank() }?.let { remarks ->
-            Text(
-                text = remarks,
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSubtle,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun WalkInDot(
-    voided: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    // Q3 — walk-in dot: lavender 70% when active, grey (InkSubtle) when voided.
-    Surface(
-        shape = CircleShape,
-        color =
-            if (voided) {
-                InkSubtle
-            } else {
-                MaterialTheme.colorScheme.primary.copy(alpha = WALK_IN_DOT_ALPHA)
-            },
-        modifier = modifier.size(WALK_IN_DOT_SIZE.dp),
-    ) {}
-}
-
-@Composable
-internal fun SessionTypeBadge(session: DashboardSessionResponse) {
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.sm),
-        color =
-            if (session.isVoided) {
-                MaterialTheme.colorScheme.secondary.copy(alpha = MUTED_BADGE_BG_ALPHA)
-            } else {
-                MaterialTheme.colorScheme.secondary
-            },
-    ) {
-        Text(
-            text = session.sessionType,
-            style = MaterialTheme.typography.labelSmall,
-            color =
-                if (session.isVoided) {
-                    InkSubtle.copy(alpha = MUTED_BADGE_FG_ALPHA)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
-        )
-    }
-}
-
-@Composable
-internal fun SessionStatusBadge(session: DashboardSessionResponse) {
-    // Q3 — status pill stays when voided (status is real — COMPLETED is still COMPLETED),
-    // just visually deferred to the VOIDED pill; the two axes are not collapsed.
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.sm),
-        color =
-            if (session.isVoided) {
-                MaterialTheme.colorScheme.secondary.copy(alpha = MUTED_BADGE_BG_ALPHA)
-            } else {
-                MaterialTheme.colorScheme.secondary
-            },
-    ) {
-        Text(
-            text = session.sessionStatus,
-            style = MaterialTheme.typography.labelSmall,
-            color =
-                if (session.isVoided) {
-                    InkSubtle.copy(alpha = MUTED_BADGE_FG_ALPHA)
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
-        )
-    }
-}
-
-@Composable
-internal fun VoidedPill() {
-    // Q3 — VOIDED pill: Danger 35% bg + bright ink text (light rose, high contrast);
-    // an annotation, not a colored status chip (chip vocabulary stays owned by status).
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.sm),
-        color = MaterialTheme.colorScheme.error.copy(alpha = VOIDED_PILL_BG_ALPHA),
-    ) {
-        Text(
-            text = "VOIDED",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
-        )
-    }
-}
-
-/**
- * #97 Q3 — client name treatment: strikethrough + dimmest ink when voided; active rows use
- * full ink. Shared by the desktop table row and the mobile card.
- */
-@Composable
-internal fun ClientNameText(session: DashboardSessionResponse) {
-    Text(
-        text = session.clientName ?: "Unknown client",
-        style = MaterialTheme.typography.bodyMedium,
-        color = if (session.isVoided) InkSubtle else MaterialTheme.colorScheme.onSurface,
-        textDecoration = if (session.isVoided) TextDecoration.LineThrough else TextDecoration.None,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-internal fun bookedTimeLabel(bookedAt: String?): String =
-    if (bookedAt == null) {
-        "—"
-    } else {
-        runCatching { formatTimeOfDay(Instant.parse(bookedAt)) }.getOrDefault("—")
-    }
-
-internal const val VOIDED_ROW_ALPHA = 0.22f
-
-private const val WALK_IN_DOT_ALPHA = 0.7f
-private const val MUTED_BADGE_BG_ALPHA = 0.4f
-private const val MUTED_BADGE_FG_ALPHA = 0.5f
-private const val VOIDED_PILL_BG_ALPHA = 0.35f
 private const val STALE_BANNER_ALPHA = 0.22f

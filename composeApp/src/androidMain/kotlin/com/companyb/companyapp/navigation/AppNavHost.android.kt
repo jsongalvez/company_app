@@ -169,6 +169,7 @@ actual fun AppNavHost(
                         SessionDashboardScreen(
                             viewModel = dashboardViewModel,
                             selectedBranchName = selectedBranchName,
+                            selectedSessionId = null,
                             onSessionClick = { row ->
                                 // #147 — mobile detail push carries the enriched row from the
                                 // poll (no session-detail GET; the #146-corrected fact).

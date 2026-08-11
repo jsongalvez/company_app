@@ -144,7 +144,12 @@ fun DrawerContent(
             NavigationDrawerItem(
                 label = { Text("Clock out") },
                 selected = false,
-                onClick = { showClockOutDialog = true },
+                onClick = {
+                    // pass-2 — reset any stale error from a previous failed attempt before
+                    // the dialog opens (the dialog's inline error must describe THIS attempt).
+                    attendanceViewModel.resetClockOut()
+                    showClockOutDialog = true
+                },
                 colors =
                     NavigationDrawerItemDefaults.colors(
                         selectedContainerColor = MaterialTheme.colorScheme.secondary,

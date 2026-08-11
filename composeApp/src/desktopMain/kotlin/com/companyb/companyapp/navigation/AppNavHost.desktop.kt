@@ -146,6 +146,7 @@ actual fun AppNavHost(
                             SessionDashboardScreen(
                                 viewModel = dashboardViewModel,
                                 selectedBranchName = selectedBranchName,
+                                selectedSessionId = selectedSessionId,
                                 onSessionClick = { session -> selectedSessionId = session.id },
                             )
                         }
