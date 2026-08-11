@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.finance.remittance
 
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceLine
@@ -198,8 +199,19 @@ internal object RemittanceLineRepository {
 
     private fun entityRefCondition(params: AddLineParams): Op<Boolean> =
         when (params.type) {
-            RemittanceLineType.SESSION -> RemittanceLineTable.sessionId eq params.sessionId
-            RemittanceLineType.PRODUCT_SALE -> RemittanceLineTable.productSaleId eq params.productSaleId
+            RemittanceLineType.SESSION -> {
+                val sessionId =
+                    params.sessionId
+                        ?: throw ValidationException("sessionId is required for SESSION line type")
+                RemittanceLineTable.sessionId eq sessionId
+            }
+
+            RemittanceLineType.PRODUCT_SALE -> {
+                val productSaleId =
+                    params.productSaleId
+                        ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
+                RemittanceLineTable.productSaleId eq productSaleId
+            }
         }
 
     private fun duplicateMessage(type: RemittanceLineType): String =
