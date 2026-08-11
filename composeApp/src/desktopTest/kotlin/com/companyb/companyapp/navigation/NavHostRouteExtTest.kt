@@ -35,7 +35,8 @@ class NavHostRouteExtTest {
 
     @Test
     fun routeMapCoversEverySealedSubclass() {
-        val subclasses = Route::class.sealedSubclassesDeep()
+        // sealedSubclasses is recursive — direct AND indirect subclasses
+        val subclasses = Route::class.sealedSubclasses
         assertEquals(
             subclasses.size,
             ROUTES_BY_SERIAL_NAME.size,
@@ -51,8 +52,3 @@ class NavHostRouteExtTest {
         }
     }
 }
-
-private fun KClass<*>.sealedSubclassesDeep(): List<KClass<*>> =
-    sealedSubclasses.flatMap { subclass ->
-        if (subclass.isSealed) subclass.sealedSubclassesDeep() else listOf(subclass)
-    }
