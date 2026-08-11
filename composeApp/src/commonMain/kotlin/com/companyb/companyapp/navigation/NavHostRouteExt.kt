@@ -22,18 +22,19 @@ import kotlin.reflect.KClass
  * carries the "type"/"value" keys the polymorphic decoder requires — the start destination
  * entry gets an empty bundle and arg-carrying entries get only their arg keys. Navigation's
  * type-safe API supports concrete classes only: resolve the concrete class from the
- * destination's route pattern (serial name, then query args after '?' and path args after
- * '/'), then decode non-polymorphically.
+ * destination's route pattern — strip the query-arg suffix after '?' and the path-arg
+ * suffix after '/' to recover the serial name — then decode non-polymorphically.
  */
 @Composable
 fun NavHostController.currentRoute(): Route? {
     val state by currentBackStackEntryAsState()
     val entry = state ?: return null
     val pattern = entry.destination.route ?: return null
-    val serialName = pattern.substringBefore('?').substringBefore('/')
-    val routeClass = ROUTES_BY_SERIAL_NAME[serialName] ?: return null
+    val routeClass = ROUTES_BY_SERIAL_NAME[serialNameFromPattern(pattern)] ?: return null
     return entry.toRoute(routeClass)
 }
+
+internal fun serialNameFromPattern(pattern: String): String = pattern.substringBefore('?').substringBefore('/')
 
 @OptIn(InternalSerializationApi::class)
 internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
