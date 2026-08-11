@@ -45,6 +45,10 @@ class NotificationViewModel(
     private val _readThisSession = MutableStateFlow<List<NotificationResponse>>(emptyList())
     val readThisSession: StateFlow<List<NotificationResponse>> = _readThisSession.asStateFlow()
 
+    // Bumped on every successful action (markRead/markAll): loads capture it at launch, and a
+    // landing with a mismatched stamp is a stale pre-action snapshot — see loadUnreadNotifications.
+    private var actionStamp = 0L
+
     init {
         // Single writer for lastUnread: every Success that lands on _notifications (load, the
         // markRead/markAll transforms' mutated lists) mirrors into it (the badge-VM collector
@@ -68,12 +72,16 @@ class NotificationViewModel(
                 if (loadStamp != actionStamp) {
                     // An action (markRead/markAll) succeeded while this load was in flight, so
                     // the snapshot predates it — committing it would resurrect read rows under
-                    // the new badge count (audit #141 pass-6: the stale-overwrite class). The
-                    // handler still commits the stale body; the re-issue's Loading + fresh
-                    // Success then re-derive the list within a dispatch or two.
+                    // the new badge count (audit #141 pass-6/7). Substitute the post-action
+                    // list: the action's Success was mirrored into lastUnread a moment ago
+                    // (Main FIFO guarantees the mirror precedes this landing), so the commit
+                    // shows the correct list with no resurrect frame — even if the re-issue
+                    // GET below fails. The re-issue still runs so post-action arrivals surface.
                     loadUnreadNotifications()
+                    _lastUnread.value ?: body
+                } else {
+                    body
                 }
-                body
             },
         )
     }
@@ -165,6 +173,4 @@ class NotificationViewModel(
 
     private fun currentUnreadList(): List<NotificationResponse>? =
         (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data ?: _lastUnread.value
-
-    private var actionStamp = 0L
 }

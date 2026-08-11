@@ -262,6 +262,9 @@ class NotificationViewModelTest {
                     mockApiClient(
                         notificationsHandler(
                             secondGetDelayMs = 70_000,
+                            // The held reload serves the PRE-action snapshot (the read row still
+                            // in it) — the genuinely stale body the stamp must neutralize.
+                            secondGetBody = NOTIFICATIONS_JSON,
                             dispatcher = StandardTestDispatcher(testScheduler),
                         ),
                     ),
@@ -287,15 +290,13 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
 
-            // The stale pre-action snapshot lands (+70s): the action stamp re-issues the load
-            // instead of resurrecting the read row — the re-issue's own GET is held another
-            // 70s (+140s), so the converged state needs both advances (the stale Success's
-            // mirror is skipped by StateFlow conflation — no resurrect frame at all).
+            // The stale pre-action snapshot lands: the stamp substitutes the post-action list —
+            // n1 must NOT resurrect (a resurrect would re-render it unread under the decremented
+            // badge and let a re-tap double-decrement); the re-issue converges arrivals in the
+            // drain.
             advanceTimeBy(70_000.milliseconds)
             runCurrent()
-            advanceTimeBy(70_000.milliseconds)
-            runCurrent()
-            assertEquals(expected = listOf("n3"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
         }
@@ -309,6 +310,7 @@ class NotificationViewModelTest {
                     mockApiClient(
                         notificationsHandler(
                             secondGetDelayMs = 70_000,
+                            secondGetBody = NOTIFICATIONS_JSON,
                             dispatcher = StandardTestDispatcher(testScheduler),
                         ),
                     ),
@@ -329,15 +331,13 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
 
-            // The stale pre-markAll snapshot lands (+70s): the action stamp re-issues the load —
-            // rows must NOT resurrect under the zero badge, and Read stays duplicate-free. The
-            // re-issue's own GET is held another 70s (+140s), so the converged state needs both
-            // advances.
+            // The stale pre-markAll snapshot lands: the stamp substitutes the post-action list —
+            // rows must NOT resurrect under the zero badge (they would re-render unread with the
+            // Mark-all button back, unreachable by any in-screen refresh); Read stays
+            // duplicate-free; the re-issue converges arrivals in the drain.
             advanceTimeBy(70_000.milliseconds)
             runCurrent()
-            advanceTimeBy(70_000.milliseconds)
-            runCurrent()
-            assertEquals(expected = listOf("n3"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
         }
@@ -381,11 +381,12 @@ class NotificationViewModelTest {
         markAllBody: String = MARK_ALL_JSON,
         secondGetDelayMs: Long = 0,
         secondGetStatus: HttpStatusCode = HttpStatusCode.OK,
+        secondGetBody: String = ARRIVAL_JSON,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MockRequestHandler {
         // First GET serves the two known rows; a reload GET (post-markAllRead with a nonzero
-        // unreadCount, or an explicit second load) serves the arrival-only list — mirrors the
-        // #111 concurrent-arrival shape.
+        // unreadCount, or an explicit second load) serves secondGetBody — the arrival-only list
+        // by default, or a held STALE snapshot (the pre-action rows) for the stale-landing tests.
         var getCount = 0
         return { request ->
             when {
@@ -400,7 +401,7 @@ class NotificationViewModelTest {
                         if (secondGetDelayMs > 0) {
                             withContext(dispatcher) { delay(secondGetDelayMs) }
                         }
-                        jsonRespond(status = secondGetStatus, body = ARRIVAL_JSON)
+                        jsonRespond(status = secondGetStatus, body = secondGetBody)
                     }
                 }
 
