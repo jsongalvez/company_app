@@ -8,6 +8,7 @@ import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -64,8 +65,10 @@ internal object RemittanceLineRepository {
                 val racedRetry =
                     RemittanceLineTable
                         .selectAll()
-                        .where { RemittanceLineTable.id eq params.id }
-                        .singleOrNull()
+                        .where {
+                            (RemittanceLineTable.id eq params.id) and
+                                entityRefCondition(params)
+                        }.singleOrNull()
                 if (racedRetry != null) {
                     return@transaction racedRetry.toRemittanceLine()
                 }
@@ -181,31 +184,23 @@ internal object RemittanceLineRepository {
 
     private fun assertNotAlreadyIncluded(params: AddLineParams) {
         val existingLine =
-            when (params.type) {
-                RemittanceLineType.SESSION -> {
-                    RemittanceLineTable
-                        .selectAll()
-                        .where {
-                            (RemittanceLineTable.sessionId eq params.sessionId) and
-                                RemittanceLineTable.deletedAt.isNull() and
-                                (RemittanceLineTable.id neq params.id)
-                        }.singleOrNull()
-                }
-
-                RemittanceLineType.PRODUCT_SALE -> {
-                    RemittanceLineTable
-                        .selectAll()
-                        .where {
-                            (RemittanceLineTable.productSaleId eq params.productSaleId) and
-                                RemittanceLineTable.deletedAt.isNull() and
-                                (RemittanceLineTable.id neq params.id)
-                        }.singleOrNull()
-                }
-            }
+            RemittanceLineTable
+                .selectAll()
+                .where {
+                    entityRefCondition(params) and
+                        RemittanceLineTable.deletedAt.isNull() and
+                        (RemittanceLineTable.id neq params.id)
+                }.singleOrNull()
         if (existingLine != null) {
             throw ConflictException(duplicateMessage(params.type))
         }
     }
+
+    private fun entityRefCondition(params: AddLineParams): Op<Boolean> =
+        when (params.type) {
+            RemittanceLineType.SESSION -> RemittanceLineTable.sessionId eq params.sessionId
+            RemittanceLineType.PRODUCT_SALE -> RemittanceLineTable.productSaleId eq params.productSaleId
+        }
 
     private fun duplicateMessage(type: RemittanceLineType): String =
         entityLabel(type) + " already included in a remittance line"

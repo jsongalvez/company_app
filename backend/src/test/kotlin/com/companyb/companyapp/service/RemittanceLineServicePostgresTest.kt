@@ -272,6 +272,21 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("1500.00"),
         )
 
+        val versionBeforeConflict =
+            transaction {
+                RemittanceTable
+                    .selectAll()
+                    .where { RemittanceTable.id eq remittance.id }
+                    .single()[RemittanceTable.version]
+            }
+        val auditCountBeforeConflict =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where { AuditLogTable.auditTableName eq "remittance_line" }
+                    .count()
+            }
+
         assertFailsWith<ConflictException> {
             RemittanceService.addLine(
                 callerId = callerId,
@@ -283,6 +298,23 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 amount = BigDecimal("1500.00"),
             )
         }
+
+        val versionAfterConflict =
+            transaction {
+                RemittanceTable
+                    .selectAll()
+                    .where { RemittanceTable.id eq remittance.id }
+                    .single()[RemittanceTable.version]
+            }
+        val auditCountAfterConflict =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where { AuditLogTable.auditTableName eq "remittance_line" }
+                    .count()
+            }
+        assertEquals(versionBeforeConflict, versionAfterConflict)
+        assertEquals(auditCountBeforeConflict, auditCountAfterConflict)
     }
 
     @Test

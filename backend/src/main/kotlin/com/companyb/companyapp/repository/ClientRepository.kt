@@ -151,7 +151,7 @@ object ClientRepository {
 
     fun anonymize(
         clientId: UUID,
-        guardFn: () -> Unit = {},
+        guardFn: () -> Unit,
         auditFn: (Client) -> Unit = {},
     ): Boolean =
         transaction {

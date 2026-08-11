@@ -154,6 +154,9 @@ inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup
 Signal business errors by throwing domain exceptions from the service layer:
 `ValidationException` (400), `NotFoundException` (404), `ConflictException` (409),
 `ForbiddenException` (403).
+Repository-layer guards inside transactions may throw the same domain exceptions where
+the check+write must stay atomic (precedents: the PENDING-session guard, the
+duplicate-remittance-line 409, `VersionMismatchException`).
 These are defined in `com.companyb.companyapp.exception` and are mapped to HTTP status codes
 by a centralized exception handler in `Main.kt` (`registerExceptionHandlers`).
 Route handlers may still throw Javalin HTTP exceptions for request-validation concerns
@@ -274,7 +277,7 @@ Session create (`POST /api/sessions`) uses an idempotent PK lookup first (`Sessi
 
 The `computeSessionType` pure function is extracted from the service so it can be unit-tested without a database. The prior session count excludes MEDICAL_MISSION sessions and voided sessions (via `active_session_voids` view LEFT JOIN).
 
-For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Exposed `Query.forUpdate()` is not available; rely on unique indexes + pre-checks.
+For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Row locks via Exposed `Query.forUpdate()` ARE available and execute only with a terminal op (`.singleOrNull()`) — `SessionRepository.acquireClientLock` / `ProductSaleRepository.acquireInventoryLock` / the RemittanceRepository lock helpers materialize them this way; a `forUpdate()` without a terminal op silently no-ops (the #136 lazy-lock bug class).
 
 Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLogRepository.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
 

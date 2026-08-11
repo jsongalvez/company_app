@@ -79,6 +79,11 @@ class BranchDayServiceTest {
     }
 
     @Test
+    fun `open day read with capability is allowed`() {
+        BranchDayService.assertReadableState(DayStatus.OPEN, hasEditPastDay = true)
+    }
+
+    @Test
     fun `past day read without EDIT_PAST_DAY is forbidden`() {
         assertFailsWith<ForbiddenException> {
             BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = false)
