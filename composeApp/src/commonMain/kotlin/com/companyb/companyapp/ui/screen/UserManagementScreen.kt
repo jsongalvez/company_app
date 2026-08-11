@@ -669,23 +669,11 @@ private fun EditSlotDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val slot = parseSlotInput(input)
-                    if (slot == null) {
-                        // Distinguish the two rejection classes: parseSlotInput returns null both
-                        // for invalid input and for values beyond Short (the shared DTO + backend
-                        // column are SMALLINT) — one message would lie for the other (pass-1 P2).
-                        // toLongOrNull (not toIntOrNull): a 20-digit number must classify as
-                        // too-large, not as invalid (pass-2 P1/P4).
-                        val numeric =
-                            input.trim().toLongOrNull()?.let { it >= 1 } == true
-                        inputError =
-                            if (numeric) {
-                                "Slot number too large (max 32767)"
-                            } else {
-                                "Slot must be 1 or greater"
-                            }
+                    val error = slotInputError(input)
+                    if (error == null) {
+                        onSave(parseSlotInput(input)!!)
                     } else {
-                        onSave(slot)
+                        inputError = error
                     }
                 },
             ) {

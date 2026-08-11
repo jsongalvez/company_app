@@ -462,6 +462,35 @@ class UserManagementViewModelTest {
     }
 
     @Test
+    fun slotInputError_classifies_rejection_classes() {
+        assertNull(slotInputError("1"))
+        assertNull(slotInputError("32767"))
+        assertNull(slotInputError(" 99 "))
+        // Beyond SMALLINT — "too large", not "1 or greater" (the DTO slot is Short; backend
+        // column SMALLINT). Regression-pinned: pass-1 classified 32768 wrong, pass-2 fixed the
+        // ≤ Long.MAX window and broke > Long.MAX again; the digit-ness branch covers both.
+        assertEquals(
+            expected = "Slot number too large (max 32767)",
+            actual = slotInputError("32768"),
+        )
+        assertEquals(
+            expected = "Slot number too large (max 32767)",
+            actual = slotInputError("9223372036854775808"),
+        )
+        assertEquals(
+            expected = "Slot number too large (max 32767)",
+            actual = slotInputError("99999999999999999999"),
+        )
+        // ≤ 0 and non-numeric — the backend's "Slot must be 1 or greater" (400).
+        assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("0"))
+        assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("-2"))
+        assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("abc"))
+        assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError(""))
+        assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("1.5"))
+        assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("12a"))
+    }
+
+    @Test
     fun filterUsers_matches_display_name_or_username_case_insensitive() {
         val users =
             listOf(

@@ -55,6 +55,25 @@ fun slotOrderForBranch(
 /** Client-side slot-number validation mirroring the backend's "Slot must be 1 or greater" (400). */
 fun parseSlotInput(input: String): Short? = input.trim().toShortOrNull()?.takeIf { it >= 1 }
 
+/**
+ * The EditSlotDialog's rejection message, pure so the decision is testable (#143 pass-3 — the
+ * #142 lesson: message-truth decisions that regress inline must be extracted). Distinguishes the
+ * two rejection classes parseSlotInput conflates (both return null):
+ * - a number ≥ 1 but beyond SMALLINT (32767) — "too large". Includes inputs that overflow even
+ *   Long ("99999999999999999999"): all-digit strings that don't parse as Long are certainly
+ *   > 32767 (pass-2's toLongOrNull-only classification regressed exactly here).
+ * - anything else (≤ 0, non-numeric, empty) — "Slot must be 1 or greater" (the backend's 400).
+ */
+fun slotInputError(input: String): String? {
+    val trimmed = input.trim()
+    if (parseSlotInput(trimmed) != null) return null
+    val numeric = trimmed.toLongOrNull()
+    val tooLarge =
+        (numeric != null && numeric >= 1) ||
+            (numeric == null && trimmed.isNotEmpty() && trimmed.all { it.isDigit() })
+    return if (tooLarge) "Slot number too large (max 32767)" else "Slot must be 1 or greater"
+}
+
 /** D2 — client-side search on display name/username, instant (no extra round-trips, YAGNI). */
 fun filterUsers(
     users: List<UserSummaryResponse>,
@@ -102,16 +121,19 @@ class UserViewModel(
     private val mutation = MutableStateFlow<UiState<Unit>>(UiState.Idle)
 
     fun loadUsers() {
-        // A reload replaces the list; the errors describe actions against the pre-reload list
-        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
-        _actionErrors.value = emptyMap()
         // Guard: a reload mid-mutation would let the mutation's in-place transform re-apply to
         // the fresh list (swap double-applies — pass-1 P2/P4 HARD class; the Refresh-button gate
         // alone couldn't cover non-click triggers like LaunchedEffect refires on rotation/
         // re-entry, pass-2 P2/P4). While any mutation is in flight the locally-mutated list IS
         // the authority (mutations only exist once the list loaded Success), so skipping is safe:
         // the only way inFlight is non-empty is a Success list that in-place updates keep current.
+        // The guard sits BEFORE the error clear: a skipped load leaves the list untouched, so its
+        // errors still describe current state (pass-3 P2 — clearing them would hide a real
+        // failure the next composition's failed-action display relies on).
         if (_inFlight.value.isNotEmpty()) return
+        // A reload replaces the list; the errors describe actions against the pre-reload list
+        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
+        _actionErrors.value = emptyMap()
         handler.launch(
             state = _users,
             operation = "loadUsers",
