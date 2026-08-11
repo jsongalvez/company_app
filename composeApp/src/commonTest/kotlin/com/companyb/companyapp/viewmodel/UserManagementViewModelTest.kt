@@ -125,6 +125,30 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun loadUsers_skipped_keeps_existing_action_errors() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.deactivateStatus = HttpStatusCode.InternalServerError
+            vm.deactivateUser("u2")
+            advanceUntilIdle()
+            assertEquals(expected = "Deactivate failed: 500", actual = vm.actionErrors.value["deactivate:u2"])
+
+            // A skipped load leaves the list untouched — the guard sits BEFORE the error clear
+            // (pass-3 P2), so a completed failure's error survives a mid-mutation reload attempt
+            // and still describes current state once the mutation lands.
+            vm.swapSlots(branchId = "b1", userIdA = "u1", userIdB = "u2")
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            assertEquals(expected = "Deactivate failed: 500", actual = vm.actionErrors.value["deactivate:u2"])
+            assertTrue(vm.inFlight.value.isEmpty())
+        }
+
+    @Test
     fun loadUsers_failure_emits_error() =
         runTest(testScheduler) {
             val vm =
@@ -488,6 +512,15 @@ class UserManagementViewModelTest {
         assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError(""))
         assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("1.5"))
         assertEquals(expected = "Slot must be 1 or greater", actual = slotInputError("12a"))
+        // Kotlin's Short/Long parsing is digit-aware: non-ASCII numerals parse as their values
+        // (pass-4's "Unicode-digit mislabel" SOFT was a false premise — toShortOrNull("٥") = 5,
+        // pinned here). The digit-ness branch only fires on genuine overflow.
+        assertNull(slotInputError("٥"))
+        assertNull(slotInputError("１２"))
+        assertEquals(
+            expected = "Slot number too large (max 32767)",
+            actual = slotInputError("٩٩٩٩٩٩٩٩٩٩٩٩٩٩٩٩٩٩٩٩"),
+        )
     }
 
     @Test

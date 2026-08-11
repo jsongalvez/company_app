@@ -60,8 +60,10 @@ fun parseSlotInput(input: String): Short? = input.trim().toShortOrNull()?.takeIf
  * #142 lesson: message-truth decisions that regress inline must be extracted). Distinguishes the
  * two rejection classes parseSlotInput conflates (both return null):
  * - a number ≥ 1 but beyond SMALLINT (32767) — "too large". Includes inputs that overflow even
- *   Long ("99999999999999999999"): all-digit strings that don't parse as Long are certainly
- *   > 32767 (pass-2's toLongOrNull-only classification regressed exactly here).
+ *   Long ("99999999999999999999"): all-digit strings that fail to parse as Long are certainly
+ *   > 32767 (pass-2's toLongOrNull-only classification regressed exactly here). Note Kotlin's
+ *   Short/Long parsing is digit-aware (non-ASCII numerals like "٥" parse as 5 — pass-4's
+ *   "Unicode mislabel" SOFT was a false premise; isDigit() aligns with the parser).
  * - anything else (≤ 0, non-numeric, empty) — "Slot must be 1 or greater" (the backend's 400).
  */
 fun slotInputError(input: String): String? {
