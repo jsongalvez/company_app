@@ -424,6 +424,7 @@ private fun ClientDetailContent(
                         field = ClientField.GENDER,
                         editingField = editingField,
                         draftValue = draftValue,
+                        fieldError = fieldError,
                         onDraftChange = { draftValue = it },
                         onStartEdit = ::startEdit,
                         onCommit = ::commitEdit,
@@ -864,11 +865,13 @@ private fun GenderFieldEditor(
     field: ClientField,
     editingField: ClientField?,
     draftValue: String,
+    fieldError: String?,
     onDraftChange: (String) -> Unit,
     onStartEdit: (ClientField) -> Unit,
     onCommit: (ClientField) -> Unit,
 ) {
     val editing = editingField == field
+    val error = if (editing) fieldError else null
     var menuOpen by remember { mutableStateOf(false) }
 
     Column(
@@ -934,6 +937,15 @@ private fun GenderFieldEditor(
                             .padding(start = Spacing.xs),
                 )
             }
+        }
+        // D4 inline error — the dropdown has no blur/Enter surface, so a failed PATCH (5xx) must
+        // surface here or it is invisible (re-selecting the same value exits the edit).
+        if (error != null) {
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
