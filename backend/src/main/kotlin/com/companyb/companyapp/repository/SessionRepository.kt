@@ -137,11 +137,19 @@ object SessionRepository {
         auditFn: (Session) -> Unit = {},
     ): Session =
         transaction {
-            SessionTable.update({
-                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-            }) {
-                it[SessionTable.sessionStatus] = newStatus
-                it[SessionTable.version] = expectedVersion + 1
+            // The affected-row count is load-bearing (the #149 count-0 misfire lesson): a
+            // concurrent commit between the service's version pre-check and this conditional
+            // UPDATE matches 0 rows — the service must not read back the OTHER writer's row
+            // and serve it as its own success (a silent lost update, ADR-0022).
+            val updatedCount =
+                SessionTable.update({
+                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+                }) {
+                    it[SessionTable.sessionStatus] = newStatus
+                    it[SessionTable.version] = expectedVersion + 1
+                }
+            if (updatedCount != 1) {
+                throw ConflictException("Session version mismatch")
             }
 
             val session =
@@ -162,11 +170,17 @@ object SessionRepository {
         auditFn: (Session) -> Unit = {},
     ): Session =
         transaction {
-            SessionTable.update({
-                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-            }) {
-                it[SessionTable.sessionType] = newType
-                it[SessionTable.version] = expectedVersion + 1
+            // Count-0 misfire guard (the #149 lesson): 0 affected rows = a concurrent commit
+            // won the version — the caller must 409, never read back the other writer's row.
+            val updatedCount =
+                SessionTable.update({
+                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+                }) {
+                    it[SessionTable.sessionType] = newType
+                    it[SessionTable.version] = expectedVersion + 1
+                }
+            if (updatedCount != 1) {
+                throw ConflictException("Session version mismatch")
             }
 
             val session =
@@ -187,11 +201,15 @@ object SessionRepository {
         auditFn: (Session) -> Unit = {},
     ): Session =
         transaction {
-            SessionTable.update({
-                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-            }) {
-                it[SessionTable.finalPrice] = newFinalPrice
-                it[SessionTable.version] = expectedVersion + 1
+            val updatedCount =
+                SessionTable.update({
+                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+                }) {
+                    it[SessionTable.finalPrice] = newFinalPrice
+                    it[SessionTable.version] = expectedVersion + 1
+                }
+            if (updatedCount != 1) {
+                throw ConflictException("Session version mismatch")
             }
 
             val session =

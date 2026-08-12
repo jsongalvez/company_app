@@ -403,9 +403,62 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `update final price to zero succeeds`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        val updated = SessionService.updateFinalPrice(callerId, sessionId, BigDecimal.ZERO, 1)
+
+        assertEquals("0.00", updated.finalPrice.toPlainString())
+        assertEquals(2, updated.version)
+    }
+
+    @Test
     fun `update final price for non-existent session throws 404`() {
         assertFailsWith<NotFoundException> {
             SessionService.updateFinalPrice(callerId, UUID.randomUUID(), BigDecimal("2750.00"), 1)
+        }
+    }
+
+    // #149 count-0 misfire pins (deterministic, no interleave — the #136 discipline): the
+    // repo's conditional UPDATE must 409 on a stale version itself; a concurrent commit
+    // between the service pre-check and the UPDATE would otherwise read back the other
+    // writer's row and serve it as this caller's success (a silent lost update).
+    @Test
+    fun `repo update status with stale version throws 409`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            SessionRepository.updateStatus(sessionId, SessionStatus.PENDING, SessionStatus.COMPLETED, 99, callerId)
+        }
+    }
+
+    @Test
+    fun `repo update type with stale version throws 409`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            SessionRepository.updateType(sessionId, SessionType.SECOND_SESSION, 99, callerId)
+        }
+    }
+
+    @Test
+    fun `repo update final price with stale version throws 409`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            SessionRepository.updateFinalPrice(sessionId, BigDecimal("2750.00"), 99, callerId)
         }
     }
 

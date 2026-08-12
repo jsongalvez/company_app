@@ -69,6 +69,7 @@ internal actual fun SessionList(
                     session = session,
                     isSelected = session.id == args.selectedSessionId,
                     onClick = { args.onSessionClick(session) },
+                    onSessionSelect = args.onSessionClick,
                     canEdit = args.canEdit,
                     edit = args.edit,
                     onEditStart = args.onEditStart,
@@ -128,6 +129,7 @@ private fun DashboardTableRow(
     onClick: () -> Unit,
     canEdit: Boolean,
     edit: DashboardEditState?,
+    onSessionSelect: (DashboardSessionResponse) -> Unit,
     onEditStart: (String, DashboardEditField) -> Unit,
     onEditDraftChange: (String) -> Unit,
     onEditCommit: () -> Unit,
@@ -175,12 +177,13 @@ private fun DashboardTableRow(
             }
         }
         // #149 — the three editable cells (type / status / final price, #97 Q4; basePrice
-        // read-only). Clicking a cell selects the row too (the detail pane follows the edit).
+        // read-only). A cell click selects the row too (the detail pane follows the edit).
         DashboardEditableCell(
             session = session,
             field = DashboardEditField.TYPE,
             canEdit = canEdit,
             edit = edit,
+            onSessionClick = onSessionSelect,
             onEditStart = onEditStart,
             onEditDraftChange = onEditDraftChange,
             onEditCommit = onEditCommit,
@@ -193,6 +196,7 @@ private fun DashboardTableRow(
             field = DashboardEditField.STATUS,
             canEdit = canEdit,
             edit = edit,
+            onSessionClick = onSessionSelect,
             onEditStart = onEditStart,
             onEditDraftChange = onEditDraftChange,
             onEditCommit = onEditCommit,
@@ -205,6 +209,7 @@ private fun DashboardTableRow(
             field = DashboardEditField.FINAL_PRICE,
             canEdit = canEdit,
             edit = edit,
+            onSessionClick = onSessionSelect,
             onEditStart = onEditStart,
             onEditDraftChange = onEditDraftChange,
             onEditCommit = onEditCommit,
@@ -236,6 +241,7 @@ private fun DashboardEditableCell(
     field: DashboardEditField,
     canEdit: Boolean,
     edit: DashboardEditState?,
+    onSessionClick: (DashboardSessionResponse) -> Unit,
     onEditStart: (String, DashboardEditField) -> Unit,
     onEditDraftChange: (String) -> Unit,
     onEditCommit: () -> Unit,
@@ -257,7 +263,13 @@ private fun DashboardEditableCell(
                 session = session,
                 field = field,
                 canEdit = canEdit,
-                onEditStart = onEditStart,
+                onCellClick = {
+                    // The enabled child clickable consumes the click — the row's own
+                    // clickable never sees it, so the selection follows explicitly
+                    // (the detail pane tracks the cell being edited).
+                    onSessionClick(session)
+                    onEditStart(session.id, field)
+                },
             )
         }
         if (isEditing) {
@@ -271,7 +283,7 @@ private fun CellDisplay(
     session: DashboardSessionResponse,
     field: DashboardEditField,
     canEdit: Boolean,
-    onEditStart: (String, DashboardEditField) -> Unit,
+    onCellClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
@@ -283,7 +295,7 @@ private fun CellDisplay(
                 .clickable(
                     interactionSource = interactionSource,
                     enabled = canEdit,
-                    onClick = { onEditStart(session.id, field) },
+                    onClick = onCellClick,
                 ),
     ) {
         when (field) {
@@ -328,6 +340,7 @@ private fun EditControl(
                 edit = edit,
                 onDraftChange = onDraftChange,
                 onCommit = onCommit,
+                onDiscard = onDiscard,
             )
         }
 
@@ -337,6 +350,7 @@ private fun EditControl(
                 edit = edit,
                 onDraftChange = onDraftChange,
                 onCommit = onCommit,
+                onDiscard = onDiscard,
             )
         }
 
@@ -349,6 +363,7 @@ private fun EditControl(
 /**
  * Q4 per-control commit: the dropdown commits on select (the #142 GenderFieldEditor shape).
  * Selecting the current value again commits an unchanged draft — the VM exits without a request.
+ * Esc (menu closed) discards — the Model-A failed editor's sanctioned exit.
  */
 @Composable
 private fun SelectEditor(
@@ -356,6 +371,7 @@ private fun SelectEditor(
     edit: DashboardEditState,
     onDraftChange: (String) -> Unit,
     onCommit: () -> Unit,
+    onDiscard: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Box {
@@ -370,7 +386,15 @@ private fun SelectEditor(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !edit.inFlight) { menuOpen = true },
+                    .clickable(enabled = !edit.inFlight) { menuOpen = true }
+                    .onPreviewKeyEvent {
+                        if (it.key == Key.Escape) {
+                            onDiscard()
+                            true
+                        } else {
+                            false
+                        }
+                    },
         )
         if (edit.inFlight) {
             CircularProgressIndicator(
@@ -434,8 +458,10 @@ private fun PriceEditor(
         modifier =
             Modifier
                 .fillMaxWidth()
-                // Blur-commit (Q4); the VM's in-flight guard absorbs the dispose-time blur.
-                .onFocusChanged { if (!it.isFocused) onCommit() }
+                // Blur-commit (Q4); the VM's in-flight guard absorbs the dispose-time blur,
+                // and a conflict-state blur must not re-dispatch a doomed stale-version
+                // PATCH (pass-1 finding: it swallowed the first Reload click).
+                .onFocusChanged { if (!it.isFocused && !edit.conflict) onCommit() }
                 .onPreviewKeyEvent {
                     if (it.key == Key.Escape) {
                         onDiscard()

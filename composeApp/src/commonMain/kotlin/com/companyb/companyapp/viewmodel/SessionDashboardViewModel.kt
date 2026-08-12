@@ -97,8 +97,10 @@ class SessionDashboardViewModel(
     val editState: StateFlow<DashboardEditState?> = _editState.asStateFlow()
 
     // The PATCH result flow is plumbing for ApiCallHandler (it must write somewhere); the
-    // machine ([editState]) carries what the UI renders. Reset to Idle in every
-    // fully-handled branch so the flow never parks on a stale Loading (the #141 class).
+    // machine ([editState]) carries what the UI renders. The 403/409/other branches reset
+    // it to Idle so it never parks on a stale Loading (the #141 class); the success and
+    // exception paths park Success/Error (nothing collects the flow — display is the
+    // machine's error field).
     private val editResultFlow = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
 
     private var consecutiveFailures = 0
@@ -228,6 +230,10 @@ class SessionDashboardViewModel(
     ) {
         val current = _editState.value
         if (current != null && current.inFlight) return
+        // A failed edit (Model-A error still showing) is not silently replaced by a cell
+        // switch — the user discards (Esc) or retries first, so an attempted draft is never
+        // dropped without resolution (the #142 field-switch draft-drop class).
+        if (current != null && current.error != null) return
         val row = _lastData.value?.sessions?.firstOrNull { it.id == sessionId } ?: return
         _editState.value = beginEdit(row, field)
     }
@@ -245,14 +251,28 @@ class SessionDashboardViewModel(
     /**
      * Pessimistic commit (ADR-0022): nothing changes on screen until the PATCH succeeds.
      * An unchanged draft exits without a request; an invalid price draft fails client-side
-     * (the #135 parse-mirror pattern — the backend 400 never sees it). All machine
-     * transitions live inside the handler call (transform / onNonSuccess / onError) so
-     * there is no second transition site to drift (the #142/#147 lesson).
+     * (the #135 parse-mirror pattern — the backend 400 never sees it); a conflict-state
+     * commit is blocked (Reload is the sanctioned path). The post-dispatch machine
+     * transitions all live inside the handler call (transform / onNonSuccess / onError) so
+     * there is no second transition site to drift (the #142/#147 lesson); the pre-dispatch
+     * guards above run before the request is sent.
      */
     fun commitEdit() {
         val state = _editState.value ?: return
         if (state.inFlight) return
-        val row = _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId } ?: return
+        // The 409 conflict is resolved by Reload, not by re-dispatching the same stale
+        // version (a retry without reload is a guaranteed 409 — pass-1 finding: the
+        // blur-commit on the Reload click re-dispatched the doomed PATCH and swallowed
+        // the first Reload click).
+        if (state.conflict) return
+        // A vanished row (no session-deletion path exists, but fail closed rather than
+        // park an editor on a row that can no longer be committed).
+        val row =
+            _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId }
+                ?: run {
+                    _editState.value = null
+                    return
+                }
         if (!draftChanged(state, row)) {
             logInfo("DashboardVM", "edit discarded — draft unchanged")
             _editState.value = null
@@ -315,14 +335,32 @@ class SessionDashboardViewModel(
         )
     }
 
-    /** The 409 path's Reload action: refresh, then re-baseline the machine from the fresh row. */
+    /**
+     * The 409 path's Reload action: refresh, then re-baseline the machine from the fresh
+     * row. Guards (pass-1 findings): only re-baselines when the fresh row actually carries a
+     * newer version (a failed or silently-cancelled refresh must NOT clear the conflict —
+     * the user would retry a stale version forever with no visible failure); and only for
+     * the machine still being edited (a discard or a new edit during the reload owns the
+     * state).
+     */
     fun reloadAfterConflict() {
         val state = _editState.value ?: return
         if (state.inFlight || !state.conflict) return
         viewModelScope.launch {
             refresh().join()
-            val row = _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId } ?: return@launch
-            _editState.value = state.afterReload(row)
+            val current =
+                _editState.value
+                    ?: return@launch
+            if (current.sessionId != state.sessionId || current.field != state.field || !current.conflict) {
+                return@launch
+            }
+            val row = _lastData.value?.sessions?.firstOrNull { it.id == current.sessionId } ?: return@launch
+            if (row.version <= current.baselineVersion) {
+                // No newer data landed (refresh was cancelled by an in-flight poll, or the
+                // fetch failed) — the conflict stands; the user clicks Reload again.
+                return@launch
+            }
+            _editState.value = current.afterReload(row)
         }
     }
 
@@ -368,14 +406,14 @@ class SessionDashboardViewModel(
             DashboardEditField.TYPE -> {
                 EditRequest(
                     "/api/sessions/${state.sessionId}/type",
-                    UpdateSessionTypeRequest(state.draft.uppercase(), state.baselineVersion),
+                    UpdateSessionTypeRequest(state.draft, state.baselineVersion),
                 )
             }
 
             DashboardEditField.STATUS -> {
                 EditRequest(
                     "/api/sessions/${state.sessionId}/status",
-                    UpdateSessionStatusRequest(state.draft.uppercase(), state.baselineVersion),
+                    UpdateSessionStatusRequest(state.draft, state.baselineVersion),
                 )
             }
 

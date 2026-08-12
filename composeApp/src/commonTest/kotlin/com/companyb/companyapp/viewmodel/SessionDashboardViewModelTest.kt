@@ -929,6 +929,128 @@ class SessionDashboardViewModelTest {
         }
 
     @Test
+    fun conflict_state_blocks_commit_until_reload() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
+            var patchHits = 0
+            var json = DASHBOARD_JSON
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = {
+                                patchHits++
+                                HttpStatusCode.Conflict to """{"error":"version mismatch"}"""
+                            },
+                            getJson = { json },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+                assertEquals(1, patchHits)
+
+                // Pass-1 finding: a blur-commit on the Reload click must NOT re-dispatch the
+                // doomed stale-version PATCH (it swallowed the first Reload click).
+                vm.commitEdit()
+                runCurrent()
+                assertEquals(1, patchHits, "conflict-state commits are blocked (Reload is the sanctioned path)")
+
+                json = DASHBOARD_JSON_V2
+                vm.reloadAfterConflict()
+                runCurrent()
+                assertEquals(2, vm.editState.value!!.baselineVersion)
+                assertFalse(vm.editState.value!!.conflict)
+
+                // Retry against the fresh baseline now dispatches.
+                vm.commitEdit()
+                runCurrent()
+                assertEquals(2, patchHits, "the retry commits after the reload")
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun reload_after_failed_refresh_keeps_conflict() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
+            var getHits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.Conflict to """{"error":"version mismatch"}""" },
+                            getJson = {
+                                getHits++
+                                if (getHits == 1) DASHBOARD_JSON else throw java.io.IOException("connection refused")
+                            },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+                assertTrue(vm.editState.value!!.conflict)
+
+                // The reload's refresh fails (transport, retried 4x) — the conflict must
+                // stand: a false re-baseline would leave the user retrying a stale version
+                // forever with no visible failure (pass-1 finding).
+                vm.reloadAfterConflict()
+                runCurrent()
+                advanceTimeBy(10_000.milliseconds)
+                runCurrent()
+
+                val state = vm.editState.value
+                assertNotNull(state)
+                assertTrue(state.conflict, "a failed reload must not clear the conflict")
+                assertNotNull(state.error)
+                assertEquals(1, state.baselineVersion)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun start_edit_blocked_while_failure_error_shows() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { throw java.io.IOException("connection refused") },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+                advanceTimeBy(10_000.milliseconds)
+                runCurrent()
+                assertNotNull(vm.editState.value!!.error)
+
+                // A cell switch must not silently drop an attempted draft (the #142
+                // field-switch draft-drop class) — the failed editor stays until discarded.
+                vm.startEdit("s1", DashboardEditField.TYPE)
+                assertEquals(DashboardEditField.STATUS, vm.editState.value!!.field)
+                assertEquals("PENDING", vm.editState.value!!.draft)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
     fun discard_clears_machine_without_request() =
         runTest(testScheduler) {
             SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
