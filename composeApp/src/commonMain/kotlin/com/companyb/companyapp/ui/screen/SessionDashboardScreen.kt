@@ -67,6 +67,49 @@ internal expect fun SessionList(
 )
 
 /**
+ * #150 — platform-split empty state (the #147 accepted-SOFT gap: "desktop empty/ERRORED
+ * lacks a refresh button"). Desktop renders a Refresh button in the same top-right position
+ * as the table's Refresh row (affordance-position stability between the empty and list
+ * states); mobile keeps its shipped #147 text-only state (list pull-to-refresh + auto-poll
+ * cover). The #95 platform-split precedent.
+ */
+@Composable
+internal expect fun DashboardEmptyState(
+    selectedBranchName: String?,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
+)
+
+/**
+ * #150 — the centered empty-state text shared by both [DashboardEmptyState] actuals (the
+ * [ClientNameText] precedent — one copy, no copy-paste drift when the copy changes).
+ */
+@Composable
+internal fun EmptyStateContent(
+    selectedBranchName: String?,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(Spacing.xl),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "No sessions yet today",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text =
+                "Sessions will appear here as practitioners log them." +
+                    (selectedBranchName?.let { " ($it)" } ?: ""),
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkSubtle,
+        )
+    }
+}
+
+/**
  * #97 session dashboard — summary cards + session list, both backed by the single dashboard
  * fetch (Q6c's "no impossible states if they share an endpoint"). Poll lifecycle: resumed
  * while this screen is composed, paused on leave (mobile detail push; desktop inline pane
@@ -95,6 +138,12 @@ fun SessionDashboardScreen(
         if (state !is UiState.Loading) {
             isManualRefreshing = false
         }
+    }
+    // #150 — the manual-refresh closure shared by the desktop table's Refresh row and the
+    // desktop empty state's button. The explicit `() -> Unit` coerces refresh()'s Job away.
+    val onManualRefresh: () -> Unit = {
+        isManualRefreshing = true
+        viewModel.refresh()
     }
 
     DisposableEffect(Unit) {
@@ -154,8 +203,12 @@ fun SessionDashboardScreen(
                             )
                         } else if (data.sessions.isEmpty()) {
                             // Q6b — empty state participates in polling (auto-transitions
-                            // when sessions appear); ₱0 cards stay visible above.
-                            EmptySessions(selectedBranchName)
+                            // when sessions appear); ₱0 cards stay visible above. The
+                            // desktop actual adds the manual Refresh (#150).
+                            DashboardEmptyState(
+                                selectedBranchName = selectedBranchName,
+                                onRefresh = onManualRefresh,
+                            )
                         } else {
                             SessionList(
                                 args =
@@ -163,10 +216,7 @@ fun SessionDashboardScreen(
                                         sessions = data.sessions,
                                         selectedSessionId = selectedSessionId,
                                         onSessionClick = onSessionClick,
-                                        onRefresh = {
-                                            isManualRefreshing = true
-                                            viewModel.refresh()
-                                        },
+                                        onRefresh = onManualRefresh,
                                         isRefreshing = isManualRefreshing && state is UiState.Loading,
                                         canEdit = canEdit,
                                         edit = edit,
@@ -291,28 +341,6 @@ private fun StaleBanner() {
             text = "Updates paused — showing the last loaded data",
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(Spacing.sm),
-        )
-    }
-}
-
-@Composable
-private fun EmptySessions(selectedBranchName: String?) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(Spacing.xl),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = "No sessions yet today",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text =
-                "Sessions will appear here as practitioners log them." +
-                    (selectedBranchName?.let { " ($it)" } ?: ""),
-            style = MaterialTheme.typography.bodyMedium,
-            color = InkSubtle,
         )
     }
 }
