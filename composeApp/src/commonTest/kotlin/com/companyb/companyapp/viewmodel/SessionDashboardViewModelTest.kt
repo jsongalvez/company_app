@@ -1128,6 +1128,19 @@ class SessionDashboardViewModelTest {
 
                 vm.startEdit("s1", DashboardEditField.TYPE)
                 assertNull(vm.editState.value, "the parked machine must not wedge new edits")
+
+                // The real unlock: a NEW row's cell opens a fresh machine.
+                json =
+                    """{"sessions":[
+                        {"id":"s2","clientId":"c2","clientName":"Client Two","sessionType":"REGULAR","isWalkIn":false,
+                         "sessionStatus":"PENDING","basePrice":"2500.00","finalPrice":"2500.00","remarks":null,
+                         "otherConcerns":null,"bookedAt":null,"nextAppointmentDate":null,
+                         "version":1,"isVoided":false,"practitioners":[],"concerns":[]}],
+                       "commission":{"amount":"0.0000","productSalesCount":0}}"""
+                advanceTimeBy(30_000.milliseconds)
+                runCurrent()
+                vm.startEdit("s2", DashboardEditField.STATUS)
+                assertEquals("s2", vm.editState.value!!.sessionId, "a present row's cell opens normally")
             } finally {
                 vm.pause()
             }
