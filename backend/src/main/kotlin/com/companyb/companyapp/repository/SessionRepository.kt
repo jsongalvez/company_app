@@ -1,6 +1,7 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
@@ -8,7 +9,6 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -147,6 +147,56 @@ object SessionRepository {
             val session =
                 findSessionByIdInTransaction(sessionId)
                     ?: error("Session $sessionId not found after status update")
+
+            auditFn(session)
+
+            session
+        }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun updateType(
+        sessionId: UUID,
+        newType: SessionType,
+        expectedVersion: Int,
+        changedBy: UUID,
+        auditFn: (Session) -> Unit = {},
+    ): Session =
+        transaction {
+            SessionTable.update({
+                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+            }) {
+                it[SessionTable.sessionType] = newType
+                it[SessionTable.version] = expectedVersion + 1
+            }
+
+            val session =
+                findSessionByIdInTransaction(sessionId)
+                    ?: error("Session $sessionId not found after type update")
+
+            auditFn(session)
+
+            session
+        }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun updateFinalPrice(
+        sessionId: UUID,
+        newFinalPrice: BigDecimal,
+        expectedVersion: Int,
+        changedBy: UUID,
+        auditFn: (Session) -> Unit = {},
+    ): Session =
+        transaction {
+            SessionTable.update({
+                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+            }) {
+                it[SessionTable.finalPrice] = newFinalPrice
+                it[SessionTable.version] = expectedVersion + 1
+            }
+
+            val session =
+                findSessionByIdInTransaction(sessionId)
+                    ?: error("Session $sessionId not found after final price update")
 
             auditFn(session)
 

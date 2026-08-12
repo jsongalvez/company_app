@@ -47,6 +47,15 @@ data class SessionListArgs(
     val onSessionClick: (DashboardSessionResponse) -> Unit,
     val onRefresh: () -> Unit,
     val isRefreshing: Boolean,
+    // #149 — desktop inline editing (#97 Q4, ADR-0022). Mobile stays read-only; the
+    // defaults keep the androidMain actual's call site untouched.
+    val canEdit: Boolean = false,
+    val edit: DashboardEditState? = null,
+    val onEditStart: (sessionId: String, field: DashboardEditField) -> Unit = { _, _ -> },
+    val onEditDraftChange: (String) -> Unit = {},
+    val onEditCommit: () -> Unit = {},
+    val onEditDiscard: () -> Unit = {},
+    val onEditReload: () -> Unit = {},
 )
 
 // #95 — platform-split list actual: desktopMain = table with header + selectable rows
@@ -77,6 +86,8 @@ fun SessionDashboardScreen(
     val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsState()
     val pollStatus by viewModel.pollStatus.collectAsState()
     val isForbidden by viewModel.isForbidden.collectAsState()
+    val canEdit by viewModel.canEdit.collectAsState()
+    val edit by viewModel.editState.collectAsState()
     // Q5 "silent polling": the pull-to-refresh indicator must show ONLY for a user-initiated
     // refresh, never for the 30s poll cycle's Loading frame (pass-1 HARD).
     var isManualRefreshing by remember { mutableStateOf(false) }
@@ -157,6 +168,13 @@ fun SessionDashboardScreen(
                                             viewModel.refresh()
                                         },
                                         isRefreshing = isManualRefreshing && state is UiState.Loading,
+                                        canEdit = canEdit,
+                                        edit = edit,
+                                        onEditStart = viewModel::startEdit,
+                                        onEditDraftChange = viewModel::updateDraft,
+                                        onEditCommit = viewModel::commitEdit,
+                                        onEditDiscard = viewModel::discardEdit,
+                                        onEditReload = viewModel::reloadAfterConflict,
                                     ),
                             )
                         }

@@ -168,7 +168,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = secondSessionId,
             clientId = clientId,
             branchDayId = dayId,
-            sessionStatus = com.companyb.companyapp.repository.model.SessionStatus.COMPLETED,
+            sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
         )
         trackOwned(SessionTable, SessionTable.id, secondSessionId)
         RemittanceService.createDraft(
@@ -648,7 +648,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = freshSessionId,
             clientId = clientId,
             branchDayId = freshDayId,
-            sessionStatus = com.companyb.companyapp.repository.model.SessionStatus.COMPLETED,
+            sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
         )
         trackOwned(SessionTable, SessionTable.id, freshSessionId)
         trackOwned(BranchDayTable, BranchDayTable.id, freshDayId)
@@ -676,7 +676,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             id = freshSessionId,
             clientId = clientId,
             branchDayId = freshDayId,
-            sessionStatus = com.companyb.companyapp.repository.model.SessionStatus.COMPLETED,
+            sessionStatus = com.companyb.companyapp.domain.SessionStatus.COMPLETED,
         )
         trackOwned(SessionTable, SessionTable.id, freshSessionId)
         trackOwned(BranchDayTable, BranchDayTable.id, freshDayId)

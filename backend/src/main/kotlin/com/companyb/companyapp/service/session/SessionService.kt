@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -18,7 +19,6 @@ import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionPractitioner
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
@@ -176,6 +176,94 @@ object SessionService {
         logger.info {
             "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
                 " from ${session.sessionStatus} to ${newStatus.name}"
+        }
+
+        return updated
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun updateType(
+        callerId: UUID,
+        sessionId: UUID,
+        newType: SessionType,
+        expectedVersion: Int,
+        reason: String? = null,
+    ): Session {
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
+
+        if (session.version != expectedVersion) {
+            throw ConflictException("Session version mismatch")
+        }
+
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+
+        val updated =
+            SessionRepository.updateType(
+                sessionId = sessionId,
+                newType = newType,
+                expectedVersion = expectedVersion,
+                changedBy = callerId,
+            ) { updatedSession ->
+                AuditLogRepository.recordUpdate(
+                    tableName = SessionTable.tableName,
+                    recordId = sessionId,
+                    before = session,
+                    after = updatedSession,
+                    changedBy = callerId,
+                    branchId = branchDay.branchId,
+                    isFlagged = isRemitted,
+                    reason = reason,
+                    auditFields = SessionTable::auditFields,
+                )
+            }
+
+        logger.info {
+            "[UPDATE-SESSION-TYPE] Session $sessionId type changed" +
+                " from ${session.sessionType} to ${newType.name}"
+        }
+
+        return updated
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun updateFinalPrice(
+        callerId: UUID,
+        sessionId: UUID,
+        newFinalPrice: BigDecimal,
+        expectedVersion: Int,
+        reason: String? = null,
+    ): Session {
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
+
+        if (session.version != expectedVersion) {
+            throw ConflictException("Session version mismatch")
+        }
+
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+
+        val updated =
+            SessionRepository.updateFinalPrice(
+                sessionId = sessionId,
+                newFinalPrice = newFinalPrice,
+                expectedVersion = expectedVersion,
+                changedBy = callerId,
+            ) { updatedSession ->
+                AuditLogRepository.recordUpdate(
+                    tableName = SessionTable.tableName,
+                    recordId = sessionId,
+                    before = session,
+                    after = updatedSession,
+                    changedBy = callerId,
+                    branchId = branchDay.branchId,
+                    isFlagged = isRemitted,
+                    reason = reason,
+                    auditFields = SessionTable::auditFields,
+                )
+            }
+
+        logger.info {
+            "[UPDATE-SESSION-FINAL-PRICE] Session $sessionId final price changed" +
+                " from ${session.finalPrice.toPlainString()} to ${newFinalPrice.toPlainString()}"
         }
 
         return updated

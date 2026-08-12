@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -16,7 +17,6 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
@@ -340,6 +340,72 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, walkInSessionId, SessionStatus.CANCELLED, 1)
+        }
+    }
+
+    @Test
+    fun `update type succeeds and increments version`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        val updated = SessionService.updateType(callerId, sessionId, SessionType.SECOND_SESSION, 1)
+
+        assertEquals("SECOND_SESSION", updated.sessionType)
+        assertEquals(2, updated.version)
+        assertEquals(2L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `update type with wrong version throws 409`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateType(callerId, sessionId, SessionType.SECOND_SESSION, 99)
+        }
+    }
+
+    @Test
+    fun `update type for non-existent session throws 404`() {
+        assertFailsWith<NotFoundException> {
+            SessionService.updateType(callerId, UUID.randomUUID(), SessionType.SECOND_SESSION, 1)
+        }
+    }
+
+    @Test
+    fun `update final price succeeds and increments version`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        val updated = SessionService.updateFinalPrice(callerId, sessionId, BigDecimal("2750.00"), 1)
+
+        assertEquals("2750.00", updated.finalPrice.toPlainString())
+        assertEquals(2, updated.version)
+        assertEquals(2L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `update final price with wrong version throws 409`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            SessionService.updateFinalPrice(callerId, sessionId, BigDecimal("2750.00"), 99)
+        }
+    }
+
+    @Test
+    fun `update final price for non-existent session throws 404`() {
+        assertFailsWith<NotFoundException> {
+            SessionService.updateFinalPrice(callerId, UUID.randomUUID(), BigDecimal("2750.00"), 1)
         }
     }
 

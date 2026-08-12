@@ -2,12 +2,32 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.DashboardResponse
+import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.dto.SessionResponse
+import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
+import com.companyb.companyapp.dto.UpdateSessionStatusRequest
+import com.companyb.companyapp.dto.UpdateSessionTypeRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.ui.screen.DashboardEditField
+import com.companyb.companyapp.ui.screen.DashboardEditState
+import com.companyb.companyapp.ui.screen.afterReload
+import com.companyb.companyapp.ui.screen.asConflict
+import com.companyb.companyapp.ui.screen.asFailed
+import com.companyb.companyapp.ui.screen.asInFlight
+import com.companyb.companyapp.ui.screen.beginEdit
+import com.companyb.companyapp.ui.screen.draftChanged
+import com.companyb.companyapp.ui.screen.finalPriceInputValid
+import com.companyb.companyapp.ui.screen.mergeDashboardRows
+import com.companyb.companyapp.ui.screen.withDraft
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.patch
+import io.ktor.client.request.setBody
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,6 +85,21 @@ class SessionDashboardViewModel(
 
     private val _isForbidden = MutableStateFlow(false)
     val isForbidden: StateFlow<Boolean> = _isForbidden.asStateFlow()
+
+    // #149 — inline editing (#97 Q4 + ADR-0022 pessimistic model). canEdit mirrors the
+    // per-element capability guard (#92): EDIT_BRANCH_DATA in the post-clock-in branch
+    // slice; a PATCH 403 sets it false (Q4: silent exit + affordance vanishes — no
+    // capability-refetch machinery exists, the F7 fog covers the refresh story).
+    private val _canEdit = MutableStateFlow(CapabilityCodes.EDIT_BRANCH_DATA in SessionState.capabilities.value)
+    val canEdit: StateFlow<Boolean> = _canEdit.asStateFlow()
+
+    private val _editState = MutableStateFlow<DashboardEditState?>(null)
+    val editState: StateFlow<DashboardEditState?> = _editState.asStateFlow()
+
+    // The PATCH result flow is plumbing for ApiCallHandler (it must write somewhere); the
+    // machine ([editState]) carries what the UI renders. Reset to Idle in every
+    // fully-handled branch so the flow never parks on a stale Loading (the #141 class).
+    private val editResultFlow = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
 
     private var consecutiveFailures = 0
     private var pollJob: Job? = null
@@ -135,7 +170,11 @@ class SessionDashboardViewModel(
                     // Q5a — the failure counter and the timestamp reset only on SUCCESS.
                     consecutiveFailures = 0
                     _pollStatus.value = DashboardPollStatus.FRESH
-                    _lastData.value = data
+                    // #149 — monotonic per-row version merge: a poll response that started
+                    // before a successful inline edit landed carries an older version and
+                    // must never regress the committed row (stale-poll-after-commit).
+                    _lastData.value =
+                        data.copy(sessions = mergeDashboardRows(_lastData.value?.sessions, data.sessions))
                     _lastUpdatedAt.value = Clock.System.now()
                 }
             },
@@ -174,6 +213,180 @@ class SessionDashboardViewModel(
         )
     }
 
+    // --- #149 inline editing (desktop only, #97 Q4) ---
+
+    /**
+     * Opens the editor on a cell. While a commit is in flight the click is ignored (the
+     * blur-commit of a price editor dispatches first and owns the machine); otherwise an
+     * existing editor is replaced — safe because a price editor with an edited draft
+     * commits on blur (clicking another cell) before this runs, and a dropdown editor
+     * only ever holds an unchanged draft until a selection commits.
+     */
+    fun startEdit(
+        sessionId: String,
+        field: DashboardEditField,
+    ) {
+        val current = _editState.value
+        if (current != null && current.inFlight) return
+        val row = _lastData.value?.sessions?.firstOrNull { it.id == sessionId } ?: return
+        _editState.value = beginEdit(row, field)
+    }
+
+    fun updateDraft(draft: String) {
+        _editState.value = _editState.value?.withDraft(draft)
+    }
+
+    fun discardEdit() {
+        val state = _editState.value ?: return
+        if (state.inFlight) return
+        _editState.value = null
+    }
+
+    /**
+     * Pessimistic commit (ADR-0022): nothing changes on screen until the PATCH succeeds.
+     * An unchanged draft exits without a request; an invalid price draft fails client-side
+     * (the #135 parse-mirror pattern — the backend 400 never sees it). All machine
+     * transitions live inside the handler call (transform / onNonSuccess / onError) so
+     * there is no second transition site to drift (the #142/#147 lesson).
+     */
+    fun commitEdit() {
+        val state = _editState.value ?: return
+        if (state.inFlight) return
+        val row = _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId } ?: return
+        if (!draftChanged(state, row)) {
+            logInfo("DashboardVM", "edit discarded — draft unchanged")
+            _editState.value = null
+            return
+        }
+        if (state.field == DashboardEditField.FINAL_PRICE && !finalPriceInputValid(state.draft)) {
+            _editState.value = state.asFailed(INVALID_PRICE_MESSAGE)
+            return
+        }
+        _editState.value = state.asInFlight()
+        val request = editRequest(state)
+        handler.launch(
+            state = editResultFlow,
+            operation = "updateSession",
+            endpoint = "PATCH ${request.path}",
+            block = {
+                apiClient.httpClient.patch(request.path) {
+                    setBody(request.body)
+                }
+            },
+            transform = {
+                val updated = it.body<SessionResponse>()
+                commitRow(updated)
+                _editState.value = null
+                updated
+            },
+            onNonSuccess = { response ->
+                when (response.status.value) {
+                    // Q4: 403 — capability revoked mid-edit: silent exit + the affordance
+                    // vanishes (no optimistic state to reconcile, ADR-0022).
+                    403 -> {
+                        logWarn("DashboardVM", "edit forbidden (403) — affordance hidden")
+                        _editState.value = null
+                        _canEdit.value = false
+                        editResultFlow.value = UiState.Idle
+                        true
+                    }
+
+                    // ADR-0022: 409 — version conflict: keep the draft + inline error +
+                    // Reload action; reload re-baselines the version (never a silent
+                    // lost update — the expectedVersion is the edit-start snapshot).
+                    409 -> {
+                        _editState.value = _editState.value?.asConflict(CONFLICT_MESSAGE)
+                        editResultFlow.value = UiState.Idle
+                        true
+                    }
+
+                    // Model A: any other HTTP failure keeps the draft + inline error.
+                    else -> {
+                        _editState.value =
+                            _editState.value?.asFailed("Update failed (${response.status.value}) — retry or discard")
+                        editResultFlow.value = UiState.Idle
+                        true
+                    }
+                }
+            },
+            onError = {
+                _editState.value = _editState.value?.asFailed("Update failed — check your connection and retry")
+            },
+        )
+    }
+
+    /** The 409 path's Reload action: refresh, then re-baseline the machine from the fresh row. */
+    fun reloadAfterConflict() {
+        val state = _editState.value ?: return
+        if (state.inFlight || !state.conflict) return
+        viewModelScope.launch {
+            refresh().join()
+            val row = _lastData.value?.sessions?.firstOrNull { it.id == state.sessionId } ?: return@launch
+            _editState.value = state.afterReload(row)
+        }
+    }
+
+    private fun commitRow(updated: SessionResponse) {
+        val data = _lastData.value ?: return
+        val rows =
+            data.sessions.map { row ->
+                if (row.id == updated.id) {
+                    mergeCommittedRow(row, updated)
+                } else {
+                    row
+                }
+            }
+        _lastData.value = data.copy(sessions = rows)
+    }
+
+    private fun mergeCommittedRow(
+        row: DashboardSessionResponse,
+        updated: SessionResponse,
+    ): DashboardSessionResponse =
+        row.copy(
+            sessionType = updated.sessionType,
+            isWalkIn = updated.isWalkIn,
+            sessionStatus = updated.sessionStatus,
+            basePrice = updated.basePrice,
+            finalPrice = updated.finalPrice,
+            remarks = updated.remarks,
+            otherConcerns = updated.otherConcerns,
+            bookedAt = updated.bookedAt,
+            nextAppointmentDate = updated.nextAppointmentDate,
+            version = updated.version,
+            // dashboard-only fields (clientName / isVoided / practitioners / concerns)
+            // keep the existing row's — the PATCH response carries none of them.
+        )
+
+    private data class EditRequest(
+        val path: String,
+        val body: Any,
+    )
+
+    private fun editRequest(state: DashboardEditState): EditRequest =
+        when (state.field) {
+            DashboardEditField.TYPE -> {
+                EditRequest(
+                    "/api/sessions/${state.sessionId}/type",
+                    UpdateSessionTypeRequest(state.draft.uppercase(), state.baselineVersion),
+                )
+            }
+
+            DashboardEditField.STATUS -> {
+                EditRequest(
+                    "/api/sessions/${state.sessionId}/status",
+                    UpdateSessionStatusRequest(state.draft.uppercase(), state.baselineVersion),
+                )
+            }
+
+            DashboardEditField.FINAL_PRICE -> {
+                EditRequest(
+                    "/api/sessions/${state.sessionId}/final-price",
+                    UpdateSessionFinalPriceRequest(state.draft.trim(), state.baselineVersion),
+                )
+            }
+        }
+
     fun retryAfterForbidden() {
         _isForbidden.value = false
         resume()
@@ -184,5 +397,8 @@ class SessionDashboardViewModel(
         private const val POLL_INTERVAL_MS = 30_000L
         private const val STALE_THRESHOLD = 2
         private const val ERROR_THRESHOLD = 5
+        private const val CONFLICT_MESSAGE =
+            "This session was updated by someone else — reload to see the latest changes"
+        private const val INVALID_PRICE_MESSAGE = "Enter a valid amount (digits only, e.g. 2500.00)"
     }
 }

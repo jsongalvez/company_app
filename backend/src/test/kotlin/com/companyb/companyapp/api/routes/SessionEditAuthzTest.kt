@@ -1,0 +1,240 @@
+@file:Suppress("LargeClass")
+
+package com.companyb.companyapp.api.routes
+
+import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.auth.Password
+import com.companyb.companyapp.config.AppConfig
+import com.companyb.companyapp.config.KotlinxSerializationMapper
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.test.BasePostgresTest
+import com.companyb.companyapp.test.DatabaseTestHelper
+import io.javalin.Javalin
+import io.javalin.http.UnauthorizedResponse
+import io.javalin.testtools.JavalinTest
+import io.javalin.testtools.Request
+import org.jetbrains.exposed.v1.jdbc.Database
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.UUID
+import java.util.function.Consumer
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Session inline-edit PATCH authz (#149): the type + final-price endpoints gate on
+ * BRANCH-scoped EDIT_BRANCH_DATA like the existing status PATCH (strict context — never
+ * the GLOBAL-or-branch relaxation, the #131 leak class). Exact-path-gate discipline: each
+ * before-filter must fire on its own literal path.
+ */
+class SessionEditAuthzTest : BasePostgresTest() {
+    private val editorUser = UUID.randomUUID()
+    private val noGrantUser = UUID.randomUUID()
+    private val wrongBranchUser = UUID.randomUUID()
+    private val branchId = UUID.randomUUID()
+    private val otherBranchId = UUID.randomUUID()
+    private val clientId = UUID.randomUUID()
+    private val sessionId = UUID.randomUUID()
+    private val sourceId = UUID.randomUUID()
+
+    override fun initTestData() {
+        DatabaseTestHelper.insertTestUser(editorUser, "session-editor")
+        DatabaseTestHelper.insertTestUser(noGrantUser, "session-no-grant")
+        DatabaseTestHelper.insertTestUser(wrongBranchUser, "session-wrong-branch")
+        DatabaseTestHelper.insertTestBranch(branchId, "Branch A")
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Branch B")
+        DatabaseTestHelper.insertTestClient(clientId)
+
+        trackOwned(AppUserTable, AppUserTable.id, editorUser)
+        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
+        trackOwned(AppUserTable, AppUserTable.id, wrongBranchUser)
+        trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, editorUser)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, wrongBranchUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, editorUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, noGrantUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, wrongBranchUser)
+
+        val branchDay =
+            BranchDayService.resolveOrCreate(branchId, LocalDate.now(ZoneId.of("Asia/Manila")))
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDay.id)
+
+        DatabaseTestHelper.grantCapability(
+            userId = editorUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        DatabaseTestHelper.grantCapability(
+            userId = wrongBranchUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = otherBranchId,
+            sourceId = sourceId,
+        )
+    }
+
+    private fun createApp(): Javalin {
+        val config = AppConfig.parse()
+        JwtService.init(config)
+        Password.init(config.authDummyPassword)
+        return Javalin.create { cfg ->
+            cfg.jsonMapper(KotlinxSerializationMapper())
+            cfg.routes.before { ctx ->
+                Database.connect(DatabaseTestHelper.requireTestDataSource())
+                ctx.attribute("userId", ctx.header("X-Test-User") ?: noGrantUser.toString())
+            }
+            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+            }
+            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+            }
+            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+            }
+            SessionRoutes.register(cfg)
+        }
+    }
+
+    private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
+
+    @Test
+    fun `granted user patches session type`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
+            val response = client.patch("/api/sessions/$sessionId/type", body, asUser(editorUser))
+
+            assertEquals(200, response.code)
+            val responseBody = response.body?.string().orEmpty()
+            assertTrue(responseBody.contains("\"sessionType\":\"SECOND_SESSION\""))
+            assertTrue(responseBody.contains("\"version\":2"))
+        }
+    }
+
+    @Test
+    fun `granted user patches final price`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("finalPrice" to "2750.00", "version" to 1)
+            val response = client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser))
+
+            assertEquals(200, response.code)
+            val responseBody = response.body?.string().orEmpty()
+            assertTrue(responseBody.contains("\"finalPrice\":\"2750.00\""))
+            assertTrue(responseBody.contains("\"version\":2"))
+        }
+    }
+
+    @Test
+    fun `type patch forbidden without grant`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
+            assertEquals(403, client.patch("/api/sessions/$sessionId/type", body, asUser(noGrantUser)).code)
+        }
+    }
+
+    @Test
+    fun `final price patch forbidden without grant`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("finalPrice" to "2750.00", "version" to 1)
+            assertEquals(403, client.patch("/api/sessions/$sessionId/final-price", body, asUser(noGrantUser)).code)
+        }
+    }
+
+    @Test
+    fun `type patch forbidden for a grant at another branch`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
+            assertEquals(403, client.patch("/api/sessions/$sessionId/type", body, asUser(wrongBranchUser)).code)
+        }
+    }
+
+    @Test
+    fun `type patch missing session gets 404`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
+            assertEquals(404, client.patch("/api/sessions/${UUID.randomUUID()}/type", body, asUser(editorUser)).code)
+        }
+    }
+
+    @Test
+    fun `type patch bad enum value gets 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("sessionType" to "BOGUS", "version" to 1)
+            assertEquals(400, client.patch("/api/sessions/$sessionId/type", body, asUser(editorUser)).code)
+        }
+    }
+
+    @Test
+    fun `final price patch negative value gets 400`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("finalPrice" to "-100.00", "version" to 1)
+            assertEquals(400, client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser)).code)
+        }
+    }
+
+    @Test
+    fun `type patch stale version gets 409`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 99)
+            assertEquals(409, client.patch("/api/sessions/$sessionId/type", body, asUser(editorUser)).code)
+        }
+    }
+
+    // #128 lesson — the X-Test-User harness can't exercise the real auth filter; 401 needs
+    // the real-JWT harness (the #147/ReportsReadScopeAuthzTest precedent).
+    @Test
+    fun `unauthenticated request gets 401`() {
+        JavalinTest.test(createAppWithJwt()) { _, client ->
+            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
+            assertEquals(401, client.patch("/api/sessions/$sessionId/type", body).code)
+        }
+    }
+
+    private fun createAppWithJwt(): Javalin {
+        val config = AppConfig.parse()
+        JwtService.init(config)
+        Password.init(config.authDummyPassword)
+        return Javalin.create { cfg ->
+            cfg.jsonMapper(KotlinxSerializationMapper())
+            cfg.routes.before { ctx ->
+                Database.connect(DatabaseTestHelper.requireTestDataSource())
+            }
+            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
+                ctx.attribute("userId", userId)
+            }
+            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+            }
+            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+            }
+            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+            }
+            SessionRoutes.register(cfg)
+        }
+    }
+}

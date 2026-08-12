@@ -24,6 +24,20 @@ data class UpdateSessionStatusRequest(
 )
 
 @Serializable
+data class UpdateSessionTypeRequest(
+    val sessionType: String,
+    val version: Int,
+    val reason: String? = null,
+)
+
+@Serializable
+data class UpdateSessionFinalPriceRequest(
+    val finalPrice: String,
+    val version: Int,
+    val reason: String? = null,
+)
+
+@Serializable
 data class VoidSessionRequest(
     val id: String,
     val voidReason: String,

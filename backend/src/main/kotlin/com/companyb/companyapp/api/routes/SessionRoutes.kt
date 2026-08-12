@@ -4,6 +4,8 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
@@ -16,12 +18,13 @@ import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UnvoidSessionRequest
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
+import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
+import com.companyb.companyapp.dto.UpdateSessionTypeRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
 import com.companyb.companyapp.service.session.SessionService
@@ -51,6 +54,24 @@ object SessionRoutes {
         }
 
         config.routes.before("/api/sessions/{sessionId}/status") { context ->
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
+                context,
+                sessionId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/type") { context ->
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchCapabilityForSession(
+                context,
+                sessionId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
+        config.routes.before("/api/sessions/{sessionId}/final-price") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchCapabilityForSession(
                 context,
@@ -114,6 +135,8 @@ object SessionRoutes {
 
         config.routes.post("/api/sessions", ::handleCreateSession)
         config.routes.patch("/api/sessions/{sessionId}/status", ::handleUpdateStatus)
+        config.routes.patch("/api/sessions/{sessionId}/type", ::handleUpdateType)
+        config.routes.patch("/api/sessions/{sessionId}/final-price", ::handleUpdateFinalPrice)
         config.routes.post("/api/sessions/{sessionId}/void", ::handleVoidSession)
         config.routes.post("/api/sessions/{sessionId}/unvoid", ::handleUnvoidSession)
         config.routes.post("/api/sessions/{sessionId}/practitioners", ::handleAddPractitioner)
@@ -184,6 +207,34 @@ object SessionRoutes {
                 .getOrElse { throw BadRequestResponse("Invalid session status: ${request.status}") }
 
         val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
+
+        context.status(HttpStatus.OK)
+        context.json(updated.toResponse())
+    }
+
+    private fun handleUpdateType(context: Context) {
+        val callerId = context.callerUuid()
+        val sessionId = context.pathParamAsUuid("sessionId")
+        val request = context.bodyAsClass<UpdateSessionTypeRequest>()
+
+        val newType =
+            runCatching { SessionType.valueOf(request.sessionType.uppercase()) }
+                .getOrElse { throw BadRequestResponse("Invalid session type: ${request.sessionType}") }
+
+        val updated = SessionService.updateType(callerId, sessionId, newType, request.version, request.reason)
+
+        context.status(HttpStatus.OK)
+        context.json(updated.toResponse())
+    }
+
+    private fun handleUpdateFinalPrice(context: Context) {
+        val callerId = context.callerUuid()
+        val sessionId = context.pathParamAsUuid("sessionId")
+        val request = context.bodyAsClass<UpdateSessionFinalPriceRequest>()
+
+        val newPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
+
+        val updated = SessionService.updateFinalPrice(callerId, sessionId, newPrice, request.version, request.reason)
 
         context.status(HttpStatus.OK)
         context.json(updated.toResponse())

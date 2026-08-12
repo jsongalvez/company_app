@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -29,13 +30,6 @@ data class Session(
     val createdAt: OffsetDateTime,
     val version: Int,
 )
-
-enum class SessionStatus {
-    PENDING,
-    COMPLETED,
-    NO_SHOW,
-    CANCELLED,
-}
 
 private const val PRECISION = 10
 private const val SCALE = 2
