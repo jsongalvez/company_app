@@ -68,7 +68,8 @@ internal expect fun SessionList(
 
 /**
  * #150 — platform-split empty state (the #147 accepted-SOFT gap: "desktop empty/ERRORED
- * lacks a refresh button"). Desktop renders a Refresh button in the same top-right position
+ * lacks a refresh button" — the ERRORED half was already covered by its Retry card, this
+ * lands the EMPTY half). Desktop renders a Refresh button in the same top-right position
  * as the table's Refresh row (affordance-position stability between the empty and list
  * states); mobile keeps its shipped #147 text-only state (list pull-to-refresh + auto-poll
  * cover). The #95 platform-split precedent.

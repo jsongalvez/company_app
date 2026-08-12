@@ -86,19 +86,10 @@ internal actual fun SessionList(
 @Composable
 private fun TableHeaderRow(onRefresh: () -> Unit) {
     // Right-aligned action row (pass-2: the Refresh button must NOT occupy the VOIDED
-    // column — the spec's 22% slot is data, not chrome).
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
-    ) {
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = onRefresh) {
-            Text("Refresh", style = MaterialTheme.typography.labelSmall)
-        }
-    }
+    // column — the spec's 22% slot is data, not chrome). #150 — shared with the desktop
+    // empty state (DashboardEmptyState.desktop.kt): the affordance-position stability
+    // between the empty and list states rests on this single copy.
+    DashboardRefreshRow(onRefresh)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier =
@@ -119,6 +110,23 @@ private fun TableHeaderRow(onRefresh: () -> Unit) {
                     .padding(end = Spacing.xs),
             contentAlignment = Alignment.CenterEnd,
         ) {}
+    }
+}
+
+/** #150 — the right-aligned Refresh row shared by the table header and the desktop empty state. */
+@Composable
+internal fun DashboardRefreshRow(onRefresh: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
+    ) {
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = onRefresh) {
+            Text("Refresh", style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
