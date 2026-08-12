@@ -230,10 +230,17 @@ class SessionDashboardViewModel(
     ) {
         val current = _editState.value
         if (current != null && current.inFlight) return
-        // A failed edit (Model-A error still showing) is not silently replaced by a cell
-        // switch — the user discards (Esc) or retries first, so an attempted draft is never
-        // dropped without resolution (the #142 field-switch draft-drop class).
-        if (current != null && current.error != null) return
+        if (current != null && current.error != null) {
+            // A failed edit (Model-A error still showing) is not silently replaced by a cell
+            // switch — the user discards (Esc) or retries first, so an attempted draft is
+            // never dropped without resolution (the #142 field-switch draft-drop class).
+            // EXCEPT when the machine's row has vanished from the list (e.g. the day
+            // rollover drops the edited row): the editor is already invisible, and a parked
+            // machine would wedge every future edit (pass-3 finding).
+            val rowStillPresent = _lastData.value?.sessions?.any { it.id == current.sessionId } == true
+            if (rowStillPresent) return
+            _editState.value = null
+        }
         val row = _lastData.value?.sessions?.firstOrNull { it.id == sessionId } ?: return
         _editState.value = beginEdit(row, field)
     }

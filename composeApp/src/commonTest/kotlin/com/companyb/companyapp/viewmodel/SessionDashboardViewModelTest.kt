@@ -55,6 +55,9 @@ private const val DASHBOARD_JSON =
          "version":1,"isVoided":false,"practitioners":[],"concerns":[]}],
        "commission":{"amount":"200.0000","productSalesCount":1}}"""
 
+private const val EMPTY_DASHBOARD_JSON =
+    """{"sessions":[],"commission":{"amount":"0.0000","productSalesCount":0}}"""
+
 // #149 — PATCH responses for the inline-edit tests (SessionResponse shapes).
 private const val PATCH_TYPE_JSON =
     """{"id":"s1","clientId":"c1","branchDayId":"bd1","requestedPractitionerId":null,
@@ -1087,6 +1090,44 @@ class SessionDashboardViewModelTest {
                 assertFalse(reloaded.conflict)
                 assertEquals("NO_SHOW", reloaded.draft)
                 assertTrue(reloaded.fieldChangedRemotely, "fresh COMPLETED != attempted NO_SHOW")
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun start_edit_clears_parked_machine_when_row_vanished() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
+            var json = DASHBOARD_JSON
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { throw java.io.IOException("connection refused") },
+                            getJson = { json },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+                advanceTimeBy(10_000.milliseconds)
+                runCurrent()
+                assertNotNull(vm.editState.value!!.error)
+
+                // The day rollover: the edited row drops out of today's list (membership is
+                // incoming-authoritative). The editor is already invisible — a parked machine
+                // with an error would wedge every future edit (pass-3 finding).
+                json = EMPTY_DASHBOARD_JSON
+                advanceTimeBy(30_000.milliseconds)
+                runCurrent()
+
+                vm.startEdit("s1", DashboardEditField.TYPE)
+                assertNull(vm.editState.value, "the parked machine must not wedge new edits")
             } finally {
                 vm.pause()
             }

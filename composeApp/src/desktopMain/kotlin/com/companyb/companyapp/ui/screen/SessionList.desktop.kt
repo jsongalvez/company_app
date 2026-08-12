@@ -265,8 +265,10 @@ private fun DashboardEditableCell(
                 canEdit = canEdit,
                 onCellClick = {
                     // The enabled child clickable consumes the click — the row's own
-                    // clickable never sees it, so the selection follows explicitly
-                    // (the detail pane tracks the cell being edited).
+                    // clickable never sees it, so the selection follows explicitly. Note:
+                    // when the switch is blocked (a Model-A/conflict error on the other
+                    // cell), the selection still moves while the editor stays put — the
+                    // error line + Esc remain the exit.
                     onSessionClick(session)
                     onEditStart(session.id, field)
                 },

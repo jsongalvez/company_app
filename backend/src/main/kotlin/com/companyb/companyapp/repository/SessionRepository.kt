@@ -202,6 +202,8 @@ object SessionRepository {
         auditFn: (Session) -> Unit = {},
     ): Session =
         transaction {
+            // Count-0 misfire guard (the #149 lesson): 0 affected rows = a concurrent commit
+            // won the version — the caller must 409, never read back the other writer's row.
             val updatedCount =
                 SessionTable.update({
                     (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
