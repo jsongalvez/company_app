@@ -108,6 +108,34 @@ class DashboardEditStateTest {
     }
 
     @Test
+    fun draft_edit_during_conflict_preserves_error_and_conflict() {
+        val state =
+            beginEdit(row(), DashboardEditField.TYPE)
+                .withDraft("SECOND_SESSION")
+                .asInFlight()
+                .asConflict("someone else")
+                .withDraft("SUBSEQUENT")
+
+        // Pass-2 finding: with the conflict-state commit blocked, clearing the error on
+        // typing would hide the Reload action and silently park the machine.
+        assertTrue(state.conflict)
+        assertEquals("someone else", state.error)
+        assertEquals("SUBSEQUENT", state.draft)
+    }
+
+    @Test
+    fun draft_edit_without_conflict_clears_error() {
+        val state =
+            beginEdit(row(), DashboardEditField.TYPE)
+                .withDraft("SECOND_SESSION")
+                .asInFlight()
+                .asFailed("network down")
+                .withDraft("SUBSEQUENT")
+
+        assertNull(state.error)
+    }
+
+    @Test
     fun model_a_failure_keeps_draft_and_stays_in_edit() {
         val state =
             beginEdit(row(), DashboardEditField.STATUS)

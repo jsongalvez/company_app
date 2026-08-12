@@ -388,7 +388,9 @@ private fun SelectEditor(
                     .fillMaxWidth()
                     .clickable(enabled = !edit.inFlight) { menuOpen = true }
                     .onPreviewKeyEvent {
-                        if (it.key == Key.Escape) {
+                        // Menu-open Esc is consumed by the popup (dismiss); only a
+                        // menu-closed Esc discards the edit.
+                        if (it.key == Key.Escape && !menuOpen) {
                             onDiscard()
                             true
                         } else {

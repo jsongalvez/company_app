@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -149,7 +150,7 @@ object SessionRepository {
                     it[SessionTable.version] = expectedVersion + 1
                 }
             if (updatedCount != 1) {
-                throw ConflictException("Session version mismatch")
+                throw VersionMismatchException(SessionTable.tableName, sessionId)
             }
 
             val session =
@@ -180,7 +181,7 @@ object SessionRepository {
                     it[SessionTable.version] = expectedVersion + 1
                 }
             if (updatedCount != 1) {
-                throw ConflictException("Session version mismatch")
+                throw VersionMismatchException(SessionTable.tableName, sessionId)
             }
 
             val session =
@@ -209,7 +210,7 @@ object SessionRepository {
                     it[SessionTable.version] = expectedVersion + 1
                 }
             if (updatedCount != 1) {
-                throw ConflictException("Session version mismatch")
+                throw VersionMismatchException(SessionTable.tableName, sessionId)
             }
 
             val session =

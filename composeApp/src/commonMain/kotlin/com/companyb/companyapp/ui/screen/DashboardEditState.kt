@@ -90,8 +90,14 @@ fun beginEdit(
         baselineVersion = row.version,
     )
 
-/** Typing clears the inline error (the #142 "typing clears errors" behavior). */
-fun DashboardEditState.withDraft(value: String): DashboardEditState = copy(draft = value, error = null)
+/**
+ * Typing clears the inline error (the #142 "typing clears errors" behavior) — EXCEPT while
+ * a 409 conflict is unresolved: the conflict error + Reload action must stay visible (a
+ * conflict-state commit is blocked, so clearing the error would silently park the machine
+ * with no visible exit — the pass-2 finding).
+ */
+fun DashboardEditState.withDraft(value: String): DashboardEditState =
+    copy(draft = value, error = if (conflict) error else null)
 
 /** The PATCH is dispatched: the cell dims + spinners; the draft stays (pessimistic). */
 fun DashboardEditState.asInFlight(): DashboardEditState =

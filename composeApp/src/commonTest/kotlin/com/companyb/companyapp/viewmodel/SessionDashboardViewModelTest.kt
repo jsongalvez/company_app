@@ -1051,6 +1051,48 @@ class SessionDashboardViewModelTest {
         }
 
     @Test
+    fun draft_edit_during_conflict_keeps_reload_path_visible() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
+            var json = DASHBOARD_JSON
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = { HttpStatusCode.Conflict to """{"error":"version mismatch"}""" },
+                            getJson = { json },
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+                assertTrue(vm.editState.value!!.conflict)
+
+                // Pass-2 finding: typing (or re-selecting) during a conflict must not clear
+                // the error — the Reload action keys off it, and the commit stays blocked.
+                vm.updateDraft("NO_SHOW")
+                val state = vm.editState.value!!
+                assertTrue(state.conflict)
+                assertNotNull(state.error, "the conflict error + Reload must stay visible")
+
+                // The Reload path still resolves the conflict with the new draft.
+                json = DASHBOARD_JSON_V2
+                vm.reloadAfterConflict()
+                runCurrent()
+                val reloaded = vm.editState.value!!
+                assertFalse(reloaded.conflict)
+                assertEquals("NO_SHOW", reloaded.draft)
+                assertTrue(reloaded.fieldChangedRemotely, "fresh COMPLETED != attempted NO_SHOW")
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
     fun discard_clears_machine_without_request() =
         runTest(testScheduler) {
             SessionState.setCapabilities(setOf(CapabilityCodes.EDIT_BRANCH_DATA))
