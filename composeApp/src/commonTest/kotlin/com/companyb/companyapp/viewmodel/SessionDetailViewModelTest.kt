@@ -218,7 +218,7 @@ class SessionDetailViewModelTest {
         }
 
     @Test
-    fun back_to_back_retries_dispatch_single_request() =
+    fun back_to_back_retries_dispatch_one_guarded_retry() =
         runTest(testScheduler) {
             var requestCount = 0
             val handler: MockRequestHandler = {
