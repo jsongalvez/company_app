@@ -1,11 +1,14 @@
 package com.companyb.companyapp.service.dashboard
 
 import com.companyb.companyapp.exception.ForbiddenException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.ClientNames
 import com.companyb.companyapp.repository.ConcernWithSessionId
 import com.companyb.companyapp.repository.DashboardRepository
+import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionPractitionerWithName
+import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.attendance.AttendanceService
@@ -27,6 +30,18 @@ data class DashboardData(
     val practitioners: List<SessionPractitionerWithName>,
     val concerns: List<ConcernWithSessionId>,
     val commission: CommissionSummary,
+)
+
+/**
+ * Enrichment for a single session — [DashboardData] minus the caller-scoped commission, which
+ * is a dashboard-card concern, not part of `DashboardSessionResponse` (#151 Q3).
+ */
+data class SessionDetailData(
+    val session: Session,
+    val clientNames: Map<UUID, ClientNames>,
+    val voidedSessionIds: Set<UUID>,
+    val practitioners: List<SessionPractitionerWithName>,
+    val concerns: List<ConcernWithSessionId>,
 )
 
 /**
@@ -70,6 +85,46 @@ object DashboardService {
             practitioners = practitioners,
             concerns = concerns,
             commission = commission,
+        )
+    }
+
+    /**
+     * #152 single-session detail read for the notifications bearer path (#151 Q1/Q4/Q5): the
+     * caller may fetch iff a notification row exists for `(sessionId, caller)` — any read state.
+     * The notification IS the authorization (the #141 markRead ownership shape). 404 for both
+     * non-bearer and missing sessions — one UI fallback, UUIDs are not guessable. No day-state
+     * gate: the #138 `checkBranchDayReadable` rule governs capability-gated browsing surfaces;
+     * notified sessions are COMPLETED with `nextAppointmentDate = today+2`, so their branch day
+     * is today-or-past and a PAST/REMITTED `EDIT_PAST_DAY` requirement would 403 the primary
+     * case (#151 Q2).
+     *
+     * @throws NotFoundException if no notification row exists for (sessionId, caller) or the
+     * session does not exist. The missing-session half is defensive: the `session_id` FK keeps
+     * dangling notifications out of a consistent DB, but the lookup still fails closed.
+     */
+    fun getSessionDetail(
+        callerId: UUID,
+        sessionId: UUID,
+    ): SessionDetailData {
+        if (!NotificationRepository.existsForSessionAndUser(sessionId, callerId)) {
+            throw NotFoundException("Session not found")
+        }
+
+        val session =
+            SessionRepository.findById(sessionId)
+                ?: throw NotFoundException("Session not found")
+
+        val clientNames = DashboardRepository.findClientNames(listOf(session.clientId))
+        val voidedSessionIds = DashboardRepository.findVoidedSessionIds(listOf(sessionId))
+        val practitioners = DashboardRepository.findPractitioners(listOf(sessionId))
+        val concerns = DashboardRepository.findConcernsForSessionIds(listOf(sessionId))
+
+        return SessionDetailData(
+            session = session,
+            clientNames = clientNames,
+            voidedSessionIds = voidedSessionIds,
+            practitioners = practitioners,
+            concerns = concerns,
         )
     }
 

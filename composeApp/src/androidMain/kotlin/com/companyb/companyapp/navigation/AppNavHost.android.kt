@@ -53,6 +53,7 @@ import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
+import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
 import kotlinx.coroutines.launch
 
@@ -171,8 +172,9 @@ actual fun AppNavHost(
                             selectedBranchName = selectedBranchName,
                             selectedSessionId = null,
                             onSessionClick = { row ->
-                                // #147 — mobile detail push carries the enriched row from the
-                                // poll (no session-detail GET; the #146-corrected fact).
+                                // The dashboard path keeps passing the enriched row (zero extra
+                                // requests — the #152 session-detail GET exists now, but only the
+                                // notifications path fetches on null-row).
                                 navController.navigate(Route.SessionDetail(row.id, row))
                             },
                         )
@@ -246,7 +248,9 @@ actual fun AppNavHost(
                         NotificationsScreen(
                             viewModel = notificationsViewModel,
                             onNotificationClick = { notification ->
-                                // D3 (mobile): mark-read + navigate to the session detail.
+                                // D3 (mobile): mark-read + navigate to the session detail. The
+                                // route carries only the sessionId — row = null → the detail
+                                // screen fetches once via GET /api/sessions/{sessionId} (#152).
                                 notificationsViewModel.markRead(notification.id)
                                 navController.navigate(Route.SessionDetail(notification.sessionId))
                             },
@@ -305,8 +309,15 @@ actual fun AppNavHost(
                     }
                     composable<Route.SessionDetail> { entry ->
                         val route = entry.toRoute<Route.SessionDetail>()
+                        // Entry-scoped (#112): fresh VM per detail entry — the one-shot fetch
+                        // state self-cleans on pop. The dashboard path seeds Success with the
+                        // nav-arg row (zero requests); the notifications path (row = null)
+                        // fetches once via the session-detail GET (#152).
+                        val sessionDetailViewModel: SessionDetailViewModel =
+                            viewModel { SessionDetailViewModel(apiClient, route.sessionId, route.row) }
                         SessionDetailScreen(
-                            row = route.row,
+                            sessionId = route.sessionId,
+                            viewModel = sessionDetailViewModel,
                             onBack = { navController.popBackStack() },
                         )
                     }

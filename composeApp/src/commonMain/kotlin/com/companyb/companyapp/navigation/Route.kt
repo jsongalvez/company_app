@@ -63,10 +63,10 @@ sealed class Route {
     @Serializable
     data class SessionDetail(
         val sessionId: String,
-        // #147 — mobile dashboard passes the enriched row from the dashboard poll (no
-        // session-detail GET endpoint exists — the #146-corrected fact). The Notifications
-        // call site navigates with sessionId only (row = null → the detail screen renders
-        // its limited state; a session-detail GET + gate decision is its own fog).
+        // #152 — the dashboard path passes the enriched row via nav args (zero extra requests);
+        // the Notifications call site navigates with sessionId only (row = null → the detail
+        // screen fetches once via GET /api/sessions/{sessionId}, bearer-only gate — the #151
+        // resolution, #152 build).
         val row: DashboardSessionResponse? = null,
     ) : Route()
 }

@@ -27,6 +27,7 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
+import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.service.session.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -133,6 +134,7 @@ object SessionRoutes {
             )
         }
 
+        config.routes.get("/api/sessions/{sessionId}", ::handleGetSession)
         config.routes.post("/api/sessions", ::handleCreateSession)
         config.routes.patch("/api/sessions/{sessionId}/status", ::handleUpdateStatus)
         config.routes.patch("/api/sessions/{sessionId}/type", ::handleUpdateType)
@@ -153,6 +155,25 @@ object SessionRoutes {
         config.routes.post("/api/sessions/{sessionId}/concerns", ::handleAddSessionConcern)
         config.routes.delete("/api/sessions/{sessionId}/concerns/{concernId}", ::handleRemoveSessionConcern)
         config.routes.post("/api/sessions/{sessionId}/promote-concern", ::handlePromoteConcern)
+    }
+
+    private fun handleGetSession(context: Context) {
+        val callerId = context.callerUuid()
+        val sessionId = context.pathParamAsUuid("sessionId")
+
+        // #152 — notifications-path session detail (#151): bearer-only gate (the notification
+        // row IS the authorization), no capability/day-state filters, 404 for both non-bearer
+        // and missing sessions. Byte-identical rendering with the dashboard path (Q3).
+        val data = DashboardService.getSessionDetail(callerId, sessionId)
+        context.json(
+            mapDashboardSession(
+                session = data.session,
+                clientNames = data.clientNames,
+                voidedSessionIds = data.voidedSessionIds,
+                practitioners = data.practitioners,
+                concerns = data.concerns,
+            ),
+        )
     }
 
     @Suppress("ThrowsCount")

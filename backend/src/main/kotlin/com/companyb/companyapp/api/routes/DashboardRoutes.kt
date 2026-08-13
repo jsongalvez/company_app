@@ -7,10 +7,15 @@ import com.companyb.companyapp.dto.DashboardCommissionResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.repository.ClientNames
+import com.companyb.companyapp.repository.ConcernWithSessionId
+import com.companyb.companyapp.repository.SessionPractitionerWithName
+import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.dashboard.DashboardData
 import com.companyb.companyapp.service.dashboard.DashboardService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
+import java.util.UUID
 
 object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
@@ -35,47 +40,12 @@ object DashboardRoutes {
         return DashboardResponse(
             sessions =
                 sessions.map { session ->
-                    val client = clientNames[session.clientId]
-                    DashboardSessionResponse(
-                        id = session.id.toString(),
-                        clientId = session.clientId.toString(),
-                        clientName =
-                            listOfNotNull(client?.firstName, client?.lastName)
-                                .joinToString(" ")
-                                .ifBlank { null },
-                        sessionType = session.sessionType,
-                        isWalkIn = session.isWalkIn,
-                        sessionStatus = session.sessionStatus,
-                        basePrice = session.basePrice.toPlainString(),
-                        finalPrice = session.finalPrice.toPlainString(),
-                        remarks = session.remarks,
-                        otherConcerns = session.otherConcerns,
-                        bookedAt = session.bookedAt?.toString(),
-                        nextAppointmentDate = session.nextAppointmentDate?.toString(),
-                        version = session.version,
-                        isVoided = session.id in voidedSessionIds,
-                        practitioners =
-                            practitionerBySession[session.id]
-                                .orEmpty()
-                                .map {
-                                    DashboardPractitionerResponse(
-                                        practitionerId = it.practitionerId.toString(),
-                                        displayName = it.displayName,
-                                        remarks = it.remarks,
-                                        slotAtTime = it.slotAtTime,
-                                    )
-                                },
-                        concerns =
-                            concernsBySession[session.id]
-                                .orEmpty()
-                                .map {
-                                    ConcernResponse(
-                                        id = it.concern.id.toString(),
-                                        label = it.concern.label,
-                                        createdBy = it.concern.createdBy?.toString(),
-                                        createdAt = it.concern.createdAt?.toString(),
-                                    )
-                                },
+                    mapDashboardSession(
+                        session = session,
+                        clientNames = clientNames,
+                        voidedSessionIds = voidedSessionIds,
+                        practitioners = practitioners,
+                        concerns = concerns,
                     )
                 },
             commission =
@@ -85,4 +55,63 @@ object DashboardRoutes {
                 ),
         )
     }
+}
+
+/**
+ * Shared session → [DashboardSessionResponse] mapping — the dashboard list and the #152
+ * session-detail read render byte-identical (#151 Q3: reuse the DTO, no new shape).
+ */
+internal fun mapDashboardSession(
+    session: Session,
+    clientNames: Map<UUID, ClientNames>,
+    voidedSessionIds: Set<UUID>,
+    practitioners: List<SessionPractitionerWithName>,
+    concerns: List<ConcernWithSessionId>,
+): DashboardSessionResponse {
+    val client = clientNames[session.clientId]
+    val practitionerBySession =
+        practitioners.groupBy { it.sessionId }
+    val concernsBySession =
+        concerns.groupBy { it.sessionId }
+    return DashboardSessionResponse(
+        id = session.id.toString(),
+        clientId = session.clientId.toString(),
+        clientName =
+            listOfNotNull(client?.firstName, client?.lastName)
+                .joinToString(" ")
+                .ifBlank { null },
+        sessionType = session.sessionType,
+        isWalkIn = session.isWalkIn,
+        sessionStatus = session.sessionStatus,
+        basePrice = session.basePrice.toPlainString(),
+        finalPrice = session.finalPrice.toPlainString(),
+        remarks = session.remarks,
+        otherConcerns = session.otherConcerns,
+        bookedAt = session.bookedAt?.toString(),
+        nextAppointmentDate = session.nextAppointmentDate?.toString(),
+        version = session.version,
+        isVoided = session.id in voidedSessionIds,
+        practitioners =
+            practitionerBySession[session.id]
+                .orEmpty()
+                .map {
+                    DashboardPractitionerResponse(
+                        practitionerId = it.practitionerId.toString(),
+                        displayName = it.displayName,
+                        remarks = it.remarks,
+                        slotAtTime = it.slotAtTime,
+                    )
+                },
+        concerns =
+            concernsBySession[session.id]
+                .orEmpty()
+                .map {
+                    ConcernResponse(
+                        id = it.concern.id.toString(),
+                        label = it.concern.label,
+                        createdBy = it.concern.createdBy?.toString(),
+                        createdAt = it.concern.createdAt?.toString(),
+                    )
+                },
+    )
 }

@@ -13,17 +13,21 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
+import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
@@ -217,6 +221,101 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     fun `getToday throws NotFoundException for missing branch`() {
         assertFailsWith<NotFoundException> {
             DashboardService.getToday(callerId, UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `getSessionDetail returns enriched session for notification bearer`() {
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, callerId, branchId)
+        seedPractitioner(sessionId, practitionerId)
+
+        val data = DashboardService.getSessionDetail(callerId, sessionId)
+
+        assertEquals(sessionId, data.session.id)
+        val clientNames = data.clientNames.getValue(clientId)
+        assertEquals("Test", clientNames.firstName)
+        assertEquals("Client", clientNames.lastName)
+        assertFalse(sessionId in data.voidedSessionIds)
+        assertEquals(1, data.practitioners.size)
+        assertEquals(practitionerId, data.practitioners.single().practitionerId)
+        assertTrue(data.concerns.isEmpty())
+    }
+
+    @Test
+    fun `getSessionDetail marks voided sessions`() {
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, callerId, branchId)
+        seedVoid(sessionId)
+
+        val data = DashboardService.getSessionDetail(callerId, sessionId)
+
+        assertTrue(sessionId in data.voidedSessionIds)
+    }
+
+    @Test
+    fun `getSessionDetail accepts read notifications`() {
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        val notification = seedNotification(sessionId, callerId, branchId)
+        NotificationService.markRead(callerId, notification.id)
+
+        val data = DashboardService.getSessionDetail(callerId, sessionId)
+
+        assertEquals(sessionId, data.session.id)
+    }
+
+    @Test
+    fun `getSessionDetail throws 404 when no notification exists for the session`() {
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+
+        assertFailsWith<NotFoundException> {
+            DashboardService.getSessionDetail(callerId, sessionId)
+        }
+    }
+
+    @Test
+    fun `getSessionDetail throws 404 when caller is not the notification bearer`() {
+        DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
+        seedNotification(sessionId, otherUserId, branchId)
+
+        assertFailsWith<NotFoundException> {
+            DashboardService.getSessionDetail(callerId, sessionId)
+        }
+    }
+
+    private fun seedNotification(
+        sessionId: UUID,
+        userId: UUID,
+        branchId: UUID,
+    ): com.companyb.companyapp.repository.model.Notification {
+        val id = UUID.randomUUID()
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = id
+                it[NotificationTable.sessionId] = sessionId
+                it[NotificationTable.userId] = userId
+                it[NotificationTable.branchId] = branchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        trackOwned(NotificationTable, NotificationTable.id, id)
+        return transaction {
+            NotificationTable
+                .selectAll()
+                .where { NotificationTable.id eq id }
+                .single()
+                .let { row ->
+                    com.companyb.companyapp.repository.model.Notification(
+                        id = row[NotificationTable.id],
+                        sessionId = row[NotificationTable.sessionId],
+                        userId = row[NotificationTable.userId],
+                        branchId = row[NotificationTable.branchId],
+                        message = row[NotificationTable.message],
+                        isRead = row[NotificationTable.isRead],
+                        readAt = row[NotificationTable.readAt],
+                        createdAt = row[NotificationTable.createdAt],
+                    )
+                }
         }
     }
 

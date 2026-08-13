@@ -41,6 +41,7 @@ import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.ui.screen.SessionDashboardScreen
 import com.companyb.companyapp.ui.screen.SessionDetailContent
+import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
@@ -50,6 +51,7 @@ import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
+import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
 
 @Composable
@@ -132,9 +134,10 @@ actual fun AppNavHost(
                         },
                     )
                 }
-                // Per ADR-0020 + #91: desktop Dashboard composes a master-detail Row with SessionDetail pane inline
-                // (no SessionDetail route navigation on desktop). Master = the dashboard screen (cards + table),
-                // detail = SessionDetailContent keyed on the selected row (weights 0.6/0.4 per #91).
+                // Per ADR-0020 + #91: desktop Dashboard composes a master-detail Row with the
+                // SessionDetail pane inline. #152 (the #151 Q6 scoped revision): desktop gained
+                // a pushed `Route.SessionDetail` for the NOTIFICATION entry point only — the
+                // dashboard pane below stays untouched.
                 composable<Route.Dashboard> {
                     val dashboardViewModel: SessionDashboardViewModel =
                         viewModel { SessionDashboardViewModel(apiClient) }
@@ -222,8 +225,14 @@ actual fun AppNavHost(
                     NotificationsScreen(
                         viewModel = notificationsViewModel,
                         onNotificationClick = { notification ->
-                            // D3 (desktop): mark-read only — no desktop SessionDetail route (#91 lock).
+                            // #152 — scoped #91-lock revision (#151 Q6): desktop notification taps
+                            // now mark-read + push the SessionDetail route (desktop is the main
+                            // platform). The pushed route exists ONLY for this entry point — the
+                            // dashboard keeps its inline master-detail pane. The markRead PATCH is
+                            // fire-and-forget; the detail GET's bearer check accepts read or unread
+                            // rows, so there is no markRead/GET race (#151 Q7).
                             notificationsViewModel.markRead(notification.id)
+                            navController.navigate(Route.SessionDetail(notification.sessionId))
                         },
                     )
                 }
@@ -275,7 +284,20 @@ actual fun AppNavHost(
                         RouteGateCard(label = "User Management")
                     }
                 }
-                // No composable<Route.SessionDetail> on desktop — locked by #91 (desktop inline-pane only).
+                // #152 — scoped #91-lock revision (#151 Q6): desktop SessionDetail exists as a
+                // pushed route for the NOTIFICATION entry point only (desktop is the main
+                // platform); the dashboard's inline pane is untouched. Entry-scoped VM (#112):
+                // a fresh VM per push — the one-shot fetch state self-cleans on pop.
+                composable<Route.SessionDetail> { entry ->
+                    val route = entry.toRoute<Route.SessionDetail>()
+                    val sessionDetailViewModel: SessionDetailViewModel =
+                        viewModel { SessionDetailViewModel(apiClient, route.sessionId, route.row) }
+                    SessionDetailScreen(
+                        sessionId = route.sessionId,
+                        viewModel = sessionDetailViewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
         }
     }

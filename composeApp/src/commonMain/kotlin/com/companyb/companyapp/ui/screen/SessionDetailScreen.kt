@@ -1,56 +1,81 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.viewmodel.SessionDetailViewModel
+import com.companyb.companyapp.viewmodel.UiState
 
 /**
- * #147 mobile SessionDetail route. The dashboard passes the enriched row via nav args
- * (no session-detail GET endpoint exists — the #146-corrected fact), so the content is
- * the same [SessionDetailContent] the desktop inline pane renders.
+ * SessionDetail route on both platforms (#152 — the #151 resolution).
  *
- * The Notifications call site navigates with sessionId only (row = null) — it renders the
- * limited state below. A real session-detail GET + its read gate is the notifications
- * chain's own build (fog, tracked on the map).
+ * The dashboard path passes the enriched row via nav args — the VM seeds Success with it and
+ * never dispatches (zero extra requests). The Notifications call site navigates with sessionId
+ * only (row = null) — the VM fetches once via `GET /api/sessions/{sessionId}` (bearer-only
+ * gate; 404 for both non-bearer and missing → the single Error + Retry fallback below).
+ * Content is the same [SessionDetailContent] the desktop inline pane renders — byte-identical
+ * rendering with the dashboard path.
  */
 @Composable
 fun SessionDetailScreen(
-    row: DashboardSessionResponse?,
+    sessionId: String,
+    viewModel: SessionDetailViewModel,
     onBack: () -> Unit,
 ) {
+    val detailState by viewModel.detail.collectAsState()
+
+    LaunchedEffect(Unit) {
+        logInfo("SessionDetailScreen", "composable entered: sessionId=$sessionId")
+        viewModel.loadIfNeeded()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // #113 content-level Back precedent (pushed-route topbar pattern stays fog).
         TextButton(onClick = onBack) {
             Text("‹ Back")
         }
-        if (row == null) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(Spacing.md),
-            ) {
-                Text(
-                    text = "Session detail",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text =
-                        "This session's details aren't available from here yet — " +
-                            "open it from today's dashboard.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = InkSubtle,
-                    modifier = Modifier.padding(top = Spacing.sm),
-                )
+        when (val state = detailState) {
+            is UiState.Idle, is UiState.Loading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            SessionDetailContent(session = row)
+
+            is UiState.Error -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            Text(
+                                text = state.message,
+                                color = InkSubtle,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            TextButton(onClick = { viewModel.retry() }) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
+            }
+
+            is UiState.Success -> {
+                SessionDetailContent(session = state.data)
+            }
         }
     }
 }

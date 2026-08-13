@@ -52,6 +52,23 @@ object NotificationRepository {
             logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
         }
 
+    // #152 bearer check for the session-detail read (#151 Q1): the notification row IS the
+    // authorization — any read state. Served by the UNIQUE idx_notification_unique
+    // (session_id, user_id), so the lookup is one indexed hit.
+    fun existsForSessionAndUser(
+        sessionId: UUID,
+        userId: UUID,
+    ): Boolean =
+        transaction {
+            NotificationTable
+                .selectAll()
+                .where {
+                    (NotificationTable.sessionId eq sessionId) and
+                        (NotificationTable.userId eq userId)
+                }.empty()
+                .not()
+        }
+
     fun markAllRead(userId: UUID): Int =
         transaction {
             NotificationTable.update({
