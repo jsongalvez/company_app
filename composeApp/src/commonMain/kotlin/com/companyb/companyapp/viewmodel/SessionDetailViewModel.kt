@@ -45,7 +45,9 @@ class SessionDetailViewModel(
 
     // In-flight guard: ApiCallHandler launches are concurrent — two rapid retries would race
     // two GETs whose responses can land out of order (the stale-response overwrite class). The
-    // flag is set synchronously before dispatch and cleared on completion.
+    // flag is set synchronously before dispatch and cleared on completion. Volatile because
+    // invokeOnCompletion runs in the completing job's context, not the caller's frame.
+    @Volatile
     private var inFlight = false
 
     /**
@@ -58,7 +60,11 @@ class SessionDetailViewModel(
         fetch()
     }
 
-    /** Explicit retry from the error state — always dispatches. */
+    /**
+     * Explicit retry from the error state — which is only reachable when the entry carried no
+     * row (the seeded dashboard path sits in Success forever, so its no-op guard below never
+     * fires in the UI). Concurrent retries are blocked by [inFlight].
+     */
     fun retry() {
         if (seededRow != null) return
         fetch()

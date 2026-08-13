@@ -176,9 +176,10 @@ actual fun AppNavHost(
                         RouteGateCard(label = "Clients")
                     }
                 }
-                // #113 — ClientDetail is a pushed route on desktop TOO (unlike SessionDetail —
-                // the #91 inline-pane lock is dashboard-specific; #99 outline: push on both
-                // platforms, no desktop pane).
+                // #113 — ClientDetail is a pushed route on desktop TOO (the #91 inline-pane
+                // lock is dashboard-specific; #99 outline: push on both platforms, no desktop
+                // pane). SessionDetail gained its own pushed desktop route in #152 (notification
+                // entry point only — #151 Q6).
                 composable<Route.ClientDetail> { entry ->
                     val clientDetailViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
                     ClientDetailScreen(

@@ -18,8 +18,8 @@ sealed class Route {
     data object Clients : Route()
 
     // #113 — pushed on both platforms (#99 outline: "Search → tap row → push Route.ClientDetail
-    // (both platforms — push routes per #91/#95; no desktop pane)"). Unlike SessionDetail, this
-    // route EXISTS on desktop (desktop SessionDetail is the #91 inline-pane exception).
+    // (both platforms — push routes per #91/#95; no desktop pane)"). SessionDetail got a desktop
+    // pushed route in #152 (the #151 Q6 scoped revision, notification entry point only).
     @Serializable
     data class ClientDetail(
         val clientId: String,

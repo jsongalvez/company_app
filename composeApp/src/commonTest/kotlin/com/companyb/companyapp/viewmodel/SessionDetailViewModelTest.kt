@@ -223,7 +223,11 @@ class SessionDetailViewModelTest {
             var requestCount = 0
             val handler: MockRequestHandler = {
                 requestCount++
-                respondOk(SESSION_DETAIL_JSON)
+                if (requestCount == 1) {
+                    respondError(HttpStatusCode.NotFound)
+                } else {
+                    respondOk(SESSION_DETAIL_JSON)
+                }
             }
             val vm =
                 SessionDetailViewModel(
@@ -231,13 +235,19 @@ class SessionDetailViewModelTest {
                     SESSION_ID,
                     initialRow = null,
                 )
-            // The synchronous inFlight flag must hold from the caller's frame — two rapid
-            // Retry taps before recomposition hides the button must not race two GETs whose
-            // responses could land out of order (the stale-response overwrite class).
+            // Drive the VM into Error first — that is the state the Retry button actually
+            // renders in, and the state two rapid taps leave from before recomposition hides
+            // the button. The synchronous inFlight flag must hold from the caller's frame —
+            // two concurrent GETs could land out of order (the stale-response overwrite class).
+            vm.loadIfNeeded()
+            runCurrent()
+            assertTrue(vm.detail.value is UiState.Error)
+
             vm.retry()
             vm.retry()
             runCurrent()
 
-            assertEquals(1, requestCount)
+            assertEquals(2, requestCount, "one initial load + one guarded retry")
+            assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
         }
 }
