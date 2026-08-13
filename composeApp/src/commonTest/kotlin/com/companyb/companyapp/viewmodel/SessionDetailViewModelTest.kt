@@ -55,7 +55,8 @@ private fun testRow() =
 /**
  * #152 one-shot fetch semantics (#151 Q7): fetch ONLY when the route arrived without a row
  * (the notifications path); the dashboard path (row present) never dispatches; double-fire
- * guarded against recomposition refires; explicit Retry re-dispatches after an error.
+ * guarded against recomposition refires; explicit Retry re-dispatches after an error; the
+ * in-flight guard blocks concurrent retries.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionDetailViewModelTest {
@@ -101,17 +102,13 @@ class SessionDetailViewModelTest {
                     SESSION_ID,
                     initialRow = row,
                 )
-            try {
-                vm.loadIfNeeded()
-                runCurrent()
+            vm.loadIfNeeded()
+            runCurrent()
 
-                assertEquals(0, requestCount, "the dashboard path passes the enriched row — zero requests")
-                val state = vm.detail.value
-                assertIs<UiState.Success<DashboardSessionResponse>>(state)
-                assertEquals(row, state.data)
-            } finally {
-                // No poll loop — nothing to cancel beyond the VM scope.
-            }
+            assertEquals(0, requestCount, "the dashboard path passes the enriched row — zero requests")
+            val state = vm.detail.value
+            assertIs<UiState.Success<DashboardSessionResponse>>(state)
+            assertEquals(row, state.data)
         }
 
     @Test
@@ -129,16 +126,13 @@ class SessionDetailViewModelTest {
                     SESSION_ID,
                     initialRow = null,
                 )
-            try {
-                vm.loadIfNeeded()
-                runCurrent()
+            vm.loadIfNeeded()
+            runCurrent()
 
-                assertEquals(1, requestCount)
-                val state = vm.detail.value
-                assertIs<UiState.Success<DashboardSessionResponse>>(state)
-                assertEquals("Test Client", state.data.clientName)
-            } finally {
-            }
+            assertEquals(1, requestCount)
+            val state = vm.detail.value
+            assertIs<UiState.Success<DashboardSessionResponse>>(state)
+            assertEquals("Test Client", state.data.clientName)
         }
 
     @Test
@@ -155,17 +149,14 @@ class SessionDetailViewModelTest {
                     SESSION_ID,
                     initialRow = null,
                 )
-            try {
-                // The synchronous fetchStarted flag must hold from the caller's frame (the
-                // #135 double-tap pattern) — recomposition/rotation refires loadIfNeeded
-                // while the entry-scoped VM survives.
-                vm.loadIfNeeded()
-                vm.loadIfNeeded()
-                runCurrent()
+            // The synchronous fetchStarted flag must hold from the caller's frame (the
+            // #135 double-tap pattern) — recomposition/rotation refires loadIfNeeded
+            // while the entry-scoped VM survives.
+            vm.loadIfNeeded()
+            vm.loadIfNeeded()
+            runCurrent()
 
-                assertEquals(1, requestCount)
-            } finally {
-            }
+            assertEquals(1, requestCount)
         }
 
     @Test
@@ -187,20 +178,17 @@ class SessionDetailViewModelTest {
                     SESSION_ID,
                     initialRow = null,
                 )
-            try {
-                vm.loadIfNeeded()
-                runCurrent()
+            vm.loadIfNeeded()
+            runCurrent()
 
-                assertEquals(1, requestCount)
-                assertTrue(vm.detail.value is UiState.Error)
+            assertEquals(1, requestCount)
+            assertTrue(vm.detail.value is UiState.Error)
 
-                vm.retry()
-                runCurrent()
+            vm.retry()
+            runCurrent()
 
-                assertEquals(2, requestCount, "explicit retry always re-dispatches")
-                assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
-            } finally {
-            }
+            assertEquals(2, requestCount, "explicit retry always re-dispatches")
+            assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
         }
 
     @Test
@@ -217,18 +205,39 @@ class SessionDetailViewModelTest {
                     SESSION_ID,
                     initialRow = null,
                 )
-            try {
-                vm.loadIfNeeded()
-                runCurrent()
-                assertEquals(1, requestCount)
-                assertTrue(vm.detail.value is UiState.Error)
+            vm.loadIfNeeded()
+            runCurrent()
+            assertEquals(1, requestCount)
+            assertTrue(vm.detail.value is UiState.Error)
 
-                // A recomposition refire of loadIfNeeded must not silently retry — the Retry
-                // button is the sanctioned path (an auto-refire would hide the 404 fallback).
-                vm.loadIfNeeded()
-                runCurrent()
-                assertEquals(1, requestCount)
-            } finally {
+            // A recomposition refire of loadIfNeeded must not silently retry — the Retry
+            // button is the sanctioned path (an auto-refire would hide the 404 fallback).
+            vm.loadIfNeeded()
+            runCurrent()
+            assertEquals(1, requestCount)
+        }
+
+    @Test
+    fun back_to_back_retries_dispatch_single_request() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val handler: MockRequestHandler = {
+                requestCount++
+                respondOk(SESSION_DETAIL_JSON)
             }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = null,
+                )
+            // The synchronous inFlight flag must hold from the caller's frame — two rapid
+            // Retry taps before recomposition hides the button must not race two GETs whose
+            // responses could land out of order (the stale-response overwrite class).
+            vm.retry()
+            vm.retry()
+            runCurrent()
+
+            assertEquals(1, requestCount)
         }
 }

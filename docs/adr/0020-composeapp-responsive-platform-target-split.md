@@ -86,9 +86,13 @@ shared chrome across both actuals — reintroducing the coupling #91 removed.
 auth, `LinearTheme`, `SessionState`) then calls the expect host. The `androidMain`
 actual renders the mobile NavHost (all detail routes are push routes); the
 `desktopMain` actual renders the desktop NavHost where `Dashboard` composes a
-master-detail `Row` with the `SessionDetailContent` pane inline (no
-`SessionDetail` route navigation on desktop, per #91). Wiring differences are
-never resolved by splitting a screen — that is the host's job.
+master-detail `Row` with the `SessionDetailContent` pane inline. **#152 (the #151
+Q6 scoped revision): desktop gained a pushed `SessionDetail` route — but ONLY for
+the notification entry point** (desktop notification tap = markRead + push; the
+route fetches via the session-detail GET). The dashboard inline pane is untouched;
+the pushed route exists because the notification push has no dashboard row to
+select. Wiring differences are never resolved by splitting a screen — that is the
+host's job.
 
 **ViewModels stay in `commonMain`.** Every VM has one test target, per spec's
 no-UI-tests / ViewModel-tests-only rule. The platform split is confined to

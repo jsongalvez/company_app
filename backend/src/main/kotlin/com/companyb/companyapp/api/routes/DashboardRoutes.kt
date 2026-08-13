@@ -44,8 +44,8 @@ object DashboardRoutes {
                         session = session,
                         clientNames = clientNames,
                         voidedSessionIds = voidedSessionIds,
-                        practitioners = practitioners,
-                        concerns = concerns,
+                        practitionerBySession = practitionerBySession,
+                        concernsBySession = concernsBySession,
                     )
                 },
             commission =
@@ -60,19 +60,17 @@ object DashboardRoutes {
 /**
  * Shared session → [DashboardSessionResponse] mapping — the dashboard list and the #152
  * session-detail read render byte-identical (#151 Q3: reuse the DTO, no new shape).
+ * The practitioner/concern lists arrive pre-grouped by session so the dashboard list path
+ * groups once instead of per session.
  */
 internal fun mapDashboardSession(
     session: Session,
     clientNames: Map<UUID, ClientNames>,
     voidedSessionIds: Set<UUID>,
-    practitioners: List<SessionPractitionerWithName>,
-    concerns: List<ConcernWithSessionId>,
+    practitionerBySession: Map<UUID, List<SessionPractitionerWithName>>,
+    concernsBySession: Map<UUID, List<ConcernWithSessionId>>,
 ): DashboardSessionResponse {
     val client = clientNames[session.clientId]
-    val practitionerBySession =
-        practitioners.groupBy { it.sessionId }
-    val concernsBySession =
-        concerns.groupBy { it.sessionId }
     return DashboardSessionResponse(
         id = session.id.toString(),
         clientId = session.clientId.toString(),

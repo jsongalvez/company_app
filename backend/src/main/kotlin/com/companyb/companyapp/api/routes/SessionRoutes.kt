@@ -170,8 +170,8 @@ object SessionRoutes {
                 session = data.session,
                 clientNames = data.clientNames,
                 voidedSessionIds = data.voidedSessionIds,
-                practitioners = data.practitioners,
-                concerns = data.concerns,
+                practitionerBySession = data.practitioners.groupBy { it.sessionId },
+                concernsBySession = data.concerns.groupBy { it.sessionId },
             ),
         )
     }

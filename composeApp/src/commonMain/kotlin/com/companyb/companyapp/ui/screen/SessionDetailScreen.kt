@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
@@ -44,12 +45,20 @@ fun SessionDetailScreen(
         viewModel.loadIfNeeded()
     }
 
+    LaunchedEffect(detailState) {
+        (detailState as? UiState.Error)?.let {
+            logWarn("SessionDetailScreen", "detailState=Error: ${it.message}")
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         // #113 content-level Back precedent (pushed-route topbar pattern stays fog).
         TextButton(onClick = onBack) {
             Text("‹ Back")
         }
         when (val state = detailState) {
+            // Idle is unreachable for this VM (init is Loading|Success) but keeps the when
+            // exhaustive over the sealed UiState (the ClientDetailScreen pattern).
             is UiState.Idle, is UiState.Loading -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()

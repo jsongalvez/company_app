@@ -21,11 +21,7 @@ import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
-import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -166,34 +162,13 @@ class SessionDetailAuthzTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ): com.companyb.companyapp.repository.model.Notification {
-        val id = UUID.randomUUID()
-        transaction {
-            NotificationTable.insert {
-                it[NotificationTable.id] = id
-                it[NotificationTable.sessionId] = sessionId
-                it[NotificationTable.userId] = userId
-                it[NotificationTable.branchId] = branchId
-                it[NotificationTable.message] = "Test notification"
-            }
-        }
-        trackOwned(NotificationTable, NotificationTable.id, id)
-        return transaction {
-            NotificationTable
-                .selectAll()
-                .where { NotificationTable.id eq id }
-                .single()
-                .let { row ->
-                    com.companyb.companyapp.repository.model.Notification(
-                        id = row[NotificationTable.id],
-                        sessionId = row[NotificationTable.sessionId],
-                        userId = row[NotificationTable.userId],
-                        branchId = row[NotificationTable.branchId],
-                        message = row[NotificationTable.message],
-                        isRead = row[NotificationTable.isRead],
-                        readAt = row[NotificationTable.readAt],
-                        createdAt = row[NotificationTable.createdAt],
-                    )
-                }
-        }
+        val notification =
+            DatabaseTestHelper.insertTestNotification(
+                sessionId = sessionId,
+                userId = userId,
+                branchId = branchId,
+            )
+        trackOwned(NotificationTable, NotificationTable.id, notification.id)
+        return notification
     }
 }

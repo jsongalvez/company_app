@@ -19,6 +19,7 @@ import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantPriorities
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
@@ -348,7 +349,10 @@ object DatabaseTestHelper {
         )
     }
 
-    /** Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses [SessionService.create]). */
+    /**
+     * Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses
+     * [SessionService.create]).
+     */
     @Suppress("LongParameterList")
     fun insertTestSession(
         id: UUID,
@@ -385,6 +389,47 @@ object DatabaseTestHelper {
             }
         }
         return id
+    }
+
+    /**
+     * Inserts a notification row directly (bypasses the scheduler — the only production
+     * writer). Parameters named like the columns so callers can't fall into the Exposed v1
+     * insert trap (the lambda receiver is the table, so an unqualified FIELD name resolves
+     * to the column, not the test's field).
+     */
+    fun insertTestNotification(
+        id: UUID = UUID.randomUUID(),
+        sessionId: UUID,
+        userId: UUID,
+        branchId: UUID,
+    ): com.companyb.companyapp.repository.model.Notification {
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = id
+                it[NotificationTable.sessionId] = sessionId
+                it[NotificationTable.userId] = userId
+                it[NotificationTable.branchId] = branchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        return transaction {
+            NotificationTable
+                .selectAll()
+                .where { NotificationTable.id eq id }
+                .single()
+                .let { row ->
+                    com.companyb.companyapp.repository.model.Notification(
+                        id = row[NotificationTable.id],
+                        sessionId = row[NotificationTable.sessionId],
+                        userId = row[NotificationTable.userId],
+                        branchId = row[NotificationTable.branchId],
+                        message = row[NotificationTable.message],
+                        isRead = row[NotificationTable.isRead],
+                        readAt = row[NotificationTable.readAt],
+                        createdAt = row[NotificationTable.createdAt],
+                    )
+                }
+        }
     }
 
     fun insertTestCategory(

@@ -43,6 +43,11 @@ class SessionDetailViewModel(
 
     private var fetchStarted = false
 
+    // In-flight guard: ApiCallHandler launches are concurrent — two rapid retries would race
+    // two GETs whose responses can land out of order (the stale-response overwrite class). The
+    // flag is set synchronously before dispatch and cleared on completion.
+    private var inFlight = false
+
     /**
      * Fetches once, and only when the entry carried no row. No-ops on the dashboard path
      * (row present) and on recomposition refires (entry-scoped VM + [fetchStarted]).
@@ -55,16 +60,20 @@ class SessionDetailViewModel(
 
     /** Explicit retry from the error state — always dispatches. */
     fun retry() {
+        if (seededRow != null) return
         fetch()
     }
 
     private fun fetch() {
-        handler.launch(
-            state = _detail,
-            operation = "loadDetail",
-            endpoint = "GET /api/sessions/$sessionId",
-            block = { apiClient.httpClient.get("/api/sessions/$sessionId") },
-            transform = { it.body() },
-        )
+        if (inFlight) return
+        inFlight = true
+        handler
+            .launch(
+                state = _detail,
+                operation = "loadDetail",
+                endpoint = "GET /api/sessions/$sessionId",
+                block = { apiClient.httpClient.get("/api/sessions/$sessionId") },
+                transform = { it.body() },
+            ).invokeOnCompletion { inFlight = false }
     }
 }
