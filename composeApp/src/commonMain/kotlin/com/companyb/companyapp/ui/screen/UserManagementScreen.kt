@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
@@ -553,7 +554,15 @@ private fun UserRow(
                         TextButton(onClick = onDeactivate, enabled = !mutationsDisabled) {
                             Text(
                                 text = "Deactivate",
-                                color = MaterialTheme.colorScheme.error,
+                                // Dimmed via M3's disabledContentColor when gated mid-load —
+                                // the explicit error color would keep it vivid red (pass-4 SOFT,
+                                // the dialog conditional's principle).
+                                color =
+                                    if (mutationsDisabled) {
+                                        Color.Unspecified
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
                             )
                         }
                     }
@@ -638,7 +647,9 @@ private fun DeactivateConfirmDialog(
                     text = "Deactivate",
                     color =
                         if (mutationsDisabled) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            // M3's disabledContentColor (dimmed) — an explicit error color would
+                            // keep the dead button vivid red (pass-4 SOFT).
+                            Color.Unspecified
                         } else {
                             MaterialTheme.colorScheme.error
                         },
