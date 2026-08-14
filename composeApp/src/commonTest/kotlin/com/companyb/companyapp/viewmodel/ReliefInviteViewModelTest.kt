@@ -26,6 +26,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 /**
  * #160 — the ReliefInviteViewModel flows: received list (keep-last + no-refire), accept/
@@ -204,6 +205,7 @@ class ReliefInviteViewModelTest {
     @Test
     fun `newer_search_cancels_the_in_flight_one`() =
         runTest(testScheduler) {
+            var alCalls = 0
             val apiClient =
                 mockApiClient(
                     handler {
@@ -211,6 +213,13 @@ class ReliefInviteViewModelTest {
                             it.url.encodedPath == "/api/branches/b1/relief-candidates" -> {
                                 val query = it.url.parameters["q"].orEmpty()
                                 if (query == "al") {
+                                    alCalls++
+                                    // The first search stays in flight until the newer query
+                                    // cancels it — without the delay, cancel() would hit a dead
+                                    // job and the test would pass vacuously (P5 finding 3).
+                                    withContext(StandardTestDispatcher(testScheduler)) {
+                                        kotlinx.coroutines.delay(10_000)
+                                    }
                                     ok("""[{"id":"u1","username":"alice","displayName":"Alice"}]""")
                                 } else {
                                     ok("[]")
@@ -226,15 +235,22 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.searchCandidates("b1", "al", "2026-08-16")
             runCurrent()
-            val first = vm.candidates.value
-            assertIs<UiState.Success<List<ReliefCandidateResponse>>>(first)
-            assertEquals(1, first.data.size)
+            assertIs<UiState.Loading>(vm.candidates.value)
+            assertEquals(1, alCalls)
 
             vm.searchCandidates("b1", "bo", "2026-08-16")
             runCurrent()
             val second = vm.candidates.value
             assertIs<UiState.Success<List<ReliefCandidateResponse>>>(second)
             assertEquals(0, second.data.size, "the newer query wins")
+
+            // The cancelled search's response must never commit — even after its delay elapses.
+            advanceTimeBy(20_000)
+            runCurrent()
+            val after = vm.candidates.value
+            assertIs<UiState.Success<List<ReliefCandidateResponse>>>(after)
+            assertEquals(0, after.data.size, "the cancelled in-flight response must not commit")
+            assertEquals(1, alCalls)
         }
 
     @Test
@@ -430,8 +446,10 @@ class ReliefInviteViewModelTest {
                                     ok("[${inviteJson("i1", "PENDING")}, ${inviteJson("i2", "PENDING")}]")
                                 } else if (getCalls >= 3) {
                                     // Re-issued loads run after the accept: the server serves the
-                                    // post-accept state (i1 resolved → PENDING-only).
-                                    ok("[${inviteJson("i2", "PENDING")}]")
+                                    // post-accept state — AND a new invite (i3) the local
+                                    // substitution could never know (pins the re-issue's distinct
+                                    // job — server-truth convergence, P5 finding 1).
+                                    ok("[${inviteJson("i2", "PENDING")}, ${inviteJson("i3", "PENDING")}]")
                                 } else {
                                     ok("[${inviteJson("i1", "PENDING")}, ${inviteJson("i2", "PENDING")}]")
                                 }
@@ -460,13 +478,15 @@ class ReliefInviteViewModelTest {
             assertEquals(1, vm.lastReceived.value!!.size, "i1 left in-session")
 
             // The stale load lands AFTER the accept — its stamp mismatch must substitute the
-            // post-action list, not resurrect i1.
+            // post-action list, not resurrect i1; the re-issued load then converges server
+            // truth (i3 lands, i1 stays gone).
             advanceTimeBy(20_000)
             runCurrent()
             val state = vm.received.value
             assertIs<UiState.Success<List<ReliefInviteResponse>>>(state)
-            assertEquals("i2", state.data.single().id, "the accepted row must not resurrect")
-            assertEquals(1, vm.lastReceived.value!!.size)
+            val ids = state.data.map { it.id }
+            assertTrue(!ids.contains("i1"), "the accepted row must not resurrect: $ids")
+            assertTrue(ids.contains("i3"), "the re-issued load must converge server truth: $ids")
         }
 
     @Test

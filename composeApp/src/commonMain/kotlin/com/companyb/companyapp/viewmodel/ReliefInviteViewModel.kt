@@ -115,9 +115,11 @@ class ReliefInviteViewModel(
                 if (stamp != actionStamp) {
                     // An accept/decline landed while the load was in flight — committing the
                     // snapshot would resurrect the resolved row (the #141 resurrect class).
-                    // currentReceivedList() is authoritative post-action: removeReceived assigns
-                    // Success synchronously and the FIFO-Main mirror converges before any stale
-                    // resume, so the fallback is a dead-branch safety net (pass-2 HARD).
+                    // Two recovery paths with distinct jobs: the SUBSTITUTION (currentReceivedList
+                    // — removeReceived assigns Success synchronously, FIFO-Main converges the
+                    // mirror) keeps the post-action list on screen; the RE-ISSUE converges
+                    // server truth — rows the action couldn't know (cross-device accepts,
+                    // new invites) land from the fresh GET. Both are pinned by tests.
                     loadReceived()
                     currentReceivedList() ?: emptyList()
                 } else {
@@ -136,17 +138,7 @@ class ReliefInviteViewModel(
             // #113 shape: a 409 means the invite is already resolved (double-tap race or a
             // cross-device accept) — the row must leave the section, so reload instead of
             // surfacing an error on a stale row (the markRead absent-row defense precedent).
-            // Idle-reset included: leaving Loading would mark the action in-flight forever
-            // (the #140 stuck-Loading class).
-            onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.Conflict) {
-                    _acceptResult.value = UiState.Idle
-                    loadReceived()
-                    true
-                } else {
-                    false
-                }
-            },
+            onNonSuccess = onConflictReload(_acceptResult),
             transform = {
                 actionStamp++
                 removeReceived(inviteId)
@@ -160,21 +152,27 @@ class ReliefInviteViewModel(
             operation = "declineInvite",
             endpoint = "POST /api/relief-invites/$inviteId/decline",
             block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/decline") },
-            onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.Conflict) {
-                    _declineResult.value = UiState.Idle
-                    loadReceived()
-                    true
-                } else {
-                    false
-                }
-            },
+            onNonSuccess = onConflictReload(_declineResult),
             transform = {
                 actionStamp++
                 removeReceived(inviteId)
                 Unit
             },
         )
+
+    /** Shared 409-handling for accept/decline: Idle-reset (the #140 stuck-Loading class) + reload. */
+    private fun onConflictReload(
+        state: MutableStateFlow<UiState<Unit>>,
+    ): suspend (io.ktor.client.statement.HttpResponse) -> Boolean =
+        { response ->
+            if (response.status == HttpStatusCode.Conflict) {
+                state.value = UiState.Idle
+                loadReceived()
+                true
+            } else {
+                false
+            }
+        }
 
     fun searchCandidates(
         branchId: String,

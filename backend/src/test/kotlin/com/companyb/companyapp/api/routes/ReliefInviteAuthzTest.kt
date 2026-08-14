@@ -657,17 +657,26 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `candidate search with no day row applies no exclusions`() {
+    fun `candidate search with no day row applies no exclusions and creates nothing`() {
+        val noDayDate = tomorrow.plusDays(5)
         JavalinTest.test(createApp()) { _, client ->
             val response =
                 client.get(
-                    "/api/branches/$branchA/relief-candidates?date=${tomorrow.plusDays(5)}",
+                    "/api/branches/$branchA/relief-candidates?date=$noDayDate",
                     asUser(inviter),
                 )
             assertEquals(200, response.code)
             val body = response.body?.string().orEmpty()
             assertTrue(body.contains(aliceUser.toString()), body)
             assertTrue(!body.contains(inviter.toString()), body)
+            val dayCount =
+                transaction {
+                    BranchDayTable
+                        .selectAll()
+                        .where { (BranchDayTable.branchId eq branchA) and (BranchDayTable.date eq noDayDate) }
+                        .count()
+                }
+            assertEquals(0L, dayCount, "a search must never create a branch day row (the #158 find-only discipline)")
         }
     }
 
