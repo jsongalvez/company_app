@@ -935,10 +935,11 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
-    fun supersededUpdate_landsAfterDaySwitch_writesNothing() =
+    fun supersededUpdate_landsAfterBranchSwitch_writesNothing() =
         runTest(testScheduler) {
-            // Pass-6 HARD — an in-flight PATCH completing after a day/branch switch must not
-            // repopulate the cleared sections nor end the new session's in-flight flags.
+            // Pass-6 HARD — an in-flight PATCH completing after a branch switch must not
+            // repopulate the cleared sections, trigger a reload, nor end the new session's
+            // in-flight flags.
             var sectionLoads = 0
             val handler: MockRequestHandler = { request ->
                 when {
@@ -983,7 +984,19 @@ class FinanceReportsViewModelTest {
             runCurrent()
 
             assertEquals(UiState.Idle, vm.editExpenses.value, "the superseded PATCH must not repopulate")
+            assertEquals(1, sectionLoads, "a superseded PATCH must not trigger a section reload")
             assertTrue(vm.inFlightActions.value.isEmpty())
+
+            // The stronger pin (pass-7 SOFT): a fresh same-key dispatch in the NEW session
+            // must keep its in-flight flag through the stale landing.
+            vm.selectDay((vm.feedEntries.value as UiState.Success).data.single())
+            vm.setEditMode(true)
+            runCurrent()
+            val expense2 = (vm.editExpenses.value as UiState.Success).data.single()
+            vm.updateExpense(expense2, "999.00", "PANTRY", null, null)
+            assertTrue("expense:update:${expense2.id}" in vm.inFlightActions.value, "the fresh dispatch owns its flag")
+            runCurrent()
+            assertTrue(vm.inFlightActions.value.isEmpty(), "the fresh dispatch completes normally")
         }
 
     @Test

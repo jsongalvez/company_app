@@ -767,8 +767,9 @@ internal fun FinanceDayDetailContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = Spacing.xs),
         )
-        // #105 D5 — per-day Download CSV/PDF lives in the day detail (the editor embeds the
-        // breakdown without the export row — its exports are the toolbar's).
+        // #105 D5 — per-day Download CSV/PDF lives in the day detail; the editor embeds the
+        // SAME row (the toolbar export is hidden in edit mode — the embedded row is the
+        // editor's only export surface).
         if (onExportDay != null) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
