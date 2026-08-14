@@ -30,6 +30,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** The per-(branch, status) key shared by the keep-last mirror and the screen's render gate. */
+fun remittanceListKey(
+    branchId: String,
+    status: String,
+): String = "$branchId:$status"
+
 /**
  * #120 — Remittance screen state per the locked #103 D1–D10, consuming the #118 read-backs and
  * #119 undo/PATCH endpoints.
@@ -52,20 +58,21 @@ class RemittanceViewModel(
 
     // Keep-last per tab, VM-side (#161 port, the #143 VM-held-list shape): the last successful
     // list per (branchId, status) survives Loading/Error and composition re-entry (the old
-    // screen-side remember cache died on pop-back). Keyed by branch too: the list route takes
-    // no branch arg (picked in-screen), so one VM instance serves multiple branches over its
-    // lifetime. Written ONLY by the list transform; the screen's render gate keys on the
-    // SELECTED tab's mirror, so a cross-tab response can never render foreign rows (a fetch
-    // landing after a tab switch previously last-writer-won on the single list state).
+    // screen-side remember cache died on pop-back). Keyed by branch defensively — the list
+    // route takes no branch arg (picked via the accessible-branch picker); in practice a branch
+    // change re-enters the route with a fresh VM, but the key keeps the mirror honest either
+    // way. Written ONLY by the list transform; the screen's render gate keys on the SELECTED
+    // tab's mirror, so a cross-tab response can never render foreign rows (a fetch landing
+    // after a tab switch previously last-writer-won on the single list state).
     private val _lastByTab = MutableStateFlow<Map<String, List<RemittanceResponse>>>(emptyMap())
     val lastByTab: StateFlow<Map<String, List<RemittanceResponse>>> = _lastByTab.asStateFlow()
 
     // Load in-flight guard keyed by (branchId, status), synchronous (the #143 in-flight shape:
-    // the handler's Loading assignment lands only after launch, so a state-based guard would
-    // race a same-frame double-tap — the entry + tab effects both fire the default tab's load
-    // on first composition). Per-key, NOT a single slot: a tab switch while another tab's load
-    // is in flight must not skip the new tab's fetch. Cleared on every handler exit path
-    // (success / non-success / exception) so no key can wedge.
+    // the handler's Loading assignment is not guaranteed to land before launch returns, so a
+    // state-based guard would race a same-frame double-tap — the entry + tab effects both fire
+    // the default tab's load on first composition). Per-key, NOT a single slot: a tab switch
+    // while another tab's load is in flight must not skip the new tab's fetch. Cleared on every
+    // handler exit path (success / non-success / exception) so no key can wedge.
     private val listLoadsInFlight = MutableStateFlow<Set<String>>(emptySet())
 
     // D1 — list, status-filtered (DRAFT/SUBMITTED/ALL).
@@ -73,7 +80,7 @@ class RemittanceViewModel(
         branchId: String,
         status: String,
     ) {
-        val key = "$branchId:$status"
+        val key = remittanceListKey(branchId, status)
         if (key in listLoadsInFlight.value) return
         listLoadsInFlight.value = listLoadsInFlight.value + key
         handler.launch(

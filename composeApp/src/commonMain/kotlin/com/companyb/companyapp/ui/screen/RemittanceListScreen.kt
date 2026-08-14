@@ -35,6 +35,7 @@ import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.remittanceListKey
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -147,7 +148,7 @@ fun RemittanceListScreen(
         // held rows, a failed reload never replaces the list), and a response belonging to
         // ANOTHER tab can never render here (the gate keys on the selected tab's mirror, not on
         // the single list flow the last-writer fetch owns).
-        val mirrorKey = branchId?.let { "$it:${selectedTab.status}" }
+        val mirrorKey = branchId?.let { remittanceListKey(it, selectedTab.status) }
         val held = mirrorKey?.let { lastByTab[it] }
         when {
             held != null -> {

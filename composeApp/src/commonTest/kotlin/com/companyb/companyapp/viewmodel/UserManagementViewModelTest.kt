@@ -223,6 +223,25 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun deactivate_while_load_in_flight_is_skipped() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            // The Loading pre-set is synchronous — the guard must skip the mutation (the
+            // reload's pre-mutation snapshot would silently revert the PATCH — the pass-1
+            // HARD interleave; the screen gate covers the affordance, this is the same-frame
+            // belt).
+            vm.deactivateUser("u1")
+            advanceUntilIdle()
+
+            assertEquals(expected = 0, actual = harness.deactivateCount)
+            val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = USER_STATUS_ACTIVE, actual = state.data.first { it.id == "u1" }.status)
+        }
+
+    @Test
     fun loadBranches_success_emits_list() =
         runTest(testScheduler) {
             val vm = UserViewModel(mockApiClient(UserHarness().handler()))

@@ -118,7 +118,11 @@ fun UserManagementScreen(
             selectedBranchId?.let { slotOrderForBranch(loadedUsers, it) }.orEmpty()
         }
     val selectedBranchName = loadedBranches.firstOrNull { it.id == selectedBranchId }?.name
-    val mutationsDisabled = inFlight.isNotEmpty()
+    // Mutations disabled while one is in flight (ADR-0022) OR while a reload is in flight: the
+    // keep-last gate renders live rows during Loading, and a mutation landing mid-load would be
+    // clobbered by the load's pre-mutation snapshot (pass-1 HARD — the VM guard covers the
+    // same-frame tap; this gate is the visible affordance).
+    val mutationsDisabled = inFlight.isNotEmpty() || users is UiState.Loading
 
     Column(
         modifier =

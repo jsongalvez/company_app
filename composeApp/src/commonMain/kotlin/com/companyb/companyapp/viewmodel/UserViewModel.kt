@@ -156,12 +156,14 @@ class UserViewModel(
         // Guard 2 (loads): skip while a load is in flight — a double-fire (the screen's entry
         // effect re-running on rotation, a refresh tap during a load) must not stack two GETs
         // (#161 keep-last port no-refire axis). The Loading check works because the pre-set
-        // below makes it SYNCHRONOUS: the handler's own Loading assignment lands only after
-        // launch, which would race a same-frame double-tap (the #143 in-flight shape).
+        // below makes it SYNCHRONOUS: the handler's own Loading assignment is not guaranteed to
+        // land before launch returns (Main.immediate executes it inline), so a plain
+        // post-launch check would race a same-frame double-tap (the #143 in-flight shape).
         if (_users.value is UiState.Loading || _inFlight.value.isNotEmpty()) return
         // Synchronous guard pre-set (see Guard 2). Self-clearing by construction: the handler
-        // owns _users and assigns Error/Success on every live exit path, so no separate flag can
-        // wedge (the #140 stuck-Loading class).
+        // owns _users and assigns Error/Success on every non-cancellation exit path, so no
+        // separate flag can wedge (the #140 stuck-Loading class). Cancellation only happens at
+        // VM teardown (the load holds no cancelable handle), where the guard dies with the VM.
         _users.value = UiState.Loading
         // A reload replaces the list; the errors describe actions against the pre-reload list
         // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
@@ -265,6 +267,14 @@ class UserViewModel(
         statusMessage: (HttpStatusCode) -> String,
     ) {
         if (key in _inFlight.value) return
+        // A mutation landing while a reload is in flight would be clobbered by the load's
+        // pre-mutation snapshot (the pass-1 HARD interleave the keep-last gate opened: rows
+        // render live during Loading now, and the load's last-writer Success would silently
+        // revert the PATCH — the #141 stale-mask class). The reload response is the authority;
+        // skipping restores the pre-port invariant (rows were untappable during Loading). Belt:
+        // the screen disables the row actions while Loading; this guard covers the same-frame
+        // tap that slips past the composition gate.
+        if (_users.value is UiState.Loading) return
         _inFlight.value = _inFlight.value + key
         _actionErrors.value = _actionErrors.value - key
         handler.launch(
