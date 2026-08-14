@@ -11,6 +11,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +86,10 @@ class ReliefInviteViewModel(
     private var searchJob: Job? = null
 
     init {
+        // NOTE (pass-3): the keep-last mirrors below rely on the FIFO-Main ordering contract —
+        // viewModelScope dispatches on Main.immediate, so a state assignment queues the mirror
+        // collector BEFORE any later-started coroutine's resume. A dispatcher change would
+        // silently re-open the #141 resurrect window the substitution guards close.
         viewModelScope.launch {
             _received
                 .filterIsInstance<UiState.Success<List<ReliefInviteResponse>>>()
@@ -110,10 +115,9 @@ class ReliefInviteViewModel(
                 if (stamp != actionStamp) {
                     // An accept/decline landed while the load was in flight — committing the
                     // snapshot would resurrect the resolved row (the #141 resurrect class).
-                    // Read the CURRENT _received Success first (pass-2 HARD): the mirror
-                    // (_lastReceived) updates async, so a stale load landing right after an
-                    // action could otherwise resurrect the row from the pre-action mirror
-                    // until the re-issued load lands.
+                    // currentReceivedList() is authoritative post-action: removeReceived assigns
+                    // Success synchronously and the FIFO-Main mirror converges before any stale
+                    // resume, so the fallback is a dead-branch safety net (pass-2 HARD).
                     loadReceived()
                     currentReceivedList() ?: emptyList()
                 } else {
@@ -129,6 +133,20 @@ class ReliefInviteViewModel(
             operation = "acceptInvite",
             endpoint = "POST /api/relief-invites/$inviteId/accept",
             block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/accept") },
+            // #113 shape: a 409 means the invite is already resolved (double-tap race or a
+            // cross-device accept) — the row must leave the section, so reload instead of
+            // surfacing an error on a stale row (the markRead absent-row defense precedent).
+            // Idle-reset included: leaving Loading would mark the action in-flight forever
+            // (the #140 stuck-Loading class).
+            onNonSuccess = { response ->
+                if (response.status == HttpStatusCode.Conflict) {
+                    _acceptResult.value = UiState.Idle
+                    loadReceived()
+                    true
+                } else {
+                    false
+                }
+            },
             transform = {
                 actionStamp++
                 removeReceived(inviteId)
@@ -142,6 +160,15 @@ class ReliefInviteViewModel(
             operation = "declineInvite",
             endpoint = "POST /api/relief-invites/$inviteId/decline",
             block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/decline") },
+            onNonSuccess = { response ->
+                if (response.status == HttpStatusCode.Conflict) {
+                    _declineResult.value = UiState.Idle
+                    loadReceived()
+                    true
+                } else {
+                    false
+                }
+            },
             transform = {
                 actionStamp++
                 removeReceived(inviteId)

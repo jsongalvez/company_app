@@ -176,9 +176,11 @@ class ReliefInviteViewModelTest {
                             }
 
                             else -> {
+                                // 400 — a server-side refusal, NOT a 409 (which the VM treats as
+                                // "already resolved" and reloads instead of surfacing).
                                 respond(
-                                    content = ByteReadChannel("""{"error":"conflict"}"""),
-                                    status = HttpStatusCode.Conflict,
+                                    content = ByteReadChannel("""{"error":"bad request"}"""),
+                                    status = HttpStatusCode.BadRequest,
                                     headers =
                                         headersOf(
                                             HttpHeaders.ContentType,
@@ -407,6 +409,113 @@ class ReliefInviteViewModelTest {
                 "stale branch load must not commit",
             )
             assertEquals("b2", vm.sentBranch.value)
+        }
+
+    @Test
+    fun `stale received load after accept does not resurrect the resolved row`() =
+        runTest(testScheduler) {
+            var getCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-invites" && it.method.value == "GET" -> {
+                                getCalls++
+                                if (getCalls == 2) {
+                                    // The stale load: started before the accept, lands after it —
+                                    // serving the PRE-accept snapshot.
+                                    withContext(
+                                        StandardTestDispatcher(testScheduler),
+                                    ) { kotlinx.coroutines.delay(10_000) }
+                                    ok("[${inviteJson("i1", "PENDING")}, ${inviteJson("i2", "PENDING")}]")
+                                } else if (getCalls >= 3) {
+                                    // Re-issued loads run after the accept: the server serves the
+                                    // post-accept state (i1 resolved → PENDING-only).
+                                    ok("[${inviteJson("i2", "PENDING")}]")
+                                } else {
+                                    ok("[${inviteJson("i1", "PENDING")}, ${inviteJson("i2", "PENDING")}]")
+                                }
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/accept" -> {
+                                ok(inviteJson("i1", "ACCEPTED"))
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadReceived()
+            runCurrent()
+            assertEquals(2, vm.lastReceived.value!!.size)
+
+            // The second load is in flight (delayed); the accept lands first.
+            vm.loadReceived()
+            runCurrent()
+            vm.acceptInvite("i1")
+            runCurrent()
+            assertEquals(1, vm.lastReceived.value!!.size, "i1 left in-session")
+
+            // The stale load lands AFTER the accept — its stamp mismatch must substitute the
+            // post-action list, not resurrect i1.
+            advanceTimeBy(20_000)
+            runCurrent()
+            val state = vm.received.value
+            assertIs<UiState.Success<List<ReliefInviteResponse>>>(state)
+            assertEquals("i2", state.data.single().id, "the accepted row must not resurrect")
+            assertEquals(1, vm.lastReceived.value!!.size)
+        }
+
+    @Test
+    fun `accept conflict reloads and drops the stale row`() =
+        runTest(testScheduler) {
+            var reloadCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-invites" && it.method.value == "GET" -> {
+                                reloadCalls++
+                                if (reloadCalls == 1) {
+                                    ok("[${inviteJson("i1", "PENDING")}]")
+                                } else {
+                                    // The server already resolved i1 elsewhere — the reload serves it gone.
+                                    ok("[]")
+                                }
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/accept" -> {
+                                respond(
+                                    content = ByteReadChannel("""{"error":"already responded"}"""),
+                                    status = HttpStatusCode.Conflict,
+                                    headers =
+                                        headersOf(
+                                            HttpHeaders.ContentType,
+                                            ContentType.Application.Json.toString(),
+                                        ),
+                                )
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadReceived()
+            runCurrent()
+            assertEquals(1, vm.lastReceived.value!!.size)
+
+            vm.acceptInvite("i1")
+            runCurrent()
+            // 409 → handled (no Error) → reload → the stale row leaves.
+            assertIs<UiState.Idle>(vm.acceptResult.value)
+            assertEquals(2, reloadCalls)
+            assertEquals(0, vm.lastReceived.value!!.size)
         }
 
     private fun handler(block: MockRequestHandler): MockRequestHandler = block
