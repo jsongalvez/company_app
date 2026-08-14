@@ -2,7 +2,6 @@ package com.companyb.companyapp.state
 
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
