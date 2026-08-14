@@ -43,6 +43,10 @@ The **exit pass** also runs **P5 — architecture residue**: re-rate the pass's 
 
 The review points + each pass's outcome are recorded in the resolution comment (e.g. "#140 — pass 3 (P3 flow-2 catch) → pass 4: 0 HARD, 2 accepted SOFTs").
 
+## Decision loop — HITL design review
+
+Grilling / wayfinder HITL tickets run the decision-loop discipline before a design reaches the human — `docs/agents/decision-loop.md`: five parallel lenses (fact integrity, domain coherence, long-term architecture, falsification, comprehension), HARD/SOFT triage, exit on one full zero-HARD pass. Standing frame for all human-facing questions: dev-stage — migration cost is zero, choose the best long-term option; falsify every claim; verify every fact in code before offering a choice (the false-premise defect); simple language — short sentences, gist at a glance, technical accuracy intact.
+
 ## Document map
 
 This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `docs/adr/` (architecture decisions). Below is a quick-reference for where to find what.
@@ -60,6 +64,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
 | Issue tracking | `docs/agents/issue-tracker.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
+| Decision-loop lenses + standing frame (HITL design review) | `docs/agents/decision-loop.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
 | Load test results | `tests/k6/results/baseline-results.md` |
 

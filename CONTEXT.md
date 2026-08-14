@@ -49,8 +49,12 @@ The act of restoring a deactivated user to ACTIVE. Capabilities return through t
 _Avoid_: Re-enable, unban
 
 **Relief Duty**:
-When any user clocks into a non-home branch. Starts with view-only access; edit access requires a relief grant from a currently checked-in user at that branch. Expires at 04:00 Manila the next day. Compensation is paid from the relief branch's drawer.
+When any user clocks into a non-home branch. Starts with view-only access; edit access requires a relief grant (user-initiated request approved by a checked-in user, or branch-initiated via a relief invite). Expires at 04:00 Manila the next day. Compensation is paid from the relief branch's drawer.
 _Avoid_: Temporary assignment, loaned staff
+
+**Relief Invite**:
+The branch-initiated offer of relief access for a single future day. Any user assigned to the branch can invite any active user; the invitee accepts or declines. Accepting writes the day's relief grant. Distinct from a relief request, which the relief user initiates.
+_Avoid_: Shift offer, temporary assignment offer
 
 **Day State**:
 Every branch day has a status. `OPEN` (current day, editable by all on-duty users) transitions lazily to `PAST` at 04:00 AM Manila the following day. `REMITTED` days are covered by a submitted remittance and require Coordinator-only edits with flagged audit entries.
