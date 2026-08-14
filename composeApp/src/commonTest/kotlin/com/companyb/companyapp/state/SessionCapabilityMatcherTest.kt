@@ -130,4 +130,17 @@ class SessionCapabilityMatcherTest {
         assertFalse(rows.hasDayGrant("ASSIGN_COMPENSATION"), "absent code never matches")
         assertFalse(emptyList<UserCapabilityResponse>().hasDayGrant("EDIT_BRANCH_DATA"))
     }
+
+    @Test
+    fun branchOrDay_matches_branch_leg_or_day_leg() {
+        // BRANCH leg: the b1 row.
+        assertTrue(rows.hasBranchOrDayCapability("EDIT_BRANCH_DATA", "b1", null))
+        // Day leg: the d1 row (null branch fails its leg closed but the day leg carries).
+        assertTrue(rows.hasBranchOrDayCapability("EDIT_BRANCH_DATA", null, "d1"))
+        // Both null / wrong ids fail closed.
+        assertFalse(rows.hasBranchOrDayCapability("EDIT_BRANCH_DATA", null, null))
+        assertFalse(rows.hasBranchOrDayCapability("EDIT_BRANCH_DATA", "b2", "d2"))
+        // The day leg never serves a branch id (a BRANCH id is not a day id).
+        assertFalse(rows.hasBranchOrDayCapability("EDIT_BRANCH_DATA", "b2", "b1"))
+    }
 }

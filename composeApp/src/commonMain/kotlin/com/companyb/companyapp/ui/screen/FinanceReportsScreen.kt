@@ -53,6 +53,7 @@ import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasBranchOrDayCapability
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.state.hasDayGrant
@@ -1086,18 +1087,13 @@ private fun DayEditor(
     // `requireBranchCapability` gates; #101 D1 matrix). #158 — the expense leg ORs the
     // BRANCH_DAY relief grant for this day.
     val canAssign = capabilities.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId)
-    // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard).
+    // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard; the #158 day leg).
     val canEditExpenses =
-        capabilities.hasCapability(
+        capabilities.hasBranchOrDayCapability(
             CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContext.BRANCH,
             branchId,
-        ) ||
-            capabilities.hasCapability(
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContext.BRANCH_DAY,
-                day.branchDayId,
-            )
+            day.branchDayId,
+        )
     // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY at the branch
     // (the backend 403 stays authoritative).
     val pastDayReadOnly =

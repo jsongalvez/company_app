@@ -150,3 +150,19 @@ fun List<UserCapabilityResponse>.hasCapabilityAtContextType(
  */
 fun List<UserCapabilityResponse>.hasDayGrant(code: String): Boolean =
     hasCapabilityAtContextType(code, CapabilityContext.BRANCH_DAY)
+
+/**
+ * #158/P5 — the day-scoped gate shape shared by the Finance VM and DayEditor (the
+ * backend's `requireBranchOrBranchDayCapability` mirror): [code] at [branchId] (BRANCH)
+ * OR at [dayId] (BRANCH_DAY — the relief grant for that day). A null [dayId] fails the
+ * day leg closed. The backend has the third implementation of the same OR
+ * (`CapabilityRepository.hasCapabilityForBranchDay`) — this matcher is the frontend's
+ * single copy.
+ */
+fun List<UserCapabilityResponse>.hasBranchOrDayCapability(
+    code: String,
+    branchId: String?,
+    dayId: String?,
+): Boolean =
+    hasCapability(code, CapabilityContext.BRANCH, branchId) ||
+        (dayId != null && hasCapability(code, CapabilityContext.BRANCH_DAY, dayId))

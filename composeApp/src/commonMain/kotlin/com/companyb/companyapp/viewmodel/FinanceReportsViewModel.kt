@@ -21,6 +21,7 @@ import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasBranchOrDayCapability
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.FeedWindow
 import com.companyb.companyapp.ui.screen.ReportMode
@@ -615,23 +616,12 @@ class FinanceReportsViewModel(
      * delegate edits their granted day without any BRANCH grant). A null day fails the
      * day leg closed.
      */
-    fun hasEditBranchDataCapability(): Boolean {
-        val caps = SessionState.capabilities.value
-        return caps.hasCapability(
+    fun hasEditBranchDataCapability(): Boolean =
+        SessionState.capabilities.value.hasBranchOrDayCapability(
             CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContext.BRANCH,
             _selectedBranchId.value,
-        ) ||
-            (
-                _selectedDay.value?.branchDayId?.let { dayId ->
-                    caps.hasCapability(
-                        CapabilityCodes.EDIT_BRANCH_DATA,
-                        CapabilityContext.BRANCH_DAY,
-                        dayId,
-                    )
-                } ?: false
-            )
-    }
+            _selectedDay.value?.branchDayId,
+        )
 
     fun hasEditCapabilities(): Boolean {
         val caps = SessionState.capabilities.value

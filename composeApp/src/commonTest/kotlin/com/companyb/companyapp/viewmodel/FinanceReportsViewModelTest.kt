@@ -1432,7 +1432,14 @@ class FinanceReportsViewModelTest {
             }
             val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
 
-            // Load day A, enter edit mode (sections armed).
+            // Load day A, enter edit mode (sections armed). The BRANCH_DAY grant + a
+            // responding expenses endpoint make the arm real (P5 — without the grant the
+            // sections never load and the Idle assert is trivially true).
+            SessionState.setCapabilities(
+                listOf(
+                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", DAY_ID, "DIRECT"),
+                ),
+            )
             vm.loadReliefDay("2026-08-14")
             advanceUntilIdle()
             vm.setEditMode(true)
