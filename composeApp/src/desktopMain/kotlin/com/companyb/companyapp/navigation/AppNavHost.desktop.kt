@@ -52,6 +52,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
@@ -123,8 +124,11 @@ actual fun AppNavHost(
                 composable<Route.BranchSelect> {
                     val branchSelectViewModel: BranchSelectViewModel =
                         remember { BranchSelectViewModel(apiClient) }
+                    val reliefInviteViewModel: ReliefInviteViewModel =
+                        remember { ReliefInviteViewModel(apiClient) }
                     BranchSelectScreen(
                         viewModel = branchSelectViewModel,
+                        reliefInviteViewModel = reliefInviteViewModel,
                         onClockInComplete = {
                             // Per #91 — popUpTo(Login) inclusive on clock-in; #94 Phase 3:
                             // navigate Dashboard only after the capability refresh succeeded.
@@ -244,8 +248,11 @@ actual fun AppNavHost(
                 }
                 composable<Route.Notifications> {
                     val notificationsViewModel: NotificationViewModel = viewModel { NotificationViewModel(apiClient) }
+                    val reliefInviteViewModel: ReliefInviteViewModel =
+                        viewModel { ReliefInviteViewModel(apiClient) }
                     NotificationsScreen(
                         viewModel = notificationsViewModel,
+                        reliefInviteViewModel = reliefInviteViewModel,
                         onNotificationClick = { notification ->
                             // #152 — scoped #91-lock revision (#151 Q6): desktop notification taps
                             // now mark-read + push the SessionDetail route (desktop is the main

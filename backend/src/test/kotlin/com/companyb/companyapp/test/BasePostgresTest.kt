@@ -25,6 +25,7 @@ import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -139,6 +140,7 @@ abstract class BasePostgresTest {
                 UserRoleTable to setOf(AppUserTable, RoleTable),
                 ProductSaleTable to setOf(BranchDayTable, SessionTable, ProductTable, AppUserTable, ClientTable),
                 ProductTable to setOf(ProductCategoryTable),
+                ReliefInviteTable to setOf(AppUserTable, BranchDayTable),
                 SessionTable to setOf(BranchDayTable, ClientTable),
                 BranchDayTable to setOf(BranchTable),
             )

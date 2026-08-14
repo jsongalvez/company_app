@@ -1,5 +1,6 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,22 +20,32 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.dto.MeBranchResponse
+import com.companyb.companyapp.dto.ReliefCandidateResponse
+import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
+import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import kotlinx.datetime.plus
 
 /**
  * #94-grad — BranchSelect surface (Phase 3 of the #94 outline): the caller's branches with
@@ -53,11 +64,18 @@ import com.companyb.companyapp.viewmodel.UiState
 @Composable
 fun BranchSelectScreen(
     viewModel: BranchSelectViewModel,
+    reliefInviteViewModel: ReliefInviteViewModel,
     onClockInComplete: () -> Unit,
 ) {
     val branchesState by viewModel.branches.collectAsState()
     val clockInState by viewModel.clockInState.collectAsState()
     val refreshState by viewModel.refreshState.collectAsState()
+
+    // #160 — the inviter side (placement per #106): an inline "Invite staff" panel per branch
+    // card (candidate search + date pick + sent-invites list). Toggling is local composition
+    // state; the branch gate (active assignment) is backend-authoritative, so the panel is
+    // offered on every card and a 403 surfaces inline.
+    var inviteBranchId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         logInfo("BranchSelectScreen", "composable entered (first composition)")
@@ -189,7 +207,18 @@ fun BranchSelectScreen(
                                 isClockingIn = isPhase3Busy,
                                 canClockIn = canClockIn,
                                 onClockIn = { viewModel.clockIn(branch) },
+                                inviteExpanded = inviteBranchId == branch.branchId,
+                                onToggleInvite = {
+                                    inviteBranchId =
+                                        if (inviteBranchId == branch.branchId) null else branch.branchId
+                                },
                             )
+                            if (inviteBranchId == branch.branchId) {
+                                InviteStaffPanel(
+                                    branchId = branch.branchId,
+                                    viewModel = reliefInviteViewModel,
+                                )
+                            }
                         }
                     }
                 }
@@ -206,6 +235,8 @@ private fun BranchCard(
     isClockingIn: Boolean,
     canClockIn: Boolean,
     onClockIn: () -> Unit,
+    inviteExpanded: Boolean,
+    onToggleInvite: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -266,8 +297,274 @@ private fun BranchCard(
                 }
             }
         }
+        // #160 — inviter affordance, independent of clock-in (anyone assigned can invite;
+        // the panel gate is backend-authoritative). Sits on the card's footer so the
+        // invite entry point is one tap from every branch.
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.xs),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = onToggleInvite) {
+                Text(if (inviteExpanded) "Close" else "Invite staff")
+            }
+        }
     }
 }
+
+/**
+ * #160 — the BranchSelect inviter side (placement per #106): date pick (defaults to
+ * tomorrow — the invite use case is future-day planning), candidate search (username /
+ * displayName prefix; results tap-to-invite), and the sent-invites list with Retract on
+ * PENDING rows (the Q6 lifecycle — a sent list without retract would render the endpoint
+ * dead). The panel is branch-scoped; every request carries the branchId path param.
+ */
+@Composable
+private fun InviteStaffPanel(
+    branchId: String,
+    viewModel: ReliefInviteViewModel,
+) {
+    val candidatesState by viewModel.candidates.collectAsState()
+    val sentState by viewModel.sentInvites.collectAsState()
+    val lastSent by viewModel.lastSent.collectAsState()
+    val createState by viewModel.createResult.collectAsState()
+    val retractState by viewModel.retractResult.collectAsState()
+
+    var dateText by remember { mutableStateOf(defaultInviteDate()) }
+    var query by remember { mutableStateOf("") }
+
+    val createError = (createState as? UiState.Error)?.message
+    val retractError = (retractState as? UiState.Error)?.message
+    val sendBusy = createState is UiState.Loading
+    val retractBusy = retractState is UiState.Loading
+    val validDate = parseInviteDate(dateText)
+
+    LaunchedEffect(Unit) {
+        logInfo("BranchSelectScreen", "invite panel opened for branch $branchId")
+        viewModel.loadSent(branchId)
+    }
+    LaunchedEffect(query, dateText) {
+        viewModel.searchCandidates(branchId, query, dateText)
+    }
+    LaunchedEffect(createState) {
+        val error = createState as? UiState.Error
+        if (error != null) {
+            logWarn("BranchSelectScreen", "sendInvite=Error: ${error.message}")
+        }
+    }
+    LaunchedEffect(retractState) {
+        val error = retractState as? UiState.Error
+        if (error != null) {
+            logWarn("BranchSelectScreen", "retractInvite=Error: ${error.message}")
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(
+                text = "Invite staff for relief",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            OutlinedTextField(
+                value = dateText,
+                onValueChange = { dateText = it },
+                label = { Text("Date (yyyy-MM-dd)") },
+                singleLine = true,
+                isError = dateText.isNotBlank() && validDate == null,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                label = { Text("Search staff by name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            createError?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            retractError?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+
+            CandidateResults(
+                state = candidatesState,
+                sendBusy = sendBusy,
+                dateValid = validDate != null,
+                onInvite = { candidate ->
+                    if (validDate != null) {
+                        viewModel.sendInvite(branchId, candidate.id, dateText)
+                    }
+                },
+            )
+
+            SentInvitesSection(
+                state = sentState,
+                lastSent = lastSent,
+                retractBusy = retractBusy,
+                onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CandidateResults(
+    state: UiState<List<ReliefCandidateResponse>>,
+    sendBusy: Boolean,
+    dateValid: Boolean,
+    onInvite: (ReliefCandidateResponse) -> Unit,
+) {
+    when (state) {
+        is UiState.Idle -> {}
+
+        is UiState.Loading -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Text(
+                    text = "Searching…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        is UiState.Error -> {
+            Text(
+                text = state.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+
+        is UiState.Success -> {
+            if (state.data.isEmpty()) {
+                Text(
+                    text = "No candidates",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                    state.data.forEach { candidate ->
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = dateValid && !sendBusy) {
+                                        onInvite(candidate)
+                                    }.padding(vertical = Spacing.xs),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = candidate.displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    text = candidate.username,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (sendBusy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Text(
+                                    text = "Invite",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color =
+                                        if (dateValid) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SentInvitesSection(
+    state: UiState<List<ReliefInviteResponse>>,
+    lastSent: List<ReliefInviteResponse>?,
+    retractBusy: Boolean,
+    onRetract: (String) -> Unit,
+) {
+    val sent = lastSent.orEmpty()
+    if (sent.isEmpty() && state is UiState.Idle) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        Text(
+            text = "Sent invites (${sent.size})",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        sent.forEach { invite ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${invite.inviteeName} · ${invite.date}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = invite.status.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (invite.status == ReliefInviteStatus.PENDING) {
+                    TextButton(
+                        onClick = { onRetract(invite.id) },
+                        enabled = !retractBusy,
+                    ) {
+                        Text("Retract")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Default invite date = tomorrow (Asia/Manila) — future-day planning is the use case. */
+private fun defaultInviteDate(): String = manilaToday().plus(1, kotlinx.datetime.DateTimeUnit.DAY).toString()
 
 /**
  * Status label per spec line 185: "Clocked in here" / "Clocked in elsewhere" /

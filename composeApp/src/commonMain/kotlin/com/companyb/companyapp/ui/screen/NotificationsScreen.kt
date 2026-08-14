@@ -25,21 +25,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
 // D1/D3: unread queue (locked #102). Screen renders unread rows at full emphasis + a dimmed,
 // in-memory Read section (rows marked read this session). Platform tap behavior differs only in
 // whether the tap navigates (mobile) or not (desktop) — the split lives at the NavHost call
 // site (ADR-0020 smallest-divergent-subtree), this composable stays platform-agnostic.
+//
+// #160 — a "Relief invites" section (#159 Q5, Option A): branch-initiated invites render above
+// the unread list until RESOLVED, not until read (read semantics never fight action semantics;
+// the notification table stays untouched). Pending rows carry Accept/Decline; a pending invite
+// whose day is past renders "expired" (day-state is the expiry — no cron). The badge poller
+// counts the same actionable rows.
 @Composable
 fun NotificationsScreen(
     viewModel: NotificationViewModel,
+    reliefInviteViewModel: ReliefInviteViewModel,
     onNotificationClick: (NotificationResponse) -> Unit,
 ) {
     val notificationsState by viewModel.notifications.collectAsState()
@@ -48,9 +57,15 @@ fun NotificationsScreen(
     val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
 
+    val receivedState by reliefInviteViewModel.received.collectAsState()
+    val lastReceived by reliefInviteViewModel.lastReceived.collectAsState()
+    val acceptState by reliefInviteViewModel.acceptResult.collectAsState()
+    val declineState by reliefInviteViewModel.declineResult.collectAsState()
+
     LaunchedEffect(Unit) {
         logInfo("NotificationsScreen", "composable entered (first composition)")
         viewModel.loadUnreadNotifications()
+        reliefInviteViewModel.loadReceived()
     }
 
     // Log state changes, not composition passes (LoginScreen precedent — LaunchedEffect keyed on
@@ -66,11 +81,19 @@ fun NotificationsScreen(
     // the VM handles it internally (absent-row defense reload), so it never reaches this state.
     val markReadError = (markReadState as? UiState.Error)?.message
     val markAllError = (markAllState as? UiState.Error)?.message
+    val acceptError = (acceptState as? UiState.Error)?.message
+    val declineError = (declineState as? UiState.Error)?.message
     LaunchedEffect(markReadError) {
         markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
     }
     LaunchedEffect(markAllError) {
         markAllError?.let { logWarn("NotificationsScreen", "markAll=Error: $it") }
+    }
+    LaunchedEffect(acceptError) {
+        acceptError?.let { logWarn("NotificationsScreen", "inviteAccept=Error: $it") }
+    }
+    LaunchedEffect(declineError) {
+        declineError?.let { logWarn("NotificationsScreen", "inviteDecline=Error: $it") }
     }
 
     // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
@@ -109,7 +132,7 @@ fun NotificationsScreen(
             }
         }
 
-        if (markAllError != null || markReadError != null) {
+        if (markAllError != null || markReadError != null || acceptError != null || declineError != null) {
             Column(
                 modifier =
                     Modifier
@@ -119,7 +142,29 @@ fun NotificationsScreen(
             ) {
                 markAllError?.let { ActionErrorLine(it) }
                 markReadError?.let { ActionErrorLine(it) }
+                acceptError?.let { ActionErrorLine(it) }
+                declineError?.let { ActionErrorLine(it) }
             }
+        }
+
+        // #160 — the invites section renders above the unread list: invites are time-bound
+        // actions (Accept/Decline), the unread queue is reading material. Keep-last (VM-side,
+        // the #143 shape): the section survives reloads; resolved rows leave it (the row
+        // renders until resolved, not until read). A cold-start spinner covers the section
+        // while the list has never loaded; an Error with nothing to show keeps the in-place
+        // error card semantics (the section itself collapses — the unread section shows the
+        // card, per the existing keep-last contract).
+        val received = lastReceived.orEmpty()
+        val today = manilaToday()
+        val inviteActionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading
+        if (received.isNotEmpty()) {
+            ReliefInvitesSection(
+                invites = received,
+                today = today,
+                busy = inviteActionsBusy,
+                onAccept = { id -> reliefInviteViewModel.acceptInvite(id) },
+                onDecline = { id -> reliefInviteViewModel.declineInvite(id) },
+            )
         }
 
         when (val state = notificationsState) {
@@ -224,6 +269,88 @@ private fun SectionLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.xs),
     )
+}
+
+/**
+ * #160 — the received-invites section (#159 Q5, Option A). Rows render until RESOLVED, not
+ * until read: PENDING rows carry Accept/Decline; a pending invite whose day is past renders
+ * "expired" (day-state is the expiry — no cron, no actions on a stale row).
+ */
+@Composable
+private fun ReliefInvitesSection(
+    invites: List<ReliefInviteResponse>,
+    today: kotlinx.datetime.LocalDate,
+    busy: Boolean,
+    onAccept: (String) -> Unit,
+    onDecline: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SectionLabel("Relief invites (${invites.size})")
+        invites.forEach { invite ->
+            ReliefInviteRow(
+                invite = invite,
+                today = today,
+                busy = busy,
+                onAccept = onAccept,
+                onDecline = onDecline,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun ReliefInviteRow(
+    invite: ReliefInviteResponse,
+    today: kotlinx.datetime.LocalDate,
+    busy: Boolean,
+    onAccept: (String) -> Unit,
+    onDecline: (String) -> Unit,
+) {
+    val expired = isInviteExpired(invite, today)
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = Spacing.xs),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${invite.branchName} · ${invite.date}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "Invited by ${invite.inviterName}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (expired) {
+            Text(
+                text = "Expired",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                TextButton(
+                    onClick = { onAccept(invite.id) },
+                    enabled = !busy,
+                ) {
+                    Text("Accept")
+                }
+                TextButton(
+                    onClick = { onDecline(invite.id) },
+                    enabled = !busy,
+                ) {
+                    Text("Decline")
+                }
+            }
+        }
+    }
 }
 
 @Composable

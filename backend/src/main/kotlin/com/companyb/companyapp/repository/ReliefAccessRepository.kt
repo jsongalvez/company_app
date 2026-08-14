@@ -1,7 +1,10 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilitySourceType
+import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
@@ -23,15 +26,56 @@ data class GrantWithCapabilityParams(
     val requestId: UUID,
     val grantedBy: UUID,
     val userId: UUID,
-    val capabilityId: UUID,
     val branchDayId: UUID,
     val sourceId: UUID,
     val validTo: OffsetDateTime?,
-    val priority: Short,
     val requestedBy: UUID,
 )
 
+@Suppress("TooManyFunctions")
 object ReliefAccessRepository {
+    /**
+     * The shared relief-grant writer (#159 Q1): inserts the day-scoped capability
+     * (EDIT_BRANCH_DATA, BRANCH_DAY, [branchDayId], source RELIEF_ACCESS, priority
+     * [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo = [validTo]) — the
+     * capability write used by BOTH the request flow's grant ([grantWithCapability])
+     * and the invite flow's accept. `insertIgnore` keeps a redundant grant harmless
+     * (the #159 Q3 decision: capabilities ≠ assignments).
+     */
+    fun grantReliefCapability(
+        userId: UUID,
+        branchDayId: UUID,
+        sourceId: UUID,
+        validTo: OffsetDateTime?,
+    ): Unit =
+        transaction {
+            insertReliefCapabilityInTransaction(userId, branchDayId, sourceId, validTo)
+        }
+
+    private fun insertReliefCapabilityInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+        sourceId: UUID,
+        validTo: OffsetDateTime?,
+    ) {
+        UserCapabilityTable.insertIgnore {
+            it[UserCapabilityTable.userId] = userId
+            it[UserCapabilityTable.capabilityId] = reliefCapabilityId()
+            it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
+            it[UserCapabilityTable.contextId] = branchDayId
+            it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
+            it[UserCapabilityTable.sourceId] = sourceId
+            it[UserCapabilityTable.validFrom] = OffsetDateTime.now(ZoneOffset.UTC)
+            it[UserCapabilityTable.validTo] = validTo
+            it[UserCapabilityTable.priority] = GrantPriorities.RELIEF_ACCESS
+        }
+    }
+
+    private fun reliefCapabilityId(): UUID =
+        checkNotNull(
+            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
+        ) { "EDIT_BRANCH_DATA capability not found" }
+
     fun findById(id: UUID): ReliefAccess? =
         transaction {
             GrantReliefAccessTable
@@ -98,17 +142,12 @@ object ReliefAccessRepository {
                     it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
                 }
 
-            UserCapabilityTable.insertIgnore {
-                it[UserCapabilityTable.userId] = params.userId
-                it[UserCapabilityTable.capabilityId] = params.capabilityId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
-                it[UserCapabilityTable.contextId] = params.branchDayId
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
-                it[UserCapabilityTable.sourceId] = params.sourceId
-                it[UserCapabilityTable.validFrom] = OffsetDateTime.now(ZoneOffset.UTC)
-                it[UserCapabilityTable.validTo] = params.validTo
-                it[UserCapabilityTable.priority] = params.priority
-            }
+            insertReliefCapabilityInTransaction(
+                userId = params.userId,
+                branchDayId = params.branchDayId,
+                sourceId = params.sourceId,
+                validTo = params.validTo,
+            )
 
             val after =
                 GrantReliefAccessTable

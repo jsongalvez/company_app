@@ -54,6 +54,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
@@ -116,14 +117,17 @@ actual fun AppNavHost(
                         // back-chevron via nested-Scaffold per #96 Q5; shell's hamburger temporarily
                         // yields to that detail heading.
                         // HamburgerWithBadge.unreadCount live via NotificationState; null/0 ⟹ no badge
-                        // (Q3a alert-not-status gating).
+                        // (Q3a alert-not-status gating). #160 — the badge sums pending invites +
+                        // unread reminders (#159 Q5): both slots feed the total.
                         val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
+                        val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
+                        val badgeCount = NotificationState.badgeSum(unreadCount, inviteCount)
                         TopAppBar(
                             title = {},
                             navigationIcon = {
                                 HamburgerWithBadge(
                                     onClick = { scope.launch { drawerState.open() } },
-                                    unreadCount = unreadCount,
+                                    unreadCount = badgeCount,
                                 )
                             },
                         )
@@ -152,8 +156,11 @@ actual fun AppNavHost(
                     composable<Route.BranchSelect> {
                         val branchSelectViewModel: BranchSelectViewModel =
                             remember { BranchSelectViewModel(apiClient) }
+                        val reliefInviteViewModel: ReliefInviteViewModel =
+                            remember { ReliefInviteViewModel(apiClient) }
                         BranchSelectScreen(
                             viewModel = branchSelectViewModel,
+                            reliefInviteViewModel = reliefInviteViewModel,
                             onClockInComplete = {
                                 // Per #91 — popUpTo(Login) inclusive on clock-in; #94 Phase 3:
                                 // navigate Dashboard only after the capability refresh succeeded.
@@ -264,11 +271,16 @@ actual fun AppNavHost(
                         // Entry-scoped viewModel(): the Notifications back-stack entry survives the
                         // SessionDetail push, so readThisSession persists across push/pop — D3
                         // "appears in Read (dimmed) on return". A fresh entry (new visit) creates a
-                        // fresh VM → Read self-cleans (D1).
+                        // fresh VM → Read self-cleans (D1). The invite VM is entry-scoped too — a
+                        // resolved invite stays gone on return (fresh load), and the badge singleton
+                        // is poll-corrected within 60s (the accepted down-then-up bounce).
                         val notificationsViewModel: NotificationViewModel =
                             viewModel { NotificationViewModel(apiClient) }
+                        val reliefInviteViewModel: ReliefInviteViewModel =
+                            viewModel { ReliefInviteViewModel(apiClient) }
                         NotificationsScreen(
                             viewModel = notificationsViewModel,
+                            reliefInviteViewModel = reliefInviteViewModel,
                             onNotificationClick = { notification ->
                                 // D3 (mobile): mark-read + navigate to the session detail. The
                                 // route carries only the sessionId — row = null → the detail

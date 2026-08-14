@@ -47,6 +47,7 @@ class AuditLogTableRegistryTest {
                 "product",
                 "product_category",
                 "product_sale",
+                "relief_invite",
                 "remittance",
                 "remittance_day_breakdown",
                 "remittance_financial_snapshot",

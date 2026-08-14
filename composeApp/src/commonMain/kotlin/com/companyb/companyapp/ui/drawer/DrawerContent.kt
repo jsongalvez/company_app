@@ -76,6 +76,7 @@ fun DrawerContent(
     val drawerViewModel = remember { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
+    val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
     val selectedRoute = navController.currentRoute()
     val attendanceViewModel = remember { AttendanceViewModel(apiClient) }
     val clockOutState by attendanceViewModel.clockOutState.collectAsState()
@@ -121,7 +122,7 @@ fun DrawerContent(
             .filter { it.visible }
             .forEach { item ->
                 val isSelected = item.route == selectedRoute
-                val count = unreadCount
+                val count = NotificationState.badgeSum(unreadCount, inviteCount)
                 val notificationBadge: (@Composable () -> Unit)? =
                     if (item.route is Route.Notifications && count != null && count > 0) {
                         { NotificationBadge(count = count) }

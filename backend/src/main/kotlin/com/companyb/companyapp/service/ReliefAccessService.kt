@@ -5,10 +5,8 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
-import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
@@ -39,11 +37,6 @@ object ReliefAccessService {
 
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
 
-        val capabilityId =
-            checkNotNull(
-                CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
-            ) { "EDIT_BRANCH_DATA capability not found" }
-
         val validTo = BranchDayService.expirationUtc(branchDay.date)
 
         val result =
@@ -53,11 +46,9 @@ object ReliefAccessService {
                         requestId = requestId,
                         grantedBy = callerId,
                         userId = request.requestedBy,
-                        capabilityId = capabilityId,
                         branchDayId = request.branchDayId,
                         sourceId = requestId,
                         validTo = validTo,
-                        priority = GrantPriorities.RELIEF_ACCESS,
                         requestedBy = request.requestedBy,
                     ),
                     auditFn = { before, after ->

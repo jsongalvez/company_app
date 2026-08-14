@@ -74,17 +74,29 @@ class NotificationBadgeViewModelTest {
     @Test
     fun init_fires_first_poll_and_writes_notification_state() =
         runTest(testScheduler) {
-            var requestCount = 0
-            val apiClient = mockApiClient(notificationsHandler { requestCount++ })
+            var notificationsCalls = 0
+            var invitesCalls = 0
+            val apiClient =
+                mockApiClient(
+                    notificationsHandler {
+                        when (it.url.encodedPath) {
+                            "/api/notifications" -> notificationsCalls++
+                            "/api/relief-invites" -> invitesCalls++
+                        }
+                    },
+                )
             val vm = NotificationBadgeViewModel(apiClient)
             try {
-                // Drain initial launches + first poll iteration: poll loop's `delay(REFRESH_INTERVAL_MS)`
-                // is queued at +60s; `runCurrent` runs everything due at t=0 only.
+                // Drain initial launches + first poll iteration: each poll loop's
+                // `delay(REFRESH_INTERVAL_MS)` is queued at +60s; `runCurrent` runs everything
+                // due at t=0 only.
                 runCurrent()
 
-                assertEquals(expected = 1, actual = requestCount)
+                assertEquals(expected = 1, actual = notificationsCalls)
+                assertEquals(expected = 1, actual = invitesCalls)
                 assertIs<UiState.Success<Int>>(vm.pollResult.value)
                 assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
+                assertEquals(expected = 0, actual = NotificationState.inviteCount.value)
             } finally {
                 // unconditional: an aborted assert must not leave the poll loop alive for the
                 // final drain (class KDoc)
@@ -95,12 +107,22 @@ class NotificationBadgeViewModelTest {
     @Test
     fun advancing_sixty_seconds_fires_second_poll() =
         runTest(testScheduler) {
-            var requestCount = 0
-            val apiClient = mockApiClient(notificationsHandler { requestCount++ })
+            var notificationsCalls = 0
+            var invitesCalls = 0
+            val apiClient =
+                mockApiClient(
+                    notificationsHandler {
+                        when (it.url.encodedPath) {
+                            "/api/notifications" -> notificationsCalls++
+                            "/api/relief-invites" -> invitesCalls++
+                        }
+                    },
+                )
             val vm = NotificationBadgeViewModel(apiClient)
             try {
                 runCurrent()
-                assertEquals(expected = 1, actual = requestCount)
+                assertEquals(expected = 1, actual = notificationsCalls)
+                assertEquals(expected = 1, actual = invitesCalls)
 
                 // advanceTimeBy brings virtual time to +60s (strict inequality means the resume-at-+60s
                 // event is *not* auto-run by advanceTimeBy itself); runCurrent then drains the now-due
@@ -109,11 +131,13 @@ class NotificationBadgeViewModelTest {
                 advanceTimeBy(60_000.milliseconds)
                 runCurrent()
 
-                assertEquals(expected = 2, actual = requestCount)
+                assertEquals(expected = 2, actual = notificationsCalls)
+                assertEquals(expected = 2, actual = invitesCalls)
                 // The singleton StateFlow stays at the last successful poll's count (0 — empty list response)
                 // after the second poll writes Success(Int) → NotificationState.setUnreadCount(data) again.
                 assertIs<UiState.Success<Int>>(vm.pollResult.value)
                 assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
+                assertEquals(expected = 0, actual = NotificationState.inviteCount.value)
             } finally {
                 vm.dispose()
             }
@@ -122,12 +146,22 @@ class NotificationBadgeViewModelTest {
     @Test
     fun dispose_cancels_poll_loop_no_further_polls_after_shell_leave() =
         runTest(testScheduler) {
-            var requestCount = 0
-            val apiClient = mockApiClient(notificationsHandler { requestCount++ })
+            var notificationsCalls = 0
+            var invitesCalls = 0
+            val apiClient =
+                mockApiClient(
+                    notificationsHandler {
+                        when (it.url.encodedPath) {
+                            "/api/notifications" -> notificationsCalls++
+                            "/api/relief-invites" -> invitesCalls++
+                        }
+                    },
+                )
             val vm = NotificationBadgeViewModel(apiClient)
 
             runCurrent()
-            assertEquals(expected = 1, actual = requestCount)
+            assertEquals(expected = 1, actual = notificationsCalls)
+            assertEquals(expected = 1, actual = invitesCalls)
 
             // dispose() → viewModelScope.cancel(): the pending delay(REFRESH_INTERVAL_MS) resume is
             // removed from the scheduler (delay's continuation cancellation disposes its event).
@@ -139,24 +173,36 @@ class NotificationBadgeViewModelTest {
             runCurrent()
             assertEquals(
                 expected = 1,
-                actual = requestCount,
+                actual = notificationsCalls,
                 message = "dispose() must cancel the poll loop — no further polls after shell-leave",
+            )
+            assertEquals(
+                expected = 1,
+                actual = invitesCalls,
+                message = "dispose() must cancel the invite poll loop too",
             )
             // dispose() cancels viewModelScope but does NOT clear NotificationState (that's the App-level
             // SessionState.clear() pairing's job, per #109). The singleton StateFlow holds its last
             // successful value: 0 (one successful poll wrote it before dispose).
             assertIs<UiState.Success<Int>>(vm.pollResult.value)
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
+            assertEquals(expected = 0, actual = NotificationState.inviteCount.value)
         }
 
     @Test
     fun in_flight_poll_skips_overlapping_iterations() =
         runTest(testScheduler) {
-            var requestCount = 0
+            var notificationsCalls = 0
+            var invitesCalls = 0
             val apiClient =
                 mockApiClient(
                     notificationsHandler(
-                        onHit = { requestCount++ },
+                        onHit = { request ->
+                            when (request.url.encodedPath) {
+                                "/api/notifications" -> notificationsCalls++
+                                "/api/relief-invites" -> invitesCalls++
+                            }
+                        },
                         responseDelayMs = 70_000,
                         // Virtualize the handler's delay: the engine's own context is real time,
                         // but withContext on the test dispatcher puts the delay on the scheduler —
@@ -166,32 +212,43 @@ class NotificationBadgeViewModelTest {
                 )
             val vm = NotificationBadgeViewModel(apiClient)
             try {
-                // First poll's GET is in flight (handler suspended at +70s virtual); the loop's
-                // next iteration fires at +60s and must SKIP (in-flight guard) instead of
+                // First poll's GETs are in flight (handler suspended at +70s virtual); the loops'
+                // next iterations fire at +60s and must SKIP (in-flight guards) instead of
                 // stacking a second request that could commit out of order.
                 runCurrent()
-                assertEquals(expected = 1, actual = requestCount)
+                assertEquals(expected = 1, actual = notificationsCalls)
+                assertEquals(expected = 1, actual = invitesCalls)
                 assertIs<UiState.Loading>(vm.pollResult.value)
+                assertIs<UiState.Loading>(vm.invitePollResult.value)
 
                 advanceTimeBy(60_000.milliseconds)
                 runCurrent()
                 assertEquals(
                     expected = 1,
-                    actual = requestCount,
+                    actual = notificationsCalls,
                     message = "in-flight guard must skip the +60s iteration while the GET is still pending",
                 )
+                assertEquals(
+                    expected = 1,
+                    actual = invitesCalls,
+                    message = "the invite poll's own in-flight guard must skip too",
+                )
 
-                // Slow GET lands at +70s: Success writes the singleton, and the next poll fires
-                // at +120s only once the guard clears.
+                // Slow GETs land at +70s: Success writes the singletons, and the next polls fire
+                // at +120s only once the guards clear.
                 advanceTimeBy(10_000)
                 runCurrent()
                 assertIs<UiState.Success<Int>>(vm.pollResult.value)
+                assertIs<UiState.Success<Int>>(vm.invitePollResult.value)
                 assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
-                assertEquals(expected = 1, actual = requestCount)
+                assertEquals(expected = 0, actual = NotificationState.inviteCount.value)
+                assertEquals(expected = 1, actual = notificationsCalls)
+                assertEquals(expected = 1, actual = invitesCalls)
 
                 advanceTimeBy(50_000)
                 runCurrent()
-                assertEquals(expected = 2, actual = requestCount)
+                assertEquals(expected = 2, actual = notificationsCalls)
+                assertEquals(expected = 2, actual = invitesCalls)
             } finally {
                 // The final-drain (runTest internals) runs advanceUntilIdle OUTSIDE the timeout
                 // — an uncancelled poll loop spins it forever, so dispose must be unconditional,
@@ -203,10 +260,10 @@ class NotificationBadgeViewModelTest {
     private fun notificationsHandler(
         responseDelayMs: Long = 0,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
-        onHit: () -> Unit,
+        onHit: (io.ktor.client.request.HttpRequestData) -> Unit,
     ): MockRequestHandler =
         {
-            onHit()
+            onHit(it)
             if (responseDelayMs > 0) {
                 withContext(dispatcher) { delay(responseDelayMs) }
             }

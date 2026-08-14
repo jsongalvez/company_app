@@ -36,6 +36,7 @@ object AuditLogTableRegistry {
             AuditedTable("product", "Product"),
             AuditedTable("product_category", "Product Category"),
             AuditedTable("product_sale", "Product Sale"),
+            AuditedTable("relief_invite", "Relief Invite"),
             AuditedTable("remittance", "Remittance"),
             AuditedTable("remittance_day_breakdown", "Remittance Day"),
             AuditedTable("remittance_financial_snapshot", "Remittance Snapshot"),

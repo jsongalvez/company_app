@@ -3,8 +3,11 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.dto.NotificationResponse
+import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.NotificationState
+import com.companyb.companyapp.ui.screen.isInviteActionable
+import com.companyb.companyapp.ui.screen.manilaToday
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.cancel
@@ -24,6 +27,13 @@ class NotificationBadgeViewModel(
     private val _pollResult = MutableStateFlow<UiState<Int>>(UiState.Idle)
     val pollResult: StateFlow<UiState<Int>> = _pollResult.asStateFlow()
 
+    // #160 — the invite poll mirrors the unread poll (same interval, own in-flight guard):
+    // the badge sums pending invites + unread reminders (#159 Q5), so the drawer badge
+    // needs both counts fresh. Counting only actionable invites (PENDING + not expired)
+    // keeps an expired-but-unanswered invite from inflating the badge.
+    private val _invitePollResult = MutableStateFlow<UiState<Int>>(UiState.Idle)
+    val invitePollResult: StateFlow<UiState<Int>> = _invitePollResult.asStateFlow()
+
     init {
         viewModelScope.launch {
             _pollResult
@@ -39,8 +49,19 @@ class NotificationBadgeViewModel(
                 }
         }
         viewModelScope.launch {
+            _invitePollResult
+                .filterIsInstance<UiState.Success<Int>>()
+                .collect { state -> NotificationState.setInviteCount(state.data) }
+        }
+        viewModelScope.launch {
             while (isActive) {
                 refreshUnreadCount()
+                delay(REFRESH_INTERVAL_MS)
+            }
+        }
+        viewModelScope.launch {
+            while (isActive) {
+                refreshInviteCount()
                 delay(REFRESH_INTERVAL_MS)
             }
         }
@@ -63,6 +84,22 @@ class NotificationBadgeViewModel(
             endpoint = "GET /api/notifications",
             block = { apiClient.httpClient.get("/api/notifications") },
             transform = { it.body<List<NotificationResponse>>().size },
+        )
+    }
+
+    private fun refreshInviteCount() {
+        if (_invitePollResult.value is UiState.Loading) return
+        handler.launch(
+            state = _invitePollResult,
+            operation = "refreshInviteCount",
+            endpoint = "GET /api/relief-invites",
+            block = { apiClient.httpClient.get("/api/relief-invites") },
+            transform = { response ->
+                val today = manilaToday()
+                response.body<List<ReliefInviteResponse>>().count { invite ->
+                    isInviteActionable(invite, today)
+                }
+            },
         )
     }
 
