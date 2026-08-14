@@ -935,6 +935,58 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
+    fun supersededUpdate_landsAfterDaySwitch_writesNothing() =
+        runTest(testScheduler) {
+            // Pass-6 HARD — an in-flight PATCH completing after a day/branch switch must not
+            // repopulate the cleared sections nor end the new session's in-flight flags.
+            var sectionLoads = 0
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-13")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" && request.method.value == "GET" -> {
+                        sectionLoads++
+                        respondJson("[${expenseJson("e1")}]")
+                    }
+
+                    request.url.encodedPath == "/api/expenses/e1" && request.method.value == "PATCH" -> {
+                        respondJson(expenseJson("e1"))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            runCurrent()
+            val expense = (vm.editExpenses.value as UiState.Success).data.single()
+
+            // Dispatch the PATCH, then switch branches BEFORE it lands.
+            vm.updateExpense(expense, "999.00", "PANTRY", null, null)
+            vm.selectBranch(BRANCH_B)
+            runCurrent()
+
+            assertEquals(UiState.Idle, vm.editExpenses.value, "the superseded PATCH must not repopulate")
+            assertTrue(vm.inFlightActions.value.isEmpty())
+        }
+
+    @Test
     fun repeatConflictOnSameKey_reemits_afterConsume() =
         runTest(testScheduler) {
             var patchCount = 0
