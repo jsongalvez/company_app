@@ -520,6 +520,8 @@ class FinanceReportsViewModel(
      */
     fun hasAssignCapability(): Boolean = CapabilityCodes.ASSIGN_COMPENSATION in SessionState.capabilities.value
 
+    fun hasEditBranchDataCapability(): Boolean = CapabilityCodes.EDIT_BRANCH_DATA in SessionState.capabilities.value
+
     fun hasEditCapabilities(): Boolean {
         val caps = SessionState.capabilities.value
         return CapabilityCodes.EDIT_BRANCH_DATA in caps ||
@@ -580,14 +582,16 @@ class FinanceReportsViewModel(
         val branchDayId = day.branchDayId
         editDataGeneration++
         val generation = editDataGeneration
-        loadSection(
-            generation,
-            _editExpenses,
-            "expenses",
-            "/api/expenses",
-            params = listOf("branchDayId" to branchDayId),
-            errorKeyPrefixes = listOf("expense:"),
-        )
+        if (hasEditBranchDataCapability()) {
+            loadSection(
+                generation,
+                _editExpenses,
+                "expenses",
+                "/api/expenses",
+                params = listOf("branchDayId" to branchDayId),
+                errorKeyPrefixes = listOf("expense:"),
+            )
+        }
         if (hasAssignCapability()) {
             loadSection(
                 generation,
@@ -739,6 +743,7 @@ class FinanceReportsViewModel(
         val key = "expense:create"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "createExpense",
@@ -759,14 +764,20 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val created = it.body<ExpenseResponse>()
-                _editExpenses.value =
-                    ((_editExpenses.value as? UiState.Success<List<ExpenseResponse>>)?.data.orEmpty() + created)
-                        .let { rows -> UiState.Success(rows) }
+                if (generation == editDataGeneration) {
+                    _editExpenses.value =
+                        ((_editExpenses.value as? UiState.Success<List<ExpenseResponse>>)?.data.orEmpty() + created)
+                            .let { rows -> UiState.Success(rows) }
+                }
                 endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
-                failActionOrSilent403(key, "expense:create", response)
+                if (generation == editDataGeneration) {
+                    failActionOrSilent403(key, "expense:create", response)
+                } else {
+                    endAction(key)
+                }
                 true
             },
             onError = { endAction(key) },
@@ -783,6 +794,7 @@ class FinanceReportsViewModel(
         val key = "expense:update:${expense.id}"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "updateExpense",
@@ -828,6 +840,7 @@ class FinanceReportsViewModel(
         val key = "expense:delete:${expense.id}"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "deleteExpense",
@@ -839,12 +852,18 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val deleted = it.body<ExpenseResponse>()
-                replaceExpenseRow(deleted)
+                if (generation == editDataGeneration) {
+                    replaceExpenseRow(deleted)
+                }
                 endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
-                failActionOrSilent403(key, "expense:delete", response)
+                if (generation == editDataGeneration) {
+                    failActionOrSilent403(key, "expense:delete", response)
+                } else {
+                    endAction(key)
+                }
                 true
             },
             onError = { endAction(key) },
@@ -858,6 +877,7 @@ class FinanceReportsViewModel(
         val key = "expense:restore:${expense.id}"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "restoreExpense",
@@ -869,12 +889,18 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val restored = it.body<ExpenseResponse>()
-                replaceExpenseRow(restored)
+                if (generation == editDataGeneration) {
+                    replaceExpenseRow(restored)
+                }
                 endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
-                failActionOrSilent403(key, "expense:restore", response)
+                if (generation == editDataGeneration) {
+                    failActionOrSilent403(key, "expense:restore", response)
+                } else {
+                    endAction(key)
+                }
                 true
             },
             onError = { endAction(key) },
@@ -902,6 +928,7 @@ class FinanceReportsViewModel(
         val key = "comp:create"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "createCompensation",
@@ -923,23 +950,29 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val created = it.body<CompensationResponse>()
-                _editCompensations.value =
-                    UiState.Success(
-                        (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)?.data.orEmpty() +
-                            created,
-                    )
+                if (generation == editDataGeneration) {
+                    _editCompensations.value =
+                        UiState.Success(
+                            (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)?.data.orEmpty() +
+                                created,
+                        )
+                }
                 endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
-                // #101 D4 — 409 duplicate (one per user per paying day) → inline error on the
-                // picker; the row is already compensated (the list shows it).
-                failActionOrSilent403(
-                    key,
-                    "comp:create",
-                    response,
-                    conflictMessage = "Already compensated on this day",
-                )
+                if (generation == editDataGeneration) {
+                    // #101 D4 — 409 duplicate (one per user per paying day) → inline error on the
+                    // picker; the row is already compensated (the list shows it).
+                    failActionOrSilent403(
+                        key,
+                        "comp:create",
+                        response,
+                        conflictMessage = "Already compensated on this day",
+                    )
+                } else {
+                    endAction(key)
+                }
                 true
             },
             onError = { endAction(key) },
@@ -955,6 +988,7 @@ class FinanceReportsViewModel(
         val key = "comp:update:${compensation.id}"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "updateCompensation",
@@ -1009,6 +1043,7 @@ class FinanceReportsViewModel(
         val key = "allow:create"
         if (key in _inFlightActions.value) return
         beginAction(key)
+        val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
             operation = "createAllowance",
@@ -1028,16 +1063,22 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val created = it.body<AllowanceResponse>()
-                _editAllowances.value =
-                    UiState.Success(
-                        (_editAllowances.value as? UiState.Success<List<AllowanceResponse>>)?.data.orEmpty() +
-                            created,
-                    )
+                if (generation == editDataGeneration) {
+                    _editAllowances.value =
+                        UiState.Success(
+                            (_editAllowances.value as? UiState.Success<List<AllowanceResponse>>)?.data.orEmpty() +
+                                created,
+                        )
+                }
                 endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
-                failActionOrSilent403(key, "allow:create", response)
+                if (generation == editDataGeneration) {
+                    failActionOrSilent403(key, "allow:create", response)
+                } else {
+                    endAction(key)
+                }
                 true
             },
             onError = { endAction(key) },

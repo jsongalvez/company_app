@@ -137,5 +137,3 @@ internal val expenseCategories: List<Pair<String, String>> =
     )
 
 internal val expenseCategoryCodes: List<String> = expenseCategories.map { it.first }
-
-internal val expenseCategoryLabels: List<String> = expenseCategories.map { it.second }

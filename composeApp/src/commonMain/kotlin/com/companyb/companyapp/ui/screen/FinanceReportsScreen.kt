@@ -23,6 +23,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -205,6 +206,7 @@ fun FinanceReportsScreen(
                     today = today,
                     capabilities = capabilities,
                     onBackToFeed = { viewModel.setEditMode(false) },
+                    onExportDayEditor = { format -> viewModel.exportDay(day, selectedBranch, format) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -219,6 +221,7 @@ fun FinanceReportsScreen(
                     selectedDay = selectedDay,
                     onDaySelected = viewModel::selectDay,
                     today = today,
+                    appliedRange = appliedRange,
                     downloads = downloads,
                     exportErrors = exportErrors,
                     modifier = Modifier.weight(1f),
@@ -298,7 +301,9 @@ private fun FinanceToolbar(
                         singleLine = true,
                         label = { Text("Branch") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = branchMenuOpen) },
-                        modifier = Modifier.menuAnchor().width(280.dp),
+                        // Pass-4 HARD — the fixed 280dp field crushed the trailing exports/edit
+                        // toggle at 360dp; the field shrinks first (weight), caps at 280dp.
+                        modifier = Modifier.menuAnchor().weight(1f, fill = false).width(280.dp),
                     )
                     ExposedDropdownMenu(
                         expanded = branchMenuOpen,
@@ -475,11 +480,23 @@ private fun FeedSection(
     selectedDay: DailySalesSummaryResponse?,
     onDaySelected: (DailySalesSummaryResponse?) -> Unit,
     today: LocalDate,
+    appliedRange: Pair<String, String>?,
     downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     exportErrors: Map<String, String>,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        if (mode == ReportMode.DATE_RANGE && appliedRange == null) {
+            // #105 D4 — the DATE_RANGE feed is window-scoped; before a window exists there is
+            // no feed (the unbounded all-time view would mislead — pass-4).
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "Apply a From/To window to browse these days",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = InkSubtle,
+                )
+            }
+        }
         if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Success && monthlyRollup.data != null) {
             val rollup = monthlyRollup.data
             MonthlyRollupCard(rollup = rollup)
@@ -519,22 +536,32 @@ private fun FeedSection(
                         modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = { showCards = false }) { Text("Rows") }
-                        TextButton(onClick = { showCards = true }) { Text("Cards") }
+                        FilterChip(
+                            selected = !showCards,
+                            onClick = { showCards = false },
+                            label = { Text("Rows") },
+                        )
+                        Spacer(Modifier.width(Spacing.xs))
+                        FilterChip(
+                            selected = showCards,
+                            onClick = { showCards = true },
+                            label = { Text("Cards") },
+                        )
                     }
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(feed.data, key = { it.branchDayId }) { day ->
                             val isSelected = day.branchDayId == selectedDay?.branchDayId
+                            val onExportDay: (String) -> Unit = { format ->
+                                selectedBranchId?.let { branch ->
+                                    viewModel.exportDay(day, branch, format)
+                                }
+                            }
                             if (showCards) {
                                 FinanceDayCard(
                                     day = day,
                                     today = today,
                                     onSelect = { onDaySelected(if (isSelected) null else day) },
-                                    onExportDay = { format ->
-                                        selectedBranchId?.let { branch ->
-                                            viewModel.exportDay(day, branch, format)
-                                        }
-                                    },
+                                    onExportDay = onExportDay,
                                     downloadStates = downloads,
                                     exportErrors = exportErrors,
                                 )
@@ -548,11 +575,7 @@ private fun FeedSection(
                                     // mobile dialog was unclosable). selectDay(null) emits on
                                     // every call.
                                     onSelect = { onDaySelected(if (isSelected) null else day) },
-                                    onExportDay = { format ->
-                                        selectedBranchId?.let { branch ->
-                                            viewModel.exportDay(day, branch, format)
-                                        }
-                                    },
+                                    onExportDay = onExportDay,
                                     downloadStates = downloads,
                                     exportErrors = exportErrors,
                                 )
@@ -674,8 +697,9 @@ private fun DayRow(
 }
 
 /**
- * #105 D5 — the full-day card view: the complete daily figures at a glance; the day detail
- * (desktop inline expand / mobile modal) still applies on selection.
+ * #105 D5 — the full-day card view: the complete daily figures at a glance (the card IS the
+ * detail content; selection is a no-op visually — the card shows everything). Per-day exports
+ * ride the same detail-content row.
  */
 @Composable
 private fun FinanceDayCard(
@@ -752,7 +776,7 @@ internal fun FinanceDayDetailContent(
                     modifier = Modifier.weight(1f),
                 )
                 ExportButtons(
-                    baseKey = "day:${day.date}",
+                    baseKey = "day:${day.branchDayId}",
                     onExport = onExportDay,
                     errors = exportErrors,
                     downloads = downloadStates,
@@ -800,6 +824,7 @@ private fun DayEditor(
     today: LocalDate,
     capabilities: Set<String>,
     onBackToFeed: () -> Unit,
+    onExportDayEditor: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
@@ -840,7 +865,7 @@ private fun DayEditor(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(Spacing.sm)) {
-                FinanceDayDetailContent(day = day, today = today)
+                FinanceDayDetailContent(day = day, today = today, onExportDay = onExportDayEditor)
             }
         }
         Spacer(Modifier.height(Spacing.sm))

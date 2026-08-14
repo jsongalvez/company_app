@@ -68,6 +68,8 @@ class FinanceReportsViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         SessionState.clear()
         SessionState.setSelectedBranch(BRANCH_A, "Branch A")
+        // The pass-3/4 per-element gates skip section loads without the capability.
+        SessionState.setCapabilities(setOf("EDIT_BRANCH_DATA", "ASSIGN_COMPENSATION"))
     }
 
     @AfterTest
