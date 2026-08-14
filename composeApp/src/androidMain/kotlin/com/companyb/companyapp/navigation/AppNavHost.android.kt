@@ -207,7 +207,9 @@ actual fun AppNavHost(
                         )
                     }
                     composable<Route.Inventory> { PlaceholderRoute("Inventory") }
-                    composable<Route.Finance> { PlaceholderRoute("Finance") }
+                    // #105 D1 — the merged Finance & Reports screen; Route.Reports was deleted
+                    // (one route + one drawer item, gate VIEW_BRANCH_DATA).
+                    composable<Route.Finance> { PlaceholderRoute("Finance & Reports") }
                     // #120 — D1: code-only route gate matching the implemented `Set<String>`
                     // capabilities; backend 403 paths stay authoritative (D8, #99 D7 pattern).
                     composable<Route.RemittanceList> {
@@ -287,12 +289,8 @@ actual fun AppNavHost(
                             onBack = { navController.popBackStack() },
                         )
                     }
-                    composable<Route.Reports> { PlaceholderRoute("Reports") }
                     // #135 — D5: code-only MANAGE_USERS route gate (the #99 D7 pattern; backend
-                    // GLOBAL gate + 403 paths stay authoritative). The drawer item stays hidden
-                    // until the #94-grad capability wiring populates SessionState.capabilities —
-                    // documented state, not hacked around (ticket note); pre-wiring the route
-                    // shows the gate card.
+                    // GLOBAL gate + 403 paths stay authoritative).
                     composable<Route.UserManagement> {
                         val capabilities by SessionState.capabilities.collectAsState()
                         val currentUser by SessionState.currentUser.collectAsState()

@@ -51,7 +51,6 @@ internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
         Route.Notifications to Route.Notifications::class,
         Route.AuditLog to Route.AuditLog::class,
         Route.AuditLogHistory to Route.AuditLogHistory::class,
-        Route.Reports to Route.Reports::class,
         Route.UserManagement to Route.UserManagement::class,
         Route.SessionDetail to Route.SessionDetail::class,
     ).mapKeys {

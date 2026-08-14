@@ -43,8 +43,9 @@ class DrawerViewModelTest {
         val vm = DrawerViewModel()
         val items = vm.uiState.value.drawerItems
 
-        assertEquals(expected = 8, actual = items.size)
-        assertTrue(items.all { it.visible }, "All 8 items should be visible when all capabilities are set")
+        // #105 D1 — Finance & Reports collapsed into one item (7 total, was 8 with separate Reports).
+        assertEquals(expected = 7, actual = items.size)
+        assertTrue(items.all { it.visible }, "All 7 items should be visible when all capabilities are set")
     }
 
     @Test
@@ -59,7 +60,7 @@ class DrawerViewModelTest {
         assertTrue(visibleItems.any { it.route is Route.Notifications })
         assertTrue(visibleItems.any { it.route is Route.AuditLog })
         assertFalse(visibleItems.any { it.route is Route.Clients })
-        assertFalse(visibleItems.any { it.route is Route.Reports })
+        assertFalse(visibleItems.any { it.route is Route.UserManagement })
     }
 
     @Test
@@ -76,8 +77,7 @@ class DrawerViewModelTest {
         assertTrue("Remittance" in visibleLabels)
         assertFalse("Clients" in visibleLabels)
         assertFalse("Inventory" in visibleLabels)
-        assertFalse("Finance" in visibleLabels)
-        assertFalse("Reports" in visibleLabels)
+        assertFalse("Finance & Reports" in visibleLabels)
         assertFalse("User Management" in visibleLabels)
         assertTrue("Notifications" in visibleLabels)
         assertTrue("Audit Log" in visibleLabels)
@@ -95,14 +95,30 @@ class DrawerViewModelTest {
                     .count { it.visible },
         )
 
-        // Set VIEW_BRANCH_DATA — Reports should now be visible
+        // #105 D1 — VIEW_BRANCH_DATA reveals the merged Finance & Reports item
         SessionState.setCapabilities(setOf(CapabilityCodes.VIEW_BRANCH_DATA))
 
         val after =
             vm.uiState.value.drawerItems
                 .filter { it.visible }
                 .map { it.label }
-        assertTrue("Reports" in after)
+        assertTrue("Finance & Reports" in after)
         assertEquals(expected = 3, actual = after.size)
+    }
+
+    @Test
+    fun mergedFinanceItem_isGatedOnViewBranchData() {
+        // The merge collapses the ASSIGN_COMPENSATION-gated "Finance" and VIEW_BRANCH_DATA-gated
+        // "Reports" into one item gated on the WIDEST capability: ASSIGN_COMPENSATION alone must
+        // NOT reveal it (Accountant holds VIEW_BRANCH_DATA only, #105 F1).
+        SessionState.setCapabilities(setOf(CapabilityCodes.ASSIGN_COMPENSATION))
+
+        val vm = DrawerViewModel()
+        val labels =
+            vm.uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+
+        assertFalse("Finance & Reports" in labels)
     }
 }

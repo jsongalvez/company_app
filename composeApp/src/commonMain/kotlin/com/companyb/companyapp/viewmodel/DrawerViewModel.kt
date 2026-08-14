@@ -26,11 +26,12 @@ class DrawerViewModel : ViewModel() {
         listOf(
             DrawerItem(Route.Clients, "Clients", CapabilityCodes.EDIT_BRANCH_DATA, visible = false),
             DrawerItem(Route.Inventory, "Inventory", CapabilityCodes.EDIT_BRANCH_DATA, visible = false),
-            DrawerItem(Route.Finance, "Finance", CapabilityCodes.ASSIGN_COMPENSATION, visible = false),
+            // #105 D1 — Finance and Reports merge into one item, gate widened to the widest
+            // read capability (VIEW_BRANCH_DATA): Accountant (GLOBAL view) sees the item.
+            DrawerItem(Route.Finance, "Finance & Reports", CapabilityCodes.VIEW_BRANCH_DATA, visible = false),
             DrawerItem(Route.RemittanceList, "Remittance", CapabilityCodes.SUBMIT_REMITTANCE, visible = false),
             DrawerItem(Route.Notifications, "Notifications", null, visible = true),
             DrawerItem(Route.AuditLog, "Audit Log", null, visible = true),
-            DrawerItem(Route.Reports, "Reports", CapabilityCodes.VIEW_BRANCH_DATA, visible = false),
             DrawerItem(Route.UserManagement, "User Management", CapabilityCodes.MANAGE_USERS, visible = false),
         )
 

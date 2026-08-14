@@ -1,0 +1,53 @@
+package com.companyb.companyapp.util
+
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
+import com.companyb.companyapp.network.AndroidAppContext
+
+/**
+ * #154 (D6) — Android export save: write to the public Downloads collection via MediaStore
+ * (API 29+; no storage permission needed for MediaStore.Downloads on modern Android). API 24-28
+ * would need the legacy external-storage path + WRITE_EXTERNAL_STORAGE permission — the app
+ * declares none, so those devices fail closed with a logged error (alpha device assumption:
+ * internal ops app runs on API 29+ hardware; documented SOFT).
+ */
+actual fun saveDownload(
+    fileName: String,
+    bytes: ByteArray,
+): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+        logError("SaveDownload", "export save unsupported below API 29 (device API ${Build.VERSION.SDK_INT})")
+        return false
+    }
+    val resolver =
+        AndroidAppContext.context?.contentResolver ?: run {
+            logError("SaveDownload", "no application context for MediaStore insert")
+            return false
+        }
+    return runCatching {
+        val values =
+            ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, mimeFor(fileName))
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+        val uri =
+            resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: error("MediaStore insert returned null")
+        resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("openOutputStream returned null")
+        values.clear()
+        values.put(MediaStore.Downloads.IS_PENDING, 0)
+        resolver.update(uri, values, null, null)
+        true
+    }.onFailure { e ->
+        logError("SaveDownload", "android save failed: ${e.message ?: "unknown"}", e)
+    }.getOrDefault(false)
+}
+
+private fun mimeFor(fileName: String): String =
+    when {
+        fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+        fileName.endsWith(".csv", ignoreCase = true) -> "text/csv"
+        else -> "application/octet-stream"
+    }

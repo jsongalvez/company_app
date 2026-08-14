@@ -55,9 +55,6 @@ sealed class Route {
     ) : Route()
 
     @Serializable
-    data object Reports : Route()
-
-    @Serializable
     data object UserManagement : Route()
 
     @Serializable
