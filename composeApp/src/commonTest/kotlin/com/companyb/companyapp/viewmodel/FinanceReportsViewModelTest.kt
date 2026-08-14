@@ -412,6 +412,7 @@ class FinanceReportsViewModelTest {
     @Test
     fun editMode_loadsAllFourSectionsForTheSelectedDay() =
         runTest(testScheduler) {
+            SessionState.setCapabilities(setOf("ASSIGN_COMPENSATION", "EDIT_BRANCH_DATA"))
             val paths = mutableListOf<String>()
             val handler: MockRequestHandler = { request ->
                 paths += request.url.encodedPath
@@ -559,8 +560,12 @@ class FinanceReportsViewModelTest {
             vm.updateExpense(expense, amount = "999.00", categoryCode = "PANTRY", notes = null, reason = null)
             runCurrent()
 
-            assertEquals("Expense changed elsewhere — reloaded", vm.editErrors.value["expense:update:e1"])
+            // Pass-3 contract: the 409 emits the conflict signal (the screen closes the dialog)
+            // and reloads the section; the reload landing supersedes the transient error line
+            // (the #143 stale-error clear — the fresh list carries no stale errors).
+            assertTrue("expense:update:e1" in vm.conflicts.value, "409 → conflict signal (dialog close)")
             assertEquals(2, sectionLoads, "409 → the section reloads (ADR-0022)")
+            assertTrue(vm.editErrors.value["expense:update:e1"] == null, "reload landing clears the stale error")
         }
 
     @Test
