@@ -321,8 +321,14 @@ class FinanceReportsViewModel(
         // section data armed: re-entering edit on another day would render the old rows
         // during the load window and Edit/Delete would mutate the wrong day's records.
         clearEditData()
-        _feedEntries.value = UiState.Loading
         val branchId = _selectedBranchId.value ?: return
+        // Pass-5 SOFT — DATE_RANGE has no window before Apply: no unbounded all-time fetch
+        // fires behind the hint (the hint branch renders instead of the feed).
+        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) {
+            _feedEntries.value = UiState.Idle
+            return
+        }
+        _feedEntries.value = UiState.Loading
         fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
     }
 
@@ -768,19 +774,19 @@ class FinanceReportsViewModel(
                     _editExpenses.value =
                         ((_editExpenses.value as? UiState.Success<List<ExpenseResponse>>)?.data.orEmpty() + created)
                             .let { rows -> UiState.Success(rows) }
+                    endAction(key)
                 }
-                endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "expense:create", response)
-                } else {
-                    endAction(key)
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
@@ -854,19 +860,19 @@ class FinanceReportsViewModel(
                 val deleted = it.body<ExpenseResponse>()
                 if (generation == editDataGeneration) {
                     replaceExpenseRow(deleted)
+                    endAction(key)
                 }
-                endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "expense:delete", response)
-                } else {
-                    endAction(key)
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
@@ -891,19 +897,19 @@ class FinanceReportsViewModel(
                 val restored = it.body<ExpenseResponse>()
                 if (generation == editDataGeneration) {
                     replaceExpenseRow(restored)
+                    endAction(key)
                 }
-                endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "expense:restore", response)
-                } else {
-                    endAction(key)
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
@@ -956,8 +962,8 @@ class FinanceReportsViewModel(
                             (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)?.data.orEmpty() +
                                 created,
                         )
+                    endAction(key)
                 }
-                endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
@@ -970,12 +976,12 @@ class FinanceReportsViewModel(
                         response,
                         conflictMessage = "Already compensated on this day",
                     )
-                } else {
-                    endAction(key)
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
@@ -1069,19 +1075,19 @@ class FinanceReportsViewModel(
                             (_editAllowances.value as? UiState.Success<List<AllowanceResponse>>)?.data.orEmpty() +
                                 created,
                         )
+                    endAction(key)
                 }
-                endAction(key)
                 Unit
             },
             onNonSuccess = { response ->
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "allow:create", response)
-                } else {
-                    endAction(key)
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
@@ -1092,7 +1098,7 @@ class FinanceReportsViewModel(
         val bytes: ByteArray,
     )
 
-    /** Export keys: `mode:<mode>:<format>`, `day:<date>:<format>`, `public:<kind>:<format>`. */
+    /** Export keys: `mode:<mode>:<format>`, `day:<branchDayId>:<format>`, `public:<kind>:<format>`. */
     private val _downloads = MutableStateFlow<Map<String, UiState<DownloadPayload>>>(emptyMap())
     val downloads: StateFlow<Map<String, UiState<DownloadPayload>>> = _downloads.asStateFlow()
 
@@ -1166,8 +1172,11 @@ class FinanceReportsViewModel(
         branchId: String,
         format: String,
     ) {
+        // Keyed on branchDayId (pass-4/5 HARD): the date alone collides across branches — an
+        // in-flight branch-A export would block + mislabel branch B's same-date row. The
+        // screen's ExportButtons look up the SAME key (both sides must agree).
         exportMode(
-            key = "day:${day.date}:$format",
+            key = "day:${day.branchDayId}:$format",
             url = "/api/branches/$branchId/export/daily?date=${day.date}&format=$format",
         )
     }

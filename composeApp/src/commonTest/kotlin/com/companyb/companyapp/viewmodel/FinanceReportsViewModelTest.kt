@@ -747,7 +747,7 @@ class FinanceReportsViewModelTest {
             vm.exportDay(day, BRANCH_A, "csv")
             runCurrent()
 
-            val download = vm.downloads.value["day:2026-08-14:csv"]
+            val download = vm.downloads.value["day:day-1:csv"]
             assertIs<UiState.Success<FinanceReportsViewModel.DownloadPayload>>(download)
             assertEquals("daily-export-branch-a-2026-08-14.csv", download.data.fileName)
             assertTrue(download.data.bytes.isNotEmpty())
@@ -786,7 +786,7 @@ class FinanceReportsViewModelTest {
             runCurrent()
 
             assertTrue(vm.downloads.value.isEmpty(), "downloads=" + vm.downloads.value)
-            assertTrue(vm.exportErrors.value["day:2026-08-14:csv"] != null, "exportErrors=" + vm.exportErrors.value)
+            assertTrue(vm.exportErrors.value["day:day-1:csv"] != null, "exportErrors=" + vm.exportErrors.value)
         }
 
     @Test

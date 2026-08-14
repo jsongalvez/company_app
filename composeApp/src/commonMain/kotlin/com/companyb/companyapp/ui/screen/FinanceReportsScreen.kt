@@ -207,6 +207,8 @@ fun FinanceReportsScreen(
                     capabilities = capabilities,
                     onBackToFeed = { viewModel.setEditMode(false) },
                     onExportDayEditor = { format -> viewModel.exportDay(day, selectedBranch, format) },
+                    downloadStates = downloads,
+                    exportErrors = exportErrors,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -825,6 +827,8 @@ private fun DayEditor(
     capabilities: Set<String>,
     onBackToFeed: () -> Unit,
     onExportDayEditor: (String) -> Unit,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
     modifier: Modifier = Modifier,
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
@@ -865,7 +869,13 @@ private fun DayEditor(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(modifier = Modifier.padding(Spacing.sm)) {
-                FinanceDayDetailContent(day = day, today = today, onExportDay = onExportDayEditor)
+                FinanceDayDetailContent(
+                    day = day,
+                    today = today,
+                    onExportDay = onExportDayEditor,
+                    downloadStates = downloadStates,
+                    exportErrors = exportErrors,
+                )
             }
         }
         Spacer(Modifier.height(Spacing.sm))
@@ -1251,7 +1261,7 @@ private fun ExpenseDialog(
                     if (amountError == null) {
                         onConfirm(
                             amount,
-                            expenseCategoryCodes[categoryIndex],
+                            dialogCategories[categoryIndex].first,
                             notes.trim().ifBlank { null },
                             reason.trim().ifBlank { null },
                         )
