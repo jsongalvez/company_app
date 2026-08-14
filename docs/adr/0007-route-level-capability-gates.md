@@ -63,6 +63,8 @@ config.routes.before("/api/expenses") { context ->
 
 config.routes.before("/api/expenses/{expenseId}") { context ->
     val expenseId = context.pathParamAsUuid("expenseId")
+    // Pre-#157 shape: the expense record-scoped gate. #157 replaced it with the
+    // day-scoped requireBranchOrBranchDayCapabilityForExpense (see the amendment below).
     CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
 }
 ```

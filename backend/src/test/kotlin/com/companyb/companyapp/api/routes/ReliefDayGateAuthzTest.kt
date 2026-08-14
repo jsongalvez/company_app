@@ -588,7 +588,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     gatedBranchDayId = dayOtherBranch,
                 )
             }
-        assertTrue(e.message.orEmpty().contains("Branch day"))
+        assertTrue(e.message.orEmpty().contains("for this branch"))
     }
 
     // #128 lesson — the X-Test-User harness can't exercise the real auth filter; 401 needs
