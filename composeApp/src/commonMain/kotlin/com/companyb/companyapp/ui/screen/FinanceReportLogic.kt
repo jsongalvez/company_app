@@ -6,13 +6,7 @@ import kotlinx.datetime.YearMonth
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 
-/**
- * Pure decision helpers for the merged Finance & Reports screen (#101 D1-D8 + #105 D1-D7).
- * Extracted so the state-machine decisions (windows, day state, form validation) are unit-tested
- * without a VM or HTTP layer (the #142/#143 convergence pattern).
- */
-
-/** #105 D4 — feed modes. Every mode is a day feed with a different window + export. */
+// #105 D4 — feed modes. Every mode is a day feed with a different window + export.
 enum class ReportMode {
     DAILY,
     MONTHLY,

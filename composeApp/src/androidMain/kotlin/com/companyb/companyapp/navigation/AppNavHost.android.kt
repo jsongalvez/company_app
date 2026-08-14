@@ -37,6 +37,7 @@ import com.companyb.companyapp.ui.screen.AuditLogScreen
 import com.companyb.companyapp.ui.screen.BranchSelectScreen
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
+import com.companyb.companyapp.ui.screen.FinanceReportsScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
@@ -49,6 +50,7 @@ import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
+import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
@@ -207,9 +209,18 @@ actual fun AppNavHost(
                         )
                     }
                     composable<Route.Inventory> { PlaceholderRoute("Inventory") }
-                    // #105 D1 — the merged Finance & Reports screen; Route.Reports was deleted
-                    // (one route + one drawer item, gate VIEW_BRANCH_DATA).
-                    composable<Route.Finance> { PlaceholderRoute("Finance & Reports") }
+                    // #105 D1 — the merged Finance & Reports screen, gate = widest read
+                    // capability (VIEW_BRANCH_DATA code-only check, #99 D7 pattern).
+                    composable<Route.Finance> {
+                        val capabilities by SessionState.capabilities.collectAsState()
+                        if (CapabilityCodes.VIEW_BRANCH_DATA in capabilities) {
+                            val financeReportsViewModel: FinanceReportsViewModel =
+                                viewModel { FinanceReportsViewModel(apiClient) }
+                            FinanceReportsScreen(viewModel = financeReportsViewModel)
+                        } else {
+                            RouteGateCard(label = "Finance & Reports")
+                        }
+                    }
                     // #120 — D1: code-only route gate matching the implemented `Set<String>`
                     // capabilities; backend 403 paths stay authoritative (D8, #99 D7 pattern).
                     composable<Route.RemittanceList> {
