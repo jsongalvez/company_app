@@ -381,7 +381,9 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadSent("b1")
             runCurrent()
-            assertEquals("b1", vm.sentBranch.value)
+            // b1's load is in flight — the branch label must NOT pre-flip (commit-stamping):
+            // the screen gate would otherwise render the previous branch's keep-last.
+            assertEquals(null, vm.sentBranch.value)
 
             // b2's panel opens while b1's load is in flight: the newer load must win.
             vm.loadSent("b2")

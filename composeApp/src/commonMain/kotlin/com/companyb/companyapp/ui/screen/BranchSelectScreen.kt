@@ -533,11 +533,17 @@ private fun SentInvitesSection(
     retractBusy: Boolean,
     onRetract: (String) -> Unit,
 ) {
-    // Branch-gated keep-last (pass-1 HARD): the VM's list belongs to sentBranch; until the
-    // panel's own load lands, the previous branch's rows must NOT render here — the section
-    // shows the empty/loading state instead of foreign Retract buttons.
-    val sent = if (sentBranch == panelBranch) lastSent.orEmpty() else emptyList()
-    if (sent.isEmpty() && state is UiState.Idle) return
+    // Branch-gated keep-last (pass-1/pass-2 HARD): _sentBranch flips only at COMMIT, so a
+    // passing gate means the rendered list IS this panel's — the previous branch's rows can
+    // never render here (with live Retract) while this panel's load is in flight or failed.
+    // The committed state is authoritative; the keep-last mirror covers same-branch reloads.
+    val sent =
+        when {
+            sentBranch != panelBranch -> emptyList()
+            state is UiState.Success -> state.data
+            else -> lastSent.orEmpty()
+        }
+    if (sent.isEmpty() && sentBranch != panelBranch) return
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         Text(

@@ -110,8 +110,12 @@ class ReliefInviteViewModel(
                 if (stamp != actionStamp) {
                     // An accept/decline landed while the load was in flight — committing the
                     // snapshot would resurrect the resolved row (the #141 resurrect class).
+                    // Read the CURRENT _received Success first (pass-2 HARD): the mirror
+                    // (_lastReceived) updates async, so a stale load landing right after an
+                    // action could otherwise resurrect the row from the pre-action mirror
+                    // until the re-issued load lands.
                     loadReceived()
-                    _lastReceived.value ?: emptyList()
+                    currentReceivedList() ?: emptyList()
                 } else {
                     body
                 }
@@ -192,11 +196,11 @@ class ReliefInviteViewModel(
         )
 
     fun loadSent(branchId: String): Job {
-        // Synchronous pre-set: the screen gates its rendering on sentBranch == panelBranch, so
-        // switching panels hides the previous branch's list immediately. No in-flight guard: a
-        // newer load must always launch (the guard would let branch A's in-flight load swallow
-        // branch B's — the pass-1 HARD); staleness is handled by the stamp below.
-        _sentBranch.value = branchId
+        // No in-flight guard and no synchronous branch pre-set: a newer load must always
+        // launch (the guard would let branch A's in-flight load swallow branch B's), and
+        // _sentBranch flips only at COMMIT (pass-2 HARD) — the gate
+        // `sentBranch == panelBranch` must never hold while the keep-last slot still holds
+        // another branch's rows. Stale in-flight responses are stamped out below.
         val stamp = ++sentStamp
         return handler.launch(
             state = _sentInvites,
@@ -206,11 +210,16 @@ class ReliefInviteViewModel(
             transform = { response ->
                 val body = response.body<List<ReliefInviteResponse>>()
                 if (stamp != sentStamp) {
-                    // A newer panel load launched while this one was in flight — substituting the
-                    // current list keeps the stale branch's rows from committing under the new
-                    // branch (the #141 substitution pattern).
+                    // A newer panel load launched while this one was in flight — substituting
+                    // the current list keeps the stale branch's rows from committing under the
+                    // new branch (the #141 substitution pattern). _sentBranch is NOT touched:
+                    // the substituted list belongs to whichever branch committed last.
                     currentSentList() ?: emptyList()
                 } else {
+                    // Commit-stamp: the branch label flips together with the committed body —
+                    // the screen gate can then trust that a passing gate means the rendered
+                    // list IS this panel's.
+                    _sentBranch.value = branchId
                     body
                 }
             },
@@ -234,6 +243,9 @@ class ReliefInviteViewModel(
                 Unit
             },
         )
+
+    private fun currentReceivedList(): List<ReliefInviteResponse>? =
+        (_received.value as? UiState.Success)?.data ?: _lastReceived.value
 
     private fun removeReceived(inviteId: String) {
         // Decrement only when the row actually left a KNOWN list: with no list loaded the badge
