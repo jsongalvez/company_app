@@ -133,21 +133,24 @@ Report [HARD|SOFT|ESCALATE] file:line — problem — fix. Under 400 words.
 
 ### P5 — Architecture residue (exit pass)
 
-Runs once, after triage reports 0 HARD on the exit pass. One sub-agent, seeded with the pass's
-accepted SOFTs. Classifies into the ARCH bucket (above); a finding matching a registered
-lesson-class is HARD, not ARCH — report it in the HARD format so triage treats it as a loop
-continuation. Each finding gets a disposition: fix-cheap-in-ticket (recommend) or
-graduation-material (the fix is cross-ticket; name the fog line it should graduate into).
+Runs once, after triage reports 0 HARD on the exit pass. One sub-agent, seeded with the
+ticket's accepted SOFTs (all passes). Classifies into the ARCH bucket (above); a finding
+matching a registered lesson-class is HARD, not ARCH — report it in the HARD format so
+triage treats it as a loop continuation. Each finding gets a disposition:
+fix-cheap-in-ticket (recommend) or graduation-material (the fix is cross-ticket; name the
+fog line it should graduate into).
 
 ```
-You are the ARCHITECTURE reviewer on the delta <range> implementing issue <#id>. This is the
+You are the ARCHITECTURE reviewer on the FULL ticket delta `git diff <pre-ticket-commit>` —
+the whole ticket's shipped code, not the exit pass's last batch-fix delta (fixes are too
+small to carry architecture residue; the residue lives across the ticket). This is the
 exit pass — the loop found 0 HARD; your job is residue, not blocking findings.
 Repo: /mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app.
 Vocabulary: use the /codebase-design terms exactly — module, interface, depth, seam, adapter,
 locality, leverage, the deletion test, the two-adapters rule (one adapter = hypothetical seam,
 two = real), the interface-is-the-test-surface principle.
 
-Inputs: (a) the ticket's accepted SOFTs (<list them>); (b) the delta + composed tree.
+Inputs: (a) the ticket's accepted SOFTs (<list them>); (b) the full ticket delta + composed tree.
 
 For each accepted SOFT: re-rate from the architecture angle — depth/locality smell that should
 graduate into the map's fog lines, or a deliberate cost that stays buried? A deliberate
