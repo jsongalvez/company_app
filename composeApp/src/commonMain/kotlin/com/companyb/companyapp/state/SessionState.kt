@@ -114,9 +114,11 @@ object CapabilityContext {
 /**
  * #156 — the #92 locked per-element check: true iff [code] is held at exactly
  * [contextType]/[contextId]. The caller resolves the scope — BRANCH rows against
- * [SessionState.selectedBranchId] (Finance per-element gates, dashboard `canEdit`),
- * BRANCH_DAY rows against the day row's branchDayId (future day-gates). A null
- * [contextId] never matches: fail-closed pre-clock-in and pre-day-selection.
+ * the selected branch (dashboard `canEdit` against [SessionState.selectedBranchId];
+ * Finance per-element gates against the Finance surface's VIEWED branch, the branch
+ * the backend gates via the day row), BRANCH_DAY rows against the day row's
+ * branchDayId (future day-gates). A null [contextId] never matches: fail-closed
+ * pre-clock-in and pre-day-selection.
  */
 fun List<UserCapabilityResponse>.hasCapability(
     code: String,

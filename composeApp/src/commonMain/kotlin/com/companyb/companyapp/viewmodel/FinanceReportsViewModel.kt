@@ -63,8 +63,9 @@ import kotlin.uuid.ExperimentalUuidApi
  *   (409 → inline error + section reload; 403 → silent exit; failure keeps the attempted
  *   value with an inline error).
  *
- * The backend 403/400/409 paths stay authoritative; the code-only capability surface is the
- * #99 D7 approximation (the SessionState context-model divergence fog applies).
+ * The backend 403/400/409 paths stay authoritative; the frontend capability gates are the
+ * #156 context model (branch-scoped triples resolved against the VIEWED branch — the branch
+ * the backend gates via the day row).
  */
 @OptIn(ExperimentalUuidApi::class)
 class FinanceReportsViewModel(
