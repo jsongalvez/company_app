@@ -521,8 +521,11 @@ class FinanceReportsViewModel(
 
     // ─────────────────────────── relief day entry (#158) ───────────────────────────
 
-    private val _reliefDay = MutableStateFlow<UiState<DailySalesSummaryResponse?>>(UiState.Idle)
-    val reliefDay: StateFlow<UiState<DailySalesSummaryResponse?>> = _reliefDay.asStateFlow()
+    private val _reliefDay = MutableStateFlow<UiState<DailySalesSummaryResponse>>(UiState.Idle)
+    val reliefDay: StateFlow<UiState<DailySalesSummaryResponse>> = _reliefDay.asStateFlow()
+
+    /** Generation guard for [loadReliefDay] — a superseded relief fetch stays inert (the #143 class). */
+    private var reliefGeneration = 0
 
     /**
      * #158 — the relief day-scoped read entry: a BRANCH_DAY grant holder (no VIEW_BRANCH_DATA)
@@ -539,15 +542,41 @@ class FinanceReportsViewModel(
                     return
                 }
         _selectedBranchId.value = branchId
+        // Pass-1 HARD (P3/P4) — the #144-ack/browse stale-state class: a relief-day switch
+        // while editing must not leave the OLD day's edit sections armed (editExpenses etc.
+        // hold the previous day's rows; a later Edit toggle would mutate the wrong day).
+        // Mirrors refreshWindowAndFeed's reset + loadSection's generation guard. The state
+        // write is manual (dummy pageFetch to the handler) so a superseded response never
+        // lands Success on the UI.
+        reliefGeneration++
+        val generation = reliefGeneration
+        _editMode.value = false
+        _selectedDay.value = null
+        clearEditData()
+        _reliefDay.value = UiState.Loading
         handler.launch(
-            state = _reliefDay,
+            state = pageFetch,
             operation = "loadReliefDay",
             endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
             block = { apiClient.httpClient.get("/api/branches/$branchId/daily-summary?date=$date") },
             transform = {
                 val day = it.body<DailySalesSummaryResponse>()
-                selectDay(day)
-                day
+                if (generation == reliefGeneration) {
+                    _reliefDay.value = UiState.Success(day)
+                    selectDay(day)
+                }
+                Unit
+            },
+            onNonSuccess = { response ->
+                if (generation == reliefGeneration) {
+                    _reliefDay.value = UiState.Error("loadReliefDay failed: ${response.status.value}")
+                }
+                true
+            },
+            onError = { e ->
+                if (generation == reliefGeneration) {
+                    _reliefDay.value = UiState.Error(e.message ?: "Unknown error")
+                }
             },
         )
     }

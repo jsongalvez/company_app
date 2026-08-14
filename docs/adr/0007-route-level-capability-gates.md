@@ -112,9 +112,18 @@ create, session create (resolves today's day **find-only** — filters never cre
 + session mutations. Not covered (decided): inventory movements (the movement's day comes
 from the body while the route is branch-scoped via the path — a day-grant check there
 would authorize a write against a different branch, the parent-child scoping trap), the
-branch-day status read (`GET /api/branches/{branchId}/today` — branch-gated, zero
-consumers), and surfaces gated on other codes (the relief grant carries only
-`EDIT_BRANCH_DATA`).
+branch-day status read (`GET /api/branches/{branchId}/today`), and surfaces gated on other
+codes (the relief grant carries only `EDIT_BRANCH_DATA`).
+
+**#158 (the Finance day-detail ride)**: the read side gained day legs — the single-day summary
+read (`GET /api/branches/{branchId}/daily-summary?date=`,
+`CapabilityFilter.requireBranchOrGlobalOrBranchDayCapabilityForBranchId`: BRANCH or GLOBAL
+`VIEW_BRANCH_DATA` OR a BRANCH_DAY `EDIT_BRANCH_DATA` grant for the day) and `/today`
+(find-only `findToday` → `requireBranchOrBranchDayCapability`). Both resolve the day find-only;
+a missing day row means no day grant can exist and the branch/global leg alone governs. The
+multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only — a single-day grant cannot
+authorize an unbounded list. The frontend ride (Finance day-detail gates resolving the day
+grant) landed in the same ticket.
 
 **Negative:**
 - The DELETE filter looks up the expense and branch day to resolve the branch ID,

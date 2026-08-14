@@ -137,9 +137,13 @@ OR adds only the narrower day-scoped form). Not relief-eligible (documented #157
 inventory movements (branch-scoped — the movement's day comes from the body while the route is
 branch-scoped via the path; the parent-child scoping trap), allowances/compensations
 (`ASSIGN_COMPENSATION`), commission (`VIEW_BRANCH_DATA`/`ASSIGN_COMPENSATION`/`EDIT_PAST_DAY`),
-remittance (`SUBMIT_REMITTANCE`), session void/unvoid (`VOID_SESSION`), and the branch-day status
-read (`GET /api/branches/{branchId}/today`, branch-gated — zero consumers; revisit when the
-Finance day-detail ride lands).
+remittance (`SUBMIT_REMITTANCE`), session void/unvoid (`VOID_SESSION`), and (pre-#158) the branch-day status
+read (`GET /api/branches/{branchId}/today`). **#158**: the ride landed — the single-day summary read
+(`GET /api/branches/{branchId}/daily-summary?date=`, `requireBranchOrGlobalOrBranchDayCapabilityForBranchId`)
+and `/today` (via `findToday` → `requireBranchOrBranchDayCapability`) now accept the day grant (find-only
+day resolution; a missing day row means no day grant can exist — the branch/global leg governs). The
+multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only: a single-day grant cannot authorize an
+unbounded list.
 
 When inserting `user_capability` rows (e.g. for relief access grants or delegate assignments), use
 `CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")` to look up the capability ID, then use the

@@ -108,8 +108,24 @@ fun FinanceReportsScreen(
             .toLocalDateTime(TimeZone.of("Asia/Manila"))
             .date
 
+    // #158 — a BRANCH_DAY grant holder's day-scoped surface. Relief-only users (no
+    // VIEW_BRANCH_DATA) get it directly; hybrid users (VIEW elsewhere + a day grant at
+    // a branch the picker never lists — the #98 window is BRANCH-grant-only) reach it
+    // via the Relief-day chip (pass-1 triage: the picker can't reach the relief branch).
+    val hasDayGrant =
+        capabilities.hasCapabilityAtContextType(
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContext.BRANCH_DAY,
+        )
+    val reliefOnly = hasDayGrant && !capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)
+
     LaunchedEffect(Unit) {
-        viewModel.loadBranches()
+        // #158 pass-1 SOFT — the relief-only surface never renders the picker, and the
+        // accessible-branches list is BRANCH-grant-only (empty for a relief delegate):
+        // the fetch would be dead work.
+        if (!reliefOnly) {
+            viewModel.loadBranches()
+        }
     }
 
     // D6 — the platform save boundary: a successful export payload is handed to saveDownload
@@ -144,16 +160,8 @@ fun FinanceReportsScreen(
     Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
         val selectedBranch = selectedBranchId
         val day = selectedDay
-        // #158 — relief-only surface: a BRANCH_DAY grant holder with no VIEW_BRANCH_DATA
-        // gets the day-scoped entry (date → single-day summary → day detail + editor),
-        // not the branch picker/feed (both are VIEW_BRANCH_DATA surfaces).
-        val reliefOnly =
-            capabilities.hasCapabilityAtContextType(
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContext.BRANCH_DAY,
-            ) &&
-                !capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)
-        if (reliefOnly) {
+        var showReliefSection by remember { mutableStateOf(reliefOnly) }
+        if (showReliefSection) {
             val reliefDay by viewModel.reliefDay.collectAsState()
             ReliefDaySection(
                 viewModel = viewModel,
@@ -163,6 +171,12 @@ fun FinanceReportsScreen(
                 capabilities = capabilities,
                 editMode = editMode,
                 onEditToggle = { viewModel.setEditMode(!editMode) },
+                onExit =
+                    if (reliefOnly) {
+                        null
+                    } else {
+                        { showReliefSection = false }
+                    },
                 downloads = downloads,
                 exportErrors = exportErrors,
                 modifier = Modifier.weight(1f),
@@ -175,6 +189,22 @@ fun FinanceReportsScreen(
                     selectedBranch != null &&
                     derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
                     !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, selectedBranch)
+            // #158 — hybrid holders (day grant + VIEW at a picker-listed branch): the relief
+            // day lives at a branch the #98 window never lists, so the picker can't reach it —
+            // the chip switches the surface to the day-scoped entry.
+            if (hasDayGrant && !reliefOnly) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    FilterChip(
+                        selected = false,
+                        onClick = { showReliefSection = true },
+                        label = { Text("Relief day") },
+                    )
+                }
+            }
             FinanceToolbar(
                 branches = branches,
                 selectedBranchId = selectedBranchId,
@@ -287,32 +317,52 @@ private fun List<BranchResponse>.branchName(id: String?): String = firstOrNull {
 @Composable
 private fun ReliefDaySection(
     viewModel: FinanceReportsViewModel,
-    reliefDay: UiState<DailySalesSummaryResponse?>,
+    reliefDay: UiState<DailySalesSummaryResponse>,
     selectedDay: DailySalesSummaryResponse?,
     today: LocalDate,
     capabilities: List<UserCapabilityResponse>,
     editMode: Boolean,
     onEditToggle: () -> Unit,
+    // #158 pass-1 — hybrid holders (day grant + VIEW elsewhere) enter via the Relief-day
+    // chip; the exit affordance returns them to the reports surface. Null for relief-only
+    // users (no surface to return to).
+    onExit: (() -> Unit)? = null,
     downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     exportErrors: Map<String, String>,
     modifier: Modifier = Modifier,
 ) {
     var dateInput by remember { mutableStateOf(today.toString()) }
+    // Pass-1 SOFT — an unparseable date must not round-trip to the backend's 400.
+    var dateError by remember { mutableStateOf<String?>(null) }
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
+            if (onExit != null) {
+                TextButton(onClick = onExit) { Text("← Reports") }
+            }
             OutlinedTextField(
                 value = dateInput,
-                onValueChange = { dateInput = it },
+                onValueChange = {
+                    dateInput = it
+                    dateError = null
+                },
                 label = { Text("Date (yyyy-MM-dd)") },
                 singleLine = true,
+                isError = dateError != null,
+                supportingText = dateError?.let { { Text(it) } },
                 modifier = Modifier.weight(1f),
             )
             TextButton(
-                onClick = { viewModel.loadReliefDay(dateInput.trim()) },
+                onClick = {
+                    if (parseDateInput(dateInput.trim()) == null) {
+                        dateError = "Invalid date — use yyyy-MM-dd"
+                    } else {
+                        viewModel.loadReliefDay(dateInput.trim())
+                    }
+                },
                 enabled = reliefDay !is UiState.Loading,
             ) {
                 if (reliefDay is UiState.Loading) {
@@ -364,15 +414,7 @@ private fun ReliefDaySection(
 
             is UiState.Success -> {
                 val day = reliefDay.data
-                if (day == null) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "No data for this date",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = InkSubtle,
-                        )
-                    }
-                } else if (editMode) {
+                if (editMode) {
                     DayEditor(
                         viewModel = viewModel,
                         day = day,

@@ -1366,8 +1366,8 @@ class FinanceReportsViewModelTest {
             advanceUntilIdle()
 
             val relief = vm.reliefDay.value
-            assertIs<UiState.Success<DailySalesSummaryResponse?>>(relief)
-            assertEquals(DAY_ID, relief.data?.branchDayId)
+            assertIs<UiState.Success<DailySalesSummaryResponse>>(relief)
+            assertEquals(DAY_ID, relief.data.branchDayId)
             assertEquals(DAY_ID, vm.selectedDay.value?.branchDayId, "the fetched day seeds the shared day state")
             assertEquals(BRANCH_A, vm.selectedBranchId.value, "relief day pins the clocked-in branch")
         }
@@ -1411,5 +1411,41 @@ class FinanceReportsViewModelTest {
             val relief = vm.reliefDay.value
             assertIs<UiState.Error>(relief)
             assertTrue(relief.message.contains("connection reset"))
+        }
+
+    @Test
+    fun loadReliefDay_daySwitchClearsEditState() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summary" -> {
+                        respondJson(
+                            """{"branchDayId":"$DAY_ID","branchId":"$BRANCH_A","date":"2026-08-14",
+                                "grossIncome":"1000.00","totalCompensation":"200.00","totalExpenses":"50.00",
+                                "netIncome":"750.00","totalProductSales":"300.00","totalCommission":"10.0000"}""",
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+
+            // Load day A, enter edit mode (sections armed).
+            vm.loadReliefDay("2026-08-14")
+            advanceUntilIdle()
+            vm.setEditMode(true)
+            assertTrue(vm.editMode.value)
+
+            // A second load (day switch) must clear edit mode + armed sections — the
+            // pass-1 split-day HARD: the old day's rows must never render under the new day.
+            vm.loadReliefDay("2026-08-15")
+            advanceUntilIdle()
+
+            assertTrue(!vm.editMode.value, "a day switch exits edit mode")
+            assertEquals(UiState.Idle, vm.editExpenses.value, "the previous day's sections are cleared")
+            assertEquals("day-1", vm.selectedDay.value?.branchDayId, "the new day seeds the shared state")
         }
 }
