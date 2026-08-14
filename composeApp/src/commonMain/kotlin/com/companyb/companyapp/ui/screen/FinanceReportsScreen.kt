@@ -235,6 +235,7 @@ fun FinanceReportsScreen(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         PublicReportsSection(
             exportErrors = exportErrors,
+            downloads = downloads,
             onExport = viewModel::exportPublic,
         )
     }
@@ -326,14 +327,16 @@ private fun FinanceToolbar(
             Spacer(Modifier.weight(1f))
             // #105 D4 — toolbar export = the mode's export (Daily has none — per-day only, in
             // detail). D6: every export point is CSV + PDF.
-            if (!editMode && mode != ReportMode.DAILY && selectedBranchId != null) {
+            if (!editMode && mode != ReportMode.DAILY && selectedBranchId != null &&
+                (mode != ReportMode.DATE_RANGE || appliedRange != null)
+            ) {
+                // #105 D4 — DATE_RANGE has no export until a window is applied (rendered only
+                // when enabled: a disabled button would still eat 360dp toolbar width).
                 ExportButtons(
                     baseKey = "mode:${mode.name}",
                     onExport = onExportMode,
                     errors = exportErrors,
                     downloads = downloads,
-                    // #105 D4 — DATE_RANGE has no export until a window is applied.
-                    enabled = mode != ReportMode.DATE_RANGE || appliedRange != null,
                 )
             }
             if (canEdit) {
@@ -1786,6 +1789,7 @@ private fun ReasonDialog(
 @Composable
 private fun PublicReportsSection(
     exportErrors: Map<String, String>,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     onExport: (String, String) -> Unit,
 ) {
     Column(modifier = Modifier.padding(top = Spacing.sm)) {
@@ -1812,6 +1816,7 @@ private fun PublicReportsSection(
                     baseKey = "public:$kind",
                     onExport = { format -> onExport(kind, format) },
                     errors = exportErrors,
+                    downloads = downloads,
                 )
             }
         }

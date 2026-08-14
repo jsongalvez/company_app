@@ -275,6 +275,7 @@ class FinanceReportsViewModel(
     private var feedGeneration = 0
 
     fun loadFeed() {
+        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
         if (feedEntries.value is UiState.Success) {
             refreshFeed()
         } else {
@@ -287,6 +288,7 @@ class FinanceReportsViewModel(
     }
 
     fun refreshFeed() {
+        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
         val branchId = _selectedBranchId.value ?: return
         if (_isRefreshing.value || _isLoadingMore.value) return
         _refreshError.value = null
@@ -303,6 +305,7 @@ class FinanceReportsViewModel(
     }
 
     fun retryFeed() {
+        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
         val branchId = _selectedBranchId.value ?: return
         _feedEntries.value = UiState.Loading
         fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
@@ -820,22 +823,28 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val updated = it.body<ExpenseResponse>()
-                replaceExpenseRow(updated)
-                endAction(key)
+                if (generation == editDataGeneration) {
+                    replaceExpenseRow(updated)
+                    endAction(key)
+                }
                 Unit
             },
             onNonSuccess = { response ->
-                failActionOrSilent403(
-                    key,
-                    "expense:update",
-                    response,
-                    conflictMessage = "Expense changed elsewhere — reloaded",
-                ) {
-                    reloadSection(EditSection.EXPENSES)
+                if (generation == editDataGeneration) {
+                    failActionOrSilent403(
+                        key,
+                        "expense:update",
+                        response,
+                        conflictMessage = "Expense changed elsewhere — reloaded",
+                    ) {
+                        reloadSection(EditSection.EXPENSES)
+                    }
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
@@ -1013,28 +1022,34 @@ class FinanceReportsViewModel(
             },
             transform = {
                 val updated = it.body<CompensationResponse>()
-                _editCompensations.value =
-                    UiState.Success(
-                        (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)
-                            ?.data
-                            .orEmpty()
-                            .map { row -> if (row.id == updated.id) updated else row },
-                    )
-                endAction(key)
+                if (generation == editDataGeneration) {
+                    _editCompensations.value =
+                        UiState.Success(
+                            (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)
+                                ?.data
+                                .orEmpty()
+                                .map { row -> if (row.id == updated.id) updated else row },
+                        )
+                    endAction(key)
+                }
                 Unit
             },
             onNonSuccess = { response ->
-                failActionOrSilent403(
-                    key,
-                    "comp:update",
-                    response,
-                    conflictMessage = "Compensation changed elsewhere — reloaded",
-                ) {
-                    reloadSection(EditSection.COMPENSATIONS)
+                if (generation == editDataGeneration) {
+                    failActionOrSilent403(
+                        key,
+                        "comp:update",
+                        response,
+                        conflictMessage = "Compensation changed elsewhere — reloaded",
+                    ) {
+                        reloadSection(EditSection.COMPENSATIONS)
+                    }
                 }
                 true
             },
-            onError = { endAction(key) },
+            onError = {
+                if (generation == editDataGeneration) endAction(key)
+            },
         )
     }
 
