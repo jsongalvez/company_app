@@ -32,6 +32,8 @@ A **pass** = four phases, each a different review mode, run as parallel `/code-r
 3. **P3 Behavior trace** — end-to-end state machines on the **composed tree**: every user flow + error path *including repeated attempts* (attempt-1 fail → attempt-2 semantics) and the nav back-stack; each flow PASS/FAIL with evidence.
 4. **P4 Adversarial edges** — what breaks it: races/orderings, double-taps, stale state after clear/cancel, empty/zero states, dead branches, non-exhaustive `when`s, unmapped theme slots.
 
+The **exit pass** also runs **P5 — architecture residue**: re-rate the pass's accepted SOFTs from the architecture angle + sweep the delta for convoluted logic, dup unifiers, useless tests, shallow abstractions (template: `docs/agents/code-review-loop.md`). Findings land in the **ARCH bucket** — non-blocking, excluded from the SOFT budget — graduating into the map's fog lines via the resolution comment.
+
 **Loop mechanics:**
 
 - **Review points**: batch-fix commits per pass; each pass diffs `git diff <last-pass-commit>`. Untracked files are handed to the sub-agents explicitly on the first pass.

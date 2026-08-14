@@ -10,7 +10,8 @@ and caught 7 issues the two-round structure missed — this doc makes that lens 
 A **pass** = P1–P4 as parallel sub-agents against the current delta. Fix → commit
 (batch-fix commits) → next pass diffs `git diff <last-pass-commit>`. Exit when one full pass
 reports **zero HARD findings and no unadjudicated ESCALATEs** (triage empties the bucket
-before exit).
+before exit). The exit pass then runs **P5 — architecture residue** (one sub-agent; template
+below) — its findings land in the ARCH bucket (below), which never extends the loop.
 
 | Phase | Lens | Inputs |
 |---|---|---|
@@ -26,6 +27,7 @@ before exit).
 - **HARD** = bug / regression / security / data-loss / explicit documented-standard breach, or a lesson-class register match (below) — must fix, loop continues.
 - **SOFT** = smell / judgement call → fix if cheap; else accept with a logged reason (≤3 per pass).
 - **ESCALATE** = HARD-class flavor (regression / data / security) whose reachability the phase cannot fully prove. The phase reports it as ESCALATE and **triage adjudicates** — reachability doubt never downgrades a HARD-flavored finding to SOFT; it escalates.
+- **ARCH** = architecture residue (P5, exit pass only): depth/locality findings — convoluted logic, dup unifiers, useless tests, shallow abstractions. Never blocks exit, never counts toward the SOFT budget; ≤4 per ticket. Fix if cheap in-ticket; else record in the resolution comment, from where it graduates into the map's fog lines (the wayfinder graduation pipeline). A finding that matches a registered lesson-class is HARD, not ARCH.
 
 ### Lesson-class register
 
@@ -129,6 +131,47 @@ Hunt what breaks it:
 Report [HARD|SOFT|ESCALATE] file:line — problem — fix. Under 400 words.
 ```
 
+### P5 — Architecture residue (exit pass)
+
+Runs once, after triage reports 0 HARD on the exit pass. One sub-agent, seeded with the pass's
+accepted SOFTs. Classifies into the ARCH bucket (above); a finding matching a registered
+lesson-class is HARD, not ARCH — report it in the HARD format so triage treats it as a loop
+continuation. Each finding gets a disposition: fix-cheap-in-ticket (recommend) or
+graduation-material (the fix is cross-ticket; name the fog line it should graduate into).
+
+```
+You are the ARCHITECTURE reviewer on the delta <range> implementing issue <#id>. This is the
+exit pass — the loop found 0 HARD; your job is residue, not blocking findings.
+Repo: /mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app.
+Vocabulary: use the /codebase-design terms exactly — module, interface, depth, seam, adapter,
+locality, leverage, the deletion test, the two-adapters rule (one adapter = hypothetical seam,
+two = real), the interface-is-the-test-surface principle.
+
+Inputs: (a) the ticket's accepted SOFTs (<list them>); (b) the delta + composed tree.
+
+For each accepted SOFT: re-rate from the architecture angle — depth/locality smell that should
+graduate into the map's fog lines, or a deliberate cost that stays buried? A deliberate
+duplication with a recorded reason (e.g. "presentational params mirror the VM functions") is
+the latter — confirm the reason once, do not re-raise.
+
+Then sweep the delta + composed tree through four lenses, one section each:
+1. Convoluted logic — locality: decision logic repeated at call sites that should sit behind
+   one interface; conditionals hiding a state machine. Apply the deletion test: would the fix
+   concentrate complexity or just move it?
+2. Dup unifier — the two-adapters rule: the same shape at 2+ sites (platform actuals, VM
+   patterns, error surfaces, DTO mapping) is a real seam; name the extraction candidate and
+   the interface it would present.
+3. Useless-test pruning — the interface is the test surface: tests that pass without the
+   behavior (vacuous asserts, implementation echoes, tests that never fail). Name the test
+   and the behavior it fails to pin.
+4. Abstraction improver — depth: interface ≈ implementation (shallow), one-adapter
+   hypothetical seams, seams in the wrong place.
+
+Report at most 4 findings total: [ARCH] file:line — problem — fix-shape — disposition
+(fix-in-ticket | graduate: <fog-line name>). One section per lens, empty sections say so.
+Under 350 words.
+```
+
 ## Flow-trace checklist (P3 aid — not exhaustive)
 
 - Launch: no-token → Login; token → splash → valid / 401-silent / network-retry.
@@ -146,7 +189,11 @@ Record the loop outcome per pass, e.g.:
 ```
 Review: phased loop, 3 passes. Pass 1: P1 1 MISSING, P2 2 HARD, P3 1 FAIL, P4 2 SOFT (1 accepted).
 Pass 2 (delta 183cbed): P1 clean, P2 0 HARD, P3 1 FAIL (flow-2 stale-error masking), P4 1 SOFT (accepted).
-Pass 3 (delta <sha>): 0 HARD across all four phases — exit. Accepted SOFTs: <list with reasons>.
+Pass 3 (delta <sha>): 0 HARD across all four phases — exit. P5 architecture residue: 2 ARCH
+(1 fixed in-ticket, 1 graduated: <fog-line name>). Accepted SOFTs: <list with reasons>.
 ```
+
+ARCH graduates land in the handoff's standing-fog section, from where the wayfinder map's
+"Not yet specified" picks them up (the existing graduation pipeline).
 
 **Register upkeep** — the resolution records new lesson-classes and occurrence bumps; the register above is the single source (handoffs link to it instead of restating registered classes).
