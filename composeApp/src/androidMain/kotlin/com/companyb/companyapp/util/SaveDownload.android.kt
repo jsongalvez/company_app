@@ -38,7 +38,10 @@ actual fun saveDownload(
         resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("openOutputStream returned null")
         values.clear()
         values.put(MediaStore.Downloads.IS_PENDING, 0)
-        resolver.update(uri, values, null, null)
+        val updated = resolver.update(uri, values, null, null)
+        if (updated == 0) {
+            logError("SaveDownload", "MediaStore IS_PENDING flip updated 0 rows — the file stays hidden")
+        }
         true
     }.onFailure { e ->
         logError("SaveDownload", "android save failed: ${e.message ?: "unknown"}", e)

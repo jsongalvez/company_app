@@ -37,7 +37,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -186,6 +185,12 @@ class FinanceReportsViewModel(
         _monthlyRollup.value = UiState.Idle
         refreshWindowAndFeed()
         loadMonthlyRollup()
+    }
+
+    fun clearRange() {
+        _appliedRange.value = null
+        _paramError.value = null
+        refreshWindowAndFeed()
     }
 
     fun setRangeInputs(
@@ -774,9 +779,14 @@ class FinanceReportsViewModel(
             transform = {
                 val created = it.body<ExpenseResponse>()
                 if (generation == editDataGeneration) {
-                    _editExpenses.value =
-                        ((_editExpenses.value as? UiState.Success<List<ExpenseResponse>>)?.data.orEmpty() + created)
-                            .let { rows -> UiState.Success(rows) }
+                    val current = _editExpenses.value
+                    if (current is UiState.Success) {
+                        _editExpenses.value = UiState.Success(current.data + created)
+                    } else {
+                        // Pass-8 SOFT — appending onto an Error section would truncate the
+                        // list to the new row; reload the section instead.
+                        reloadSection(EditSection.EXPENSES)
+                    }
                     endAction(key)
                 }
                 Unit
@@ -966,11 +976,12 @@ class FinanceReportsViewModel(
             transform = {
                 val created = it.body<CompensationResponse>()
                 if (generation == editDataGeneration) {
-                    _editCompensations.value =
-                        UiState.Success(
-                            (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)?.data.orEmpty() +
-                                created,
-                        )
+                    val current = _editCompensations.value
+                    if (current is UiState.Success) {
+                        _editCompensations.value = UiState.Success(current.data + created)
+                    } else {
+                        reloadSection(EditSection.COMPENSATIONS)
+                    }
                     endAction(key)
                 }
                 Unit
@@ -1085,11 +1096,12 @@ class FinanceReportsViewModel(
             transform = {
                 val created = it.body<AllowanceResponse>()
                 if (generation == editDataGeneration) {
-                    _editAllowances.value =
-                        UiState.Success(
-                            (_editAllowances.value as? UiState.Success<List<AllowanceResponse>>)?.data.orEmpty() +
-                                created,
-                        )
+                    val current = _editAllowances.value
+                    if (current is UiState.Success) {
+                        _editAllowances.value = UiState.Success(current.data + created)
+                    } else {
+                        reloadSection(EditSection.ALLOWANCES)
+                    }
                     endAction(key)
                 }
                 Unit

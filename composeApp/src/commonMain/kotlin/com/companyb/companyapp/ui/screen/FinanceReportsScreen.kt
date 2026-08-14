@@ -188,6 +188,7 @@ fun FinanceReportsScreen(
                         onFromChange = { viewModel.setRangeInputs(it, rangeToInput) },
                         onToChange = { viewModel.setRangeInputs(rangeFromInput, it) },
                         onApply = viewModel::applyRange,
+                        onClear = viewModel::clearRange,
                         applied = appliedRange != null,
                         paramError = paramError,
                     )
@@ -438,6 +439,7 @@ private fun DateRangeParamRow(
     onFromChange: (String) -> Unit,
     onToChange: (String) -> Unit,
     onApply: () -> Unit,
+    onClear: () -> Unit,
     applied: Boolean,
     paramError: String?,
 ) {
@@ -462,6 +464,9 @@ private fun DateRangeParamRow(
         )
         Spacer(Modifier.width(Spacing.sm))
         TextButton(onClick = onApply) { Text(if (applied) "Apply" else "Go") }
+        if (applied) {
+            TextButton(onClick = onClear) { Text("Clear") }
+        }
         if (paramError != null) {
             Spacer(Modifier.width(Spacing.sm))
             Text(
@@ -552,6 +557,19 @@ private fun FeedSection(
                             onClick = { showCards = true },
                             label = { Text("Cards") },
                         )
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = viewModel::refreshFeed) { Text("Refresh") }
+                    }
+                    val refreshError by viewModel.refreshError.collectAsState()
+                    val refreshErrorValue = refreshError
+                    if (refreshErrorValue != null) {
+                        logWarn("FinanceReportsScreen", "refresh=Error: $refreshErrorValue")
+                        Text(
+                            text = refreshErrorValue,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(bottom = Spacing.xs),
+                        )
                     }
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(feed.data, key = { it.branchDayId }) { day ->
@@ -591,6 +609,7 @@ private fun FeedSection(
                             val loadMoreError by viewModel.loadMoreError.collectAsState()
                             val loadMoreErrorValue = loadMoreError
                             if (loadMoreErrorValue != null) {
+                                logWarn("FinanceReportsScreen", "loadMore=Error: $loadMoreErrorValue")
                                 Text(
                                     text = loadMoreErrorValue,
                                     style = MaterialTheme.typography.bodySmall,
@@ -986,6 +1005,36 @@ private fun ExpenseSection(
     var editing by remember { mutableStateOf<ExpenseResponse?>(null) }
     var deleting by remember { mutableStateOf<ExpenseResponse?>(null) }
     var restoring by remember { mutableStateOf<ExpenseResponse?>(null) }
+    // Pass-8 HARD — a success closes its dialog: a deliberate re-save would duplicate the
+    // row (the POST is idempotent only per client UUID). The transition is in→out of the
+    // key's in-flight set with no error for the key (a 409/network failure keeps it open).
+    var createWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight) {
+        val busy = "expense:create" in inFlight
+        if (createWasInFlight && !busy && errors["expense:create"] == null) showExpenseDialog = false
+        createWasInFlight = busy
+    }
+    var editWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight, editing) {
+        val busyKey = editing?.let { "expense:update:${it.id}" }
+        val busy = busyKey != null && busyKey in inFlight
+        if (editWasInFlight && !busy && editing != null && errors[busyKey] == null) editing = null
+        editWasInFlight = busy
+    }
+    var deleteWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight, deleting) {
+        val busyKey = deleting?.let { "expense:delete:${it.id}" }
+        val busy = busyKey != null && busyKey in inFlight
+        if (deleteWasInFlight && !busy && deleting != null && errors[busyKey] == null) deleting = null
+        deleteWasInFlight = busy
+    }
+    var restoreWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight, restoring) {
+        val busyKey = restoring?.let { "expense:restore:${it.id}" }
+        val busy = busyKey != null && busyKey in inFlight
+        if (restoreWasInFlight && !busy && restoring != null && errors[busyKey] == null) restoring = null
+        restoreWasInFlight = busy
+    }
     // Pass-1/2 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
     // re-save would loop 409s; the reloaded row is the retry source. The key is consumed so a
     // repeat 409 on the same row re-emits and a persisted key can't slam a later dialog shut.
@@ -1340,6 +1389,19 @@ private fun CompensationSection(
             viewModel.consumeConflict(key)
         }
     }
+    var assignWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight) {
+        val busy = "comp:create" in inFlight
+        if (assignWasInFlight && !busy && errors["comp:create"] == null) showAssign = false
+        assignWasInFlight = busy
+    }
+    var editWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight, editing) {
+        val busyKey = editing?.let { "comp:update:${it.id}" }
+        val busy = busyKey != null && busyKey in inFlight
+        if (editWasInFlight && !busy && editing != null && errors[busyKey] == null) editing = null
+        editWasInFlight = busy
+    }
     SectionHeader(
         title = "Compensation",
         actionLabel = "Assign compensation",
@@ -1541,6 +1603,12 @@ private fun AllowanceSection(
     onReload: () -> Unit,
 ) {
     var showAssign by remember { mutableStateOf(false) }
+    var assignWasInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(inFlight) {
+        val busy = "allow:create" in inFlight
+        if (assignWasInFlight && !busy && errors["allow:create"] == null) showAssign = false
+        assignWasInFlight = busy
+    }
     SectionHeader(
         title = "Allowances — not in P&L",
         actionLabel = "Assign allowance",
