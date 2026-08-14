@@ -11,19 +11,15 @@ A **pass** = P1–P4 as parallel sub-agents against the current delta. Fix → c
 (batch-fix commits) → next pass diffs `git diff <last-pass-commit>`. Exit when one full pass
 reports **zero HARD findings and no unadjudicated ESCALATEs** (triage empties the bucket
 before exit). The exit pass then runs **P5 — architecture residue** (one sub-agent; template
-below) — its findings land in the ARCH bucket (below), which never extends the loop.
+below) — its findings land in the ARCH bucket (below), which never extends the loop; P5's
+in-ticket fixes trigger the P5 loop-back (below).
 
-**P5 loop-back (post-#160 4-lens review).** P5's `fix-in-ticket` dispositions are code
-changes made after the last standard pass — the loop's invariant is *every code change gets
-the standard lenses*, and P5's fixes would break it unreviewed. After P5's in-ticket fixes
-commit, run **one more standard P1–4 pass over `git diff <the P5 batch>`**; 0 HARD → exit.
-HARDs from that pass continue the loop normally (batch-fix commit → next pass). If P5 fixes
-nothing in-ticket, no extra pass. Rationale: the residue lens cannot catch correctness — the
-4-lens review of the #160 P5 batch caught a #141-class resurrect that the extraction dropped
-(a missing `actionStamp++` vs the markRead precedent — a P2 constraint-source catch). P5
-running *every* pass would not have caught it either (the residue lens is empty on small fix
-batches, and the gap is P5's *output*, not P5's *timing*); the loop-back is the minimal
-structure that restores the invariant.
+**P5 loop-back** — P5's `fix-in-ticket` dispositions change code after the last standard
+pass; they get the standard treatment like any fix batch. After P5's fixes commit: **one
+standard P1–4 pass over `git diff <the P5 batch>`** — 0 HARD → exit; HARDs continue the loop
+normally; no in-ticket fixes → no extra pass. Deliberately not per-pass: the residue lens is
+empty on fix-sized deltas, and the gap is P5's *output*, not its timing (the #160 P5 batch
+shipped a #141-class resurrect that the 4-lens review caught).
 
 | Phase | Lens | Inputs |
 |---|---|---|
@@ -184,8 +180,8 @@ Then sweep the delta + composed tree through four lenses, one section each:
 
 Report at most 4 findings total: [ARCH] file:line — problem — fix-shape — disposition
 (fix-in-ticket | graduate: <fog-line name>). One section per lens, empty sections say so.
-Note: fix-in-ticket changes are NOT the end — they get the P5 loop-back (one standard P1–4
-pass over the P5 batch) before exit.
+In-ticket fixes go through the P5 loop-back (one standard P1–4 pass over the P5 batch)
+before exit.
 Under 350 words.
 ```
 
