@@ -50,7 +50,10 @@ import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
+import com.companyb.companyapp.dto.UserCapabilityResponse
+import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -143,8 +146,9 @@ fun FinanceReportsScreen(
         // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
         val pastDayReadOnlySelection =
             day != null &&
+                selectedBranch != null &&
                 derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
-                CapabilityCodes.EDIT_PAST_DAY !in capabilities
+                !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, selectedBranch)
         FinanceToolbar(
             branches = branches,
             selectedBranchId = selectedBranchId,
@@ -203,6 +207,7 @@ fun FinanceReportsScreen(
                 DayEditor(
                     viewModel = viewModel,
                     day = day,
+                    branchId = selectedBranch,
                     branchName = (branches as? UiState.Success)?.data.orEmpty().branchName(selectedBranch),
                     today = today,
                     capabilities = capabilities,
@@ -860,9 +865,10 @@ private fun BreakdownRow(
 private fun DayEditor(
     viewModel: FinanceReportsViewModel,
     day: DailySalesSummaryResponse,
+    branchId: String,
     branchName: String,
     today: LocalDate,
-    capabilities: Set<String>,
+    capabilities: List<UserCapabilityResponse>,
     onBackToFeed: () -> Unit,
     onExportDayEditor: (String) -> Unit,
     downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
@@ -870,12 +876,21 @@ private fun DayEditor(
     modifier: Modifier = Modifier,
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
-    val canAssign = CapabilityCodes.ASSIGN_COMPENSATION in capabilities
-    // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard, code-only #99 D7).
-    val canEditExpenses = CapabilityCodes.EDIT_BRANCH_DATA in capabilities
-    // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY (the code-only
-    // #99 D7 approximation; the backend 403 stays authoritative).
-    val pastDayReadOnly = state == DerivedDayState.PAST && CapabilityCodes.EDIT_PAST_DAY !in capabilities
+    // #156 — per-element gates are branch-scoped triples (matching the backend
+    // `requireBranchCapability` gates; #101 D1 matrix).
+    val canAssign = capabilities.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId)
+    // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard).
+    val canEditExpenses =
+        capabilities.hasCapability(
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContext.BRANCH,
+            branchId,
+        )
+    // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY at the branch
+    // (the backend 403 stays authoritative).
+    val pastDayReadOnly =
+        state == DerivedDayState.PAST &&
+            !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, branchId)
     val expenses by viewModel.editExpenses.collectAsState()
     val compensations by viewModel.editCompensations.collectAsState()
     val allowances by viewModel.editAllowances.collectAsState()

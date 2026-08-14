@@ -28,6 +28,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
@@ -163,10 +164,10 @@ actual fun AppNavHost(
                     }
                 }
                 composable<Route.Clients> {
-                    // #113 D7 — code-only route gate (same shape as androidMain); backend GLOBAL
-                    // gate + 403 paths stay authoritative (D8).
+                    // #113 D7 — code-only route gate, now the #156 any-context check
+                    // (#92 Q3 "some branch"; backend GLOBAL gate + 403 paths stay authoritative).
                     val capabilities by SessionState.capabilities.collectAsState()
-                    if (CapabilityCodes.EDIT_BRANCH_DATA in capabilities) {
+                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA)) {
                         val clientsViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
                         ClientsScreen(
                             viewModel = clientsViewModel,
@@ -193,10 +194,10 @@ actual fun AppNavHost(
                 }
                 composable<Route.Inventory> { PlaceholderRoute("Inventory") }
                 // #105 D1 — the merged Finance & Reports screen, gate = widest read capability
-                // (VIEW_BRANCH_DATA code-only check, #99 D7 pattern; backend gates authoritative).
+                // (VIEW_BRANCH_DATA any-context, #92 Q3; backend gates authoritative).
                 composable<Route.Finance> {
                     val capabilities by SessionState.capabilities.collectAsState()
-                    if (CapabilityCodes.VIEW_BRANCH_DATA in capabilities) {
+                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)) {
                         val financeReportsViewModel: FinanceReportsViewModel =
                             viewModel { FinanceReportsViewModel(apiClient) }
                         FinanceReportsScreen(viewModel = financeReportsViewModel)
@@ -204,12 +205,12 @@ actual fun AppNavHost(
                         RouteGateCard(label = "Finance & Reports")
                     }
                 }
-                // #120 — D1: code-only route gate (the `Set<String>` capabilities, #99 D7 pattern);
-                // backend 403 paths stay authoritative (D8).
+                // #120 — D1: code-only route gate, now the #156 any-context check
+                // (#92 Q3; backend 403 paths stay authoritative — D8).
                 composable<Route.RemittanceList> {
                     val capabilities by SessionState.capabilities.collectAsState()
                     val selectedBranchId by SessionState.selectedBranchId.collectAsState()
-                    if (CapabilityCodes.SUBMIT_REMITTANCE in capabilities) {
+                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.SUBMIT_REMITTANCE)) {
                         val remittanceViewModel: RemittanceViewModel =
                             viewModel { RemittanceViewModel(apiClient) }
                         RemittanceListScreen(
@@ -279,12 +280,12 @@ actual fun AppNavHost(
                         onBack = { navController.popBackStack() },
                     )
                 }
-                // #135 — D5: code-only MANAGE_USERS route gate (the #99 D7 pattern; backend
-                // GLOBAL gate + 403 paths stay authoritative).
+                // #135 — D5: code-only MANAGE_USERS route gate, now the #156 any-context
+                // check (backend GLOBAL gate + 403 paths stay authoritative).
                 composable<Route.UserManagement> {
                     val capabilities by SessionState.capabilities.collectAsState()
                     val currentUser by SessionState.currentUser.collectAsState()
-                    if (CapabilityCodes.MANAGE_USERS in capabilities) {
+                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.MANAGE_USERS)) {
                         val userViewModel: UserViewModel = viewModel { UserViewModel(apiClient) }
                         UserManagementScreen(
                             viewModel = userViewModel,

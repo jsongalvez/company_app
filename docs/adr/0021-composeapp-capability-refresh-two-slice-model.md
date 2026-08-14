@@ -1,6 +1,6 @@
 # ADR-0021: ComposeApp capability refresh — two-slice model
 
-**Status:** Accepted
+**Status:** Accepted (amended by #156 — the storage is now the full context list; the two-slice **fetch timing** is unchanged)
 **Date:** 2026-07-21
 
 ## Context
@@ -31,30 +31,33 @@ slice, once at clock-in for the branch-scoped slice)?
 
 ## Decision
 
-Fetch capabilities **twice** across the flow, serving different slices:
+Fetch capabilities **twice** across the flow; both fetches store the full
+context list (#156), the second for freshness and the #147 clock-out reload:
 
 1. **Pre-BranchSelect fetch** (login trigger or launch-validation trigger):
    calls `GET /api/me/capabilities` after `GET /api/me` succeeds. Populates
-   `SessionState.capabilities` with the full response (global + branch-scoped
-   rows), but only the **global slice** is usefully resolvable —
-   `selectedBranchId` is null, so branch-scoped capabilities cannot be matched
-   to a selected branch. This fetch is mandated by spec line 103 and populates
-   `SessionState` so it is available app-wide from login, not just from
-   clock-in.
+   `SessionState.capabilities` with the full response (global + branch-scoped +
+   day-scoped rows; #156 — storage is the full context list). Before
+   `selectedBranchId` is set, branch-scoped resolution (`hasCapability(code, BRANCH,
+   selectedBranchId)`) fails closed — no caller can match a BRANCH row yet. This
+   fetch is mandated by spec line 103 and populates `SessionState` so it is
+   available app-wide from login, not just from clock-in.
 
 2. **Post-clock-in fetch** (clock-in trigger, per #92): re-calls
    `GET /api/me/capabilities` after `POST /api/attendance/clock-in` succeeds
-   and `SessionState.selectedBranchId` is set. Now the **branch-scoped slice**
-   is usefully resolvable for the selected branch —
+   and `SessionState.selectedBranchId` is set. The full list is re-stored
+   (freshness + the #147 `clearClockState` reload); now branch-scoped
+   resolution is meaningful —
    `hasCapability(EDIT_BRANCH_DATA, BRANCH, selectedBranchId)` returns a
    meaningful answer.
 
 The pre-BranchSelect fetch is **never treated as "capabilities fully
 resolved."** It populates `SessionState.capabilities` (per spec + #92's
-app-wide availability), and the global slice it resolves is enough for any
-pre-clock-in UI that gates on global capabilities. But branch-scoped gating
-(US-28 drawer filtering, Dashboard per-element guards via `uiState` flags) only
-becomes correct after the post-clock-in fetch completes.
+app-wide availability), and any-context membership
+(`hasCapabilityAnyContext`) is enough for pre-clock-in route gates and the
+drawer. But branch-scoped gating (Dashboard per-element guards via `uiState`
+flags) only becomes correct after the post-clock-in fetch completes — a
+null `selectedBranchId` fails closed until then.
 
 ## Accepted cost
 
@@ -108,10 +111,10 @@ network call instead of two, no redundancy. Rejected because (a) spec line 103
 explicitly mandates the login-time fetch, (b) #92's design has
 `SessionState.capabilities` available app-wide from login — deferring would
 leave it null until clock-in, breaking any pre-clock-in reader, and (c) the
-global slice (drawer's global items, any future pre-clock-in capability-gated
-UI) would be unavailable at login. The redundancy cost is bounded (capabilities
-are identity, not data — no polling), so the two-call cost is paid once per
-login/launch + once per clock-in, not recurring.
+any-context membership (drawer items, route gates, any future pre-clock-in
+capability-gated UI) would be unavailable at login. The redundancy cost is
+bounded (capabilities are identity, not data — no polling), so the two-call
+cost is paid once per login/launch + once per clock-in, not recurring.
 
 **Fetch once at login, no clock-in refresh.** Call
 `GET /api/me/capabilities` at login and treat the result as complete. Rejected

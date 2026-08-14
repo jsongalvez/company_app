@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.navigation.Route
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapabilityAnyContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,7 +52,14 @@ class DrawerViewModel : ViewModel() {
                         drawerItems =
                             allItems.map { item ->
                                 item.copy(
-                                    visible = item.capabilityCode == null || item.capabilityCode in caps,
+                                    // #156 — any-context membership per drawer item (#92 Q3
+                                    // "some branch": the drawer shows the item if the user holds
+                                    // the code at any context).
+                                    visible =
+                                        item.capabilityCode == null ||
+                                            caps.hasCapabilityAnyContext(
+                                                item.capabilityCode,
+                                            ),
                                 )
                             },
                     )

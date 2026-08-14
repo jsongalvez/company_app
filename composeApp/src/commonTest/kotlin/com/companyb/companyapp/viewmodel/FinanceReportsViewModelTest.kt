@@ -3,6 +3,7 @@ package com.companyb.companyapp.viewmodel
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.screen.ReportMode
@@ -69,9 +70,20 @@ class FinanceReportsViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         SessionState.clear()
         SessionState.setSelectedBranch(BRANCH_A, "Branch A")
-        // The pass-3/4 per-element gates skip section loads without the capability.
-        SessionState.setCapabilities(setOf("EDIT_BRANCH_DATA", "ASSIGN_COMPENSATION"))
+        // The pass-3/4 per-element gates skip section loads without the capability. #156 —
+        // branch-scoped rows for the selected branch (the strict-BRANCH backend gate shape).
+        SessionState.setCapabilities(
+            listOf(
+                branchRow("EDIT_BRANCH_DATA"),
+                branchRow("ASSIGN_COMPENSATION"),
+            ),
+        )
     }
+
+    // #156 — a BRANCH-context row for the test branch (the per-element gates resolve
+    // branch-scoped vs selectedBranchId).
+    private fun branchRow(code: String): UserCapabilityResponse =
+        UserCapabilityResponse(code, "BRANCH", BRANCH_A, "DIRECT")
 
     @AfterTest
     fun teardown() {
@@ -415,7 +427,12 @@ class FinanceReportsViewModelTest {
     @Test
     fun editMode_loadsAllFourSectionsForTheSelectedDay() =
         runTest(testScheduler) {
-            SessionState.setCapabilities(setOf("ASSIGN_COMPENSATION", "EDIT_BRANCH_DATA"))
+            SessionState.setCapabilities(
+                listOf(
+                    branchRow("ASSIGN_COMPENSATION"),
+                    branchRow("EDIT_BRANCH_DATA"),
+                ),
+            )
             val paths = mutableListOf<String>()
             val handler: MockRequestHandler = { request ->
                 paths += request.url.encodedPath
@@ -1205,16 +1222,38 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
-    fun hasEditCapabilities_reflectsTheCodeOnlySurface() =
+    fun hasEditCapabilities_reflectsTheBranchScopedSurface() =
         runTest(testScheduler) {
             val vm = FinanceReportsViewModel(mockApiClient(handler = { respondJson("{}") }), now = NOW)
             SessionState.clear()
             assertTrue(!vm.hasEditCapabilities())
 
-            SessionState.setCapabilities(setOf("VIEW_BRANCH_DATA"))
+            // Read-only viewer never sees the Edit toggle.
+            SessionState.setCapabilities(listOf(branchRow("VIEW_BRANCH_DATA")))
+            SessionState.setSelectedBranch(BRANCH_A, "Branch A")
             assertTrue(!vm.hasEditCapabilities(), "read-only viewer never sees the Edit toggle")
 
-            SessionState.setCapabilities(setOf("VIEW_BRANCH_DATA", "ASSIGN_COMPENSATION"))
+            // #156 — the toggle resolves branch-scoped: a BRANCH row for the selected branch
+            // enables it, a GLOBAL-only ASSIGN_COMPENSATION row (no branch resolution) does not.
+            SessionState.setCapabilities(
+                listOf(
+                    branchRow("VIEW_BRANCH_DATA"),
+                    branchRow("ASSIGN_COMPENSATION"),
+                ),
+            )
             assertTrue(vm.hasEditCapabilities())
+
+            SessionState.setCapabilities(
+                listOf(
+                    branchRow("VIEW_BRANCH_DATA"),
+                    UserCapabilityResponse(
+                        "ASSIGN_COMPENSATION",
+                        "GLOBAL",
+                        "00000000-0000-0000-0000-000000000000",
+                        "ROLE",
+                    ),
+                ),
+            )
+            assertTrue(!vm.hasEditCapabilities(), "GLOBAL-only ASSIGN_COMPENSATION does not resolve for the branch")
         }
 }

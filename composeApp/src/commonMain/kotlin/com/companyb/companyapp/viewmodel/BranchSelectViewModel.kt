@@ -7,7 +7,6 @@ import com.companyb.companyapp.dto.ClockInResponse
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.capabilitiesForBranch
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.Job
@@ -24,8 +23,9 @@ import kotlin.uuid.Uuid
  *
  * Clock-in chains the ADR-0021 second trigger: POST /api/attendance/clock-in (via
  * [AttendanceViewModel], the existing attendance surface) success → SessionState.
- * setSelectedBranch (branch-scoped capabilities become resolvable) → GET /api/me/capabilities
- * refresh with the branch slice. The screen holds on BranchSelect while EITHER is in flight
+ * setSelectedBranch (branch-scoped capability resolution becomes meaningful — #156:
+ * the full row list is stored; the clock-in refetch keeps it fresh) → GET
+ * /api/me/capabilities refresh. The screen holds on BranchSelect while EITHER is in flight
  * and navigates to Dashboard only when the refresh succeeds (#94 Q2 principle: never
  * navigate to a screen whose backing state isn't ready).
  *
@@ -75,14 +75,13 @@ class BranchSelectViewModel(
                 // #147 — persist the clock-state slots (attendance id + branchDayId) at
                 // clock-in: the drawer's clock-out request sources the attendance id here.
                 SessionState.setClockState(clockInState.data.id, clockInState.data.branchDayId)
-                refreshCapabilities(branch.branchId)
+                refreshCapabilities()
             }
         }
         return clockInJob
     }
 
-    fun refreshCapabilities(branchId: String = SessionState.selectedBranchId.value ?: "") {
-        if (branchId.isEmpty()) return
+    fun refreshCapabilities() {
         if (_refreshState.value is UiState.Loading) return
         // Synchronous pre-set: the guard must hold from the caller's frame (a double-tap
         // before any dispatch would otherwise launch two refreshes).
@@ -93,7 +92,9 @@ class BranchSelectViewModel(
             endpoint = "GET /api/me/capabilities",
             block = { apiClient.httpClient.get("/api/me/capabilities") },
             transform = {
-                SessionState.setCapabilities(capabilitiesForBranch(it.body(), branchId))
+                // #156 — the full row list is stored (the client-side branch slice filter
+                // is gone; resolution happens at consumption sites).
+                SessionState.setCapabilities(it.body())
                 Unit
             },
         )

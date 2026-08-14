@@ -1,6 +1,7 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.dto.MeResponse
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.state.SessionState
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -29,7 +30,8 @@ import kotlin.test.assertNull
 /**
  * #94-grad — the shared session-bootstrap implementation (launch validation + fresh login):
  * GET /api/me → SessionState.setUser → GET /api/me/capabilities → setCapabilities with the
- * ADR-0021 GLOBAL-only slice. A 401 is deliberately NOT UiState.Error (ApiClient's global
+ * FULL row list (#156; the pre-clock-in two-slice filter is gone — branch-scoped resolution
+ * fails closed until clock-in). A 401 is deliberately NOT UiState.Error (ApiClient's global
  * onUnauthorized clears the token; the splash derives from token presence); network errors
  * ARE Error (the splash keeps the token and offers Retry — #94 Q3b(ii)).
  */
@@ -94,7 +96,7 @@ class SessionBootstrapViewModelTest {
         }
 
     @Test
-    fun validateSession_success_populates_user_and_global_slice() =
+    fun validateSession_success_populates_user_and_full_capability_list() =
         runTest(testScheduler) {
             val vm = SessionBootstrapViewModel(mockApiClient(bootstrapHandler()))
 
@@ -104,8 +106,16 @@ class SessionBootstrapViewModelTest {
             assertIs<UiState.Success<Unit>>(vm.validationState.value)
             val user = assertIs<MeResponse>(SessionState.currentUser.value)
             assertEquals("u1", user.id)
-            // ADR-0021 — pre-BranchSelect: GLOBAL slice only; BRANCH rows not resolvable.
-            assertEquals(setOf("MANAGE_USERS"), SessionState.capabilities.value)
+            // #156 — the full row list is stored (contexts preserved); the clock-in refetch
+            // (ADR-0021 timing) refreshes it wholesale.
+            val caps = SessionState.capabilities.value
+            assertEquals(3, caps.size)
+            assertEquals("MANAGE_USERS", caps[0].capabilityCode)
+            assertEquals("GLOBAL", caps[0].contextType)
+            assertEquals("SUBMIT_REMITTANCE", caps[1].capabilityCode)
+            assertEquals("BRANCH", caps[1].contextType)
+            assertEquals("EDIT_BRANCH_DATA", caps[2].capabilityCode)
+            assertEquals("BRANCH", caps[2].contextType)
         }
 
     @Test
@@ -124,7 +134,7 @@ class SessionBootstrapViewModelTest {
             // re-composed LoginScreen's form isn't left disabled.
             assertEquals(UiState.Idle, vm.validationState.value)
             assertNull(SessionState.currentUser.value)
-            assertEquals(emptySet<String>(), SessionState.capabilities.value)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
         }
 
     @Test

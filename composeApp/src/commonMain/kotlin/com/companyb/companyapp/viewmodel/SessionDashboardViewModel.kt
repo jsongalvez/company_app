@@ -10,7 +10,9 @@ import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.UpdateSessionTypeRequest
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.DashboardEditField
 import com.companyb.companyapp.ui.screen.DashboardEditState
 import com.companyb.companyapp.ui.screen.afterReload
@@ -87,10 +89,18 @@ class SessionDashboardViewModel(
     val isForbidden: StateFlow<Boolean> = _isForbidden.asStateFlow()
 
     // #149 — inline editing (#97 Q4 + ADR-0022 pessimistic model). canEdit mirrors the
-    // per-element capability guard (#92): EDIT_BRANCH_DATA in the post-clock-in branch
-    // slice; a PATCH 403 sets it false (Q4: silent exit + affordance vanishes — no
-    // capability-refetch machinery exists, the F7 fog covers the refresh story).
-    private val _canEdit = MutableStateFlow(CapabilityCodes.EDIT_BRANCH_DATA in SessionState.capabilities.value)
+    // per-element capability guard (#92): EDIT_BRANCH_DATA held at the selected branch
+    // (strict BRANCH triple, #156 — matching the backend's strict branch gate on the
+    // session PATCH endpoints); a PATCH 403 sets it false (Q4: silent exit + affordance
+    // vanishes — no capability-refetch machinery exists, Q2 of #155 deferred it).
+    private val _canEdit =
+        MutableStateFlow(
+            SessionState.capabilities.value.hasCapability(
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContext.BRANCH,
+                SessionState.selectedBranchId.value,
+            ),
+        )
     val canEdit: StateFlow<Boolean> = _canEdit.asStateFlow()
 
     private val _editState = MutableStateFlow<DashboardEditState?>(null)

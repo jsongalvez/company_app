@@ -3,6 +3,7 @@ package com.companyb.companyapp.viewmodel
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.dto.MeBranchResponse
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.mockApiClient
 import com.companyb.companyapp.state.SessionState
 import io.ktor.client.engine.mock.MockRequestHandler
@@ -31,8 +32,9 @@ import kotlin.test.assertTrue
 /**
  * #94-grad — the BranchSelect surface VM: GET /api/me/branches (the #98 data source) and the
  * Phase-3 clock-in chain (POST clock-in → SessionState.setSelectedBranch → ADR-0021 capability
- * refresh with the branch slice → Success on refreshState, which is what the screen navigates
- * on). A failed clock-in must NOT write the selected branch or fire the refresh; a failed
+ * refresh → Success on refreshState, which is what the screen navigates on). The refresh
+ * stores the FULL row list (#156; the client-side branch slice filter is gone). A failed
+ * clock-in must NOT write the selected branch or fire the refresh; a failed
  * refresh must leave capabilities untouched (retry = refresh only, never re-clock-in).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -110,7 +112,7 @@ class BranchSelectViewModelTest {
         }
 
     @Test
-    fun clockIn_success_writes_selected_branch_and_refreshes_branch_slice() =
+    fun clockIn_success_writes_selected_branch_and_refreshes_full_list() =
         runTest(testScheduler) {
             val vm = BranchSelectViewModel(mockApiClient(branchSelectHandler()))
 
@@ -123,9 +125,17 @@ class BranchSelectViewModelTest {
             // #147 — the clock-state slots persist for the drawer's clock-out request.
             assertEquals("a1", SessionState.attendanceId.value)
             assertEquals("d1", SessionState.branchDayId.value)
-            // ADR-0021 second trigger — global + the selected branch's slice only.
+            // ADR-0021 second trigger — the full row list is stored (#156), including rows
+            // outside the selected branch (b2) and other contexts.
             assertIs<UiState.Success<Unit>>(vm.refreshState.value)
-            assertEquals(setOf("MANAGE_USERS", "SUBMIT_REMITTANCE"), SessionState.capabilities.value)
+            val caps = SessionState.capabilities.value
+            assertEquals(3, caps.size)
+            assertEquals(
+                listOf("MANAGE_USERS", "SUBMIT_REMITTANCE", "EDIT_BRANCH_DATA"),
+                caps.map { it.capabilityCode },
+            )
+            assertEquals(listOf("GLOBAL", "BRANCH", "BRANCH"), caps.map { it.contextType })
+            assertEquals(listOf("b1", "b2"), caps.filter { it.contextType == "BRANCH" }.map { it.contextId })
         }
 
     @Test
@@ -146,7 +156,7 @@ class BranchSelectViewModelTest {
 
             assertIs<UiState.Error>(vm.clockInState.value)
             assertEquals(null, SessionState.selectedBranchId.value)
-            assertEquals(emptySet<String>(), SessionState.capabilities.value)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
             assertEquals(0, capsCalls)
         }
 
@@ -168,7 +178,7 @@ class BranchSelectViewModelTest {
             assertIs<UiState.Success<Unit>>(vm.clockInState.value)
             assertEquals("b1", SessionState.selectedBranchId.value)
             assertIs<UiState.Error>(vm.refreshState.value)
-            assertEquals(emptySet<String>(), SessionState.capabilities.value)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
         }
 
     @Test

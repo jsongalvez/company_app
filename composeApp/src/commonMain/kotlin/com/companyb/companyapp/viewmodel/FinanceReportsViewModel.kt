@@ -19,7 +19,9 @@ import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.network.ApiClient
+import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.FeedWindow
 import com.companyb.companyapp.ui.screen.ReportMode
 import com.companyb.companyapp.util.logWarn
@@ -517,21 +519,31 @@ class FinanceReportsViewModel(
     }
 
     /**
-     * #105 D1 — Edit-toggle visibility. Code-only approximation per #99 D7: SessionState's
-     * `Set<String>` is the ADR-0021 two-slice set (GLOBAL + selected-branch), so the check is
-     * "any edit capability present" — a user browsing a branch they hold no edit grant at still
-     * sees the toggle and gets backend 403s (the authoritative backstop; the SessionState
-     * context-model divergence fog applies).
+     * #105 D1 — Edit-toggle visibility, #156 branch-scoped: the check resolves against
+     * SessionState.selectedBranchId (strict BRANCH triple — matching the backend's
+     * `requireBranchCapability` gates; the backend 403 stays the authoritative backstop).
+     * A null selectedBranchId (pre-clock-in) fails closed.
      */
-    fun hasAssignCapability(): Boolean = CapabilityCodes.ASSIGN_COMPENSATION in SessionState.capabilities.value
+    fun hasAssignCapability(): Boolean =
+        SessionState.capabilities.value.hasCapability(
+            CapabilityCodes.ASSIGN_COMPENSATION,
+            CapabilityContext.BRANCH,
+            SessionState.selectedBranchId.value,
+        )
 
-    fun hasEditBranchDataCapability(): Boolean = CapabilityCodes.EDIT_BRANCH_DATA in SessionState.capabilities.value
+    fun hasEditBranchDataCapability(): Boolean =
+        SessionState.capabilities.value.hasCapability(
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContext.BRANCH,
+            SessionState.selectedBranchId.value,
+        )
 
     fun hasEditCapabilities(): Boolean {
         val caps = SessionState.capabilities.value
-        return CapabilityCodes.EDIT_BRANCH_DATA in caps ||
-            CapabilityCodes.ASSIGN_COMPENSATION in caps ||
-            CapabilityCodes.EDIT_PAST_DAY in caps
+        val branchId = SessionState.selectedBranchId.value
+        return caps.hasCapability(CapabilityCodes.EDIT_BRANCH_DATA, CapabilityContext.BRANCH, branchId) ||
+            caps.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId) ||
+            caps.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, branchId)
     }
 
     fun setEditMode(on: Boolean) {

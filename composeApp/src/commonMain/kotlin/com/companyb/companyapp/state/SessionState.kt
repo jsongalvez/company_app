@@ -14,8 +14,12 @@ object SessionState {
     private val _currentUser = MutableStateFlow<MeResponse?>(null)
     val currentUser: StateFlow<MeResponse?> = _currentUser.asStateFlow()
 
-    private val _capabilities = MutableStateFlow<Set<String>>(emptySet())
-    val capabilities: StateFlow<Set<String>> = _capabilities.asStateFlow()
+    // #156 — the #92 locked context model: full rows (contextType/contextId preserved;
+    // BRANCH_DAY/MEDICAL_MISSION/PROVINCIAL_TOUR rows are no longer dropped). Both ADR-0021
+    // fetches (login/launch + clock-in) store the full list; resolution happens at call
+    // sites via hasCapability / hasCapabilityAnyContext below.
+    private val _capabilities = MutableStateFlow<List<UserCapabilityResponse>>(emptyList())
+    val capabilities: StateFlow<List<UserCapabilityResponse>> = _capabilities.asStateFlow()
 
     private val _selectedBranchId = MutableStateFlow<String?>(null)
     val selectedBranchId: StateFlow<String?> = _selectedBranchId.asStateFlow()
@@ -46,7 +50,7 @@ object SessionState {
         _currentUser.value = user
     }
 
-    fun setCapabilities(caps: Set<String>) {
+    fun setCapabilities(caps: List<UserCapabilityResponse>) {
         _capabilities.value = caps
     }
 
@@ -77,7 +81,7 @@ object SessionState {
         _branchDayId.value = null
         _selectedBranchId.value = null
         _selectedBranchName.value = null
-        _capabilities.value = emptySet()
+        _capabilities.value = emptyList()
     }
 
     fun setExpiredNotice(value: Boolean) {
@@ -86,7 +90,7 @@ object SessionState {
 
     fun clear() {
         _currentUser.value = null
-        _capabilities.value = emptySet()
+        _capabilities.value = emptyList()
         _selectedBranchId.value = null
         _selectedBranchName.value = null
         _attendanceId.value = null
@@ -95,28 +99,35 @@ object SessionState {
 }
 
 /**
- * ADR-0021 two-slice filter — pre-BranchSelect slice. Before [SessionState.selectedBranchId]
- * is set, only GLOBAL-context capabilities are usefully resolvable; branch-scoped rows are
- * present in the response but cannot be matched to a branch (the code-only `Set<String>`
- * surface can't carry context — the #99 F7 divergence is its own fog decision).
+ * #156 — capability context types as returned by `GET /api/me/capabilities`
+ * (the backend `capability_context_type` enum; shared with the backend only as
+ * raw strings in `UserCapabilityResponse`).
  */
-fun globalCapabilities(rows: List<UserCapabilityResponse>): Set<String> =
-    rows
-        .filter { it.contextType == "GLOBAL" }
-        .map { it.capabilityCode }
-        .toSet()
+object CapabilityContext {
+    const val GLOBAL = "GLOBAL"
+    const val BRANCH = "BRANCH"
+    const val BRANCH_DAY = "BRANCH_DAY"
+    const val MEDICAL_MISSION = "MEDICAL_MISSION"
+    const val PROVINCIAL_TOUR = "PROVINCIAL_TOUR"
+}
 
 /**
- * ADR-0021 two-slice filter — post-clock-in slice. Resolves the branch-scoped rows for the
- * selected branch (contextType BRANCH, contextId == branchId) alongside the global slice.
- * BRANCH_DAY/MEDICAL_MISSION/PROVINCIAL_TOUR rows are excluded by design — the code-only
- * `Set<String>` cannot represent them (the #99 F7 full context model covers that).
+ * #156 — the #92 locked per-element check: true iff [code] is held at exactly
+ * [contextType]/[contextId]. The caller resolves the scope — BRANCH rows against
+ * [SessionState.selectedBranchId] (Finance per-element gates, dashboard `canEdit`),
+ * BRANCH_DAY rows against the day row's branchDayId (future day-gates). A null
+ * [contextId] never matches: fail-closed pre-clock-in and pre-day-selection.
  */
-fun capabilitiesForBranch(
-    rows: List<UserCapabilityResponse>,
-    branchId: String,
-): Set<String> =
-    rows
-        .filter { it.contextType == "GLOBAL" || (it.contextType == "BRANCH" && it.contextId == branchId) }
-        .map { it.capabilityCode }
-        .toSet()
+fun List<UserCapabilityResponse>.hasCapability(
+    code: String,
+    contextType: String,
+    contextId: String?,
+): Boolean =
+    contextId != null &&
+        any { it.capabilityCode == code && it.contextType == contextType && it.contextId == contextId }
+
+/**
+ * #156 — the #92 Q3 "some branch" route-gate semantics: true iff [code] is held at
+ * any context (any contextType/contextId). Backend precedent: `CapabilityRepository.hasCapabilityAnyContext`.
+ */
+fun List<UserCapabilityResponse>.hasCapabilityAnyContext(code: String): Boolean = any { it.capabilityCode == code }

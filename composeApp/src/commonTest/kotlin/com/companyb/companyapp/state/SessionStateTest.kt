@@ -1,31 +1,39 @@
 package com.companyb.companyapp.state
 
 import com.companyb.companyapp.dto.MeResponse
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * #94-grad — SessionState writer integration: setUser / setCapabilities / setSelectedBranch /
+ * #94-grad / #156 — SessionState writer integration: setUser / setCapabilities / setSelectedBranch /
  * setExpiredNotice populate the flows, clear() resets the session surface (but not the
- * expired notice — that's consumed by LoginScreen, not part of the session).
+ * expired notice — that's consumed by LoginScreen, not part of the session). Capabilities
+ * are stored as the FULL row list (#156 — the ADR-0021 two-slice client filters are gone).
  */
 class SessionStateTest {
     private val user =
         MeResponse(id = "u1", username = "dev", status = "ACTIVE", createdAt = "2026-08-10T00:00:00+08:00")
 
+    private val rows =
+        listOf(
+            UserCapabilityResponse("MANAGE_USERS", "GLOBAL", "00000000-0000-0000-0000-000000000000", "ROLE"),
+            UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH", "b1", "DIRECT"),
+            UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", "d1", "RELIEF_ACCESS"),
+        )
+
     @Test
     fun setters_populate_all_surfaces() {
         SessionState.clear()
         SessionState.setUser(user)
-        SessionState.setCapabilities(setOf("MANAGE_USERS"))
+        SessionState.setCapabilities(rows)
         SessionState.setSelectedBranch("b1", "Main Branch")
         SessionState.setClockState("a1", "d1")
 
         assertEquals(user, SessionState.currentUser.value)
-        assertEquals(setOf("MANAGE_USERS"), SessionState.capabilities.value)
+        assertEquals(rows, SessionState.capabilities.value)
         assertEquals("b1", SessionState.selectedBranchId.value)
         assertEquals("Main Branch", SessionState.selectedBranchName.value)
         assertEquals("a1", SessionState.attendanceId.value)
@@ -37,7 +45,7 @@ class SessionStateTest {
     @Test
     fun clear_clock_state_keeps_user_but_resets_branch_caps_and_attendance() {
         SessionState.setUser(user)
-        SessionState.setCapabilities(setOf("MANAGE_USERS", "EDIT_BRANCH_DATA"))
+        SessionState.setCapabilities(rows)
         SessionState.setSelectedBranch("b1", "Main Branch")
         SessionState.setClockState("a1", "d1")
 
@@ -46,7 +54,7 @@ class SessionStateTest {
         assertEquals(user, SessionState.currentUser.value, "clock-out must NOT log the user out")
         assertNull(SessionState.selectedBranchId.value)
         assertNull(SessionState.selectedBranchName.value)
-        assertEquals(emptySet<String>(), SessionState.capabilities.value)
+        assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
         assertNull(SessionState.attendanceId.value)
         assertNull(SessionState.branchDayId.value)
     }
@@ -54,7 +62,7 @@ class SessionStateTest {
     @Test
     fun clear_resets_session_but_not_expired_notice() {
         SessionState.setUser(user)
-        SessionState.setCapabilities(setOf("MANAGE_USERS"))
+        SessionState.setCapabilities(rows)
         SessionState.setSelectedBranch("b1", "Main Branch")
         SessionState.setClockState("a1", "d1")
         SessionState.setExpiredNotice(true)
@@ -62,7 +70,7 @@ class SessionStateTest {
         SessionState.clear()
 
         assertNull(SessionState.currentUser.value)
-        assertEquals(emptySet<String>(), SessionState.capabilities.value)
+        assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
         assertNull(SessionState.selectedBranchId.value)
         assertNull(SessionState.selectedBranchName.value)
         assertNull(SessionState.attendanceId.value)

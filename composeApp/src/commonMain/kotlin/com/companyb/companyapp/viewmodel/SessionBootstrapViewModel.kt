@@ -6,7 +6,6 @@ import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
-import com.companyb.companyapp.state.globalCapabilities
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
@@ -22,9 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * #94 — the shared session-bootstrap implementation used identically by launch validation
  * (App.kt splash, Phase 1) and fresh login (LoginScreen, Phase 2): GET /api/me →
- * SessionState.setUser → GET /api/me/capabilities → SessionState.setCapabilities (global
- * slice only — ADR-0021; the branch-scoped slice resolves at clock-in via
- * [BranchSelectViewModel]).
+ * SessionState.setUser → GET /api/me/capabilities → SessionState.setCapabilities (the FULL
+ * row list — #156; ADR-0021's fetch timing is unchanged: branch-scoped resolution just
+ * fails closed until clock-in sets selectedBranchId via [BranchSelectViewModel]).
  *
  * A 401 during validation is deliberately NOT surfaced as UiState.Error: ApiClient's global
  * onUnauthorized flow has already cleared the token (App.kt), which is what transitions the
@@ -68,7 +67,7 @@ class SessionBootstrapViewModel(
                     when {
                         capabilitiesResponse.status.isSuccess() -> {
                             val capabilities = capabilitiesResponse.body<List<UserCapabilityResponse>>()
-                            SessionState.setCapabilities(globalCapabilities(capabilities))
+                            SessionState.setCapabilities(capabilities)
                         }
 
                         // 401 on the capabilities leg is the same session-401 class as on the me

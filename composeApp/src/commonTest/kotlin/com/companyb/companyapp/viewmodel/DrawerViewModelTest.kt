@@ -1,6 +1,7 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.navigation.Route
 import com.companyb.companyapp.state.SessionState
 import kotlinx.coroutines.Dispatchers
@@ -28,15 +29,19 @@ class DrawerViewModelTest {
         Dispatchers.resetMain()
     }
 
+    // #156 — drawer items gate on any-context membership, so the seeded context is irrelevant
+    // to visibility; BRANCH rows are used for realism.
+    private fun row(code: String): UserCapabilityResponse = UserCapabilityResponse(code, "BRANCH", "b1", "DIRECT")
+
     @Test
     fun allCapabilityCodesVisible_allItemsVisible() {
         SessionState.setCapabilities(
-            setOf(
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityCodes.ASSIGN_COMPENSATION,
-                CapabilityCodes.SUBMIT_REMITTANCE,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-                CapabilityCodes.MANAGE_USERS,
+            listOf(
+                row(CapabilityCodes.EDIT_BRANCH_DATA),
+                row(CapabilityCodes.ASSIGN_COMPENSATION),
+                row(CapabilityCodes.SUBMIT_REMITTANCE),
+                row(CapabilityCodes.VIEW_BRANCH_DATA),
+                row(CapabilityCodes.MANAGE_USERS),
             ),
         )
 
@@ -66,7 +71,7 @@ class DrawerViewModelTest {
     @Test
     fun partialCapabilities_filterMatchesCapabilityCode() {
         // Set only SUBMIT_REMITTANCE — should reveal only RemittanceList (+ always-visible items)
-        SessionState.setCapabilities(setOf(CapabilityCodes.SUBMIT_REMITTANCE))
+        SessionState.setCapabilities(listOf(row(CapabilityCodes.SUBMIT_REMITTANCE)))
 
         val vm = DrawerViewModel()
         val visibleLabels =
@@ -96,7 +101,7 @@ class DrawerViewModelTest {
         )
 
         // #105 D1 — VIEW_BRANCH_DATA reveals the merged Finance & Reports item
-        SessionState.setCapabilities(setOf(CapabilityCodes.VIEW_BRANCH_DATA))
+        SessionState.setCapabilities(listOf(row(CapabilityCodes.VIEW_BRANCH_DATA)))
 
         val after =
             vm.uiState.value.drawerItems
@@ -111,7 +116,7 @@ class DrawerViewModelTest {
         // The merge collapses the ASSIGN_COMPENSATION-gated "Finance" and VIEW_BRANCH_DATA-gated
         // "Reports" into one item gated on the WIDEST capability: ASSIGN_COMPENSATION alone must
         // NOT reveal it (Accountant holds VIEW_BRANCH_DATA only, #105 F1).
-        SessionState.setCapabilities(setOf(CapabilityCodes.ASSIGN_COMPENSATION))
+        SessionState.setCapabilities(listOf(row(CapabilityCodes.ASSIGN_COMPENSATION)))
 
         val vm = DrawerViewModel()
         val labels =
