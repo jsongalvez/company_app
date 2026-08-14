@@ -57,9 +57,18 @@ class ReliefInviteViewModel(
     val sentInvites: StateFlow<UiState<List<ReliefInviteResponse>>> = _sentInvites.asStateFlow()
 
     // keep-last for the inviter's sent list — the panel re-opens per branch card and a reload
-    // must keep the previous list rendered (the #143 shape, VM-side).
+    // must keep the previous list rendered (the #143 shape, VM-side). The list is BRANCH-scoped:
+    // _sentBranch marks whose list _lastSent holds, so switching panels never bleeds branch A's
+    // rows (with live Retract) under branch B (pass-1 HARD).
     private val _lastSent = MutableStateFlow<List<ReliefInviteResponse>?>(null)
     val lastSent: StateFlow<List<ReliefInviteResponse>?> = _lastSent.asStateFlow()
+
+    private val _sentBranch = MutableStateFlow<String?>(null)
+    val sentBranch: StateFlow<String?> = _sentBranch.asStateFlow()
+
+    // Bumped per loadSent: a load that lands with a mismatched stamp belongs to an older branch
+    // panel — committing it would serve branch A's rows under branch B (out-of-order response).
+    private var sentStamp = 0L
 
     private val _createResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createResult: StateFlow<UiState<Unit>> = _createResult.asStateFlow()
@@ -183,15 +192,33 @@ class ReliefInviteViewModel(
         )
 
     fun loadSent(branchId: String): Job {
-        if (_sentInvites.value is UiState.Loading) return Job()
+        // Synchronous pre-set: the screen gates its rendering on sentBranch == panelBranch, so
+        // switching panels hides the previous branch's list immediately. No in-flight guard: a
+        // newer load must always launch (the guard would let branch A's in-flight load swallow
+        // branch B's — the pass-1 HARD); staleness is handled by the stamp below.
+        _sentBranch.value = branchId
+        val stamp = ++sentStamp
         return handler.launch(
             state = _sentInvites,
             operation = "loadSent",
             endpoint = "GET /api/branches/$branchId/relief-invites",
             block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
-            transform = { it.body() },
+            transform = { response ->
+                val body = response.body<List<ReliefInviteResponse>>()
+                if (stamp != sentStamp) {
+                    // A newer panel load launched while this one was in flight — substituting the
+                    // current list keeps the stale branch's rows from committing under the new
+                    // branch (the #141 substitution pattern).
+                    currentSentList() ?: emptyList()
+                } else {
+                    body
+                }
+            },
         )
     }
+
+    private fun currentSentList(): List<ReliefInviteResponse>? =
+        (_sentInvites.value as? UiState.Success)?.data ?: _lastSent.value
 
     fun retractInvite(
         inviteId: String,
@@ -209,6 +236,9 @@ class ReliefInviteViewModel(
         )
 
     private fun removeReceived(inviteId: String) {
+        // Decrement only when the row actually left a KNOWN list: with no list loaded the badge
+        // baseline is the poller's count, and decrementing against an unknown list would corrupt
+        // it — the 60s poll overwrite self-corrects (the unread markRead precedent).
         val current = _received.value
         val list = (current as? UiState.Success)?.data ?: _lastReceived.value ?: return
         val remaining = list.filterNot { it.id == inviteId }

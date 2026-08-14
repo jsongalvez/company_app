@@ -54,6 +54,10 @@ object ReliefInviteRepository {
                         it[ReliefInviteTable.branchDayId] = branchDayId
                         it[ReliefInviteTable.invitedBy] = invitedBy
                         it[ReliefInviteTable.invitee] = invitee
+                        // insertIgnore does not emit DEFAULT expressions — set both
+                        // explicitly (the AGENTS.md insertIgnore convention).
+                        it[ReliefInviteTable.status] = ReliefInviteStatus.PENDING
+                        it[ReliefInviteTable.createdAt] = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
                     }.insertedCount
             val isNew = insertedCount > 0
 
@@ -205,19 +209,22 @@ object ReliefInviteRepository {
                 .not()
         }
 
-    /** Received invites (caller = invitee): PENDING first, then newest first. */
+    /**
+     * Received invites (caller = invitee) — PENDING only, newest first. Resolved rows
+     * (ACCEPTED/DECLINED/RETRACTED) never leave the server: the section renders rows
+     * until RESOLVED, not until read (#159 Q5), so a re-entry or cross-device load must
+     * not resurrect an answered invite with live buttons.
+     */
     fun findReceivedByInvitee(invitee: UUID): List<ReliefInviteView> =
         transaction {
             joinWithDisplay()
                 .selectAll()
-                .where { ReliefInviteTable.invitee eq invitee }
+                .where {
+                    (ReliefInviteTable.invitee eq invitee) and
+                        (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
+                }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
                 .map { it.toView() }
                 .withInviteeNames()
-                .sortedWith(
-                    compareBy<ReliefInviteView> {
-                        if (it.invite.status == ReliefInviteStatus.PENDING) 0 else 1
-                    }.thenByDescending { it.invite.createdAt },
-                )
         }
 
     /** Sent invites: the caller's own, scoped to the branch path param (parent-child). */
@@ -320,10 +327,12 @@ object ReliefInviteRepository {
                 }
             if (updated == 0) return@transaction null
             ReliefAccessRepository.grantReliefCapability(
-                userId = invitee,
-                branchDayId = before.branchDayId,
-                sourceId = id,
-                validTo = validTo,
+                GrantReliefCapabilityParams(
+                    userId = invitee,
+                    branchDayId = before.branchDayId,
+                    sourceId = id,
+                    validTo = validTo,
+                ),
             )
             val after = findByIdInTransaction(id) ?: return@transaction null
             auditFn(before, after)

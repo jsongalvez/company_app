@@ -24,6 +24,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
@@ -273,8 +274,10 @@ private fun SectionLabel(text: String) {
 
 /**
  * #160 — the received-invites section (#159 Q5, Option A). Rows render until RESOLVED, not
- * until read: PENDING rows carry Accept/Decline; a pending invite whose day is past renders
- * "expired" (day-state is the expiry — no cron, no actions on a stale row).
+ * until read: the server serves PENDING rows only (resolved rows never arrive — a re-entry
+ * cannot resurrect an answered invite), PENDING rows carry Accept/Decline, and a pending
+ * invite whose day is past renders "expired" (day-state is the expiry — no cron, no actions
+ * on a stale row). The `else` branch is defensive against a future status-returning server.
  */
 @Composable
 private fun ReliefInvitesSection(
@@ -328,9 +331,9 @@ private fun ReliefInviteRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (expired) {
+        if (expired || invite.status != ReliefInviteStatus.PENDING) {
             Text(
-                text = "Expired",
+                text = if (expired) "Expired" else invite.status.name,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

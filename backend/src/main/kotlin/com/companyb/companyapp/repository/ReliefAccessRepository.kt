@@ -32,24 +32,28 @@ data class GrantWithCapabilityParams(
     val requestedBy: UUID,
 )
 
+/** The shared relief-grant write (#159 Q1): who gets the day, for which day, from which source. */
+data class GrantReliefCapabilityParams(
+    val userId: UUID,
+    val branchDayId: UUID,
+    val sourceId: UUID,
+    val validTo: OffsetDateTime?,
+)
+
 @Suppress("TooManyFunctions")
 object ReliefAccessRepository {
     /**
      * The shared relief-grant writer (#159 Q1): inserts the day-scoped capability
-     * (EDIT_BRANCH_DATA, BRANCH_DAY, [branchDayId], source RELIEF_ACCESS, priority
-     * [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo = [validTo]) — the
-     * capability write used by BOTH the request flow's grant ([grantWithCapability])
-     * and the invite flow's accept. `insertIgnore` keeps a redundant grant harmless
-     * (the #159 Q3 decision: capabilities ≠ assignments).
+     * (EDIT_BRANCH_DATA, BRANCH_DAY, [GrantReliefCapabilityParams.branchDayId], source
+     * RELIEF_ACCESS, priority [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo =
+     * [GrantReliefCapabilityParams.validTo]) — the capability write used by BOTH the
+     * request flow's grant ([grantWithCapability]) and the invite flow's accept.
+     * `insertIgnore` keeps a redundant grant harmless (the #159 Q3 decision: capabilities
+     * ≠ assignments).
      */
-    fun grantReliefCapability(
-        userId: UUID,
-        branchDayId: UUID,
-        sourceId: UUID,
-        validTo: OffsetDateTime?,
-    ): Unit =
+    fun grantReliefCapability(params: GrantReliefCapabilityParams): Unit =
         transaction {
-            insertReliefCapabilityInTransaction(userId, branchDayId, sourceId, validTo)
+            insertReliefCapabilityInTransaction(params.userId, params.branchDayId, params.sourceId, params.validTo)
         }
 
     private fun insertReliefCapabilityInTransaction(

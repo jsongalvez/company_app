@@ -402,7 +402,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `received list puts pending invites first`() {
+    fun `received list serves only pending invites`() {
         JavalinTest.test(createApp()) { _, client ->
             val first =
                 client.post(
@@ -417,10 +417,8 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             val response = client.get("/api/relief-invites", asUser(invitee))
             assertEquals(200, response.code)
             val body = response.body?.string().orEmpty()
-            val pendingIndex = body.indexOf("\"status\":\"PENDING\"")
-            val declinedIndex = body.indexOf("\"status\":\"DECLINED\"")
-            assertTrue(pendingIndex >= 0 && declinedIndex >= 0, body)
-            assertTrue(pendingIndex < declinedIndex, "PENDING must sort first: $body")
+            assertTrue(body.contains(tomorrow.toString()), "the pending invite must be served: $body")
+            assertTrue(!body.contains(tomorrow.plusDays(3).toString()), "resolved rows must leave the list: $body")
         }
     }
 

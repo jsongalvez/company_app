@@ -15,10 +15,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -351,6 +353,58 @@ class ReliefInviteViewModelTest {
             runCurrent()
             assertIs<UiState.Error>(vm.received.value)
             assertEquals(1, vm.lastReceived.value!!.size, "keep-last survives the reload error")
+        }
+
+    @Test
+    fun `stale branch load never commits under the new branch panel`() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites" && it.method.value == "GET" -> {
+                                // Virtualized delay: b1's load is still in flight when b2's panel opens.
+                                withContext(StandardTestDispatcher(testScheduler)) { kotlinx.coroutines.delay(10_000) }
+                                ok("""[${inviteJson("iA", "PENDING", inviteeName = "A")}]""")
+                            }
+
+                            it.url.encodedPath == "/api/branches/b2/relief-invites" && it.method.value == "GET" -> {
+                                ok("""[${inviteJson("iB", "PENDING", inviteeName = "B")}]""")
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadSent("b1")
+            runCurrent()
+            assertEquals("b1", vm.sentBranch.value)
+
+            // b2's panel opens while b1's load is in flight: the newer load must win.
+            vm.loadSent("b2")
+            runCurrent()
+            assertEquals("b2", vm.sentBranch.value)
+            assertEquals(
+                "iB",
+                vm.lastSent.value!!
+                    .single()
+                    .id,
+            )
+
+            // b1's late response lands — the stale stamp must NOT commit A's rows.
+            advanceTimeBy(20_000)
+            runCurrent()
+            assertEquals(
+                "iB",
+                vm.lastSent.value!!
+                    .single()
+                    .id,
+                "stale branch load must not commit",
+            )
+            assertEquals("b2", vm.sentBranch.value)
         }
 
     private fun handler(block: MockRequestHandler): MockRequestHandler = block

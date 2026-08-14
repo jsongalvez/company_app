@@ -329,6 +329,7 @@ private fun InviteStaffPanel(
     val candidatesState by viewModel.candidates.collectAsState()
     val sentState by viewModel.sentInvites.collectAsState()
     val lastSent by viewModel.lastSent.collectAsState()
+    val sentBranch by viewModel.sentBranch.collectAsState()
     val createState by viewModel.createResult.collectAsState()
     val retractState by viewModel.retractResult.collectAsState()
 
@@ -345,8 +346,12 @@ private fun InviteStaffPanel(
         logInfo("BranchSelectScreen", "invite panel opened for branch $branchId")
         viewModel.loadSent(branchId)
     }
-    LaunchedEffect(query, dateText) {
-        viewModel.searchCandidates(branchId, query, dateText)
+    LaunchedEffect(query, dateText, validDate) {
+        // A malformed date (mid-typing) must not fire a search the backend 400s — gate the
+        // effect on the parsed date (pass-1 finding).
+        if (validDate != null) {
+            viewModel.searchCandidates(branchId, query, dateText)
+        }
     }
     LaunchedEffect(createState) {
         val error = createState as? UiState.Error
@@ -421,6 +426,8 @@ private fun InviteStaffPanel(
             SentInvitesSection(
                 state = sentState,
                 lastSent = lastSent,
+                sentBranch = sentBranch,
+                panelBranch = branchId,
                 retractBusy = retractBusy,
                 onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
             )
@@ -521,10 +528,15 @@ private fun CandidateResults(
 private fun SentInvitesSection(
     state: UiState<List<ReliefInviteResponse>>,
     lastSent: List<ReliefInviteResponse>?,
+    sentBranch: String?,
+    panelBranch: String,
     retractBusy: Boolean,
     onRetract: (String) -> Unit,
 ) {
-    val sent = lastSent.orEmpty()
+    // Branch-gated keep-last (pass-1 HARD): the VM's list belongs to sentBranch; until the
+    // panel's own load lands, the previous branch's rows must NOT render here — the section
+    // shows the empty/loading state instead of foreign Retract buttons.
+    val sent = if (sentBranch == panelBranch) lastSent.orEmpty() else emptyList()
     if (sent.isEmpty() && state is UiState.Idle) return
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
