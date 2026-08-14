@@ -342,6 +342,15 @@ private fun ReliefDaySection(
     var dateInput by remember { mutableStateOf(today.toString()) }
     // Pass-1 SOFT — an unparseable date must not round-trip to the backend's 400.
     var dateError by remember { mutableStateOf<String?>(null) }
+    // Pass-4 SOFT — the Load button and the ErrorCard retry share one guarded submit
+    // (string-coupled parse guard + message must not drift).
+    val submitDate: () -> Unit = {
+        if (parseDateInput(dateInput.trim()) == null) {
+            dateError = "Invalid date — use yyyy-MM-dd"
+        } else {
+            viewModel.loadReliefDay(dateInput.trim())
+        }
+    }
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -364,13 +373,7 @@ private fun ReliefDaySection(
                 modifier = Modifier.weight(1f),
             )
             TextButton(
-                onClick = {
-                    if (parseDateInput(dateInput.trim()) == null) {
-                        dateError = "Invalid date — use yyyy-MM-dd"
-                    } else {
-                        viewModel.loadReliefDay(dateInput.trim())
-                    }
-                },
+                onClick = submitDate,
                 enabled = reliefDay !is UiState.Loading,
             ) {
                 if (reliefDay is UiState.Loading) {
@@ -417,15 +420,7 @@ private fun ReliefDaySection(
 
             is UiState.Error -> {
                 logWarn("FinanceReportsScreen", "reliefDay=Error: ${reliefDay.message}")
-                ErrorCard(message = reliefDay.message) {
-                    // Pass-3 SOFT — the retry must respect the parse guard (a garbage input
-                    // while an ErrorCard is up would otherwise round-trip to the backend 400).
-                    if (parseDateInput(dateInput.trim()) == null) {
-                        dateError = "Invalid date — use yyyy-MM-dd"
-                    } else {
-                        viewModel.loadReliefDay(dateInput.trim())
-                    }
-                }
+                ErrorCard(message = reliefDay.message, onRetry = submitDate)
             }
 
             is UiState.Success -> {
