@@ -175,9 +175,8 @@ fun FinanceReportsScreen(
                         {
                             // Pass-2 HARD — leave the relief surface clean: a re-entry via
                             // the chip must not find the previous relief day armed (stale
-                            // date input vs old Success), and the reports edit state must
-                            // not leak into the relief section.
-                            viewModel.setEditMode(false)
+                            // date input vs old Success). clearReliefState subsumes the
+                            // edit-mode reset (pass-3 — no double clear).
                             viewModel.clearReliefState()
                             showReliefSection = false
                         }
@@ -383,7 +382,7 @@ private fun ReliefDaySection(
                     Text("Load")
                 }
             }
-            if (selectedDay != null) {
+            if (selectedDay != null && reliefDay is UiState.Success) {
                 val pastDayReadOnly =
                     derivedDayState(LocalDate.parse(selectedDay.date), today) == DerivedDayState.PAST &&
                         !capabilities.hasCapability(
@@ -418,7 +417,15 @@ private fun ReliefDaySection(
 
             is UiState.Error -> {
                 logWarn("FinanceReportsScreen", "reliefDay=Error: ${reliefDay.message}")
-                ErrorCard(message = reliefDay.message) { viewModel.loadReliefDay(dateInput.trim()) }
+                ErrorCard(message = reliefDay.message) {
+                    // Pass-3 SOFT — the retry must respect the parse guard (a garbage input
+                    // while an ErrorCard is up would otherwise round-trip to the backend 400).
+                    if (parseDateInput(dateInput.trim()) == null) {
+                        dateError = "Invalid date — use yyyy-MM-dd"
+                    } else {
+                        viewModel.loadReliefDay(dateInput.trim())
+                    }
+                }
             }
 
             is UiState.Success -> {
