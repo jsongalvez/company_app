@@ -519,28 +519,29 @@ class FinanceReportsViewModel(
     }
 
     /**
-     * #105 D1 — Edit-toggle visibility, #156 branch-scoped: the check resolves against
-     * SessionState.selectedBranchId (strict BRANCH triple — matching the backend's
-     * `requireBranchCapability` gates; the backend 403 stays the authoritative backstop).
-     * A null selectedBranchId (pre-clock-in) fails closed.
+     * #105 D1 — Edit-toggle visibility, #156 branch-scoped: the checks resolve against the
+     * VIEWED branch ([_selectedBranchId] — the branch the day data belongs to, switchable via
+     * the picker; defaults to the clocked-in branch). The backend resolves the same branch
+     * from the day row (`CapabilityFilter.requireBranchCapability`), so the toggle, the
+     * section loads and the backend 403s all agree. A null viewed branch fails closed.
      */
     fun hasAssignCapability(): Boolean =
         SessionState.capabilities.value.hasCapability(
             CapabilityCodes.ASSIGN_COMPENSATION,
             CapabilityContext.BRANCH,
-            SessionState.selectedBranchId.value,
+            _selectedBranchId.value,
         )
 
     fun hasEditBranchDataCapability(): Boolean =
         SessionState.capabilities.value.hasCapability(
             CapabilityCodes.EDIT_BRANCH_DATA,
             CapabilityContext.BRANCH,
-            SessionState.selectedBranchId.value,
+            _selectedBranchId.value,
         )
 
     fun hasEditCapabilities(): Boolean {
         val caps = SessionState.capabilities.value
-        val branchId = SessionState.selectedBranchId.value
+        val branchId = _selectedBranchId.value
         return caps.hasCapability(CapabilityCodes.EDIT_BRANCH_DATA, CapabilityContext.BRANCH, branchId) ||
             caps.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId) ||
             caps.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, branchId)

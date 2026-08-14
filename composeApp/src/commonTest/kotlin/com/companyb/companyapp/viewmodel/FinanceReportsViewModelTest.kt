@@ -988,6 +988,17 @@ class FinanceReportsViewModelTest {
                 }
             }
             val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            // Grants at both branches: the pass-6/7 superseded-PATCH lifecycle is the subject,
+            // not the capability gates (those have their own tests) — section loads must be
+            // legal at the viewed branch AFTER the switch (the #156 viewed-branch resolution).
+            SessionState.setCapabilities(
+                listOf(
+                    branchRow("EDIT_BRANCH_DATA"),
+                    branchRow("ASSIGN_COMPENSATION"),
+                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH", BRANCH_B, "DIRECT"),
+                    UserCapabilityResponse("ASSIGN_COMPENSATION", "BRANCH", BRANCH_B, "DIRECT"),
+                ),
+            )
             vm.loadBranches()
             runCurrent()
             val day = (vm.feedEntries.value as UiState.Success).data.single()
@@ -1222,27 +1233,42 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
-    fun hasEditCapabilities_reflectsTheBranchScopedSurface() =
+    fun hasEditCapabilities_resolvesTheViewedBranch() =
         runTest(testScheduler) {
             val vm = FinanceReportsViewModel(mockApiClient(handler = { respondJson("{}") }), now = NOW)
             SessionState.clear()
             assertTrue(!vm.hasEditCapabilities())
 
-            // Read-only viewer never sees the Edit toggle.
+            // Read-only viewer never sees the Edit toggle (viewed branch selected).
             SessionState.setCapabilities(listOf(branchRow("VIEW_BRANCH_DATA")))
-            SessionState.setSelectedBranch(BRANCH_A, "Branch A")
+            vm.selectBranch(BRANCH_A)
             assertTrue(!vm.hasEditCapabilities(), "read-only viewer never sees the Edit toggle")
 
-            // #156 — the toggle resolves branch-scoped: a BRANCH row for the selected branch
-            // enables it, a GLOBAL-only ASSIGN_COMPENSATION row (no branch resolution) does not.
+            // #156 — the toggle resolves the VIEWED branch (what the backend gates on via the
+            // day row), not the clocked-in SessionState branch. Grants at the viewed branch
+            // enable the toggle even when clocked in elsewhere…
+            SessionState.setSelectedBranch("branch-b", "Branch B")
             SessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),
                     branchRow("ASSIGN_COMPENSATION"),
                 ),
             )
-            assertTrue(vm.hasEditCapabilities())
+            assertTrue(vm.hasEditCapabilities(), "grant at the viewed branch enables the toggle")
 
+            // …and grants at the clocked-in branch do NOT enable it while viewing another branch.
+            SessionState.setCapabilities(
+                listOf(
+                    branchRow("VIEW_BRANCH_DATA"),
+                    UserCapabilityResponse("ASSIGN_COMPENSATION", "BRANCH", "branch-b", "DIRECT"),
+                ),
+            )
+            assertTrue(
+                !vm.hasEditCapabilities(),
+                "grant at the clocked-in branch does not resolve for the viewed branch",
+            )
+
+            // GLOBAL-only rows never resolve branch-scoped.
             SessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),

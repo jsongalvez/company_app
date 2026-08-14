@@ -218,9 +218,9 @@ private fun CenteredHint(text: String) {
 
 /**
  * #113 D7/D8 — route gate card. Drawer hides the Clients item without `EDIT_BRANCH_DATA` (#108
- * DrawerViewModel), so this only renders on a direct nav; the code-only gate matches the
- * implemented `Set<String>` capabilities (D7), with the backend's GLOBAL gate (F5) as the
- * authoritative backstop (ADR-0007). #92's `UiState.Unauthorized` card is an unimplemented lock —
+ * DrawerViewModel), so this only renders on a direct nav; the code-only gate is the #156
+ * any-context check (#92 Q3), with the backend's GLOBAL gate (F5) as the authoritative
+ * backstop (ADR-0007). #92's `UiState.Unauthorized` card is an unimplemented lock —
  * this minimal card is the in-place 403 surface per D8.
  */
 @Composable

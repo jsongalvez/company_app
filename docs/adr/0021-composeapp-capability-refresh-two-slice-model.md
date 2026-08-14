@@ -54,8 +54,8 @@ context list (#156), the second for freshness and the #147 clock-out reload:
 The pre-BranchSelect fetch is **never treated as "capabilities fully
 resolved."** It populates `SessionState.capabilities` (per spec + #92's
 app-wide availability), and any-context membership
-(`hasCapabilityAnyContext`) is enough for pre-clock-in route gates and the
-drawer. But branch-scoped gating (Dashboard per-element guards via `uiState`
+(`hasCapabilityAnyContext`) serves route gates and the drawer at any point.
+But branch-scoped gating (Dashboard per-element guards via `uiState`
 flags) only becomes correct after the post-clock-in fetch completes — a
 null `selectedBranchId` fails closed until then.
 
