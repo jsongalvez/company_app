@@ -628,14 +628,20 @@ private fun DeactivateConfirmDialog(
         confirmButton = {
             // Gated like the row actions (pass-2 HARD): the dialog can be open when a load is in
             // flight (same-frame refresh-tap + row-tap slip), and the VM guard would swallow the
-            // confirm silently — the gate makes the window visible instead.
+            // confirm silently — the gate makes the window visible instead. The explicit error
+            // color must yield while disabled or the button wouldn't look dead (pass-3 SOFT).
             TextButton(
                 onClick = onConfirm,
                 enabled = !mutationsDisabled,
             ) {
                 Text(
                     text = "Deactivate",
-                    color = MaterialTheme.colorScheme.error,
+                    color =
+                        if (mutationsDisabled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
                 )
             }
         },
@@ -688,6 +694,9 @@ private fun EditSlotDialog(
                     singleLine = true,
                     isError = inputError != null,
                     supportingText = { inputError?.let { Text(it) } },
+                    // Gated with the Save button (pass-3 SOFT): typing into a field whose action
+                    // is dead mid-load has no affordance — the field goes inert with it.
+                    enabled = !mutationsDisabled,
                 )
             }
         },
