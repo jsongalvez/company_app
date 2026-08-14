@@ -83,25 +83,6 @@ object CapabilityFilter {
 
     /**
      * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
-     * from an expense record.
-     *
-     * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.
-     * Throws [NotFoundResponse] (404) if the expense or branch day does not exist.
-     */
-    fun requireBranchCapabilityForExpense(
-        context: Context,
-        expenseId: UUID,
-        capabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
-    ) {
-        val expense =
-            ExpenseRepository
-                .findById(expenseId)
-                ?: throw NotFoundResponse("Expense not found")
-        requireBranchCapability(context, expense.branchDayId, capabilityCode)
-    }
-
-    /**
-     * Enforces [capabilityCode] on [CapabilityContextType.BRANCH] by resolving the branch
      * from a remittance record.
      *
      * Throws [io.javalin.http.ForbiddenResponse] (403) if the caller lacks the capability.

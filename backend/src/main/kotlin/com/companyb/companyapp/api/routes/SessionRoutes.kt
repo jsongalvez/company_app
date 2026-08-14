@@ -42,6 +42,14 @@ import java.util.UUID
 
 @Suppress("TooManyFunctions")
 object SessionRoutes {
+    /**
+     * Request-scoped attribute: the branch day the create gate resolved (#157). The handler
+     * hands it to [com.companyb.companyapp.service.session.SessionService.create] so the gate
+     * and the write share one day resolution (no Manila-midnight divergence). Absent when the
+     * gate ran the plain branch check (no day row existed — no BRANCH_DAY grant possible).
+     */
+    private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
+
     @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/sessions") { context ->
@@ -51,10 +59,12 @@ object SessionRoutes {
             // Day-scoped (#157): a BRANCH_DAY relief grant for today satisfies the create gate.
             // Find-only (never creates): a missing day means no BRANCH_DAY grant can exist for
             // it, so the plain branch check covers the no-day case; a 403'd attempt must not
-            // leave a day row behind.
+            // leave a day row behind. The resolved day is handed to the handler so the gate and
+            // the write share one resolution (no midnight-boundary divergence).
             val todayBranchDay = BranchDayService.findToday(branchId)
             if (todayBranchDay != null) {
                 CapabilityFilter.requireBranchOrBranchDayCapability(context, todayBranchDay.id)
+                context.attribute(GATED_BRANCH_DAY_ATTR, todayBranchDay.id)
             } else {
                 CapabilityFilter.requireBranchCapabilityForBranchId(
                     context,
@@ -221,6 +231,7 @@ object SessionRoutes {
                 otherConcerns = request.otherConcerns,
                 bookedAt = bookedAt,
                 nextAppointmentDate = nextAppt,
+                gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
             )
 
         val concerns = SessionService.getSessionConcerns(callerId, sessionId).map { it.toResponse() }

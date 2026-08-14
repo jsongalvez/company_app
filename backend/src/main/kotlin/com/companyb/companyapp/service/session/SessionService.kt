@@ -65,6 +65,11 @@ object SessionService {
         otherConcerns: String?,
         bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
+        // #157: the branch day the route gate resolved (find-only). When provided, the create
+        // writes to THIS day instead of re-resolving today — the gate and the write share one
+        // resolution so a request straddling the Manila midnight boundary can't be gated
+        // against the granted day while landing on the next (the mixed-resolution-base class).
+        gatedBranchDayId: UUID? = null,
     ): SessionCreateResult {
         val branchType =
             SessionRepository.getBranchType(branchId)
@@ -77,7 +82,9 @@ object SessionService {
         }
 
         val today = LocalDate.now(manilaZone)
-        val branchDay = BranchDayService.resolveOrCreate(branchId, today)
+        val branchDay =
+            gatedBranchDayId?.let { BranchDayService.requireBranchDayExists(it) }
+                ?: BranchDayService.resolveOrCreate(branchId, today)
 
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)

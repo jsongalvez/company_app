@@ -15,15 +15,23 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.InventoryMovementTable
+import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.repository.model.ProductSaleTable
+import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.inventory.InventoryService
+import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -31,8 +39,12 @@ import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -65,12 +77,17 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private val wrongDayUser = UUID.randomUUID()
     private val expiredUser = UUID.randomUUID()
     private val branchUser = UUID.randomUUID()
+    private val branchCUser = UUID.randomUUID()
+    private val globalUser = UUID.randomUUID()
     private val noGrantUser = UUID.randomUUID()
     private val branchA = UUID.randomUUID()
     private val branchB = UUID.randomUUID()
+    private val branchC = UUID.randomUUID()
     private val clientId = UUID.randomUUID()
     private val otherClientId = UUID.randomUUID()
     private val createClientId = UUID.randomUUID()
+    private val categoryId = UUID.randomUUID()
+    private val productId = UUID.randomUUID()
     private val sessionOnGrantedDay = UUID.randomUUID()
     private val sessionOnOtherDay = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -80,29 +97,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     private lateinit var dayOtherBranch: UUID
 
     override fun initTestData() {
-        DatabaseTestHelper.insertTestUser(reliefUser, "relief")
-        DatabaseTestHelper.insertTestUser(wrongDayUser, "relief-wrong-day")
-        DatabaseTestHelper.insertTestUser(expiredUser, "relief-expired")
-        DatabaseTestHelper.insertTestUser(branchUser, "branch-editor")
-        DatabaseTestHelper.insertTestUser(noGrantUser, "no-grant")
-        DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
-        DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
-        DatabaseTestHelper.insertTestClient(clientId)
-        DatabaseTestHelper.insertTestClient(otherClientId)
-        DatabaseTestHelper.insertTestClient(createClientId)
-
-        trackOwned(AppUserTable, AppUserTable.id, reliefUser)
-        trackOwned(AppUserTable, AppUserTable.id, wrongDayUser)
-        trackOwned(AppUserTable, AppUserTable.id, expiredUser)
-        trackOwned(AppUserTable, AppUserTable.id, branchUser)
-        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
-        trackOwned(BranchTable, BranchTable.id, branchA)
-        trackOwned(BranchTable, BranchTable.id, branchB)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
-        trackOwned(BranchDayTable, BranchDayTable.branchId, branchB)
-        trackOwned(ClientTable, ClientTable.id, clientId)
-        trackOwned(ClientTable, ClientTable.id, otherClientId)
-        trackOwned(ClientTable, ClientTable.id, createClientId)
+        seedUsersAndBranches()
+        seedClients()
         trackOwned(SessionTable, SessionTable.id, sessionOnGrantedDay)
         trackOwned(SessionTable, SessionTable.id, sessionOnOtherDay)
 
@@ -118,26 +114,94 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, wrongDayUser)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, expiredUser)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, branchUser)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, branchCUser)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, globalUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, reliefUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, wrongDayUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, expiredUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, branchUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, branchCUser)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, globalUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, noGrantUser)
+        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, grantedDay)
+        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, otherDaySameBranch)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchA)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.branchDayId, grantedDay)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.branchDayId, otherDaySameBranch)
 
         seedAuxiliaryData()
         seedGrants()
+    }
+
+    private fun seedUsersAndBranches() {
+        DatabaseTestHelper.insertTestUser(reliefUser, "relief")
+        DatabaseTestHelper.insertTestUser(wrongDayUser, "relief-wrong-day")
+        DatabaseTestHelper.insertTestUser(expiredUser, "relief-expired")
+        DatabaseTestHelper.insertTestUser(branchUser, "branch-editor")
+        DatabaseTestHelper.insertTestUser(branchCUser, "branch-c-editor")
+        DatabaseTestHelper.insertTestUser(globalUser, "global-editor")
+        DatabaseTestHelper.insertTestUser(noGrantUser, "no-grant")
+        DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
+        DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
+        DatabaseTestHelper.insertTestBranch(branchC, "Branch C (no day row)")
+
+        trackOwned(AppUserTable, AppUserTable.id, reliefUser)
+        trackOwned(AppUserTable, AppUserTable.id, wrongDayUser)
+        trackOwned(AppUserTable, AppUserTable.id, expiredUser)
+        trackOwned(AppUserTable, AppUserTable.id, branchUser)
+        trackOwned(AppUserTable, AppUserTable.id, branchCUser)
+        trackOwned(AppUserTable, AppUserTable.id, globalUser)
+        trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
+        trackOwned(BranchTable, BranchTable.id, branchA)
+        trackOwned(BranchTable, BranchTable.id, branchB)
+        trackOwned(BranchTable, BranchTable.id, branchC)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchB)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchC)
+    }
+
+    private fun seedClients() {
+        DatabaseTestHelper.insertTestClient(clientId)
+        DatabaseTestHelper.insertTestClient(otherClientId)
+        DatabaseTestHelper.insertTestClient(createClientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        trackOwned(ClientTable, ClientTable.id, otherClientId)
+        trackOwned(ClientTable, ClientTable.id, createClientId)
     }
 
     private fun seedAuxiliaryData() {
         DatabaseTestHelper.insertTestSession(sessionOnGrantedDay, clientId, grantedDay)
         DatabaseTestHelper.insertTestSession(sessionOnOtherDay, otherClientId, otherDaySameBranch)
 
-        // Session-create base rate for branch A (the create resolves today's branch day).
+        // Session-create base rates (the create resolves today's branch day).
+        seedBaseRate(branchA)
+        seedBaseRate(branchC)
+
+        // Inventory card + stock for the product-sale tests (a -1 TESTER movement and a sale
+        // need stock so nothing trips branch_inventory_current_stock_check).
+        DatabaseTestHelper.insertTestCategory(categoryId)
+        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        InventoryService.ensureCard(branchA, productId)
+        InventoryService.recordMovement(
+            callerId = reliefUser,
+            movementId = UUID.randomUUID(),
+            branchId = branchA,
+            productId = productId,
+            movementType = MovementType.Restock,
+            quantityChange = 10,
+            notes = null,
+            branchDayId = grantedDay,
+        )
+    }
+
+    private fun seedBaseRate(branchId: UUID) {
         val rateId = UUID.randomUUID()
         SessionService.setRate(
             callerId = reliefUser,
             id = rateId,
-            branchId = branchA,
+            branchId = branchId,
             sessionType = SessionType.REGULAR,
             rate = BigDecimal("2500.00"),
         )
@@ -180,6 +244,23 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             contextId = branchA,
             sourceId = sourceId,
         )
+        // branchCUser: BRANCH grant at the no-day-row branch (the null-day fallback success path).
+        DatabaseTestHelper.grantCapability(
+            userId = branchCUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchC,
+            sourceId = sourceId,
+        )
+        // globalUser: GLOBAL EDIT_BRANCH_DATA — must NOT satisfy the day gates (pre-change
+        // strictness preserved; the #131 class).
+        DatabaseTestHelper.grantCapability(
+            userId = globalUser,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
     }
 
     private fun createApp(): Javalin {
@@ -203,6 +284,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             }
             ExpenseRoutes.register(cfg)
             SessionRoutes.register(cfg)
+            ProductSaleRoutes.register(cfg)
         }
     }
 
@@ -377,6 +459,107 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                 )
             val response = client.post("/api/sessions", body, asUser(reliefUser))
             assertEquals(403, response.code)
+        }
+    }
+
+    // --- Product-sale create (day-scoped write via body branchDayId) ---
+
+    @Test
+    fun `relief user creates a product sale on the granted day`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val saleId = UUID.randomUUID()
+            trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
+            val cardVersion =
+                InventoryService
+                    .getStock(branchA)
+                    .first()
+                    .inventory.version
+            val body =
+                mapOf(
+                    "id" to saleId.toString(),
+                    "branchDayId" to grantedDay.toString(),
+                    "isWalkIn" to true,
+                    "productId" to productId.toString(),
+                    "quantity" to 1,
+                    "expectedVersion" to cardVersion,
+                )
+            val response = client.post("/api/product-sales", body, asUser(reliefUser))
+            assertEquals(201, response.code, response.body?.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `relief user product sale on a non-granted day is forbidden`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val saleId = UUID.randomUUID()
+            trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
+            val body =
+                mapOf(
+                    "id" to saleId.toString(),
+                    "branchDayId" to otherDaySameBranch.toString(),
+                    "isWalkIn" to true,
+                    "productId" to productId.toString(),
+                    "quantity" to 1,
+                    "expectedVersion" to 2,
+                )
+            val response = client.post("/api/product-sales", body, asUser(reliefUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    // --- The GLOBAL exclusion (the #131 strictness) ---
+
+    @Test
+    fun `global grant does not satisfy the day gates`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(globalUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    // --- Session create at a branch with NO today day row (the find-only fallback) ---
+
+    @Test
+    fun `session create at a no-day branch falls back to the branch gate without creating a day`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val sessionId = UUID.randomUUID()
+            trackOwned(SessionTable, SessionTable.id, sessionId)
+            val body =
+                mapOf(
+                    "id" to sessionId.toString(),
+                    "clientId" to createClientId.toString(),
+                    "branchId" to branchC.toString(),
+                    "isWalkIn" to false,
+                    "finalPrice" to "2500.00",
+                )
+            val response = client.post("/api/sessions", body, asUser(reliefUser))
+            assertEquals(403, response.code)
+            val dayCount =
+                transaction {
+                    BranchDayTable
+                        .selectAll()
+                        .where { BranchDayTable.branchId eq branchC }
+                        .count()
+                }
+            assertEquals(0L, dayCount, "the find-only gate must not create a branch day row")
+        }
+    }
+
+    @Test
+    fun `branch-granted user creates a session at a branch with no day row`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val sessionId = UUID.randomUUID()
+            trackOwned(SessionTable, SessionTable.id, sessionId)
+            val body =
+                mapOf(
+                    "id" to sessionId.toString(),
+                    "clientId" to createClientId.toString(),
+                    "branchId" to branchC.toString(),
+                    "isWalkIn" to false,
+                    "finalPrice" to "2500.00",
+                )
+            val response = client.post("/api/sessions", body, asUser(branchCUser))
+            assertEquals(201, response.code, response.body?.string().orEmpty())
         }
     }
 
