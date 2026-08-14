@@ -120,7 +120,9 @@ read (`GET /api/branches/{branchId}/daily-summary?date=`,
 `CapabilityFilter.requireBranchOrGlobalOrBranchDayCapabilityForBranchId`: BRANCH or GLOBAL
 `VIEW_BRANCH_DATA` OR a BRANCH_DAY `EDIT_BRANCH_DATA` grant for the day) and `/today`
 (find-only `findToday` → `requireBranchOrBranchDayCapability`). Both resolve the day find-only;
-a missing day row means no day grant can exist and the branch/global leg alone governs. The
+a missing day row means no day grant can exist and the gate falls back — for the summary read to
+the branch/global leg, for `/today` to the plain BRANCH gate (GLOBAL never passes `/today`, the
+#131 strictness; that asymmetry is deliberate and unchanged from the pre-ride gate). The
 multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only — a single-day grant cannot
 authorize an unbounded list. The frontend ride (Finance day-detail gates resolving the day
 grant) landed in the same ticket.

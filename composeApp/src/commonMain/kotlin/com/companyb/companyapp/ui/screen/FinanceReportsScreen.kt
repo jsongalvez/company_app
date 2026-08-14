@@ -55,7 +55,7 @@ import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasCapabilityAnyContext
-import com.companyb.companyapp.state.hasCapabilityAtContextType
+import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -113,10 +113,7 @@ fun FinanceReportsScreen(
     // a branch the picker never lists — the #98 window is BRANCH-grant-only) reach it
     // via the Relief-day chip (pass-1 triage: the picker can't reach the relief branch).
     val hasDayGrant =
-        capabilities.hasCapabilityAtContextType(
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContext.BRANCH_DAY,
-        )
+        capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
     val reliefOnly = hasDayGrant && !capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)
 
     LaunchedEffect(Unit) {
@@ -175,7 +172,15 @@ fun FinanceReportsScreen(
                     if (reliefOnly) {
                         null
                     } else {
-                        { showReliefSection = false }
+                        {
+                            // Pass-2 HARD — leave the relief surface clean: a re-entry via
+                            // the chip must not find the previous relief day armed (stale
+                            // date input vs old Success), and the reports edit state must
+                            // not leak into the relief section.
+                            viewModel.setEditMode(false)
+                            viewModel.clearReliefState()
+                            showReliefSection = false
+                        }
                     },
                 downloads = downloads,
                 exportErrors = exportErrors,
@@ -191,7 +196,8 @@ fun FinanceReportsScreen(
                     !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, selectedBranch)
             // #158 — hybrid holders (day grant + VIEW at a picker-listed branch): the relief
             // day lives at a branch the #98 window never lists, so the picker can't reach it —
-            // the chip switches the surface to the day-scoped entry.
+            // the chip switches the surface to the day-scoped entry. Pass-2 HARD — entering
+            // mid-edit would leak the reports day's armed sections into the relief surface.
             if (hasDayGrant && !reliefOnly) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -200,7 +206,10 @@ fun FinanceReportsScreen(
                 ) {
                     FilterChip(
                         selected = false,
-                        onClick = { showReliefSection = true },
+                        onClick = {
+                            viewModel.setEditMode(false)
+                            showReliefSection = true
+                        },
                         label = { Text("Relief day") },
                     )
                 }

@@ -4,10 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.navigation.Route
-import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapabilityAnyContext
-import com.companyb.companyapp.state.hasCapabilityAtContextType
+import com.companyb.companyapp.state.hasDayGrant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,10 +75,7 @@ class DrawerViewModel : ViewModel() {
                                             ) ||
                                             (
                                                 item.dayGrantCode != null &&
-                                                    caps.hasCapabilityAtContextType(
-                                                        item.dayGrantCode,
-                                                        CapabilityContext.BRANCH_DAY,
-                                                    )
+                                                    caps.hasDayGrant(item.dayGrantCode)
                                             ),
                                 )
                             },

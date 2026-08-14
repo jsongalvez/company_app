@@ -122,4 +122,12 @@ class SessionCapabilityMatcherTest {
         assertFalse(rows.hasCapabilityAtContextType("MANAGE_USERS", "BRANCH"))
         assertFalse(emptyList<UserCapabilityResponse>().hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH_DAY"))
     }
+
+    @Test
+    fun hasDayGrant_matches_only_branchDay_rows() {
+        assertTrue(rows.hasDayGrant("EDIT_BRANCH_DATA"))
+        assertFalse(rows.hasDayGrant("MANAGE_USERS"), "GLOBAL rows are not day grants")
+        assertFalse(rows.hasDayGrant("ASSIGN_COMPENSATION"), "absent code never matches")
+        assertFalse(emptyList<UserCapabilityResponse>().hasDayGrant("EDIT_BRANCH_DATA"))
+    }
 }

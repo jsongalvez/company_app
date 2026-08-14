@@ -1369,7 +1369,6 @@ class FinanceReportsViewModelTest {
             assertIs<UiState.Success<DailySalesSummaryResponse>>(relief)
             assertEquals(DAY_ID, relief.data.branchDayId)
             assertEquals(DAY_ID, vm.selectedDay.value?.branchDayId, "the fetched day seeds the shared day state")
-            assertEquals(BRANCH_A, vm.selectedBranchId.value, "relief day pins the clocked-in branch")
         }
 
     @Test
@@ -1447,5 +1446,40 @@ class FinanceReportsViewModelTest {
             assertTrue(!vm.editMode.value, "a day switch exits edit mode")
             assertEquals(UiState.Idle, vm.editExpenses.value, "the previous day's sections are cleared")
             assertEquals("day-1", vm.selectedDay.value?.branchDayId, "the new day seeds the shared state")
+        }
+
+    @Test
+    fun clearReliefState_resetsTheSectionForHybridExit() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summary" -> {
+                        respondJson(
+                            """{"branchDayId":"$DAY_ID","branchId":"$BRANCH_A","date":"2026-08-14",
+                                "grossIncome":"1000.00","totalCompensation":"200.00","totalExpenses":"50.00",
+                                "netIncome":"750.00","totalProductSales":"300.00","totalCommission":"10.0000"}""",
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+
+            vm.loadReliefDay("2026-08-14")
+            advanceUntilIdle()
+            assertIs<UiState.Success<DailySalesSummaryResponse>>(vm.reliefDay.value)
+            vm.setEditMode(true)
+
+            // The hybrid exit path: leaving the relief section must clear its state so a
+            // re-entry via the chip starts clean (pass-2 HARD — stale day under a fresh input).
+            vm.clearReliefState()
+
+            assertEquals(UiState.Idle, vm.reliefDay.value)
+            assertTrue(!vm.editMode.value)
+            assertNull(vm.selectedDay.value)
+            assertEquals(UiState.Idle, vm.editExpenses.value)
         }
 }

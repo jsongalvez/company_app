@@ -745,6 +745,16 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     }
 
     @Test
+    fun `GLOBAL EDIT_BRANCH_DATA does not satisfy the today day-status read`() {
+        // The /today fallback is the plain BRANCH gate — GLOBAL never passes (the #131
+        // strictness; the pass-2 doc amendment pins the asymmetry).
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/today", asUser(globalUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
     fun `unauthenticated single-day summary read gets 401`() {
         JavalinTest.test(createAppWithJwt()) { _, client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today")

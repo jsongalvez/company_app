@@ -141,7 +141,9 @@ remittance (`SUBMIT_REMITTANCE`), session void/unvoid (`VOID_SESSION`), and (pre
 read (`GET /api/branches/{branchId}/today`). **#158**: the ride landed — the single-day summary read
 (`GET /api/branches/{branchId}/daily-summary?date=`, `requireBranchOrGlobalOrBranchDayCapabilityForBranchId`)
 and `/today` (via `findToday` → `requireBranchOrBranchDayCapability`) now accept the day grant (find-only
-day resolution; a missing day row means no day grant can exist — the branch/global leg governs). The
+day resolution; a missing day row means no day grant can exist — the summary read falls back to the
+branch/global leg, `/today` to the plain BRANCH gate, and GLOBAL never passes `/today` — the #131
+strictness, unchanged). The
 multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only: a single-day grant cannot authorize an
 unbounded list.
 

@@ -541,13 +541,14 @@ class FinanceReportsViewModel(
                     _reliefDay.value = UiState.Error("No clocked-in branch")
                     return
                 }
-        _selectedBranchId.value = branchId
         // Pass-1 HARD (P3/P4) — the #144-ack/browse stale-state class: a relief-day switch
         // while editing must not leave the OLD day's edit sections armed (editExpenses etc.
         // hold the previous day's rows; a later Edit toggle would mutate the wrong day).
         // Mirrors refreshWindowAndFeed's reset + loadSection's generation guard. The state
         // write is manual (dummy pageFetch to the handler) so a superseded response never
-        // lands Success on the UI.
+        // lands Success on the UI. The VM's [_selectedBranchId] is deliberately NOT touched:
+        // the relief surface reads the clocked-in branch from SessionState (pass-2 HARD —
+        // writing it would pin the hybrid's reports surface to the relief branch).
         reliefGeneration++
         val generation = reliefGeneration
         _editMode.value = false
@@ -579,6 +580,18 @@ class FinanceReportsViewModel(
                 }
             },
         )
+    }
+
+    /**
+     * #158 pass-2 — the hybrid exit path: leaving the relief section clears its state so a
+     * re-entry via the chip starts clean (no stale day under a fresh date input).
+     */
+    fun clearReliefState() {
+        reliefGeneration++
+        _reliefDay.value = UiState.Idle
+        _editMode.value = false
+        _selectedDay.value = null
+        clearEditData()
     }
 
     /**

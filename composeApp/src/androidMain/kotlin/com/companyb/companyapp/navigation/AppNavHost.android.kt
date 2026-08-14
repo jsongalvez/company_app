@@ -28,11 +28,10 @@ import androidx.navigation.toRoute
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
-import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapabilityAnyContext
-import com.companyb.companyapp.state.hasCapabilityAtContextType
+import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.drawer.HamburgerWithBadge
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
@@ -222,10 +221,7 @@ actual fun AppNavHost(
                         // authoritative). #158 — a BRANCH_DAY grant holder (relief delegate)
                         // reaches the day-scoped read entry without any VIEW grant.
                         if (capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA) ||
-                            capabilities.hasCapabilityAtContextType(
-                                CapabilityCodes.EDIT_BRANCH_DATA,
-                                CapabilityContext.BRANCH_DAY,
-                            )
+                            capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
                         ) {
                             val financeReportsViewModel: FinanceReportsViewModel =
                                 viewModel { FinanceReportsViewModel(apiClient) }

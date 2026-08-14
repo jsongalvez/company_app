@@ -143,3 +143,10 @@ fun List<UserCapabilityResponse>.hasCapabilityAtContextType(
     code: String,
     contextType: String,
 ): Boolean = any { it.capabilityCode == code && it.contextType == contextType }
+
+/**
+ * #158 — the relief day-grant shape shared by the drawer, both NavHost gates and the
+ * Finance screen: the caller holds [code] at BRANCH_DAY context (any day).
+ */
+fun List<UserCapabilityResponse>.hasDayGrant(code: String): Boolean =
+    hasCapabilityAtContextType(code, CapabilityContext.BRANCH_DAY)
