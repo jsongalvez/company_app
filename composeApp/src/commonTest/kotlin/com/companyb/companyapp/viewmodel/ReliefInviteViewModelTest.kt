@@ -25,6 +25,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -485,7 +486,7 @@ class ReliefInviteViewModelTest {
             val state = vm.received.value
             assertIs<UiState.Success<List<ReliefInviteResponse>>>(state)
             val ids = state.data.map { it.id }
-            assertTrue(!ids.contains("i1"), "the accepted row must not resurrect: $ids")
+            assertFalse(ids.contains("i1"), "the accepted row must not resurrect: $ids")
             assertTrue(ids.contains("i3"), "the re-issued load must converge server truth: $ids")
         }
 
@@ -535,6 +536,75 @@ class ReliefInviteViewModelTest {
             // 409 → handled (no Error) → reload → the stale row leaves.
             assertIs<UiState.Idle>(vm.acceptResult.value)
             assertEquals(2, reloadCalls)
+            assertEquals(0, vm.lastReceived.value!!.size)
+        }
+
+    @Test
+    fun `pre-conflict in-flight load cannot resurrect the resolved row`() =
+        runTest(testScheduler) {
+            var getCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-invites" && it.method.value == "GET" -> {
+                                getCalls++
+                                if (getCalls == 1) {
+                                    ok("[${inviteJson("i1", "PENDING")}]")
+                                } else if (getCalls == 2) {
+                                    // The pre-conflict load: launched before the 409, lands after —
+                                    // serving the PRE-resolution snapshot (i1 still PENDING).
+                                    withContext(StandardTestDispatcher(testScheduler)) {
+                                        kotlinx.coroutines.delay(10_000)
+                                    }
+                                    ok("[${inviteJson("i1", "PENDING")}]")
+                                } else {
+                                    // Any load after the 409 (the conflict reload, the
+                                    // substitution's re-issue) serves post-resolution truth.
+                                    ok("[]")
+                                }
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/accept" -> {
+                                respond(
+                                    content = ByteReadChannel("""{"error":"already responded"}"""),
+                                    status = HttpStatusCode.Conflict,
+                                    headers =
+                                        headersOf(
+                                            HttpHeaders.ContentType,
+                                            ContentType.Application.Json.toString(),
+                                        ),
+                                )
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadReceived()
+            runCurrent()
+            assertEquals(1, vm.lastReceived.value!!.size)
+
+            // The second load is in flight when the accept 409s. The 409 is authoritative
+            // server confirmation — the row leaves locally (removal) and the stamp bump
+            // protects the in-flight snapshot from committing (the #141 resurrect class).
+            vm.loadReceived()
+            runCurrent()
+            vm.acceptInvite("i1")
+            runCurrent()
+            assertIs<UiState.Idle>(vm.acceptResult.value)
+            assertEquals(0, vm.lastReceived.value!!.size, "the 409 removes the row locally")
+
+            // The pre-conflict load lands with a stale stamp: substitution converges to the
+            // post-409 list (already empty) instead of resurrecting i1.
+            advanceTimeBy(20_000)
+            runCurrent()
+            val state = vm.received.value
+            assertIs<UiState.Success<List<ReliefInviteResponse>>>(state)
+            assertEquals(0, state.data.size, "the resolved row must not resurrect")
             assertEquals(0, vm.lastReceived.value!!.size)
         }
 

@@ -138,7 +138,7 @@ class ReliefInviteViewModel(
             // #113 shape: a 409 means the invite is already resolved (double-tap race or a
             // cross-device accept) — the row must leave the section, so reload instead of
             // surfacing an error on a stale row (the markRead absent-row defense precedent).
-            onNonSuccess = onConflictReload(_acceptResult),
+            onNonSuccess = onConflictReload(_acceptResult, inviteId),
             transform = {
                 actionStamp++
                 removeReceived(inviteId)
@@ -152,7 +152,7 @@ class ReliefInviteViewModel(
             operation = "declineInvite",
             endpoint = "POST /api/relief-invites/$inviteId/decline",
             block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/decline") },
-            onNonSuccess = onConflictReload(_declineResult),
+            onNonSuccess = onConflictReload(_declineResult, inviteId),
             transform = {
                 actionStamp++
                 removeReceived(inviteId)
@@ -160,13 +160,24 @@ class ReliefInviteViewModel(
             },
         )
 
-    /** Shared 409-handling for accept/decline: Idle-reset (the #140 stuck-Loading class) + reload. */
+    /**
+     * Shared 409-handling for accept/decline: the 409 is authoritative server confirmation that
+     * the invite is resolved, so the row leaves locally (Idle-reset — the #140 stuck-Loading
+     * class — + removal + reload). The stamp bump BEFORE the reload is load-bearing: a pre-409
+     * in-flight load would otherwise commit its pre-resolution snapshot with a matching stamp
+     * and resurrect the row (the #141 resurrect class, 4-lens review finding). The reload may
+     * be gated by the in-flight guard — the local removal already converged the list, and the
+     * gated load's landing goes down the stamp-mismatch substitution path.
+     */
     private fun onConflictReload(
         state: MutableStateFlow<UiState<Unit>>,
+        inviteId: String,
     ): suspend (io.ktor.client.statement.HttpResponse) -> Boolean =
         { response ->
             if (response.status == HttpStatusCode.Conflict) {
                 state.value = UiState.Idle
+                actionStamp++
+                removeReceived(inviteId)
                 loadReceived()
                 true
             } else {
