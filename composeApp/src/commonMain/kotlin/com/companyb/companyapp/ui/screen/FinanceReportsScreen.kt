@@ -133,6 +133,14 @@ fun FinanceReportsScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
+        val selectedBranch = selectedBranchId
+        val day = selectedDay
+        // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
+        // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
+        val pastDayReadOnlySelection =
+            day != null &&
+                derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
+                CapabilityCodes.EDIT_PAST_DAY !in capabilities
         FinanceToolbar(
             branches = branches,
             selectedBranchId = selectedBranchId,
@@ -140,7 +148,7 @@ fun FinanceReportsScreen(
             onRetryBranches = viewModel::loadBranches,
             mode = mode,
             onModeSelected = viewModel::setMode,
-            canEdit = viewModel.hasEditCapabilities() && selectedDay != null,
+            canEdit = viewModel.hasEditCapabilities() && selectedDay != null && !pastDayReadOnlySelection,
             editMode = editMode,
             onEditToggle = { viewModel.setEditMode(!editMode) },
             downloads = downloads,
@@ -183,9 +191,6 @@ fun FinanceReportsScreen(
                 ReportMode.DAILY -> {}
             }
         }
-
-        val selectedBranch = selectedBranchId
-        val day = selectedDay
 
         when {
             editMode && day != null && selectedBranch != null -> {
@@ -461,7 +466,7 @@ private fun FeedSection(
     monthlyRollup: UiState<MonthlyRemittanceSummaryResponse?>,
     selectedBranchId: String?,
     selectedDay: DailySalesSummaryResponse?,
-    onDaySelected: (DailySalesSummaryResponse) -> Unit,
+    onDaySelected: (DailySalesSummaryResponse?) -> Unit,
     today: LocalDate,
     downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     exportErrors: Map<String, String>,
@@ -503,11 +508,15 @@ private fun FeedSection(
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(feed.data, key = { it.branchDayId }) { day ->
+                            val isSelected = day.branchDayId == selectedDay?.branchDayId
                             DayRow(
                                 day = day,
                                 today = today,
-                                selected = day.branchDayId == selectedDay?.branchDayId,
-                                onSelect = { onDaySelected(day) },
+                                selected = isSelected,
+                                // Pass-2 HARD — re-tapping the selected day deselects (selectDay
+                                // with the SAME instance never re-emits — the mobile dialog was
+                                // unclosable). selectDay(null) emits on every call.
+                                onSelect = { onDaySelected(if (isSelected) null else day) },
                                 onExportDay = { format ->
                                     selectedBranchId?.let { branch ->
                                         viewModel.exportDay(day, branch, format)
@@ -729,6 +738,8 @@ private fun DayEditor(
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
     val canAssign = CapabilityCodes.ASSIGN_COMPENSATION in capabilities
+    // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard, code-only #99 D7).
+    val canEditExpenses = CapabilityCodes.EDIT_BRANCH_DATA in capabilities
     // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY (the code-only
     // #99 D7 approximation; the backend 403 stays authoritative).
     val pastDayReadOnly = state == DerivedDayState.PAST && CapabilityCodes.EDIT_PAST_DAY !in capabilities
@@ -772,25 +783,29 @@ private fun DayEditor(
         }
         Spacer(Modifier.height(Spacing.sm))
 
-        ExpenseSection(
-            expenses = expenses,
-            errors = editErrors,
-            inFlight = inFlight,
-            readOnly = pastDayReadOnly,
-            conflicts = conflicts,
-            onCreate = { amount, category, notes, reason ->
-                viewModel.createExpense(amount, category, notes, reason)
-            },
-            onUpdate = { expense, amount, category, notes, reason ->
-                viewModel.updateExpense(expense, amount, category, notes, reason)
-            },
-            onDelete = { expense, reason -> viewModel.deleteExpense(expense, reason) },
-            onRestore = { expense, reason -> viewModel.restoreExpense(expense, reason) },
-            onReload = { viewModel.reloadSection(EditSection.EXPENSES) },
-        )
-        Spacer(Modifier.height(Spacing.sm))
+        if (canEditExpenses) {
+            ExpenseSection(
+                viewModel = viewModel,
+                expenses = expenses,
+                errors = editErrors,
+                inFlight = inFlight,
+                readOnly = pastDayReadOnly,
+                conflicts = conflicts,
+                onCreate = { amount, category, notes, reason ->
+                    viewModel.createExpense(amount, category, notes, reason)
+                },
+                onUpdate = { expense, amount, category, notes, reason ->
+                    viewModel.updateExpense(expense, amount, category, notes, reason)
+                },
+                onDelete = { expense, reason -> viewModel.deleteExpense(expense, reason) },
+                onRestore = { expense, reason -> viewModel.restoreExpense(expense, reason) },
+                onReload = { viewModel.reloadSection(EditSection.EXPENSES) },
+            )
+            Spacer(Modifier.height(Spacing.sm))
+        }
 
         CompensationSection(
+            viewModel = viewModel,
             compensations = compensations,
             users = users,
             errors = editErrors,
@@ -816,6 +831,7 @@ private fun DayEditor(
             canAssign = canAssign,
             readOnly = pastDayReadOnly,
             onCreate = { userId, amount, reason -> viewModel.createAllowance(userId, amount, reason) },
+            onReload = { viewModel.reloadSection(EditSection.ALLOWANCES) },
         )
     }
 }
@@ -849,6 +865,7 @@ private fun SummaryCard(
 
 @Composable
 private fun ExpenseSection(
+    viewModel: FinanceReportsViewModel,
     expenses: UiState<List<ExpenseResponse>>,
     errors: Map<String, String>,
     inFlight: Set<String>,
@@ -864,11 +881,16 @@ private fun ExpenseSection(
     var editing by remember { mutableStateOf<ExpenseResponse?>(null) }
     var deleting by remember { mutableStateOf<ExpenseResponse?>(null) }
     var restoring by remember { mutableStateOf<ExpenseResponse?>(null) }
-    // Pass-1 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
-    // re-save would loop 409s; the reloaded row is the retry source.
+    // Pass-1/2 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
+    // re-save would loop 409s; the reloaded row is the retry source. The key is consumed so a
+    // repeat 409 on the same row re-emits and a persisted key can't slam a later dialog shut.
     LaunchedEffect(conflicts) {
         val e = editing
-        if (e != null && "expense:update:${e.id}" in conflicts) editing = null
+        val key = e?.let { "expense:update:${it.id}" }
+        if (key != null && key in conflicts) {
+            editing = null
+            viewModel.consumeConflict(key)
+        }
     }
     SectionHeader(
         title = "Expenses",
@@ -887,6 +909,7 @@ private fun ExpenseSection(
         }
 
         is UiState.Error -> {
+            logWarn("FinanceReportsScreen", "expenses=Error: ${expenses.message}")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = expenses.message,
@@ -1038,8 +1061,10 @@ private fun ExpenseRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = InkSubtle,
             )
-            Spacer(Modifier.width(Spacing.sm))
-            TextButton(onClick = onRestore, enabled = !busy) { Text("Restore") }
+            if (!readOnly) {
+                Spacer(Modifier.width(Spacing.sm))
+                TextButton(onClick = onRestore, enabled = !busy) { Text("Restore") }
+            }
         } else if (!readOnly) {
             TextButton(onClick = onEdit, enabled = !busy) { Text("Edit") }
             TextButton(onClick = onDelete, enabled = !busy) { Text("Delete") }
@@ -1065,7 +1090,15 @@ private fun ExpenseDialog(
     onDismiss: () -> Unit,
 ) {
     var amount by remember { mutableStateOf(initial?.amount ?: "") }
-    var categoryIndex by remember { mutableStateOf(expenseCategoryCodes.indexOf(initial?.category).coerceAtLeast(0)) }
+    var categoryIndex by remember {
+        mutableStateOf(
+            initial
+                ?.category
+                ?.let { code -> expenseCategoryCodes.indexOf(code) }
+                ?.takeIf { it >= 0 }
+                ?: 0,
+        )
+    }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     var reason by remember { mutableStateOf("") }
     val amountError = expenseAmountError(amount)
@@ -1168,6 +1201,7 @@ private fun CategoryDropdown(
 
 @Composable
 private fun CompensationSection(
+    viewModel: FinanceReportsViewModel,
     compensations: UiState<List<CompensationResponse>>,
     users: UiState<List<BranchDayUserResponse>>,
     errors: Map<String, String>,
@@ -1183,7 +1217,11 @@ private fun CompensationSection(
     var editing by remember { mutableStateOf<CompensationResponse?>(null) }
     LaunchedEffect(conflicts) {
         val e = editing
-        if (e != null && "comp:update:${e.id}" in conflicts) editing = null
+        val key = e?.let { "comp:update:${it.id}" }
+        if (key != null && key in conflicts) {
+            editing = null
+            viewModel.consumeConflict(key)
+        }
     }
     SectionHeader(
         title = "Compensation",
@@ -1202,6 +1240,7 @@ private fun CompensationSection(
         }
 
         is UiState.Error -> {
+            logWarn("FinanceReportsScreen", "compensations=Error: ${compensations.message}")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = compensations.message,
@@ -1383,6 +1422,7 @@ private fun AllowanceSection(
     canAssign: Boolean,
     readOnly: Boolean,
     onCreate: (String, String, String?) -> Unit,
+    onReload: () -> Unit,
 ) {
     var showAssign by remember { mutableStateOf(false) }
     SectionHeader(
@@ -1390,7 +1430,7 @@ private fun AllowanceSection(
         actionLabel = "Assign allowance",
         onAction = { showAssign = true },
         showAction = canAssign && !readOnly && users is UiState.Success && users.data.isNotEmpty(),
-        onReload = { },
+        onReload = onReload,
     )
     val userNames = (users as? UiState.Success)?.data.orEmpty().associate { it.userId to it.displayName }
     when (allowances) {
@@ -1403,11 +1443,15 @@ private fun AllowanceSection(
         }
 
         is UiState.Error -> {
-            Text(
-                text = allowances.message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
+            logWarn("FinanceReportsScreen", "allowances=Error: ${allowances.message}")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = allowances.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                TextButton(onClick = onReload) { Text("Retry") }
+            }
         }
 
         is UiState.Success -> {

@@ -930,6 +930,111 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
+    fun repeatConflictOnSameKey_reemits_afterConsume() =
+        runTest(testScheduler) {
+            var patchCount = 0
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" && request.method.value == "GET" -> {
+                        respondJson("[${expenseJson("e1")}]")
+                    }
+
+                    request.url.encodedPath == "/api/expenses/e1" && request.method.value == "PATCH" -> {
+                        patchCount++
+                        respondJson("""{"error":"version mismatch"}""", HttpStatusCode.Conflict)
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            runCurrent()
+            val expense = (vm.editExpenses.value as UiState.Success).data.single()
+
+            vm.updateExpense(expense, "999.00", "PANTRY", null, null)
+            runCurrent()
+            assertTrue("expense:update:e1" in vm.conflicts.value)
+            vm.consumeConflict("expense:update:e1")
+            assertTrue(vm.conflicts.value.isEmpty())
+
+            // A repeat conflict after consume re-emits (pass-2 HARD: the old Set-union
+            // dedupe made same-key repeats invisible — the dialog would stay open).
+            vm.updateExpense(expense, "999.00", "PANTRY", null, null)
+            runCurrent()
+            assertTrue("expense:update:e1" in vm.conflicts.value)
+            assertEquals(2, patchCount)
+        }
+
+    @Test
+    fun branchSwitch_inMonthlyMode_refetchesTheRollup() =
+        runTest(testScheduler) {
+            val monthly = mutableListOf<String>()
+            val handler: MockRequestHandler = { request ->
+                when (request.url.encodedPath) {
+                    "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-13")))
+                    }
+
+                    "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        monthly += BRANCH_A
+                        respondJson(
+                            """{"branchId":"$BRANCH_A","year":2026,"month":8,"totalRemittances":1,"sessionCount":2,"productCount":0,"grossIncome":"4000.00","totalCompensation":"800.00","totalExpenses":"300.00","netIncome":"2900.00"}""",
+                        )
+                    }
+
+                    "/api/branches/$BRANCH_B/monthly-summary" -> {
+                        monthly += BRANCH_B
+                        respondJson(
+                            """{"branchId":"$BRANCH_B","year":2026,"month":8,"totalRemittances":1,"sessionCount":1,"productCount":0,"grossIncome":"1000.00","totalCompensation":"200.00","totalExpenses":"50.00","netIncome":"750.00"}""",
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+            assertEquals(listOf(BRANCH_A), monthly)
+
+            vm.selectBranch(BRANCH_B)
+            runCurrent()
+
+            assertEquals(listOf(BRANCH_A, BRANCH_B), monthly, "branch switch refetches the pinned rollup")
+            val rollup = vm.monthlyRollup.value
+            assertIs<UiState.Success<MonthlyRemittanceSummaryResponse?>>(rollup)
+            assertEquals(BRANCH_B, rollup.data?.branchId)
+        }
+
+    @Test
     fun hasEditCapabilities_reflectsTheCodeOnlySurface() =
         runTest(testScheduler) {
             val vm = FinanceReportsViewModel(mockApiClient(handler = { respondJson("{}") }), now = NOW)

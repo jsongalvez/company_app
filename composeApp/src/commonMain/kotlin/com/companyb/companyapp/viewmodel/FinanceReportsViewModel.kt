@@ -114,9 +114,15 @@ class FinanceReportsViewModel(
         _selectedBranchId.value = branchId
         _selectedDay.value = null
         _editMode.value = false
+        _paramError.value = null
         clearEditData()
         refreshWindowAndFeed()
+        // #105 D4 — the MONTHLY rollup card is pinned; a branch switch must refetch it (and a
+        // superseded in-flight rollup must stay inert — rollupGeneration bump in loadMonthlyRollup).
         _monthlyRollup.value = UiState.Idle
+        if (_mode.value == ReportMode.MONTHLY) {
+            loadMonthlyRollup()
+        }
     }
 
     // ─────────────────────────── mode + params ───────────────────────────
@@ -450,6 +456,8 @@ class FinanceReportsViewModel(
             com.companyb.companyapp.ui.screen
                 .parseYearMonthInput(_monthInput.value)
                 ?: defaultMonth
+        rollupGeneration++
+        val generation = rollupGeneration
         _monthlyRollup.value = UiState.Loading
         handler.launch(
             state = pageFetch,
@@ -462,23 +470,27 @@ class FinanceReportsViewModel(
                 }
             },
             transform = {
-                // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an error:
-                // the rollup card simply doesn't render.
-                if (it.status == HttpStatusCode.NotFound) {
-                    _monthlyRollup.value = UiState.Success(null)
-                } else {
-                    _monthlyRollup.value = UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
+                if (generation == rollupGeneration) {
+                    // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
+                    // error: the rollup card simply doesn't render.
+                    _monthlyRollup.value =
+                        if (it.status == HttpStatusCode.NotFound) {
+                            UiState.Success(null)
+                        } else {
+                            UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
+                        }
                 }
                 Unit
             },
             onNonSuccess = { response ->
-                if (response.status == HttpStatusCode.NotFound) {
-                    _monthlyRollup.value = UiState.Success(null)
-                    true
-                } else {
-                    _monthlyRollup.value = UiState.Error("monthly rollup failed: ${response.status.value}")
-                    true
+                if (generation == rollupGeneration) {
+                    if (response.status == HttpStatusCode.NotFound) {
+                        _monthlyRollup.value = UiState.Success(null)
+                    } else {
+                        _monthlyRollup.value = UiState.Error("monthly rollup failed: ${response.status.value}")
+                    }
                 }
+                true
             },
         )
     }
@@ -538,12 +550,18 @@ class FinanceReportsViewModel(
     private val _editErrors = MutableStateFlow<Map<String, String>>(emptyMap())
     val editErrors: StateFlow<Map<String, String>> = _editErrors.asStateFlow()
 
-    // One-shot conflict signal (pass-1 HARD): a 409 adds the key to a NEW Set instance so the
-    // screen's LaunchedEffect(conflicts) re-fires — the open edit dialog holds a stale
-    // expectedVersion and must close (re-saving it would loop 409s; the reloaded row is the
-    // retry source). Entries persist harmlessly (the effect reacts to the Set reference).
+    // One-shot conflict signal (pass-1 HARD, pass-2 reworked): a 409 adds the key to a NEW Set
+    // instance so the screen's LaunchedEffect(conflicts) re-fires — the open edit dialog holds a
+    // stale expectedVersion and must close (re-saving it would loop 409s; the reloaded row is
+    // the retry source). The screen consumes the key (consumeConflict) after reacting, so a
+    // repeat 409 on the same row re-emits, and a persisted key can never slam a LATER fresh
+    // dialog shut.
     private val _conflicts = MutableStateFlow<Set<String>>(emptySet())
     val conflicts: StateFlow<Set<String>> = _conflicts.asStateFlow()
+
+    fun consumeConflict(key: String) {
+        _conflicts.value = _conflicts.value - key
+    }
 
     private val _inFlightActions = MutableStateFlow<Set<String>>(emptySet())
     val inFlightActions: StateFlow<Set<String>> = _inFlightActions.asStateFlow()
@@ -691,6 +709,7 @@ class FinanceReportsViewModel(
         _editUsers.value = UiState.Idle
         _editErrors.value = emptyMap()
         _inFlightActions.value = emptySet()
+        _conflicts.value = emptySet()
     }
 
     // ─────────────────────────── expense actions ───────────────────────────
@@ -1060,13 +1079,9 @@ class FinanceReportsViewModel(
         format: String,
     ): String =
         when (mode) {
+            // DAILY deliberately absent: no toolbar export (D4 — per-day only, in the detail).
             ReportMode.DAILY -> {
-                val day = _selectedDay.value
-                if (day != null) {
-                    "/api/branches/$branchId/export/daily?date=${day.date}&format=$format"
-                } else {
-                    ""
-                }
+                ""
             }
 
             ReportMode.MONTHLY -> {
