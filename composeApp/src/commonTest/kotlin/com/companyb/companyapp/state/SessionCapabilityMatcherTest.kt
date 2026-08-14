@@ -105,4 +105,21 @@ class SessionCapabilityMatcherTest {
         assertFalse(rows.hasCapabilityAnyContext("ASSIGN_COMPENSATION"))
         assertFalse(emptyList<UserCapabilityResponse>().hasCapabilityAnyContext("MANAGE_USERS"))
     }
+
+    // ─────────────────────────── at-context-type (#158) ───────────────────────────
+
+    @Test
+    fun atContextType_matches_any_contextId_of_that_type() {
+        assertTrue(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH_DAY"))
+        assertTrue(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH"))
+        assertTrue(rows.hasCapabilityAtContextType("MANAGE_USERS", "GLOBAL"))
+    }
+
+    @Test
+    fun atContextType_rejects_other_types_and_absent_codes() {
+        assertFalse(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", "MEDICAL_MISSION"))
+        assertFalse(rows.hasCapabilityAtContextType("ASSIGN_COMPENSATION", "BRANCH"))
+        assertFalse(rows.hasCapabilityAtContextType("MANAGE_USERS", "BRANCH"))
+        assertFalse(emptyList<UserCapabilityResponse>().hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH_DAY"))
+    }
 }

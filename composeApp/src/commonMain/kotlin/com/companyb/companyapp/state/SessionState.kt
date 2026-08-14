@@ -133,3 +133,13 @@ fun List<UserCapabilityResponse>.hasCapability(
  * any context (any contextType/contextId). Backend precedent: `CapabilityRepository.hasCapabilityAnyContext`.
  */
 fun List<UserCapabilityResponse>.hasCapabilityAnyContext(code: String): Boolean = any { it.capabilityCode == code }
+
+/**
+ * #158 — true iff [code] is held at [contextType] with any contextId. The relief
+ * shape: the caller holds a day grant (`EDIT_BRANCH_DATA` at `BRANCH_DAY`) — the
+ * drawer and route gates OR this in alongside the any-context check.
+ */
+fun List<UserCapabilityResponse>.hasCapabilityAtContextType(
+    code: String,
+    contextType: String,
+): Boolean = any { it.capabilityCode == code && it.contextType == contextType }

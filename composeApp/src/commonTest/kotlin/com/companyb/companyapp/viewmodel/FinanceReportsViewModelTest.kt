@@ -1282,4 +1282,134 @@ class FinanceReportsViewModelTest {
             )
             assertTrue(!vm.hasEditCapabilities(), "GLOBAL-only ASSIGN_COMPENSATION does not resolve for the branch")
         }
+
+    // ─────────────────────────── day-scoped gates (#158) ───────────────────────────
+
+    @Test
+    fun dayGrant_resolvesEditBranchData_onSelectedDayOnly() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+
+            // Only a BRANCH_DAY grant for the day row's branchDayId satisfies the leg.
+            SessionState.setCapabilities(
+                listOf(
+                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", DAY_ID, "DIRECT"),
+                ),
+            )
+            vm.selectDay(day)
+            assertTrue(vm.hasEditBranchDataCapability(), "day grant at the selected day enables the gate")
+            assertTrue(vm.hasEditCapabilities(), "day grant feeds the edit toggle")
+
+            // No selected day → the day leg fails closed.
+            vm.selectDay(null)
+            assertTrue(!vm.hasEditBranchDataCapability(), "no selected day fails the day leg closed")
+
+            // A grant for a DIFFERENT day does not resolve.
+            vm.selectDay(day)
+            SessionState.setCapabilities(
+                listOf(
+                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", "other-day", "DIRECT"),
+                ),
+            )
+            assertTrue(!vm.hasEditBranchDataCapability(), "a grant for another day must not resolve")
+
+            // Without any grant the branch legs still fail closed for a day-grant-free user.
+            SessionState.setCapabilities(
+                listOf(
+                    UserCapabilityResponse("VIEW_BRANCH_DATA", "BRANCH", BRANCH_A, "DIRECT"),
+                ),
+            )
+            assertTrue(!vm.hasEditBranchDataCapability(), "VIEW alone never satisfies the EDIT gate")
+        }
+
+    @Test
+    fun loadReliefDay_fetchesSingleDaySummaryForClockedInBranch() =
+        runTest(testScheduler) {
+            val requests = mutableListOf<String>()
+            val handler: MockRequestHandler = { request ->
+                requests += "${request.method.value} ${request.url.encodedPath}?${request.url.parameters}"
+                when {
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summary" -> {
+                        respondJson(
+                            """{"branchDayId":"$DAY_ID","branchId":"$BRANCH_A","date":"2026-08-14",
+                                "grossIncome":"1000.00","totalCompensation":"200.00","totalExpenses":"50.00",
+                                "netIncome":"750.00","totalProductSales":"300.00","totalCommission":"10.0000"}""",
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+
+            vm.loadReliefDay("2026-08-14")
+            advanceUntilIdle()
+
+            val relief = vm.reliefDay.value
+            assertIs<UiState.Success<DailySalesSummaryResponse?>>(relief)
+            assertEquals(DAY_ID, relief.data?.branchDayId)
+            assertEquals(DAY_ID, vm.selectedDay.value?.branchDayId, "the fetched day seeds the shared day state")
+            assertEquals(BRANCH_A, vm.selectedBranchId.value, "relief day pins the clocked-in branch")
+        }
+
+    @Test
+    fun loadReliefDay_withoutClockedInBranch_failsClosed() =
+        runTest(testScheduler) {
+            SessionState.clear()
+            val handler: MockRequestHandler = { request ->
+                respondJson("{}", HttpStatusCode.NotFound)
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+
+            vm.loadReliefDay("2026-08-14")
+            advanceUntilIdle()
+
+            val relief = vm.reliefDay.value
+            assertIs<UiState.Error>(relief)
+            assertTrue(relief.message.contains("clocked-in"), "no branch → fail closed with a clear error")
+        }
+
+    @Test
+    fun loadReliefDay_transportFailure_surfacesError() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summary" -> {
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+
+            vm.loadReliefDay("2026-08-14")
+            advanceUntilIdle()
+
+            val relief = vm.reliefDay.value
+            assertIs<UiState.Error>(relief)
+            assertTrue(relief.message.contains("connection reset"))
+        }
 }

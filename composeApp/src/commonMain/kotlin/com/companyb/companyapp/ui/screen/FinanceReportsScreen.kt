@@ -54,6 +54,8 @@ import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
+import com.companyb.companyapp.state.hasCapabilityAnyContext
+import com.companyb.companyapp.state.hasCapabilityAtContextType
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
@@ -142,98 +144,123 @@ fun FinanceReportsScreen(
     Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
         val selectedBranch = selectedBranchId
         val day = selectedDay
-        // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
-        // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
-        val pastDayReadOnlySelection =
-            day != null &&
-                selectedBranch != null &&
-                derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
-                !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, selectedBranch)
-        FinanceToolbar(
-            branches = branches,
-            selectedBranchId = selectedBranchId,
-            onBranchSelected = viewModel::selectBranch,
-            onRetryBranches = viewModel::loadBranches,
-            mode = mode,
-            onModeSelected = viewModel::setMode,
-            canEdit = viewModel.hasEditCapabilities() && selectedDay != null && !pastDayReadOnlySelection,
-            editMode = editMode,
-            onEditToggle = { viewModel.setEditMode(!editMode) },
-            downloads = downloads,
-            exportErrors = exportErrors,
-            appliedRange = appliedRange,
-            onExportMode = { format -> viewModel.exportModeCurrent(format) },
-        )
-        if (!editMode) {
-            when (mode) {
-                ReportMode.MONTHLY -> {
-                    MonthParamRow(
-                        monthInput = monthInput,
-                        onMonthInputChange = viewModel::setMonthInput,
-                        onApply = viewModel::applyMonth,
-                        paramError = paramError,
-                    )
-                }
+        // #158 — relief-only surface: a BRANCH_DAY grant holder with no VIEW_BRANCH_DATA
+        // gets the day-scoped entry (date → single-day summary → day detail + editor),
+        // not the branch picker/feed (both are VIEW_BRANCH_DATA surfaces).
+        val reliefOnly =
+            capabilities.hasCapabilityAtContextType(
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContext.BRANCH_DAY,
+            ) &&
+                !capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)
+        if (reliefOnly) {
+            val reliefDay by viewModel.reliefDay.collectAsState()
+            ReliefDaySection(
+                viewModel = viewModel,
+                reliefDay = reliefDay,
+                selectedDay = day,
+                today = today,
+                capabilities = capabilities,
+                editMode = editMode,
+                onEditToggle = { viewModel.setEditMode(!editMode) },
+                downloads = downloads,
+                exportErrors = exportErrors,
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            // #101 D1/D3 — a past day the user cannot edit (no EDIT_PAST_DAY) offers nothing to
+            // toggle into: the Edit toggle stays hidden (the backend 403 stays authoritative).
+            val pastDayReadOnlySelection =
+                day != null &&
+                    selectedBranch != null &&
+                    derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
+                    !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, selectedBranch)
+            FinanceToolbar(
+                branches = branches,
+                selectedBranchId = selectedBranchId,
+                onBranchSelected = viewModel::selectBranch,
+                onRetryBranches = viewModel::loadBranches,
+                mode = mode,
+                onModeSelected = viewModel::setMode,
+                canEdit = viewModel.hasEditCapabilities() && selectedDay != null && !pastDayReadOnlySelection,
+                editMode = editMode,
+                onEditToggle = { viewModel.setEditMode(!editMode) },
+                downloads = downloads,
+                exportErrors = exportErrors,
+                appliedRange = appliedRange,
+                onExportMode = { format -> viewModel.exportModeCurrent(format) },
+            )
+            if (!editMode) {
+                when (mode) {
+                    ReportMode.MONTHLY -> {
+                        MonthParamRow(
+                            monthInput = monthInput,
+                            onMonthInputChange = viewModel::setMonthInput,
+                            onApply = viewModel::applyMonth,
+                            paramError = paramError,
+                        )
+                    }
 
-                ReportMode.ALL_TIME -> {
-                    JumpParamRow(
-                        monthInput = monthInput,
-                        onJumpInputChange = viewModel::setJumpInput,
-                        onApply = viewModel::applyJump,
-                        onClear = viewModel::clearJump,
-                        paramError = paramError,
-                    )
-                }
+                    ReportMode.ALL_TIME -> {
+                        JumpParamRow(
+                            monthInput = monthInput,
+                            onJumpInputChange = viewModel::setJumpInput,
+                            onApply = viewModel::applyJump,
+                            onClear = viewModel::clearJump,
+                            paramError = paramError,
+                        )
+                    }
 
-                ReportMode.DATE_RANGE -> {
-                    DateRangeParamRow(
-                        fromInput = rangeFromInput,
-                        toInput = rangeToInput,
-                        onFromChange = { viewModel.setRangeInputs(it, rangeToInput) },
-                        onToChange = { viewModel.setRangeInputs(rangeFromInput, it) },
-                        onApply = viewModel::applyRange,
-                        onClear = viewModel::clearRange,
-                        applied = appliedRange != null,
-                        paramError = paramError,
-                    )
-                }
+                    ReportMode.DATE_RANGE -> {
+                        DateRangeParamRow(
+                            fromInput = rangeFromInput,
+                            toInput = rangeToInput,
+                            onFromChange = { viewModel.setRangeInputs(it, rangeToInput) },
+                            onToChange = { viewModel.setRangeInputs(rangeFromInput, it) },
+                            onApply = viewModel::applyRange,
+                            onClear = viewModel::clearRange,
+                            applied = appliedRange != null,
+                            paramError = paramError,
+                        )
+                    }
 
-                ReportMode.DAILY -> {}
+                    ReportMode.DAILY -> {}
+                }
             }
-        }
 
-        when {
-            editMode && day != null && selectedBranch != null -> {
-                DayEditor(
-                    viewModel = viewModel,
-                    day = day,
-                    branchId = selectedBranch,
-                    branchName = (branches as? UiState.Success)?.data.orEmpty().branchName(selectedBranch),
-                    today = today,
-                    capabilities = capabilities,
-                    onBackToFeed = { viewModel.setEditMode(false) },
-                    onExportDayEditor = { format -> viewModel.exportDay(day, selectedBranch, format) },
-                    downloadStates = downloads,
-                    exportErrors = exportErrors,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            when {
+                editMode && day != null && selectedBranch != null -> {
+                    DayEditor(
+                        viewModel = viewModel,
+                        day = day,
+                        branchId = selectedBranch,
+                        branchName = (branches as? UiState.Success)?.data.orEmpty().branchName(selectedBranch),
+                        today = today,
+                        capabilities = capabilities,
+                        onBackToFeed = { viewModel.setEditMode(false) },
+                        onExportDayEditor = { format -> viewModel.exportDay(day, selectedBranch, format) },
+                        downloadStates = downloads,
+                        exportErrors = exportErrors,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
 
-            else -> {
-                FeedSection(
-                    viewModel = viewModel,
-                    feed = feed,
-                    mode = mode,
-                    monthlyRollup = monthlyRollup,
-                    selectedBranchId = selectedBranch,
-                    selectedDay = selectedDay,
-                    onDaySelected = viewModel::selectDay,
-                    today = today,
-                    appliedRange = appliedRange,
-                    downloads = downloads,
-                    exportErrors = exportErrors,
-                    modifier = Modifier.weight(1f),
-                )
+                else -> {
+                    FeedSection(
+                        viewModel = viewModel,
+                        feed = feed,
+                        mode = mode,
+                        monthlyRollup = monthlyRollup,
+                        selectedBranchId = selectedBranch,
+                        selectedDay = selectedDay,
+                        onDaySelected = viewModel::selectDay,
+                        today = today,
+                        appliedRange = appliedRange,
+                        downloads = downloads,
+                        exportErrors = exportErrors,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
 
@@ -248,6 +275,130 @@ fun FinanceReportsScreen(
 }
 
 private fun List<BranchResponse>.branchName(id: String?): String = firstOrNull { it.id == id }?.name ?: ""
+
+// ─────────────────────────── relief day entry (#158) ───────────────────────────
+
+/**
+ * #158 — the day-scoped relief surface: a date field (default today) + the single-day
+ * summary read (backend day-grant leg), then the shared day detail + editor with the
+ * day-gated affordances. No branch picker (the relief branch is the clocked-in branch),
+ * no feed browse, no mode tabs — the BRANCH_DAY grant covers one day.
+ */
+@Composable
+private fun ReliefDaySection(
+    viewModel: FinanceReportsViewModel,
+    reliefDay: UiState<DailySalesSummaryResponse?>,
+    selectedDay: DailySalesSummaryResponse?,
+    today: LocalDate,
+    capabilities: List<UserCapabilityResponse>,
+    editMode: Boolean,
+    onEditToggle: () -> Unit,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+    modifier: Modifier = Modifier,
+) {
+    var dateInput by remember { mutableStateOf(today.toString()) }
+    Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            OutlinedTextField(
+                value = dateInput,
+                onValueChange = { dateInput = it },
+                label = { Text("Date (yyyy-MM-dd)") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(
+                onClick = { viewModel.loadReliefDay(dateInput.trim()) },
+                enabled = reliefDay !is UiState.Loading,
+            ) {
+                if (reliefDay is UiState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Load")
+                }
+            }
+            if (selectedDay != null) {
+                val pastDayReadOnly =
+                    derivedDayState(LocalDate.parse(selectedDay.date), today) == DerivedDayState.PAST &&
+                        !capabilities.hasCapability(
+                            CapabilityCodes.EDIT_PAST_DAY,
+                            CapabilityContext.BRANCH,
+                            SessionState.selectedBranchId.value,
+                        )
+                TextButton(
+                    onClick = onEditToggle,
+                    enabled = viewModel.hasEditCapabilities() && !pastDayReadOnly,
+                ) {
+                    Text(if (editMode) "Done" else "Edit")
+                }
+            }
+        }
+        when (reliefDay) {
+            is UiState.Idle -> {
+                Box(Modifier.fillMaxWidth().padding(vertical = Spacing.md), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "Enter a date to view your relief day",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = InkSubtle,
+                    )
+                }
+            }
+
+            is UiState.Loading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is UiState.Error -> {
+                logWarn("FinanceReportsScreen", "reliefDay=Error: ${reliefDay.message}")
+                ErrorCard(message = reliefDay.message) { viewModel.loadReliefDay(dateInput.trim()) }
+            }
+
+            is UiState.Success -> {
+                val day = reliefDay.data
+                if (day == null) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "No data for this date",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = InkSubtle,
+                        )
+                    }
+                } else if (editMode) {
+                    DayEditor(
+                        viewModel = viewModel,
+                        day = day,
+                        branchId = SessionState.selectedBranchId.value ?: "",
+                        branchName = SessionState.selectedBranchName.value ?: "",
+                        today = today,
+                        capabilities = capabilities,
+                        onBackToFeed = onEditToggle,
+                        onExportDayEditor = null,
+                        downloadStates = downloads,
+                        exportErrors = exportErrors,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        FinanceDayDetailContent(
+                            day = day,
+                            today = today,
+                            onExportDay = null,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 // ─────────────────────────── toolbar + params ───────────────────────────
 
@@ -870,14 +1021,17 @@ private fun DayEditor(
     today: LocalDate,
     capabilities: List<UserCapabilityResponse>,
     onBackToFeed: () -> Unit,
-    onExportDayEditor: (String) -> Unit,
+    // #158 — null hides the per-day export row (relief mode: the backend export gate is
+    // VIEW_BRANCH_DATA, which a BRANCH_DAY-only holder lacks — no affordance for a 403).
+    onExportDayEditor: ((String) -> Unit)? = null,
     downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     exportErrors: Map<String, String>,
     modifier: Modifier = Modifier,
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
     // #156 — per-element gates are branch-scoped triples (matching the backend
-    // `requireBranchCapability` gates; #101 D1 matrix).
+    // `requireBranchCapability` gates; #101 D1 matrix). #158 — the expense leg ORs the
+    // BRANCH_DAY relief grant for this day.
     val canAssign = capabilities.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId)
     // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard).
     val canEditExpenses =
@@ -885,7 +1039,12 @@ private fun DayEditor(
             CapabilityCodes.EDIT_BRANCH_DATA,
             CapabilityContext.BRANCH,
             branchId,
-        )
+        ) ||
+            capabilities.hasCapability(
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContext.BRANCH_DAY,
+                day.branchDayId,
+            )
     // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY at the branch
     // (the backend 403 stays authoritative).
     val pastDayReadOnly =

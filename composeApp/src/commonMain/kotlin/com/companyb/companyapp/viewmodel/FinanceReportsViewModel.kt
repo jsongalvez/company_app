@@ -519,6 +519,39 @@ class FinanceReportsViewModel(
         _selectedDay.value = day
     }
 
+    // ─────────────────────────── relief day entry (#158) ───────────────────────────
+
+    private val _reliefDay = MutableStateFlow<UiState<DailySalesSummaryResponse?>>(UiState.Idle)
+    val reliefDay: StateFlow<UiState<DailySalesSummaryResponse?>> = _reliefDay.asStateFlow()
+
+    /**
+     * #158 — the relief day-scoped read entry: a BRANCH_DAY grant holder (no VIEW_BRANCH_DATA)
+     * fetches a single day by date via the day-scoped summary read. The branch is the
+     * clocked-in branch (the relief branch — the picker lists only BRANCH-granted branches,
+     * which a relief delegate has none of). Success seeds [selectedDay] so the day detail +
+     * editor flows work off the same state.
+     */
+    fun loadReliefDay(date: String) {
+        val branchId =
+            SessionState.selectedBranchId.value
+                ?: run {
+                    _reliefDay.value = UiState.Error("No clocked-in branch")
+                    return
+                }
+        _selectedBranchId.value = branchId
+        handler.launch(
+            state = _reliefDay,
+            operation = "loadReliefDay",
+            endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
+            block = { apiClient.httpClient.get("/api/branches/$branchId/daily-summary?date=$date") },
+            transform = {
+                val day = it.body<DailySalesSummaryResponse>()
+                selectDay(day)
+                day
+            },
+        )
+    }
+
     /**
      * #105 D1 — Edit-toggle visibility, #156 branch-scoped: the checks resolve against the
      * VIEWED branch ([_selectedBranchId] — the branch the day data belongs to, switchable via
@@ -533,17 +566,38 @@ class FinanceReportsViewModel(
             _selectedBranchId.value,
         )
 
-    fun hasEditBranchDataCapability(): Boolean =
-        SessionState.capabilities.value.hasCapability(
+    /**
+     * #105 D1/#156 — the EDIT_BRANCH_DATA leg of the edit-toggle check, now with the
+     * #158 day leg: the BRANCH triple at the viewed branch OR a BRANCH_DAY relief grant
+     * for the VIEWED day ([_selectedDay] — the day row the backend gates via; a relief
+     * delegate edits their granted day without any BRANCH grant). A null day fails the
+     * day leg closed.
+     */
+    fun hasEditBranchDataCapability(): Boolean {
+        val caps = SessionState.capabilities.value
+        return caps.hasCapability(
             CapabilityCodes.EDIT_BRANCH_DATA,
             CapabilityContext.BRANCH,
             _selectedBranchId.value,
-        )
+        ) ||
+            (
+                _selectedDay.value?.branchDayId?.let { dayId ->
+                    caps.hasCapability(
+                        CapabilityCodes.EDIT_BRANCH_DATA,
+                        CapabilityContext.BRANCH_DAY,
+                        dayId,
+                    )
+                } ?: false
+            )
+    }
 
     fun hasEditCapabilities(): Boolean {
         val caps = SessionState.capabilities.value
         val branchId = _selectedBranchId.value
-        return caps.hasCapability(CapabilityCodes.EDIT_BRANCH_DATA, CapabilityContext.BRANCH, branchId) ||
+        // #158 — the EDIT_BRANCH_DATA leg includes the day-scoped relief grant; the
+        // ASSIGN_COMPENSATION + EDIT_PAST_DAY legs stay BRANCH-only (not relief-eligible,
+        // per the #157 surface).
+        return hasEditBranchDataCapability() ||
             caps.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId) ||
             caps.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, branchId)
     }

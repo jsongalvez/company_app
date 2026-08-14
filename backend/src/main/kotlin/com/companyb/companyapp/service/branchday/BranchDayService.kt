@@ -83,6 +83,15 @@ object BranchDayService {
     }
 
     /**
+     * Find-only branch-day lookup by explicit date — never creates. The #158 read-side
+     * day gates use this to resolve the day a single-day summary read refers to.
+     */
+    fun findByBranchAndDate(
+        branchId: UUID,
+        date: LocalDate,
+    ): BranchDay? = BranchDayRepository.findByBranchAndDate(branchId, date)
+
+    /**
      * Returns the effective status of a branch day, applying lazy evaluation:
      * an OPEN day whose calendar date is in the past is treated as PAST.
      * Returns null if the branch day does not exist.

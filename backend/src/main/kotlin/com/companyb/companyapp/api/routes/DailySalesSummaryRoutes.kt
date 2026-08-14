@@ -6,6 +6,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.DailySummaryBrowseCursor
 import com.companyb.companyapp.repository.decodeDailySummaryCursor
 import com.companyb.companyapp.service.DailySalesSummaryService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -17,10 +18,19 @@ object DailySalesSummaryRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/daily-summary") { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
+            val date = parseRequiredDate(context)
+            // #158 — the single-day read accepts the relief grant: a BRANCH_DAY
+            // `EDIT_BRANCH_DATA` holder reads the granted day's summary (the read mirror
+            // of the #157 day-scoped write surface). The day resolves find-only — a
+            // missing day row means no day grant can exist for it, and the branch/global
+            // leg alone governs. The browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only:
+            // a multi-day list cannot be authorized by a single-day grant.
+            val branchDayId =
+                BranchDayService.findByBranchAndDate(branchId, date)?.id
+            CapabilityFilter.requireBranchOrGlobalOrBranchDayCapabilityForBranchId(
                 context,
                 branchId,
-                CapabilityCodes.VIEW_BRANCH_DATA,
+                branchDayId,
             )
         }
 
@@ -35,12 +45,7 @@ object DailySalesSummaryRoutes {
 
         config.routes.get("/api/branches/{branchId}/daily-summary") { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            val dateParam =
-                context.queryParam("date")
-                    ?: throw BadRequestResponse("date query param is required")
-            val date =
-                runCatching { LocalDate.parse(dateParam) }
-                    .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
+            val date = parseRequiredDate(context)
 
             val summary = DailySalesSummaryService.getDailySummary(branchId, date)
 
@@ -64,6 +69,14 @@ object DailySalesSummaryRoutes {
             context.status(HttpStatus.OK)
             context.json(response)
         }
+    }
+
+    private fun parseRequiredDate(context: io.javalin.http.Context): LocalDate {
+        val dateParam =
+            context.queryParam("date")
+                ?: throw BadRequestResponse("date query param is required")
+        return runCatching { LocalDate.parse(dateParam) }
+            .getOrElse { throw BadRequestResponse("Invalid date format (expected yyyy-MM-dd)") }
     }
 
     private fun parseOptionalDate(

@@ -134,6 +134,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
         seedAuxiliaryData()
         seedGrants()
+        seedReadUsers()
     }
 
     private fun seedUsersAndBranches() {
@@ -288,6 +289,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             ExpenseRoutes.register(cfg)
             SessionRoutes.register(cfg)
             ProductSaleRoutes.register(cfg)
+            DailySalesSummaryRoutes.register(cfg)
+            BranchDayRoutes.register(cfg)
         }
     }
 
@@ -601,6 +604,154 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         }
     }
 
+    // ─────────────────────────── read legs (#158) ───────────────────────────
+
+    private val today = LocalDate.now(ZoneId.of("Asia/Manila"))
+    private val noDayDate = today.plusDays(10)
+
+    // Seed VIEW_BRANCH_DATA holders for the read-leg regressions (the read's branch/global
+    // leg is VIEW_BRANCH_DATA — distinct from the write surface's EDIT_BRANCH_DATA).
+    private val viewUser = UUID.randomUUID()
+    private val globalViewUser = UUID.randomUUID()
+
+    private fun seedReadUsers() {
+        DatabaseTestHelper.insertTestUser(viewUser, "view-user")
+        DatabaseTestHelper.insertTestUser(globalViewUser, "global-view-user")
+        trackOwned(AppUserTable, AppUserTable.id, viewUser)
+        trackOwned(AppUserTable, AppUserTable.id, globalViewUser)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, viewUser)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, globalViewUser)
+        DatabaseTestHelper.grantCapability(
+            userId = viewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchA,
+            sourceId = sourceId,
+        )
+        DatabaseTestHelper.grantCapability(
+            userId = globalViewUser,
+            capabilityCode = CapabilityCodes.VIEW_BRANCH_DATA,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            sourceId = sourceId,
+        )
+    }
+
+    @Test
+    fun `relief user reads the single-day summary on the granted day`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(reliefUser))
+            assertEquals(200, response.code, response.body?.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `relief user single-day summary on a non-granted day is forbidden`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val url = "/api/branches/$branchA/daily-summary?date=${today.plusDays(1)}"
+            val response = client.get(url, asUser(reliefUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `relief user single-day summary at another branch is forbidden`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchB/daily-summary?date=$today", asUser(reliefUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `relief user single-day summary with no day row falls back to the branch gate`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$noDayDate", asUser(reliefUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `day-scoped grant for another day does not satisfy the single-day read`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(wrongDayUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `expired relief grant cannot read the single-day summary`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(expiredUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `BRANCH VIEW_BRANCH_DATA holder still reads the single-day summary`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(viewUser))
+            assertEquals(200, response.code, response.body?.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `GLOBAL VIEW_BRANCH_DATA holder still reads the single-day summary`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(globalViewUser))
+            assertEquals(200, response.code, response.body?.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `GLOBAL EDIT_BRANCH_DATA does not satisfy the single-day read`() {
+        JavalinTest.test(createApp()) { _, client ->
+            // The read's branch/global leg is VIEW_BRANCH_DATA; a GLOBAL EDIT grant is
+            // not a read grant (and the day leg checks the BRANCH_DAY form only).
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(globalUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `relief user reads today day-status on the granted day`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/today", asUser(reliefUser))
+            assertEquals(200, response.code, response.body?.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `relief user today day-status on a non-granted day is forbidden`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/today", asUser(wrongDayUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `BRANCH EDIT_BRANCH_DATA holder still reads today day-status`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchA/today", asUser(branchUser))
+            assertEquals(200, response.code, response.body?.string().orEmpty())
+        }
+    }
+
+    @Test
+    fun `today day-status at a no-day branch falls back to the branch gate`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val response = client.get("/api/branches/$branchC/today", asUser(reliefUser))
+            assertEquals(403, response.code)
+        }
+    }
+
+    @Test
+    fun `unauthenticated single-day summary read gets 401`() {
+        JavalinTest.test(createAppWithJwt()) { _, client ->
+            val response = client.get("/api/branches/$branchA/daily-summary?date=$today")
+            assertEquals(401, response.code)
+        }
+    }
+
     private fun createAppWithJwt(): Javalin {
         val config = AppConfig.parse()
         JwtService.init(config)
@@ -625,6 +776,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                 ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
             }
             ExpenseRoutes.register(cfg)
+            DailySalesSummaryRoutes.register(cfg)
         }
     }
 }

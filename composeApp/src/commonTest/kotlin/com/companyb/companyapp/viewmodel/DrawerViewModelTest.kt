@@ -126,4 +126,43 @@ class DrawerViewModelTest {
 
         assertFalse("Finance & Reports" in labels)
     }
+
+    @Test
+    fun dayGrantHolder_seesFinanceItem() {
+        // #158 — a BRANCH_DAY relief grant (EDIT_BRANCH_DATA at BRANCH_DAY context) opens the
+        // Finance day-scoped surface even with no VIEW_BRANCH_DATA anywhere.
+        SessionState.setCapabilities(
+            listOf(
+                UserCapabilityResponse(
+                    capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                    contextType = "BRANCH_DAY",
+                    contextId = "d1",
+                    sourceType = "DIRECT",
+                ),
+            ),
+        )
+
+        val vm = DrawerViewModel()
+        val labels =
+            vm.uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+
+        assertTrue("Finance & Reports" in labels)
+    }
+
+    @Test
+    fun branchScopedEditHolder_withoutView_doesNotSeeFinance() {
+        // #158 — a plain BRANCH EDIT_BRANCH_DATA grant (no VIEW, no day grant) must NOT reveal
+        // Finance: the read surface is VIEW-gated, the day leg is BRANCH_DAY-only.
+        SessionState.setCapabilities(listOf(row(CapabilityCodes.EDIT_BRANCH_DATA)))
+
+        val vm = DrawerViewModel()
+        val labels =
+            vm.uiState.value.drawerItems
+                .filter { it.visible }
+                .map { it.label }
+
+        assertFalse("Finance & Reports" in labels)
+    }
 }

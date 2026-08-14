@@ -224,6 +224,55 @@ object CapabilityFilter {
     }
 
     /**
+     * Read-side day leg (#158): enforces [capabilityCode] at [branchId] — either
+     * BRANCH-scoped or GLOBAL (the standard branch read window) — OR a
+     * [dayCapabilityCode] BRANCH_DAY grant for [branchDayId] (the relief grant: a
+     * day-scoped `EDIT_BRANCH_DATA` holder reads the day they are granted). A null
+     * [branchDayId] (no day row for the date) means the day leg is impossible — the
+     * branch/global leg alone governs (the #157 no-grant lesson: a grant always
+     * references an existing day row).
+     *
+     * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
+     * holds none of the three forms.
+     */
+    fun requireBranchOrGlobalOrBranchDayCapabilityForBranchId(
+        context: Context,
+        branchId: UUID,
+        branchDayId: UUID?,
+        capabilityCode: String = CapabilityCodes.VIEW_BRANCH_DATA,
+        dayCapabilityCode: String = CapabilityCodes.EDIT_BRANCH_DATA,
+    ) {
+        val callerId = context.callerUuid()
+        val branchScoped =
+            CapabilityService.hasCapability(
+                callerId,
+                capabilityCode,
+                CapabilityContextType.BRANCH,
+                branchId,
+            )
+        val global =
+            CapabilityService.hasCapability(
+                callerId,
+                capabilityCode,
+                CapabilityContextType.GLOBAL,
+                CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        val dayScoped =
+            branchDayId != null &&
+                CapabilityService.hasCapability(
+                    callerId,
+                    dayCapabilityCode,
+                    CapabilityContextType.BRANCH_DAY,
+                    branchDayId,
+                )
+        if (!branchScoped && !global && !dayScoped) {
+            throw com.companyb.companyapp.exception.ForbiddenException(
+                "$capabilityCode capability required for this branch or day",
+            )
+        }
+    }
+
+    /**
      * Day-scoped variant of [requireBranchCapabilityForSession] (#157): accepts a BRANCH
      * grant at the session's branch OR a BRANCH_DAY grant for the session's branch day.
      *

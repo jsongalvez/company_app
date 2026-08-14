@@ -27,8 +27,10 @@ import androidx.navigation.toRoute
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapabilityAnyContext
+import com.companyb.companyapp.state.hasCapabilityAtContextType
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
@@ -197,7 +199,16 @@ actual fun AppNavHost(
                 // (VIEW_BRANCH_DATA any-context, #92 Q3; backend gates authoritative).
                 composable<Route.Finance> {
                     val capabilities by SessionState.capabilities.collectAsState()
-                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA)) {
+                    // #105 D1 — the merged Finance & Reports screen, gate = widest read
+                    // capability (VIEW_BRANCH_DATA any-context, #92 Q3; backend gates
+                    // authoritative). #158 — a BRANCH_DAY grant holder (relief delegate)
+                    // reaches the day-scoped read entry without any VIEW grant.
+                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.VIEW_BRANCH_DATA) ||
+                        capabilities.hasCapabilityAtContextType(
+                            CapabilityCodes.EDIT_BRANCH_DATA,
+                            CapabilityContext.BRANCH_DAY,
+                        )
+                    ) {
                         val financeReportsViewModel: FinanceReportsViewModel =
                             viewModel { FinanceReportsViewModel(apiClient) }
                         FinanceReportsScreen(viewModel = financeReportsViewModel)
