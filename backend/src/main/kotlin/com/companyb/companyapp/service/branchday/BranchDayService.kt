@@ -60,6 +60,18 @@ object BranchDayService {
             ?: throw NotFoundException("Branch day not found")
 
     /**
+     * Branch-scoped variant of [requireBranchDayExists] (the parent-child convention): the
+     * day must belong to [branchId], else 404 — a foreign day is indistinguishable from a
+     * missing one. Used by the #157 session-create gated-day guard.
+     */
+    fun requireBranchDayForBranch(
+        branchDayId: UUID,
+        branchId: UUID,
+    ): BranchDay =
+        BranchDayRepository.findByIdForBranch(branchDayId, branchId)
+            ?: throw NotFoundException("Branch day not found for this branch")
+
+    /**
      * Finds today's (Asia/Manila) branch day for [branchId] without creating it — the
      * find-only mirror of [getToday]. Gates use this when a day-scoped check must not
      * mutate: a missing day means no BRANCH_DAY grant can exist for it (a grant always

@@ -55,6 +55,7 @@ import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -225,7 +226,9 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             contextId = otherDaySameBranch,
             sourceId = sourceId,
         )
-        // expiredUser: BRANCH_DAY grant for the granted day whose window has closed.
+        // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Seeded
+        // from the JVM clock against the view's DB now() — the −5h/−3h margins absorb any
+        // realistic same-host clock skew (the grant must stay expired regardless).
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         DatabaseTestHelper.grantCapability(
             userId = expiredUser,
@@ -233,8 +236,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             contextType = CapabilityContextType.BRANCH_DAY,
             contextId = grantedDay,
             sourceId = sourceId,
-            validFrom = now.minusHours(2),
-            validTo = now.minusHours(1),
+            validFrom = now.minusHours(5),
+            validTo = now.minusHours(3),
         )
         // branchUser: ordinary BRANCH grant (the branch leg regression).
         DatabaseTestHelper.grantCapability(
@@ -562,6 +565,30 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             val response = client.post("/api/sessions", body, asUser(branchCUser))
             assertEquals(201, response.code, response.body?.string().orEmpty())
         }
+    }
+
+    // --- The branch-affiliation guard (parent-child convention, #157) ---
+
+    @Test
+    fun `gated branch day of another branch is rejected`() {
+        val e =
+            assertFailsWith<NotFoundException> {
+                SessionService.create(
+                    callerId = reliefUser,
+                    id = UUID.randomUUID(),
+                    clientId = createClientId,
+                    branchId = branchA,
+                    isWalkIn = false,
+                    requestedPractitionerId = null,
+                    finalPrice = BigDecimal("2500.00"),
+                    remarks = null,
+                    otherConcerns = null,
+                    bookedAt = null,
+                    nextAppointmentDate = null,
+                    gatedBranchDayId = dayOtherBranch,
+                )
+            }
+        assertTrue(e.message.orEmpty().contains("Branch day"))
     }
 
     // #128 lesson — the X-Test-User harness can't exercise the real auth filter; 401 needs

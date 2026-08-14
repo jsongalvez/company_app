@@ -56,6 +56,23 @@ internal object BranchDayRepository {
                 ?.toBranchDay()
         }
 
+    /**
+     * Branch-scoped find by id — the parent-child convention (#157 session-create guard):
+     * a day that exists but belongs to a different branch is indistinguishable from a
+     * missing one (null), so callers fail closed with a 404.
+     */
+    fun findByIdForBranch(
+        branchDayId: UUID,
+        branchId: UUID,
+    ): BranchDay? =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where { (BranchDayTable.id eq branchDayId) and (BranchDayTable.branchId eq branchId) }
+                .singleOrNull()
+                ?.toBranchDay()
+        }
+
     private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchDay(): BranchDay =
         BranchDay(
             id = this[BranchDayTable.id],

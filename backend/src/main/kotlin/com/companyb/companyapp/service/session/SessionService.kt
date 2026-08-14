@@ -69,6 +69,8 @@ object SessionService {
         // writes to THIS day instead of re-resolving today — the gate and the write share one
         // resolution so a request straddling the Manila midnight boundary can't be gated
         // against the granted day while landing on the next (the mixed-resolution-base class).
+        // Must belong to [branchId] — a foreign or missing day fails closed with 404
+        // (parent-child convention).
         gatedBranchDayId: UUID? = null,
     ): SessionCreateResult {
         val branchType =
@@ -83,13 +85,8 @@ object SessionService {
 
         val today = LocalDate.now(manilaZone)
         val branchDay =
-            gatedBranchDayId?.let {
-                val gated = BranchDayService.requireBranchDayExists(it)
-                if (gated.branchId != branchId) {
-                    throw ValidationException("Gated branch day does not belong to this branch")
-                }
-                gated
-            } ?: BranchDayService.resolveOrCreate(branchId, today)
+            gatedBranchDayId?.let { BranchDayService.requireBranchDayForBranch(it, branchId) }
+                ?: BranchDayService.resolveOrCreate(branchId, today)
 
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)

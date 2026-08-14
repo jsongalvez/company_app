@@ -78,6 +78,9 @@ config.routes.before("/api/expenses/{expenseId}") { context ->
   `requireBranchCapability` (from branchDayId), `requireBranchCapabilityForExpense`,
   `requireBranchCapabilityForRemittance`, `requireBranchCapabilityForBranchId` (from direct branch UUID),
   `requireBranchCapabilityForSession` (from sessionId), and `requireGlobalCapability` for system-wide checks.
+  (#157 replaced the expense filters' `requireBranchCapabilityForExpense` with the day-scoped
+  `requireBranchOrBranchDayCapability` family — see the amendment below; the branch-only variant
+  was removed.)
 
 ## Deviation (2026-08-09, #134)
 
@@ -91,8 +94,6 @@ filters never matched the 5-segment `/slots/swap` and assignment-DELETE paths (t
 exact-path lesson, third occurrence) and were removed as misleading; the service-level
 checks are now the only authorization surface for that route group. All other surfaces
 keep route-filter enforcement. See #134's resolution for the leak-falsification record.
-(#157 later removed the branch-only `requireBranchCapabilityForExpense` variant — the
-expense filters use the day-scoped Or variant exclusively.)
 
 ## Amendment (2026-08-14, #157) — day-scoped (BRANCH_DAY) gates
 
