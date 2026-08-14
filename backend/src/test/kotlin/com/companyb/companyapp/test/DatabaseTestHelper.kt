@@ -226,6 +226,8 @@ object DatabaseTestHelper {
         contextId: UUID,
         sourceId: UUID,
         priority: Int = GrantPriorities.DIRECT_GRANT.toInt(),
+        validFrom: OffsetDateTime? = null,
+        validTo: OffsetDateTime? = null,
     ) {
         val capId =
             CapabilityRepository.findIdByCode(capabilityCode)
@@ -239,6 +241,8 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
                 it[UserCapabilityTable.priority] = priority.toShort()
+                if (validFrom != null) it[UserCapabilityTable.validFrom] = validFrom
+                if (validTo != null) it[UserCapabilityTable.validTo] = validTo
             }
         }
     }

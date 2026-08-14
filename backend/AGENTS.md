@@ -125,6 +125,22 @@ GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`) have no specific 
 `CapabilityContextType.GLOBAL` with `contextId = CapabilityService.GLOBAL_CONTEXT_ID` (the nil
 all-zero UUID).
 
+**Day-scoped gates (#157).** Relief grants are written as `(EDIT_BRANCH_DATA, BRANCH_DAY, branchDayId)`
+with a `validFrom`/`validTo` window (`ReliefAccessRepository.grantWithCapability`; the window is
+enforced by the `active_user_capabilities` view). The day-scoped write surface — expenses
+(create/read/update/delete/restore), product-sale create, session create + mutations — gates via
+`CapabilityFilter.requireBranchOrBranchDayCapability`: a BRANCH grant at the day's branch OR a
+BRANCH_DAY grant for the specific branch day satisfies it (the day-scoped grant satisfies the gate
+for that day only). Session create resolves today's day **find-only** (`BranchDayService.findToday`
+— never creates in a filter). GLOBAL grants never satisfy these gates (the #131 strictness — the
+OR adds only the narrower day-scoped form). Not relief-eligible (documented #157 decisions):
+inventory movements (branch-scoped — the movement's day comes from the body while the route is
+branch-scoped via the path; the parent-child scoping trap), allowances/compensations
+(`ASSIGN_COMPENSATION`), commission (`VIEW_BRANCH_DATA`/`ASSIGN_COMPENSATION`/`EDIT_PAST_DAY`),
+remittance (`SUBMIT_REMITTANCE`), session void/unvoid (`VOID_SESSION`), and the branch-day status
+read (`GET /api/branches/{branchId}/today`, branch-gated — zero consumers; revisit when the
+Finance day-detail ride lands).
+
 When inserting `user_capability` rows (e.g. for relief access grants or delegate assignments), use
 `CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")` to look up the capability ID, then use the
 Exposed DSL `UserCapabilityTable.insert {}` with `customEnumeration` columns (see below).

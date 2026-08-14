@@ -92,6 +92,25 @@ exact-path lesson, third occurrence) and were removed as misleading; the service
 checks are now the only authorization surface for that route group. All other surfaces
 keep route-filter enforcement. See #134's resolution for the leak-falsification record.
 
+## Amendment (2026-08-14, #157) — day-scoped (BRANCH_DAY) gates
+
+The day-scoped write surface accepts a **BRANCH_DAY grant for the specific branch day** in
+addition to the BRANCH grant (see `CapabilityFilter.requireBranchOrBranchDayCapability`).
+Relief grants are written as `(EDIT_BRANCH_DATA, BRANCH_DAY, branchDayId)` with a
+`validFrom`/`validTo` window but were never checked — the exact-triple
+`hasCapability` could never match them, so day-scoped relief editing 403'd end-to-end
+(the #155 falsification). The gate is: `BRANCH at the day's branch OR BRANCH_DAY for the
+day` — the day-scoped grant satisfies the gate for that day only. **GLOBAL never
+satisfies these gates** (the #131 strictness: the OR adds only the narrower day-scoped
+form, never a relaxation). Covered surface: expenses (all verbs + the read), product-sale
+create, session create (resolves today's day **find-only** — filters never create rows)
++ session mutations. Not covered (decided): inventory movements (the movement's day comes
+from the body while the route is branch-scoped via the path — a day-grant check there
+would authorize a write against a different branch, the parent-child scoping trap), the
+branch-day status read (`GET /api/branches/{branchId}/today` — branch-gated, zero
+consumers), and surfaces gated on other codes (the relief grant carries only
+`EDIT_BRANCH_DATA`).
+
 **Negative:**
 - The DELETE filter looks up the expense and branch day to resolve the branch ID,
   duplicating the DB calls that the service handler already makes. This is acceptable

@@ -20,7 +20,7 @@ object ProductSaleRoutes {
             if (context.method() != io.javalin.http.HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateProductSaleRequest>()
             val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-            CapabilityFilter.requireBranchCapability(
+            CapabilityFilter.requireBranchOrBranchDayCapability(
                 context,
                 branchDayId,
                 CapabilityCodes.EDIT_BRANCH_DATA,

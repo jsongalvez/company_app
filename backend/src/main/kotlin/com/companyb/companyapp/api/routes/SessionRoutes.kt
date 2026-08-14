@@ -27,6 +27,7 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.service.session.SessionService
 import io.javalin.config.JavalinConfig
@@ -47,16 +48,25 @@ object SessionRoutes {
             if (context.method() != HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateSessionRequest>()
             val branchId = uuidOrThrow(request.branchId, "branch id")
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
+            // Day-scoped (#157): a BRANCH_DAY relief grant for today satisfies the create gate.
+            // Find-only (never creates): a missing day means no BRANCH_DAY grant can exist for
+            // it, so the plain branch check covers the no-day case; a 403'd attempt must not
+            // leave a day row behind.
+            val todayBranchDay = BranchDayService.findToday(branchId)
+            if (todayBranchDay != null) {
+                CapabilityFilter.requireBranchOrBranchDayCapability(context, todayBranchDay.id)
+            } else {
+                CapabilityFilter.requireBranchCapabilityForBranchId(
+                    context,
+                    branchId,
+                    CapabilityCodes.EDIT_BRANCH_DATA,
+                )
+            }
         }
 
         config.routes.before("/api/sessions/{sessionId}/status") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -65,7 +75,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/type") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -74,7 +84,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/final-price") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -101,7 +111,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/practitioners") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -110,7 +120,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/concerns") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -127,7 +137,7 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,

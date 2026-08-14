@@ -20,7 +20,7 @@ import java.util.UUID
 object ExpenseRoutes {
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
-        // --- Capability filters: enforce EDIT_BRANCH_DATA before the route handler runs ---
+        // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY — #157) ---
 
         config.routes.before("/api/expenses") { context ->
             val branchDayId =
@@ -38,12 +38,12 @@ object ExpenseRoutes {
                         return@before
                     }
                 }
-            CapabilityFilter.requireBranchCapability(context, branchDayId)
+            CapabilityFilter.requireBranchOrBranchDayCapability(context, branchDayId)
         }
 
         config.routes.before("/api/expenses/{expenseId}") { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
-            CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
 
         // #114 exact-segment lesson: before("/api/expenses/{expenseId}") does NOT fire on the
@@ -52,7 +52,7 @@ object ExpenseRoutes {
         // handler against a phantom).
         config.routes.before("/api/expenses/{expenseId}/restore") { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
-            CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
 
         // --- Route handlers ---

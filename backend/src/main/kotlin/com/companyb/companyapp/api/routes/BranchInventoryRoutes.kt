@@ -87,6 +87,10 @@ object BranchInventoryRoutes {
                 } else {
                     CapabilityCodes.EDIT_BRANCH_DATA
                 }
+            // Branch-scoped only (#157 decision): the movement's day comes from the body while
+            // the route is branch-scoped via the path — a day-grant check on the body's day
+            // would authorize a write against a DIFFERENT branch (the parent-child scoping
+            // trap). Inventory is not relief-eligible; see the #157 resolution.
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 branchId,

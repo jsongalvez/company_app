@@ -39,6 +39,23 @@ internal object BranchDayRepository {
                 ?.toBranchDay()
         }
 
+    /**
+     * Find-only branch-day lookup by (branch, date) — never creates. Used by gates that must
+     * resolve a day without mutating (the #157 session-create day-scoped gate: a 403'd
+     * attempt must not leave a day row behind).
+     */
+    fun findByBranchAndDate(
+        branchId: UUID,
+        date: LocalDate,
+    ): BranchDay? =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
+                .singleOrNull()
+                ?.toBranchDay()
+        }
+
     private fun org.jetbrains.exposed.v1.core.ResultRow.toBranchDay(): BranchDay =
         BranchDay(
             id = this[BranchDayTable.id],

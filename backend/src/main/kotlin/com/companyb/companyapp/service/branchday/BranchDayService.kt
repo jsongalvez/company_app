@@ -60,6 +60,17 @@ object BranchDayService {
             ?: throw NotFoundException("Branch day not found")
 
     /**
+     * Finds today's (Asia/Manila) branch day for [branchId] without creating it — the
+     * find-only mirror of [getToday]. Gates use this when a day-scoped check must not
+     * mutate: a missing day means no BRANCH_DAY grant can exist for it (a grant always
+     * references an existing day row).
+     */
+    fun findToday(branchId: UUID): BranchDay? {
+        val today = LocalDate.now(manilaZone)
+        return BranchDayRepository.findByBranchAndDate(branchId, today)
+    }
+
+    /**
      * Returns the effective status of a branch day, applying lazy evaluation:
      * an OPEN day whose calendar date is in the past is treated as PAST.
      * Returns null if the branch day does not exist.
