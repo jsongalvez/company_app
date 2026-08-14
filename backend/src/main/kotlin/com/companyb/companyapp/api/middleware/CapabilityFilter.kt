@@ -204,8 +204,9 @@ object CapabilityFilter {
     }
 
     /**
-     * Day-scoped variant of [requireBranchCapabilityForExpense] (#157): accepts a BRANCH
-     * grant at the expense's branch OR a BRANCH_DAY grant for the expense's branch day.
+     * Day-scoped variant of [requireBranchOrBranchDayCapability] for expenses (#157):
+     * accepts a BRANCH grant at the expense's branch OR a BRANCH_DAY grant for the
+     * expense's branch day.
      *
      * Throws [com.companyb.companyapp.exception.ForbiddenException] (403) if the caller
      * holds neither form. Throws [NotFoundResponse] (404) if the expense or branch day

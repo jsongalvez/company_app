@@ -83,8 +83,13 @@ object SessionService {
 
         val today = LocalDate.now(manilaZone)
         val branchDay =
-            gatedBranchDayId?.let { BranchDayService.requireBranchDayExists(it) }
-                ?: BranchDayService.resolveOrCreate(branchId, today)
+            gatedBranchDayId?.let {
+                val gated = BranchDayService.requireBranchDayExists(it)
+                if (gated.branchId != branchId) {
+                    throw ValidationException("Gated branch day does not belong to this branch")
+                }
+                gated
+            } ?: BranchDayService.resolveOrCreate(branchId, today)
 
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)

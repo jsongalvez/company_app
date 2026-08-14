@@ -179,8 +179,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         seedBaseRate(branchA)
         seedBaseRate(branchC)
 
-        // Inventory card + stock for the product-sale tests (a -1 TESTER movement and a sale
-        // need stock so nothing trips branch_inventory_current_stock_check).
+        // Inventory card + stock for the product-sale tests (a sale needs stock so nothing
+        // trips branch_inventory_current_stock_check).
         DatabaseTestHelper.insertTestCategory(categoryId)
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
         InventoryService.ensureCard(branchA, productId)
@@ -469,11 +469,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         JavalinTest.test(createApp()) { _, client ->
             val saleId = UUID.randomUUID()
             trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
-            val cardVersion =
-                InventoryService
-                    .getStock(branchA)
-                    .first()
-                    .inventory.version
             val body =
                 mapOf(
                     "id" to saleId.toString(),
@@ -481,7 +476,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "isWalkIn" to true,
                     "productId" to productId.toString(),
                     "quantity" to 1,
-                    "expectedVersion" to cardVersion,
+                    "expectedVersion" to cardVersion(),
                 )
             val response = client.post("/api/product-sales", body, asUser(reliefUser))
             assertEquals(201, response.code, response.body?.string().orEmpty())
@@ -500,12 +495,18 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "isWalkIn" to true,
                     "productId" to productId.toString(),
                     "quantity" to 1,
-                    "expectedVersion" to 2,
+                    "expectedVersion" to cardVersion(),
                 )
             val response = client.post("/api/product-sales", body, asUser(reliefUser))
             assertEquals(403, response.code)
         }
     }
+
+    private fun cardVersion(): Int =
+        InventoryService
+            .getStock(branchA)
+            .first { it.inventory.productId == productId }
+            .inventory.version
 
     // --- The GLOBAL exclusion (the #131 strictness) ---
 

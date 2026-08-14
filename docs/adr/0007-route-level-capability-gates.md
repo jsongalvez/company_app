@@ -91,6 +91,8 @@ filters never matched the 5-segment `/slots/swap` and assignment-DELETE paths (t
 exact-path lesson, third occurrence) and were removed as misleading; the service-level
 checks are now the only authorization surface for that route group. All other surfaces
 keep route-filter enforcement. See #134's resolution for the leak-falsification record.
+(#157 later removed the branch-only `requireBranchCapabilityForExpense` variant — the
+expense filters use the day-scoped Or variant exclusively.)
 
 ## Amendment (2026-08-14, #157) — day-scoped (BRANCH_DAY) gates
 
