@@ -541,16 +541,34 @@ class FinanceReportsViewModel(
         val branchDayId = day.branchDayId
         editDataGeneration++
         val generation = editDataGeneration
-        loadSection(generation, _editExpenses, "expenses", "/api/expenses") {
-            parameter("branchDayId", branchDayId)
-        }
-        loadSection(generation, _editCompensations, "compensations", "/api/compensations") {
-            parameter("branchDayId", branchDayId)
-        }
-        loadSection(generation, _editAllowances, "allowances", "/api/allowances") {
-            parameter("branchDayId", branchDayId)
-        }
-        loadSection(generation, _editUsers, "branch-day users", "/api/branch-days/$branchDayId/users") {}
+        loadSection(
+            generation,
+            _editExpenses,
+            "expenses",
+            "/api/expenses",
+            params = listOf("branchDayId" to branchDayId),
+        )
+        loadSection(
+            generation,
+            _editCompensations,
+            "compensations",
+            "/api/compensations",
+            params = listOf("branchDayId" to branchDayId),
+        )
+        loadSection(
+            generation,
+            _editAllowances,
+            "allowances",
+            "/api/allowances",
+            params = listOf("branchDayId" to branchDayId),
+        )
+        loadSection(
+            generation,
+            _editUsers,
+            "branch-day users",
+            "/api/branch-days/$branchDayId/users",
+            params = emptyList(),
+        )
     }
 
     fun reloadSection(section: EditSection) {
@@ -558,32 +576,44 @@ class FinanceReportsViewModel(
         val generation = editDataGeneration
         when (section) {
             EditSection.EXPENSES -> {
-                loadSection(generation, _editExpenses, "expenses", "/api/expenses") {
-                    parameter("branchDayId", day.branchDayId)
-                }
+                loadSection(
+                    generation,
+                    _editExpenses,
+                    "expenses",
+                    "/api/expenses",
+                    params = listOf("branchDayId" to day.branchDayId),
+                )
             }
 
             EditSection.COMPENSATIONS -> {
-                loadSection(generation, _editCompensations, "compensations", "/api/compensations") {
-                    parameter("branchDayId", day.branchDayId)
-                }
+                loadSection(
+                    generation,
+                    _editCompensations,
+                    "compensations",
+                    "/api/compensations",
+                    params = listOf("branchDayId" to day.branchDayId),
+                )
             }
 
             EditSection.ALLOWANCES -> {
-                loadSection(generation, _editAllowances, "allowances", "/api/allowances") {
-                    parameter("branchDayId", day.branchDayId)
-                }
+                loadSection(
+                    generation,
+                    _editAllowances,
+                    "allowances",
+                    "/api/allowances",
+                    params = listOf("branchDayId" to day.branchDayId),
+                )
             }
         }
     }
 
     @Suppress("LongParameterList")
-    private fun <T> loadSection(
+    private inline fun <reified T> loadSection(
         generation: Int,
         state: MutableStateFlow<UiState<List<T>>>,
         operation: String,
         endpoint: String,
-        params: io.ktor.client.request.HttpRequestBuilder.() -> Unit,
+        params: List<Pair<String, String>>,
     ) {
         handler.launch(
             state = pageFetch,
@@ -591,7 +621,9 @@ class FinanceReportsViewModel(
             endpoint = "GET $endpoint",
             block = {
                 try {
-                    apiClient.httpClient.get(endpoint, params)
+                    apiClient.httpClient.get(endpoint) {
+                        params.forEach { (k, v) -> parameter(k, v) }
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
