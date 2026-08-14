@@ -298,6 +298,7 @@ fun UserManagementScreen(
     deactivateTarget?.let { target ->
         DeactivateConfirmDialog(
             user = target,
+            mutationsDisabled = mutationsDisabled,
             onDismiss = { deactivateTarget = null },
             onConfirm = {
                 deactivateTarget = null
@@ -309,6 +310,7 @@ fun UserManagementScreen(
     slotEditTarget?.let { target ->
         EditSlotDialog(
             target = target,
+            mutationsDisabled = mutationsDisabled,
             onDismiss = { slotEditTarget = null },
             onSave = { slot ->
                 slotEditTarget = null
@@ -605,6 +607,7 @@ private fun StatusBadge(status: String) {
 @Composable
 private fun DeactivateConfirmDialog(
     user: UserSummaryResponse,
+    mutationsDisabled: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -623,7 +626,13 @@ private fun DeactivateConfirmDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            // Gated like the row actions (pass-2 HARD): the dialog can be open when a load is in
+            // flight (same-frame refresh-tap + row-tap slip), and the VM guard would swallow the
+            // confirm silently — the gate makes the window visible instead.
+            TextButton(
+                onClick = onConfirm,
+                enabled = !mutationsDisabled,
+            ) {
                 Text(
                     text = "Deactivate",
                     color = MaterialTheme.colorScheme.error,
@@ -654,6 +663,7 @@ data class SlotEditTarget(
 @Composable
 private fun EditSlotDialog(
     target: SlotEditTarget,
+    mutationsDisabled: Boolean,
     onDismiss: () -> Unit,
     onSave: (Short) -> Unit,
 ) {
@@ -691,6 +701,8 @@ private fun EditSlotDialog(
                         inputError = error
                     }
                 },
+                // Gated like the row actions (pass-2 HARD — see DeactivateConfirmDialog).
+                enabled = !mutationsDisabled,
             ) {
                 Text("Save")
             }

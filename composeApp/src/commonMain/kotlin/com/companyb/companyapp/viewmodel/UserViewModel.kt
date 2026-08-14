@@ -157,8 +157,9 @@ class UserViewModel(
         // effect re-running on rotation, a refresh tap during a load) must not stack two GETs
         // (#161 keep-last port no-refire axis). The Loading check works because the pre-set
         // below makes it SYNCHRONOUS: the handler's own Loading assignment is not guaranteed to
-        // land before launch returns (Main.immediate executes it inline), so a plain
-        // post-launch check would race a same-frame double-tap (the #143 in-flight shape).
+        // land before launch returns (Main.immediate may execute the body inline, but the guard
+        // must not depend on dispatch timing) — a plain post-launch check would race a
+        // same-frame double-tap (the #143 in-flight shape).
         if (_users.value is UiState.Loading || _inFlight.value.isNotEmpty()) return
         // Synchronous guard pre-set (see Guard 2). Self-clearing by construction: the handler
         // owns _users and assigns Error/Success on every non-cancellation exit path, so no
@@ -272,8 +273,8 @@ class UserViewModel(
         // render live during Loading now, and the load's last-writer Success would silently
         // revert the PATCH — the #141 stale-mask class). The reload response is the authority;
         // skipping restores the pre-port invariant (rows were untappable during Loading). Belt:
-        // the screen disables the row actions while Loading; this guard covers the same-frame
-        // tap that slips past the composition gate.
+        // the screen disables the row actions + dialog confirms while Loading; this guard covers
+        // the same-frame tap that slips past the composition gate.
         if (_users.value is UiState.Loading) return
         _inFlight.value = _inFlight.value + key
         _actionErrors.value = _actionErrors.value - key

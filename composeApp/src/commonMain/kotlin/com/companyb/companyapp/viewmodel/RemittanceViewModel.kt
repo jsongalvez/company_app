@@ -169,8 +169,6 @@ class RemittanceViewModel(
     private val _detailChangedNotice = MutableStateFlow(false)
     val detailChangedNotice: StateFlow<Boolean> = _detailChangedNotice.asStateFlow()
 
-    // D1 — list, status-filtered (DRAFT/SUBMITTED/ALL).
-
     // D2 — idempotent create (server-side insertIgnore: a duplicate (branch, type, date) returns
     // the existing draft — the popup treats success as success and refreshes).
     fun createDraft(request: CreateRemittanceDraftRequest) {
