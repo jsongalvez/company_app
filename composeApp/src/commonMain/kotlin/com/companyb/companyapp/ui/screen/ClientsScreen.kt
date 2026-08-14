@@ -57,16 +57,15 @@ fun ClientsScreen(
 ) {
     val searchState by viewModel.searchResults.collectAsState()
     val lastFiredQuery by viewModel.lastFiredQuery.collectAsState()
+    // #161 — VM-held query (D9-deviation fix): the field binds the VM's state so the search
+    // survives a detail push → pop-back (composition remember died on re-entry, clearing the
+    // query one frame after the kept list re-rendered).
+    val query by viewModel.query.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var query by remember { mutableStateOf("") }
     var cachedResults by remember { mutableStateOf<List<ClientResponse>?>(null) }
 
     LaunchedEffect(Unit) {
         logInfo("ClientsScreen", "composable entered (first composition)")
-    }
-
-    LaunchedEffect(query) {
-        viewModel.onQueryChange(query)
     }
 
     // D1 — the confirmation crosses the VM boundary via ClientState; consume-before-show, and
@@ -102,7 +101,7 @@ fun ClientsScreen(
             ) {
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = { viewModel.onQueryChange(it) },
                     label = { Text("Search clients by name or phone") },
                     singleLine = true,
                     // D2 X-clear — back to empty state. "×" (U+00D7) is used instead of a glyph
@@ -116,7 +115,7 @@ fun ClientsScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier =
                                     Modifier
-                                        .clickable { query = "" }
+                                        .clickable { viewModel.onQueryChange("") }
                                         .padding(Spacing.xs),
                             )
                         }

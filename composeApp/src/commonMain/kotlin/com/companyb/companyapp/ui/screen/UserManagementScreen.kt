@@ -87,6 +87,7 @@ fun UserManagementScreen(
     currentUserId: String?,
 ) {
     val users by viewModel.users.collectAsState()
+    val lastUsers by viewModel.lastUsers.collectAsState()
     val branches by viewModel.branches.collectAsState()
     val inFlight by viewModel.inFlight.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
@@ -103,7 +104,13 @@ fun UserManagementScreen(
         viewModel.loadBranches()
     }
 
-    val loadedUsers = (users as? UiState.Success<List<UserSummaryResponse>>)?.data.orEmpty()
+    // Keep-last render source (#161 port, the #143 VM-held-list shape): Success data, or the
+    // VM-held mirror during Loading/Error so a reload never flashes the spinner over held rows
+    // and a failed reload never replaces the list with an ErrorCard. null only when nothing has
+    // ever loaded (first composition) — spinner/ErrorCard then.
+    val heldList: List<UserSummaryResponse>? =
+        (users as? UiState.Success<List<UserSummaryResponse>>)?.data ?: lastUsers
+    val loadedUsers = heldList.orEmpty()
     val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
     val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()
     val slotRows =
@@ -149,9 +156,11 @@ fun UserManagementScreen(
             label = { Text("Search users") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            // Typing against an Error state does nothing visible (ErrorCard renders instead of
-            // the list) — disable so the field doesn't look interactive (pass-1 P4 SOFT).
-            enabled = users !is UiState.Error,
+            // Typing against an Error state with nothing held does nothing visible (ErrorCard
+            // renders instead of the list) — disable so the field doesn't look interactive
+            // (pass-1 P4 SOFT). With held rows the keep-last gate renders the list, so the
+            // client-side filter stays live over the mirror (#161).
+            enabled = heldList != null || users !is UiState.Error,
         )
 
         Spacer(Modifier.size(Spacing.sm))
@@ -165,23 +174,8 @@ fun UserManagementScreen(
 
         Spacer(Modifier.size(Spacing.sm))
 
-        when (val state = users) {
-            is UiState.Idle, is UiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            is UiState.Error -> {
-                // LaunchedEffect form (not inline) so the sticky error state doesn't re-log on
-                // every recomposition (e.g. search keystrokes) — same guard as BranchPicker.
-                LaunchedEffect(state) {
-                    logWarn("UserManagementScreen", "usersState=Error: ${state.message}")
-                }
-                ErrorCard(message = state.message, onRetry = { viewModel.loadUsers() })
-            }
-
-            is UiState.Success -> {
+        when {
+            heldList != null -> {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -276,6 +270,22 @@ fun UserManagementScreen(
                             )
                         }
                     }
+                }
+            }
+
+            users is UiState.Error -> {
+                val errorState = users as UiState.Error
+                // LaunchedEffect form (not inline) so the sticky error state doesn't re-log
+                // on every recomposition (e.g. search keystrokes) — same guard as BranchPicker.
+                LaunchedEffect(errorState) {
+                    logWarn("UserManagementScreen", "usersState=Error: ${errorState.message}")
+                }
+                ErrorCard(message = errorState.message, onRetry = { viewModel.loadUsers() })
+            }
+
+            else -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
             }
         }

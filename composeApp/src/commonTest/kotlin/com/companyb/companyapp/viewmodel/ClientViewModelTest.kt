@@ -613,6 +613,34 @@ class ClientViewModelTest {
         runCurrent()
     }
 
+    @Test
+    fun onQueryChange_sets_query_state_synchronously() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(clientHandler()))
+
+            vm.onQueryChange("al")
+            vm.onQueryChange("ali")
+            vm.onQueryChange("ali ")
+
+            // VM-held query (#161 D9-deviation fix): the raw text updates synchronously per
+            // keystroke — trimmed only for the search, never for the field's value.
+            assertEquals(expected = "ali ", actual = vm.query.value)
+        }
+
+    @Test
+    fun onQueryChange_clear_resets_query_state_to_empty() =
+        runTest(testScheduler) {
+            val vm = ClientViewModel(mockApiClient(clientHandler()))
+
+            vm.onQueryChange("alice")
+            advanceTimeByAndRun(300)
+            vm.onQueryChange("")
+            runCurrent()
+
+            assertEquals(expected = "", actual = vm.query.value)
+            assertIs<UiState.Idle>(vm.searchResults.value)
+        }
+
     private fun clientHandler(
         searchStatus: HttpStatusCode = HttpStatusCode.OK,
         searchBody: String = SEARCH_JSON,

@@ -48,7 +48,8 @@ import kotlin.uuid.Uuid
  *   idempotent create; a duplicate (branch, type, date) returns the existing draft server-side,
  *   treated as success: popup closes + the Drafts list refreshes).
  * - D7: load on entry + refresh button, no polling, branch-scoped (selectedBranchId); keep-last
- *   list per tab — a failed refresh/switch keeps the previously loaded rows.
+ *   list per tab (VM-held mirror, #161 port — survives pop-back; a failed refresh/switch keeps
+ *   the previously loaded rows).
  */
 @Composable
 fun RemittanceListScreen(
@@ -57,10 +58,10 @@ fun RemittanceListScreen(
     onRemittanceClick: (RemittanceResponse) -> Unit,
 ) {
     val listState by viewModel.remittanceList.collectAsState()
+    val lastByTab by viewModel.lastByTab.collectAsState()
     val createDraftState by viewModel.createDraftResult.collectAsState()
 
     var selectedTab by rememberSaveable { mutableStateOf(RemittanceTab.DRAFTS) }
-    var cachedByTab by remember { mutableStateOf<Map<RemittanceTab, List<RemittanceResponse>>>(emptyMap()) }
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -140,50 +141,33 @@ fun RemittanceListScreen(
             }
         }
 
-        when (val state = listState) {
-            is UiState.Success -> {
-                cachedByTab = cachedByTab + (selectedTab to state.data)
+        // Keep-last render source per tab (#161 port, the #143 VM-held-list shape — the VM
+        // mirror survives pop-back, the old screen-side remember died): the selected tab's last
+        // successful list renders through Loading/Error (a reload never flashes a spinner over
+        // held rows, a failed reload never replaces the list), and a response belonging to
+        // ANOTHER tab can never render here (the gate keys on the selected tab's mirror, not on
+        // the single list flow the last-writer fetch owns).
+        val mirrorKey = branchId?.let { "$it:${selectedTab.status}" }
+        val held = mirrorKey?.let { lastByTab[it] }
+        when {
+            held != null -> {
                 RemittanceTabContent(
-                    remittances = state.data,
+                    remittances = held,
                     emptyMessage = selectedTab.emptyMessage,
                     onRemittanceClick = onRemittanceClick,
                 )
             }
 
-            is UiState.Error -> {
-                val cached = cachedByTab[selectedTab]
-                if (cached == null) {
-                    ErrorCard(
-                        message = state.message,
-                        onRetry = {
-                            branchId?.let { viewModel.loadRemittances(it, selectedTab.status) }
-                        },
-                    )
-                } else {
-                    RemittanceTabContent(
-                        remittances = cached,
-                        emptyMessage = selectedTab.emptyMessage,
-                        onRemittanceClick = onRemittanceClick,
-                    )
-                }
+            listState is UiState.Error -> {
+                ErrorCard(
+                    message = (listState as UiState.Error).message,
+                    onRetry = {
+                        branchId?.let { viewModel.loadRemittances(it, selectedTab.status) }
+                    },
+                )
             }
 
-            is UiState.Loading -> {
-                val cached = cachedByTab[selectedTab]
-                if (cached == null) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                } else {
-                    RemittanceTabContent(
-                        remittances = cached,
-                        emptyMessage = selectedTab.emptyMessage,
-                        onRemittanceClick = onRemittanceClick,
-                    )
-                }
-            }
-
-            is UiState.Idle -> {
+            else -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }

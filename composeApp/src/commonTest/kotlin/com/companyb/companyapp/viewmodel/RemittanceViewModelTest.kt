@@ -39,6 +39,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -100,6 +101,130 @@ class RemittanceViewModelTest {
             runCurrent()
 
             assertIs<UiState.Error>(vm.remittanceList.value)
+        }
+
+    @Test
+    fun loadRemittances_double_call_while_same_key_in_flight_skips_duplicate() =
+        runTest(testScheduler) {
+            var listGets = 0
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient(
+                        remittanceHandler(onListRequest = { listGets++ }),
+                    ),
+                )
+
+            vm.loadRemittances("b1", "DRAFT")
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+
+            // The entry effect + the tab effect both fire the default tab's load on first
+            // composition; the synchronous per-key guard coalesces them (the #143 in-flight
+            // no-refire shape).
+            assertEquals(expected = 1, actual = listGets)
+        }
+
+    @Test
+    fun loadRemittances_other_tab_not_skipped_while_one_in_flight() =
+        runTest(testScheduler) {
+            var listGets = 0
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient(
+                        remittanceHandler(onListRequest = { listGets++ }),
+                    ),
+                )
+
+            vm.loadRemittances("b1", "DRAFT")
+            vm.loadRemittances("b1", "SUBMITTED")
+            runCurrent()
+
+            // Per-key guard: a tab switch during another tab's load must still fetch the new tab
+            // (a single shared slot would skip it and leave the tab unloaded).
+            assertEquals(expected = 2, actual = listGets)
+        }
+
+    @Test
+    fun loadRemittances_success_writes_tab_mirror() =
+        runTest(testScheduler) {
+            val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))
+
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+
+            val held = vm.lastByTab.value["b1:DRAFT"]
+            assertNotNull(held)
+            assertEquals(expected = listOf("r1"), actual = held.map { it.id })
+        }
+
+    @Test
+    fun loadRemittances_failure_keeps_last_list_for_tab() =
+        runTest(testScheduler) {
+            var listStatus = HttpStatusCode.OK
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient { request ->
+                        if (request.method == HttpMethod.Get &&
+                            request.url.encodedPath == "/api/remittances"
+                        ) {
+                            jsonRespond(status = listStatus, body = LIST_JSON)
+                        } else {
+                            error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                        }
+                    },
+                )
+
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+            listStatus = HttpStatusCode.BadRequest
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+
+            // The mirror keeps the last successful list through an Error so the render gate never
+            // swaps held rows for an ErrorCard (keep-last, #161 port).
+            assertIs<UiState.Error>(vm.remittanceList.value)
+            assertEquals(expected = listOf("r1"), actual = vm.lastByTab.value["b1:DRAFT"]?.map { it.id })
+        }
+
+    @Test
+    fun loadRemittances_per_branch_mirror_isolated() =
+        runTest(testScheduler) {
+            val vm = RemittanceViewModel(mockApiClient(remittanceHandler()))
+
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+            vm.loadRemittances("b2", "DRAFT")
+            runCurrent()
+
+            // One VM serves multiple branches (the list route takes no branch arg); the mirrors
+            // must not clobber each other.
+            assertEquals(expected = listOf("r1"), actual = vm.lastByTab.value["b1:DRAFT"]?.map { it.id })
+            assertEquals(expected = listOf("r1"), actual = vm.lastByTab.value["b2:DRAFT"]?.map { it.id })
+        }
+
+    @Test
+    fun loadRemittances_failure_clears_guard_so_retry_fires() =
+        runTest(testScheduler) {
+            var listGets = 0
+            val vm =
+                RemittanceViewModel(
+                    mockApiClient(
+                        remittanceHandler(
+                            listStatus = HttpStatusCode.BadRequest,
+                            onListRequest = { listGets++ },
+                        ),
+                    ),
+                )
+
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+            assertIs<UiState.Error>(vm.remittanceList.value)
+
+            // The guard clears on the failure path — a retry must not silently no-op (#140
+            // stuck-Loading class; the AuditLog every-failure-path discipline).
+            vm.loadRemittances("b1", "DRAFT")
+            runCurrent()
+            assertEquals(expected = 2, actual = listGets)
         }
 
     @Test

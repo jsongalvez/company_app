@@ -29,6 +29,15 @@ class ClientViewModel(
     private val _searchResults = MutableStateFlow<UiState<List<ClientResponse>>>(UiState.Idle)
     val searchResults: StateFlow<UiState<List<ClientResponse>>> = _searchResults.asStateFlow()
 
+    // The query the field currently shows (#161 — D9-deviation fix, the keep-last port shape):
+    // VM-held so it survives pop-back. D9 accepted a stale list on return, but the query was
+    // composition state — pop-back cleared it, the VM's Success list re-rendered for one frame,
+    // then the cleared query fired Idle and the list died (the deviation #142 logged). Holding
+    // the query here restores the exact pre-push state on re-entry (the VM survives the detail
+    // push, entry-scoped); no re-search fires — D9's no-auto-refresh holds.
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
+
     // The query whose request last FIRED — recorded at the fire point (launchSearch), where it
     // is authoritative. The screen's no-results label binds to this: observing Loading
     // transitions would miss re-fires (consecutive Loading emissions are equal, so the flow
@@ -59,6 +68,7 @@ class ClientViewModel(
     private var detailJob: Job? = null
 
     fun onQueryChange(query: String) {
+        _query.value = query
         latestQuery = query
         searchJob?.cancel()
         val trimmed = query.trim()

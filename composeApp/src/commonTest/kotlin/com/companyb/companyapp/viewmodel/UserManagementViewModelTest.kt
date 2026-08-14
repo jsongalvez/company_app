@@ -163,6 +163,66 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun loadUsers_double_call_while_loading_fires_single_request() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            // The synchronous Loading pre-set closes the same-frame double-fire (the #143
+            // no-refire shape): the entry effect re-firing on rotation + a refresh tap in the
+            // same frame must not stack two GETs.
+            assertEquals(expected = 1, actual = harness.usersGetCount)
+        }
+
+    @Test
+    fun loadUsers_failure_keeps_last_list_for_rendering() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.usersStatus = HttpStatusCode.BadRequest
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            // The mirror keeps the last successful list through an Error so the render gate never
+            // swaps held rows for an ErrorCard (keep-last, #161 port).
+            assertIs<UiState.Error>(vm.users.value)
+            val held = vm.lastUsers.value
+            assertNotNull(held)
+            assertEquals(expected = listOf("u1", "u2", "u3"), actual = held.map { it.id })
+        }
+
+    @Test
+    fun deactivate_after_failed_reload_mutates_held_list() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.usersStatus = HttpStatusCode.BadRequest
+            vm.loadUsers()
+            advanceUntilIdle()
+            assertIs<UiState.Error>(vm.users.value)
+
+            // Row actions stay live over the mirror-rendered list: the PATCH succeeds and the
+            // in-place update restores a Success list (the freshest truth for the row — the
+            // NotificationViewModel currentUnreadList precedent).
+            vm.deactivateUser("u1")
+            advanceUntilIdle()
+
+            val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = USER_STATUS_INACTIVE, actual = state.data.first { it.id == "u1" }.status)
+            assertEquals(expected = listOf("u1", "u2", "u3"), actual = state.data.map { it.id })
+        }
+
+    @Test
     fun loadBranches_success_emits_list() =
         runTest(testScheduler) {
             val vm = UserViewModel(mockApiClient(UserHarness().handler()))

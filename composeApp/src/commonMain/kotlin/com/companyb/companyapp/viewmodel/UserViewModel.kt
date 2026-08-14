@@ -18,6 +18,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.launch
 import kotlin.time.Clock
 
 const val USER_STATUS_ACTIVE = "ACTIVE"
@@ -106,6 +108,14 @@ class UserViewModel(
     private val _users = MutableStateFlow<UiState<List<UserSummaryResponse>>>(UiState.Idle)
     val users: StateFlow<UiState<List<UserSummaryResponse>>> = _users.asStateFlow()
 
+    // Keep-last-results, VM-side (the #143/#161 port shape — NotificationViewModel precedent):
+    // the last successful list survives Loading/Error so the screen keeps rendering it across
+    // reloads and composition re-entries (a screen-side remember would die on re-entry; the VM
+    // is entry-scoped). It is also the fallback mutations mutate in place when a reload failed
+    // but the list is still rendered — a row action must not dead-tap against a rendered list.
+    private val _lastUsers = MutableStateFlow<List<UserSummaryResponse>?>(null)
+    val lastUsers: StateFlow<List<UserSummaryResponse>?> = _lastUsers.asStateFlow()
+
     private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
     val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
 
@@ -122,17 +132,37 @@ class UserViewModel(
     // the accumulated users list (the #122/#120 keep-last-list shape).
     private val mutation = MutableStateFlow<UiState<Unit>>(UiState.Idle)
 
+    init {
+        // Single writer for lastUsers: every Success that lands on _users (load, mutation
+        // in-place updates) mirrors into it (the NotificationViewModel collector pattern).
+        viewModelScope.launch {
+            _users
+                .filterIsInstance<UiState.Success<List<UserSummaryResponse>>>()
+                .collect { state -> _lastUsers.value = state.data }
+        }
+    }
+
     fun loadUsers() {
-        // Guard: a reload mid-mutation would let the mutation's in-place transform re-apply to
-        // the fresh list (swap double-applies — pass-1 P2/P4 HARD class; the Refresh-button gate
-        // alone couldn't cover non-click triggers like LaunchedEffect refires on rotation/
-        // re-entry, pass-2 P2/P4). While any mutation is in flight the locally-mutated list IS
-        // the authority (mutations only exist once the list loaded Success), so skipping is safe:
-        // the only way inFlight is non-empty is a Success list that in-place updates keep current.
-        // The guard sits BEFORE the error clear: a skipped load leaves the list untouched, so its
-        // errors still describe current state (pass-3 P2 — clearing them would hide a real
-        // failure the next composition's failed-action display relies on).
-        if (_inFlight.value.isNotEmpty()) return
+        // Guard 1 (mutations): a reload mid-mutation would let the mutation's in-place transform
+        // re-apply to the fresh list (swap double-applies — pass-1 P2/P4 HARD class; the
+        // Refresh-button gate alone couldn't cover non-click triggers like LaunchedEffect
+        // refires on rotation/re-entry, pass-2 P2/P4). While any mutation is in flight the
+        // locally-mutated list IS the authority (mutations only exist once the list loaded
+        // Success), so skipping is safe: the only way inFlight is non-empty is a Success list
+        // that in-place updates keep current. The guard sits BEFORE the error clear: a skipped
+        // load leaves the list untouched, so its errors still describe current state (pass-3 P2
+        // — clearing them would hide a real failure the next composition's failed-action display
+        // relies on).
+        // Guard 2 (loads): skip while a load is in flight — a double-fire (the screen's entry
+        // effect re-running on rotation, a refresh tap during a load) must not stack two GETs
+        // (#161 keep-last port no-refire axis). The Loading check works because the pre-set
+        // below makes it SYNCHRONOUS: the handler's own Loading assignment lands only after
+        // launch, which would race a same-frame double-tap (the #143 in-flight shape).
+        if (_users.value is UiState.Loading || _inFlight.value.isNotEmpty()) return
+        // Synchronous guard pre-set (see Guard 2). Self-clearing by construction: the handler
+        // owns _users and assigns Error/Success on every live exit path, so no separate flag can
+        // wedge (the #140 stuck-Loading class).
+        _users.value = UiState.Loading
         // A reload replaces the list; the errors describe actions against the pre-reload list
         // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
         _actionErrors.value = emptyMap()
@@ -278,7 +308,14 @@ class UserViewModel(
         userId: String,
         transform: (UserSummaryResponse) -> UserSummaryResponse,
     ) {
-        val current = (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data ?: return
+        // Success ?? lastUsers: a failed reload leaves _users Error while the mirror still
+        // renders the rows — the action must not dead-tap against a rendered list (#161 port;
+        // the NotificationViewModel currentUnreadList precedent). The success writes Success
+        // over Error, which is the freshest truth for the mutated row.
+        val current =
+            (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data
+                ?: _lastUsers.value
+                ?: return
         _users.value = UiState.Success(current.map { if (it.id == userId) transform(it) else it })
     }
 
@@ -302,7 +339,10 @@ class UserViewModel(
         userIdA: String,
         userIdB: String,
     ) {
-        val users = (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data ?: return
+        val users =
+            (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data
+                ?: _lastUsers.value
+                ?: return
         val slotA =
             users
                 .firstOrNull { it.id == userIdA }
