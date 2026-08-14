@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -48,9 +49,12 @@ import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
+import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.formatRelativeTimestamp
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.util.saveDownload
 import com.companyb.companyapp.viewmodel.EditSection
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
@@ -89,6 +93,8 @@ fun FinanceReportsScreen(
     val editMode by viewModel.editMode.collectAsState()
     val downloads by viewModel.downloads.collectAsState()
     val exportErrors by viewModel.exportErrors.collectAsState()
+    val conflicts by viewModel.conflicts.collectAsState()
+    val capabilities by SessionState.capabilities.collectAsState()
 
     val today =
         Clock.System
@@ -101,15 +107,29 @@ fun FinanceReportsScreen(
     }
 
     // D6 — the platform save boundary: a successful export payload is handed to saveDownload
-    // (desktop save dialog / Android Downloads), then consumed so the button clears.
+    // (desktop save dialog / Android Downloads), then consumed so the button clears. A false
+    // return (user cancelled the dialog / the write failed) surfaces as an in-place note.
+    var downloadNote by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(downloads) {
         downloads
             .filterValues { it is UiState.Success }
             .forEach { (key, state) ->
                 val payload = (state as UiState.Success<FinanceReportsViewModel.DownloadPayload>).data
-                saveDownload(payload.fileName, payload.bytes)
+                if (saveDownload(payload.fileName, payload.bytes)) {
+                    downloadNote = null
+                } else {
+                    downloadNote = "Download cancelled or failed for ${payload.fileName}"
+                }
                 viewModel.consumeDownload(key)
             }
+    }
+    val note = downloadNote
+    if (note != null) {
+        Text(
+            text = note,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 
     Column(modifier = modifier.fillMaxSize().padding(Spacing.md)) {
@@ -117,46 +137,51 @@ fun FinanceReportsScreen(
             branches = branches,
             selectedBranchId = selectedBranchId,
             onBranchSelected = viewModel::selectBranch,
+            onRetryBranches = viewModel::loadBranches,
             mode = mode,
             onModeSelected = viewModel::setMode,
             canEdit = viewModel.hasEditCapabilities() && selectedDay != null,
             editMode = editMode,
             onEditToggle = { viewModel.setEditMode(!editMode) },
+            downloads = downloads,
+            exportErrors = exportErrors,
+            onExportMode = { format -> viewModel.exportModeCurrent(format) },
         )
-        when (mode) {
-            ReportMode.MONTHLY -> {
-                MonthParamRow(
-                    monthInput = monthInput,
-                    onMonthInputChange = viewModel::setMonthInput,
-                    onApply = viewModel::applyMonth,
-                    paramError = paramError,
-                )
-            }
+        if (!editMode) {
+            when (mode) {
+                ReportMode.MONTHLY -> {
+                    MonthParamRow(
+                        monthInput = monthInput,
+                        onMonthInputChange = viewModel::setMonthInput,
+                        onApply = viewModel::applyMonth,
+                        paramError = paramError,
+                    )
+                }
 
-            ReportMode.ALL_TIME -> {
-                JumpParamRow(
-                    monthInput = monthInput,
-                    onJumpInputChange = viewModel::setJumpInput,
-                    onApply = viewModel::applyJump,
-                    onClear = viewModel::clearJump,
-                    hasJump = true,
-                    paramError = paramError,
-                )
-            }
+                ReportMode.ALL_TIME -> {
+                    JumpParamRow(
+                        monthInput = monthInput,
+                        onJumpInputChange = viewModel::setJumpInput,
+                        onApply = viewModel::applyJump,
+                        onClear = viewModel::clearJump,
+                        paramError = paramError,
+                    )
+                }
 
-            ReportMode.DATE_RANGE -> {
-                DateRangeParamRow(
-                    fromInput = rangeFromInput,
-                    toInput = rangeToInput,
-                    onFromChange = { viewModel.setRangeInputs(it, rangeToInput) },
-                    onToChange = { viewModel.setRangeInputs(rangeFromInput, it) },
-                    onApply = viewModel::applyRange,
-                    applied = appliedRange != null,
-                    paramError = paramError,
-                )
-            }
+                ReportMode.DATE_RANGE -> {
+                    DateRangeParamRow(
+                        fromInput = rangeFromInput,
+                        toInput = rangeToInput,
+                        onFromChange = { viewModel.setRangeInputs(it, rangeToInput) },
+                        onToChange = { viewModel.setRangeInputs(rangeFromInput, it) },
+                        onApply = viewModel::applyRange,
+                        applied = appliedRange != null,
+                        paramError = paramError,
+                    )
+                }
 
-            ReportMode.DAILY -> {}
+                ReportMode.DAILY -> {}
+            }
         }
 
         val selectedBranch = selectedBranchId
@@ -169,6 +194,7 @@ fun FinanceReportsScreen(
                     day = day,
                     branchName = (branches as? UiState.Success)?.data.orEmpty().branchName(selectedBranch),
                     today = today,
+                    capabilities = capabilities,
                     onBackToFeed = { viewModel.setEditMode(false) },
                     modifier = Modifier.weight(1f),
                 )
@@ -184,6 +210,8 @@ fun FinanceReportsScreen(
                     selectedDay = selectedDay,
                     onDaySelected = viewModel::selectDay,
                     today = today,
+                    downloads = downloads,
+                    exportErrors = exportErrors,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -208,11 +236,15 @@ private fun FinanceToolbar(
     branches: UiState<List<BranchResponse>>,
     selectedBranchId: String?,
     onBranchSelected: (String) -> Unit,
+    onRetryBranches: () -> Unit,
     mode: ReportMode,
     onModeSelected: (ReportMode) -> Unit,
     canEdit: Boolean,
     editMode: Boolean,
     onEditToggle: () -> Unit,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+    onExportMode: (String) -> Unit,
 ) {
     var branchMenuOpen by remember { mutableStateOf(false) }
     Column {
@@ -229,12 +261,13 @@ private fun FinanceToolbar(
                 }
 
                 is UiState.Error -> {
+                    logWarn("FinanceReportsScreen", "branches=Error: ${branches.message}")
                     Text(
                         text = branches.message,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    TextButton(onClick = { onBranchSelected(selectedBranchId ?: "") }) {}
+                    TextButton(onClick = onRetryBranches) { Text("Retry") }
                 }
 
                 else -> {}
@@ -274,6 +307,16 @@ private fun FinanceToolbar(
                 }
             }
             Spacer(Modifier.weight(1f))
+            // #105 D4 — toolbar export = the mode's export (Daily has none — per-day only, in
+            // detail). D6: every export point is CSV + PDF.
+            if (!editMode && mode != ReportMode.DAILY && selectedBranchId != null) {
+                ExportButtons(
+                    baseKey = "mode:${mode.name}",
+                    onExport = onExportMode,
+                    errors = exportErrors,
+                    downloads = downloads,
+                )
+            }
             if (canEdit) {
                 TextButton(onClick = onEditToggle) {
                     Text(if (editMode) "Done editing" else "Edit this day")
@@ -339,7 +382,6 @@ private fun JumpParamRow(
     onJumpInputChange: (String) -> Unit,
     onApply: () -> Unit,
     onClear: () -> Unit,
-    hasJump: Boolean,
     paramError: String?,
 ) {
     Row(
@@ -355,9 +397,7 @@ private fun JumpParamRow(
         )
         Spacer(Modifier.width(Spacing.sm))
         TextButton(onClick = onApply) { Text("Jump") }
-        if (hasJump) {
-            TextButton(onClick = onClear) { Text("All-time") }
-        }
+        TextButton(onClick = onClear) { Text("All-time") }
         if (paramError != null) {
             Spacer(Modifier.width(Spacing.sm))
             Text(
@@ -423,12 +463,17 @@ private fun FeedSection(
     selectedDay: DailySalesSummaryResponse?,
     onDaySelected: (DailySalesSummaryResponse) -> Unit,
     today: LocalDate,
+    downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(top = Spacing.sm)) {
         if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Success && monthlyRollup.data != null) {
             val rollup = monthlyRollup.data
             MonthlyRollupCard(rollup = rollup)
+        }
+        if (mode == ReportMode.MONTHLY && monthlyRollup is UiState.Error) {
+            logWarn("FinanceReportsScreen", "monthlyRollup=Error: ${monthlyRollup.message}")
         }
         when (feed) {
             is UiState.Idle -> {}
@@ -440,6 +485,7 @@ private fun FeedSection(
             }
 
             is UiState.Error -> {
+                logWarn("FinanceReportsScreen", "feed=Error: ${feed.message}")
                 ErrorCard(message = feed.message, onRetry = viewModel::retryFeed)
             }
 
@@ -462,6 +508,13 @@ private fun FeedSection(
                                 today = today,
                                 selected = day.branchDayId == selectedDay?.branchDayId,
                                 onSelect = { onDaySelected(day) },
+                                onExportDay = { format ->
+                                    selectedBranchId?.let { branch ->
+                                        viewModel.exportDay(day, branch, format)
+                                    }
+                                },
+                                downloadStates = downloads,
+                                exportErrors = exportErrors,
                             )
                         }
                         item(key = "load-more") {
@@ -531,6 +584,9 @@ private fun DayRow(
     today: LocalDate,
     selected: Boolean,
     onSelect: () -> Unit,
+    onExportDay: (String) -> Unit,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
     Column(
@@ -564,7 +620,15 @@ private fun DayRow(
                 color = InkSubtle,
             )
         }
-        FinanceDayDetail(day = day, today = today, expanded = selected, onClose = onSelect)
+        FinanceDayDetail(
+            day = day,
+            today = today,
+            expanded = selected,
+            onClose = onSelect,
+            onExportDay = onExportDay,
+            downloadStates = downloadStates,
+            exportErrors = exportErrors,
+        )
     }
 }
 
@@ -578,12 +642,18 @@ internal expect fun FinanceDayDetail(
     today: LocalDate,
     expanded: Boolean,
     onClose: () -> Unit,
+    onExportDay: (String) -> Unit,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
 )
 
 @Composable
 internal fun FinanceDayDetailContent(
     day: DailySalesSummaryResponse,
     today: LocalDate,
+    onExportDay: ((String) -> Unit)? = null,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>> = emptyMap(),
+    exportErrors: Map<String, String> = emptyMap(),
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
     Column(modifier = Modifier.padding(horizontal = Spacing.xs)) {
@@ -593,6 +663,27 @@ internal fun FinanceDayDetailContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = Spacing.xs),
         )
+        // #105 D5 — per-day Download CSV/PDF lives in the day detail (the editor embeds the
+        // breakdown without the export row — its exports are the toolbar's).
+        if (onExportDay != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Download",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSubtle,
+                    modifier = Modifier.weight(1f),
+                )
+                ExportButtons(
+                    baseKey = "day:${day.date}",
+                    onExport = onExportDay,
+                    errors = exportErrors,
+                    downloads = downloadStates,
+                )
+            }
+        }
         BreakdownRow("Gross income (sessions)", day.grossIncome)
         BreakdownRow("Product sales", day.totalProductSales)
         BreakdownRow("Commission", day.totalCommission)
@@ -632,16 +723,22 @@ private fun DayEditor(
     day: DailySalesSummaryResponse,
     branchName: String,
     today: LocalDate,
+    capabilities: Set<String>,
     onBackToFeed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state = derivedDayState(LocalDate.parse(day.date), today)
+    val canAssign = CapabilityCodes.ASSIGN_COMPENSATION in capabilities
+    // #101 D1/D3 — past days are read-only unless the user holds EDIT_PAST_DAY (the code-only
+    // #99 D7 approximation; the backend 403 stays authoritative).
+    val pastDayReadOnly = state == DerivedDayState.PAST && CapabilityCodes.EDIT_PAST_DAY !in capabilities
     val expenses by viewModel.editExpenses.collectAsState()
     val compensations by viewModel.editCompensations.collectAsState()
     val allowances by viewModel.editAllowances.collectAsState()
     val users by viewModel.editUsers.collectAsState()
     val editErrors by viewModel.editErrors.collectAsState()
     val inFlight by viewModel.inFlightActions.collectAsState()
+    val conflicts by viewModel.conflicts.collectAsState()
 
     LaunchedEffect(day.branchDayId) {
         viewModel.setEditMode(true)
@@ -655,16 +752,7 @@ private fun DayEditor(
                 style = MaterialTheme.typography.titleLarge,
             )
         }
-        Text(
-            text = dayStateBannerText(state),
-            style = MaterialTheme.typography.bodySmall,
-            color =
-                if (state == DerivedDayState.PAST) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-        )
+
         // D2 — summary cards + breakdown
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.sm),
@@ -688,6 +776,8 @@ private fun DayEditor(
             expenses = expenses,
             errors = editErrors,
             inFlight = inFlight,
+            readOnly = pastDayReadOnly,
+            conflicts = conflicts,
             onCreate = { amount, category, notes, reason ->
                 viewModel.createExpense(amount, category, notes, reason)
             },
@@ -705,6 +795,9 @@ private fun DayEditor(
             users = users,
             errors = editErrors,
             inFlight = inFlight,
+            canAssign = canAssign,
+            readOnly = pastDayReadOnly,
+            conflicts = conflicts,
             onCreate = { userId, amount, note, reason ->
                 viewModel.createCompensation(userId, amount, note, reason)
             },
@@ -720,6 +813,8 @@ private fun DayEditor(
             users = users,
             errors = editErrors,
             inFlight = inFlight,
+            canAssign = canAssign,
+            readOnly = pastDayReadOnly,
             onCreate = { userId, amount, reason -> viewModel.createAllowance(userId, amount, reason) },
         )
     }
@@ -757,6 +852,8 @@ private fun ExpenseSection(
     expenses: UiState<List<ExpenseResponse>>,
     errors: Map<String, String>,
     inFlight: Set<String>,
+    readOnly: Boolean,
+    conflicts: Set<String>,
     onCreate: (String, String, String?, String?) -> Unit,
     onUpdate: (ExpenseResponse, String, String, String?, String?) -> Unit,
     onDelete: (ExpenseResponse, String) -> Unit,
@@ -767,11 +864,17 @@ private fun ExpenseSection(
     var editing by remember { mutableStateOf<ExpenseResponse?>(null) }
     var deleting by remember { mutableStateOf<ExpenseResponse?>(null) }
     var restoring by remember { mutableStateOf<ExpenseResponse?>(null) }
+    // Pass-1 HARD — a 409 closes the open edit dialog: it holds a stale expectedVersion, so a
+    // re-save would loop 409s; the reloaded row is the retry source.
+    LaunchedEffect(conflicts) {
+        val e = editing
+        if (e != null && "expense:update:${e.id}" in conflicts) editing = null
+    }
     SectionHeader(
         title = "Expenses",
         actionLabel = "Add expense",
         onAction = { showExpenseDialog = true },
-        showAction = true,
+        showAction = !readOnly,
         onReload = onReload,
     )
     when (expenses) {
@@ -814,6 +917,7 @@ private fun ExpenseSection(
                         "expense:update:${expense.id}" in inFlight ||
                             "expense:delete:${expense.id}" in inFlight ||
                             "expense:restore:${expense.id}" in inFlight,
+                    readOnly = readOnly,
                     onEdit = { editing = expense },
                     onDelete = { deleting = expense },
                     onRestore = { restoring = expense },
@@ -879,6 +983,7 @@ private fun ExpenseRow(
     expense: ExpenseResponse,
     error: String?,
     busy: Boolean,
+    readOnly: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onRestore: () -> Unit,
@@ -913,6 +1018,14 @@ private fun ExpenseRow(
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
+        // #101 D6 — createdBy + createdAt on the row.
+        Text(
+            text = "${expense.createdBy.take(8)} · ${formatRelativeTimestamp(expense.createdAt)}",
+            style = MaterialTheme.typography.bodySmall,
+            color = InkSubtle,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(Spacing.sm))
         if (deleted) {
             Text(
                 text = "removed",
@@ -927,7 +1040,7 @@ private fun ExpenseRow(
             )
             Spacer(Modifier.width(Spacing.sm))
             TextButton(onClick = onRestore, enabled = !busy) { Text("Restore") }
-        } else {
+        } else if (!readOnly) {
             TextButton(onClick = onEdit, enabled = !busy) { Text("Edit") }
             TextButton(onClick = onDelete, enabled = !busy) { Text("Delete") }
         }
@@ -1059,17 +1172,24 @@ private fun CompensationSection(
     users: UiState<List<BranchDayUserResponse>>,
     errors: Map<String, String>,
     inFlight: Set<String>,
+    canAssign: Boolean,
+    readOnly: Boolean,
+    conflicts: Set<String>,
     onCreate: (String, String, String?, String?) -> Unit,
     onUpdate: (CompensationResponse, String, String?, String?) -> Unit,
     onReload: () -> Unit,
 ) {
     var showAssign by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<CompensationResponse?>(null) }
+    LaunchedEffect(conflicts) {
+        val e = editing
+        if (e != null && "comp:update:${e.id}" in conflicts) editing = null
+    }
     SectionHeader(
         title = "Compensation",
         actionLabel = "Assign compensation",
         onAction = { showAssign = true },
-        showAction = users is UiState.Success && users.data.isNotEmpty(),
+        showAction = canAssign && !readOnly && users is UiState.Success && users.data.isNotEmpty(),
         onReload = onReload,
     )
     when (compensations) {
@@ -1122,11 +1242,20 @@ private fun CompensationSection(
                         color = InkSubtle,
                         maxLines = 1,
                     )
-                    TextButton(
-                        onClick = { editing = compensation },
-                        enabled = "comp:update:${compensation.id}" !in inFlight,
-                    ) {
-                        Text("Edit")
+                    // #101 D5 — assignedAt on the row.
+                    Text(
+                        text = formatRelativeTimestamp(compensation.assignedAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = InkSubtle,
+                        maxLines = 1,
+                    )
+                    if (!readOnly) {
+                        TextButton(
+                            onClick = { editing = compensation },
+                            enabled = "comp:update:${compensation.id}" !in inFlight,
+                        ) {
+                            Text("Edit")
+                        }
                     }
                 }
                 val error = errors["comp:update:${compensation.id}"]
@@ -1251,6 +1380,8 @@ private fun AllowanceSection(
     users: UiState<List<BranchDayUserResponse>>,
     errors: Map<String, String>,
     inFlight: Set<String>,
+    canAssign: Boolean,
+    readOnly: Boolean,
     onCreate: (String, String, String?) -> Unit,
 ) {
     var showAssign by remember { mutableStateOf(false) }
@@ -1258,7 +1389,7 @@ private fun AllowanceSection(
         title = "Allowances — not in P&L",
         actionLabel = "Assign allowance",
         onAction = { showAssign = true },
-        showAction = users is UiState.Success && users.data.isNotEmpty(),
+        showAction = canAssign && !readOnly && users is UiState.Success && users.data.isNotEmpty(),
         onReload = { },
     )
     val userNames = (users as? UiState.Success)?.data.orEmpty().associate { it.userId to it.displayName }

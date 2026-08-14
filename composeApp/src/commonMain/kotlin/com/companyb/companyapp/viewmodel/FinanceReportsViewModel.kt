@@ -114,7 +114,9 @@ class FinanceReportsViewModel(
         _selectedBranchId.value = branchId
         _selectedDay.value = null
         _editMode.value = false
+        clearEditData()
         refreshWindowAndFeed()
+        _monthlyRollup.value = UiState.Idle
     }
 
     // ─────────────────────────── mode + params ───────────────────────────
@@ -146,6 +148,9 @@ class FinanceReportsViewModel(
 
     private val _monthlyRollup = MutableStateFlow<UiState<MonthlyRemittanceSummaryResponse?>>(UiState.Idle)
     val monthlyRollup: StateFlow<UiState<MonthlyRemittanceSummaryResponse?>> = _monthlyRollup.asStateFlow()
+
+    /** Rollup responses from a superseded branch/mode are inert (P4 pass-1 HARD). */
+    private var rollupGeneration = 0
 
     fun setMode(mode: ReportMode) {
         if (mode == _mode.value) return
@@ -304,6 +309,8 @@ class FinanceReportsViewModel(
         _nextCursor.value = null
         _refreshError.value = null
         _loadMoreError.value = null
+        _selectedDay.value = null
+        _editMode.value = false
         _feedEntries.value = UiState.Loading
         val branchId = _selectedBranchId.value ?: return
         fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
@@ -484,7 +491,7 @@ class FinanceReportsViewModel(
     private val _editMode = MutableStateFlow(false)
     val editMode: StateFlow<Boolean> = _editMode.asStateFlow()
 
-    fun selectDay(day: DailySalesSummaryResponse) {
+    fun selectDay(day: DailySalesSummaryResponse?) {
         _selectedDay.value = day
     }
 
@@ -530,6 +537,13 @@ class FinanceReportsViewModel(
     // in-flight guards (double-tap closure).
     private val _editErrors = MutableStateFlow<Map<String, String>>(emptyMap())
     val editErrors: StateFlow<Map<String, String>> = _editErrors.asStateFlow()
+
+    // One-shot conflict signal (pass-1 HARD): a 409 adds the key to a NEW Set instance so the
+    // screen's LaunchedEffect(conflicts) re-fires — the open edit dialog holds a stale
+    // expectedVersion and must close (re-saving it would loop 409s; the reloaded row is the
+    // retry source). Entries persist harmlessly (the effect reacts to the Set reference).
+    private val _conflicts = MutableStateFlow<Set<String>>(emptySet())
+    val conflicts: StateFlow<Set<String>> = _conflicts.asStateFlow()
 
     private val _inFlightActions = MutableStateFlow<Set<String>>(emptySet())
     val inFlightActions: StateFlow<Set<String>> = _inFlightActions.asStateFlow()
@@ -614,6 +628,7 @@ class FinanceReportsViewModel(
         operation: String,
         endpoint: String,
         params: List<Pair<String, String>>,
+        errorKeyPrefixes: List<String> = emptyList(),
     ) {
         handler.launch(
             state = pageFetch,
@@ -638,6 +653,14 @@ class FinanceReportsViewModel(
                     val list = it.body<List<T>>()
                     if (generation == editDataGeneration) {
                         state.value = UiState.Success(list)
+                        // #143 class — a fresh list supersedes the section's stale action
+                        // errors (e.g. a 409-reload landing beside its own error line).
+                        if (errorKeyPrefixes.isNotEmpty()) {
+                            _editErrors.value =
+                                _editErrors.value.filterKeys { key ->
+                                    errorKeyPrefixes.none { key.startsWith(it) }
+                                }
+                        }
                     }
                     Unit
                 } catch (e: CancellationException) {
@@ -659,6 +682,9 @@ class FinanceReportsViewModel(
     }
 
     private fun clearEditData() {
+        // P4 pass-1: bumping the generation makes in-flight section loads from a superseded
+        // day/branch inert — they must not repopulate the cleared sections.
+        editDataGeneration++
         _editExpenses.value = UiState.Idle
         _editCompensations.value = UiState.Idle
         _editAllowances.value = UiState.Idle
@@ -804,7 +830,6 @@ class FinanceReportsViewModel(
             endpoint = "POST /api/expenses/${expense.id}/restore",
             block = {
                 apiClient.httpClient.post("/api/expenses/${expense.id}/restore") {
-                    contentType(ContentType.Application.Json)
                     setBody(RestoreExpenseRequest(reason = reason))
                 }
             },
@@ -1001,8 +1026,7 @@ class FinanceReportsViewModel(
 
     fun exportMode(
         key: String,
-        format: String,
-        buildUrl: suspend (String) -> HttpResponse,
+        url: String,
     ) {
         if (_downloads.value.containsKey(key) && _downloads.value[key] is UiState.Loading) return
         _exportErrors.value = _exportErrors.value - key
@@ -1011,7 +1035,7 @@ class FinanceReportsViewModel(
             state = pageFetch,
             operation = "export:$key",
             endpoint = "GET export $key",
-            block = { buildUrl(format) },
+            block = { apiClient.httpClient.get(url) },
             transform = {
                 _downloads.value =
                     _downloads.value +
@@ -1073,13 +1097,8 @@ class FinanceReportsViewModel(
     ) {
         exportMode(
             key = "day:${day.date}:$format",
-            format = format,
-        ) { fmt ->
-            apiClient.httpClient.get("/api/branches/$branchId/export/daily") {
-                parameter("date", day.date)
-                parameter("format", fmt)
-            }
-        }
+            url = "/api/branches/$branchId/export/daily?date=${day.date}&format=$format",
+        )
     }
 
     fun exportPublic(
@@ -1088,8 +1107,19 @@ class FinanceReportsViewModel(
     ) {
         exportMode(
             key = "public:$kind:$format",
-            format = format,
-        ) { fmt -> apiClient.httpClient.get("/api/branches/export/$kind") { parameter("format", fmt) } }
+            url = "/api/branches/export/$kind?format=$format",
+        )
+    }
+
+    /** #105 D4 — the toolbar's mode export (Daily has none — per-day only, in the detail). */
+    fun exportModeCurrent(format: String) {
+        val branchId = _selectedBranchId.value ?: return
+        val url = modeExportUrl(_mode.value, branchId, format)
+        if (url.isEmpty()) return
+        exportMode(
+            key = "mode:${_mode.value.name}:$format",
+            url = url,
+        )
     }
 
     fun consumeDownload(key: String) {
@@ -1146,7 +1176,10 @@ class FinanceReportsViewModel(
                 else -> "$operation failed: ${response.status.value}"
             }
         _editErrors.value = _editErrors.value + (key to message)
-        if (response.status == HttpStatusCode.Conflict) reload?.invoke()
+        if (response.status == HttpStatusCode.Conflict) {
+            _conflicts.value = _conflicts.value + key
+            reload?.invoke()
+        }
     }
 
     private fun newId(): String =

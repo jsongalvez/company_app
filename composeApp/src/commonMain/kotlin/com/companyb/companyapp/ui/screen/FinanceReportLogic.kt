@@ -120,28 +120,22 @@ internal fun expenseAmountError(raw: String): String? {
     return null
 }
 
-internal val expenseCategoryLabels: List<String> =
+// #101 D6 — the 9-value expense category enum as (code, label) pairs. Pairing (not
+// index-coupled parallel lists — pass-1 P2) keeps an unknown backend category from being
+// silently rewritten to PANTRY by a failing indexOf lookup.
+internal val expenseCategories: List<Pair<String, String>> =
     listOf(
-        "Pantry",
-        "Communication",
-        "Water",
-        "Transportation",
-        "Electricity",
-        "Rental",
-        "Office Supplies",
-        "Furniture/Fixtures",
-        "Miscellaneous",
+        "PANTRY" to "Pantry",
+        "COMMUNICATION" to "Communication",
+        "WATER" to "Water",
+        "TRANSPORTATION" to "Transportation",
+        "ELECTRICITY" to "Electricity",
+        "RENTAL" to "Rental",
+        "OFFICE_SUPPLIES" to "Office Supplies",
+        "FURNITURE_FIXTURES" to "Furniture/Fixtures",
+        "MISCELLANEOUS" to "Miscellaneous",
     )
 
-internal val expenseCategoryCodes: List<String> =
-    listOf(
-        "PANTRY",
-        "COMMUNICATION",
-        "WATER",
-        "TRANSPORTATION",
-        "ELECTRICITY",
-        "RENTAL",
-        "OFFICE_SUPPLIES",
-        "FURNITURE_FIXTURES",
-        "MISCELLANEOUS",
-    )
+internal val expenseCategoryCodes: List<String> = expenseCategories.map { it.first }
+
+internal val expenseCategoryLabels: List<String> = expenseCategories.map { it.second }

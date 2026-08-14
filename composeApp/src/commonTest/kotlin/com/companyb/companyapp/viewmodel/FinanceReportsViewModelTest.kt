@@ -785,6 +785,151 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
+    fun selectDay_null_deselects() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when (request.url.encodedPath) {
+                    "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+
+            vm.selectDay(day)
+            runCurrent()
+            assertEquals(day, vm.selectedDay.value)
+
+            vm.selectDay(null)
+            runCurrent()
+            assertNull(vm.selectedDay.value, "deselect must emit (the mobile dialog close path)")
+        }
+
+    @Test
+    fun branchSwitch_clearsEditDataAndRollup() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when (request.url.encodedPath) {
+                    "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-13")))
+                    }
+
+                    "/api/expenses" -> {
+                        respondJson("[${expenseJson("e1")}]")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            runCurrent()
+            assertIs<UiState.Success<List<ExpenseResponse>>>(vm.editExpenses.value)
+
+            vm.selectBranch(BRANCH_B)
+            runCurrent()
+
+            assertNull(vm.selectedDay.value)
+            assertTrue(vm.editMode.value == false)
+            assertEquals(UiState.Idle, vm.editExpenses.value, "previous branch's edit data must not survive the switch")
+            assertEquals(UiState.Idle, vm.monthlyRollup.value)
+        }
+
+    @Test
+    fun modeSwitch_clearsTheStaleDaySelection() =
+        runTest(testScheduler) {
+            val handler: MockRequestHandler = { request ->
+                when (request.url.encodedPath) {
+                    "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+
+            assertNull(vm.selectedDay.value, "a day outside the new window must not stay armed")
+        }
+
+    @Test
+    fun exportModeCurrent_firesTheModesExport() =
+        runTest(testScheduler) {
+            var exportPath: String? = null
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/export/all-time" -> {
+                        exportPath = request.url.toString()
+                        respondCsv()
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.ALL_TIME)
+            runCurrent()
+            vm.exportModeCurrent("csv")
+            runCurrent()
+
+            assertTrue(exportPath?.contains("format=csv") == true, "the all-time toolbar export fires")
+            val download = vm.downloads.value["mode:ALL_TIME:csv"]
+            assertIs<UiState.Success<FinanceReportsViewModel.DownloadPayload>>(download)
+        }
+
+    @Test
     fun hasEditCapabilities_reflectsTheCodeOnlySurface() =
         runTest(testScheduler) {
             val vm = FinanceReportsViewModel(mockApiClient(handler = { respondJson("{}") }), now = NOW)

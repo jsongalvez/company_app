@@ -7,6 +7,7 @@ import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNotNull
@@ -113,8 +114,8 @@ object ExpenseRepository {
                 .selectAll()
                 .where { ExpenseTable.branchDayId eq branchDayId }
                 .orderBy(
-                    ExpenseTable.createdAt to org.jetbrains.exposed.v1.core.SortOrder.ASC,
-                    ExpenseTable.id to org.jetbrains.exposed.v1.core.SortOrder.ASC,
+                    ExpenseTable.createdAt to SortOrder.ASC,
+                    ExpenseTable.id to SortOrder.ASC,
                 ).map { it.toExpense() }
         }.also { logger.info { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
 
