@@ -13,6 +13,18 @@ reports **zero HARD findings and no unadjudicated ESCALATEs** (triage empties th
 before exit). The exit pass then runs **P5 — architecture residue** (one sub-agent; template
 below) — its findings land in the ARCH bucket (below), which never extends the loop.
 
+**P5 loop-back (post-#160 4-lens review).** P5's `fix-in-ticket` dispositions are code
+changes made after the last standard pass — the loop's invariant is *every code change gets
+the standard lenses*, and P5's fixes would break it unreviewed. After P5's in-ticket fixes
+commit, run **one more standard P1–4 pass over `git diff <the P5 batch>`**; 0 HARD → exit.
+HARDs from that pass continue the loop normally (batch-fix commit → next pass). If P5 fixes
+nothing in-ticket, no extra pass. Rationale: the residue lens cannot catch correctness — the
+4-lens review of the #160 P5 batch caught a #141-class resurrect that the extraction dropped
+(a missing `actionStamp++` vs the markRead precedent — a P2 constraint-source catch). P5
+running *every* pass would not have caught it either (the residue lens is empty on small fix
+batches, and the gap is P5's *output*, not P5's *timing*); the loop-back is the minimal
+structure that restores the invariant.
+
 | Phase | Lens | Inputs |
 |---|---|---|
 | P1 | Spec conformance | delta vs ticket, line-by-line |
@@ -172,6 +184,8 @@ Then sweep the delta + composed tree through four lenses, one section each:
 
 Report at most 4 findings total: [ARCH] file:line — problem — fix-shape — disposition
 (fix-in-ticket | graduate: <fog-line name>). One section per lens, empty sections say so.
+Note: fix-in-ticket changes are NOT the end — they get the P5 loop-back (one standard P1–4
+pass over the P5 batch) before exit.
 Under 350 words.
 ```
 
