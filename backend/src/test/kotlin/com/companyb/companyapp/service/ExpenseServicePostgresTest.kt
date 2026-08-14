@@ -1,3 +1,5 @@
+@file:Suppress("LargeClass")
+
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -336,7 +338,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `soft delete expense succeeds`() {
+    fun `soft delete expense succeeds and records the reason`() {
         val expenseId = UUID.randomUUID()
         ExpenseService.create(
             callerId = callerId,
@@ -358,6 +360,9 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertNotNull(deleted.deletedBy)
         assertEquals(callerId, deleted.deletedBy)
         assertNotNull(deleted.deletedAt)
+        // #153 Q2 — the reason is denormalized on the row (written in the same UPDATE as the
+        // soft delete) so the GET stays single-query; the audit row remains the history record.
+        assertEquals("Incorrect entry", deleted.deletedReason)
     }
 
     @Test
@@ -427,7 +432,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `list expenses returns non-deleted expenses`() {
+    fun `list expenses returns all non-deleted expenses for the day`() {
         val expense1Id = UUID.randomUUID()
         val expense2Id = UUID.randomUUID()
         val expense3Id = UUID.randomUUID()
@@ -463,7 +468,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `list expenses excludes soft-deleted expenses`() {
+    fun `list expenses includes soft-deleted expenses with their reason`() {
         val activeId = UUID.randomUUID()
         val deletedId = UUID.randomUUID()
 
@@ -490,10 +495,185 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             reason = "Incorrect entry",
         )
 
+        // #153 Q1 (CR-022 flip, commit f8b288a) — the GET includes soft-deleted rows: the
+        // Finance screen renders them dimmed + "removed" + reason (an undo affordance); the
+        // P&L totals still exclude them (the summary view filters).
         val expenses = ExpenseService.findByBranchDayId(callerId, branchDayId)
 
-        assertEquals(1, expenses.size)
-        assertEquals(activeId, expenses[0].id)
+        assertEquals(2, expenses.size)
+        val deleted = expenses.first { it.id == deletedId }
+        assertNotNull(deleted.deletedAt)
+        assertEquals("Incorrect entry", deleted.deletedReason)
+    }
+
+    @Test
+    fun `restore soft-deleted expense succeeds and clears the deletion fields`() {
+        val expenseId = UUID.randomUUID()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("200.00"),
+                category = ExpenseCategory.WATER,
+                notes = "Will be restored",
+            )
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = expenseId,
+            reason = "Incorrect entry",
+        )
+
+        val restored =
+            ExpenseService.restore(
+                callerId = callerId,
+                expenseId = expenseId,
+            )
+
+        assertNotNull(restored)
+        assertNull(restored.deletedBy)
+        assertNull(restored.deletedAt)
+        assertNull(restored.deletedReason)
+        assertEquals(created.version, restored.version, "#153 Q6 — no version bump on restore")
+        assertEquals(ExpenseCategory.WATER, restored.category)
+    }
+
+    @Test
+    fun `restore non-existent expense returns not found`() {
+        assertFailsWith<NotFoundException> {
+            ExpenseService.restore(
+                callerId = callerId,
+                expenseId = UUID.randomUUID(),
+            )
+        }
+    }
+
+    @Test
+    fun `restore already-live expense is rejected`() {
+        val expenseId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = "Never deleted",
+        )
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.restore(
+                callerId = callerId,
+                expenseId = expenseId,
+            )
+        }
+    }
+
+    @Test
+    fun `restore on REMITTED day without reason is rejected`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val expenseId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = remittedDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+            reason = "Recorded late",
+        )
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = expenseId,
+            reason = "Incorrect entry",
+        )
+
+        assertFailsWith<ValidationException> {
+            ExpenseService.restore(
+                callerId = callerId,
+                expenseId = expenseId,
+            )
+        }
+    }
+
+    @Test
+    fun `restore on REMITTED day with reason succeeds`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val expenseId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = remittedDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+            reason = "Recorded late",
+        )
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = expenseId,
+            reason = "Incorrect entry",
+        )
+
+        val restored =
+            ExpenseService.restore(
+                callerId = callerId,
+                expenseId = expenseId,
+                reason = "Reversed per owner review",
+            )
+
+        assertNotNull(restored)
+        assertNull(restored.deletedAt)
+    }
+
+    @Test
+    fun `restore writes an audit update row`() {
+        val expenseId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = "Will be restored",
+        )
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = expenseId,
+            reason = "Incorrect entry",
+        )
+
+        ExpenseService.restore(
+            callerId = callerId,
+            expenseId = expenseId,
+        )
+
+        val updateAuditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            }
+        assertTrue(updateAuditCount > 0)
     }
 
     @Test

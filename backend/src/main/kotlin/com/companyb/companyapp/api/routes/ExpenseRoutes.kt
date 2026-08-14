@@ -5,6 +5,7 @@ import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse
+import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.repository.model.Expense
 import com.companyb.companyapp.repository.model.ExpenseCategory
@@ -41,6 +42,15 @@ object ExpenseRoutes {
         }
 
         config.routes.before("/api/expenses/{expenseId}") { context ->
+            val expenseId = context.pathParamAsUuid("expenseId")
+            CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
+        }
+
+        // #114 exact-segment lesson: before("/api/expenses/{expenseId}") does NOT fire on the
+        // 4-segment restore route — the restore filter is its own (record-scoped EDIT_BRANCH_DATA
+        // via the expense's branch day; 404 for missing expense keeps the filter from running the
+        // handler against a phantom).
+        config.routes.before("/api/expenses/{expenseId}/restore") { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
             CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
         }
@@ -116,6 +126,22 @@ object ExpenseRoutes {
             context.json(expense.toResponse())
         }
 
+        config.routes.post("/api/expenses/{expenseId}/restore") { context ->
+            val callerId = context.callerUuid()
+            val expenseId = context.pathParamAsUuid("expenseId")
+            val request = context.bodyAsClass<RestoreExpenseRequest>()
+
+            val expense =
+                ExpenseService.restore(
+                    callerId = callerId,
+                    expenseId = expenseId,
+                    reason = request.reason,
+                )
+
+            context.status(HttpStatus.OK)
+            context.json(expense.toResponse())
+        }
+
         config.routes.get("/api/expenses") { context ->
             val callerId = context.callerUuid()
             val branchDayId = context.uuidFromQuery("branchDayId")
@@ -138,6 +164,7 @@ object ExpenseRoutes {
             createdAt = createdAt.toString(),
             deletedBy = deletedBy?.toString(),
             deletedAt = deletedAt?.toString(),
+            deletedReason = deletedReason,
             version = version,
         )
 }

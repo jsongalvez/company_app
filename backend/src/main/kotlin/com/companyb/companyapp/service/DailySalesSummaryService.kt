@@ -33,17 +33,20 @@ object DailySalesSummaryService {
     /**
      * Paged feed over `(date DESC, branch_day_id DESC)`. [limit] entries are
      * returned plus the [DailySalesSummaryBrowseResponse.nextCursor] to fetch
-     * the next page; `null` cursor = no more pages.
+     * the next page; `null` cursor = no more pages. [from]/[to] bound the
+     * window inclusively (null = unbounded) — the #105 D4 feed modes.
      */
     fun browseDailySummaries(
         branchId: UUID,
         cursor: DailySummaryBrowseCursor?,
         limit: Int,
+        from: LocalDate? = null,
+        to: LocalDate? = null,
     ): DailySalesSummaryBrowseResponse {
         BranchRepository.findById(branchId)
             ?: throw NotFoundException("Branch not found")
 
-        val fetched = DailySalesSummaryRepository.findPagedByBranch(branchId, cursor, limit + 1)
+        val fetched = DailySalesSummaryRepository.findPagedByBranch(branchId, cursor, limit + 1, from, to)
         val hasMore = fetched.size > limit
         val entries = if (hasMore) fetched.dropLast(1) else fetched
         val nextCursor =
@@ -54,7 +57,10 @@ object DailySalesSummaryService {
             } else {
                 null
             }
-        logger.info { "[DAILY-SUMMARY-BROWSE] Branch $branchId returned ${entries.size} summaries hasMore=$hasMore" }
+        logger.info {
+            "[DAILY-SUMMARY-BROWSE] Branch $branchId window=${from ?: "*"}..${to ?: "*"}" +
+                " returned ${entries.size} summaries hasMore=$hasMore"
+        }
         return DailySalesSummaryBrowseResponse(
             entries = entries.map { it.toResponse() },
             nextCursor = nextCursor,

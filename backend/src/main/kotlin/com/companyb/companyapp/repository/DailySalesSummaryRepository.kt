@@ -72,23 +72,39 @@ object DailySalesSummaryRepository {
      * Keyset browse over `(date DESC, branch_day_id DESC)`. [cursor] is the
      * strictly-before position (exclusive). [limit] rows are returned; the
      * caller decides pagination via [encodeDailySummaryCursor] on the last row.
+     * [from]/[to] bound the window inclusively (null = unbounded) — the #105 D4
+     * feed modes (monthly month, date-range window, calendar-jump month) filter
+     * server-side so pagination stays keyset-correct inside the window.
      */
     fun findPagedByBranch(
         branchId: UUID,
         cursor: DailySummaryBrowseCursor?,
         limit: Int,
+        from: LocalDate? = null,
+        to: LocalDate? = null,
     ): List<DailySalesSummary> =
         transaction {
             DailySalesSummaryView
                 .selectAll()
                 .where {
-                    (DailySalesSummaryView.branchId eq branchId) and keyset(cursor)
+                    (DailySalesSummaryView.branchId eq branchId) and
+                        window(from, to) and
+                        keyset(cursor)
                 }.orderBy(
                     DailySalesSummaryView.date to SortOrder.DESC,
                     DailySalesSummaryView.branchDayId to SortOrder.DESC,
                 ).limit(limit)
                 .map { it.toDailySalesSummary() }
         }
+
+    private fun window(
+        from: LocalDate?,
+        to: LocalDate?,
+    ): Op<Boolean> {
+        val fromOp = if (from != null) DailySalesSummaryView.date greaterEq from else Op.TRUE
+        val toOp = if (to != null) DailySalesSummaryView.date lessEq to else Op.TRUE
+        return fromOp and toOp
+    }
 
     private fun keyset(cursor: DailySummaryBrowseCursor?): Op<Boolean> {
         if (cursor == null) return Op.TRUE

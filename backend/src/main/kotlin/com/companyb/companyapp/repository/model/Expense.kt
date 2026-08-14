@@ -31,6 +31,7 @@ data class Expense(
     val createdAt: OffsetDateTime,
     val deletedBy: UUID?,
     val deletedAt: OffsetDateTime?,
+    val deletedReason: String?,
     val version: Int,
 )
 
@@ -67,6 +68,7 @@ object ExpenseTable : Table("expense") {
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
     val deletedBy = javaUUID("deleted_by").nullable()
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
+    val deletedReason = text("deleted_reason").nullable()
     val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
@@ -82,6 +84,7 @@ object ExpenseTable : Table("expense") {
             "createdAt" to entity.createdAt.toString(),
             "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
             "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
+            "deletedReason" to (entity.deletedReason ?: "null"),
             "version" to entity.version.toString(),
         )
 }

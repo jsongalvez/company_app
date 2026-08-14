@@ -9,6 +9,7 @@ import com.companyb.companyapp.repository.model.ExpenseTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -50,6 +51,7 @@ object ExpenseRepository {
     fun softDelete(
         expenseId: UUID,
         deletedBy: UUID,
+        deletedReason: String,
         auditFn: (Expense) -> Unit = {},
     ): Expense? =
         transaction {
@@ -57,6 +59,7 @@ object ExpenseRepository {
                 it[ExpenseTable.deletedBy] = deletedBy
                 it[ExpenseTable.deletedAt] =
                     CurrentTimestampWithTimeZone
+                it[ExpenseTable.deletedReason] = deletedReason
             }
 
             val after =
@@ -69,14 +72,50 @@ object ExpenseRepository {
             logger.info { "[SOFT-DELETE-EXPENSE] Expense ${expenseId.toString().maskUUID()} deleted=${result != null}" }
         }
 
+    /**
+     * Restores a soft-deleted expense: clears `deleted_at`/`deleted_by`/`deleted_reason` in one
+     * atomic statement scoped to `deletedAt IS NOT NULL` — a concurrent double-restore's second
+     * UPDATE matches zero rows and the service maps the null to 400 (the #141 ownership-in-WHERE
+     * class; #153 Q5). `version` is deliberately untouched (#153 Q6: restore changes no content).
+     */
+    fun restore(
+        expenseId: UUID,
+        auditFn: (Expense) -> Unit = {},
+    ): Expense? =
+        transaction {
+            val updatedCount =
+                ExpenseTable.update({ (ExpenseTable.id eq expenseId) and ExpenseTable.deletedAt.isNotNull() }) {
+                    it[ExpenseTable.deletedBy] = null
+                    it[ExpenseTable.deletedAt] = null
+                    it[ExpenseTable.deletedReason] = null
+                }
+
+            if (updatedCount == 0) {
+                return@transaction null
+            }
+
+            val after =
+                findByIdInTransaction(expenseId)
+                    ?: error("expense not found after restore for $expenseId")
+
+            auditFn(after)
+            after
+        }.also { result ->
+            logger.info { "[RESTORE-EXPENSE] Expense ${expenseId.toString().maskUUID()} restored=${result != null}" }
+        }
+
+    // #153 Q1 — the GET includes soft-deleted rows (the Finance build's dimmed + reason rendering
+    // needs the payload; the summary view already excludes them from totals). Deterministic
+    // insertion order (createdAt ASC, id ASC tiebreak — #115 lesson).
     fun findByBranchDayId(branchDayId: UUID): List<Expense> =
         transaction {
             ExpenseTable
                 .selectAll()
-                .where {
-                    (ExpenseTable.branchDayId eq branchDayId) and
-                        ExpenseTable.deletedAt.isNull()
-                }.map { it.toExpense() }
+                .where { ExpenseTable.branchDayId eq branchDayId }
+                .orderBy(
+                    ExpenseTable.createdAt to org.jetbrains.exposed.v1.core.SortOrder.ASC,
+                    ExpenseTable.id to org.jetbrains.exposed.v1.core.SortOrder.ASC,
+                ).map { it.toExpense() }
         }.also { logger.info { "[FIND-EXPENSES] Found ${it.size} expenses for branch_day $branchDayId" } }
 
     @Suppress("LongParameterList")
@@ -139,6 +178,7 @@ object ExpenseRepository {
             createdAt = this[ExpenseTable.createdAt],
             deletedBy = this[ExpenseTable.deletedBy],
             deletedAt = this[ExpenseTable.deletedAt],
+            deletedReason = this[ExpenseTable.deletedReason],
             version = this[ExpenseTable.version],
         )
 }

@@ -944,6 +944,53 @@ class RouteValidationTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `GET daily-summaries rejects malformed from date`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?from=2026-13-99").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects malformed to date`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?to=not-a-date").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects from after to`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val tomorrow = LocalDate.now().plusDays(1)
+            val yesterday = LocalDate.now().minusDays(1)
+            assertEquals(
+                400,
+                client
+                    .get(
+                        "/api/branches/$testBranchId/daily-summaries?from=$tomorrow&to=$yesterday",
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries window filters the feed`() {
+        JavalinTest.test(createApp()) { _, client ->
+            val today = LocalDate.now()
+            val yesterday = today.minusDays(1)
+            val response =
+                client.get(
+                    "/api/branches/$testBranchId/daily-summaries?from=$yesterday&to=$today",
+                )
+            assertEquals(200, response.code)
+            val body =
+                Json { ignoreUnknownKeys = true }
+                    .decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            assertEquals(1, body.entries.size, "the window admits only the seeded day")
+            assertEquals(today.toString(), body.entries.single().date)
+        }
+    }
+
     // ──────────────────────────────────────────────
     // NotificationRoutes
     // ──────────────────────────────────────────────

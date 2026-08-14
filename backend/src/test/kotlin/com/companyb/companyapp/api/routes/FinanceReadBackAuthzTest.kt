@@ -10,6 +10,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -135,6 +136,9 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
             }
             cfg.routes.exception(ConflictException::class.java) { e, ctx ->
                 ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+            }
+            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
             }
             CompensationRoutes.register(cfg)
             BranchDayRoutes.register(cfg)
@@ -460,6 +464,234 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                 400,
                 client.patch("/api/expenses/$expenseId", body, asUser(editOnlyUser)).code,
             )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // POST /api/expenses/{expenseId}/restore → EDIT_BRANCH_DATA (#153)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `POST restore soft-deleted expense succeeds and clears deletion fields`() {
+        val deletedId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = deletedId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = "To delete",
+        )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+        )
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
+        JavalinTest.test(createApp()) { _, client ->
+            val response =
+                client.post(
+                    "/api/expenses/$deletedId/restore",
+                    mapOf("reason" to "Reversed per review"),
+                    asUser(editOnlyUser),
+                )
+            assertEquals(200, response.code)
+            val body = response.body?.string().orEmpty()
+            assertTrue(body.contains("\"deletedAt\":null"))
+            // The backend mapper encodes defaults only when non-null — a null defaulted field
+            // is omitted from the JSON entirely (assert the field's absence, not `:null`).
+            assertTrue(!body.contains("\"deletedReason\""))
+            assertTrue(body.contains("\"version\":1"), "#153 Q6 — no version bump on restore")
+        }
+    }
+
+    @Test
+    fun `POST restore forbidden for ASSIGN_COMPENSATION-only user`() {
+        val deletedId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = deletedId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+        )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+        )
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/expenses/$deletedId/restore",
+                        emptyMap<String, String>(),
+                        asUser(assignUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST restore forbidden for no-capability user`() {
+        val deletedId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = deletedId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+        )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+        )
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/expenses/$deletedId/restore",
+                        emptyMap<String, String>(),
+                        asUser(noneUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST restore forbidden on other branch`() {
+        val otherDeletedId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = otherDeletedId,
+            branchDayId = otherBranchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+        )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = otherDeletedId,
+            reason = "Incorrect entry",
+        )
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, otherBranchDayId)
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                403,
+                client
+                    .post(
+                        "/api/expenses/$otherDeletedId/restore",
+                        emptyMap<String, String>(),
+                        asUser(editOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST restore returns 404 for missing expense`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                404,
+                client
+                    .post(
+                        "/api/expenses/${UUID.randomUUID()}/restore",
+                        emptyMap<String, String>(),
+                        asUser(editOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST restore returns 400 for already-live expense`() {
+        JavalinTest.test(createApp()) { _, client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/expenses/$expenseId/restore",
+                        emptyMap<String, String>(),
+                        asUser(editOnlyUser),
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `POST restore returns 400 on second restore - double-restore race window`() {
+        val deletedId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = deletedId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+        )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+        )
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
+        JavalinTest.test(createApp()) { _, client ->
+            val first =
+                client.post(
+                    "/api/expenses/$deletedId/restore",
+                    emptyMap<String, String>(),
+                    asUser(editOnlyUser),
+                )
+            val second =
+                client.post(
+                    "/api/expenses/$deletedId/restore",
+                    emptyMap<String, String>(),
+                    asUser(editOnlyUser),
+                )
+            assertEquals(200, first.code)
+            assertEquals(400, second.code, "restored row is already live — 400 not 200")
+        }
+    }
+
+    @Test
+    fun `GET expenses includes soft-deleted rows with reason`() {
+        val deletedId = UUID.randomUUID()
+        ExpenseService.create(
+            callerId = editOnlyUser,
+            id = deletedId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("200.00"),
+            category = ExpenseCategory.WATER,
+            notes = null,
+        )
+        ExpenseService.softDelete(
+            callerId = editOnlyUser,
+            expenseId = deletedId,
+            reason = "Incorrect entry",
+        )
+        trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
+        JavalinTest.test(createApp()) { _, client ->
+            val response =
+                client.get(
+                    "/api/expenses?branchDayId=$branchDayId",
+                    asUser(editOnlyUser),
+                )
+            assertEquals(200, response.code)
+            val body = response.body?.string().orEmpty()
+            assertTrue(body.contains("\"deletedReason\":\"Incorrect entry\""))
         }
     }
 }

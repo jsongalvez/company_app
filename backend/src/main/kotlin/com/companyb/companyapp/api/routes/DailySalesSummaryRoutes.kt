@@ -52,12 +52,27 @@ object DailySalesSummaryRoutes {
             val branchId = context.pathParamAsUuid("branchId")
             val cursor = parseCursor(context.queryParam("cursor"))
             val limit = parseBrowseLimit(context.queryParam("limit"))
+            val from = parseOptionalDate(context.queryParam("from"), "from")
+            val to = parseOptionalDate(context.queryParam("to"), "to")
+            if (from != null && to != null && from.isAfter(to)) {
+                throw BadRequestResponse("from must be on or before to")
+            }
 
-            val response = DailySalesSummaryService.browseDailySummaries(branchId, cursor, limit)
+            val response =
+                DailySalesSummaryService.browseDailySummaries(branchId, cursor, limit, from, to)
 
             context.status(HttpStatus.OK)
             context.json(response)
         }
+    }
+
+    private fun parseOptionalDate(
+        raw: String?,
+        paramName: String,
+    ): LocalDate? {
+        if (raw == null) return null
+        return runCatching { LocalDate.parse(raw) }
+            .getOrElse { throw BadRequestResponse("Invalid $paramName format (expected yyyy-MM-dd)") }
     }
 
     private fun parseCursor(raw: String?): DailySummaryBrowseCursor? {

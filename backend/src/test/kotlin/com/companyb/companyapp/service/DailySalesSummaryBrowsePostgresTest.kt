@@ -119,14 +119,88 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
         }
     }
 
+    @Test
+    fun `from window admits the boundary day and excludes older days`() {
+        val older = today.minusDays(3)
+        val boundary = today.minusDays(2)
+        val newer = today.minusDays(1)
+        insertBranchDay(older)
+        insertBranchDay(boundary)
+        insertBranchDay(newer)
+
+        val response = browse(limit = 10, from = boundary)
+
+        assertEquals(listOf(newer, boundary), response.entries.map { LocalDate.parse(it.date) })
+    }
+
+    @Test
+    fun `to window admits the boundary day and excludes newer days`() {
+        val older = today.minusDays(3)
+        val boundary = today.minusDays(2)
+        val newer = today.minusDays(1)
+        insertBranchDay(older)
+        insertBranchDay(boundary)
+        insertBranchDay(newer)
+
+        val response = browse(limit = 10, to = boundary)
+
+        assertEquals(listOf(boundary, older), response.entries.map { LocalDate.parse(it.date) })
+    }
+
+    @Test
+    fun `from and to window admits only days inside the range`() {
+        val outsideLow = today.minusDays(5)
+        val insideLow = today.minusDays(4)
+        val insideHigh = today.minusDays(2)
+        val outsideHigh = today.minusDays(1)
+        listOf(outsideLow, insideLow, insideHigh, outsideHigh).forEach(::insertBranchDay)
+
+        val response = browse(limit = 10, from = insideLow, to = insideHigh)
+
+        assertEquals(listOf(insideHigh, insideLow), response.entries.map { LocalDate.parse(it.date) })
+    }
+
+    @Test
+    fun `windowed cursor walk stays inside the window`() {
+        (0L..6L).forEach { offset -> insertBranchDay(today.minusDays(offset)) }
+
+        val dates = mutableListOf<String>()
+        var cursor: String? = null
+        do {
+            val response = browse(limit = 2, cursor = cursor, from = today.minusDays(6), to = today.minusDays(2))
+            dates += response.entries.map { it.date }
+            cursor = response.nextCursor
+        } while (cursor != null)
+
+        assertEquals(
+            (2L..6L).map { today.minusDays(it) },
+            dates.map { LocalDate.parse(it) },
+            "the walk pages the 5 in-window days newest-first and never crosses the window",
+        )
+    }
+
+    @Test
+    fun `window with no matching days returns empty feed`() {
+        insertBranchDay(today)
+
+        val response = browse(limit = 10, from = today.minusDays(10), to = today.minusDays(5))
+
+        assertTrue(response.entries.isEmpty())
+        assertNull(response.nextCursor)
+    }
+
     private fun browse(
         limit: Int,
         cursor: String? = null,
+        from: LocalDate? = null,
+        to: LocalDate? = null,
     ): DailySalesSummaryBrowseResponse =
         DailySalesSummaryService.browseDailySummaries(
             branchId = branchId,
             cursor = cursor?.let { decodeDailySummaryCursor(it) },
             limit = limit,
+            from = from,
+            to = to,
         )
 
     private fun insertBranchDay(date: LocalDate) {

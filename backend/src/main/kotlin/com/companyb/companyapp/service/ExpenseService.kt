@@ -102,7 +102,7 @@ object ExpenseService {
 
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
-        return ExpenseRepository.softDelete(expenseId, callerId) { after ->
+        return ExpenseRepository.softDelete(expenseId, callerId, reason) { after ->
             AuditLogRepository.recordDelete(
                 tableName = ExpenseTable.tableName,
                 recordId = expenseId,
@@ -115,6 +115,47 @@ object ExpenseService {
             )
         }
             ?: throw NotFoundException("Expense not found")
+    }
+
+    /**
+     * #153 Q5 — restores a soft-deleted expense. Record-scoped EDIT_BRANCH_DATA via the route's
+     * before-filter; day-state gate mirrors every other expense mutation (reason iff REMITTED).
+     * The repository's atomic `deletedAt IS NOT NULL` WHERE closes the double-restore race: a
+     * restore that lost the race maps to 400 already-live.
+     *
+     * @throws NotFoundException if the expense does not exist.
+     * @throws ValidationException if the expense is not deleted (or the day is REMITTED without a reason).
+     */
+    @Suppress("ThrowsCount")
+    fun restore(
+        callerId: UUID,
+        expenseId: UUID,
+        reason: String? = null,
+    ): Expense {
+        val before =
+            ExpenseRepository.findById(expenseId)
+                ?: throw NotFoundException("Expense not found")
+
+        if (before.deletedAt == null) {
+            throw ValidationException("Expense is not deleted")
+        }
+
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+
+        return ExpenseRepository.restore(expenseId) { after ->
+            AuditLogRepository.recordUpdate(
+                tableName = ExpenseTable.tableName,
+                recordId = expenseId,
+                before = before,
+                after = after,
+                changedBy = callerId,
+                branchId = branchDay.branchId,
+                isFlagged = isRemitted,
+                reason = reason,
+                auditFields = ExpenseTable::auditFields,
+            )
+        }
+            ?: throw ValidationException("Expense is not deleted")
     }
 
     @Suppress("ThrowsCount", "UnusedParameter")
