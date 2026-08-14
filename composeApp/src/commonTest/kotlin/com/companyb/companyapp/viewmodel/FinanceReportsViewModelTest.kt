@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -1102,6 +1103,52 @@ class FinanceReportsViewModelTest {
             val rollup = vm.monthlyRollup.value
             assertIs<UiState.Success<MonthlyRemittanceSummaryResponse?>>(rollup)
             assertEquals(BRANCH_B, rollup.data?.branchId)
+        }
+
+    @Test
+    fun createExpense_transportFailure_setsInlineErrorAndKeepsDialogOpen() =
+        runTest(testScheduler) {
+            // Pass-9/10 HARD — a transport failure must surface as an inline error (the
+            // close-on-success effect keys on the ABSENCE of an error: a silent flag-drop
+            // reads as success and closes the dialog, losing the typed input).
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" && request.method.value == "GET" -> {
+                        respondJson("[]")
+                    }
+
+                    request.url.encodedPath == "/api/expenses" && request.method.value == "POST" -> {
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            runCurrent()
+
+            vm.createExpense(amount = "250.00", categoryCode = "WATER", notes = null, reason = null)
+            // advanceUntilIdle, not runCurrent: the ApiClient's HttpRequestRetry (maxRetries=3)
+            // schedules virtual-time delays that runCurrent() never elapses.
+            advanceUntilIdle()
+
+            assertTrue(vm.editErrors.value["expense:create"] != null, "the inline error must be set")
+            assertTrue(vm.inFlightActions.value.isEmpty())
         }
 
     @Test

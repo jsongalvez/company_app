@@ -931,8 +931,15 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                // Pass-10 HARD — the one onError the pass-9 batch missed: a transport failure
+                // must keep the restore dialog open with an inline error (the close-on-success
+                // effect keys on the ABSENCE of an error).
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "expense:restore failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -1142,7 +1149,7 @@ class FinanceReportsViewModel(
         val bytes: ByteArray,
     )
 
-    /** Export keys: `mode:<mode>:<format>`, `day:<branchDayId>:<format>`, `public:<kind>:<format>`. */
+    /** Export keys: `mode:<branchId>:<mode>:<format>`, `day:<branchDayId>:<format>`, `public:<kind>:<format>`. */
     private val _downloads = MutableStateFlow<Map<String, UiState<DownloadPayload>>>(emptyMap())
     val downloads: StateFlow<Map<String, UiState<DownloadPayload>>> = _downloads.asStateFlow()
 
