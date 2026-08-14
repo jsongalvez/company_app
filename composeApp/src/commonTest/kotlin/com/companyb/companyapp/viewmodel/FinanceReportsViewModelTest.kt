@@ -930,7 +930,7 @@ class FinanceReportsViewModelTest {
             runCurrent()
 
             assertTrue(exportPath?.contains("format=csv") == true, "the all-time toolbar export fires")
-            val download = vm.downloads.value["mode:ALL_TIME:csv"]
+            val download = vm.downloads.value["mode:branch-a:ALL_TIME:csv"]
             assertIs<UiState.Success<FinanceReportsViewModel.DownloadPayload>>(download)
         }
 

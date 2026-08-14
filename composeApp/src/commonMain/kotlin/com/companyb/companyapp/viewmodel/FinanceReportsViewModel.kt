@@ -279,23 +279,14 @@ class FinanceReportsViewModel(
     // generation is inert (no list/cursor/error writes) — the AuditLog #144 shape.
     private var feedGeneration = 0
 
-    fun loadFeed() {
-        if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
-        if (feedEntries.value is UiState.Success) {
-            refreshFeed()
-        } else {
-            val branchId = _selectedBranchId.value ?: return
-            if (feedEntries.value is UiState.Loading) return
-            _refreshError.value = null
-            _feedEntries.value = UiState.Loading
-            fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
-        }
-    }
-
     fun refreshFeed() {
         if (_mode.value == ReportMode.DATE_RANGE && _appliedRange.value == null) return
         val branchId = _selectedBranchId.value ?: return
         if (_isRefreshing.value || _isLoadingMore.value) return
+        // A refresh replaces the day rows — a stale selection would keep showing the
+        // pre-refresh figures (pass-9 SOFT).
+        _selectedDay.value = null
+        _editMode.value = false
         _refreshError.value = null
         _loadMoreError.value = null
         fetchPage(FetchMode.Refresh, cursor = null, branchId = branchId)
@@ -797,8 +788,14 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                // Pass-9 HARD — a transport/timeout failure must keep the dialog open with an
+                // inline error (the close-on-success effect keys on the ABSENCE of an error).
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "expense:create failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -852,8 +849,12 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "expense:update failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -889,8 +890,12 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "expense:delete failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -999,8 +1004,12 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "comp:create failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -1058,8 +1067,12 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "comp:update failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -1112,8 +1125,12 @@ class FinanceReportsViewModel(
                 }
                 true
             },
-            onError = {
-                if (generation == editDataGeneration) endAction(key)
+            onError = { e ->
+                if (generation == editDataGeneration) {
+                    _editErrors.value =
+                        _editErrors.value + (key to "allow:create failed: ${e.message ?: "network error"}")
+                    endAction(key)
+                }
             },
         )
     }
@@ -1223,8 +1240,10 @@ class FinanceReportsViewModel(
         val branchId = _selectedBranchId.value ?: return
         val url = modeExportUrl(_mode.value, branchId, format)
         if (url.isEmpty()) return
+        // Keyed on branchId (pass-9 SOFT): a late landing from a superseded branch must not
+        // block/mislabel the current branch's export.
         exportMode(
-            key = "mode:${_mode.value.name}:$format",
+            key = "mode:$branchId:${_mode.value.name}:$format",
             url = url,
         )
     }

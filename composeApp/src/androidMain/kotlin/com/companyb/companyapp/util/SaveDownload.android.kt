@@ -40,7 +40,10 @@ actual fun saveDownload(
         values.put(MediaStore.Downloads.IS_PENDING, 0)
         val updated = resolver.update(uri, values, null, null)
         if (updated == 0) {
+            // Pass-9 HARD (count-0 family) — a 0-row flip means the file stays hidden in
+            // Downloads: success must not be derived from a 0-row write.
             logError("SaveDownload", "MediaStore IS_PENDING flip updated 0 rows — the file stays hidden")
+            return false
         }
         true
     }.onFailure { e ->

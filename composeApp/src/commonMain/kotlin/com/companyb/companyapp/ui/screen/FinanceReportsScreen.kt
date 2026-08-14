@@ -332,9 +332,10 @@ private fun FinanceToolbar(
                 (mode != ReportMode.DATE_RANGE || appliedRange != null)
             ) {
                 // #105 D4 — DATE_RANGE has no export until a window is applied (rendered only
-                // when enabled: a disabled button would still eat 360dp toolbar width).
+                // when enabled: a disabled button would still eat 360dp toolbar width). The
+                // key carries the branch (a superseded branch's late landing stays inert).
                 ExportButtons(
-                    baseKey = "mode:${mode.name}",
+                    baseKey = "mode:$selectedBranchId:${mode.name}",
                     onExport = onExportMode,
                     errors = exportErrors,
                     downloads = downloads,
@@ -558,7 +559,21 @@ private fun FeedSection(
                             label = { Text("Cards") },
                         )
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = viewModel::refreshFeed) { Text("Refresh") }
+                        val isRefreshing by viewModel.isRefreshing.collectAsState()
+                        val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+                        TextButton(
+                            onClick = viewModel::refreshFeed,
+                            enabled = !isRefreshing && !isLoadingMore,
+                        ) {
+                            if (isRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.width(Spacing.sm).height(Spacing.sm),
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Text("Refresh")
+                            }
+                        }
                     }
                     val refreshError by viewModel.refreshError.collectAsState()
                     val refreshErrorValue = refreshError
