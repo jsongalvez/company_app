@@ -317,6 +317,10 @@ class FinanceReportsViewModel(
         _loadMoreError.value = null
         _selectedDay.value = null
         _editMode.value = false
+        // Pass-3 HARD — a mode/window switch while editing must not leave the OLD day's
+        // section data armed: re-entering edit on another day would render the old rows
+        // during the load window and Edit/Delete would mutate the wrong day's records.
+        clearEditData()
         _feedEntries.value = UiState.Loading
         val branchId = _selectedBranchId.value ?: return
         fetchPage(FetchMode.Cold, cursor = null, branchId = branchId)
@@ -514,6 +518,8 @@ class FinanceReportsViewModel(
      * sees the toggle and gets backend 403s (the authoritative backstop; the SessionState
      * context-model divergence fog applies).
      */
+    fun hasAssignCapability(): Boolean = CapabilityCodes.ASSIGN_COMPENSATION in SessionState.capabilities.value
+
     fun hasEditCapabilities(): Boolean {
         val caps = SessionState.capabilities.value
         return CapabilityCodes.EDIT_BRANCH_DATA in caps ||
@@ -555,7 +561,8 @@ class FinanceReportsViewModel(
     // stale expectedVersion and must close (re-saving it would loop 409s; the reloaded row is
     // the retry source). The screen consumes the key (consumeConflict) after reacting, so a
     // repeat 409 on the same row re-emits, and a persisted key can never slam a LATER fresh
-    // dialog shut.
+    // dialog shut. (Create-conflict keys — comp:create etc. — are never consumed; they surface
+    // only as inline errors on dialogs that close on dismiss, and clearEditData clears them.)
     private val _conflicts = MutableStateFlow<Set<String>>(emptySet())
     val conflicts: StateFlow<Set<String>> = _conflicts.asStateFlow()
 
@@ -579,28 +586,33 @@ class FinanceReportsViewModel(
             "expenses",
             "/api/expenses",
             params = listOf("branchDayId" to branchDayId),
+            errorKeyPrefixes = listOf("expense:"),
         )
-        loadSection(
-            generation,
-            _editCompensations,
-            "compensations",
-            "/api/compensations",
-            params = listOf("branchDayId" to branchDayId),
-        )
-        loadSection(
-            generation,
-            _editAllowances,
-            "allowances",
-            "/api/allowances",
-            params = listOf("branchDayId" to branchDayId),
-        )
-        loadSection(
-            generation,
-            _editUsers,
-            "branch-day users",
-            "/api/branch-days/$branchDayId/users",
-            params = emptyList(),
-        )
+        if (hasAssignCapability()) {
+            loadSection(
+                generation,
+                _editCompensations,
+                "compensations",
+                "/api/compensations",
+                params = listOf("branchDayId" to branchDayId),
+                errorKeyPrefixes = listOf("comp:"),
+            )
+            loadSection(
+                generation,
+                _editAllowances,
+                "allowances",
+                "/api/allowances",
+                params = listOf("branchDayId" to branchDayId),
+                errorKeyPrefixes = listOf("allow:"),
+            )
+            loadSection(
+                generation,
+                _editUsers,
+                "branch-day users",
+                "/api/branch-days/$branchDayId/users",
+                params = emptyList(),
+            )
+        }
     }
 
     fun reloadSection(section: EditSection) {
@@ -614,6 +626,7 @@ class FinanceReportsViewModel(
                     "expenses",
                     "/api/expenses",
                     params = listOf("branchDayId" to day.branchDayId),
+                    errorKeyPrefixes = listOf("expense:"),
                 )
             }
 
@@ -624,6 +637,7 @@ class FinanceReportsViewModel(
                     "compensations",
                     "/api/compensations",
                     params = listOf("branchDayId" to day.branchDayId),
+                    errorKeyPrefixes = listOf("comp:"),
                 )
             }
 
@@ -634,6 +648,7 @@ class FinanceReportsViewModel(
                     "allowances",
                     "/api/allowances",
                     params = listOf("branchDayId" to day.branchDayId),
+                    errorKeyPrefixes = listOf("allow:"),
                 )
             }
         }

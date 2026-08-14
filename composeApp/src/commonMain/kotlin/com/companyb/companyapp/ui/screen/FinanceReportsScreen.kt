@@ -85,8 +85,8 @@ fun FinanceReportsScreen(
     val monthInput by viewModel.monthInput.collectAsState()
     val rangeFromInput by viewModel.rangeFromInput.collectAsState()
     val rangeToInput by viewModel.rangeToInput.collectAsState()
-    val paramError by viewModel.paramError.collectAsState()
     val appliedRange by viewModel.appliedRange.collectAsState()
+    val paramError by viewModel.paramError.collectAsState()
     val monthlyRollup by viewModel.monthlyRollup.collectAsState()
     val feed by viewModel.feedEntries.collectAsState()
     val selectedDay by viewModel.selectedDay.collectAsState()
@@ -111,6 +111,9 @@ fun FinanceReportsScreen(
     // return (user cancelled the dialog / the write failed) surfaces as an in-place note.
     var downloadNote by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(downloads) {
+        // A fresh export clears a stale note (a cancelled export's note must not outlive the
+        // user's next attempt — pass-3 SOFT).
+        if (downloads.values.any { it is UiState.Loading }) downloadNote = null
         downloads
             .filterValues { it is UiState.Success }
             .forEach { (key, state) ->
@@ -153,6 +156,7 @@ fun FinanceReportsScreen(
             onEditToggle = { viewModel.setEditMode(!editMode) },
             downloads = downloads,
             exportErrors = exportErrors,
+            appliedRange = appliedRange,
             onExportMode = { format -> viewModel.exportModeCurrent(format) },
         )
         if (!editMode) {
@@ -249,6 +253,7 @@ private fun FinanceToolbar(
     onEditToggle: () -> Unit,
     downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
     exportErrors: Map<String, String>,
+    appliedRange: Pair<String, String>?,
     onExportMode: (String) -> Unit,
 ) {
     var branchMenuOpen by remember { mutableStateOf(false) }
@@ -320,6 +325,8 @@ private fun FinanceToolbar(
                     onExport = onExportMode,
                     errors = exportErrors,
                     downloads = downloads,
+                    // #105 D4 — DATE_RANGE has no export until a window is applied.
+                    enabled = mode != ReportMode.DATE_RANGE || appliedRange != null,
                 )
             }
             if (canEdit) {
@@ -433,7 +440,7 @@ private fun DateRangeParamRow(
             onValueChange = onFromChange,
             label = { Text("From (yyyy-MM-dd)") },
             singleLine = true,
-            modifier = Modifier.width(190.dp),
+            modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(Spacing.xs))
         OutlinedTextField(
@@ -441,7 +448,7 @@ private fun DateRangeParamRow(
             onValueChange = onToChange,
             label = { Text("To (yyyy-MM-dd)") },
             singleLine = true,
-            modifier = Modifier.width(190.dp),
+            modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(Spacing.sm))
         TextButton(onClick = onApply) { Text(if (applied) "Apply" else "Go") }
@@ -506,25 +513,50 @@ private fun FeedSection(
                         )
                     }
                 } else {
+                    // #105 D5 — compact day rows by default, toggle to full-day cards.
+                    var showCards by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = { showCards = false }) { Text("Rows") }
+                        TextButton(onClick = { showCards = true }) { Text("Cards") }
+                    }
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(feed.data, key = { it.branchDayId }) { day ->
                             val isSelected = day.branchDayId == selectedDay?.branchDayId
-                            DayRow(
-                                day = day,
-                                today = today,
-                                selected = isSelected,
-                                // Pass-2 HARD — re-tapping the selected day deselects (selectDay
-                                // with the SAME instance never re-emits — the mobile dialog was
-                                // unclosable). selectDay(null) emits on every call.
-                                onSelect = { onDaySelected(if (isSelected) null else day) },
-                                onExportDay = { format ->
-                                    selectedBranchId?.let { branch ->
-                                        viewModel.exportDay(day, branch, format)
-                                    }
-                                },
-                                downloadStates = downloads,
-                                exportErrors = exportErrors,
-                            )
+                            if (showCards) {
+                                FinanceDayCard(
+                                    day = day,
+                                    today = today,
+                                    onSelect = { onDaySelected(if (isSelected) null else day) },
+                                    onExportDay = { format ->
+                                        selectedBranchId?.let { branch ->
+                                            viewModel.exportDay(day, branch, format)
+                                        }
+                                    },
+                                    downloadStates = downloads,
+                                    exportErrors = exportErrors,
+                                )
+                            } else {
+                                DayRow(
+                                    day = day,
+                                    today = today,
+                                    selected = isSelected,
+                                    // Pass-2 HARD — re-tapping the selected day deselects
+                                    // (selectDay with the SAME instance never re-emits — the
+                                    // mobile dialog was unclosable). selectDay(null) emits on
+                                    // every call.
+                                    onSelect = { onDaySelected(if (isSelected) null else day) },
+                                    onExportDay = { format ->
+                                        selectedBranchId?.let { branch ->
+                                            viewModel.exportDay(day, branch, format)
+                                        }
+                                    },
+                                    downloadStates = downloads,
+                                    exportErrors = exportErrors,
+                                )
+                            }
                         }
                         item(key = "load-more") {
                             val isLoadingMore by viewModel.isLoadingMore.collectAsState()
@@ -641,6 +673,40 @@ private fun DayRow(
     }
 }
 
+/**
+ * #105 D5 — the full-day card view: the complete daily figures at a glance; the day detail
+ * (desktop inline expand / mobile modal) still applies on selection.
+ */
+@Composable
+private fun FinanceDayCard(
+    day: DailySalesSummaryResponse,
+    today: LocalDate,
+    onSelect: () -> Unit,
+    onExportDay: (String) -> Unit,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+) {
+    Surface(
+        shape = RoundedCornerShape(CornerRadius.md),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs).clickable(onClick = onSelect),
+    ) {
+        Column(modifier = Modifier.padding(Spacing.sm)) {
+            Text(
+                text = day.date,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            FinanceDayDetailContent(
+                day = day,
+                today = today,
+                onExportDay = onExportDay,
+                downloadStates = downloadStates,
+                exportErrors = exportErrors,
+            )
+        }
+    }
+}
+
 /** #105 D5 — day detail presentation: desktop expands inline under the row (the #91 single-route
  * lock), mobile shows a modal ([onClose] dismisses the mobile dialog). Shared content in
  * [FinanceDayDetailContent].
@@ -751,10 +817,6 @@ private fun DayEditor(
     val inFlight by viewModel.inFlightActions.collectAsState()
     val conflicts by viewModel.conflicts.collectAsState()
 
-    LaunchedEffect(day.branchDayId) {
-        viewModel.setEditMode(true)
-    }
-
     Column(modifier = modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBackToFeed) { Text("← Feed") }
@@ -804,35 +866,39 @@ private fun DayEditor(
             Spacer(Modifier.height(Spacing.sm))
         }
 
-        CompensationSection(
-            viewModel = viewModel,
-            compensations = compensations,
-            users = users,
-            errors = editErrors,
-            inFlight = inFlight,
-            canAssign = canAssign,
-            readOnly = pastDayReadOnly,
-            conflicts = conflicts,
-            onCreate = { userId, amount, note, reason ->
-                viewModel.createCompensation(userId, amount, note, reason)
-            },
-            onUpdate = { compensation, amount, note, reason ->
-                viewModel.updateCompensation(compensation, amount, note, reason)
-            },
-            onReload = { viewModel.reloadSection(EditSection.COMPENSATIONS) },
-        )
-        Spacer(Modifier.height(Spacing.sm))
+        if (canAssign) {
+            // #101 D1 matrix — compensation + allowances = ASSIGN_COMPENSATION (per-element
+            // guard; a non-holder never sees the sections NOR their 403ing loads).
+            CompensationSection(
+                viewModel = viewModel,
+                compensations = compensations,
+                users = users,
+                errors = editErrors,
+                inFlight = inFlight,
+                canAssign = canAssign,
+                readOnly = pastDayReadOnly,
+                conflicts = conflicts,
+                onCreate = { userId, amount, note, reason ->
+                    viewModel.createCompensation(userId, amount, note, reason)
+                },
+                onUpdate = { compensation, amount, note, reason ->
+                    viewModel.updateCompensation(compensation, amount, note, reason)
+                },
+                onReload = { viewModel.reloadSection(EditSection.COMPENSATIONS) },
+            )
+            Spacer(Modifier.height(Spacing.sm))
 
-        AllowanceSection(
-            allowances = allowances,
-            users = users,
-            errors = editErrors,
-            inFlight = inFlight,
-            canAssign = canAssign,
-            readOnly = pastDayReadOnly,
-            onCreate = { userId, amount, reason -> viewModel.createAllowance(userId, amount, reason) },
-            onReload = { viewModel.reloadSection(EditSection.ALLOWANCES) },
-        )
+            AllowanceSection(
+                allowances = allowances,
+                users = users,
+                errors = editErrors,
+                inFlight = inFlight,
+                canAssign = canAssign,
+                readOnly = pastDayReadOnly,
+                onCreate = { userId, amount, reason -> viewModel.createAllowance(userId, amount, reason) },
+                onReload = { viewModel.reloadSection(EditSection.ALLOWANCES) },
+            )
+        }
     }
 }
 
@@ -897,7 +963,6 @@ private fun ExpenseSection(
         actionLabel = "Add expense",
         onAction = { showExpenseDialog = true },
         showAction = !readOnly,
-        onReload = onReload,
     )
     when (expenses) {
         is UiState.Idle -> {}
@@ -1090,11 +1155,22 @@ private fun ExpenseDialog(
     onDismiss: () -> Unit,
 ) {
     var amount by remember { mutableStateOf(initial?.amount ?: "") }
+    // Pass-3 HARD — an unknown backend category is shown AND sent as its raw code (never
+    // silently rewritten to PANTRY by an indexOf fallback); the pair list is augmented so the
+    // dropdown displays the raw code too.
+    val dialogCategories =
+        remember(initial) {
+            initial
+                ?.category
+                ?.takeIf { it !in expenseCategoryCodes }
+                ?.let { code -> expenseCategories + (code to code) }
+                ?: expenseCategories
+        }
     var categoryIndex by remember {
         mutableStateOf(
             initial
                 ?.category
-                ?.let { code -> expenseCategoryCodes.indexOf(code) }
+                ?.let { code -> dialogCategories.indexOfFirst { it.first == code } }
                 ?.takeIf { it >= 0 }
                 ?: 0,
         )
@@ -1118,8 +1194,9 @@ private fun ExpenseDialog(
                 )
                 Spacer(Modifier.height(Spacing.xs))
                 CategoryDropdown(
-                    selected = expenseCategoryLabels[categoryIndex],
-                    onSelected = { label -> categoryIndex = expenseCategoryLabels.indexOf(label).coerceAtLeast(0) },
+                    selected = dialogCategories[categoryIndex].second,
+                    categories = dialogCategories,
+                    onSelected = { index -> categoryIndex = index },
                 )
                 Spacer(Modifier.height(Spacing.xs))
                 OutlinedTextField(
@@ -1170,7 +1247,8 @@ private fun ExpenseDialog(
 @Composable
 private fun CategoryDropdown(
     selected: String,
-    onSelected: (String) -> Unit,
+    categories: List<Pair<String, String>>,
+    onSelected: (Int) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
@@ -1184,11 +1262,11 @@ private fun CategoryDropdown(
             modifier = Modifier.menuAnchor().fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            expenseCategoryLabels.forEach { label ->
+            categories.forEachIndexed { index, (_, label) ->
                 DropdownMenuItem(
                     text = { Text(label) },
                     onClick = {
-                        onSelected(label)
+                        onSelected(index)
                         open = false
                     },
                 )
@@ -1228,7 +1306,6 @@ private fun CompensationSection(
         actionLabel = "Assign compensation",
         onAction = { showAssign = true },
         showAction = canAssign && !readOnly && users is UiState.Success && users.data.isNotEmpty(),
-        onReload = onReload,
     )
     when (compensations) {
         is UiState.Idle -> {}
@@ -1430,7 +1507,6 @@ private fun AllowanceSection(
         actionLabel = "Assign allowance",
         onAction = { showAssign = true },
         showAction = canAssign && !readOnly && users is UiState.Success && users.data.isNotEmpty(),
-        onReload = onReload,
     )
     val userNames = (users as? UiState.Success)?.data.orEmpty().associate { it.userId to it.displayName }
     when (allowances) {
@@ -1601,7 +1677,6 @@ private fun SectionHeader(
     actionLabel: String,
     onAction: () -> Unit,
     showAction: Boolean,
-    onReload: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
@@ -1714,6 +1789,7 @@ internal fun ExportButtons(
     onExport: (String) -> Unit,
     errors: Map<String, String>,
     downloads: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>> = emptyMap(),
+    enabled: Boolean = true,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         listOf("csv" to "CSV", "pdf" to "PDF").forEach { (format, label) ->
@@ -1721,7 +1797,7 @@ internal fun ExportButtons(
             val state = downloads[key]
             TextButton(
                 onClick = { onExport(format) },
-                enabled = state !is UiState.Loading,
+                enabled = enabled && state !is UiState.Loading,
             ) {
                 if (state is UiState.Loading) {
                     CircularProgressIndicator(

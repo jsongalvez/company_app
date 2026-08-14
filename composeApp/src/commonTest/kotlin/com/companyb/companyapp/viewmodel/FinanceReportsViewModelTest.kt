@@ -778,8 +778,6 @@ class FinanceReportsViewModelTest {
             vm.exportDay(day, BRANCH_A, "csv")
             runCurrent()
 
-            println("DEBUG downloads=" + vm.downloads.value)
-            println("DEBUG exportErrors=" + vm.exportErrors.value)
             assertTrue(vm.downloads.value.isEmpty(), "downloads=" + vm.downloads.value)
             assertTrue(vm.exportErrors.value["day:2026-08-14:csv"] != null, "exportErrors=" + vm.exportErrors.value)
         }
