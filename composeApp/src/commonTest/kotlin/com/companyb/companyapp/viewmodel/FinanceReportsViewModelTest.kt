@@ -1144,10 +1144,63 @@ class FinanceReportsViewModelTest {
 
             vm.createExpense(amount = "250.00", categoryCode = "WATER", notes = null, reason = null)
             // advanceUntilIdle, not runCurrent: the ApiClient's HttpRequestRetry (maxRetries=3)
-            // schedules virtual-time delays that runCurrent() never elapses.
+            // can schedule virtual-time delays that runCurrent() never elapses.
             advanceUntilIdle()
 
-            assertTrue(vm.editErrors.value["expense:create"] != null, "the inline error must be set")
+            assertEquals(
+                "expense:create failed: connection reset",
+                vm.editErrors.value["expense:create"],
+                "the create failure must surface as the inline error",
+            )
+            assertTrue(vm.inFlightActions.value.isEmpty())
+        }
+
+    @Test
+    fun restoreExpense_transportFailure_setsInlineErrorAndKeepsDialogOpen() =
+        runTest(testScheduler) {
+            // Pass-11 pin — restoreExpense.onError slipped the pass-9 batch AND the pass-10
+            // sweep: its exception path must be locked (a silent flag-drop reads as success
+            // and closes the dialog with the typed reason lost).
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" && request.method.value == "GET" -> {
+                        respondJson("[${expenseJson("e1", deleted = true, deletedReason = "Wrong entry")}]")
+                    }
+
+                    request.url.encodedPath == "/api/expenses/e1/restore" && request.method.value == "POST" -> {
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val day = (vm.feedEntries.value as UiState.Success).data.single()
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            runCurrent()
+            val deleted = (vm.editExpenses.value as UiState.Success).data.single()
+
+            vm.restoreExpense(deleted, reason = null)
+            advanceUntilIdle()
+
+            assertEquals(
+                "expense:restore failed: connection reset",
+                vm.editErrors.value["expense:restore:e1"],
+                "the restore failure must surface as the inline error",
+            )
             assertTrue(vm.inFlightActions.value.isEmpty())
         }
 
