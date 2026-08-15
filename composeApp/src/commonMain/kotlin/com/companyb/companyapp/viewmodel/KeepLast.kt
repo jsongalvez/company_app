@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
  *
  * The freshest-list decision (formerly `(state as? UiState.Success)?.data ?: last` re-implemented
  * at 4+ call sites: UserVM mutate/swap, UserManagementScreen gate, NotificationVM
- * currentUnreadList, ReliefInviteVM currentReceivedList/currentSentList) lives here once.
+ * currentUnreadList, ReliefInviteVM currentReceivedList) lives here once.
  *
  * Usage: pass [stateFlow] to [ApiCallHandler.launch] (the handler assigns Loading/Error/Success
  * on it); screens collect [freshest] for the render payload; VM-internal mutation writes go
@@ -67,7 +67,8 @@ class KeepLast<T>(
      * place — the caller's action should no-op, not dead-tap) or the transform returned null
      * (the changed-guard: no write happened, so e.g. a badge decrement must not fire). The
      * transform runs synchronously in the caller's frame — no dispatch, so reads it makes
-     * (other VM state) are exact at the write.
+     * (other VM state) are exact at the write, and writes it makes land before the Success
+     * write.
      */
     fun mutate(transform: (T) -> T?): Boolean {
         val current = freshestValue() ?: return false

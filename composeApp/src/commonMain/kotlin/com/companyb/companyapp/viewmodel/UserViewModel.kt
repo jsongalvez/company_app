@@ -322,14 +322,7 @@ class UserViewModel(
         userId: String,
         slot: Short,
     ) {
-        mutateUser(userId) { user ->
-            user.copy(
-                assignments =
-                    user.assignments.map {
-                        if (it.branchId == branchId) it.copy(slot = slot) else it
-                    },
-            )
-        }
+        mutateUser(userId) { user -> user.withSlot(branchId, slot) }
     }
 
     private fun swapSlotsInPlace(
@@ -338,9 +331,10 @@ class UserViewModel(
         userIdB: String,
     ) {
         // One mutate instead of the old two sequential writes: the intermediate frame (A with
-        // B's slot) was never observable — everything runs synchronously — and the single
-        // write is the final swapped list. The null returns (either user missing, or no
-        // assignment at the branch) map to no-write, the old `?: return` paths.
+        // B's slot) was never readable by any consumer — the two writes ran synchronously in
+        // the caller's frame with no suspension between them — and the single write is the
+        // final swapped list. The null returns (either user missing, or no assignment at the
+        // branch) map to no-write, the old `?: return` paths.
         keptUsers.mutate { users ->
             val slotA =
                 users
@@ -358,32 +352,26 @@ class UserViewModel(
                     ?: return@mutate null
             users.map { user ->
                 when (user.id) {
-                    userIdA -> {
-                        user.copy(
-                            assignments =
-                                user.assignments.map {
-                                    if (it.branchId == branchId) it.copy(slot = slotB) else it
-                                },
-                        )
-                    }
-
-                    userIdB -> {
-                        user.copy(
-                            assignments =
-                                user.assignments.map {
-                                    if (it.branchId == branchId) it.copy(slot = slotA) else it
-                                },
-                        )
-                    }
-
-                    else -> {
-                        user
-                    }
+                    userIdA -> user.withSlot(branchId, slotB)
+                    userIdB -> user.withSlot(branchId, slotA)
+                    else -> user
                 }
             }
         }
     }
 }
+
+/** The slot-copy shape shared by the D4 slot edit and the swap's two rows. */
+private fun UserSummaryResponse.withSlot(
+    branchId: String,
+    slot: Short,
+): UserSummaryResponse =
+    copy(
+        assignments =
+            assignments.map {
+                if (it.branchId == branchId) it.copy(slot = slot) else it
+            },
+    )
 
 private fun UserSummaryResponse.withStatus(status: String): UserSummaryResponse =
     when (status) {
