@@ -91,9 +91,16 @@ spawn_session() {
     log "DRY-RUN: would spawn session for $doc"
     return 1
   fi
-  sid="$(api post /api/session --data "$(jq -nc --arg d "$doc" --arg dir "$REPO" \
-    '{title: ("wayfinder-loop: " + $d), location: {directory: $dir}}')" | jq -r '.data.id' || true)"
+  local model_ref="null" pid
+  if [ -n "${WAYFINDER_MODEL:-}" ]; then
+    pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$WAYFINDER_MODEL" '.data[] | select(.id == $id) | .providerID' | head -1)"
+    [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' not found via /api/model"
+    model_ref="$(jq -nc --arg id "$WAYFINDER_MODEL" --arg p "$pid" '{id: $id, providerID: $p}')"
+  fi
+  sid="$(api post /api/session --data "$(jq -nc --arg d "$doc" --arg dir "$REPO" --argjson ref "$model_ref" \
+    '{title: ("wayfinder-loop: " + $d), location: {directory: $dir}, model: $ref}')" | jq -r '.data.id' || true)"
   [ -n "$sid" ] && [ "$sid" != "null" ] || die "session create failed for $doc"
+  log "created $sid for $doc${WAYFINDER_MODEL:+ (model $WAYFINDER_MODEL)}"
   if [ -z "$DRY_RUN" ] && [ -z "${WAYFINDER_ALLOW_DIRTY:-}" ]; then
     if [ -n "$(git -C "$REPO" status --porcelain 2>/dev/null | head -1)" ]; then
       log "worktree dirty — spawn paused for $doc"

@@ -93,8 +93,10 @@ WAYFINDER_NTFY_TOPIC=wf-<random-topic>
 Subscribe your phone: install the ntfy app, then subscribe to the topic URL printed below (or add the topic name manually):
 
 ```
-https://ntfy.sh/wf-ky1wf3r3vo
+https://ntfy.sh/wf-<your-topic>
 ```
+
+(The real topic lives in `.wayfinder-loop.env` — gitignored; never commit it. If a topic URL ever lands in git, treat it as exposed and rotate: `ntfy` topics are read/publish-by-URL.)
 
 Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_WAIT_SECS` (session wait slice, default 180), `WAYFINDER_STALL_SLICES` (stall slices before resume, default 3), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
 

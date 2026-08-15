@@ -210,9 +210,15 @@ class KeepLastTest {
             kept.stateFlow.value = UiState.Success(listOf(1, 2))
             advanceUntilIdle()
 
+            // Identity, not equality: a redundant Success(same-list) write would still be a
+            // write (new instance) — this pins the no-write half, not just no-visible-change.
+            // Captured BEFORE the call so a write inside it cannot hide under the baseline.
+            val before = kept.state.value
             val removed = kept.mutateRemoved { it == 9 }
 
             assertFalse(removed, "no element matched — no change")
+            advanceUntilIdle()
+            assertTrue(kept.state.value === before, "no Success write happened")
             assertEquals(listOf(1, 2), kept.freshestValue())
             advanceUntilIdle()
             assertEquals(listOf(1, 2), kept.freshest.value)
