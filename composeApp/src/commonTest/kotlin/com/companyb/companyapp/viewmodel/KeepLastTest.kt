@@ -31,7 +31,9 @@ import kotlin.test.assertTrue
  * [KeepLastByKey] mirrors per-key and coalesces same-key in-flight loads while leaving other
  * keys' loads unblocked (the Remittance tab-switch contract); [InFlightGuard] is its
  * coalescing set-guard, now composed rather than hand-rolled at the UserVM / FinanceReportsVM
- * / AuditLogVM ack sites (#166).
+ * / AuditLogVM ack sites (#166). [ActionTracker] composes [InFlightGuard] + a per-key error
+ * map — the guard and per-action inline-error bookkeeping adopted by the UserVM /
+ * FinanceReportsVM / AuditLogVM action sites (#167).
  *
  * The KeepLast collector runs on the scope passed at construction — the tests pass a scope on
  * the test Main dispatcher (the production shape: VMs pass viewModelScope). Note: a
