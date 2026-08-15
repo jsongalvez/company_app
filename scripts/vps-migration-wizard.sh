@@ -287,10 +287,13 @@ _validate_config() {
 _clear
 printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
 if [[ -n "$(_existing MODE || true)" && -n "$(_existing SSH_MODE || true)" && -n "$(_existing TS_HOSTNAME || true)" && -n "$(_existing VPS_USER || true)" && -n "$(_existing REPO_URL || true)" && -n "$(_existing DEPLOY_BRANCH || true)" ]]; then
-  say "Saved config found — re-runs keep it: one gate, then straight to the stages."
+  say "Saved config found — re-runs keep it: one gate, then the summary."
   note "mode: $(_existing MODE) | ssh: $(_existing SSH_MODE) | hostname: $(_existing TS_HOSTNAME) | user: $(_existing VPS_USER)"
   note "repo: $(_existing REPO_URL) | branch: $(_existing DEPLOY_BRANCH)"
-  if confirm "Keep this saved config (n re-asks all questions)"; then
+  _keep_reply=""
+  printf '  %sKeep this saved config? %s[Enter = keep, n = re-ask all]%s ' "$YELLOW" "$DIM" "$RESET"
+  read -r _keep_reply || true
+  if [[ ! "$_keep_reply" =~ ^[Nn] ]]; then
     MODE="$(_existing MODE)"
     SSH_MODE="$(_existing SSH_MODE)"
     TS_HOSTNAME="$(_existing TS_HOSTNAME)"
