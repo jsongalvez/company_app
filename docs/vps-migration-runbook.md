@@ -29,7 +29,7 @@ All components have aarch64 builds (JDK 21, Postgres 18 image, Gradle, ktlint ja
    ```bash
    git log --oneline -1 && git status --short && gh issue list --state open
    ```
-2. The branch `ralph/company-app-full-build` is ~250 commits ahead of origin — it must be pushed before the VPS can see it. **Push at the boundary (Phase 3), after session N's handoff lands** — that one push carries the handoff too. (Pushing now is safe if you want it out of the way: sessions commit locally, they don't push.)
+2. The branch `ralph/company-app-full-build` is ~280 commits ahead of origin — it must be pushed before the VPS can see it. **Push at the boundary (Phase 3), after session N's handoff lands** — that one push carries the handoff too. (Pushing now is safe if you want it out of the way: sessions commit locally, they don't push. The wizard's Phase 3 pushes kill-first-then-push, so the boundary push carries everything.)
 
 ## Phase 1 — Oracle console (human steps)
 
@@ -149,4 +149,4 @@ tmux new -s wayfinder-loop
 ./scripts/wayfinder-loop.sh        # resumes from .wayfinder-loop.state
 ```
 
-The VPS daemon must NOT be started until the local one is dead (Phase 3 step 3). The branch is the shared artifact — whichever box hosts the daemon, commits flow to the same branch and GitHub issues.
+The VPS daemon must NOT be started until the local one is dead (Phase 3 step 2 — the wizard kills first, then pushes in step 3). The branch is the shared artifact — whichever box hosts the daemon, commits flow to the same branch and GitHub issues.
