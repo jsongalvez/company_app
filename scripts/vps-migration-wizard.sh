@@ -556,13 +556,13 @@ if [[ "$SSH_MODE" == "public" ]]; then
   if vps 'sudo systemctl disable --now ssh.socket 2>/dev/null || true; sudo systemctl enable --now ssh && sudo systemctl restart ssh && sudo systemctl daemon-reload'; then
     note "sshd reconfigured"
   else
-    warn "sshd reconfiguration failed — fix: ssh $VPS_USER@$TS_IP 'sudo systemctl disable --now ssh.socket; sudo systemctl restart ssh'. If tailnet ssh is DEAD too, use the Oracle console (Cloud Shell) — the VCN security list still allows 22."
+    warn "sshd reconfiguration failed — fix: ssh $VPS_USER@$TS_IP 'sudo systemctl disable --now ssh.socket; sudo systemctl restart ssh'. If tailnet ssh is DEAD too, use Oracle Console → your instance → Console connection (serial) — it is hypervisor-level and bypasses ufw."
     pause "sshd fixed?"
   fi
   if vps 'sudo ss -tln | grep -q ":22 " && sudo ss -tln | grep -q ":51920 "'; then
     note "✓ sshd listening on 22 (tailnet) and 51920 (public)"
   else
-    warn "sshd not listening on both ports — check: sudo ss -tln; fix: sudo systemctl disable --now ssh.socket; sudo systemctl restart ssh"
+    warn "sshd not listening on both ports — check: sudo ss -tln; fix: sudo systemctl disable --now ssh.socket; sudo systemctl restart ssh. If ssh is dead: Oracle Console → instance → Console connection (serial)."
     pause "ports fixed?"
   fi
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
