@@ -424,6 +424,30 @@ class UserManagementViewModelTest {
         }
 
     @Test
+    fun swap_with_missing_user_is_noop_no_crash() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            vm.loadUsers()
+            advanceUntilIdle()
+            // The stale-mirror shape: a swap for a user absent from the held list must not
+            // write or crash — the null-guard maps to no-write (the old `?: return` path; a
+            // regressed guard would NPE on the null slot inside the transform).
+            vm.swapSlots(branchId = "b1", userIdA = "ghost", userIdB = "u2")
+            advanceUntilIdle()
+
+            val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            val u2 = state.data.first { it.id == "u2" }
+            assertEquals(
+                expected = 2,
+                actual = u2.assignments.first { it.branchId == "b1" }.slot,
+                "the list must be untouched by a swap for a missing user",
+            )
+            assertTrue(vm.inFlight.value.isEmpty())
+        }
+
+    @Test
     fun swap_sends_pairwise_request_body() =
         runTest(testScheduler) {
             val harness = UserHarness()
