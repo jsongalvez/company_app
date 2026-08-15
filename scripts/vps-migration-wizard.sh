@@ -192,9 +192,9 @@ finish() {
 
 # Wizard state: MODE, SSH_MODE, TS_HOSTNAME, VPS_USER, REPO_URL, DEPLOY_BRANCH,
 # APP_DOMAIN, VPS_IP, TS_IP, COOLIFY_ADMIN_* — gitignored.
-ENV_FILE="$REPO/.wayfinder-vps.env"
 # Repo root — the wizard lives in scripts/.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="$REPO/.wayfinder-vps.env"
 
 # abort "msg" — warn + exit 1 (the wizard's loud-stop idiom). Defined before
 # the first call site — bash resolves functions at call time.
@@ -205,10 +205,10 @@ abort() { warn "$1"; exit 1; }
 _clear
 printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
 say "Mode: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
-ask MODE "Mode (full|app-only):"
+ask MODE "Mode (full|app-only) — blank aborts:"
 [[ "$MODE" == "full" || "$MODE" == "app-only" ]] || abort "MODE must be full or app-only"
 write_env MODE "$MODE"
-ask SSH_MODE "SSH access (tailnet|public):"
+ask SSH_MODE "SSH access (tailnet|public) — blank aborts:"
 [[ "$SSH_MODE" == "tailnet" || "$SSH_MODE" == "public" ]] || abort "SSH_MODE must be tailnet or public"
 write_env SSH_MODE "$SSH_MODE"
 ask TS_HOSTNAME "Tailscale/instance hostname for the VPS:" 
@@ -226,9 +226,9 @@ write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 ask APP_DOMAIN "Public app domain (blank = nip.io name derived from the VPS IP):"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
 
-TOTAL_STAGES=22
+TOTAL_STAGES=21
 TOTAL_MINUTES=95
-[[ "$MODE" == "full" ]] && { TOTAL_STAGES=38; TOTAL_MINUTES=158; }
+[[ "$MODE" == "full" ]] && { TOTAL_STAGES=37; TOTAL_MINUTES=158; }
 [[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
 
 banner "Oracle Cloud VPS — ${MODE} setup (${SSH_MODE} ssh)"
@@ -259,9 +259,9 @@ if confirm "Push the branch to origin now"; then
   note "pushed (pre-push gate ~3 min)"
 else
   if [[ "$MODE" == "full" ]]; then
-    warn "deferred — the branch reaches origin at the switch push (stage 37); the Coolify app stage (33) will push first if it is behind"
+    warn "deferred — the branch reaches origin at the switch push; the Coolify app stage will push first if it is behind"
   else
-    warn "deferred — the Coolify app stage (33) will push first if it is behind"
+    warn "deferred — the Coolify app stage will push first if it is behind"
   fi
 fi
 
@@ -295,6 +295,7 @@ pause "Instance created — note its public IP"
 
 stage "Capture the public IP" 2
 ask VPS_IP "Paste the instance public IP:"
+[[ -n "$VPS_IP" ]] || abort "empty IP — cannot continue"
 write_env VPS_IP "$VPS_IP"
 pause "Press Enter to test SSH (first connect accepts the host key)"
 
@@ -436,7 +437,7 @@ fi
 if vps "git -C ~/company_app switch $DEPLOY_BRANCH"; then
   note "branch checked out"
 else
-  warn "branch not on origin yet — it lands at the switch push (stage 37); the switch stage checks it out"
+  warn "branch not on origin yet — it lands at the switch push; the switch stage checks it out"
   vps 'git -C ~/company_app switch master 2>/dev/null || true'
 fi
 vps 'git -C ~/company_app log --oneline -1'
@@ -543,7 +544,7 @@ fi
 stage "SSH hardening" 2
 if [[ "$SSH_MODE" == "public" ]]; then
   vps 'printf "Port 22\nPort 51920\nPermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
-  vps 'sudo sshd -T | grep -E "^(port|permitrootlogin|passwordauthentication)"'
+  vps 'sudo ss -tlnp | grep -E ":(22|51920)\b"'
 else
   vps 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
@@ -552,9 +553,10 @@ fi
 if [[ "$SSH_MODE" == "public" ]]; then
 
 stage "Fail2ban (public ssh)" 3
-vps 'sudo apt-get install -y fail2ban && sudo systemctl enable --now fail2ban'
-vps 'sudo systemctl is-active fail2ban && sudo fail2ban-client status sshd | head -5'
-note "jails sshd on both listening ports (22 tailnet + 51920 public); key-only auth already blocks password guessing"
+vps 'sudo apt-get install -y fail2ban'
+vps 'printf "[sshd]\nenabled = true\nport = 22,51920\n" | sudo tee /etc/fail2ban/jail.d/sshd-ports.conf && sudo systemctl restart fail2ban'
+vps 'sudo systemctl is-active fail2ban && sudo fail2ban-client status sshd | head -6' || true
+note "jails sshd on BOTH ports (22 tailnet + 51920 public); key-only auth already blocks password guessing"
 
 fi
 
@@ -566,18 +568,19 @@ vps 'systemctl is-enabled unattended-upgrades'
 stage "Oracle security list (2nd firewall layer)" 5
 open_url "https://cloud.oracle.com"
 step "Networking → Virtual cloud networks → your VCN → Security Lists → Default Security List"
-step "Edit ingress rules: REMOVE 22/tcp from 0.0.0.0/0 (public SSH dies here — tailnet ssh is unaffected)"
+step "Edit ingress rules: REMOVE 22/tcp from 0.0.0.0/0"
 if [[ "$SSH_MODE" == "public" ]]; then
-  step "ADD 80/tcp, 443/tcp AND 51920/tcp from 0.0.0.0/0 (app, Coolify proxy, org-admin ssh)"
+  step "ADD 80/tcp, 443/tcp AND 51920/tcp from 0.0.0.0/0 (app, Coolify proxy, org-admin ssh on 51920)"
 else
   step "ADD 80/tcp and 443/tcp from 0.0.0.0/0 (Coolify + the app)"
+  note "tailnet ssh rides tailscale0 — unaffected by the security list"
 fi
 note "Security list + ufw = the two independent layers from docs/architecture.md"
 pause "Security list updated?"
 
 stage "Oracle idle-reclaim heartbeat" 2
 warn "Oracle stops Always-Free instances idle for 7 days (CPU p95 <20%, net <20%, mem <20%). Coolify's footprint alone keeps memory above 20% of 12 GB — this cron covers the CPU leg as belt-and-braces."
-vps 'printf "%s\n" "* * * * * root timeout 30 yes > /dev/null 2>&1" | sudo tee /etc/cron.d/idle-heartbeat && sudo chmod 644 /etc/cron.d/idle-heartbeat'
+vps 'printf "%s\n" "* * * * * root nice -n 19 timeout 30 yes > /dev/null 2>&1" | sudo tee /etc/cron.d/idle-heartbeat && sudo chmod 644 /etc/cron.d/idle-heartbeat'
 vps 'sudo grep -c "" /etc/cron.d/idle-heartbeat'
 
 # ── Phase 5 — Coolify + app deploy ─────────────────────────────────────────
@@ -654,10 +657,14 @@ fi
 if [[ "$BEHIND" != "0" ]]; then
   note "branch is $BEHIND commit(s) ahead of origin — pushing so Coolify deploys the current code."
   if confirm "Push now?"; then
-    git -C "$REPO" push || warn "push FAILED — Coolify will deploy the OLD commit; the switch push (stage 37) retries"
+    git -C "$REPO" push origin "$DEPLOY_BRANCH" || warn "push FAILED — Coolify will deploy the OLD commit; the switch push retries"
   else
-    warn "skipped — Coolify deploys whatever is on origin (may be stale); the switch push (stage 37) goes through first if you keep skipping"
+    warn "skipped — Coolify deploys whatever is on origin (may be stale)"
   fi
+fi
+LOCAL_ORIGIN="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
+if [[ -n "$LOCAL_ORIGIN" && "$LOCAL_ORIGIN" != "$REPO_URL" ]]; then
+  warn "this checkout's origin ($LOCAL_ORIGIN) differs from the Coolify repo ($REPO_URL) — pushes land elsewhere; Coolify pulls $REPO_URL"
 fi
 open_url "http://$TS_IP:8000"
 step "+ New Resource → Public Repository"
@@ -745,8 +752,8 @@ fi
 
 stage "Push the branch (carries the handoff)" 4
 # Push AFTER the kill: anything a session committed up to the boundary lands in this push.
-if [[ -n "$(git -C "$REPO" log --oneline origin/master..HEAD 2>/dev/null)" ]]; then
-  git -C "$REPO" push
+if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
+  git -C "$REPO" push origin "$DEPLOY_BRANCH"
   note "pushed (~3 min pre-push gate)"
 else
   note "already up to date"
