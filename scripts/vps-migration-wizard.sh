@@ -566,6 +566,7 @@ if [[ "$SSH_MODE" == "public" ]]; then
     pause "ports fixed?"
   fi
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
+  note "for console recovery: set a password NOW — sudo passwd $VPS_USER (sshd won't accept it; it only works at the Oracle serial console)"
 else
   vps 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
