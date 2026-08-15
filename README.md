@@ -40,3 +40,62 @@ To attach a terminal TUI to the running server:
 ```bash
 opencode attach http://localhost:8080
 ```
+
+## Wayfinder Loop (Automated Wayfinder Chain)
+
+Automates the wayfinder session chain: watches `docs/agents/` for new `wayfinder-*-handoff.md` files (each session's completion signal), spawns a fresh zero-context opencode2 session that reads the newest handoff and drives the next session per its instructions, and notifies you when the agent parks on a question or the chain breaks. Sessions are one-ticket-per-session, claim-first, per the handoff docs.
+
+```bash
+# First start (seed with the latest handoff and spawn immediately)
+./scripts/wayfinder-loop.sh --bootstrap wayfinder-163-handoff.md
+
+# Normal start / restart (resumes supervision of the running session)
+./scripts/wayfinder-loop.sh
+```
+
+Run it in tmux so it survives your SSH sessions:
+
+```bash
+tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a .wayfinder-loop.tmux.log'
+```
+
+### Controls
+
+| Action | Command |
+|---|---|
+| Watch the daemon log live | `tmux attach -t wayfinder-loop` |
+| Session history | `cat .wayfinder-loop.log` |
+| Stop the chain (running agent session survives) | `tmux kill-session -t wayfinder-loop` |
+| Resume supervision after a stop/reboot | `tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh'` |
+
+### When the agent needs you
+
+The agent asks via the question tool, parks, and you get a notification. To answer:
+
+```bash
+opencode2   # in the repo — pick the "wayfinder-loop" session from the session list
+```
+
+Type your answer; the agent resumes and the daemon keeps supervising. If the agent blocks on a permission request instead of a question, attach the TUI and approve it the same way.
+
+### Phone push (ntfy)
+
+Desktop notifications always fire; phone push fires when a topic is set. The topic lives in `.wayfinder-loop.env` (gitignored):
+
+```bash
+# .wayfinder-loop.env
+WAYFINDER_NTFY_TOPIC=wf-<random-topic>
+```
+
+Subscribe your phone: install the ntfy app, then subscribe to the topic URL printed below (or add the topic name manually):
+
+```
+https://ntfy.sh/wf-ky1wf3r3vo
+```
+
+Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_DRY_RUN` (log transitions without spawning).
+
+### Runtime files
+
+- `.wayfinder-loop.state` — last processed handoff + active session id (gitignored)
+- `.wayfinder-loop.log` — daemon history (gitignored)

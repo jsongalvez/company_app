@@ -44,3 +44,9 @@ tests/k6/results/*.html
 
 logs/
 **/.agents/handoffs/
+
+# wayfinder-loop runtime state
+.wayfinder-loop.state
+.wayfinder-loop.env
+.wayfinder-loop.tmux.log
+.wayfinder-loop.log

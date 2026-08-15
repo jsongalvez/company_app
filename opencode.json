@@ -10,5 +10,12 @@
   "server": {
     "hostname": "0.0.0.0",
     "port": 8080
-  }
+  },
+  "permissions": [
+    { "action": "read", "resource": "*.env", "effect": "allow" },
+    { "action": "read", "resource": "*.env.*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/tmp/opencode/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "$HOME/.config/opencode/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "$HOME/.npm-global/*", "effect": "allow" }
+  ]
 }
