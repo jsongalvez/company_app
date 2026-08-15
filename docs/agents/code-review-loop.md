@@ -8,11 +8,15 @@ and caught 7 issues the two-round structure missed — this doc makes that lens 
 ## Pass structure
 
 A **pass** = P1–P4 as parallel sub-agents against the current delta. Fix → commit
-(batch-fix commits) → next pass diffs `git diff <last-pass-commit>`. Exit when one full pass
-reports **zero HARD findings and no unadjudicated ESCALATEs** (triage empties the bucket
-before exit). The exit pass then runs **P5 — architecture residue** (one sub-agent; template
-below) — its findings land in the ARCH bucket (below), which never extends the loop; P5's
-in-ticket fixes trigger the P5 loop-back (below).
+(batch-fix commits) → next pass diffs `git diff <last-pass-commit>`. Every phase prompt
+seeds the current accepted-SOFT list ("previously accepted — re-examine from your angle;
+confirm, or re-rate upward if HARD-class from your lens") — the seeding is mandatory, the
+load-bearing half of the two-sighting rule (Triage). Exit when one full pass reports
+**zero HARD findings and no unadjudicated ESCALATEs** (triage empties the bucket
+before exit). The exit pass then runs **P5 — architecture residue** (two parallel
+sub-agents: architecture-depth + hygiene sweep; templates below) — its findings land in
+the ARCH bucket (below), which never extends the loop; either P5 agent's in-ticket fixes
+trigger the P5 loop-back (below).
 
 **P5 loop-back** — P5's `fix-in-ticket` dispositions change code after the last standard
 pass; they get the standard treatment like any fix batch. After P5's fixes commit: **one
@@ -33,9 +37,9 @@ shipped a #141-class resurrect that the 4-lens review caught).
 ### Finding buckets
 
 - **HARD** = bug / regression / security / data-loss / explicit documented-standard breach, or a lesson-class register match (below) — must fix, loop continues.
-- **SOFT** = smell / judgement call → fix if cheap; else accept with a logged reason (≤3 per pass).
+- **SOFT** = smell / judgement call → fix if cheap; else accept with a logged reason. Acceptance is provisional until the **two-sighting rule** is met (Triage): a SOFT survives to the exit pass only on two independent phase sightings; at exit, ≤3 two-sighted SOFTs may ride to P5/fog.
 - **ESCALATE** = HARD-class flavor (regression / data / security) whose reachability the phase cannot fully prove. The phase reports it as ESCALATE and **triage adjudicates** — reachability doubt never downgrades a HARD-flavored finding to SOFT; it escalates.
-- **ARCH** = architecture residue (P5, exit pass only): depth/locality findings — convoluted logic, dup unifiers, useless tests, shallow abstractions. Never blocks exit, never counts toward the SOFT budget; ≤4 per ticket. Fix if cheap in-ticket; else record in the resolution comment, from where it graduates into the map's fog lines (the wayfinder graduation pipeline). A finding that matches a registered lesson-class is HARD, not ARCH.
+- **ARCH** = architecture residue (P5, exit pass only): depth/locality findings — convoluted logic, dup unifiers, useless tests, shallow abstractions (architecture-depth agent) — plus hygiene findings — grep-proven dead code, layering crossings (hygiene-sweep agent). Never blocks exit, never counts toward the SOFT budget; ≤4 per ticket (architecture-depth) / ≤3 (hygiene sweep), merged by triage. Fix if cheap in-ticket; else record in the resolution comment, from where it graduates into the map's fog lines (the wayfinder graduation pipeline). A finding that matches a registered lesson-class is HARD, not ARCH.
 
 ### Lesson-class register
 
@@ -57,7 +61,8 @@ Triage re-derives **every** finding's class from the phase's own evidence — ph
 
 - every finding re-classified from evidence, register matches checked, ESCALATE entries adjudicated (HARD → fix, or rejected with proof of inertness);
 - the driving agent itself hunts the register classes in the constraint sources — reads the AGENTS.md/ADR/KDoc lines the delta depends on (the #146 doc contradiction was caught this way, not by a phase);
-- accepted SOFTs ≤3, each with a reason, handed to the next pass: "previously accepted — re-examine from your angle **and re-rate upward** if HARD-class from your lens."
+- every accepted SOFT is sighted twice (**the two-sighting rule**): the accepting lens plus an independent confirmation — a later phase's re-examination from its own angle, possibly across passes. The mandatory prompt seeding supplies it: every phase prompt lists the accepted SOFTs and instructs "re-examine from your angle; confirm, or re-rate upward if HARD-class from your lens" — each phase addresses every listed SOFT explicitly. The confirming lens must cover the finding's class (triage assigns it at acceptance; P5's architecture re-rate confirms architecture-flavored SOFTs only — never the correctness/behavior/standards classes); triage's own re-derivation confirms the disposition, never the SOFT class. Acceptance is never load-bearing (round-1 SOFTs became round-3 HARDs — the handoff caught them; the rule makes the handoff unskippable).
+- the exit pass cannot accept a one-sighting SOFT: it is fixed in-ticket or deferred to a seeded confirmation pass (usually empty-delta — the phases re-examine the SOFTs and re-derive the ticket's flows); at exit, ≤3 two-sighted SOFTs may ride to P5/fog, each with a logged reason.
 
 ## Phase prompt templates
 
@@ -95,7 +100,10 @@ CONSTRAINT SOURCES the delta consumes — read every one the code references, ev
 the delta: theme/token mappings, shared DTOs/enums, the ApiCallHandler contract, capability
 codes, platform actuals, k6 conventions, error-message formats. Hold each doc sentence the
 delta depends on against the code — a stale claim in a constraint source is a truth-class
-finding (register), not a doc nit.
+finding (register), not a doc nit. Also hold the COMPOSED SEAM MAP: every file the delta
+touches must sit in its documented layer (docs/architecture.md module boundaries,
+composeApp/backend/shared seams, package conventions) — a delta file crossing a documented
+boundary is HARD (documented-standard breach); an undocumented seam smell is SOFT.
 Smell baseline (judgement calls; repo standards override; skip what ktlint/detekt enforce):
 Mysterious Name, Duplicated Code, Feature Envy, Data Clumps, Primitive Obsession, Repeated
 Switches, Shotgun Surgery, Divergent Change, Speculative Generality, Message Chains, Middle
@@ -130,7 +138,8 @@ Hunt what breaks it:
 - stale state after clear/cancel (in-flight requests repopulating cleared state)
 - empty/zero/null states (empty lists, null branchId, missing token)
 - dead code: unreachable branches, non-exhaustive whens, unused params/imports, dead
-  defaults that hide future enum values
+  defaults that hide future enum values — grep-prove it: the delta's new public API must
+  have callers outside the delta (zero callers + not a declared seam member = dead)
 - unmapped slots (theme tokens the code references but the theme doesn't define — check the
   theme file directly)
 - string/format coupling (substring matches on producer formats)
@@ -142,12 +151,15 @@ Report [HARD|SOFT|ESCALATE] file:line — problem — fix. Under 400 words.
 
 ### P5 — Architecture residue (exit pass)
 
-Runs once, after triage reports 0 HARD on the exit pass. One sub-agent, seeded with the
-ticket's accepted SOFTs (all passes). Classifies into the ARCH bucket (above); a finding
-matching a registered lesson-class is HARD, not ARCH — report it in the HARD format so
-triage treats it as a loop continuation. Each finding gets a disposition:
+Runs once, after triage reports 0 HARD on the exit pass. **Two parallel sub-agents**:
+**P5a — architecture-depth** (below) and **P5b — hygiene sweep** (below), both seeded with
+the ticket's two-sighted SOFTs (all passes). Classifies into the ARCH bucket (above); a
+finding matching a registered lesson-class is HARD, not ARCH — report it in the HARD format
+so triage treats it as a loop continuation. Each finding gets a disposition:
 fix-cheap-in-ticket (recommend) or graduation-material (the fix is cross-ticket; name the
 fog line it should graduate into).
+
+**P5a — Architecture-depth**
 
 ```
 You are the ARCHITECTURE reviewer on the FULL ticket delta `git diff <pre-ticket-commit>` —
@@ -159,7 +171,7 @@ Vocabulary: use the /codebase-design terms exactly — module, interface, depth,
 locality, leverage, the deletion test, the two-adapters rule (one adapter = hypothetical seam,
 two = real), the interface-is-the-test-surface principle.
 
-Inputs: (a) the ticket's accepted SOFTs (<list them>); (b) the full ticket delta + composed tree.
+Inputs: (a) the ticket's two-sighted SOFTs (<list them>); (b) the full ticket delta + composed tree.
 
 For each accepted SOFT: re-rate from the architecture angle — depth/locality smell that should
 graduate into the map's fog lines, or a deliberate cost that stays buried? A deliberate
@@ -184,6 +196,34 @@ Report at most 4 findings total: [ARCH] file:line — problem — fix-shape — 
 In-ticket fixes go through the P5 loop-back (one standard P1–4 pass over the P5 batch)
 before exit.
 Under 350 words.
+```
+
+**P5b — Hygiene sweep** — mechanical, grep-driven; proof over judgement. Every finding
+carries its grep/search evidence; judgement findings (seams, depth, extraction candidates)
+belong to the architecture-depth agent.
+
+```
+You are the HYGIENE reviewer on the FULL ticket delta `git diff <pre-ticket-commit>` + the
+composed tree — the whole ticket's shipped code, not the exit pass's last batch-fix delta.
+This is the exit pass — the loop found 0 HARD; your job is residue, not blocking findings.
+Repo: /mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app.
+
+Three mechanical sweeps, each finding quoted with its grep evidence:
+
+1. Dead code the ticket ADDED or EXPOSED: every new public symbol (class, function, flow,
+   DTO field) — zero callers outside the delta and not a declared seam member (expect/actual
+   pair, route registration, slot contract) = dead. Also: unused imports/params the delta
+   touched; non-exhaustive `when`s over enums the delta extended.
+2. Layering: every file the delta touches sits in its documented layer (docs/architecture.md
+   module boundaries, composeApp/backend/shared seams, package conventions). A crossing of a
+   DOCUMENTED boundary is HARD — report in the HARD format so triage treats it as a loop
+   continuation; an undocumented seam smell is ARCH.
+3. Unused public surface the delta left behind: public API whose consumer died in the delta
+   (a flow no screen collects, a function no caller reaches).
+
+Report at most 3 findings total: [HARD|ARCH] file:line — problem — fix — disposition
+(fix-in-ticket | graduate: <fog-line name>). In-ticket fixes go through the P5 loop-back.
+Under 250 words.
 ```
 
 ## Flow-trace checklist (P3 aid — not exhaustive)

@@ -52,6 +52,10 @@ Map #89 body updated this session:
 - Not-yet-specified: the **keep-last unifier fog line REMOVED (closed)**; **4 new fog lines added** (the #162 P5 ARCH graduates: stale-substitution guard; keep-last mutation write; per-key in-flight guard; handler state-less launch).
 - Frontier paragraph rewritten: frontier EMPTY — the unifier fully landed; the new graduates re-indexed.
 
+## Constitution update (same session, post-#162)
+
+The review-loop constitution changed after #162 closed (user-directed, written with the writing-for-agents discipline): `docs/agents/code-review-loop.md` + root AGENTS.md now carry (a) the **two-sighting rule** — an accepted SOFT rides to P5/fog only on two independent phase sightings (the accepting lens + a confirming lens covering the finding's class; triage re-derivation and P5's architecture re-rate confirm the disposition, never the SOFT class); every phase prompt MUST seed the accepted-SOFT list (mandatory — the session-59 miss that motivated it); the exit pass cannot accept a one-sighting SOFT (fix in-ticket or a seeded confirmation pass); ≤3 two-sighted SOFTs ride at exit; (b) **P5 split into two parallel sub-agents** — P5a architecture-depth (the existing four lenses) + P5b hygiene sweep (grep-proven dead code, layering — a documented-boundary crossing reports HARD, not ARCH; unused public surface); ARCH caps ≤4/≤3 per agent; (c) P2 gained the composed seam-map check, P4 gained grep-proof dead-code. The crash-fuzzer idea is recorded as a map fog line (infra-first — needs a UI-test-driver or CI nav-walk harness before it can exist).
+
 ## Suggested skills for next session
 
 - **`/wayfinder`** — "Work through the map" steps (frontier empty — fog-graduation session: grill the next standing fog line into a ticket).
