@@ -28,7 +28,7 @@ One lens per phase, each run as a parallel sub-agent per pass:
 ## Loop mechanics
 
 - **Pass = all five lenses in parallel** on the current design state (the first pass reviews the raw design tree; later passes review the delta since the last revision).
-- **Triage**: HARD (false premise / domain contradiction / dead gate / architectural dead-end / comprehension failure) → design revised, loop continues. SOFT (smell / judgement call) → fix if cheap, else accept with a logged reason; ≤3 accepted SOFTs per pass; accepted lists are handed to the next pass with "re-examine from your angle and re-rate upward if HARD-class from your lens."
+- **Triage**: HARD (false premise / domain contradiction / dead gate / architectural dead-end / comprehension failure) → design revised, loop continues. SOFT (smell / judgement call) → fix if cheap, else accept with a logged reason under the **two-sighting rule** (mechanics in `docs/agents/code-review-loop.md` — same rule as the code-review loop): an accepted SOFT rides to the resolution only on two independent lens sightings (the accepting lens + a confirming lens covering the finding's class; triage re-derivation and any architecture-only re-rate confirm the disposition, never the SOFT class); the accepted list seeds every subsequent lens prompt (mandatory); the exit pass cannot accept a one-sighting SOFT (fix it, or run a seeded confirmation pass); ≤3 two-sighted SOFTs may ride at exit, each with a logged reason.
 - **Exit**: one full pass with zero HARD findings across all five lenses. The design is then presented to the human for the final confirmation.
 - The falsification record + the locked design + the simple-language presentation become the ticket resolution.
 
