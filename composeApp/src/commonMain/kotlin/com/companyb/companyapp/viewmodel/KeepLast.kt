@@ -212,17 +212,19 @@ class ActionTracker<K> {
     }
 
     /**
-     * Drop every error, markers untouched — the fresh-data-supersedes-stale-errors shape (a
-     * reload replacing the list whose errors describe pre-reload actions). Contrast with
-     * [clear], the superseded-context escape that also clears the markers.
+     * Drop EVERY error, markers untouched — the wholesale fresh-data-supersedes-stale-errors
+     * shape (a reload replacing the list whose errors describe pre-reload actions); contrast
+     * [clearWhere], which drops only the matching family, and [clear], the superseded-context
+     * escape that also clears the markers.
      */
     fun clearErrors() {
         _errors.value = emptyMap()
     }
 
     /**
-     * Drop every error whose key matches [predicate] — the fresh-data-supersedes-stale-errors
-     * shape (a section reload clearing its own action-error family). Markers are untouched.
+     * Drop the errors whose keys match [predicate] — the family-scoped fresh-data-supersedes-
+     * stale-errors shape (a section reload clearing its own action-error family); contrast
+     * [clearErrors], the wholesale variant. Markers are untouched.
      */
     fun clearWhere(predicate: (K) -> Boolean) {
         _errors.value = _errors.value.filterKeys { key -> !predicate(key) }
