@@ -251,10 +251,12 @@ note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defa
 ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
 [[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
 [[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || abort "branch name must start with a letter or digit (letters, digits, dots, hyphens, underscores, slashes only)"
+git -C "$REPO" check-ref-format "refs/heads/$DEPLOY_BRANCH" || abort "not a valid git branch name (no //, no .., no trailing dot)"
 write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 
 note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP. Re-runs keep a saved domain — delete the line in .wayfinder-vps.env to go back to nip.io."
 ask APP_DOMAIN "Public app domain (blank = nip.io from the VPS IP)"
+[[ -z "$APP_DOMAIN" || "$APP_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || abort "invalid domain (letters, digits, dots, hyphens only — or leave blank for the nip.io name)"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
 
 TOTAL_STAGES=21
@@ -340,6 +342,7 @@ pause "Instance created — note its public IP"
 stage "Capture the public IP" 2
 ask VPS_IP "Paste the instance public IP:"
 [[ -n "$VPS_IP" ]] || abort "empty IP — cannot continue"
+[[ "$VPS_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || abort "invalid IPv4 — paste the instance public IP from the Oracle console"
 write_env VPS_IP "$VPS_IP"
 pause "Press Enter to test SSH (first connect accepts the host key)"
 
@@ -388,7 +391,7 @@ else
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname '$TS_HOSTNAME'" || abort "tailscale up failed again — investigate on the VPS"
   fi
-  TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')"
+  TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || TS_IP=""
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" ; }
   write_env TS_IP "$TS_IP"
 fi
@@ -776,7 +779,7 @@ stage "Verify the deployed backend" 10
 if confirm "Try the HTTPS health check now?"; then
   code="$(curl -sk -o /dev/null -w '%{http_code}' "https://$DOMAIN/health" || true)"
   note "https://$DOMAIN/health → HTTP $code"
-  curl -sk "https://$DOMAIN/health" && echo
+  curl -sk "https://$DOMAIN/health" && echo || true
   if [[ "$code" == "200" ]]; then
     note "✓ deployed backend is live over HTTPS"
   else
