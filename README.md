@@ -66,7 +66,9 @@ tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a
 | Watch the daemon log live | `tmux attach -t wayfinder-loop` |
 | Session history | `cat .wayfinder-loop.log` |
 | Stop the chain (running agent session survives) | `tmux kill-session -t wayfinder-loop` |
-| Resume supervision after a stop/reboot | `tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh'` |
+| First start (seed with the latest handoff, spawn immediately) | `./scripts/wayfinder-loop.sh --bootstrap wayfinder-163-handoff.md` |
+| Normal start / resume supervision after a stop or reboot | `tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh'` |
+| Resume a paused chain (after a dead/stalled session exhausted retries) | `./scripts/wayfinder-loop.sh --retry` |
 
 ### When the agent needs you
 
