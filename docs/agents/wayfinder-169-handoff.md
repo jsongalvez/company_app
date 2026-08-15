@@ -21,6 +21,27 @@ USER-PRIORITY follow-up to the #168 handoff: the wizard's config questions were 
 - Config UX smoke-tested in isolation: first-run defaults, typed overrides, re-run saved-wins, blank-abort, charset rejections, octet-range IPv4, authkey formats, `latest_handoff` empty/dir/file shapes — all verified empirically.
 - **`.wayfinder-vps.env` note**: if the user's earlier partial run saved config values, re-runs keep them — the new gates validate them, and a stale value aborts with an actionable message (type over it; a saved bad APP_DOMAIN needs its line deleted, the hint says so).
 
+## Migration run log (Aug 15-16, session 66 continuation — LIVE, run in progress)
+
+The wizard is mid-run (~stage 20/36). Everything below was hit live; each item is either fixed, worked around, or a follow-up.
+
+**Oracle console (create-instance) quirks:**
+- A1 capacity is a lottery in ap-singapore-2. Console auto-click scripts fight the "Too many requests for the user" throttle; manual retries every few minutes (or the OCI CLI with backoff) are the honest path. A 2 VCN service limit exists — failed instance launches leave orphaned VCNs; **reuse an existing VCN/subnet instead of creating** (also unlocks the public-IPv4 radio, which stays dead while the subnet doesn't exist yet — subnets are created at launch).
+- Instance NAME must equal TS_HOSTNAME — the OS hostname derives from it (a mismatch = tailnet rejoin loop on re-runs).
+- Chosen: IMDSv2 auth header ON, all Oracle Cloud Agent plugins off, restore-lifecycle-state ON, shielded OFF (optional), custom boot volume 50 GB, in-transit encryption on (default), Oracle-managed keys, public subnet, reserved public IP attachable post-launch (mint under IP management → Reserved public IPs). Cost: $0/mo (2 OCPU/12 GB inside the 4/24 free cap; 50 GB inside 200 GB).
+
+**VPS_USER bug (fixed):** the pre-hardening partial run had saved `VPS_USER=jayson` (the old prompt had no hint); the wizard ssh'd as jayson → `Permission denied (publickey)` at the verify stage and every stage after. The VM only ever has the `ubuntu` user. Fix: type `ubuntu` over the kept value (or edit `.wayfinder-vps.env`).
+
+**Private-repo clone (fixed, wizard gap):** `gh auth login --with-token` authenticates gh but does NOT wire git's credential helper → `git clone https://…` fails with "could not read Username". Fix: `gh auth setup-git` on the VPS + `rm -rf ~/company_app` (the failed clone's leftovers). **The repo is PRIVATE** — the Coolify app stage's "Public Repository" will fail when reached; plan a Coolify GitHub App or a `https://<token>@github.com/…` URL.
+
+**gradlew exec bit (fixed in-repo, commit `33d1962`):** the repo index tracked `gradlew` as 100644 — hidden locally by the Windows mount's `core.fileMode=false`, but VPS clones (ext4, real modes) got a non-executable wrapper → `./gradlew` → Permission denied on the gate. Fix: `git update-index --chmod=+x gradlew` + commit; VPS side `chmod +x`. Check the repo for other wrappers with the same hidden-mode issue.
+
+**Timezone-dependent tests (worked around; REAL TEST BUG — follow-up):** the suite silently requires the JVM default TZ to be Asia/Manila: `createBranchDayForToday` seeds with `LocalDate.now(BranchDayService.manilaZone)` (DatabaseTestHelper.kt:308) while assertions and clock-in seeding use JVM-default `LocalDate.now()` (RouteValidationTest.kt:898/:989, DatabaseTestHelper.kt:349, ReliefAccess/RemittanceLine). On a UTC box during 16:00-23:59 UTC, entire classes fail — RouteValidation with ComparisonFailure, ReliefAccess/RemittanceLine with a ForbiddenException cloud (clock-ins seeded for UTC-today aren't "active" on Manila-today). Fix on the VPS: `sudo timedatectl set-timezone Asia/Manila` + `sudo pkill -f GradleDaemon` (old daemons keep the old TZ). Proper fix for a future session: a TZ fixture in the test base or manilaZone-consistent seeds/asserts.
+
+**Test-DB init quirk (worked around):** `company_app_test` is created ONLY by `docker/init-test-db.sql`, which runs at the Postgres container's first boot (init scripts don't re-run). `DROP DATABASE` (done during diagnosis) breaks every test with "database does not exist" (`ensureDatabase` connects, never creates). Recreate by hand: `CREATE DATABASE company_app_test` as `company_user`.
+
+**Wizard improvements to fold in (follow-up batch — fog-line material):** (a) bootstrap stage: `timedatectl set-timezone Asia/Manila`; (b) gh-auth stage: `gh auth setup-git` after the token login; (c) Postgres stage: guard-create `company_app_test`; (d) test TZ fixture; (e) gate-launch: the wizard's relaunch is fine — the earlier confusion was a stale-log poll after a manual `rm`; nothing to change.
+
 ## Review outcome (phased loop, 12 passes + P5 + 2 loop-backs)
 
 - **Pass 1**: 2 HARD (the library-edit "do not hand-edit" breach — **reclassified SOFT by user decision** after checking the skill's source; unquoted config values at remote-shell sites → quoting + charset gates) + SOFTs (hints, banner overclaim, summary secrets line — fixed).
@@ -79,6 +100,8 @@ Unchanged — no tickets touched, no fog moved. The migration itself is the stan
 - **shellcheck** still not installed — `shellcheck -S warning scripts/vps-migration-wizard.sh` before or during the wizard run (first clean pass is a no-op; the wizard got `bash -n` only).
 - **Optional runbook amendment** (post-migration): Phase 1 is now tailscale-first, Phase 2 gains the Coolify + hardening stages the wizard implements; the runbook and wizard should agree after the run.
 - **The wizard now defaults REPO_URL/DEPLOY_BRANCH from this checkout** — if the wizard is ever re-run for the future app owner's repo, the derivation follows their checkout; nothing to change.
+- **Migration-run follow-ups** (from the run log above): the wizard's bootstrap should pin `Asia/Manila`, the gh-auth stage needs `gh auth setup-git`, the Postgres stage should guard-create `company_app_test`, and the test suite needs a TZ fixture (RouteValidation/ReliefAccess/RemittanceLine currently depend on the machine TZ). **Coolify GitHub App** (or token-in-URL) needed for the private repo before the app-resource stage.
+- **Check the repo for other Windows-mount-hidden exec bits** (gradlew was 100644 in the index): `git ls-files -s | grep "100644"` on the script/wrapper files (setup-hooks.sh, wayfinder-loop.sh, check-baselines.sh, the wizard itself — a fresh clone must run them).
 
 ## Suggested skills for next session
 
