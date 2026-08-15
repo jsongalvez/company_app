@@ -424,7 +424,7 @@ class UserManagementViewModelTest {
         }
 
     @Test
-    fun swap_with_missing_user_is_noop_no_crash() =
+    fun swap_with_missing_user_is_noop() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
@@ -432,11 +432,23 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             // The stale-mirror shape: a swap for a user absent from the held list must not
-            // write or crash — the null-guard maps to no-write (the old `?: return` path; a
-            // regressed guard would NPE on the null slot inside the transform).
+            // write — the null-guard maps to no-write (the old `?: return` path). Note what
+            // this test does NOT pin: a crash-class guard regression (e.g. first{} on the
+            // missing user) would throw inside the transform, and ApiCallHandler swallows it
+            // onto the private throwaway mutation flow — unobservable through the public
+            // surface, so no-crash is unpinnable here (the list-unchanged assert is the pin).
             vm.swapSlots(branchId = "b1", userIdA = "ghost", userIdB = "u2")
             advanceUntilIdle()
 
+            assertEquals(
+                expected = 1,
+                actual = harness.swapBodies.size,
+                "the swap request must have routed and 200'd — a reroute would pass the state asserts silently",
+            )
+            assertTrue(
+                vm.actionErrors.value.isEmpty(),
+                "a 200 transform must not surface an inline error",
+            )
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             val u2 = state.data.first { it.id == "u2" }
             assertEquals(
