@@ -219,7 +219,7 @@ if confirm "Push the branch to origin now"; then
   git -C "$REPO" push
   note "pushed (pre-push gate ~3 min)"
 else
-  warn "deferred — the branch reaches origin at the switch push (stage 31); the Coolify app stage (28) will push first if it is behind"
+  warn "deferred — the branch reaches origin at the switch push (stage 32); the Coolify app stage (28) will push first if it is behind"
 fi
 
 # ── Phase 1 — Oracle VM + first access ─────────────────────────────────────
@@ -282,11 +282,12 @@ else
     'curl -fsSL https://tailscale.com/install.sh | sudo sh'
   if ! ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
        "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps"; then
-    warn "tailscale up failed — the saved auth key may be consumed or expired"
-    ask_secret TS_AUTHKEY "Paste a NEW auth key:"
-    [[ -n "$TS_AUTHKEY" ]] || { warn "still empty — aborting"; exit 1; }
+    warn "tailscale up failed — the saved auth key may be consumed or expired (if the tailscale daemon itself is down: sudo systemctl start tailscaled)"
+    TS_AUTHKEY=""
+    ask_secret TS_AUTHKEY "Paste a NEW auth key (Enter on empty aborts):"
+    [[ -n "$TS_AUTHKEY" ]] || { warn "no new key — aborting"; exit 1; }
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
-      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps"
+      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps" || { warn "tailscale up failed again — investigate on the VPS"; exit 1; }
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')"
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" ; }
@@ -346,7 +347,7 @@ warn "deliberately NOT copying ~/.local/share/opencode/opencode.db (2.1 GB sessi
 vps 'du -sh ~/.config/opencode; wc -c ~/.local/share/opencode/auth.json'
 
 stage "Start the opencode service" 2
-vps 'opencode2 serve --service'
+vps 'opencode2 serve --service' || { warn "opencode service failed to start"; exit 1; }
 sleep 3
 vps 'opencode2 api get /api/model'
 pause "Does the model response above look right? (not an error)"
@@ -391,7 +392,10 @@ stage "Git hooks + ktlint" 2
 vps 'cd ~/company_app && bash scripts/setup-hooks.sh'
 
 stage "Warm the build gate" 16
-if vps 'grep -q "BUILD SUCCESSFUL" /tmp/gate-warm.log' 2>/dev/null; then
+if vps 'grep -q "BUILD FAILED" /tmp/gate-warm.log' 2>/dev/null; then
+  warn "gate warm FAILED in an earlier run — the first VPS session commit would break. Fix before continuing."
+  confirm "Continue anyway?" || exit 1
+elif vps 'grep -q "BUILD SUCCESSFUL" /tmp/gate-warm.log' 2>/dev/null; then
   note "gate already warm from a previous run (BUILD SUCCESSFUL on record)"
 else
   note "first Gradle run downloads the toolchain + deps (~10-15 min). Launched in background; the wizard polls."
@@ -589,7 +593,10 @@ note "bootstrapping with: $HANDOFF"
 if vps 'tmux has-session -t wayfinder-loop' 2>/dev/null; then
   note "VPS daemon session already exists — skipping (verify below); if the log shows no recent spawn, kill the session and re-run"
 else
-  vps "cd ~/company_app && git fetch origin && (git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build 2>/dev/null || git switch ralph/company-app-full-build) && { git pull --ff-only || true; } && tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\""
+  note "aligning the VPS checkout with origin (a local-only VPS commit from a partial run is discarded — origin is canonical)…"
+  vps "cd ~/company_app && git fetch origin && (git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build 2>/dev/null || git switch ralph/company-app-full-build) && { git pull --ff-only || true; }" || { warn "git alignment failed on the VPS — re-run resumes after the (dead) kill check"; exit 1; }
+  vps "test -f ~/company_app/docs/agents/$HANDOFF" || { warn "handoff not in the VPS checkout — the pull or push is stale"; exit 1; }
+  vps "tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\"" || { warn "tmux start failed on the VPS"; exit 1; }
 fi
 sleep 15
 vps 'tail -n 20 ~/company_app/.wayfinder-loop.log' 2>/dev/null || true
@@ -597,9 +604,16 @@ note "expect a line like: spawned ses_… reading <handoff>.md"
 pause "ntfy topic fired ('wayfinder session started')?"
 
 stage "Post-migration checks" 3
-vps 'cd ~/company_app && gh issue view 89 --json number,title,state -q ".number + \" \" + .title + \" (\" + .state + \")\""' 2>/dev/null || true
-vps 'cd ~/company_app && git push --dry-run && gh issue list --state open' 2>/dev/null || true
-note "map reachable from the VPS ✓ — dry-run shows the branch set; issue list covers #89/#110/#139 (runbook Phase 2 verify block)"
+if vps 'cd ~/company_app && gh issue view 89 --json number,title,state -q ".number + \" \" + .title + \" (\" + .state + \")\""' 2>/dev/null; then
+  note "✓ map reachable from the VPS (gh issue view 89)"
+else
+  warn "gh issue view 89 FAILED on the VPS — check gh auth/network"
+fi
+if vps 'cd ~/company_app && git push --dry-run && gh issue list --state open' 2>/dev/null; then
+  note "✓ dry-run shows the branch set; issue list covers #89/#110/#139 (runbook Phase 2 verify block)"
+else
+  warn "push --dry-run or issue list FAILED on the VPS — check git/gh state"
+fi
 note "first VPS pre-commit gate runs on the next session commit (watch it succeed end-to-end)"
 note "k6 skipped (optional): pre-push warns + skips the load test on the VPS"
 note "next session on the VPS works the map as usual — same branch, same issues"
