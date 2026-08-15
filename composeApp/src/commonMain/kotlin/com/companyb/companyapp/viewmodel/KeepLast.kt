@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 
 /**
@@ -30,7 +31,6 @@ class KeepLast<T>(
     val stateFlow = MutableStateFlow<UiState<T>>(UiState.Idle)
     val state: StateFlow<UiState<T>> = stateFlow.asStateFlow()
 
-    private val lastMirror = MutableStateFlow<T?>(null)
     private val _freshest = MutableStateFlow<T?>(null)
 
     /**
@@ -50,27 +50,18 @@ class KeepLast<T>(
      * its GET), by which time the collector has converged; mutations are additionally gated
      * during Loading (the #161 pass-1 shape).
      */
-    fun freshestValue(): T? = (stateFlow.value as? UiState.Success<T>)?.data ?: lastMirror.value
+    fun freshestValue(): T? = (stateFlow.value as? UiState.Success<T>)?.data ?: _freshest.value
 
     init {
-        // Single writer for the mirror + freshest flow: every emission of the state flow
-        // (loads AND in-place mutation writes) re-derives them. Relies on the FIFO-Main
-        // ordering contract — viewModelScope dispatches on Main.immediate, so a state
-        // assignment queues this collector BEFORE any later-started coroutine's resume
-        // (a dispatcher change would silently re-open the #141 resurrect window).
+        // Single writer for the freshest flow: every Success landing on the state flow (loads
+        // AND in-place mutation writes) mirrors into it. Relies on the FIFO-Main ordering
+        // contract — viewModelScope dispatches on Main.immediate, so a state assignment queues
+        // this collector BEFORE any later-started coroutine's resume (a dispatcher change would
+        // silently re-open the #141 resurrect window).
         scope.launch {
-            stateFlow.collect { state ->
-                when (state) {
-                    is UiState.Success -> {
-                        lastMirror.value = state.data
-                        _freshest.value = state.data
-                    }
-
-                    else -> {
-                        _freshest.value = lastMirror.value
-                    }
-                }
-            }
+            stateFlow
+                .filterIsInstance<UiState.Success<T>>()
+                .collect { state -> _freshest.value = state.data }
         }
     }
 }

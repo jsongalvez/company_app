@@ -79,7 +79,9 @@ class RemittanceViewModel(
         // would race a same-frame double-tap — the entry + tab effects both fire the default
         // tab's load on first composition. Per-key, NOT a single slot: a tab switch while
         // another tab's load is in flight must not skip the new tab's fetch. Cleared on every
-        // handler exit path (commit / non-success / exception) so no key can wedge.
+        // non-cancellation handler exit path (commit / non-success / exception) so no key can
+        // wedge; cancellation only happens at VM teardown, where the guard dies with the VM
+        // (the handler rethrows CancellationException without invoking onError).
         if (!keptByTab.tryBegin(key)) return
         handler.launch(
             state = _remittanceList,

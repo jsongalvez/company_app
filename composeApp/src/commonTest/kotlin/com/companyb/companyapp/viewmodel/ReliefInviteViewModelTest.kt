@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.mockApiClient
@@ -416,8 +417,9 @@ class ReliefInviteViewModelTest {
                     .id,
             )
 
-            // b1's late response lands — it commits under b1's OWN key: b2's entry is
-            // untouched, so the screen gate can never render A's rows under panel B (the
+            // b1's late response lands — the loadSent stamp (newest-launch-wins) skips its
+            // commit entirely: b2's entry is untouched, and the mirror never holds a
+            // known-stale snapshot (the screen gate reads the current panel's key — the
             // #160 pass-1/pass-2 cross-branch bleed class, closed by construction).
             advanceTimeBy(20_000)
             runCurrent()
@@ -428,12 +430,69 @@ class ReliefInviteViewModelTest {
                     .id,
                 "stale branch load must not touch b2's entry",
             )
+            assertNull(
+                vm.sentByKey.value["b1"],
+                "the stale response's commit is stamped out — a panel re-open refetches fresh",
+            )
+        }
+
+    @Test
+    fun `stale same-branch load never overwrites the retract-reload's fresh list`() =
+        runTest(testScheduler) {
+            var getCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites" && it.method.value == "GET" -> {
+                                getCalls++
+                                if (getCalls == 1) {
+                                    // Panel-open load #1: snapshot taken PRE-retract, held at
+                                    // +10s virtual (still in flight when retract fires).
+                                    withContext(StandardTestDispatcher(testScheduler)) {
+                                        kotlinx.coroutines.delay(10_000)
+                                    }
+                                    ok("""[${inviteJson("i1", "PENDING", inviteeName = "Alice")}]""")
+                                } else {
+                                    ok("""[${inviteJson("i1", "RETRACTED", inviteeName = "Alice")}]""")
+                                }
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/retract" -> {
+                                ok(inviteJson("i1", "RETRACTED", inviteeName = "Alice"))
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadSent("b1")
+            runCurrent()
+
+            // Retract lands while #1 is in flight; the retract-triggered reload #2 commits the
+            // fresh list (pass-1 HARD: the same-key ordering the keyed mirror cannot see — the
+            // #141 resurrect class).
+            vm.retractInvite("i1", "b1")
+            runCurrent()
             assertEquals(
-                "iA",
+                ReliefInviteStatus.RETRACTED,
                 vm.sentByKey.value["b1"]!!
                     .single()
-                    .id,
-                "the stale response commits under its own key — invisible to the b2 gate",
+                    .status,
+            )
+
+            // #1's pre-retract snapshot lands late — the loadSent stamp must skip its commit.
+            advanceTimeBy(20_000)
+            runCurrent()
+            assertEquals(
+                ReliefInviteStatus.RETRACTED,
+                vm.sentByKey.value["b1"]!!
+                    .single()
+                    .status,
+                "stale snapshot must not resurrect the PENDING row",
             )
         }
 

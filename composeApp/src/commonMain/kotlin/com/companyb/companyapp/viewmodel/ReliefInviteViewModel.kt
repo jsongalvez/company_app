@@ -60,10 +60,10 @@ class ReliefInviteViewModel(
     // panel re-opens per branch card and a reload must keep the previous list rendered). Keying
     // the mirror by branchId makes the #160 pass-1/pass-2 cross-branch bleed structurally
     // unrenderable: the screen gates on the CURRENT panel's key, so another branch's rows (with
-    // live Retract) can never pass the gate — the commit-stamp machinery (`_sentBranch` +
-    // `sentStamp` + the stale-response substitution) that guarded the old single-slot mirror is
-    // deleted with it. A stale in-flight response still commits to the live state, but the
-    // screen never renders the live state — only this keyed mirror.
+    // live Retract) can never pass the gate — the `_sentBranch` label + the stale-response
+    // substitution that guarded the old single-slot mirror are deleted with it. Same-key
+    // ordering (a stale snapshot landing after a mutation-triggered reload) is closed by the
+    // loadSent stamp: only the newest launch's response commits (see loadSent).
     private val keptSent = KeepLastByKey<String, List<ReliefInviteResponse>>()
     val sentByKey: StateFlow<Map<String, List<ReliefInviteResponse>>> = keptSent.lastByKey
 
@@ -210,12 +210,23 @@ class ReliefInviteViewModel(
             },
         )
 
+    // Bumped per loadSent: a response that lands with a mismatched stamp belongs to an older
+    // launch of ANY branch — committing it would let a stale snapshot be the last writer on a
+    // key (the same-branch ordering class: a panel-open load in flight while a retract-triggered
+    // reload fires; the pre-retract snapshot must not resurrect the retracted row — the #141
+    // resurrect class). Cross-branch staleness is handled by the keyed mirror itself; this
+    // stamp closes the same-key ordering the keyed mirror cannot see.
+    private var sentStamp = 0L
+
     fun loadSent(branchId: String): Job {
         // No in-flight guard and no synchronous branch pre-set: a newer load must always
         // launch (a same-key guard would let an in-flight load swallow a panel re-open's
-        // refetch). Stale in-flight responses are inert by construction — the mirror is
-        // keyed by branch, so a response for another branch commits under its own key and
-        // the screen's per-key gate never renders it.
+        // refetch or a mutation-triggered reload). Cross-branch staleness is inert by
+        // construction — the mirror is keyed, so a response for another branch commits under
+        // its own key and the screen's per-key gate never renders it. Same-branch ordering is
+        // closed by the stamp below: only the NEWEST launch's response commits, whenever it
+        // lands (a stale response still lands on the throwaway state flow, which nobody reads).
+        val stamp = ++sentStamp
         return handler.launch(
             state = sentListFlow,
             operation = "loadSent",
@@ -223,20 +234,15 @@ class ReliefInviteViewModel(
             block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
             transform = { response ->
                 val body = response.body<List<ReliefInviteResponse>>()
-                // Keyed commit (the #162 KeepLastByKey shape): the mirror entry for this
-                // branch flips together with the committed body — the screen gate
-                // `lastByKey[panelBranch]` can then trust that a passing gate means the
-                // rendered list IS this panel's. A stale response for an older panel commits
-                // under the OLD branch's key and can never render here.
-                keptSent.commit(branchId, body)
+                // Keyed commit (the #162 KeepLastByKey shape), newest-launch-wins: the mirror
+                // entry for this branch flips together with the committed body — the screen
+                // gate `lastByKey[panelBranch]` can then trust that a passing gate means the
+                // rendered list IS this panel's. A stale response (any older launch) skips the
+                // commit entirely.
+                if (stamp == sentStamp) {
+                    keptSent.commit(branchId, body)
+                }
                 body
-            },
-            onNonSuccess = {
-                keptSent.finish(branchId)
-                false
-            },
-            onError = {
-                keptSent.finish(branchId)
             },
         )
     }
