@@ -556,13 +556,13 @@ if [[ "$SSH_MODE" == "public" ]]; then
   if vps 'sudo systemctl disable --now ssh.socket 2>/dev/null || true; sudo systemctl enable --now ssh && sudo systemctl restart ssh && sudo systemctl daemon-reload'; then
     note "sshd reconfigured"
   else
-    warn "sshd reconfiguration failed — manual fix: ssh $VPS_USER@$TS_IP 'sudo systemctl restart ssh', then check: sudo ss -tln"
+    warn "sshd reconfiguration failed — fix: ssh $VPS_USER@$TS_IP 'sudo systemctl disable --now ssh.socket; sudo systemctl restart ssh'. If tailnet ssh is DEAD too, use the Oracle console (Cloud Shell) — the VCN security list still allows 22."
     pause "sshd fixed?"
   fi
   if vps 'sudo ss -tln | grep -q ":22 " && sudo ss -tln | grep -q ":51920 "'; then
     note "✓ sshd listening on 22 (tailnet) and 51920 (public)"
   else
-    warn "sshd not listening on both ports — check: sudo ss -tln; fix: sudo systemctl restart ssh"
+    warn "sshd not listening on both ports — check: sudo ss -tln; fix: sudo systemctl disable --now ssh.socket; sudo systemctl restart ssh"
     pause "ports fixed?"
   fi
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
@@ -577,7 +577,7 @@ stage "Fail2ban (public ssh)" 3
 vps 'sudo apt-get install -y fail2ban'
 vps 'printf "[sshd]\nenabled = true\nport = 22,51920\n" | sudo tee /etc/fail2ban/jail.d/sshd-ports.conf && sudo systemctl restart fail2ban'
 if vps 'sudo fail2ban-client status sshd' >/dev/null 2>&1; then
-  note "✓ jail active on both ports (22 tailnet + 51920 public)"
+  note "✓ fail2ban jail up (ports 22,51920 configured)"
 else
   warn "fail2ban jail check failed — inspect: sudo fail2ban-client status sshd"
 fi
@@ -690,8 +690,8 @@ if [[ "$BEHIND" != "0" ]]; then
 fi
 LOCAL_ORIGIN="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 if [[ -n "$LOCAL_ORIGIN" ]]; then
-  NORM_LOCAL="$(printf '%s' "$LOCAL_ORIGIN" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#:#/#; s#\.git$##')"
-  NORM_REPO="$(printf '%s' "$REPO_URL" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#:#/#; s#\.git$##')"
+  NORM_LOCAL="$(printf '%s' "$LOCAL_ORIGIN" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#:([^0-9])#/\1#; s#\.git$##')"
+  NORM_REPO="$(printf '%s' "$REPO_URL" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#:([^0-9])#/\1#; s#\.git$##')"
   [[ "$NORM_LOCAL" == "$NORM_REPO" ]] || warn "this checkout's origin ($LOCAL_ORIGIN) differs from the Coolify repo ($REPO_URL) — pushes land elsewhere; Coolify pulls $REPO_URL"
 fi
 open_url "http://$TS_IP:8000"
@@ -783,7 +783,7 @@ stage "Push the branch (carries the handoff)" 4
 git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
-    git -C "$REPO" push origin "$DEPLOY_BRANCH" || { warn "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease (or fix and re-run — the wizard resumes at this stage)"; exit 1; }
+    git -C "$REPO" push origin "$DEPLOY_BRANCH" || { warn "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease; if the PRE-PUSH HOOK failed: fix the gate. Then re-run (the wizard resumes at this stage)"; exit 1; }
     note "pushed (~3 min pre-push gate)"
   else
     note "already up to date"
