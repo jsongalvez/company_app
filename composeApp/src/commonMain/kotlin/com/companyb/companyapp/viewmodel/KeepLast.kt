@@ -172,8 +172,8 @@ class KeepLastByKey<K, T> {
 
     /**
      * Begin a load for [key] unless one is already in flight for it. Synchronous
-     * check-and-add, coalescing — see [InFlightGuard.tryBegin] for the #143 in-flight shape
-     * rationale. Returns false (and does nothing) when a load is already running for [key].
+     * check-and-add, coalescing — see [InFlightGuard] for the #143 in-flight shape rationale.
+     * Returns false (and does nothing) when a load is already running for [key].
      */
     fun tryBegin(key: K): Boolean = inFlightGuard.tryBegin(key)
 
