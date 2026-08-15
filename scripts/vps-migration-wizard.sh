@@ -287,7 +287,7 @@ else
     warn "no saved auth key — paste a fresh one (if the old box is gone, also delete the TS_IP line from .wayfinder-vps.env)"
     ask_secret TS_AUTHKEY "Paste the Tailscale auth key:"
   fi
-  [[ -n "$TS_AUTHKEY" ]] || { warn "empty auth key — cannot join the tailnet"; exit 1; }
+  [[ -n "$TS_AUTHKEY" ]] || abort "empty auth key — cannot join the tailnet"
   note "installing tailscale on the VPS and joining (via public IP)…"
   ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
     'curl -fsSL https://tailscale.com/install.sh | sudo sh'
@@ -296,9 +296,9 @@ else
     warn "tailscale up failed — the saved auth key may be consumed or expired (if the tailscale daemon itself is down: sudo systemctl start tailscaled)"
     TS_AUTHKEY=""
     ask_secret TS_AUTHKEY "Paste a NEW auth key (Enter on empty aborts):"
-    [[ -n "$TS_AUTHKEY" ]] || { warn "no new key — aborting"; exit 1; }
+    [[ -n "$TS_AUTHKEY" ]] || abort "no new key — aborting"
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
-      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps" || { warn "tailscale up failed again — investigate on the VPS"; exit 1; }
+      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps" || abort "tailscale up failed again — investigate on the VPS"
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')"
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" ; }
@@ -316,6 +316,9 @@ fi
 # ssh/scp helpers — everything below rides the tailnet.
 vps()   { ssh -o ConnectTimeout=15 "$VPS_USER@$TS_IP" "$@"; }
 vpsscp() { scp -o ConnectTimeout=15 "$@"; }
+
+# abort "msg" — warn + exit 1 (the wizard's loud-stop idiom).
+abort() { warn "$1"; exit 1; }
 
 # ── Phase 3 — VPS bootstrap (scripted over tailnet) ────────────────────────
 
@@ -335,7 +338,7 @@ else
   open_url "https://github.com/settings/tokens/new"
   step "Create a CLASSIC token with the repo scope (covers issues + git-credential)"
   ask_secret GH_PAT "Paste the GitHub PAT (repo scope):"
-  [[ -n "$GH_PAT" ]] || { warn "empty PAT — cannot auth gh on the VPS"; exit 1; }
+  [[ -n "$GH_PAT" ]] || abort "empty PAT — cannot auth gh on the VPS"
   printf '%s' "$GH_PAT" | vps 'gh auth login --with-token'
   vps 'gh auth status'
   note "PAT consumed by the VPS — nothing written to disk locally"
@@ -362,12 +365,12 @@ if vps 'opencode2 api get /api/model'; then
   note "opencode service already serving (re-run) — the model response above is the live probe"
   warn "if opencode config/auth.json changed since the service started, it serves the OLD config — restart the service on the VPS if unsure"
 else
-  vps 'opencode2 serve --service' || { warn "opencode service failed to start"; exit 1; }
+  vps 'opencode2 serve --service' || abort "opencode service failed to start"
   sleep 3
   if ! vps 'opencode2 api get /api/model'; then
     warn "model probe failed — the service may still be binding; retry below"
     pause "Press Enter to retry the probe"
-    vps 'opencode2 api get /api/model' || { warn "model probe still failing — check the service on the VPS"; exit 1; }
+    vps 'opencode2 api get /api/model' || abort "model probe still failing — check the service on the VPS"
   fi
 fi
 pause "Does the model response above look right? (not an error)"
@@ -412,27 +415,25 @@ stage "Git hooks + ktlint" 2
 vps 'cd ~/company_app && bash scripts/setup-hooks.sh'
 
 stage "Warm the build gate" 16
+GATE_CMD='cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'
 LAST_BUILD="$(vps 'grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/gate-warm.log 2>/dev/null | tail -1' || true)"
 if [[ "$LAST_BUILD" == *"FAILED"* ]]; then
   warn "gate warm FAILED in an earlier run — the first VPS session commit would break."
-  note "relaunch by hand: ssh $VPS_USER@$TS_IP 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'"
+  note "relaunch by hand: ssh $VPS_USER@$TS_IP '$GATE_CMD'"
   confirm "Continue anyway (gate NOT warm)?" || exit 1
 elif [[ "$LAST_BUILD" == *"SUCCESSFUL"* ]]; then
   note "gate already warm from a previous run (BUILD SUCCESSFUL on record)"
 else
-  set +e
-  vps 'test -f /tmp/gate-warm.log' >/dev/null 2>&1
-  LOG_RC=$?
-  set -e
+  LOG_RC=0
+  vps 'test -f /tmp/gate-warm.log' >/dev/null 2>&1 || LOG_RC=$?
   case "$LOG_RC" in
     0) note "a previous gate run is in progress or stale — polling it (no relaunch: two Gradle builds on 2 OCPU would contend)" ;;
     1) note "first Gradle run downloads the toolchain + deps (~10-15 min). Launched in background; the wizard polls."
-       vps 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &' || { warn "launch failed — relaunch by hand: ssh $VPS_USER@$TS_IP 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'"; exit 1; } ;;
+       vps "$GATE_CMD" || abort "launch failed — relaunch by hand: ssh $VPS_USER@$TS_IP '$GATE_CMD'" ;;
     *) warn "could not check the VPS gate log (ssh failed) — retrying once"
        sleep 3
        if ! vps 'test -f /tmp/gate-warm.log' >/dev/null 2>&1; then
-         warn "still cannot check the gate log — aborting before the deploy/switch"
-         exit 1
+         abort "still cannot check the gate log — aborting before the deploy/switch"
        fi
        note "a previous gate run is in progress or stale — polling it" ;;
   esac
@@ -448,7 +449,7 @@ else
       STALL=$((STALL + 1))
       if [[ $STALL -ge 10 ]]; then
         warn "gate log unchanged for ~5 min — the build likely died"
-        note "relaunch by hand: ssh $VPS_USER@$TS_IP 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'"
+        note "relaunch by hand: ssh $VPS_USER@$TS_IP '$GATE_CMD'"
         break
       fi
     else
@@ -600,8 +601,7 @@ fi
 stage "Boundary check" 2
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
 if [[ -z "$HANDOFF" ]]; then
-  warn "no handoff found in docs/agents/ — the switch bootstraps from one"
-  exit 1
+  abort "no handoff found in docs/agents/ — the switch bootstraps from one"
 fi
 note "latest handoff: $HANDOFF"
 git -C "$REPO" log --oneline -3
@@ -622,8 +622,7 @@ if confirm "Kill the local wayfinder-loop daemon NOW (this is the switch)?"; the
   fi
 else
   warn "SWITCH ABORTED — the VPS daemon must never run while the local one lives."
-  warn "Nothing was started; re-run the wizard later to resume (state is saved)."
-  exit 1
+  abort "Nothing was started; re-run the wizard later to resume (state is saved)"
 fi
 
 stage "Push the branch (carries the handoff)" 4
@@ -639,7 +638,7 @@ stage "Start the VPS daemon" 5
 warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
 # Re-derive the handoff AFTER the kill+push — the push just carried whatever the re-derive finds.
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
-[[ -n "$HANDOFF" ]] || { warn "no handoff to bootstrap — aborting before the VPS daemon start"; exit 1; }
+[[ -n "$HANDOFF" ]] || abort "no handoff to bootstrap — aborting before the VPS daemon start"
 note "bootstrapping with: $HANDOFF"
 if vps 'tmux has-session -t wayfinder-loop' >/dev/null 2>&1; then
   HAS_RC=0
@@ -651,24 +650,17 @@ if [[ "$HAS_RC" -eq 0 ]]; then
 else
   if [[ "$HAS_RC" -ne 1 ]]; then
     warn "could not check the VPS tmux state (ssh failed) — refusing to touch a possibly live daemon"
-    warn "rollback: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
-    exit 1
+    abort "rollback: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
   fi
   note "aligning the VPS checkout with origin (a local-only VPS commit from a partial run is discarded — origin is canonical)…"
-  vps "cd ~/company_app && git fetch origin && (git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build 2>/dev/null || git switch ralph/company-app-full-build) && { git pull --ff-only || true; }" || { warn "git alignment failed on the VPS — re-run resumes after the (dead) kill check"; exit 1; }
-  vps "test -f ~/company_app/docs/agents/$HANDOFF" || { warn "handoff not in the VPS checkout — the pull or push is stale"; exit 1; }
+  vps "cd ~/company_app && git fetch origin && (git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build 2>/dev/null || git switch ralph/company-app-full-build) && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
+  vps "test -f ~/company_app/docs/agents/$HANDOFF" || abort "handoff not in the VPS checkout — the pull or push is stale"
   LOCAL_SHA="$(sha256sum "$REPO/docs/agents/$HANDOFF" | cut -d' ' -f1)"
   VPS_SHA="$(vps "sha256sum ~/company_app/docs/agents/$HANDOFF" 2>/dev/null | cut -d' ' -f1 || true)"
-  if [[ -z "$VPS_SHA" ]]; then
-    warn "could not read the handoff checksum on the VPS (ssh failure?)"
-    exit 1
-  fi
-  if [[ "$LOCAL_SHA" != "$VPS_SHA" ]]; then
-    warn "handoff on the VPS differs from local — the pull or push is stale"
-    exit 1
-  fi
+  [[ -n "$VPS_SHA" ]] || abort "could not read the handoff checksum on the VPS (ssh failure?)"
+  [[ "$LOCAL_SHA" == "$VPS_SHA" ]] || abort "handoff on the VPS differs from local — the pull or push is stale"
   note "✓ handoff present and identical on the VPS"
-  vps "tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\"" || { warn "tmux start failed on the VPS"; exit 1; }
+  vps "tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\"" || abort "tmux start failed on the VPS"
 fi
 sleep 15
 vps 'tail -n 20 ~/company_app/.wayfinder-loop.log' 2>/dev/null || true

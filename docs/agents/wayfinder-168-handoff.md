@@ -4,7 +4,7 @@
 
 Session 65 was the USER-PRIORITY pick from the #167 handoff: **author the VPS-migration wizard**. Scope grew this session on explicit user direction — Tailscale, hardening, and the **Coolify deploy** (docs/architecture.md §5) were folded in: *"we're essentially prioritizing the cloud step of the development."* No map ticket was claimed; the frontier stays EMPTY. The deliverable: `scripts/vps-migration-wizard.sh` (committed `bd78b09`), runnable now.
 
-**What the wizard does (33 stages, ~145 min, run on THIS Arch box — the repo on the external mount):**
+**What the wizard does (34 stages, ~150 min, run on THIS Arch box — the repo on the external mount):**
 
 - Phase 0 — pre-flight: branch state + open issues; optional early push of `ralph/company-app-full-build` (~276 ahead).
 - Phase 1 — SSH key (none existed on this box — wizard generates `~/.ssh/id_ed25519`), Oracle console VM create (Ubuntu 24.04 aarch64, A1.Flex 2 OCPU/12GB, boot ≥47GB, **reserved public IP**), public-IP ssh verify, capture `VPS_IP`.

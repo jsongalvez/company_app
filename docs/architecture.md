@@ -63,10 +63,10 @@ Single language (Kotlin) across mobile, shared logic, and backend. All branches 
 
 ### Server Hardening
 - SSH key authentication only — password login disabled
-- SSH on a non-standard port (e.g. 51920)
+- SSH on a non-standard port (e.g. 51920) — **superseded (session 65): the VPS-migration wizard hardens SSH to tailnet-only (no public SSH port)**
 - `PermitRootLogin no`
 - Oracle Security Groups + `ufw` as two independent firewall layers
-- Fail2ban on SSH
+- Fail2ban on SSH — **superseded (session 65): not needed with tailnet-only SSH**
 - Unattended security upgrades enabled
 
 ### Network
