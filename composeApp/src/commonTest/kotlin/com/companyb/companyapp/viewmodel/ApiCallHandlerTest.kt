@@ -35,8 +35,9 @@ import kotlin.test.assertIs
  * (the launch-captured stamp still matches), else fallback().
  *
  * The default-param cases pin that every existing handler caller (which passes no guard
- * params) keeps the exact pre-#165 behavior: transform always commits, the guard is never
- * consulted.
+ * params) keeps the exact pre-#165 behavior: the guard never diverges — the default
+ * isCurrent always returns true, so transform always commits and the fallback is never
+ * invoked.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApiCallHandlerTest {

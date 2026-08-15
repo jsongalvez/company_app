@@ -53,7 +53,7 @@ class ApiCallHandler(
         // default is unreachable then — a guard enabled without one fails loudly, not silently).
         checkpoint: () -> Long = { 0L },
         isCurrent: (Long) -> Boolean = { true },
-        fallback: () -> T = { error("stale-guard fallback invoked without an isCurrent guard") },
+        fallback: () -> T = { error("stale-guard fallback invoked without a fallback param") },
     ): Job {
         logInfo(tag, entryMessage)
         val stamp = checkpoint()
