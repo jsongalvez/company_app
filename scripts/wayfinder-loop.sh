@@ -84,6 +84,22 @@ newest_unprocessed() {
 pending_forms() { api get "/api/session/$1/form" 2>/dev/null | jq -r '.data[] | select(.metadata.kind == "question") | .id' 2>/dev/null || true; }
 pending_perms() { api get "/api/session/$1/permission" 2>/dev/null | jq -r '.data[] | .id' 2>/dev/null || true; }
 session_alive() { api get "/api/session/active" 2>/dev/null | jq -e --arg s "$1" '.data | any(.id == $s)' >/dev/null 2>&1; }
+# active_children: true when any ACTIVE session lists $1 as its parent — the session is
+# awaiting parallel sub-agent results (the phased-review-loop shape: P1–P4 run as 4 child
+# sessions). Its own time.updated legitimately lags while the children do the work, so the
+# zombie detector must not treat the wait as a stall.
+active_children() {
+  local active child
+  active="$(api get "/api/session/active" 2>/dev/null | jq -r '.data | keys[]' 2>/dev/null || true)"
+  [ -n "$active" ] || return 1
+  for child in $active; do
+    [ "$child" = "$1" ] && continue
+    if [ "$(api get "/api/session/$child" 2>/dev/null | jq -r '.data.parentID // ""' 2>/dev/null || true)" = "$1" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 spawn_session() {
   local doc="$1" sid
@@ -223,6 +239,13 @@ supervise_session() {
       fi
       [ "$upd" -ge 0 ] && last_updated="$upd"
       if [ "$idle_ticks" -ge "$STALL_SLICES" ]; then
+        # A parent session awaiting parallel sub-agents (the phased-review-loop shape) does not
+        # advance time.updated while its children run — not a stall. Reset the tick counter and
+        # keep waiting; the resume path (session_dead resume) must not fire on sub-agent work.
+        if active_children "$session_id"; then
+          idle_ticks=0
+          continue
+        fi
         log "session $session_id stalled (no activity across $STALL_SLICES wait slices) — resuming in place"
         idle_ticks=0
         session_dead resume
