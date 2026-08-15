@@ -69,6 +69,7 @@ tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a
 | First start (seed with the latest handoff, spawn immediately) | `./scripts/wayfinder-loop.sh --bootstrap wayfinder-163-handoff.md` |
 | Normal start / resume supervision after a stop or reboot | `tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh'` |
 | Resume a paused chain (after a dead/stalled session exhausted retries) | `./scripts/wayfinder-loop.sh --retry` |
+| Resume the existing session in place (keeps its uncommitted work) | `./scripts/wayfinder-loop.sh --resume` |
 
 ### When the agent needs you
 
