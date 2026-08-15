@@ -232,25 +232,25 @@ write_env SSH_MODE "$SSH_MODE"
 note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match; keep it unique on your tailnet."
 ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
 [[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
-[[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9_-]+$ ]] || abort "hostname may only contain letters, digits, hyphens and underscores (it feeds tailscale up + the OS hostname check)"
+[[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens, underscores only — it feeds tailscale up + the OS hostname check)"
 write_env TS_HOSTNAME "$TS_HOSTNAME"
 
 note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
 ask VPS_USER "Ubuntu username on the VPS" ubuntu
 [[ -n "$VPS_USER" ]] || abort "empty username"
-[[ "$VPS_USER" =~ ^[A-Za-z0-9_.-]+$ ]] || abort "invalid username (letters, digits, dots, hyphens, underscores only)"
+[[ "$VPS_USER" =~ ^[A-Za-z][A-Za-z0-9_.-]*$ ]] || abort "invalid username (must start with a letter; letters, digits, dots, hyphens, underscores only)"
 write_env VPS_USER "$VPS_USER"
 
 note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin (git remote get-url origin)."
 ask REPO_URL "Git repository URL" "$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 [[ -n "$REPO_URL" ]] || abort "empty repository URL"
-[[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z0-9+.-]+:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…)"
+[[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z][A-Za-z0-9+.-]*:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…)"
 write_env REPO_URL "$REPO_URL"
 
 note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defaults to the current branch."
 ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
 [[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
-[[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || abort "branch name may only contain letters, digits, dots, hyphens, underscores and slashes"
+[[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || abort "branch name must start with a letter or digit (letters, digits, dots, hyphens, underscores, slashes only)"
 write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 
 note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP. Re-runs keep a saved domain — delete the line in .wayfinder-vps.env to go back to nip.io."
@@ -790,6 +790,7 @@ if [[ "$MODE" == "full" ]]; then
 
 stage "Boundary check" 2
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
+[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
 if [[ -z "$HANDOFF" ]]; then
   abort "no handoff found in docs/agents/ — the switch bootstraps from one"
 fi
@@ -834,6 +835,7 @@ stage "Start the VPS daemon" 5
 warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
 # Re-derive the handoff AFTER the kill+push — the push just carried whatever the re-derive finds.
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
+[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
 [[ -n "$HANDOFF" ]] || abort "no handoff to bootstrap — aborting before the VPS daemon start"
 note "bootstrapping with: $HANDOFF"
 if vps 'tmux has-session -t wayfinder-loop' >/dev/null 2>&1; then
