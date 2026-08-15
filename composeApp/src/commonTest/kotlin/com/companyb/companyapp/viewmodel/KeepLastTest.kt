@@ -217,6 +217,10 @@ class KeepLastTest {
             val removed = kept.mutateRemoved { it == 9 }
 
             assertFalse(removed, "no element matched — no change")
+            assertTrue(
+                kept.state.value is UiState.Success,
+                "the state stays Success (mutate only writes Success or nothing)",
+            )
             assertEquals(listOf(1, 2), kept.freshestValue())
             advanceUntilIdle()
             assertEquals(listOf(1, 2), kept.freshest.value)
