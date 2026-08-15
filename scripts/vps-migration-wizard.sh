@@ -221,7 +221,7 @@ IPV4_RE='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9
 # $() — abort() inside a substitution is swallowed (loud-stop swallow class).
 latest_handoff() {
   local f
-  f="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
+  f="$(ls -td "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
   [[ -n "$f" ]] || abort "$1"
   [[ "$f" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
   [[ -f "$REPO/docs/agents/$f" ]] || abort "handoff path is not a regular file — remove the directory and re-run"
