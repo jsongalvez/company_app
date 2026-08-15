@@ -23,6 +23,8 @@ LOG_FILE="$REPO/.wayfinder-loop.log"
 [ -f "$REPO/.wayfinder-loop.env" ] && set -a && . "$REPO/.wayfinder-loop.env" && set +a
 NTFY_TOPIC="${WAYFINDER_NTFY_TOPIC:-}"
 POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
+WAIT_SECS="${WAYFINDER_WAIT_SECS:-180}"
+STALL_SLICES="${WAYFINDER_STALL_SLICES:-3}"
 DRY_RUN="${WAYFINDER_DRY_RUN:-}"
 OC_BIN="${OPENCODE_BIN:-$(command -v opencode2 || command -v opencode || true)}"
 
@@ -120,7 +122,8 @@ Operating rules for this automated run:
 
 wait_idle() {
   # 0 = idle, 124 = still running/blocked (bounded wait fired), 1 = API error
-  timeout 180 api post "/api/session/$1/wait" >/dev/null 2>&1
+  # NB: timeout must wrap the binary, not the api() function (functions aren't exec-able)
+  timeout "$WAIT_SECS" "$OC_BIN" api post "/api/session/$1/wait" >/dev/null 2>&1
   case $? in
     0) return 0 ;;
     124) return 124 ;;
@@ -182,7 +185,7 @@ wait_for_doc() {
 }
 
 supervise_session() {
-  local notified=0 notified_perm=0 outages=0 rc idle_ticks=0 last_count=-1 count
+  local notified=0 notified_perm=0 outages=0 rc idle_ticks=0 last_updated=0 upd
   while :; do
     rc=0; wait_idle "$session_id" || rc=$?
     if [ $rc -eq 124 ]; then
@@ -200,17 +203,19 @@ supervise_session() {
         notified_perm=1
       fi
       if [ -z "$p" ] && [ "$notified_perm" -eq 1 ]; then notified_perm=0; fi
-      # zombie detection: a live loop appends messages (tool results included);
-      # three wait slices (~9 min) without growth = stalled, treat as dead
-      count="$(api get "/api/session/$session_id/message" 2>/dev/null | jq -r '.data | length' 2>/dev/null || echo -1)"
-      if [ "$count" -ge 0 ] && [ "$count" -eq "$last_count" ]; then
+      # zombie detection: a live loop bumps session time.updated as messages
+      # land (tool results included); WAIT_SECS*STALL_SLICES without a change
+      # = stalled, resume it in place
+      upd="$(api get "/api/session/$session_id" 2>/dev/null | jq -r '.data.time.updated' 2>/dev/null || echo -1)"
+      if [ "$upd" -ge 0 ] && [ "$last_updated" -gt 0 ] && [ "$upd" -eq "$last_updated" ]; then
         idle_ticks=$((idle_ticks+1))
       else
         idle_ticks=0
       fi
-      [ "$count" -ge 0 ] && last_count="$count"
-      if [ "$idle_ticks" -ge 3 ]; then
-        log "session $session_id stalled (no message growth across 3 wait slices) — resuming in place"
+      [ "$upd" -ge 0 ] && last_updated="$upd"
+      if [ "$idle_ticks" -ge "$STALL_SLICES" ]; then
+        log "session $session_id stalled (no activity across $STALL_SLICES wait slices) — resuming in place"
+        idle_ticks=0
         session_dead resume
         continue
       fi

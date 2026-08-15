@@ -93,7 +93,7 @@ Subscribe your phone: install the ntfy app, then subscribe to the topic URL prin
 https://ntfy.sh/wf-ky1wf3r3vo
 ```
 
-Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
+Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_WAIT_SECS` (session wait slice, default 180), `WAYFINDER_STALL_SLICES` (stall slices before resume, default 3), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
 
 ### Resilience
 
