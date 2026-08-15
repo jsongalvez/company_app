@@ -214,15 +214,18 @@ env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || 
 # IPv4 shape — one definition for both the VPS_IP and TS_IP gates.
 IPV4_RE='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
 
-# latest_handoff EMPTY_ABORT_MSG — the newest docs/agents/wayfinder-<N>-handoff.md
-# basename, or abort. Validates the filename shape (digits only) — a malformed
-# name must never reach the remote shell quoted sites.
+# latest_handoff EMPTY_ABORT_MSG — sets HANDOFF to the newest
+# docs/agents/wayfinder-<N>-handoff.md basename, or aborts. Validates the
+# filename shape (digits only) + regular-file — a malformed name must never
+# reach the remote shell quoted sites. Call as a plain statement, NEVER inside
+# $() — abort() inside a substitution is swallowed (loud-stop swallow class).
 latest_handoff() {
   local f
   f="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
   [[ -n "$f" ]] || abort "$1"
   [[ "$f" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
-  printf '%s' "$f"
+  [[ -f "$REPO/docs/agents/$f" ]] || abort "handoff path is not a regular file — remove the directory and re-run"
+  HANDOFF="$f"
 }
 
 # check_authkey KEY EMPTY_ABORT_MSG — a pasted Tailscale auth key must be
@@ -814,7 +817,7 @@ fi
 if [[ "$MODE" == "full" ]]; then
 
 stage "Boundary check" 2
-HANDOFF="$(latest_handoff "no handoff found in docs/agents/ — the switch bootstraps from one")"
+latest_handoff "no handoff found in docs/agents/ — the switch bootstraps from one"
 note "latest handoff: $HANDOFF"
 git -C "$REPO" log --oneline -3
 UNCOMMITTED_HANDOFF="$(git -C "$REPO" status --porcelain 2>/dev/null | grep "wayfinder-" || true)"
@@ -855,7 +858,7 @@ fi
 stage "Start the VPS daemon" 5
 warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
 # Re-derive the handoff AFTER the kill+push — the push just carried whatever the re-derive finds.
-HANDOFF="$(latest_handoff "no handoff to bootstrap — aborting before the VPS daemon start")"
+latest_handoff "no handoff to bootstrap — aborting before the VPS daemon start"
 note "bootstrapping with: $HANDOFF"
 if vps 'tmux has-session -t wayfinder-loop' >/dev/null 2>&1; then
   HAS_RC=0
