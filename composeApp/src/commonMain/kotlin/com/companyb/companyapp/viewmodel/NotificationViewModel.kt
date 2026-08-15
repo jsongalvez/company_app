@@ -45,32 +45,28 @@ class NotificationViewModel(
     // landing with a mismatched stamp is a stale pre-action snapshot — see loadUnreadNotifications.
     private var actionStamp = 0L
 
-    fun loadUnreadNotifications(): Job {
-        val loadStamp = actionStamp
-        return handler.launch(
+    fun loadUnreadNotifications(): Job =
+        handler.launch(
             state = keptNotifications.stateFlow,
             operation = "loadUnreadNotifications",
             endpoint = "GET /api/notifications",
             block = { apiClient.httpClient.get("/api/notifications") },
-            transform = { response ->
-                val body = response.body<List<NotificationResponse>>()
-                if (loadStamp != actionStamp) {
-                    // An action (markRead/markAll) succeeded while this load was in flight, so
-                    // the snapshot predates it — committing it would resurrect read rows under
-                    // the new badge count (audit #141 pass-6/7). Substitute the post-action
-                    // list: the current Success read is race-free (the action's assignment is
-                    // synchronous same-thread); the freshest mirror is the next-freshest; fail
-                    // toward the invariant (emptyList) rather than committing the stale body.
-                    // The resurrect frame is eliminated even if the re-issue GET below fails;
-                    // the re-issue still runs so post-action arrivals surface.
-                    loadUnreadNotifications()
-                    currentUnreadList() ?: emptyList()
-                } else {
-                    body
-                }
+            transform = { it.body<List<NotificationResponse>>() },
+            // #165 stale-substitution guard (concentrated from the former in-transform block): a
+            // load that lands after an action (markRead/markAll) moved the list must not commit
+            // its pre-action snapshot (audit #141 pass-6/7) — the stamp mismatches, and the
+            // handler substitutes the fallback instead. The substitution is race-free (the
+            // action's assignment is synchronous same-thread; currentUnreadList reads the exact
+            // Success); the re-issue (a new load carrying the post-action stamp) converges
+            // server truth — post-action arrivals surface, and the resurrect frame is eliminated
+            // even if the re-issue GET fails.
+            checkpoint = { actionStamp },
+            isCurrent = { stamp -> stamp == actionStamp },
+            fallback = {
+                loadUnreadNotifications()
+                currentUnreadList() ?: emptyList()
             },
         )
-    }
 
     fun markRead(notificationId: String): Job =
         handler.launch(

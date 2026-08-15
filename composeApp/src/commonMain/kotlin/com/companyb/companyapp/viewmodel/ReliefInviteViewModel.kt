@@ -83,27 +83,24 @@ class ReliefInviteViewModel(
 
     fun loadReceived(): Job {
         if (keptReceived.state.value is UiState.Loading) return Job()
-        val stamp = actionStamp
         return handler.launch(
             state = keptReceived.stateFlow,
             operation = "loadReceived",
             endpoint = "GET /api/relief-invites",
             block = { apiClient.httpClient.get("/api/relief-invites") },
-            transform = { response ->
-                val body = response.body<List<ReliefInviteResponse>>()
-                if (stamp != actionStamp) {
-                    // An accept/decline landed while the load was in flight — committing the
-                    // snapshot would resurrect the resolved row (the #141 resurrect class).
-                    // Two recovery paths with distinct jobs: the SUBSTITUTION (currentReceivedList
-                    // — removeReceived assigns Success synchronously, FIFO-Main converges the
-                    // mirror) keeps the post-action list on screen; the RE-ISSUE converges
-                    // server truth — rows the action couldn't know (cross-device accepts,
-                    // new invites) land from the fresh GET. Both are pinned by tests.
-                    loadReceived()
-                    currentReceivedList() ?: emptyList()
-                } else {
-                    body
-                }
+            transform = { it.body<List<ReliefInviteResponse>>() },
+            // #165 stale-substitution guard (concentrated from the former in-transform block): an
+            // accept/decline landing while the load was in flight must not resurrect the resolved
+            // row (the #141 resurrect class). On a stamp mismatch the handler substitutes the
+            // fallback: currentReceivedList reads the exact post-action Success (removeReceived
+            // assigns synchronously); the re-issue converges server truth — rows the action
+            // couldn't know (cross-device accepts, new invites) land from the fresh GET. Both
+            // paths are pinned by tests.
+            checkpoint = { actionStamp },
+            isCurrent = { stamp -> stamp == actionStamp },
+            fallback = {
+                loadReceived()
+                currentReceivedList() ?: emptyList()
             },
         )
     }

@@ -37,8 +37,26 @@ class ApiCallHandler(
         // per-query Job so a newer keystroke cancels the in-flight request (D2 current-query
         // guard): the stale response then dies at the cancellation instead of committing.
         scope: CoroutineScope = this.scope,
+        // #165 stale-substitution guard — the resurrect-invariant (#141) at handler level. The
+        // identical `if (stamp != actionStamp) { reissue(); freshest() ?: emptyList() } else body`
+        // substitution block was hand-rolled at NotificationVM.loadUnreadNotifications +
+        // ReliefInviteVM.loadReceived; a load that lands after an action moved the state it was
+        // launched against must not commit its pre-action snapshot. checkpoint() captures a
+        // stamp synchronously at launch invocation (the caller's `val loadStamp = actionStamp`
+        // timing — exact at launch, not at coroutine start); on a success response the handler
+        // commits transform(response) only when isCurrent(stamp), else fallback() — the
+        // caller's substitution (a freshest-value read) + re-issue (a new launch carrying the
+        // post-action stamp). A stale body is never deserialized — its content is irrelevant to
+        // the invariant, and skipping the parse means a malformed stale body can no longer
+        // surface an Error for a response the caller would discard. Defaults are a no-op:
+        // isCurrent always true keeps every existing caller behavior-identical (the fallback
+        // default is unreachable then — a guard enabled without one fails loudly, not silently).
+        checkpoint: () -> Long = { 0L },
+        isCurrent: (Long) -> Boolean = { true },
+        fallback: () -> T = { error("stale-guard fallback invoked without an isCurrent guard") },
     ): Job {
         logInfo(tag, entryMessage)
+        val stamp = checkpoint()
         return scope.launch {
             state.value = UiState.Loading
             try {
@@ -46,7 +64,11 @@ class ApiCallHandler(
                 val response = block()
                 if (response.status.isSuccess()) {
                     logInfo(tag, "$operation success")
-                    state.value = UiState.Success(transform(response))
+                    if (isCurrent(stamp)) {
+                        state.value = UiState.Success(transform(response))
+                    } else {
+                        state.value = UiState.Success(fallback())
+                    }
                 } else {
                     logWarn(tag, "$operation failed: status=${response.status.value}")
                     if (!onNonSuccess(response)) {

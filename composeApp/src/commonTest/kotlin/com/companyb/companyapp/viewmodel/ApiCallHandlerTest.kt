@@ -1,0 +1,184 @@
+package com.companyb.companyapp.viewmodel
+
+import com.companyb.companyapp.network.mockApiClient
+import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+
+/**
+ * Tests for the #165 handler-level stale-substitution guard ([ApiCallHandler.launch]'s
+ * checkpoint/isCurrent/fallback params): a load that lands after the state it was launched
+ * against moved on must not commit its pre-action snapshot (the #141 resurrect class) — the
+ * resurrect-invariant formerly hand-rolled at NotificationVM.loadUnreadNotifications +
+ * ReliefInviteVM.loadReceived. The handler commits transform(response) only when isCurrent
+ * (the launch-captured stamp still matches), else fallback().
+ *
+ * The default-param cases pin that every existing handler caller (which passes no guard
+ * params) keeps the exact pre-#165 behavior: transform always commits, the guard is never
+ * consulted.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class ApiCallHandlerTest {
+    private lateinit var testScheduler: TestCoroutineScheduler
+
+    @BeforeTest
+    fun setup() {
+        testScheduler = TestCoroutineScheduler()
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    }
+
+    @AfterTest
+    fun teardown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun MockRequestHandleScope.respond200() =
+        respond(
+            content = ByteReadChannel("""[]"""),
+            status = HttpStatusCode.OK,
+            headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+        )
+
+    @Test
+    fun stale_landing_commits_fallback_not_transform() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            var stamp = 0L
+            var transformCalls = 0
+
+            // Launch with the guard: a stamp captured at launch; isCurrent consults it.
+            handler.launch(
+                state = state,
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { apiClient.httpClient.get("/api/items") },
+                transform = { response: HttpResponse ->
+                    transformCalls++
+                    emptyList()
+                },
+                checkpoint = { stamp },
+                isCurrent = { captured -> captured == stamp },
+                fallback = { listOf(9) },
+            )
+
+            // A concurrent action bumps the stamp while the load is in flight: the landing is
+            // stale, so the handler must commit the fallback, never the (undeserialized)
+            // response's transform.
+            stamp = 1
+            runCurrent()
+
+            val committed = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(listOf(9), committed.data)
+            assertEquals(
+                0,
+                transformCalls,
+                "a stale landing must not call transform — its body is never deserialized",
+            )
+        }
+
+    @Test
+    fun current_landing_commits_transform_not_fallback() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            val stamp = 0L
+            var fallbackCalls = 0
+
+            handler.launch(
+                state = state,
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { apiClient.httpClient.get("/api/items") },
+                transform = { listOf(1, 2, 3) },
+                checkpoint = { stamp },
+                isCurrent = { captured -> captured == stamp },
+                fallback = {
+                    fallbackCalls++
+                    emptyList()
+                },
+            )
+
+            runCurrent()
+
+            val committed = assertIs<UiState.Success<List<Int>>>(state.value)
+            assertEquals(listOf(1, 2, 3), committed.data)
+            assertEquals(0, fallbackCalls, "a current landing must commit the transform")
+        }
+
+    @Test
+    fun default_params_commit_transform_without_guard() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<String>>(UiState.Idle)
+
+            // No guard params — the historical shape: transform always commits on success.
+            handler.launch(
+                state = state,
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { apiClient.httpClient.get("/api/items") },
+                transform = { "data" },
+            )
+
+            runCurrent()
+
+            assertEquals(UiState.Success("data"), state.value)
+        }
+
+    @Test
+    fun non_success_response_commits_error_even_when_guard_enabled() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient { _ ->
+                    respond(
+                        content = ByteReadChannel(""),
+                        status = HttpStatusCode.InternalServerError,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+
+            // The 500 lands on the real IO thread (the #93 class idiom: non-2xx responses
+            // complete off the test scheduler) — join per the established pattern.
+            val job =
+                handler.launch(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = { emptyList() },
+                    checkpoint = { 0L },
+                    isCurrent = { false },
+                    fallback = { emptyList() },
+                )
+            job.join()
+
+            assertIs<UiState.Error>(state.value)
+        }
+}
