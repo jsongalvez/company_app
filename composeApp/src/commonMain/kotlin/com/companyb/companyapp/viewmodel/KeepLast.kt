@@ -153,6 +153,73 @@ class InFlightGuard<K> {
 }
 
 /**
+ * Per-key action tracker (the #166 P5 per-key-action-tracker graduate): the guard + per-key
+ * error-map pair — "successful `tryBegin` ⇒ clear that key's inline error" — once. Composes
+ * [InFlightGuard] for the coalescing marker and owns the per-key error map: [begin] marks the
+ * key in flight AND clears its stale error, both gated on the marker being free (the
+ * check-before-clear order all adopters used); [fail] records a key's error on a terminal
+ * failure path while clearing its marker; [finish] clears the marker on a success path.
+ *
+ * The tracker owns the error map WITHOUT message semantics: [fail]'s [String] is stored as
+ * given and never interpreted, formatted, or derived here — message construction stays at the
+ * call sites (the #166-P5 caveat: message-bearing coupling must not leak into the unifier).
+ *
+ * [clear] resets both the markers and the errors wholesale — the superseded-context escape
+ * (a reload replacing the list whose errors describe pre-reload actions; an edit-panel close
+ * superseding its section actions) — and inherits [InFlightGuard.clear]'s cross-wire hazard:
+ * adopters gate stale terminal paths (the FinanceReports generation guard) so a superseded
+ * completion never touches a re-armed marker.
+ */
+class ActionTracker<K> {
+    private val inFlightGuard = InFlightGuard<K>()
+    val inFlight: StateFlow<Set<K>> = inFlightGuard.inFlight
+
+    private val _errors = MutableStateFlow<Map<K, String>>(emptyMap())
+    val errors: StateFlow<Map<K, String>> = _errors.asStateFlow()
+
+    /**
+     * Mark [key] in flight and clear its stale error. Returns false (and does nothing — the
+     * stale error stays) when a request is already running for [key]; true when this call took
+     * the marker and cleared the error.
+     */
+    fun begin(key: K): Boolean {
+        if (!inFlightGuard.tryBegin(key)) return false
+        _errors.value = _errors.value - key
+        return true
+    }
+
+    /** Clear the in-flight marker for [key] on a success terminal path. No-op when idle. */
+    fun finish(key: K) = inFlightGuard.finish(key)
+
+    /** Clear the marker and record [message] for [key] on a terminal failure path. */
+    fun fail(
+        key: K,
+        message: String,
+    ) {
+        inFlightGuard.finish(key)
+        _errors.value = _errors.value + (key to message)
+    }
+
+    /**
+     * Reset wholesale: every marker and every error. Re-arming a key while its superseded
+     * request still runs re-opens the [InFlightGuard.clear] cross-wire — adopters gate stale
+     * terminal paths.
+     */
+    fun clear() {
+        inFlightGuard.clear()
+        _errors.value = emptyMap()
+    }
+
+    /**
+     * Drop every error whose key matches [predicate] — the fresh-data-supersedes-stale-errors
+     * shape (a section reload clearing its own action-error family). Markers are untouched.
+     */
+    fun clearWhere(predicate: (K) -> Boolean) {
+        _errors.value = _errors.value.filterKeys { key -> !predicate(key) }
+    }
+}
+
+/**
  * Per-key keep-last-results + in-flight guard (the #161 port shape, unified by #162): a map
  * mirror of the last successful payload per key, plus the [InFlightGuard] — absorbs
  * Remittance's `_lastByTab` + `listLoadsInFlight` manual set bookkeeping. Per-key, NOT

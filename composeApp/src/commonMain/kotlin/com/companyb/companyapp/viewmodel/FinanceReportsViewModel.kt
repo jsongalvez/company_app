@@ -658,10 +658,10 @@ class FinanceReportsViewModel(
     private val _editUsers = MutableStateFlow<UiState<List<BranchDayUserResponse>>>(UiState.Idle)
     val editUsers: StateFlow<UiState<List<BranchDayUserResponse>>> = _editUsers.asStateFlow()
 
-    // Per-action inline errors (ADR-0022 pessimistic axis) keyed by action key; per-action
-    // in-flight guards (double-tap closure).
-    private val _editErrors = MutableStateFlow<Map<String, String>>(emptyMap())
-    val editErrors: StateFlow<Map<String, String>> = _editErrors.asStateFlow()
+    // Per-action inline errors (ADR-0022 pessimistic axis) keyed by action key + per-action
+    // in-flight guard (double-tap closure).
+    private val actionTracker = ActionTracker<String>()
+    val editErrors: StateFlow<Map<String, String>> = actionTracker.errors
 
     // One-shot conflict signal (pass-1 HARD, pass-2 reworked): a 409 adds the key to a NEW Set
     // instance so the screen's LaunchedEffect(conflicts) re-fires — the open edit dialog holds a
@@ -677,8 +677,7 @@ class FinanceReportsViewModel(
         _conflicts.value = _conflicts.value - key
     }
 
-    private val inFlightGuard = InFlightGuard<String>()
-    val inFlightActions: StateFlow<Set<String>> = inFlightGuard.inFlight
+    val inFlightActions: StateFlow<Set<String>> = actionTracker.inFlight
 
     private var editDataGeneration = 0
 
@@ -798,10 +797,7 @@ class FinanceReportsViewModel(
                         // #143 class — a fresh list supersedes the section's stale action
                         // errors (e.g. a 409-reload landing beside its own error line).
                         if (errorKeyPrefixes.isNotEmpty()) {
-                            _editErrors.value =
-                                _editErrors.value.filterKeys { key ->
-                                    errorKeyPrefixes.none { key.startsWith(it) }
-                                }
+                            actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
                         }
                     }
                     Unit
@@ -831,8 +827,7 @@ class FinanceReportsViewModel(
         _editCompensations.value = UiState.Idle
         _editAllowances.value = UiState.Idle
         _editUsers.value = UiState.Idle
-        _editErrors.value = emptyMap()
-        inFlightGuard.clear()
+        actionTracker.clear()
         _conflicts.value = emptySet()
     }
 
@@ -846,7 +841,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "expense:create"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -877,7 +872,7 @@ class FinanceReportsViewModel(
                         // list to the new row; reload the section instead.
                         reloadSection(EditSection.EXPENSES)
                     }
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -891,9 +886,7 @@ class FinanceReportsViewModel(
                 // Pass-9 HARD — a transport/timeout failure must keep the dialog open with an
                 // inline error (the close-on-success effect keys on the ABSENCE of an error).
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "expense:create failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "expense:create failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -907,7 +900,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "expense:update:${expense.id}"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -930,7 +923,7 @@ class FinanceReportsViewModel(
                 val updated = it.body<ExpenseResponse>()
                 if (generation == editDataGeneration) {
                     replaceExpenseRow(updated)
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -949,9 +942,7 @@ class FinanceReportsViewModel(
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "expense:update failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "expense:update failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -962,7 +953,7 @@ class FinanceReportsViewModel(
         reason: String,
     ) {
         val key = "expense:delete:${expense.id}"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -977,7 +968,7 @@ class FinanceReportsViewModel(
                 val deleted = it.body<ExpenseResponse>()
                 if (generation == editDataGeneration) {
                     replaceExpenseRow(deleted)
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -989,9 +980,7 @@ class FinanceReportsViewModel(
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "expense:delete failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "expense:delete failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -1002,7 +991,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "expense:restore:${expense.id}"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1017,7 +1006,7 @@ class FinanceReportsViewModel(
                 val restored = it.body<ExpenseResponse>()
                 if (generation == editDataGeneration) {
                     replaceExpenseRow(restored)
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -1032,9 +1021,7 @@ class FinanceReportsViewModel(
                 // must keep the restore dialog open with an inline error (the close-on-success
                 // effect keys on the ABSENCE of an error).
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "expense:restore failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "expense:restore failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -1059,7 +1046,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "comp:create"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1089,7 +1076,7 @@ class FinanceReportsViewModel(
                     } else {
                         reloadSection(EditSection.COMPENSATIONS)
                     }
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -1108,9 +1095,7 @@ class FinanceReportsViewModel(
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "comp:create failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "comp:create failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -1123,7 +1108,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "comp:update:${compensation.id}"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1151,7 +1136,7 @@ class FinanceReportsViewModel(
                                 .orEmpty()
                                 .map { row -> if (row.id == updated.id) updated else row },
                         )
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -1170,9 +1155,7 @@ class FinanceReportsViewModel(
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "comp:update failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "comp:update failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -1187,7 +1170,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "allow:create"
-        if (!beginAction(key)) return
+        if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1215,7 +1198,7 @@ class FinanceReportsViewModel(
                     } else {
                         reloadSection(EditSection.ALLOWANCES)
                     }
-                    endAction(key)
+                    actionTracker.finish(key)
                 }
                 Unit
             },
@@ -1227,9 +1210,7 @@ class FinanceReportsViewModel(
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
-                    _editErrors.value =
-                        _editErrors.value + (key to "allow:create failed: ${e.message ?: "network error"}")
-                    endAction(key)
+                    actionTracker.fail(key, "allow:create failed: ${e.message ?: "network error"}")
                 }
             },
         )
@@ -1373,16 +1354,6 @@ class FinanceReportsViewModel(
 
     // ─────────────────────────── helpers ───────────────────────────
 
-    private fun beginAction(key: String): Boolean {
-        if (!inFlightGuard.tryBegin(key)) return false
-        _editErrors.value = _editErrors.value - key
-        return true
-    }
-
-    private fun endAction(key: String) {
-        inFlightGuard.finish(key)
-    }
-
     /**
      * ADR-0022 / #113 D4 — 403s exit silently (the capability surface is code-only; the backend
      * is authoritative and a silent exit must not flash an error the user can't act on).
@@ -1395,14 +1366,16 @@ class FinanceReportsViewModel(
         conflictMessage: String? = null,
         reload: (() -> Unit)? = null,
     ) {
-        endAction(key)
-        if (response.status == HttpStatusCode.Forbidden) return
+        if (response.status == HttpStatusCode.Forbidden) {
+            actionTracker.finish(key)
+            return
+        }
         val message =
             when {
                 response.status == HttpStatusCode.Conflict && conflictMessage != null -> conflictMessage
                 else -> "$operation failed: ${response.status.value}"
             }
-        _editErrors.value = _editErrors.value + (key to message)
+        actionTracker.fail(key, message)
         if (response.status == HttpStatusCode.Conflict) {
             _conflicts.value = _conflicts.value + key
             reload?.invoke()

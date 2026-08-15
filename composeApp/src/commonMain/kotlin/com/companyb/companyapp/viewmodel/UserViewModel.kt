@@ -119,11 +119,9 @@ class UserViewModel(
     // Per-action in-flight guard + inline errors (ADR-0022 pessimistic axis). Keys:
     // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$userIdA:$userIdB",
     // "slot:$branchId:$userId".
-    private val inFlightGuard = InFlightGuard<String>()
-    val inFlight: StateFlow<Set<String>> = inFlightGuard.inFlight
-
-    private val _actionErrors = MutableStateFlow<Map<String, String>>(emptyMap())
-    val actionErrors: StateFlow<Map<String, String>> = _actionErrors.asStateFlow()
+    private val actionTracker = ActionTracker<String>()
+    val inFlight: StateFlow<Set<String>> = actionTracker.inFlight
+    val actionErrors: StateFlow<Map<String, String>> = actionTracker.errors
 
     // Throwaway flow: every mutation lands here so a failure/in-flight fetch can never clobber
     // the accumulated users list (the #122/#120 keep-last-list shape).
@@ -155,8 +153,10 @@ class UserViewModel(
         // VM.
         keptUsers.stateFlow.value = UiState.Loading
         // A reload replaces the list; the errors describe actions against the pre-reload list
-        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
-        _actionErrors.value = emptyMap()
+        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale). The
+        // in-flight markers are empty here by the guard above (it skips while any mutation is
+        // in flight), so the wholesale reset is behavior-identical.
+        actionTracker.clear()
         handler.launch(
             state = keptUsers.stateFlow,
             operation = "loadUsers",
@@ -247,10 +247,6 @@ class UserViewModel(
         )
     }
 
-    private fun clearKey(key: String) {
-        inFlightGuard.finish(key)
-    }
-
     private fun runMutation(
         key: String,
         operation: String,
@@ -267,8 +263,7 @@ class UserViewModel(
         // the screen disables the row actions + dialog confirms while Loading; this guard covers
         // the same-frame tap that slips past the composition gate.
         if (keptUsers.state.value is UiState.Loading) return
-        if (!inFlightGuard.tryBegin(key)) return
-        _actionErrors.value = _actionErrors.value - key
+        if (!actionTracker.begin(key)) return
         handler.launch(
             state = mutation,
             operation = operation,
@@ -284,19 +279,17 @@ class UserViewModel(
                     // failure is visible). The handler still assigns Error to the throwaway flow;
                     // the inline error is what the screen renders. (transform never deserializes
                     // for these 204 ops, so only block() can throw here.)
-                    clearKey(key)
-                    _actionErrors.value = _actionErrors.value + (key to (e.message ?: "$operation failed"))
+                    actionTracker.fail(key, e.message ?: "$operation failed")
                     throw e
                 }
             },
             transform = {
-                clearKey(key)
+                actionTracker.finish(key)
                 onSuccess()
                 Unit
             },
             onNonSuccess = { response ->
-                clearKey(key)
-                _actionErrors.value = _actionErrors.value + (key to statusMessage(response.status))
+                actionTracker.fail(key, statusMessage(response.status))
                 true
             },
         )

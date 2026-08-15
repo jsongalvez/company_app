@@ -67,10 +67,9 @@ class AuditLogViewModel(
 
     // D2 — ack in-flight set + per-row inline errors (ADR-0022: pessimistic, failure keeps row).
     private val acknowledgeResult = MutableStateFlow<UiState<AuditLogEntryResponse>>(UiState.Idle)
-    private val acknowledgingGuard = InFlightGuard<String>()
-    val acknowledgingIds: StateFlow<Set<String>> = acknowledgingGuard.inFlight
-    private val _ackErrors = MutableStateFlow<Map<String, String>>(emptyMap())
-    val ackErrors: StateFlow<Map<String, String>> = _ackErrors.asStateFlow()
+    private val ackTracker = ActionTracker<String>()
+    val acknowledgingIds: StateFlow<Set<String>> = ackTracker.inFlight
+    val ackErrors: StateFlow<Map<String, String>> = ackTracker.errors
 
     // D5/D8/D10 — browse: accumulated pages + cursor; page-1 loads drive [browseEntries], while
     // refresh/load-more calls land on a throwaway flow so the accumulated list is never clobbered
@@ -192,8 +191,7 @@ class AuditLogViewModel(
     // D2 — one-tap acknowledge, pessimistic: row leaves the flagged list only on 2xx; a failure
     // (incl. the server-enforced self-ack 409) keeps the row and surfaces an inline per-row error.
     fun acknowledge(entry: AuditLogEntryResponse) {
-        if (!acknowledgingGuard.tryBegin(entry.id)) return
-        _ackErrors.value = _ackErrors.value - entry.id
+        if (!ackTracker.begin(entry.id)) return
         handler.launch(
             state = acknowledgeResult,
             operation = "acknowledgeEntry",
@@ -206,7 +204,7 @@ class AuditLogViewModel(
                 } catch (e: Exception) {
                     // Network failure — every failure path clears the in-flight guard and
                     // surfaces an inline per-row error (ADR-0022; #123 decision 2).
-                    failAcknowledge(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
+                    ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
                     throw e
                 }
             },
@@ -219,19 +217,19 @@ class AuditLogViewModel(
                     // badge + Acknowledge button until a refresh otherwise (a re-tap would 404
                     // on an already-acked row — stale state masking success).
                     markAcknowledgedInBrowse(entry.id)
-                    acknowledgingGuard.finish(entry.id)
+                    ackTracker.finish(entry.id)
                     acknowledged
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     // Deserialization failure — clear the in-flight guard so the row's button
                     // re-enables, and surface an inline error (ADR-0022 pessimistic axis).
-                    failAcknowledge(entry.id, "Acknowledge failed: ${e.message ?: "parse error"}")
+                    ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "parse error"}")
                     throw e
                 }
             },
             onNonSuccess = { response ->
-                failAcknowledge(
+                ackTracker.fail(
                     entry.id,
                     if (response.status == HttpStatusCode.Conflict) {
                         // Self-acknowledge (D2: the editor can't clear their own flag).
@@ -243,14 +241,6 @@ class AuditLogViewModel(
                 true
             },
         )
-    }
-
-    private fun failAcknowledge(
-        entryId: String,
-        message: String,
-    ) {
-        acknowledgingGuard.finish(entryId)
-        _ackErrors.value = _ackErrors.value + (entryId to message)
     }
 
     // D8 — apply filter bar values: fresh page-1 load, previous pages discarded. Unguarded by
