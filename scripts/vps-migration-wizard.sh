@@ -200,6 +200,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Ubuntu user on Oracle A1 images.
 VPS_USER="ubuntu"
 
+# abort "msg" — warn + exit 1 (the wizard's loud-stop idiom). Defined before
+# the first call site (Phase 2) — bash resolves functions at call time.
+abort() { warn "$1"; exit 1; }
+
 banner "Oracle Cloud VPS migration — wayfinder chain + Coolify deploy"
 
 # ── Phase 0 — pre-flight (this machine) ────────────────────────────────────
@@ -316,9 +320,6 @@ fi
 # ssh/scp helpers — everything below rides the tailnet.
 vps()   { ssh -o ConnectTimeout=15 "$VPS_USER@$TS_IP" "$@"; }
 vpsscp() { scp -o ConnectTimeout=15 "$@"; }
-
-# abort "msg" — warn + exit 1 (the wizard's loud-stop idiom).
-abort() { warn "$1"; exit 1; }
 
 # ── Phase 3 — VPS bootstrap (scripted over tailnet) ────────────────────────
 
