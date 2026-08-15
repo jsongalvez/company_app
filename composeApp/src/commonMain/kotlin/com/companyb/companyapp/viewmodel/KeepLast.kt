@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
  * Usage: pass [stateFlow] to [ApiCallHandler.launch] (the handler assigns Loading/Error/Success
  * on it); screens collect [freshest] for the render payload; VM-internal mutation transforms
  * read [freshestValue] — synchronous and exact, where the [freshest] flow's value can lag a
- * just-made assignment by one collector hop (the #141 stale-snapshot class).
+ * just-made assignment by one collector hop under test dispatchers (on Main.immediate it
+ * converges inline — see [freshestValue]).
  */
 class KeepLast<T>(
     scope: CoroutineScope,
@@ -37,7 +38,8 @@ class KeepLast<T>(
      * The freshest renderable payload: Success data when the state is Success, else the last
      * successful payload. Null only when nothing has ever loaded (screens show a spinner /
      * error card then). Collect this; do NOT read `.value` for VM-internal decisions — use
-     * [freshestValue] (this flow's value can lag a just-made state assignment).
+     * [freshestValue] (under test dispatchers this flow's value can lag a just-made state
+     * assignment by one collector hop; on Main.immediate it converges inline).
      */
     val freshest: StateFlow<T?> = _freshest.asStateFlow()
 
@@ -45,9 +47,10 @@ class KeepLast<T>(
      * Synchronous freshest read for VM-internal decisions (mutation transforms must read exact
      * current values — never a collected snapshot; the #141 stale-snapshot class). Reads the
      * state directly, so it is exact even mid-collector-hop. The mirror fallback (reached only
-     * during Loading/Error) is exact on Main.immediate — the collector resumes inline at every
-     * Success assignment, so any later read sees the converged mirror; under test dispatchers
-     * it can lag one hop until the scheduler advances (tests advance before reading).
+     * during any non-Success state — Idle/Loading/Error) is exact on Main.immediate — the
+     * collector resumes inline at every Success assignment, so any later read sees the
+     * converged mirror; under test dispatchers it can lag one hop until the scheduler advances
+     * (tests advance before reading).
      */
     fun freshestValue(): T? = (stateFlow.value as? UiState.Success<T>)?.data ?: _freshest.value
 

@@ -21,8 +21,10 @@ import kotlin.test.assertTrue
  * Tests for the #162 keep-last unifier helpers.
  *
  * [KeepLast] mirrors every Success landing on its state flow into [freshest] and keeps it
- * through Loading/Error; [freshestValue] is the synchronous exact read for VM-internal
- * mutation transforms (the flow's value can lag a just-made assignment by one collector hop).
+ * through Idle/Loading/Error; [freshestValue] is the synchronous exact read for VM-internal
+ * mutation transforms (under the test dispatcher the flow's value lags a just-made assignment
+ * by one collector hop — the tests advance the scheduler before reading the flow; on
+ * Main.immediate it converges inline, see the KeepLast KDoc).
  *
  * [KeepLastByKey] mirrors per-key and coalesces same-key in-flight loads while leaving other
  * keys' loads unblocked (the Remittance tab-switch contract).
@@ -105,8 +107,8 @@ class KeepLastTest {
             assertEquals(7, kept.freshestValue())
             assertNull(kept.freshest.value, "the collected flow converges only after a hop")
 
-            // The mirror converges on the next dispatch under the test dispatcher; the assert
-            // advances first so the Loading-window fallback reads the converged mirror (on
+            // The mirror converges on the next dispatch under the test dispatcher; the advance
+            // runs first so the Loading-window fallback reads the converged mirror (on
             // Main.immediate the collector resumes inline at the Success assignment — see the
             // KeepLast KDoc).
             advanceUntilIdle()
