@@ -330,11 +330,12 @@ class UserViewModel(
         userIdA: String,
         userIdB: String,
     ) {
-        // One mutate instead of the old two sequential writes: the intermediate frame (A with
-        // B's slot) was never readable by any consumer — the two writes ran synchronously in
-        // the caller's frame with no suspension between them — and the single write is the
-        // final swapped list. The null returns (either user missing, or no assignment at the
-        // branch) map to no-write, the old `?: return` paths.
+        // One mutate instead of the old two sequential writes: the old intermediate frame (A
+        // with B's slot) never reached a screen — both writes ran synchronously in the
+        // caller's frame, and deferred composition conflated them into the final swapped
+        // list. The single write is the final swapped list; the null returns (either user
+        // missing, or no assignment at the branch) map to no-write, the old `?: return`
+        // paths.
         keptUsers.mutate { users ->
             val slotA =
                 users
