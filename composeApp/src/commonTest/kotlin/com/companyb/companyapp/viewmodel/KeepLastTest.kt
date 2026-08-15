@@ -23,7 +23,8 @@ import kotlin.test.assertTrue
  * [KeepLast] mirrors every Success landing on its state flow into [freshest] and keeps it
  * through Idle/Loading/Error; [freshestValue] is the synchronous exact read for VM-internal
  * mutation transforms (under the test dispatcher the flow's value lags a just-made assignment
- * by one collector hop — the tests advance the scheduler before reading the flow; on
+ * by one collector hop — tests advance the scheduler before reading a converged flow value,
+ * except the deliberate pre-advance lag assertion at the freshestValue test; on
  * Main.immediate it converges inline, see the KeepLast KDoc).
  *
  * [KeepLastByKey] mirrors per-key and coalesces same-key in-flight loads while leaving other
