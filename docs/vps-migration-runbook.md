@@ -131,6 +131,7 @@ Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#1
 - `gh issue view 89` — map untouched by the move; the new session claims its ticket on GitHub as usual.
 - The VPS's pre-commit gate runs on every session commit (Postgres + backend tests) — watch the first one succeed end-to-end.
 - Optional: install `k6` (aarch64 binary from GitHub releases) so pre-push load-test baselines run on the VPS too.
+- **CORS: the API ships with zero CORS config — correct for the native KMP clients (Android/desktop/iOS don't enforce CORS) and for same-origin web. The moment a browser client on ANOTHER origin appears (web dashboard, web build of the app), register Javalin's bundled `CorsPlugin` with that origin whitelisted — and note the auth is JWT-bearer, not cookie, so no credentials-mode restrictions apply.**
 
 ## Secrets checklist (what leaves this box)
 
