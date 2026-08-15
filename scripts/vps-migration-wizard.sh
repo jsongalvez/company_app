@@ -342,7 +342,7 @@ pause "Instance created — note its public IP"
 stage "Capture the public IP" 2
 ask VPS_IP "Paste the instance public IP:"
 [[ -n "$VPS_IP" ]] || abort "empty IP — cannot continue"
-[[ "$VPS_IP" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || abort "invalid IPv4 — paste the instance public IP from the Oracle console"
+[[ "$VPS_IP" =~ ^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$ ]] || abort "invalid IPv4 — paste the instance public IP from the Oracle console"
 write_env VPS_IP "$VPS_IP"
 pause "Press Enter to test SSH (first connect accepts the host key)"
 
@@ -352,7 +352,7 @@ if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_
   note "ssh works"
 else
   warn "ssh failed — check the IP, the key, and that the instance is RUNNING (not Provisioning/Stopped)"
-  pause "Fixed? Press Enter to retry" && ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m'
+  pause "Fixed? Press Enter to retry" && ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m' || abort "ssh still failing — re-check the IP, the key, and that the instance is RUNNING"
 fi
 
 # ── Phase 2 — Tailscale ────────────────────────────────────────────────────
@@ -379,6 +379,7 @@ else
     ask_secret TS_AUTHKEY "Paste the Tailscale auth key:"
   fi
   [[ -n "$TS_AUTHKEY" ]] || abort "empty auth key — cannot join the tailnet"
+  [[ "$TS_AUTHKEY" =~ ^[A-Za-z0-9_-]+$ ]] || abort "invalid auth key (letters, digits, hyphens, underscores only)"
   note "installing tailscale on the VPS and joining (via public IP)…"
   ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
     'curl -fsSL https://tailscale.com/install.sh | sudo sh'
@@ -388,11 +389,12 @@ else
     TS_AUTHKEY=""
     ask_secret TS_AUTHKEY "Paste a NEW auth key (Enter on empty aborts):"
     [[ -n "$TS_AUTHKEY" ]] || abort "no new key — aborting"
+    [[ "$TS_AUTHKEY" =~ ^[A-Za-z0-9_-]+$ ]] || abort "invalid auth key (letters, digits, hyphens, underscores only)"
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname '$TS_HOSTNAME'" || abort "tailscale up failed again — investigate on the VPS"
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || TS_IP=""
-  [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" ; }
+  [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || abort "still no tailnet IP — fix tailscale on the VPS, then re-run" ; }
   write_env TS_IP "$TS_IP"
 fi
 note "tailnet IP: $TS_IP"
