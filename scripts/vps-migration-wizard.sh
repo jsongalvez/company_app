@@ -226,9 +226,9 @@ write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 ask APP_DOMAIN "Public app domain (blank = nip.io name derived from the VPS IP):"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
 
-TOTAL_STAGES=21
-TOTAL_MINUTES=95
-[[ "$MODE" == "full" ]] && { TOTAL_STAGES=37; TOTAL_MINUTES=158; }
+TOTAL_STAGES=20
+TOTAL_MINUTES=92
+[[ "$MODE" == "full" ]] && { TOTAL_STAGES=36; TOTAL_MINUTES=155; }
 [[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
 
 banner "Oracle Cloud VPS — ${MODE} setup (${SSH_MODE} ssh)"
@@ -244,6 +244,13 @@ if [[ "$MODE" == "full" ]] && command -v gh >/dev/null 2>&1; then
   gh issue list --state open --limit 10 || true
 else
   note "gh issue list skipped (app-only mode or gh missing)"
+fi
+if [[ "$MODE" == "app-only" ]]; then
+  if pgrep -f wayfinder-loop.sh >/dev/null 2>&1; then
+    note "local wayfinder daemon still running — app-only mode will NOT move it (leave it or kill it yourself)"
+  else
+    note "no wayfinder daemon running locally"
+  fi
 fi
 pause "Noted the session number + branch state"
 
@@ -373,16 +380,14 @@ vpsscp() { scp -o ConnectTimeout=15 "$@"; }
 stage "Base packages (all modes)" 6
 vps 'sudo apt-get update && sudo apt-get install -y curl git unzip docker.io docker-compose-v2'
 vps 'docker --version && docker compose version'
+vps 'sudo usermod -aG docker '"$VPS_USER"' && sudo systemctl enable --now docker'
+note "docker group applies to new sessions — each stage is a fresh ssh, so it is already active"
 
 if [[ "$MODE" == "full" ]]; then
 
 stage "Base packages (full mode extras)" 4
 vps 'sudo apt-get install -y openjdk-21-jdk tmux npm gh'
 vps 'java -version 2>&1 | head -1; tmux -V; gh --version | head -1'
-
-stage "Docker service" 3
-vps 'sudo usermod -aG docker '"$VPS_USER"' && sudo systemctl enable --now docker'
-note "docker group applies to new sessions — each stage is a fresh ssh, so it is already active"
 
 stage "GitHub CLI auth" 5
 if vps 'gh auth status' 2>/dev/null; then
@@ -543,8 +548,17 @@ fi
 
 stage "SSH hardening" 2
 if [[ "$SSH_MODE" == "public" ]]; then
-  vps 'printf "Port 22\nPort 51920\nPermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
-  vps 'sudo ss -tlnp | grep -E ":(22|51920)\b"'
+  vps 'printf "Port 22\nPort 51920\nPermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf'
+  # Ubuntu 24.04 socket-activates sshd: the ssh.socket owns the listening
+  # sockets and ignores sshd_config Port — switch to the classic service.
+  vps 'sudo systemctl disable --now ssh.socket 2>/dev/null || true; sudo systemctl enable --now ssh && sudo systemctl daemon-reload'
+  if vps 'sudo ss -tln | grep -q ":22 " && sudo ss -tln | grep -q ":51920 "'; then
+    note "✓ sshd listening on 22 (tailnet) and 51920 (public)"
+  else
+    warn "sshd not listening on both ports — check: sudo ss -tln"
+    pause "ports fixed?"
+  fi
+  vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
 else
   vps 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
@@ -555,8 +569,12 @@ if [[ "$SSH_MODE" == "public" ]]; then
 stage "Fail2ban (public ssh)" 3
 vps 'sudo apt-get install -y fail2ban'
 vps 'printf "[sshd]\nenabled = true\nport = 22,51920\n" | sudo tee /etc/fail2ban/jail.d/sshd-ports.conf && sudo systemctl restart fail2ban'
-vps 'sudo systemctl is-active fail2ban && sudo fail2ban-client status sshd | head -6' || true
-note "jails sshd on BOTH ports (22 tailnet + 51920 public); key-only auth already blocks password guessing"
+if vps 'sudo fail2ban-client status sshd | head -6'; then
+  note "✓ jail active on both ports (22 tailnet + 51920 public)"
+else
+  warn "fail2ban jail check failed — inspect: sudo fail2ban-client status sshd"
+fi
+note "key-only auth already blocks password guessing"
 
 fi
 
@@ -663,8 +681,10 @@ if [[ "$BEHIND" != "0" ]]; then
   fi
 fi
 LOCAL_ORIGIN="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
-if [[ -n "$LOCAL_ORIGIN" && "$LOCAL_ORIGIN" != "$REPO_URL" ]]; then
-  warn "this checkout's origin ($LOCAL_ORIGIN) differs from the Coolify repo ($REPO_URL) — pushes land elsewhere; Coolify pulls $REPO_URL"
+if [[ -n "$LOCAL_ORIGIN" ]]; then
+  NORM_LOCAL="$(printf '%s' "$LOCAL_ORIGIN" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#\.git$##')"
+  NORM_REPO="$(printf '%s' "$REPO_URL" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#\.git$##')"
+  [[ "$NORM_LOCAL" == "$NORM_REPO" ]] || warn "this checkout's origin ($LOCAL_ORIGIN) differs from the Coolify repo ($REPO_URL) — pushes land elsewhere; Coolify pulls $REPO_URL"
 fi
 open_url "http://$TS_IP:8000"
 step "+ New Resource → Public Repository"
@@ -752,11 +772,16 @@ fi
 
 stage "Push the branch (carries the handoff)" 4
 # Push AFTER the kill: anything a session committed up to the boundary lands in this push.
-if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
-  git -C "$REPO" push origin "$DEPLOY_BRANCH"
-  note "pushed (~3 min pre-push gate)"
+if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
+  if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
+    git -C "$REPO" push origin "$DEPLOY_BRANCH" || { warn "push FAILED — re-run resumes at this stage"; exit 1; }
+    note "pushed (~3 min pre-push gate)"
+  else
+    note "already up to date"
+  fi
 else
-  note "already up to date"
+  note "branch never pushed — pushing it now with upstream"
+  git -C "$REPO" push -u origin "HEAD:$DEPLOY_BRANCH" || { warn "push FAILED — re-run resumes at this stage"; exit 1; }
 fi
 
 stage "Start the VPS daemon" 5
