@@ -93,7 +93,9 @@ spawn_session() {
   fi
   local model_ref="null" pid
   if [ -n "${WAYFINDER_MODEL:-}" ]; then
-    pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$WAYFINDER_MODEL" '.data[] | select(.id == $id) | .providerID' | head -1)"
+    # `|| true` keeps the die below reachable: under `set -e`, a failing pipeline would abort
+    # the whole script BEFORE the guard (silent chain death — no FATAL log, no push).
+    pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$WAYFINDER_MODEL" '.data[] | select(.id == $id) | .providerID' | head -1)" || true
     [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' not found via /api/model"
     model_ref="$(jq -nc --arg id "$WAYFINDER_MODEL" --arg p "$pid" '{id: $id, providerID: $p}')"
   fi
