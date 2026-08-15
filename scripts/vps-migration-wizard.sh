@@ -232,7 +232,7 @@ write_env SSH_MODE "$SSH_MODE"
 note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match; keep it unique on your tailnet."
 ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
 [[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
-[[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens, underscores only — it feeds tailscale up + the OS hostname check)"
+[[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens only — it feeds tailscale up + the OS hostname check)"
 write_env TS_HOSTNAME "$TS_HOSTNAME"
 
 note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
@@ -244,7 +244,7 @@ write_env VPS_USER "$VPS_USER"
 note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin (git remote get-url origin)."
 ask REPO_URL "Git repository URL" "$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 [[ -n "$REPO_URL" ]] || abort "empty repository URL"
-[[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z][A-Za-z0-9+.-]*:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…)"
+[[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z][A-Za-z0-9+.-]*:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…; no spaces or special characters)"
 write_env REPO_URL "$REPO_URL"
 
 note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defaults to the current branch."
