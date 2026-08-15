@@ -509,11 +509,16 @@ else
 fi
 
 stage "Copy opencode config + keys" 3
-vps 'mkdir -p ~/.config ~/.local/share/opencode'
-vpsscp -r "$HOME/.config/opencode" "$VPS_USER@$TS_IP":~/.config/
-vpsscp "$HOME/.local/share/opencode/auth.json" "$VPS_USER@$TS_IP":~/.local/share/opencode/auth.json
-warn "deliberately NOT copying ~/.local/share/opencode/opencode.db (session state — VPS starts fresh)"
-vps 'du -sh ~/.config/opencode; wc -c ~/.local/share/opencode/auth.json'
+if vps 'test -d ~/.config/opencode' 2>/dev/null; then
+  note "opencode config already on the VPS (re-run) — skipping the scp"
+  warn "if config/auth.json changed locally since the copy, re-copy by hand: scp -r $HOME/.config/opencode $VPS_USER@$TS_IP:~/.config/ and restart the service"
+else
+  vps 'mkdir -p ~/.config ~/.local/share/opencode'
+  vpsscp -r "$HOME/.config/opencode" "$VPS_USER@$TS_IP":~/.config/
+  vpsscp "$HOME/.local/share/opencode/auth.json" "$VPS_USER@$TS_IP":~/.local/share/opencode/auth.json
+  warn "deliberately NOT copying ~/.local/share/opencode/opencode.db (session state — VPS starts fresh)"
+  vps 'du -sh ~/.config/opencode; wc -c ~/.local/share/opencode/auth.json'
+fi
 
 stage "Start the opencode service" 2
 if vps 'opencode2 api get /api/model'; then
