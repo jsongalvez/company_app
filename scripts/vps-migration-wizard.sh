@@ -190,40 +190,79 @@ finish() {
 # Replace the example below. Set the two totals to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=34
-TOTAL_MINUTES=150
-
-# Wizard state: VPS_IP, TS_IP, GH_PAT*, APP_DOMAIN, COOLIFY_ADMIN_* — gitignored.
-ENV_FILE=".wayfinder-vps.env"
+# Wizard state: MODE, SSH_MODE, TS_HOSTNAME, VPS_USER, REPO_URL, DEPLOY_BRANCH,
+# APP_DOMAIN, VPS_IP, TS_IP, COOLIFY_ADMIN_* — gitignored.
+ENV_FILE="$REPO/.wayfinder-vps.env"
 # Repo root — the wizard lives in scripts/.
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# Ubuntu user on Oracle A1 images.
-VPS_USER="ubuntu"
 
 # abort "msg" — warn + exit 1 (the wizard's loud-stop idiom). Defined before
-# the first call site (Phase 2) — bash resolves functions at call time.
+# the first call site — bash resolves functions at call time.
 abort() { warn "$1"; exit 1; }
 
-banner "Oracle Cloud VPS migration — wayfinder chain + Coolify deploy"
+# ── Configuration (asked once; re-runs keep the saved values) ───────────────
+
+_clear
+printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
+say "Mode: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
+ask MODE "Mode (full|app-only):"
+[[ "$MODE" == "full" || "$MODE" == "app-only" ]] || abort "MODE must be full or app-only"
+write_env MODE "$MODE"
+ask SSH_MODE "SSH access (tailnet|public):"
+[[ "$SSH_MODE" == "tailnet" || "$SSH_MODE" == "public" ]] || abort "SSH_MODE must be tailnet or public"
+write_env SSH_MODE "$SSH_MODE"
+ask TS_HOSTNAME "Tailscale/instance hostname for the VPS:" 
+[[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
+write_env TS_HOSTNAME "$TS_HOSTNAME"
+ask VPS_USER "Ubuntu username on the VPS:"
+[[ -n "$VPS_USER" ]] || abort "empty username"
+write_env VPS_USER "$VPS_USER"
+ask REPO_URL "Git repository URL:"
+[[ -n "$REPO_URL" ]] || abort "empty repository URL"
+write_env REPO_URL "$REPO_URL"
+ask DEPLOY_BRANCH "Branch Coolify deploys:"
+[[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
+write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
+ask APP_DOMAIN "Public app domain (blank = nip.io name derived from the VPS IP):"
+[[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
+
+TOTAL_STAGES=22
+TOTAL_MINUTES=95
+[[ "$MODE" == "full" ]] && { TOTAL_STAGES=38; TOTAL_MINUTES=158; }
+[[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
+
+banner "Oracle Cloud VPS — ${MODE} setup (${SSH_MODE} ssh)"
 
 # ── Phase 0 — pre-flight (this machine) ────────────────────────────────────
 
 stage "Pre-flight — branch state" 2
 say "Your session record before the move:"
 git -C "$REPO" log --oneline -1
-note "branch: $(git -C "$REPO" branch --show-current) — ahead of origin by $(git -C "$REPO" rev-list --count origin/master..HEAD 2>/dev/null || echo '?') commits"
+note "branch: $(git -C "$REPO" branch --show-current 2>/dev/null || echo '?') — ahead of origin by $(git -C "$REPO" rev-list --count origin/master..HEAD 2>/dev/null || echo '?') commits"
 git -C "$REPO" status --short | head -10 || true
-command -v gh >/dev/null 2>&1 && gh issue list --state open --limit 10 || warn "gh not available locally"
+if [[ "$MODE" == "full" ]] && command -v gh >/dev/null 2>&1; then
+  gh issue list --state open --limit 10 || true
+else
+  note "gh issue list skipped (app-only mode or gh missing)"
+fi
 pause "Noted the session number + branch state"
 
 stage "Push the branch now?" 4
-say "The VPS needs ralph/company-app-full-build on GitHub to clone it (and Coolify pulls it too)."
-say "Pushing now is safe — sessions commit locally, they don't push."
+if [[ "$MODE" == "full" ]]; then
+  say "The VPS needs $DEPLOY_BRANCH on GitHub to clone it (and Coolify pulls it too)."
+  say "Pushing now is safe — sessions commit locally, they don't push."
+else
+  say "Coolify pulls $DEPLOY_BRANCH from GitHub — push the branch now so the deploy sees it."
+fi
 if confirm "Push the branch to origin now"; then
   git -C "$REPO" push
   note "pushed (pre-push gate ~3 min)"
 else
-  warn "deferred — the branch reaches origin at the switch push (stage 32); the Coolify app stage (28) will push first if it is behind"
+  if [[ "$MODE" == "full" ]]; then
+    warn "deferred — the branch reaches origin at the switch push (stage 37); the Coolify app stage (33) will push first if it is behind"
+  else
+    warn "deferred — the Coolify app stage (33) will push first if it is behind"
+  fi
 fi
 
 # ── Phase 1 — Oracle VM + first access ─────────────────────────────────────
@@ -244,7 +283,7 @@ cat "$HOME/.ssh/id_ed25519.pub"
 stage "Oracle console — create the VM" 15
 open_url "https://cloud.oracle.com"
 step "Sign in → Compute → Instances → Create instance"
-step "Name: company-vps"
+step "Name: $TS_HOSTNAME (the OS hostname must match the tailnet hostname check)"
 step "Image: Ubuntu 24.04 (aarch64 ARM64)"
 step "Shape: VM.Standard.A1.Flex — set 2 OCPUs / 12 GB RAM (the free-tier cap)"
 warn "A1 is often 'Out of capacity' in busy regions — retry your home region or a different availability domain"
@@ -261,7 +300,7 @@ pause "Press Enter to test SSH (first connect accepts the host key)"
 
 stage "Verify SSH via public IP" 2
 note "connecting…"
-if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m; lsb_release -d' ; then
+if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m; lsb_release -d; hostname'; then
   note "ssh works"
 else
   warn "ssh failed — check the IP, the key, and that the instance is RUNNING (not Provisioning/Stopped)"
@@ -282,13 +321,13 @@ fi
 stage "Join the tailnet" 5
 TS_SAVED="$(_existing TS_IP || true)"
 if [[ -n "$TS_SAVED" ]] \
-   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_SAVED" 'hostname' 2>/dev/null | grep -q company-vps; then
+   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_SAVED" 'hostname' 2>/dev/null | grep -q "$TS_HOSTNAME"; then
   TS_IP="$TS_SAVED"
-  note "already on the tailnet at $TS_SAVED (hostname company-vps) — skipping"
+  note "already on the tailnet at $TS_SAVED (hostname $TS_HOSTNAME) — skipping"
 else
   TS_AUTHKEY="${TS_AUTHKEY:-}"
   if [[ -z "$TS_AUTHKEY" ]]; then
-    warn "no saved auth key — paste a fresh one (if the old box is gone, also delete the TS_IP line from .wayfinder-vps.env)"
+    warn "no saved auth key — paste a fresh one (if the old box is gone, also delete the TS_IP line from $ENV_FILE)"
     ask_secret TS_AUTHKEY "Paste the Tailscale auth key:"
   fi
   [[ -n "$TS_AUTHKEY" ]] || abort "empty auth key — cannot join the tailnet"
@@ -296,40 +335,52 @@ else
   ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
     'curl -fsSL https://tailscale.com/install.sh | sudo sh'
   if ! ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
-       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps"; then
+       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname $TS_HOSTNAME"; then
     warn "tailscale up failed — the saved auth key may be consumed or expired (if the tailscale daemon itself is down: sudo systemctl start tailscaled)"
     TS_AUTHKEY=""
     ask_secret TS_AUTHKEY "Paste a NEW auth key (Enter on empty aborts):"
     [[ -n "$TS_AUTHKEY" ]] || abort "no new key — aborting"
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
-      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname company-vps" || abort "tailscale up failed again — investigate on the VPS"
+      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname $TS_HOSTNAME" || abort "tailscale up failed again — investigate on the VPS"
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')"
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" ; }
   write_env TS_IP "$TS_IP"
 fi
 note "tailnet IP: $TS_IP"
-warn "if an OLD company-vps node is still alive on the tailnet (deleted VM?), delete it in the tailscale admin console — a stale node with the same name would be mistaken for this VPS"
+warn "if an OLD $TS_HOSTNAME node is still alive on the tailnet (deleted VM?), delete it in the tailscale admin console — a stale node with the same name would be mistaken for this VPS"
 if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$VPS_USER@$TS_IP" 'true'; then
   note "✓ ssh via tailnet works — all later stages use the tailnet IP"
 else
   warn "ssh over tailnet failed — is this machine logged into the same tailnet?"
-  pause "Press Enter once ssh ubuntu@$TS_IP works"
+  pause "Press Enter once ssh $VPS_USER@$TS_IP works"
 fi
+
+stage "Disable tailscale key expiry" 2
+warn "Tailscale node keys expire after 180 days by default. When the key expires the node drops OFF the tailnet — and with ${SSH_MODE} ssh that is a LOCKOUT."
+open_url "https://login.tailscale.com/admin/machines"
+step "Find $TS_HOSTNAME → the ⋮ menu → Disable Key Expiry"
+step "Confirm the row now shows key expiry disabled"
+pause "Key expiry disabled for the node?"
 
 # ssh/scp helpers — everything below rides the tailnet.
 vps()   { ssh -o ConnectTimeout=15 "$VPS_USER@$TS_IP" "$@"; }
 vpsscp() { scp -o ConnectTimeout=15 "$@"; }
 
-# ── Phase 3 — VPS bootstrap (scripted over tailnet) ────────────────────────
+# ── Phase 3 — bootstrap (scripted over tailnet) ────────────────────────────
 
-stage "Base packages" 6
-vps 'sudo apt-get update && sudo apt-get install -y openjdk-21-jdk git tmux curl unzip npm gh docker.io docker-compose-v2'
+stage "Base packages (all modes)" 6
+vps 'sudo apt-get update && sudo apt-get install -y curl git unzip docker.io docker-compose-v2'
+vps 'docker --version && docker compose version'
+
+if [[ "$MODE" == "full" ]]; then
+
+stage "Base packages (full mode extras)" 4
+vps 'sudo apt-get install -y openjdk-21-jdk tmux npm gh'
 vps 'java -version 2>&1 | head -1; tmux -V; gh --version | head -1'
 
 stage "Docker service" 3
 vps 'sudo usermod -aG docker '"$VPS_USER"' && sudo systemctl enable --now docker'
-vps 'docker --version && docker compose version'
 note "docker group applies to new sessions — each stage is a fresh ssh, so it is already active"
 
 stage "GitHub CLI auth" 5
@@ -358,7 +409,7 @@ stage "Copy opencode config + keys" 3
 vps 'mkdir -p ~/.config ~/.local/share/opencode'
 vpsscp -r "$HOME/.config/opencode" "$VPS_USER@$TS_IP":~/.config/
 vpsscp "$HOME/.local/share/opencode/auth.json" "$VPS_USER@$TS_IP":~/.local/share/opencode/auth.json
-warn "deliberately NOT copying ~/.local/share/opencode/opencode.db (2.1 GB session state — VPS starts fresh)"
+warn "deliberately NOT copying ~/.local/share/opencode/opencode.db (session state — VPS starts fresh)"
 vps 'du -sh ~/.config/opencode; wc -c ~/.local/share/opencode/auth.json'
 
 stage "Start the opencode service" 2
@@ -380,13 +431,13 @@ stage "Clone the repo" 3
 if vps 'test -d ~/company_app/.git'; then
   note "repo already cloned — skipping"
 else
-  vps 'git clone https://github.com/jsongalvez/company_app.git ~/company_app'
+  vps "git clone $REPO_URL ~/company_app"
 fi
-if vps 'git -C ~/company_app switch ralph/company-app-full-build'; then
+if vps "git -C ~/company_app switch $DEPLOY_BRANCH"; then
   note "branch checked out"
 else
-  warn "branch not on origin yet — it lands at the switch push (stage 32); the switch stage checks it out"
-  vps 'git -C ~/company_app switch master'
+  warn "branch not on origin yet — it lands at the switch push (stage 37); the switch stage checks it out"
+  vps 'git -C ~/company_app switch master 2>/dev/null || true'
 fi
 vps 'git -C ~/company_app log --oneline -1'
 
@@ -416,7 +467,7 @@ stage "Git hooks + ktlint" 2
 vps 'cd ~/company_app && bash scripts/setup-hooks.sh'
 
 stage "Warm the build gate" 16
-GATE_CMD='cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'
+GATE_CMD="cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &"
 LAST_BUILD="$(vps 'grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/gate-warm.log 2>/dev/null | tail -1' || true)"
 if [[ "$LAST_BUILD" == *"FAILED"* ]]; then
   warn "gate warm FAILED in an earlier run — the first VPS session commit would break."
@@ -470,16 +521,42 @@ else
   fi
 fi
 
+else
+  note "full-mode stages skipped (app-only mode) — Coolify builds in containers; the VPS itself needs no JDK/Gradle/gh"
+fi
+
 # ── Phase 4 — harden ───────────────────────────────────────────────────────
 
 stage "Firewall (ufw)" 3
-vps 'sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow in on tailscale0 && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 41641/udp && sudo ufw --force enable'
+if [[ "$SSH_MODE" == "public" ]]; then
+  vps "sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow in on tailscale0 && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 51920/tcp && sudo ufw allow 41641/udp && sudo ufw --force enable"
+else
+  vps 'sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow in on tailscale0 && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 41641/udp && sudo ufw --force enable'
+fi
 vps 'sudo ufw status verbose'
-note "ssh = tailnet only (via tailscale0); 80/443 public for Coolify + the app; 41641/udp = tailscale direct connections"
+if [[ "$SSH_MODE" == "public" ]]; then
+  note "tailnet ssh = 22 via tailscale0; org admins = 51920/tcp public (key-only, fail2ban); 80/443 public for Coolify + the app; 41641/udp = tailscale direct connections"
+else
+  note "ssh = tailnet only (via tailscale0); 80/443 public for Coolify + the app; 41641/udp = tailscale direct connections"
+fi
 
 stage "SSH hardening" 2
-vps 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
-vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
+if [[ "$SSH_MODE" == "public" ]]; then
+  vps 'printf "Port 22\nPort 51920\nPermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
+  vps 'sudo sshd -T | grep -E "^(port|permitrootlogin|passwordauthentication)"'
+else
+  vps 'printf "PermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf && sudo systemctl restart ssh'
+  vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
+fi
+
+if [[ "$SSH_MODE" == "public" ]]; then
+
+stage "Fail2ban (public ssh)" 3
+vps 'sudo apt-get install -y fail2ban && sudo systemctl enable --now fail2ban'
+vps 'sudo systemctl is-active fail2ban && sudo fail2ban-client status sshd | head -5'
+note "jails sshd on both listening ports (22 tailnet + 51920 public); key-only auth already blocks password guessing"
+
+fi
 
 stage "Unattended security upgrades" 2
 vps 'sudo apt-get install -y unattended-upgrades && sudo systemctl enable --now unattended-upgrades'
@@ -490,9 +567,18 @@ stage "Oracle security list (2nd firewall layer)" 5
 open_url "https://cloud.oracle.com"
 step "Networking → Virtual cloud networks → your VCN → Security Lists → Default Security List"
 step "Edit ingress rules: REMOVE 22/tcp from 0.0.0.0/0 (public SSH dies here — tailnet ssh is unaffected)"
-step "ADD 80/tcp and 443/tcp from 0.0.0.0/0 (Coolify + the app)"
+if [[ "$SSH_MODE" == "public" ]]; then
+  step "ADD 80/tcp, 443/tcp AND 51920/tcp from 0.0.0.0/0 (app, Coolify proxy, org-admin ssh)"
+else
+  step "ADD 80/tcp and 443/tcp from 0.0.0.0/0 (Coolify + the app)"
+fi
 note "Security list + ufw = the two independent layers from docs/architecture.md"
 pause "Security list updated?"
+
+stage "Oracle idle-reclaim heartbeat" 2
+warn "Oracle stops Always-Free instances idle for 7 days (CPU p95 <20%, net <20%, mem <20%). Coolify's footprint alone keeps memory above 20% of 12 GB — this cron covers the CPU leg as belt-and-braces."
+vps 'printf "%s\n" "* * * * * root timeout 30 yes > /dev/null 2>&1" | sudo tee /etc/cron.d/idle-heartbeat && sudo chmod 644 /etc/cron.d/idle-heartbeat'
+vps 'sudo grep -c "" /etc/cron.d/idle-heartbeat'
 
 # ── Phase 5 — Coolify + app deploy ─────────────────────────────────────────
 
@@ -519,76 +605,105 @@ step "Instance domain: leave as-is (http://$TS_IP:8000)"
 step "Skip/close any onboarding prompts (notifications, etc.)"
 pause "Dashboard visible?"
 
-stage "Backend Dockerfile" 4
-if [[ ! -f "$REPO/backend/Dockerfile" ]]; then
-  warn "backend/Dockerfile missing — create it (multi-stage: gradle wrapper → temurin 21 → installDist), then commit + push"
-  pause "Dockerfile in place and pushed?"
-fi
-if [[ -f "$REPO/backend/Dockerfile" ]]; then
-  note "backend/Dockerfile present ✓"
-  if git -C "$REPO" status --porcelain backend/Dockerfile | grep -q .; then
-    confirm "Commit + push the Dockerfile now (Coolify needs it on GitHub)?" && \
-      git -C "$REPO" add backend/Dockerfile && \
-      git -C "$REPO" commit -m "feat(infra): backend Dockerfile for Coolify deploy" && \
-      git -C "$REPO" push
+stage "App Dockerfile" 4
+if [[ "$MODE" == "full" ]]; then
+  if [[ ! -f "$REPO/backend/Dockerfile" ]]; then
+    warn "backend/Dockerfile missing — create it (multi-stage: gradle wrapper → temurin 21 → installDist), then commit + push"
+    pause "Dockerfile in place and pushed?"
+  fi
+  if [[ -f "$REPO/backend/Dockerfile" ]]; then
+    note "backend/Dockerfile present ✓"
+    if git -C "$REPO" status --porcelain backend/Dockerfile | grep -q .; then
+      confirm "Commit + push the Dockerfile now (Coolify needs it on GitHub)?" && \
+        git -C "$REPO" add backend/Dockerfile && \
+        git -C "$REPO" commit -m "feat(infra): backend Dockerfile for Coolify deploy" && \
+        git -C "$REPO" push
+    fi
+  fi
+else
+  if ls "$REPO"/Dockerfile "$REPO"/backend/Dockerfile >/dev/null 2>&1; then
+    note "Dockerfile present ✓ (Coolify will use it)"
+  else
+    warn "no Dockerfile found in the repo — Coolify can build with Nixpacks (auto-detect), or add a Dockerfile and push it"
+    pause "Dockerfile in place and pushed? (or note to use Nixpacks)"
   fi
 fi
 
 stage "Coolify — Postgres resource" 5
 open_url "http://$TS_IP:8000"
 step "Projects → New Project (e.g. company) → inside it: + New Resource → Postgres"
-step "Set POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD to the values from your repo .env (paste from below):"
-note "  — values below are read from your local .env —"
-for k in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
-  note "  $k=$(grep -E "^$k=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || echo '<from .env>')"
-done
+if [[ "$MODE" == "full" ]]; then
+  step "Set POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD to the values from your repo .env (paste from below):"
+  note "  — values below are read from your local .env —"
+  for k in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
+    note "  $k=$(grep -E "^$k=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || echo '<from .env>')"
+  done
+else
+  step "Set a DB name, user and password of your choice (or from your app's config — your choice)"
+fi
 step "Deploy the Postgres resource and wait for it to run"
 pause "Postgres resource running? Note its internal hostname (usually 'postgres')"
 
 stage "Coolify — the app resource" 8
 # Coolify pulls from GitHub — the branch must be current on origin BEFORE the deploy.
-if git -C "$REPO" rev-parse --verify -q origin/ralph/company-app-full-build >/dev/null 2>&1; then
-  BEHIND=$(git -C "$REPO" rev-list --count origin/ralph/company-app-full-build..HEAD 2>/dev/null || echo 999)
+if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
+  BEHIND=$(git -C "$REPO" rev-list --count "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null || echo 999)
 else
   BEHIND=999
 fi
 if [[ "$BEHIND" != "0" ]]; then
   note "branch is $BEHIND commit(s) ahead of origin — pushing so Coolify deploys the current code."
   if confirm "Push now?"; then
-    git -C "$REPO" push || warn "push FAILED — Coolify will deploy the OLD commit; the switch push (stage 32) retries"
+    git -C "$REPO" push || warn "push FAILED — Coolify will deploy the OLD commit; the switch push (stage 37) retries"
   else
-    warn "skipped — Coolify deploys whatever is on origin (may be stale); the switch push (stage 32) goes through first if you keep skipping"
+    warn "skipped — Coolify deploys whatever is on origin (may be stale); the switch push (stage 37) goes through first if you keep skipping"
   fi
 fi
 open_url "http://$TS_IP:8000"
 step "+ New Resource → Public Repository"
-step "Git repository: https://github.com/jsongalvez/company_app.git"
-step "Branch: ralph/company-app-full-build"
-step "Build pack: Dockerfile"
-step "Dockerfile location: /backend/Dockerfile"
-step "Ports Exposes: $(grep -E '^APP_PORT=' "$REPO/.env" | head -1 | cut -d= -f2- || echo 'your APP_PORT from .env')"
-step "Domains: api.$VPS_IP.nip.io (enable HTTPS — Let's Encrypt)"
-step "Environment variables — copy from the block below:"
-note "  APP_HOST=0.0.0.0"
-note "  APP_PORT=$(grep -E '^APP_PORT=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<APP_PORT from .env>')"
-note "  DB_HOST=postgres   # the Postgres resource's internal hostname"
-note "  DB_PORT=5432"
-note "  POSTGRES_DB=$(grep -E '^POSTGRES_DB=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  POSTGRES_USER=$(grep -E '^POSTGRES_USER=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  POSTGRES_PASSWORD=$(grep -E '^POSTGRES_PASSWORD=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  JWT_SECRET=$(grep -E '^JWT_SECRET=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  JWT_ISSUER=$(grep -E '^JWT_ISSUER=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  JWT_AUDIENCE=$(grep -E '^JWT_AUDIENCE=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  AUTH_DUMMY_PASSWORD=$(grep -E '^AUTH_DUMMY_PASSWORD=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-note "  (skip TEST_USERNAME/TEST_PASSWORD — test seeding stays off in prod)"
-step "Deploy, then watch the build log (~5-10 min first build: Gradle downloads)"
+step "Git repository: $REPO_URL"
+step "Branch: $DEPLOY_BRANCH"
+step "Build pack: Dockerfile (or Nixpacks if no Dockerfile)"
+if [[ "$MODE" == "full" ]]; then
+  step "Dockerfile location: /backend/Dockerfile"
+  step "Ports Exposes: $(grep -E '^APP_PORT=' "$REPO/.env" | head -1 | cut -d= -f2- || echo 'your APP_PORT from .env')"
+else
+  step "Ports Exposes: your app's port"
+fi
+DOMAIN="${APP_DOMAIN:-api.$VPS_IP.nip.io}"
+step "Domains: $DOMAIN (enable HTTPS — Let's Encrypt)"
+if [[ -n "$APP_DOMAIN" ]]; then
+  warn "you gave a real domain — make sure its A record points at $VPS_IP BEFORE the deploy (DNS propagation delays break the TLS issuance)"
+else
+  note "nip.io name derived from the VPS IP — no DNS setup needed"
+fi
+if [[ "$MODE" == "full" ]]; then
+  step "Environment variables — copy from the block below:"
+  note "  APP_HOST=0.0.0.0"
+  note "  APP_PORT=$(grep -E '^APP_PORT=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<APP_PORT from .env>')"
+  note "  DB_HOST=postgres   # the Postgres resource's internal hostname"
+  note "  DB_PORT=5432"
+  note "  POSTGRES_DB=$(grep -E '^POSTGRES_DB=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  POSTGRES_USER=$(grep -E '^POSTGRES_USER=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  POSTGRES_PASSWORD=$(grep -E '^POSTGRES_PASSWORD=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  JWT_SECRET=$(grep -E '^JWT_SECRET=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  JWT_ISSUER=$(grep -E '^JWT_ISSUER=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  JWT_AUDIENCE=$(grep -E '^JWT_AUDIENCE=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  AUTH_DUMMY_PASSWORD=$(grep -E '^AUTH_DUMMY_PASSWORD=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  (skip TEST_USERNAME/TEST_PASSWORD — test seeding stays off in prod)"
+else
+  step "Environment variables — the keys your app needs. Your local .env defines:"
+  grep -oE '^[A-Z_]+=' "$REPO/.env" 2>/dev/null | tr -d '=' | sed 's/^/  /' || note "  (no .env found locally — enter the vars your app needs)"
+  step "Copy the VALUES from your local .env; override DB_HOST=postgres and APP_HOST=0.0.0.0"
+fi
+step "Deploy, then watch the build log (~5-10 min first build)"
 pause "Build finished (success or visible failure)?"
 
 stage "Verify the deployed backend" 10
 if confirm "Try the HTTPS health check now?"; then
-  code="$(curl -sk -o /dev/null -w '%{http_code}' "https://api.$VPS_IP.nip.io/health" || true)"
-  note "https://api.$VPS_IP.nip.io/health → HTTP $code"
-  curl -sk "https://api.$VPS_IP.nip.io/health" && echo
+  code="$(curl -sk -o /dev/null -w '%{http_code}' "https://$DOMAIN/health" || true)"
+  note "https://$DOMAIN/health → HTTP $code"
+  curl -sk "https://$DOMAIN/health" && echo
   if [[ "$code" == "200" ]]; then
     note "✓ deployed backend is live over HTTPS"
   else
@@ -597,7 +712,9 @@ if confirm "Try the HTTPS health check now?"; then
   fi
 fi
 
-# ── Phase 6 — the switch (CRITICAL: never two daemons) ─────────────────────
+# ── Phase 6 — the switch (CRITICAL: never two daemons; full mode only) ─────
+
+if [[ "$MODE" == "full" ]]; then
 
 stage "Boundary check" 2
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
@@ -654,7 +771,7 @@ else
     abort "rollback: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
   fi
   note "aligning the VPS checkout with origin (a local-only VPS commit from a partial run is discarded — origin is canonical)…"
-  vps "cd ~/company_app && git fetch origin && (git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build 2>/dev/null || git switch ralph/company-app-full-build) && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
+  vps "cd ~/company_app && git fetch origin && (git switch -C $DEPLOY_BRANCH origin/$DEPLOY_BRANCH 2>/dev/null || git switch $DEPLOY_BRANCH) && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
   vps "test -f ~/company_app/docs/agents/$HANDOFF" || abort "handoff not in the VPS checkout — the pull or push is stale"
   LOCAL_SHA="$(sha256sum "$REPO/docs/agents/$HANDOFF" | cut -d' ' -f1)"
   VPS_SHA="$(vps "sha256sum ~/company_app/docs/agents/$HANDOFF" 2>/dev/null | cut -d' ' -f1 || true)"
@@ -682,5 +799,9 @@ fi
 note "first VPS pre-commit gate runs on the next session commit (watch it succeed end-to-end)"
 note "k6 skipped (optional): pre-push warns + skips the load test on the VPS"
 note "next session on the VPS works the map as usual — same branch, same issues"
+
+else
+  note "switch phase skipped (app-only mode) — nothing to move; the VPS is the app host only"
+fi
 
 finish
