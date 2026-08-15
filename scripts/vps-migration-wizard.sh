@@ -101,18 +101,22 @@ _existing() {
   printf '%s' "${line#*=}"
 }
 
-# ask KEY "Prompt" — read a value into $KEY. Offers the existing .env value as
-# a default on re-runs (Enter keeps it). Visible input (non-secret).
+# ask KEY "Prompt" [default] — read a value into $KEY. Shows the default
+# (existing .env value on re-runs, or the passed default on first run);
+# Enter keeps it. Blank with neither stays empty (the caller aborts).
 ask() {
-  local key="$1" prompt="$2" current input
+  local key="$1" prompt="$2" fallback="${3:-}" current input
   current=$(_existing "$key" || true)
   if [[ -n "$current" ]]; then
     printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$RESET"
+  elif [[ -n "$fallback" ]]; then
+    printf '  %s%s%s %s[default: %s]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$fallback" "$RESET"
   else
     printf '  %s%s%s ' "$BOLD" "$prompt" "$RESET"
   fi
   read -r input || true
   [[ -z "$input" && -n "$current" ]] && input="$current"
+  [[ -z "$input" && -n "$fallback" ]] && input="$fallback"
   printf -v "$key" '%s' "$input"
 }
 
@@ -208,27 +212,48 @@ env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || 
 
 _clear
 printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
-say "Mode: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
-ask MODE "Mode (full|app-only) — blank aborts:"
+say "One-time setup questions — press Enter for a sensible default (best on first runs)."
+say "Have at hand: the Oracle Cloud console (VM creation), the Tailscale admin console, and a GitHub PAT (full mode)."
+note "answers are saved to .wayfinder-vps.env — re-runs keep them, so Enter re-confirms."
+
+note "MODE: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
+ask MODE "Mode" full
 [[ "$MODE" == "full" || "$MODE" == "app-only" ]] || abort "MODE must be full or app-only"
 write_env MODE "$MODE"
-ask SSH_MODE "SSH access (tailnet|public) — blank aborts:"
+
+note "SSH_MODE: tailnet = SSH only over Tailscale (no public port, simpler + stronger); public = extra port + fail2ban."
+ask SSH_MODE "SSH access" tailnet
 [[ "$SSH_MODE" == "tailnet" || "$SSH_MODE" == "public" ]] || abort "SSH_MODE must be tailnet or public"
 write_env SSH_MODE "$SSH_MODE"
-ask TS_HOSTNAME "Tailscale/instance hostname for the VPS:" 
+
+note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match; keep it unique on your tailnet."
+ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
 [[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
 write_env TS_HOSTNAME "$TS_HOSTNAME"
-ask VPS_USER "Ubuntu username on the VPS:"
+
+note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
+ask VPS_USER "Ubuntu username on the VPS" ubuntu
 [[ -n "$VPS_USER" ]] || abort "empty username"
 write_env VPS_USER "$VPS_USER"
-ask REPO_URL "Git repository URL:"
+
+note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin."
+ask REPO_URL "Git repository URL" "$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 [[ -n "$REPO_URL" ]] || abort "empty repository URL"
 write_env REPO_URL "$REPO_URL"
-ask DEPLOY_BRANCH "Branch Coolify deploys:"
+
+note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defaults to the current branch."
+ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
 [[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
 write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
-ask APP_DOMAIN "Public app domain (blank = nip.io name derived from the VPS IP):"
+
+note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP."
+ask APP_DOMAIN "Public app domain (blank = nip.io from the VPS IP)"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
+
+printf '\n%s%s  Configuration summary%s\n' "$BOLD" "$BLUE" "$RESET"
+note "mode: $MODE | ssh: $SSH_MODE | hostname: $TS_HOSTNAME | user: $VPS_USER"
+note "repo: $REPO_URL | branch: $DEPLOY_BRANCH | domain: ${APP_DOMAIN:-auto nip.io from the VPS IP}"
+note "secrets (tailscale auth key, GitHub PAT, Coolify admin) are asked at their stages."
 
 TOTAL_STAGES=21
 TOTAL_MINUTES=95
