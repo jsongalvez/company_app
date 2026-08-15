@@ -141,3 +141,7 @@ Default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `read
 ### Domain docs
 
 Single-context layout: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Agent-facing docs
+
+When editing any agent-facing markdown — AGENTS.md files, `docs/agents/`, `CONTEXT.md`, ADRs, skills — load `/writing-for-agents` first.
