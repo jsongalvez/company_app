@@ -5,6 +5,9 @@
 #
 # Everything above the "STAGES" marker is the wizard library: do not hand-edit
 # it. Author the per-step stages below the marker.
+# Library extension in this file: ask() takes an optional 3rd arg = default
+# (Enter accepts it; a saved .wayfinder-vps.env value still wins). Fold this
+# back into the wizard template when the template next evolves.
 
 set -euo pipefail
 
@@ -108,7 +111,7 @@ ask() {
   local key="$1" prompt="$2" fallback="${3:-}" current input
   current=$(_existing "$key" || true)
   if [[ -n "$current" ]]; then
-    printf '  %s%s%s %s[Enter keeps current]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$RESET"
+    printf '  %s%s%s %s[Enter keeps current: %s]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$current" "$RESET"
   elif [[ -n "$fallback" ]]; then
     printf '  %s%s%s %s[default: %s]%s ' "$BOLD" "$prompt" "$RESET" "$DIM" "$fallback" "$RESET"
   else
@@ -212,9 +215,9 @@ env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || 
 
 _clear
 printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
-say "One-time setup questions — press Enter for a sensible default (best on first runs)."
+say "One-time setup questions — press Enter to accept the shown default (type when no default fits)."
 say "Have at hand: the Oracle Cloud console (VM creation), the Tailscale admin console, and a GitHub PAT (full mode)."
-note "answers are saved to .wayfinder-vps.env — re-runs keep them, so Enter re-confirms."
+note "re-runs keep your answers — Enter re-confirms them (a blank domain stays blank)."
 
 note "MODE: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
 ask MODE "Mode" full
@@ -229,31 +232,35 @@ write_env SSH_MODE "$SSH_MODE"
 note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match; keep it unique on your tailnet."
 ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
 [[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
+[[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9_-]+$ ]] || abort "hostname may only contain letters, digits, hyphens and underscores (it feeds tailscale up + the OS hostname check)"
 write_env TS_HOSTNAME "$TS_HOSTNAME"
 
 note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
 ask VPS_USER "Ubuntu username on the VPS" ubuntu
 [[ -n "$VPS_USER" ]] || abort "empty username"
+[[ "$VPS_USER" =~ ^[A-Za-z0-9_.-]+$ ]] || abort "invalid username (letters, digits, dots, hyphens, underscores only)"
 write_env VPS_USER "$VPS_USER"
 
-note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin."
+note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin (git remote get-url origin)."
 ask REPO_URL "Git repository URL" "$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 [[ -n "$REPO_URL" ]] || abort "empty repository URL"
+[[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z0-9+.-]+:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…)"
 write_env REPO_URL "$REPO_URL"
 
 note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defaults to the current branch."
 ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
 [[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
+[[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || abort "branch name may only contain letters, digits, dots, hyphens, underscores and slashes"
 write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 
-note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP."
+note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP. Re-runs keep a saved domain — delete the line in .wayfinder-vps.env to go back to nip.io."
 ask APP_DOMAIN "Public app domain (blank = nip.io from the VPS IP)"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
 
 printf '\n%s%s  Configuration summary%s\n' "$BOLD" "$BLUE" "$RESET"
 note "mode: $MODE | ssh: $SSH_MODE | hostname: $TS_HOSTNAME | user: $VPS_USER"
 note "repo: $REPO_URL | branch: $DEPLOY_BRANCH | domain: ${APP_DOMAIN:-auto nip.io from the VPS IP}"
-note "secrets (tailscale auth key, GitHub PAT, Coolify admin) are asked at their stages."
+note "secrets (tailscale auth key, GitHub PAT (full mode), Coolify admin) are asked at their stages."
 
 TOTAL_STAGES=21
 TOTAL_MINUTES=95
@@ -358,7 +365,7 @@ fi
 stage "Join the tailnet" 5
 TS_SAVED="$(_existing TS_IP || true)"
 if [[ -n "$TS_SAVED" ]] \
-   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_SAVED" 'hostname' 2>/dev/null | grep -q "$TS_HOSTNAME"; then
+   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_SAVED" 'hostname' 2>/dev/null | grep -qF -- "$TS_HOSTNAME"; then
   TS_IP="$TS_SAVED"
   note "already on the tailnet at $TS_SAVED (hostname $TS_HOSTNAME) — skipping"
 else
@@ -372,13 +379,13 @@ else
   ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
     'curl -fsSL https://tailscale.com/install.sh | sudo sh'
   if ! ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
-       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname $TS_HOSTNAME"; then
+       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname '$TS_HOSTNAME'"; then
     warn "tailscale up failed — the saved auth key may be consumed or expired (if the tailscale daemon itself is down: sudo systemctl start tailscaled)"
     TS_AUTHKEY=""
     ask_secret TS_AUTHKEY "Paste a NEW auth key (Enter on empty aborts):"
     [[ -n "$TS_AUTHKEY" ]] || abort "no new key — aborting"
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
-      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname $TS_HOSTNAME" || abort "tailscale up failed again — investigate on the VPS"
+      "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname '$TS_HOSTNAME'" || abort "tailscale up failed again — investigate on the VPS"
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')"
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" ; }
@@ -466,9 +473,9 @@ stage "Clone the repo" 3
 if vps 'test -d ~/company_app/.git'; then
   note "repo already cloned — skipping"
 else
-  vps "git clone $REPO_URL ~/company_app"
+  vps "git clone '$REPO_URL' ~/company_app"
 fi
-if vps "git -C ~/company_app switch $DEPLOY_BRANCH"; then
+if vps "git -C ~/company_app switch '$DEPLOY_BRANCH'"; then
   note "branch checked out"
 else
   warn "branch not on origin yet — it lands at the switch push; the switch stage checks it out"
@@ -842,7 +849,7 @@ else
     abort "rollback: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
   fi
   note "aligning the VPS checkout with origin (a local-only VPS commit from a partial run is discarded — origin is canonical)…"
-  vps "cd ~/company_app && git fetch origin && (git switch -C $DEPLOY_BRANCH origin/$DEPLOY_BRANCH 2>/dev/null || git switch $DEPLOY_BRANCH) && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
+  vps "cd ~/company_app && git fetch origin && (git switch -C '$DEPLOY_BRANCH' origin/'$DEPLOY_BRANCH' 2>/dev/null || git switch '$DEPLOY_BRANCH') && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
   vps "test -f ~/company_app/docs/agents/$HANDOFF" || abort "handoff not in the VPS checkout — the pull or push is stale"
   LOCAL_SHA="$(sha256sum "$REPO/docs/agents/$HANDOFF" | cut -d' ' -f1)"
   VPS_SHA="$(vps "sha256sum ~/company_app/docs/agents/$HANDOFF" 2>/dev/null | cut -d' ' -f1 || true)"
