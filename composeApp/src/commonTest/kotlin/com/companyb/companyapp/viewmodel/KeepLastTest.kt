@@ -186,6 +186,51 @@ class KeepLastTest {
         }
 
     @Test
+    fun mutateRemoved_removes_matching_rows_and_returns_true() =
+        runTest(testScheduler) {
+            val kept = KeepLast<List<Int>>(CoroutineScope(Dispatchers.Main))
+            kept.stateFlow.value = UiState.Success(listOf(1, 2, 2, 3))
+            advanceUntilIdle()
+
+            // filterNot semantics: EVERY matching element leaves, not just the first (the
+            // moveToReadThisSession / removeReceived call sites rely on it).
+            val removed = kept.mutateRemoved { it == 2 }
+
+            assertTrue(removed)
+            assertEquals(listOf(1, 3), kept.freshestValue(), "the exact read is immediate")
+            advanceUntilIdle()
+            assertEquals(listOf(1, 3), kept.freshest.value, "the write mirrors into freshest")
+            assertEquals(UiState.Success(listOf(1, 3)), kept.state.value)
+        }
+
+    @Test
+    fun mutateRemoved_no_match_is_noop_and_false() =
+        runTest(testScheduler) {
+            val kept = KeepLast<List<Int>>(CoroutineScope(Dispatchers.Main))
+            kept.stateFlow.value = UiState.Success(listOf(1, 2))
+            advanceUntilIdle()
+
+            val removed = kept.mutateRemoved { it == 9 }
+
+            assertFalse(removed, "no element matched — no change")
+            assertEquals(listOf(1, 2), kept.freshestValue())
+            advanceUntilIdle()
+            assertEquals(listOf(1, 2), kept.freshest.value)
+        }
+
+    @Test
+    fun mutateRemoved_nothing_loaded_is_noop_and_false() =
+        runTest(testScheduler) {
+            val kept = KeepLast<List<Int>>(CoroutineScope(Dispatchers.Main))
+
+            val removed = kept.mutateRemoved { it == 1 }
+
+            assertFalse(removed, "nothing loaded — no write")
+            assertNull(kept.freshest.value)
+            assertTrue(kept.state.value is UiState.Idle, "Idle was never left")
+        }
+
+    @Test
     fun keepLastByKey_same_key_coalesces_other_keys_unblocked() =
         runTest(testScheduler) {
             val kept = KeepLastByKey<String, Int>()

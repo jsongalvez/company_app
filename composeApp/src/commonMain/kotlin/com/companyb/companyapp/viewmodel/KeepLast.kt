@@ -79,7 +79,8 @@ class KeepLast<T>(
 
     init {
         // Single writer for the freshest flow: every Success landing on the state flow (loads
-        // AND in-place mutation writes) mirrors into it. Relies on the FIFO-Main ordering
+        // AND in-place mutation writes, including [mutateRemoved]'s) mirrors into it. Relies
+        // on the FIFO-Main ordering
         // contract — viewModelScope dispatches on Main.immediate, so a state assignment queues
         // this collector BEFORE any later-started coroutine's resume (a dispatcher change would
         // silently re-open the #141 resurrect window).
@@ -90,6 +91,25 @@ class KeepLast<T>(
         }
     }
 }
+
+/**
+ * Remove-or-noop mutation write (the #163 P5 mutateRemoved graduate): the remove sub-shape of
+ * [KeepLast.mutate], the identical `filterNot + size-compare` block formerly hand-rolled at
+ * NotificationVM.moveToReadThisSession + ReliefInviteVM.removeReceived — once.
+ *
+ * Extension on `KeepLast<List<T>>` because the remove shape is only meaningful when the kept
+ * payload is a list: the element predicate cannot be expressed against an arbitrary `T`.
+ *
+ * Returns [KeepLast.mutate]'s Boolean: true when a matching row left (a Success was written);
+ * false when nothing was ever loaded or no element matched — the caller's follow-up (badge
+ * decrement, read-session append) must fire only on true. `filterNot` semantics: EVERY matching
+ * element leaves, not just the first.
+ */
+fun <T> KeepLast<List<T>>.mutateRemoved(predicate: (T) -> Boolean): Boolean =
+    mutate { current ->
+        val remaining = current.filterNot(predicate)
+        if (remaining.size == current.size) null else remaining
+    }
 
 /**
  * Per-key keep-last-results + in-flight guard (the #161 port shape, unified by #162): a map

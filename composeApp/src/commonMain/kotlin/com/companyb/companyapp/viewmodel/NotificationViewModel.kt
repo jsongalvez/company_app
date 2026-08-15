@@ -144,13 +144,9 @@ class NotificationViewModel(
         // Read-section dedupe: a row already marked this session can never move or decrement
         // again — not even when a stale reload re-renders it as unread (#112 decision 4).
         if (_readThisSession.value.any { it.id == notification.id }) return false
-        // mutate (#163): the null return (row not in the list — no change) maps to false, so
-        // the stamp bump + badge decrement fire only when the row actually left.
-        val removed =
-            keptNotifications.mutate { current ->
-                val remaining = current.filterNot { it.id == notification.id }
-                if (remaining.size == current.size) null else remaining
-            }
+        // mutateRemoved (#164): false when the row never left (nothing loaded / not in the
+        // list — no write), so the stamp bump + badge decrement fire only on a real removal.
+        val removed = keptNotifications.mutateRemoved { it.id == notification.id }
         if (removed) {
             _readThisSession.value = _readThisSession.value + notification
         }
