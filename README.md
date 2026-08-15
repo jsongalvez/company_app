@@ -93,7 +93,15 @@ Subscribe your phone: install the ntfy app, then subscribe to the topic URL prin
 https://ntfy.sh/wf-ky1wf3r3vo
 ```
 
-Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_DRY_RUN` (log transitions without spawning).
+Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
+
+### Resilience
+
+- **Stalled session**: if a session stops producing messages for ~9 minutes, the daemon asks it to continue where it left off (same session, same context) — up to 2 attempts. No work is touched or reverted.
+- **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./scripts/wayfinder-loop.sh --retry`.
+- **opencode2 API outage**: daemon keeps retrying and notifies once if the service is unreachable (`opencode2 service status` to check).
+- **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon pauses, notifies, and resumes automatically when the worktree is clean. In-place session resumes bypass this gate — they continue their own uncommitted work.
+- **Crash-safe state**: `.wayfinder-loop.state` records the active session id + retry counters; any restart resumes supervision in place.
 
 ### Runtime files
 
