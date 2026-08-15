@@ -293,6 +293,13 @@ if [ "${1:-}" = "--bootstrap" ]; then
     exit 0
   fi
   supervise_session
+elif [ "${1:-}" = "--resume" ]; then
+  [ -n "$session_id" ] || die "--resume needs a session_id in state"
+  retries=0
+  save_state
+  log "manual resume of $session_id"
+  api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You were interrupted mid-session. Continue exactly where you left off, per your session instructions. Do not restart or re-read the handoff doc unless required."}')" >/dev/null || die "resume prompt failed for $session_id"
+  supervise_session
 elif [ "${1:-}" = "--retry" ]; then
   [ -n "$last_doc" ] || die "--retry needs a processed doc in state (bootstrap first)"
   session_id=""
