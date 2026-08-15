@@ -235,51 +235,79 @@ check_authkey() {
   [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] || abort "invalid auth key (letters, digits, hyphens, underscores only)"
 }
 
+# _ask_config — the 7 one-time questions (hints + asks + writes). Re-used by
+# both the first-run path and the "re-ask all" path of a re-run.
+_ask_config() {
+  note "MODE: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
+  ask MODE "Mode" full
+  write_env MODE "$MODE"
+
+  note "SSH_MODE: tailnet = SSH only over Tailscale (no public port, simpler + stronger); public = extra port + fail2ban."
+  ask SSH_MODE "SSH access" tailnet
+  write_env SSH_MODE "$SSH_MODE"
+
+  note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match (case-insensitively); keep it unique on your tailnet."
+  ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
+  write_env TS_HOSTNAME "$TS_HOSTNAME"
+
+  note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
+  ask VPS_USER "Ubuntu username on the VPS" ubuntu
+  write_env VPS_USER "$VPS_USER"
+
+  note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin (git remote get-url origin)."
+  ask REPO_URL "Git repository URL" "$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
+  write_env REPO_URL "$REPO_URL"
+
+  note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defaults to the current branch."
+  ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
+  write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
+
+  note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP. Re-runs keep a saved domain — delete the line in .wayfinder-vps.env to go back to nip.io."
+  ask APP_DOMAIN "Public app domain (blank = nip.io from the VPS IP)"
+  [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
+}
+
+# _validate_config — every gate, run after BOTH the ask path and the keep-saved
+# path (a hand-edited env file is caught the same way a typed value is).
+_validate_config() {
+  [[ "$MODE" == "full" || "$MODE" == "app-only" ]] || abort "MODE must be full or app-only"
+  [[ "$SSH_MODE" == "tailnet" || "$SSH_MODE" == "public" ]] || abort "SSH_MODE must be tailnet or public"
+  [[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens only — it feeds tailscale up + the OS hostname check)"
+  [[ "$VPS_USER" =~ ^[A-Za-z][A-Za-z0-9_.-]*$ ]] || abort "invalid username (must start with a letter; letters, digits, dots, hyphens, underscores only)"
+  [[ -n "$REPO_URL" ]] || abort "empty repository URL"
+  [[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z][A-Za-z0-9+.-]*:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…; no spaces or special characters)"
+  [[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
+  [[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || abort "branch name must start with a letter or digit (letters, digits, dots, hyphens, underscores, slashes only)"
+  git -C "$REPO" check-ref-format "refs/heads/$DEPLOY_BRANCH" || abort "not a valid git branch name (git's check-ref-format rules: no //, no .., no leading dot, no trailing / or .)"
+  [[ -z "$APP_DOMAIN" || "$APP_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || abort "invalid domain (letters, digits, dots, hyphens only — or leave blank for the nip.io name)"
+}
+
 # ── Configuration (asked once; re-runs keep the saved values) ───────────────
 
 _clear
 printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
-say "One-time setup questions — press Enter to accept the shown default (type when no default fits)."
-say "Have at hand (first run): the Oracle Cloud console (VM creation), the Tailscale admin console, and a GitHub PAT (full mode)."
-note "re-runs keep your answers — Enter re-confirms them (a blank domain stays blank)."
-
-note "MODE: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
-ask MODE "Mode" full
-[[ "$MODE" == "full" || "$MODE" == "app-only" ]] || abort "MODE must be full or app-only"
-write_env MODE "$MODE"
-
-note "SSH_MODE: tailnet = SSH only over Tailscale (no public port, simpler + stronger); public = extra port + fail2ban."
-ask SSH_MODE "SSH access" tailnet
-[[ "$SSH_MODE" == "tailnet" || "$SSH_MODE" == "public" ]] || abort "SSH_MODE must be tailnet or public"
-write_env SSH_MODE "$SSH_MODE"
-
-note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match (case-insensitively); keep it unique on your tailnet."
-ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
-[[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens only — it feeds tailscale up + the OS hostname check)"
-write_env TS_HOSTNAME "$TS_HOSTNAME"
-
-note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
-ask VPS_USER "Ubuntu username on the VPS" ubuntu
-[[ "$VPS_USER" =~ ^[A-Za-z][A-Za-z0-9_.-]*$ ]] || abort "invalid username (must start with a letter; letters, digits, dots, hyphens, underscores only)"
-write_env VPS_USER "$VPS_USER"
-
-note "REPO_URL: the git URL the VPS clones and Coolify deploys — defaults to this checkout's origin (git remote get-url origin)."
-ask REPO_URL "Git repository URL" "$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
-[[ -n "$REPO_URL" ]] || abort "empty repository URL"
-[[ "$REPO_URL" =~ ^[A-Za-z0-9@._:/+~-]+$ && ( "$REPO_URL" =~ ^[A-Za-z][A-Za-z0-9+.-]*:// || "$REPO_URL" == git@* ) ]] || abort "REPO_URL must be a git URL (https://…, ssh://…, or git@…; no spaces or special characters)"
-write_env REPO_URL "$REPO_URL"
-
-note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defaults to the current branch."
-ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
-[[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
-[[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || abort "branch name must start with a letter or digit (letters, digits, dots, hyphens, underscores, slashes only)"
-git -C "$REPO" check-ref-format "refs/heads/$DEPLOY_BRANCH" || abort "not a valid git branch name (git's check-ref-format rules: no //, no .., no leading dot, no trailing / or .)"
-write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
-
-note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP. Re-runs keep a saved domain — delete the line in .wayfinder-vps.env to go back to nip.io."
-ask APP_DOMAIN "Public app domain (blank = nip.io from the VPS IP)"
-[[ -z "$APP_DOMAIN" || "$APP_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]] || abort "invalid domain (letters, digits, dots, hyphens only — or leave blank for the nip.io name)"
-[[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
+if [[ -n "$(_existing MODE || true)" && -n "$(_existing SSH_MODE || true)" && -n "$(_existing TS_HOSTNAME || true)" && -n "$(_existing VPS_USER || true)" && -n "$(_existing REPO_URL || true)" && -n "$(_existing DEPLOY_BRANCH || true)" ]]; then
+  say "Saved config found — re-runs keep it: one gate, then straight to the stages."
+  note "mode: $(_existing MODE) | ssh: $(_existing SSH_MODE) | hostname: $(_existing TS_HOSTNAME) | user: $(_existing VPS_USER)"
+  note "repo: $(_existing REPO_URL) | branch: $(_existing DEPLOY_BRANCH)"
+  if confirm "Keep this saved config (n re-asks all questions)"; then
+    MODE="$(_existing MODE)"
+    SSH_MODE="$(_existing SSH_MODE)"
+    TS_HOSTNAME="$(_existing TS_HOSTNAME)"
+    VPS_USER="$(_existing VPS_USER)"
+    REPO_URL="$(_existing REPO_URL)"
+    DEPLOY_BRANCH="$(_existing DEPLOY_BRANCH)"
+    APP_DOMAIN="$(_existing APP_DOMAIN || true)"
+  else
+    _ask_config
+  fi
+else
+  say "One-time setup questions — press Enter to accept the shown default (type when no default fits)."
+  say "Have at hand (first run): the Oracle Cloud console (VM creation), the Tailscale admin console, and a GitHub PAT (full mode)."
+  note "re-runs keep your answers — Enter re-confirms them (a blank domain stays blank)."
+  _ask_config
+fi
+_validate_config
 
 TOTAL_STAGES=21
 TOTAL_MINUTES=95
@@ -357,7 +385,9 @@ step "Shape: VM.Standard.A1.Flex — set 2 OCPUs / 12 GB RAM (the free-tier cap)
 warn "A1 is often 'Out of capacity' in busy regions — retry your home region or a different availability domain"
 step "Boot volume: 47 GB or larger (free tier includes 200 GB total)"
 step "Networking: assign a RESERVED public IPv4 if offered (ephemeral works too — but a reserved IP keeps the nip.io name stable)"
-step "Add SSH key: paste the public key shown above"
+step "Add SSH key: paste the public key shown below"
+note "your public key (paste into the console next):"
+cat "$HOME/.ssh/id_ed25519.pub"
 note "No extra ingress — everything binds localhost; only SSH (22) is needed at first"
 pause "Instance created — note its public IP"
 
