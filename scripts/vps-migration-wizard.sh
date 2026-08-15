@@ -211,6 +211,27 @@ abort() { warn "$1"; exit 1; }
 # fallback (default '<from .env>') when the key is absent.
 env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || printf '%s' "${2:-<from .env>}"; }
 
+# IPv4 shape — one definition for both the VPS_IP and TS_IP gates.
+IPV4_RE='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
+
+# latest_handoff EMPTY_ABORT_MSG — the newest docs/agents/wayfinder-<N>-handoff.md
+# basename, or abort. Validates the filename shape (digits only) — a malformed
+# name must never reach the remote shell quoted sites.
+latest_handoff() {
+  local f
+  f="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
+  [[ -n "$f" ]] || abort "$1"
+  [[ "$f" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
+  printf '%s' "$f"
+}
+
+# check_authkey KEY EMPTY_ABORT_MSG — a pasted Tailscale auth key must be
+# non-empty and charset-clean (it lands inside single quotes on the remote shell).
+check_authkey() {
+  [[ -n "$1" ]] || abort "$2"
+  [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]] || abort "invalid auth key (letters, digits, hyphens, underscores only)"
+}
+
 # ── Configuration (asked once; re-runs keep the saved values) ───────────────
 
 _clear
@@ -231,13 +252,11 @@ write_env SSH_MODE "$SSH_MODE"
 
 note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match (case-insensitively); keep it unique on your tailnet."
 ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
-[[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
 [[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens only — it feeds tailscale up + the OS hostname check)"
 write_env TS_HOSTNAME "$TS_HOSTNAME"
 
 note "VPS_USER: the SSH username on the VM — Oracle's Ubuntu 24.04 image uses 'ubuntu'."
 ask VPS_USER "Ubuntu username on the VPS" ubuntu
-[[ -n "$VPS_USER" ]] || abort "empty username"
 [[ "$VPS_USER" =~ ^[A-Za-z][A-Za-z0-9_.-]*$ ]] || abort "invalid username (must start with a letter; letters, digits, dots, hyphens, underscores only)"
 write_env VPS_USER "$VPS_USER"
 
@@ -342,7 +361,7 @@ pause "Instance created — note its public IP"
 stage "Capture the public IP" 2
 ask VPS_IP "Paste the instance public IP:"
 [[ -n "$VPS_IP" ]] || abort "empty IP — cannot continue"
-[[ "$VPS_IP" =~ ^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$ ]] || abort "invalid IPv4 — paste the instance public IP from the Oracle console"
+[[ "$VPS_IP" =~ ^$IPV4_RE$ ]] || abort "invalid IPv4 — paste the instance public IP from the Oracle console"
 [[ "$VPS_IP" != 127.* && "$VPS_IP" != 0.0.0.0 && "$VPS_IP" != 10.* && "$VPS_IP" != 192.168.* && "$VPS_IP" != 169.254.* && "$VPS_IP" != 172.1[6-9].* && "$VPS_IP" != 172.2[0-9].* && "$VPS_IP" != 172.3[0-1].* ]] || abort "that is a private/loopback address — paste the instance's PUBLIC IP from the Oracle console"
 write_env VPS_IP "$VPS_IP"
 pause "Press Enter to test SSH (first connect accepts the host key)"
@@ -379,8 +398,7 @@ else
     warn "no saved auth key — paste a fresh one (if the old box is gone, also delete the TS_IP line from $ENV_FILE)"
     ask_secret TS_AUTHKEY "Paste the Tailscale auth key:"
   fi
-  [[ -n "$TS_AUTHKEY" ]] || abort "empty auth key — cannot join the tailnet"
-  [[ "$TS_AUTHKEY" =~ ^[A-Za-z0-9_-]+$ ]] || abort "invalid auth key (letters, digits, hyphens, underscores only)"
+  check_authkey "$TS_AUTHKEY" "empty auth key — cannot join the tailnet"
   note "installing tailscale on the VPS and joining (via public IP)…"
   ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
     'curl -fsSL https://tailscale.com/install.sh | sudo sh'
@@ -389,14 +407,13 @@ else
     warn "tailscale up failed — the saved auth key may be consumed or expired (if the tailscale daemon itself is down: sudo systemctl start tailscaled)"
     TS_AUTHKEY=""
     ask_secret TS_AUTHKEY "Paste a NEW auth key (Enter on empty aborts):"
-    [[ -n "$TS_AUTHKEY" ]] || abort "no new key — aborting"
-    [[ "$TS_AUTHKEY" =~ ^[A-Za-z0-9_-]+$ ]] || abort "invalid auth key (letters, digits, hyphens, underscores only)"
+    check_authkey "$TS_AUTHKEY" "no new key — aborting"
     ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
       "sudo tailscale up --authkey '$TS_AUTHKEY' --hostname '$TS_HOSTNAME'" || abort "tailscale up failed again — investigate on the VPS"
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || TS_IP=""
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || abort "still no tailnet IP — fix tailscale on the VPS, then re-run" ; }
-  [[ "$TS_IP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$ ]] || abort "could not read a valid tailnet IP from the VPS — tailscale up may still be pending; re-run to re-join"
+  [[ "$TS_IP" =~ ^$IPV4_RE$ ]] || abort "could not read a valid tailnet IP from the VPS — tailscale up may still be pending; re-run to re-join"
   write_env TS_IP "$TS_IP"
 fi
 note "tailnet IP: $TS_IP"
@@ -797,11 +814,7 @@ fi
 if [[ "$MODE" == "full" ]]; then
 
 stage "Boundary check" 2
-HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
-if [[ -z "$HANDOFF" ]]; then
-  abort "no handoff found in docs/agents/ — the switch bootstraps from one"
-fi
-[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
+HANDOFF="$(latest_handoff "no handoff found in docs/agents/ — the switch bootstraps from one")"
 note "latest handoff: $HANDOFF"
 git -C "$REPO" log --oneline -3
 UNCOMMITTED_HANDOFF="$(git -C "$REPO" status --porcelain 2>/dev/null | grep "wayfinder-" || true)"
@@ -842,9 +855,7 @@ fi
 stage "Start the VPS daemon" 5
 warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
 # Re-derive the handoff AFTER the kill+push — the push just carried whatever the re-derive finds.
-HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
-[[ -n "$HANDOFF" ]] || abort "no handoff to bootstrap — aborting before the VPS daemon start"
-[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
+HANDOFF="$(latest_handoff "no handoff to bootstrap — aborting before the VPS daemon start")"
 note "bootstrapping with: $HANDOFF"
 if vps 'tmux has-session -t wayfinder-loop' >/dev/null 2>&1; then
   HAS_RC=0
