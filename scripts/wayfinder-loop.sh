@@ -294,7 +294,11 @@ if [ "${1:-}" = "--bootstrap" ]; then
   fi
   supervise_session
 elif [ "${1:-}" = "--resume" ]; then
-  [ -n "$session_id" ] || die "--resume needs a session_id in state"
+  if [ $# -ge 2 ]; then
+    session_id="$2"
+  fi
+  [ -n "$session_id" ] || die "--resume needs a session id (state has none; pass it: --resume <session-id>)"
+  api get "/api/session/$session_id" >/dev/null 2>&1 || die "--resume: session $session_id not found"
   retries=0
   save_state
   log "manual resume of $session_id"
