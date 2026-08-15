@@ -226,8 +226,8 @@ write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 ask APP_DOMAIN "Public app domain (blank = nip.io name derived from the VPS IP):"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
 
-TOTAL_STAGES=20
-TOTAL_MINUTES=92
+TOTAL_STAGES=21
+TOTAL_MINUTES=95
 [[ "$MODE" == "full" ]] && { TOTAL_STAGES=36; TOTAL_MINUTES=155; }
 [[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
 
