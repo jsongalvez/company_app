@@ -117,8 +117,8 @@ fun <T> KeepLast<List<T>>.mutateRemoved(predicate: (T) -> Boolean): Boolean =
  * a same-frame double-tap coalesces; the #143 in-flight shape: a state-based guard would race
  * the handler's Loading assignment, which is not guaranteed to land before launch returns).
  * [finish] is a no-op for keys not in flight, so failure paths can call it unconditionally.
- * [clear] resets wholesale — the superseded-context escape (FinanceReports' edit-panel close
- * drops every in-flight marker; a stale action's generation guard keeps it from re-arming).
+ * [clear] resets wholesale — the superseded-context escape (FinanceReports' edit-panel close;
+ * see [clear] for the re-armed-marker hazard it opens).
  */
 class InFlightGuard<K> {
     private val _inFlight = MutableStateFlow<Set<K>>(emptySet())
@@ -139,7 +139,14 @@ class InFlightGuard<K> {
         _inFlight.value = _inFlight.value - key
     }
 
-    /** Clear every marker — for superseded contexts whose in-flight work is now inert. */
+    /**
+     * Clear every marker — for superseded contexts whose in-flight work is now inert.
+     * Re-arming a key after [clear] while its superseded request still runs re-opens the
+     * cross-wire: the stale request's unconditional [finish] would remove the NEWER marker
+     * (the set-subtract cannot tell whose marker it is) and enable a duplicate dispatch.
+     * Adopters must gate stale terminal paths so a superseded completion never touches a
+     * re-armed marker — the FinanceReports generation guard is that gate.
+     */
     fun clear() {
         _inFlight.value = emptySet()
     }
@@ -164,12 +171,9 @@ class KeepLastByKey<K, T> {
     val inFlight: StateFlow<Set<K>> = inFlightGuard.inFlight
 
     /**
-     * Begin a load for [key] unless one is already in flight for it. Synchronous by
-     * construction (direct value reads/writes — no dispatch, so a same-frame double-tap
-     * coalesces; the #143 in-flight shape: a state-based guard would race the handler's
-     * Loading assignment, which is not guaranteed to land before launch returns).
-     *
-     * Returns false (and does nothing) when a load is already running for [key].
+     * Begin a load for [key] unless one is already in flight for it. Synchronous
+     * check-and-add, coalescing — see [InFlightGuard.tryBegin] for the #143 in-flight shape
+     * rationale. Returns false (and does nothing) when a load is already running for [key].
      */
     fun tryBegin(key: K): Boolean = inFlightGuard.tryBegin(key)
 
