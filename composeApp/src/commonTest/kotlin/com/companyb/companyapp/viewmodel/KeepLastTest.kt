@@ -210,19 +210,13 @@ class KeepLastTest {
             kept.stateFlow.value = UiState.Success(listOf(1, 2))
             advanceUntilIdle()
 
-            // Identity pin (captured BEFORE the call so a write inside it cannot hide under
-            // the baseline): a content-CHANGING write would land a fresh Success instance and
-            // fail the ===. An equal-value write is StateFlow-conflated (the update is skipped,
-            // the old instance kept), so identity cannot distinguish "no write" from a
-            // same-content write — but the no-match path never reaches a write anyway (mutate
-            // returns false before assigning); the assert catches the realistic regression, a
-            // no-match that mutates the list (inverted predicate → new instance → fails).
-            val before = kept.state.value
+            // No element matched — no write (the no-match path never reaches a write: mutate
+            // returns false before assigning). The content asserts below carry the pin; an
+            // equal-content write is StateFlow-conflated (old instance kept) so identity could
+            // never distinguish it from no-write anyway (P5a).
             val removed = kept.mutateRemoved { it == 9 }
 
             assertFalse(removed, "no element matched — no change")
-            advanceUntilIdle()
-            assertTrue(kept.state.value === before, "no content-changing Success write happened")
             assertEquals(listOf(1, 2), kept.freshestValue())
             advanceUntilIdle()
             assertEquals(listOf(1, 2), kept.freshest.value)

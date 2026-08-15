@@ -80,10 +80,9 @@ class KeepLast<T>(
     init {
         // Single writer for the freshest flow: every Success landing on the state flow (loads
         // AND in-place mutation writes, including [mutateRemoved]'s) mirrors into it. Relies
-        // on the FIFO-Main ordering
-        // contract — viewModelScope dispatches on Main.immediate, so a state assignment queues
-        // this collector BEFORE any later-started coroutine's resume (a dispatcher change would
-        // silently re-open the #141 resurrect window).
+        // on the FIFO-Main ordering contract — viewModelScope dispatches on Main.immediate, so
+        // a state assignment queues this collector BEFORE any later-started coroutine's resume
+        // (a dispatcher change would silently re-open the #141 resurrect window).
         scope.launch {
             stateFlow
                 .filterIsInstance<UiState.Success<T>>()
