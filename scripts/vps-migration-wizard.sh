@@ -352,7 +352,7 @@ if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_
   note "ssh works"
 else
   warn "ssh failed — check the IP, the key, and that the instance is RUNNING (not Provisioning/Stopped)"
-  pause "Fixed? Press Enter to retry" && ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m' || abort "ssh still failing — re-check the IP, the key, and that the instance is RUNNING"
+  pause "Fixed? Press Enter to retry" && ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m' || abort "ssh still failing — re-check the IP, the key, and that the instance is RUNNING (if the IP was reused by a new VM, delete its stale ~/.ssh/known_hosts entry)"
 fi
 
 # ── Phase 2 — Tailscale ────────────────────────────────────────────────────
@@ -395,6 +395,7 @@ else
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || TS_IP=""
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || abort "still no tailnet IP — fix tailscale on the VPS, then re-run" ; }
+  [[ "$TS_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || abort "could not read a valid tailnet IP from the VPS — tailscale up may still be pending; re-run to re-join"
   write_env TS_IP "$TS_IP"
 fi
 note "tailnet IP: $TS_IP"
