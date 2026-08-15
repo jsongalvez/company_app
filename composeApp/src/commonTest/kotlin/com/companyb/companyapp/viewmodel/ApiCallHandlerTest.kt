@@ -28,16 +28,16 @@ import kotlin.test.assertIs
 
 /**
  * Tests for the #165 handler-level stale-substitution guard ([ApiCallHandler.launch]'s
- * checkpoint/isCurrent/fallback params): a load that lands after the state it was launched
- * against moved on must not commit its pre-action snapshot (the #141 resurrect class) — the
- * resurrect-invariant formerly hand-rolled at NotificationVM.loadUnreadNotifications +
- * ReliefInviteVM.loadReceived. The handler commits transform(response) only when isCurrent
- * (the launch-captured stamp still matches), else fallback().
+ * stamp/fallback params): a load that lands after the state it was launched against moved on
+ * must not commit its pre-action snapshot (the #141 resurrect class) — the resurrect-invariant
+ * formerly hand-rolled at NotificationVM.loadUnreadNotifications + ReliefInviteVM.loadReceived.
+ * The handler reads [ApiCallHandler.launch]'s stamp() twice — at launch invocation (captured)
+ * and at landing — and commits transform(response) only when the two reads agree, else
+ * fallback().
  *
  * The default-param cases pin that every existing handler caller (which passes no guard
- * params) keeps the exact pre-#165 behavior: the guard never diverges — the default
- * isCurrent always returns true, so transform always commits and the fallback is never
- * invoked.
+ * params) keeps the exact pre-#165 behavior: the guard never diverges — a constant stamp
+ * always agrees, so transform always commits and the fallback is never invoked.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApiCallHandlerTest {
@@ -70,7 +70,8 @@ class ApiCallHandlerTest {
             var stamp = 0L
             var transformCalls = 0
 
-            // Launch with the guard: a stamp captured at launch; isCurrent consults it.
+            // Launch with the guard: stamp() is read at launch invocation, then again when the
+            // response lands.
             handler.launch(
                 state = state,
                 operation = "load",
@@ -80,8 +81,7 @@ class ApiCallHandlerTest {
                     transformCalls++
                     emptyList()
                 },
-                checkpoint = { stamp },
-                isCurrent = { captured -> captured == stamp },
+                stamp = { stamp },
                 fallback = { listOf(9) },
             )
 
@@ -115,8 +115,7 @@ class ApiCallHandlerTest {
                 endpoint = "GET /api/items",
                 block = { apiClient.httpClient.get("/api/items") },
                 transform = { listOf(1, 2, 3) },
-                checkpoint = { stamp },
-                isCurrent = { captured -> captured == stamp },
+                stamp = { stamp },
                 fallback = {
                     fallbackCalls++
                     emptyList()
@@ -164,6 +163,7 @@ class ApiCallHandlerTest {
                 }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            var stamp = 0L
 
             // The 500 lands on the real IO thread (the #93 class idiom: non-2xx responses
             // complete off the test scheduler) — join per the established pattern.
@@ -174,10 +174,12 @@ class ApiCallHandlerTest {
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
                     transform = { emptyList() },
-                    checkpoint = { 0L },
-                    isCurrent = { false },
+                    stamp = { stamp },
                     fallback = { emptyList() },
                 )
+            // A bump would make a success landing stale — but the guard only gates success:
+            // a non-success response must still commit Error, never the fallback.
+            stamp = 1
             job.join()
 
             assertIs<UiState.Error>(state.value)

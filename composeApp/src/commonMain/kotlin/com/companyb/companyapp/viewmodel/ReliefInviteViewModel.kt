@@ -91,13 +91,12 @@ class ReliefInviteViewModel(
             transform = { it.body<List<ReliefInviteResponse>>() },
             // #165 stale-substitution guard (concentrated from the former in-transform block): an
             // accept/decline landing while the load was in flight must not resurrect the resolved
-            // row (the #141 resurrect class). On a stamp mismatch the handler substitutes the
-            // fallback: currentReceivedList reads the exact post-action Success (removeReceived
-            // assigns synchronously); the re-issue converges server truth — rows the action
-            // couldn't know (cross-device accepts, new invites) land from the fresh GET. Both
-            // paths are pinned by tests.
-            checkpoint = { actionStamp },
-            isCurrent = { stamp -> stamp == actionStamp },
+            // row (the #141 resurrect class). The stamp read at landing disagrees with the
+            // launch-captured read, so the handler substitutes the fallback: currentReceivedList
+            // reads the exact post-action Success (removeReceived assigns synchronously); the
+            // re-issue converges server truth — rows the action couldn't know (cross-device
+            // accepts, new invites) land from the fresh GET. Both paths are pinned by tests.
+            stamp = { actionStamp },
             fallback = {
                 loadReceived()
                 currentReceivedList() ?: emptyList()
