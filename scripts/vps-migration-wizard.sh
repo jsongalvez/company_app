@@ -268,7 +268,7 @@ printf '\n%s%s  Configuration summary%s\n' "$BOLD" "$BLUE" "$RESET"
 note "mode: $MODE | ssh: $SSH_MODE | hostname: $TS_HOSTNAME | user: $VPS_USER"
 note "repo: $REPO_URL | branch: $DEPLOY_BRANCH | domain: ${APP_DOMAIN:-auto nip.io from the VPS IP}"
 note "secrets: tailscale auth key + GitHub PAT (full mode) skipped when already configured; Coolify admin re-confirmed each run (Enter keeps current)."
-pause "Summary above — press Enter to begin (Ctrl-C now to redo the config)"
+pause "Summary above — press Enter to begin (Ctrl-C now to abort; a re-run re-asks with saved values)"
 
 # ── Phase 0 — pre-flight (this machine) ────────────────────────────────────
 
