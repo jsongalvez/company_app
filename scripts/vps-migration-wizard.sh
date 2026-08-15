@@ -358,8 +358,9 @@ warn "deliberately NOT copying ~/.local/share/opencode/opencode.db (2.1 GB sessi
 vps 'du -sh ~/.config/opencode; wc -c ~/.local/share/opencode/auth.json'
 
 stage "Start the opencode service" 2
-if vps 'opencode2 api get /api/model' >/dev/null 2>&1; then
-  note "opencode service already serving (re-run) — skipping start"
+if vps 'opencode2 api get /api/model'; then
+  note "opencode service already serving (re-run) — the model response above is the live probe"
+  warn "if opencode config/auth.json changed since the service started, it serves the OLD config — restart the service on the VPS if unsure"
 else
   vps 'opencode2 serve --service' || { warn "opencode service failed to start"; exit 1; }
   sleep 3
@@ -426,7 +427,7 @@ else
   case "$LOG_RC" in
     0) note "a previous gate run is in progress or stale — polling it (no relaunch: two Gradle builds on 2 OCPU would contend)" ;;
     1) note "first Gradle run downloads the toolchain + deps (~10-15 min). Launched in background; the wizard polls."
-       vps 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &' ;;
+       vps 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &' || { warn "launch failed — relaunch by hand: ssh $VPS_USER@$TS_IP 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'"; exit 1; } ;;
     *) warn "could not check the VPS gate log (ssh failed) — retrying once"
        sleep 3
        if ! vps 'test -f /tmp/gate-warm.log' >/dev/null 2>&1; then
@@ -446,7 +447,8 @@ else
     if [[ -n "$NEW_CHANGE" && "$NEW_CHANGE" == "$LAST_CHANGE" ]]; then
       STALL=$((STALL + 1))
       if [[ $STALL -ge 10 ]]; then
-        warn "gate log unchanged for ~5 min — the build likely died; relaunch by hand with the command above"
+        warn "gate log unchanged for ~5 min — the build likely died"
+        note "relaunch by hand: ssh $VPS_USER@$TS_IP 'cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop > /tmp/gate-warm.log 2>&1 &'"
         break
       fi
     else
