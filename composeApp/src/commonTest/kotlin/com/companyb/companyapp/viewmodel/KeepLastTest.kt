@@ -22,10 +22,11 @@ import kotlin.test.assertTrue
  *
  * [KeepLast] mirrors every Success landing on its state flow into [freshest] and keeps it
  * through Idle/Loading/Error; [freshestValue] is the synchronous exact read for VM-internal
- * mutation transforms (under the test dispatcher the flow's value lags a just-made assignment
- * by one collector hop — tests advance the scheduler before reading a converged flow value,
- * except the deliberate pre-advance lag assertion at the freshestValue test; on
- * Main.immediate it converges inline, see the KeepLast KDoc).
+ * decisions, and [mutate] is the in-place write — the exact read, the transform (null = no
+ * change), and the Success write in one call (under the test dispatcher the flow's value lags
+ * a just-made assignment by one collector hop — tests advance the scheduler before reading a
+ * converged flow value, except the deliberate pre-advance lag assertion at the freshestValue
+ * test; on Main.immediate it converges inline, see the KeepLast KDoc).
  *
  * [KeepLastByKey] mirrors per-key and coalesces same-key in-flight loads while leaving other
  * keys' loads unblocked (the Remittance tab-switch contract).
@@ -115,6 +116,73 @@ class KeepLastTest {
             advanceUntilIdle()
             kept.stateFlow.value = UiState.Loading
             assertEquals(7, kept.freshestValue())
+        }
+
+    @Test
+    fun mutate_writes_success_and_mirrors_into_freshest() =
+        runTest(testScheduler) {
+            val kept = KeepLast<List<Int>>(CoroutineScope(Dispatchers.Main))
+            kept.stateFlow.value = UiState.Success(listOf(1, 2))
+            advanceUntilIdle()
+
+            val written = kept.mutate { list -> list + 3 }
+
+            assertTrue(written)
+            assertEquals(listOf(1, 2, 3), kept.freshestValue(), "the exact read is immediate")
+            advanceUntilIdle()
+            assertEquals(listOf(1, 2, 3), kept.freshest.value, "the write mirrors into freshest")
+            assertEquals(UiState.Success(listOf(1, 2, 3)), kept.state.value)
+        }
+
+    @Test
+    fun mutate_is_noop_and_false_when_nothing_loaded() =
+        runTest(testScheduler) {
+            val kept = KeepLast<Int>(CoroutineScope(Dispatchers.Main))
+
+            var transformRan = false
+            val written =
+                kept.mutate {
+                    transformRan = true
+                    it + 1
+                }
+
+            assertFalse(written, "nothing loaded — no write")
+            assertFalse(transformRan, "the transform must not run against nothing")
+            assertNull(kept.freshest.value)
+        }
+
+    @Test
+    fun mutate_null_transform_is_noop_and_false() =
+        runTest(testScheduler) {
+            val kept = KeepLast<List<Int>>(CoroutineScope(Dispatchers.Main))
+            kept.stateFlow.value = UiState.Success(listOf(1, 2))
+            advanceUntilIdle()
+
+            val written = kept.mutate { null }
+
+            assertFalse(written, "a null transform result means no change")
+            assertEquals(listOf(1, 2), kept.freshestValue())
+            assertEquals(listOf(1, 2), kept.freshest.value)
+        }
+
+    @Test
+    fun mutate_from_error_state_mutates_the_mirror_held_list() =
+        runTest(testScheduler) {
+            val kept = KeepLast<List<Int>>(CoroutineScope(Dispatchers.Main))
+            kept.stateFlow.value = UiState.Success(listOf(1, 2))
+            advanceUntilIdle()
+            kept.stateFlow.value = UiState.Error("reload failed")
+            advanceUntilIdle()
+
+            // The #161 shape: a failed reload leaves Error while the rows still render — a
+            // row action must mutate the mirror-held list, and the Success write supersedes
+            // Error (the freshest truth for the mutated row).
+            val written = kept.mutate { list -> list.filterNot { it == 2 } }
+
+            assertTrue(written)
+            assertEquals(UiState.Success(listOf(1)), kept.state.value)
+            advanceUntilIdle()
+            assertEquals(listOf(1), kept.freshest.value)
         }
 
     @Test

@@ -18,10 +18,12 @@ import kotlinx.coroutines.launch
  * currentUnreadList, ReliefInviteVM currentReceivedList/currentSentList) lives here once.
  *
  * Usage: pass [stateFlow] to [ApiCallHandler.launch] (the handler assigns Loading/Error/Success
- * on it); screens collect [freshest] for the render payload; VM-internal mutation transforms
- * read [freshestValue] — synchronous and exact, where the [freshest] flow's value can lag a
- * just-made assignment by one collector hop under test dispatchers (on Main.immediate it
- * converges inline — see [freshestValue]).
+ * on it); screens collect [freshest] for the render payload; VM-internal mutation writes go
+ * through [mutate] — the exact-sync-read + changed-guard + Success-write discipline in one
+ * call (the #162 P5 keep-last-mutation-write graduate) — and synchronous reads use
+ * [freshestValue], exact where the [freshest] flow's value can lag a just-made assignment by
+ * one collector hop under test dispatchers (on Main.immediate it converges inline — see
+ * [freshestValue]).
  */
 class KeepLast<T>(
     scope: CoroutineScope,
@@ -53,6 +55,26 @@ class KeepLast<T>(
      * (tests advance before reading).
      */
     fun freshestValue(): T? = (stateFlow.value as? UiState.Success<T>)?.data ?: _freshest.value
+
+    /**
+     * In-place mutation write (the #162 P5 keep-last-mutation-write graduate): the exact
+     * synchronous read, the transform, the changed-guard, and the Success write — the
+     * hand-rolled mutation discipline at the UserVM/NotificationVM/ReliefInviteVM sites,
+     * once.
+     *
+     * Returns true when a Success was written; false when nothing was ever loaded (the
+     * no-op-when-nothing-loaded guard: with no list rendered there is nothing to mutate in
+     * place — the caller's action should no-op, not dead-tap) or the transform returned null
+     * (the changed-guard: no write happened, so e.g. a badge decrement must not fire). The
+     * transform runs synchronously in the caller's frame — no dispatch, so reads it makes
+     * (other VM state) are exact at the write.
+     */
+    fun mutate(transform: (T) -> T?): Boolean {
+        val current = freshestValue() ?: return false
+        val updated = transform(current) ?: return false
+        stateFlow.value = UiState.Success(updated)
+        return true
+    }
 
     init {
         // Single writer for the freshest flow: every Success landing on the state flow (loads

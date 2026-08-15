@@ -144,19 +144,29 @@ class NotificationViewModel(
         // Read-section dedupe: a row already marked this session can never move or decrement
         // again — not even when a stale reload re-renders it as unread (#112 decision 4).
         if (_readThisSession.value.any { it.id == notification.id }) return false
-        val current = currentUnreadList() ?: return false
-        val remaining = current.filterNot { it.id == notification.id }
-        if (remaining.size == current.size) return false
-        keptNotifications.stateFlow.value = UiState.Success(remaining)
-        _readThisSession.value = _readThisSession.value + notification
-        return true
+        // mutate (#163): the null return (row not in the list — no change) maps to false, so
+        // the stamp bump + badge decrement fire only when the row actually left.
+        val removed =
+            keptNotifications.mutate { current ->
+                val remaining = current.filterNot { it.id == notification.id }
+                if (remaining.size == current.size) null else remaining
+            }
+        if (removed) {
+            _readThisSession.value = _readThisSession.value + notification
+        }
+        return removed
     }
 
     private fun moveAllToReadThisSession() {
-        val current = currentUnreadList() ?: return
-        val newRead = current.filterNot { row -> _readThisSession.value.any { it.id == row.id } }
-        keptNotifications.stateFlow.value = UiState.Success(emptyList())
-        _readThisSession.value = _readThisSession.value + newRead
+        // mutate (#163): the transform computes the read-section payload from the exact read
+        // and writes the constant post-action list. The transform runs synchronously in the
+        // caller's frame (no dispatch), so its _readThisSession read + write are exact at the
+        // Success write.
+        keptNotifications.mutate { current ->
+            val newRead = current.filterNot { row -> _readThisSession.value.any { it.id == row.id } }
+            _readThisSession.value = _readThisSession.value + newRead
+            emptyList()
+        }
     }
 
     private fun currentUnreadList(): List<NotificationResponse>? = keptNotifications.freshestValue()

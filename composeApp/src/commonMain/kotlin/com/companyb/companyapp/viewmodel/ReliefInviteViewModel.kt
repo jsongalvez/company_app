@@ -267,11 +267,15 @@ class ReliefInviteViewModel(
     private fun removeReceived(inviteId: String) {
         // Decrement only when the row actually left a KNOWN list: with no list loaded the badge
         // baseline is the poller's count, and decrementing against an unknown list would corrupt
-        // it — the 60s poll overwrite self-corrects (the unread markRead precedent).
-        val current = keptReceived.freshestValue() ?: return
-        val remaining = current.filterNot { it.id == inviteId }
-        if (remaining.size == current.size) return
-        keptReceived.stateFlow.value = UiState.Success(remaining)
-        NotificationState.decrementInvites()
+        // it — the 60s poll overwrite self-corrects (the unread markRead precedent). The null
+        // return (row not in the list — no change) maps to false: no write, no decrement.
+        val removed =
+            keptReceived.mutate { current ->
+                val remaining = current.filterNot { it.id == inviteId }
+                if (remaining.size == current.size) null else remaining
+            }
+        if (removed) {
+            NotificationState.decrementInvites()
+        }
     }
 }

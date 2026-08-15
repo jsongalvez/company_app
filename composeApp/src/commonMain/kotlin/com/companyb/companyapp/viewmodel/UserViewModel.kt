@@ -307,12 +307,14 @@ class UserViewModel(
         userId: String,
         transform: (UserSummaryResponse) -> UserSummaryResponse,
     ) {
-        // freshestValue: a failed reload leaves the state Error while the freshest flow still
-        // renders the rows — the action must not dead-tap against a rendered list (#161 port;
-        // the NotificationViewModel currentUnreadList precedent). The success writes Success
-        // over Error, which is the freshest truth for the mutated row.
-        val current = keptUsers.freshestValue() ?: return
-        keptUsers.stateFlow.value = UiState.Success(current.map { if (it.id == userId) transform(it) else it })
+        // mutate (#163): the exact-sync-read + Success-write discipline in one call. A failed
+        // reload leaves the state Error while the freshest flow still renders the rows — the
+        // action must not dead-tap against a rendered list (#161 port; the NotificationViewModel
+        // currentUnreadList precedent). The success writes Success over Error, which is the
+        // freshest truth for the mutated row.
+        keptUsers.mutate { users ->
+            users.map { if (it.id == userId) transform(it) else it }
+        }
     }
 
     private fun mutateAssignmentSlot(
@@ -335,25 +337,51 @@ class UserViewModel(
         userIdA: String,
         userIdB: String,
     ) {
-        val users =
-            keptUsers.freshestValue()
-                ?: return
-        val slotA =
-            users
-                .firstOrNull { it.id == userIdA }
-                ?.assignments
-                ?.firstOrNull { it.branchId == branchId }
-                ?.slot
-                ?: return
-        val slotB =
-            users
-                .firstOrNull { it.id == userIdB }
-                ?.assignments
-                ?.firstOrNull { it.branchId == branchId }
-                ?.slot
-                ?: return
-        mutateAssignmentSlot(branchId, userIdA, slotB)
-        mutateAssignmentSlot(branchId, userIdB, slotA)
+        // One mutate instead of the old two sequential writes: the intermediate frame (A with
+        // B's slot) was never observable — everything runs synchronously — and the single
+        // write is the final swapped list. The null returns (either user missing, or no
+        // assignment at the branch) map to no-write, the old `?: return` paths.
+        keptUsers.mutate { users ->
+            val slotA =
+                users
+                    .firstOrNull { it.id == userIdA }
+                    ?.assignments
+                    ?.firstOrNull { it.branchId == branchId }
+                    ?.slot
+                    ?: return@mutate null
+            val slotB =
+                users
+                    .firstOrNull { it.id == userIdB }
+                    ?.assignments
+                    ?.firstOrNull { it.branchId == branchId }
+                    ?.slot
+                    ?: return@mutate null
+            users.map { user ->
+                when (user.id) {
+                    userIdA -> {
+                        user.copy(
+                            assignments =
+                                user.assignments.map {
+                                    if (it.branchId == branchId) it.copy(slot = slotB) else it
+                                },
+                        )
+                    }
+
+                    userIdB -> {
+                        user.copy(
+                            assignments =
+                                user.assignments.map {
+                                    if (it.branchId == branchId) it.copy(slot = slotA) else it
+                                },
+                        )
+                    }
+
+                    else -> {
+                        user
+                    }
+                }
+            }
+        }
     }
 }
 
