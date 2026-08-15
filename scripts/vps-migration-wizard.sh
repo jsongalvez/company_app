@@ -200,6 +200,10 @@ ENV_FILE="$REPO/.wayfinder-vps.env"
 # the first call site — bash resolves functions at call time.
 abort() { warn "$1"; exit 1; }
 
+# env_val KEY [fallback] — the value of KEY from the repo .env, or the
+# fallback (default '<from .env>') when the key is absent.
+env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || printf '%s' "${2:-<from .env>}"; }
+
 # ── Configuration (asked once; re-runs keep the saved values) ───────────────
 
 _clear
@@ -665,7 +669,7 @@ if [[ "$MODE" == "full" ]]; then
   step "Set POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD to the values from your repo .env (paste from below):"
   note "  — values below are read from your local .env —"
   for k in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
-    note "  $k=$(grep -E "^$k=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || echo '<from .env>')"
+    note "  $k=$(env_val "$k")"
   done
 else
   step "Set a DB name, user and password of your choice (or from your app's config — your choice)"
@@ -702,7 +706,7 @@ step "Branch: $DEPLOY_BRANCH"
 step "Build pack: Dockerfile (or Nixpacks if no Dockerfile)"
 if [[ "$MODE" == "full" ]]; then
   step "Dockerfile location: /backend/Dockerfile"
-  step "Ports Exposes: $(grep -E '^APP_PORT=' "$REPO/.env" | head -1 | cut -d= -f2- || echo 'your APP_PORT from .env')"
+  step "Ports Exposes: $(env_val APP_PORT 'your APP_PORT from .env')"
 else
   step "Ports Exposes: your app's port"
 fi
@@ -716,16 +720,16 @@ fi
 if [[ "$MODE" == "full" ]]; then
   step "Environment variables — copy from the block below:"
   note "  APP_HOST=0.0.0.0"
-  note "  APP_PORT=$(grep -E '^APP_PORT=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<APP_PORT from .env>')"
+  note "  APP_PORT=$(env_val APP_PORT '<APP_PORT from .env>')"
   note "  DB_HOST=postgres   # the Postgres resource's internal hostname"
   note "  DB_PORT=5432"
-  note "  POSTGRES_DB=$(grep -E '^POSTGRES_DB=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-  note "  POSTGRES_USER=$(grep -E '^POSTGRES_USER=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-  note "  POSTGRES_PASSWORD=$(grep -E '^POSTGRES_PASSWORD=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-  note "  JWT_SECRET=$(grep -E '^JWT_SECRET=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-  note "  JWT_ISSUER=$(grep -E '^JWT_ISSUER=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-  note "  JWT_AUDIENCE=$(grep -E '^JWT_AUDIENCE=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
-  note "  AUTH_DUMMY_PASSWORD=$(grep -E '^AUTH_DUMMY_PASSWORD=' "$REPO/.env" | head -1 | cut -d= -f2- || echo '<from .env>')"
+  note "  POSTGRES_DB=$(env_val POSTGRES_DB)"
+  note "  POSTGRES_USER=$(env_val POSTGRES_USER)"
+  note "  POSTGRES_PASSWORD=$(env_val POSTGRES_PASSWORD)"
+  note "  JWT_SECRET=$(env_val JWT_SECRET)"
+  note "  JWT_ISSUER=$(env_val JWT_ISSUER)"
+  note "  JWT_AUDIENCE=$(env_val JWT_AUDIENCE)"
+  note "  AUTH_DUMMY_PASSWORD=$(env_val AUTH_DUMMY_PASSWORD)"
   note "  (skip TEST_USERNAME/TEST_PASSWORD — test seeding stays off in prod)"
 else
   step "Environment variables — the keys your app needs. Your local .env defines:"

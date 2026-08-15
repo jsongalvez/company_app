@@ -1,5 +1,7 @@
 # VPS Migration Runbook — wayfinder chain to Oracle Cloud free tier
 
+**The operational tool is `scripts/vps-migration-wizard.sh` (v2, session 65)** — it implements everything below as walkable stages, with modes: `full` (wayfinder chain + Coolify deploy) or `app-only` (just the app), and `tailnet` or `public` SSH. Run it instead of hand-executing this runbook. This file is the overview.
+
 Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the local Arch box to an Oracle Cloud **Always-Free Ampere A1** instance (2 OCPU / 12 GB — the current free-tier cap, lowered from 4 OCPU / 24 GB). **One daemon at a time; switch at a session boundary. Never run both.**
 
 ## What the chain depends on
@@ -35,9 +37,13 @@ All components have aarch64 builds (JDK 21, Postgres 18 image, Gradle, ktlint ja
 2. Image: **Ubuntu 24.04** (aarch64). Shape: **VM.Standard.A1.Flex** — set **2 OCPUs / 12 GB RAM** (the free-tier cap).
    - Capacity: A1 often reports *Out of capacity* in busy regions/ADs. Retry in your home region, or a different availability domain.
 3. Boot volume: **47 GB** or larger (free tier includes 200 GB total block storage; the boot volume counts against it).
-4. Add your **SSH public key** (`~/.ssh/id_ed25519.pub` — if you don't have one: `ssh-keygen -t ed25519`).
-5. No extra ingress needed — everything (opencode service, Postgres) binds localhost; only SSH (22) is required.
+4. Add your **SSH public key** (`~/.ssh/id_ed25519.pub` — if you don't have one: `ssh-keygen -t ed25519`). The wizard generates it if missing.
+5. **Assign a RESERVED public IPv4** if offered (keeps the nip.io domain stable). No extra ingress needed — only SSH (22) at first; the wizard later tightens the security list (tailnet mode removes 22; public mode replaces it with 51920 + 80/443).
 6. Note the instance's public IP. `ssh ubuntu@<ip>` to verify.
+
+## Phase 1b — Tailscale (the wizard does this)
+
+The wizard installs Tailscale on the VPS and joins your tailnet (auth key from the Tailscale admin console). **All later admin access rides the tailnet** — in `tailnet` mode SSH is tailnet-only (no public SSH port; the strongest option — recommended); in `public` mode sshd also listens on 51920 for org admins, with fail2ban + key-only auth. The wizard also: **disables the node's key expiry** (180-day default = a tailnet lockout), and installs the **Oracle idle-reclaim heartbeat** (Oracle stops Always-Free instances idle 7 days; Coolify's memory footprint already covers the memory leg).
 
 ## Phase 2 — VPS bootstrap (one-time)
 
@@ -95,16 +101,18 @@ Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#1
 
 ## Phase 3 — the session-boundary switch (CRITICAL — never two daemons)
 
+**The wizard's order differs from the runbook's original: kill FIRST, then push** (the push then carries anything a session committed up to the boundary; the handoff is re-derived after the kill and verified by sha256 on the VPS before the daemon starts).
+
 1. **Wait for session N to complete** — `docs/agents/wayfinder-N-handoff.md` appears and is committed. The next session number is the one that handoff names.
-2. On **this machine**: push the branch (carries the handoff):
-   ```bash
-   git push                                  # pre-push gate: composeApp compile + k6 (~3 min)
-   ```
-3. On **this machine**: stop the local daemon.
+2. On **this machine**: stop the local daemon.
    ```bash
    tmux kill-session -t wayfinder-loop
    ```
-   Confirm: `tmux ls` shows no `wayfinder-loop`; `ps aux | grep wayfinder-loop.sh` is empty.
+   Confirm: `tmux ls` shows no `wayfinder-loop`; `ps aux | grep wayfinder-loop.sh` is empty. (The wizard confirm-gates this and aborts if declined.)
+3. On **this machine**: push the branch (carries the handoff):
+   ```bash
+   git push origin ralph/company-app-full-build        # pre-push gate ~3 min
+   ```
 4. On the **VPS**: pull, then bootstrap the daemon on the handoff.
    ```bash
    cd company_app && git pull
