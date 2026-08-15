@@ -229,7 +229,7 @@ ask SSH_MODE "SSH access" tailnet
 [[ "$SSH_MODE" == "tailnet" || "$SSH_MODE" == "public" ]] || abort "SSH_MODE must be tailnet or public"
 write_env SSH_MODE "$SSH_MODE"
 
-note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match; keep it unique on your tailnet."
+note "TS_HOSTNAME: the VM's name in the Oracle console AND its Tailscale node name — they must match (case-insensitively); keep it unique on your tailnet."
 ask TS_HOSTNAME "Tailscale/instance hostname" company-app-vps
 [[ -n "$TS_HOSTNAME" ]] || abort "empty hostname"
 [[ "$TS_HOSTNAME" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]] || abort "hostname must start with a letter or digit (letters, digits, hyphens only — it feeds tailscale up + the OS hostname check)"
