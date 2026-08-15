@@ -257,17 +257,17 @@ note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup)
 ask APP_DOMAIN "Public app domain (blank = nip.io from the VPS IP)"
 [[ -n "$APP_DOMAIN" ]] && write_env APP_DOMAIN "$APP_DOMAIN"
 
-printf '\n%s%s  Configuration summary%s\n' "$BOLD" "$BLUE" "$RESET"
-note "mode: $MODE | ssh: $SSH_MODE | hostname: $TS_HOSTNAME | user: $VPS_USER"
-note "repo: $REPO_URL | branch: $DEPLOY_BRANCH | domain: ${APP_DOMAIN:-auto nip.io from the VPS IP}"
-note "secrets (tailscale auth key, GitHub PAT (full mode), Coolify admin) are asked at their stages."
-
 TOTAL_STAGES=21
 TOTAL_MINUTES=95
 [[ "$MODE" == "full" ]] && { TOTAL_STAGES=36; TOTAL_MINUTES=155; }
 [[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
 
 banner "Oracle Cloud VPS — ${MODE} setup (${SSH_MODE} ssh)"
+
+printf '\n%s%s  Configuration summary%s\n' "$BOLD" "$BLUE" "$RESET"
+note "mode: $MODE | ssh: $SSH_MODE | hostname: $TS_HOSTNAME | user: $VPS_USER"
+note "repo: $REPO_URL | branch: $DEPLOY_BRANCH | domain: ${APP_DOMAIN:-auto nip.io from the VPS IP}"
+note "secrets (tailscale auth key, GitHub PAT (full mode), Coolify admin) are asked at their stages (skipped when already configured)."
 
 # ── Phase 0 — pre-flight (this machine) ────────────────────────────────────
 
