@@ -677,8 +677,8 @@ class FinanceReportsViewModel(
         _conflicts.value = _conflicts.value - key
     }
 
-    private val _inFlightActions = MutableStateFlow<Set<String>>(emptySet())
-    val inFlightActions: StateFlow<Set<String>> = _inFlightActions.asStateFlow()
+    private val inFlightGuard = InFlightGuard<String>()
+    val inFlightActions: StateFlow<Set<String>> = inFlightGuard.inFlight
 
     private var editDataGeneration = 0
 
@@ -832,7 +832,7 @@ class FinanceReportsViewModel(
         _editAllowances.value = UiState.Idle
         _editUsers.value = UiState.Idle
         _editErrors.value = emptyMap()
-        _inFlightActions.value = emptySet()
+        inFlightGuard.clear()
         _conflicts.value = emptySet()
     }
 
@@ -846,8 +846,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "expense:create"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -908,8 +907,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "expense:update:${expense.id}"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -964,8 +962,7 @@ class FinanceReportsViewModel(
         reason: String,
     ) {
         val key = "expense:delete:${expense.id}"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1005,8 +1002,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "expense:restore:${expense.id}"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1063,8 +1059,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "comp:create"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1128,8 +1123,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "comp:update:${compensation.id}"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1193,8 +1187,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "allow:create"
-        if (key in _inFlightActions.value) return
-        beginAction(key)
+        if (!beginAction(key)) return
         val generation = editDataGeneration
         handler.launch(
             state = pageFetch,
@@ -1380,13 +1373,14 @@ class FinanceReportsViewModel(
 
     // ─────────────────────────── helpers ───────────────────────────
 
-    private fun beginAction(key: String) {
+    private fun beginAction(key: String): Boolean {
+        if (!inFlightGuard.tryBegin(key)) return false
         _editErrors.value = _editErrors.value - key
-        _inFlightActions.value = _inFlightActions.value + key
+        return true
     }
 
     private fun endAction(key: String) {
-        _inFlightActions.value = _inFlightActions.value - key
+        inFlightGuard.finish(key)
     }
 
     /**

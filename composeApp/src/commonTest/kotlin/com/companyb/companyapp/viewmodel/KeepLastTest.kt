@@ -29,7 +29,9 @@ import kotlin.test.assertTrue
  * test; on Main.immediate it converges inline, see the KeepLast KDoc).
  *
  * [KeepLastByKey] mirrors per-key and coalesces same-key in-flight loads while leaving other
- * keys' loads unblocked (the Remittance tab-switch contract).
+ * keys' loads unblocked (the Remittance tab-switch contract); [InFlightGuard] is its
+ * coalescing set-guard, now composed rather than hand-rolled at the UserVM / FinanceReportsVM
+ * / AuditLogVM ack sites (#166).
  *
  * The KeepLast collector runs on the scope passed at construction — the tests pass a scope on
  * the test Main dispatcher (the production shape: VMs pass viewModelScope). Note: a
@@ -285,5 +287,44 @@ class KeepLastTest {
             assertEquals(1, kept.freshest("a"))
             assertEquals(2, kept.freshest("b"))
             assertNull(kept.freshest("c"), "a never-loaded key has no mirror")
+        }
+
+    // ─────────────────────────── InFlightGuard (#166) ───────────────────────────
+
+    @Test
+    fun inFlightGuard_same_key_coalesces_other_keys_unblocked() =
+        runTest(testScheduler) {
+            val guard = InFlightGuard<String>()
+
+            assertTrue(guard.tryBegin("a"))
+            assertFalse(guard.tryBegin("a"), "a same-key double-fire coalesces")
+            assertTrue(guard.tryBegin("b"), "a switch to another key is never skipped")
+            assertEquals(setOf("a", "b"), guard.inFlight.value)
+        }
+
+    @Test
+    fun inFlightGuard_finish_clears_and_is_noop_when_idle() =
+        runTest(testScheduler) {
+            val guard = InFlightGuard<String>()
+            assertTrue(guard.tryBegin("a"))
+
+            guard.finish("a")
+
+            assertFalse("a" in guard.inFlight.value)
+            guard.finish("a")
+            assertFalse("a" in guard.inFlight.value, "finish is a no-op when not in flight")
+        }
+
+    @Test
+    fun inFlightGuard_clear_resets_wholesale() =
+        runTest(testScheduler) {
+            val guard = InFlightGuard<String>()
+            guard.tryBegin("a")
+            guard.tryBegin("b")
+
+            guard.clear()
+
+            assertTrue(guard.inFlight.value.isEmpty())
+            assertTrue(guard.tryBegin("a"), "a cleared key re-arms")
         }
 }

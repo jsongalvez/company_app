@@ -111,8 +111,43 @@ fun <T> KeepLast<List<T>>.mutateRemoved(predicate: (T) -> Boolean): Boolean =
     }
 
 /**
+ * Per-key in-flight coalescer (the #162 P5 per-key in-flight guard graduate): the identical
+ * `if (key in set) return; set + key` … `set - key` guard, once. Owns the in-flight marker
+ * set; [tryBegin] is synchronous by construction (direct value reads/writes — no dispatch, so
+ * a same-frame double-tap coalesces; the #143 in-flight shape: a state-based guard would race
+ * the handler's Loading assignment, which is not guaranteed to land before launch returns).
+ * [finish] is a no-op for keys not in flight, so failure paths can call it unconditionally.
+ * [clear] resets wholesale — the superseded-context escape (FinanceReports' edit-panel close
+ * drops every in-flight marker; a stale action's generation guard keeps it from re-arming).
+ */
+class InFlightGuard<K> {
+    private val _inFlight = MutableStateFlow<Set<K>>(emptySet())
+    val inFlight: StateFlow<Set<K>> = _inFlight.asStateFlow()
+
+    /**
+     * Mark [key] in flight unless it already is. Returns false (and does nothing) when a
+     * request is already running for [key]; true when this call took the marker.
+     */
+    fun tryBegin(key: K): Boolean {
+        if (key in _inFlight.value) return false
+        _inFlight.value = _inFlight.value + key
+        return true
+    }
+
+    /** Clear the marker for [key]. No-op when [key] is not in flight. */
+    fun finish(key: K) {
+        _inFlight.value = _inFlight.value - key
+    }
+
+    /** Clear every marker — for superseded contexts whose in-flight work is now inert. */
+    fun clear() {
+        _inFlight.value = emptySet()
+    }
+}
+
+/**
  * Per-key keep-last-results + in-flight guard (the #161 port shape, unified by #162): a map
- * mirror of the last successful payload per key, plus a per-key in-flight set — absorbs
+ * mirror of the last successful payload per key, plus the [InFlightGuard] — absorbs
  * Remittance's `_lastByTab` + `listLoadsInFlight` manual set bookkeeping. Per-key, NOT
  * single-slot: a switch to another key while one key's load is in flight must not skip the
  * new key's fetch; a same-key double-fire coalesces.
@@ -125,8 +160,8 @@ class KeepLastByKey<K, T> {
     private val _lastByKey = MutableStateFlow<Map<K, T>>(emptyMap())
     val lastByKey: StateFlow<Map<K, T>> = _lastByKey.asStateFlow()
 
-    private val _inFlight = MutableStateFlow<Set<K>>(emptySet())
-    val inFlight: StateFlow<Set<K>> = _inFlight.asStateFlow()
+    private val inFlightGuard = InFlightGuard<K>()
+    val inFlight: StateFlow<Set<K>> = inFlightGuard.inFlight
 
     /**
      * Begin a load for [key] unless one is already in flight for it. Synchronous by
@@ -136,11 +171,7 @@ class KeepLastByKey<K, T> {
      *
      * Returns false (and does nothing) when a load is already running for [key].
      */
-    fun tryBegin(key: K): Boolean {
-        if (key in _inFlight.value) return false
-        _inFlight.value = _inFlight.value + key
-        return true
-    }
+    fun tryBegin(key: K): Boolean = inFlightGuard.tryBegin(key)
 
     /**
      * Commit a successful payload for [key]: mirror it and clear the in-flight marker.
@@ -151,16 +182,14 @@ class KeepLastByKey<K, T> {
         data: T,
     ) {
         _lastByKey.value = _lastByKey.value + (key to data)
-        _inFlight.value = _inFlight.value - key
+        inFlightGuard.finish(key)
     }
 
     /**
      * Clear the in-flight marker without committing (failure / non-success / exception paths).
      * No-op when [key] is not in flight.
      */
-    fun finish(key: K) {
-        _inFlight.value = _inFlight.value - key
-    }
+    fun finish(key: K) = inFlightGuard.finish(key)
 
     /** The last successful payload for [key], or null when that key never loaded. */
     fun freshest(key: K): T? = _lastByKey.value[key]

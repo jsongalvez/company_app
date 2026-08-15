@@ -119,8 +119,8 @@ class UserViewModel(
     // Per-action in-flight guard + inline errors (ADR-0022 pessimistic axis). Keys:
     // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$userIdA:$userIdB",
     // "slot:$branchId:$userId".
-    private val _inFlight = MutableStateFlow<Set<String>>(emptySet())
-    val inFlight: StateFlow<Set<String>> = _inFlight.asStateFlow()
+    private val inFlightGuard = InFlightGuard<String>()
+    val inFlight: StateFlow<Set<String>> = inFlightGuard.inFlight
 
     private val _actionErrors = MutableStateFlow<Map<String, String>>(emptyMap())
     val actionErrors: StateFlow<Map<String, String>> = _actionErrors.asStateFlow()
@@ -147,7 +147,7 @@ class UserViewModel(
         // land before launch returns (Main.immediate may execute the body inline, but the guard
         // must not depend on dispatch timing) — a plain post-launch check would race a
         // same-frame double-tap (the #143 in-flight shape).
-        if (keptUsers.state.value is UiState.Loading || _inFlight.value.isNotEmpty()) return
+        if (keptUsers.state.value is UiState.Loading || inFlight.value.isNotEmpty()) return
         // Synchronous guard pre-set (see Guard 2). Self-clearing by construction: the handler
         // owns the state flow and assigns Error/Success on every non-cancellation exit path, so
         // no separate flag can wedge (the #140 stuck-Loading class). Cancellation only happens
@@ -248,7 +248,7 @@ class UserViewModel(
     }
 
     private fun clearKey(key: String) {
-        _inFlight.value = _inFlight.value - key
+        inFlightGuard.finish(key)
     }
 
     private fun runMutation(
@@ -259,7 +259,6 @@ class UserViewModel(
         onSuccess: () -> Unit,
         statusMessage: (HttpStatusCode) -> String,
     ) {
-        if (key in _inFlight.value) return
         // A mutation landing while a reload is in flight would be clobbered by the load's
         // pre-mutation snapshot (the pass-1 HARD interleave the keep-last gate opened: rows
         // render live during Loading now, and the load's last-writer Success would silently
@@ -268,7 +267,7 @@ class UserViewModel(
         // the screen disables the row actions + dialog confirms while Loading; this guard covers
         // the same-frame tap that slips past the composition gate.
         if (keptUsers.state.value is UiState.Loading) return
-        _inFlight.value = _inFlight.value + key
+        if (!inFlightGuard.tryBegin(key)) return
         _actionErrors.value = _actionErrors.value - key
         handler.launch(
             state = mutation,

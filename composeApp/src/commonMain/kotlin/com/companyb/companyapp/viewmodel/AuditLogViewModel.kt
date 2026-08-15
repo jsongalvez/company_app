@@ -67,8 +67,8 @@ class AuditLogViewModel(
 
     // D2 — ack in-flight set + per-row inline errors (ADR-0022: pessimistic, failure keeps row).
     private val acknowledgeResult = MutableStateFlow<UiState<AuditLogEntryResponse>>(UiState.Idle)
-    private val _acknowledgingIds = MutableStateFlow<Set<String>>(emptySet())
-    val acknowledgingIds: StateFlow<Set<String>> = _acknowledgingIds.asStateFlow()
+    private val acknowledgingGuard = InFlightGuard<String>()
+    val acknowledgingIds: StateFlow<Set<String>> = acknowledgingGuard.inFlight
     private val _ackErrors = MutableStateFlow<Map<String, String>>(emptyMap())
     val ackErrors: StateFlow<Map<String, String>> = _ackErrors.asStateFlow()
 
@@ -192,8 +192,7 @@ class AuditLogViewModel(
     // D2 — one-tap acknowledge, pessimistic: row leaves the flagged list only on 2xx; a failure
     // (incl. the server-enforced self-ack 409) keeps the row and surfaces an inline per-row error.
     fun acknowledge(entry: AuditLogEntryResponse) {
-        if (entry.id in _acknowledgingIds.value) return
-        _acknowledgingIds.value = _acknowledgingIds.value + entry.id
+        if (!acknowledgingGuard.tryBegin(entry.id)) return
         _ackErrors.value = _ackErrors.value - entry.id
         handler.launch(
             state = acknowledgeResult,
@@ -220,7 +219,7 @@ class AuditLogViewModel(
                     // badge + Acknowledge button until a refresh otherwise (a re-tap would 404
                     // on an already-acked row — stale state masking success).
                     markAcknowledgedInBrowse(entry.id)
-                    _acknowledgingIds.value = _acknowledgingIds.value - entry.id
+                    acknowledgingGuard.finish(entry.id)
                     acknowledged
                 } catch (e: CancellationException) {
                     throw e
@@ -250,7 +249,7 @@ class AuditLogViewModel(
         entryId: String,
         message: String,
     ) {
-        _acknowledgingIds.value = _acknowledgingIds.value - entryId
+        acknowledgingGuard.finish(entryId)
         _ackErrors.value = _ackErrors.value + (entryId to message)
     }
 
