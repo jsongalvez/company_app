@@ -49,6 +49,7 @@ The register is the memory of the loop: documented bug classes that recurred as 
 | exact-path gate | a route-level gate written for a path shape the actual route never matches (segment-count drift) — a gate that never fires | #114; #128/#131 (5+); #148 (nav pattern strip written for query-only shapes; non-optional args are `/` path segments) |
 | layout starvation | a `fillMaxSize`/`fillMaxHeight`/intrinsic-measure misuse that gives a pinned sibling (button, list, divider) zero height inside a wrap-content parent — UI silently invisible | #144 D5; #147 pass-2 divider (2) |
 | fix-that-didn't-land | a claimed fix that never reached the file — imports/params added but the body replacement silently missed (string-mismatch edits); the commit message and the phases disagree — verified by reading the file, never the commit | #147 pass-4 (1) |
+| keyed-mirror ordering | a stale same-key response becoming the LAST WRITER on a per-key keep-last mirror — ordering a key alone cannot see (two loads of the same key in flight: the older snapshot commits after the newer). Fix shape: newest-launch-wins stamp gating the commit, or a per-key in-flight guard when a skipped refetch is safe. | #162 pass-1 (2 phases independently) |
 
 ### Triage (driving agent, after each pass's phases report)
 
