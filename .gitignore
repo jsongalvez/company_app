@@ -50,3 +50,4 @@ logs/
 .wayfinder-loop.env
 .wayfinder-loop.tmux.log
 .wayfinder-loop.log
+.wayfinder-vps.env
