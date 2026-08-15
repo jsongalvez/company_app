@@ -88,7 +88,11 @@ fun UserManagementScreen(
     currentUserId: String?,
 ) {
     val users by viewModel.users.collectAsState()
-    val lastUsers by viewModel.lastUsers.collectAsState()
+    // Keep-last render source (#162 — the KeepLast freshest flow, the #143 VM-held-list shape):
+    // Success data, or the VM-held mirror during Loading/Error so a reload never flashes the
+    // spinner over held rows and a failed reload never replaces the list with an ErrorCard.
+    // null only when nothing has ever loaded (first composition) — spinner/ErrorCard then.
+    val heldList by viewModel.freshestUsers.collectAsState()
     val branches by viewModel.branches.collectAsState()
     val inFlight by viewModel.inFlight.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
@@ -105,12 +109,6 @@ fun UserManagementScreen(
         viewModel.loadBranches()
     }
 
-    // Keep-last render source (#161 port, the #143 VM-held-list shape): Success data, or the
-    // VM-held mirror during Loading/Error so a reload never flashes the spinner over held rows
-    // and a failed reload never replaces the list with an ErrorCard. null only when nothing has
-    // ever loaded (first composition) — spinner/ErrorCard then.
-    val heldList: List<UserSummaryResponse>? =
-        (users as? UiState.Success<List<UserSummaryResponse>>)?.data ?: lastUsers
     val loadedUsers = heldList.orEmpty()
     val filteredUsers = remember(loadedUsers, searchQuery) { filterUsers(loadedUsers, searchQuery) }
     val loadedBranches = (branches as? UiState.Success<List<BranchResponse>>)?.data.orEmpty()

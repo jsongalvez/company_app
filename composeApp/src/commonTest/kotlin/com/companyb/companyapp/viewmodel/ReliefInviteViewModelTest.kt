@@ -27,6 +27,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -93,14 +94,14 @@ class ReliefInviteViewModelTest {
             val state = vm.received.value
             assertIs<UiState.Success<List<ReliefInviteResponse>>>(state)
             assertEquals(1, state.data.size)
-            assertEquals(1, vm.lastReceived.value!!.size)
+            assertEquals(1, vm.freshestReceived.value!!.size)
             assertEquals(1, receivedCalls)
 
             // Re-entry refires (no Loading guard once Success) but keep-last mirrors every Success.
             vm.loadReceived()
             runCurrent()
             assertEquals(2, receivedCalls)
-            assertEquals(1, vm.lastReceived.value!!.size)
+            assertEquals(1, vm.freshestReceived.value!!.size)
         }
 
     @Test
@@ -124,7 +125,7 @@ class ReliefInviteViewModelTest {
             vm.acceptInvite("i1")
             runCurrent()
             assertIs<UiState.Success<Unit>>(vm.acceptResult.value)
-            assertEquals(0, vm.lastReceived.value!!.size, "resolved rows leave the list")
+            assertEquals(0, vm.freshestReceived.value!!.size, "resolved rows leave the list")
             assertEquals(0, NotificationState.inviteCount.value)
         }
 
@@ -156,10 +157,10 @@ class ReliefInviteViewModelTest {
 
             vm.declineInvite("i1")
             runCurrent()
-            assertEquals(1, vm.lastReceived.value!!.size)
+            assertEquals(1, vm.freshestReceived.value!!.size)
             assertEquals(
                 "i2",
-                vm.lastReceived.value!!
+                vm.freshestReceived.value!!
                     .single()
                     .id,
             )
@@ -200,7 +201,7 @@ class ReliefInviteViewModelTest {
             vm.acceptInvite("i1")
             runCurrent()
             assertIs<UiState.Error>(vm.acceptResult.value)
-            assertEquals(1, vm.lastReceived.value!!.size, "a failed accept keeps the row")
+            assertEquals(1, vm.freshestReceived.value!!.size, "a failed accept keeps the row")
         }
 
     @Test
@@ -292,7 +293,7 @@ class ReliefInviteViewModelTest {
             assertIs<UiState.Success<List<ReliefCandidateResponse>>>(candidates)
             assertEquals(0, candidates.data.size, "invited user leaves the results")
             assertEquals(1, sentCalls, "send reloads the sent list")
-            assertEquals(1, vm.lastSent.value!!.size)
+            assertEquals(1, vm.sentByKey.value["b1"]!!.size)
         }
 
     @Test
@@ -321,7 +322,7 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadSent("b1")
             runCurrent()
-            assertEquals(1, vm.lastSent.value!!.size)
+            assertEquals(1, vm.sentByKey.value["b1"]!!.size)
             assertEquals(1, sentCalls)
 
             vm.retractInvite("i1", "b1")
@@ -365,13 +366,13 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadReceived()
             runCurrent()
-            assertEquals(1, vm.lastReceived.value!!.size)
+            assertEquals(1, vm.freshestReceived.value!!.size)
 
             failNext = true
             vm.loadReceived()
             runCurrent()
             assertIs<UiState.Error>(vm.received.value)
-            assertEquals(1, vm.lastReceived.value!!.size, "keep-last survives the reload error")
+            assertEquals(1, vm.freshestReceived.value!!.size, "keep-last survives the reload error")
         }
 
     @Test
@@ -400,32 +401,40 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadSent("b1")
             runCurrent()
-            // b1's load is in flight — the branch label must NOT pre-flip (commit-stamping):
-            // the screen gate would otherwise render the previous branch's keep-last.
-            assertEquals(null, vm.sentBranch.value)
+            // b1's load is in flight — the keyed mirror has no entry yet (commit-time write, no
+            // pre-set): the screen gate `sentByKey[panelBranch]` renders nothing for b1 until
+            // the commit lands (the #160 commit-stamping contract, now by construction).
+            assertNull(vm.sentByKey.value["b1"])
 
             // b2's panel opens while b1's load is in flight: the newer load must win.
             vm.loadSent("b2")
             runCurrent()
-            assertEquals("b2", vm.sentBranch.value)
             assertEquals(
                 "iB",
-                vm.lastSent.value!!
+                vm.sentByKey.value["b2"]!!
                     .single()
                     .id,
             )
 
-            // b1's late response lands — the stale stamp must NOT commit A's rows.
+            // b1's late response lands — it commits under b1's OWN key: b2's entry is
+            // untouched, so the screen gate can never render A's rows under panel B (the
+            // #160 pass-1/pass-2 cross-branch bleed class, closed by construction).
             advanceTimeBy(20_000)
             runCurrent()
             assertEquals(
                 "iB",
-                vm.lastSent.value!!
+                vm.sentByKey.value["b2"]!!
                     .single()
                     .id,
-                "stale branch load must not commit",
+                "stale branch load must not touch b2's entry",
             )
-            assertEquals("b2", vm.sentBranch.value)
+            assertEquals(
+                "iA",
+                vm.sentByKey.value["b1"]!!
+                    .single()
+                    .id,
+                "the stale response commits under its own key — invisible to the b2 gate",
+            )
         }
 
     @Test
@@ -469,14 +478,14 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadReceived()
             runCurrent()
-            assertEquals(2, vm.lastReceived.value!!.size)
+            assertEquals(2, vm.freshestReceived.value!!.size)
 
             // The second load is in flight (delayed); the accept lands first.
             vm.loadReceived()
             runCurrent()
             vm.acceptInvite("i1")
             runCurrent()
-            assertEquals(1, vm.lastReceived.value!!.size, "i1 left in-session")
+            assertEquals(1, vm.freshestReceived.value!!.size, "i1 left in-session")
 
             // The stale load lands AFTER the accept — its stamp mismatch must substitute the
             // post-action list, not resurrect i1; the re-issued load then converges server
@@ -529,14 +538,14 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadReceived()
             runCurrent()
-            assertEquals(1, vm.lastReceived.value!!.size)
+            assertEquals(1, vm.freshestReceived.value!!.size)
 
             vm.acceptInvite("i1")
             runCurrent()
             // 409 → handled (no Error) → reload → the stale row leaves.
             assertIs<UiState.Idle>(vm.acceptResult.value)
             assertEquals(2, reloadCalls)
-            assertEquals(0, vm.lastReceived.value!!.size)
+            assertEquals(0, vm.freshestReceived.value!!.size)
         }
 
     @Test
@@ -586,7 +595,7 @@ class ReliefInviteViewModelTest {
             val vm = ReliefInviteViewModel(apiClient)
             vm.loadReceived()
             runCurrent()
-            assertEquals(1, vm.lastReceived.value!!.size)
+            assertEquals(1, vm.freshestReceived.value!!.size)
 
             // The second load is in flight when the accept 409s. The 409 is authoritative
             // server confirmation — the row leaves locally (removal) and the stamp bump
@@ -596,7 +605,7 @@ class ReliefInviteViewModelTest {
             vm.acceptInvite("i1")
             runCurrent()
             assertIs<UiState.Idle>(vm.acceptResult.value)
-            assertEquals(0, vm.lastReceived.value!!.size, "the 409 removes the row locally")
+            assertEquals(0, vm.freshestReceived.value!!.size, "the 409 removes the row locally")
 
             // The pre-conflict load lands with a stale stamp: substitution converges to the
             // post-409 list (already empty) instead of resurrecting i1.
@@ -605,7 +614,7 @@ class ReliefInviteViewModelTest {
             val state = vm.received.value
             assertIs<UiState.Success<List<ReliefInviteResponse>>>(state)
             assertEquals(0, state.data.size, "the resolved row must not resurrect")
-            assertEquals(0, vm.lastReceived.value!!.size)
+            assertEquals(0, vm.freshestReceived.value!!.size)
         }
 
     private fun handler(block: MockRequestHandler): MockRequestHandler = block

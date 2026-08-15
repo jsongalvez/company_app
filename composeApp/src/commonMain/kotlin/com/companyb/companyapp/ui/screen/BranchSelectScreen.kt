@@ -327,9 +327,10 @@ private fun InviteStaffPanel(
     viewModel: ReliefInviteViewModel,
 ) {
     val candidatesState by viewModel.candidates.collectAsState()
-    val sentState by viewModel.sentInvites.collectAsState()
-    val lastSent by viewModel.lastSent.collectAsState()
-    val sentBranch by viewModel.sentBranch.collectAsState()
+    // Branch-keyed keep-last mirror (#162 KeepLastByKey — the #160 pass-1/pass-2 cross-branch
+    // bleed class is structurally unrenderable: the gate below reads THIS panel's key, so
+    // another branch's rows can never pass it; the old commit-stamp machinery is gone).
+    val sentByKey by viewModel.sentByKey.collectAsState()
     val createState by viewModel.createResult.collectAsState()
     val retractState by viewModel.retractResult.collectAsState()
 
@@ -424,10 +425,7 @@ private fun InviteStaffPanel(
             )
 
             SentInvitesSection(
-                state = sentState,
-                lastSent = lastSent,
-                sentBranch = sentBranch,
-                panelBranch = branchId,
+                lastSent = sentByKey[branchId],
                 retractBusy = retractBusy,
                 onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
             )
@@ -526,24 +524,17 @@ private fun CandidateResults(
 
 @Composable
 private fun SentInvitesSection(
-    state: UiState<List<ReliefInviteResponse>>,
     lastSent: List<ReliefInviteResponse>?,
-    sentBranch: String?,
-    panelBranch: String,
     retractBusy: Boolean,
     onRetract: (String) -> Unit,
 ) {
-    // Branch-gated keep-last (pass-1/pass-2 HARD): _sentBranch flips only at COMMIT, so a
-    // passing gate means the rendered list IS this panel's — the previous branch's rows can
-    // never render here (with live Retract) while this panel's load is in flight or failed.
-    // The committed state is authoritative; the keep-last mirror covers same-branch reloads.
-    val sent =
-        when {
-            sentBranch != panelBranch -> emptyList()
-            state is UiState.Success -> state.data
-            else -> lastSent.orEmpty()
-        }
-    if (sent.isEmpty() && sentBranch != panelBranch) return
+    // Branch-gated keep-last (the #160 pass-1/pass-2 HARD class, now by construction): the
+    // caller passes THIS panel's keyed mirror entry — null until this branch's first commit, so
+    // another branch's rows (with live Retract) can never render here while this panel's load
+    // is in flight or failed; a committed entry covers same-branch reloads (Loading/Error keep
+    // rendering it).
+    if (lastSent == null) return
+    val sent = lastSent
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         Text(

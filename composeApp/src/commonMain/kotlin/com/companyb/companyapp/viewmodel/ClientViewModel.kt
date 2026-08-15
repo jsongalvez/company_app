@@ -26,8 +26,14 @@ class ClientViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "ClientVM")
 
-    private val _searchResults = MutableStateFlow<UiState<List<ClientResponse>>>(UiState.Idle)
-    val searchResults: StateFlow<UiState<List<ClientResponse>>> = _searchResults.asStateFlow()
+    // Keep-last-results, VM-side (the #162 KeepLast unifier — the last screen-side mirror,
+    // ClientsScreen `cachedResults`, joins the VM-side shape here): the freshest search results
+    // (Success data, or the last successful list) survive Loading/Error — while typing and on
+    // composition re-entry (a screen-side remember died on pop-back mid-search, the exact class
+    // #161 fixed elsewhere). The screen renders this flow instead of caching locally.
+    private val keptResults = KeepLast<List<ClientResponse>>(viewModelScope)
+    val searchResults: StateFlow<UiState<List<ClientResponse>>> = keptResults.state
+    val freshestResults: StateFlow<List<ClientResponse>?> = keptResults.freshest
 
     // The query the field currently shows (#161 — D9-deviation fix, the keep-last port shape):
     // VM-held so it survives pop-back. D9 accepted a stale list on return, but the query was
@@ -73,7 +79,7 @@ class ClientViewModel(
         searchJob?.cancel()
         val trimmed = query.trim()
         if (trimmed.length < MIN_SEARCH_CHARS) {
-            _searchResults.value = UiState.Idle
+            keptResults.stateFlow.value = UiState.Idle
             return
         }
         searchJob =
@@ -106,7 +112,7 @@ class ClientViewModel(
         _lastFiredQuery.value = query
         handler.launch(
             scope = scope,
-            state = _searchResults,
+            state = keptResults.stateFlow,
             operation = "search",
             endpoint = "GET /api/clients",
             entryMessage = entryMessage,

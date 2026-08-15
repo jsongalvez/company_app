@@ -18,8 +18,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.launch
 import kotlin.time.Clock
 
 const val USER_STATUS_ACTIVE = "ACTIVE"
@@ -105,16 +103,15 @@ class UserViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "UserVM")
 
-    private val _users = MutableStateFlow<UiState<List<UserSummaryResponse>>>(UiState.Idle)
-    val users: StateFlow<UiState<List<UserSummaryResponse>>> = _users.asStateFlow()
-
-    // Keep-last-results, VM-side (the #143/#161 port shape — NotificationViewModel precedent):
-    // the last successful list survives Loading/Error so the screen keeps rendering it across
-    // reloads and composition re-entries (a screen-side remember would die on re-entry; the VM
-    // is entry-scoped). It is also the fallback mutations mutate in place when a reload failed
-    // but the list is still rendered — a row action must not dead-tap against a rendered list.
-    private val _lastUsers = MutableStateFlow<List<UserSummaryResponse>?>(null)
-    val lastUsers: StateFlow<List<UserSummaryResponse>?> = _lastUsers.asStateFlow()
+    // Keep-last-results, VM-side (the #143/#161 port shape, unified by #162 — KeepLast):
+    // the freshest list (Success data, or the last successful list) survives Loading/Error so
+    // the screen keeps rendering it across reloads and composition re-entries (a screen-side
+    // remember would die on re-entry; the VM is entry-scoped). It is also the fallback
+    // mutations mutate in place when a reload failed but the list is still rendered — a row
+    // action must not dead-tap against a rendered list.
+    private val keptUsers = KeepLast<List<UserSummaryResponse>>(viewModelScope)
+    val users: StateFlow<UiState<List<UserSummaryResponse>>> = keptUsers.state
+    val freshestUsers: StateFlow<List<UserSummaryResponse>?> = keptUsers.freshest
 
     private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
     val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
@@ -131,16 +128,6 @@ class UserViewModel(
     // Throwaway flow: every mutation lands here so a failure/in-flight fetch can never clobber
     // the accumulated users list (the #122/#120 keep-last-list shape).
     private val mutation = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-
-    init {
-        // Single writer for lastUsers: every Success that lands on _users (load, mutation
-        // in-place updates) mirrors into it (the NotificationViewModel collector pattern).
-        viewModelScope.launch {
-            _users
-                .filterIsInstance<UiState.Success<List<UserSummaryResponse>>>()
-                .collect { state -> _lastUsers.value = state.data }
-        }
-    }
 
     fun loadUsers() {
         // Guard 1 (mutations): a reload mid-mutation would let the mutation's in-place transform
@@ -160,17 +147,18 @@ class UserViewModel(
         // land before launch returns (Main.immediate may execute the body inline, but the guard
         // must not depend on dispatch timing) — a plain post-launch check would race a
         // same-frame double-tap (the #143 in-flight shape).
-        if (_users.value is UiState.Loading || _inFlight.value.isNotEmpty()) return
+        if (keptUsers.state.value is UiState.Loading || _inFlight.value.isNotEmpty()) return
         // Synchronous guard pre-set (see Guard 2). Self-clearing by construction: the handler
-        // owns _users and assigns Error/Success on every non-cancellation exit path, so no
-        // separate flag can wedge (the #140 stuck-Loading class). Cancellation only happens at
-        // VM teardown (the load holds no cancelable handle), where the guard dies with the VM.
-        _users.value = UiState.Loading
+        // owns the state flow and assigns Error/Success on every non-cancellation exit path, so
+        // no separate flag can wedge (the #140 stuck-Loading class). Cancellation only happens
+        // at VM teardown (the load holds no cancelable handle), where the guard dies with the
+        // VM.
+        keptUsers.stateFlow.value = UiState.Loading
         // A reload replaces the list; the errors describe actions against the pre-reload list
         // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale).
         _actionErrors.value = emptyMap()
         handler.launch(
-            state = _users,
+            state = keptUsers.stateFlow,
             operation = "loadUsers",
             endpoint = "GET /api/users",
             block = { apiClient.httpClient.get("/api/users") },
@@ -259,6 +247,10 @@ class UserViewModel(
         )
     }
 
+    private fun clearKey(key: String) {
+        _inFlight.value = _inFlight.value - key
+    }
+
     private fun runMutation(
         key: String,
         operation: String,
@@ -275,7 +267,7 @@ class UserViewModel(
         // skipping restores the pre-port invariant (rows were untappable during Loading). Belt:
         // the screen disables the row actions + dialog confirms while Loading; this guard covers
         // the same-frame tap that slips past the composition gate.
-        if (_users.value is UiState.Loading) return
+        if (keptUsers.state.value is UiState.Loading) return
         _inFlight.value = _inFlight.value + key
         _actionErrors.value = _actionErrors.value - key
         handler.launch(
@@ -311,23 +303,16 @@ class UserViewModel(
         )
     }
 
-    private fun clearKey(key: String) {
-        _inFlight.value = _inFlight.value - key
-    }
-
     private fun mutateUser(
         userId: String,
         transform: (UserSummaryResponse) -> UserSummaryResponse,
     ) {
-        // Success ?? lastUsers: a failed reload leaves _users Error while the mirror still
+        // freshestValue: a failed reload leaves the state Error while the freshest flow still
         // renders the rows — the action must not dead-tap against a rendered list (#161 port;
         // the NotificationViewModel currentUnreadList precedent). The success writes Success
         // over Error, which is the freshest truth for the mutated row.
-        val current =
-            (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data
-                ?: _lastUsers.value
-                ?: return
-        _users.value = UiState.Success(current.map { if (it.id == userId) transform(it) else it })
+        val current = keptUsers.freshestValue() ?: return
+        keptUsers.stateFlow.value = UiState.Success(current.map { if (it.id == userId) transform(it) else it })
     }
 
     private fun mutateAssignmentSlot(
@@ -351,8 +336,7 @@ class UserViewModel(
         userIdB: String,
     ) {
         val users =
-            (_users.value as? UiState.Success<List<UserSummaryResponse>>)?.data
-                ?: _lastUsers.value
+            keptUsers.freshestValue()
                 ?: return
         val slotA =
             users

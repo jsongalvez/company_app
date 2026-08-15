@@ -56,24 +56,17 @@ class RemittanceViewModel(
     private val _remittanceList = MutableStateFlow<UiState<List<RemittanceResponse>>>(UiState.Idle)
     val remittanceList: StateFlow<UiState<List<RemittanceResponse>>> = _remittanceList.asStateFlow()
 
-    // Keep-last per tab, VM-side (#161 port, the #143 VM-held-list shape): the last successful
-    // list per (branchId, status) survives Loading/Error and composition re-entry (the old
-    // screen-side remember cache died on pop-back). Keyed by branch defensively — the list
-    // route takes no branch arg (picked via the accessible-branch picker); in practice a branch
-    // change re-enters the route with a fresh VM, but the key keeps the mirror honest either
-    // way. Written ONLY by the list transform; the screen's render gate keys on the SELECTED
-    // tab's mirror, so a cross-tab response can never render foreign rows (a fetch landing
-    // after a tab switch previously last-writer-won on the single list state).
-    private val _lastByTab = MutableStateFlow<Map<String, List<RemittanceResponse>>>(emptyMap())
-    val lastByTab: StateFlow<Map<String, List<RemittanceResponse>>> = _lastByTab.asStateFlow()
-
-    // Load in-flight guard keyed by (branchId, status), synchronous (the #143 in-flight shape:
-    // the handler's Loading assignment is not guaranteed to land before launch returns, so a
-    // state-based guard would race a same-frame double-tap — the entry + tab effects both fire
-    // the default tab's load on first composition). Per-key, NOT a single slot: a tab switch
-    // while another tab's load is in flight must not skip the new tab's fetch. Cleared on every
-    // handler exit path (success / non-success / exception) so no key can wedge.
-    private val listLoadsInFlight = MutableStateFlow<Set<String>>(emptySet())
+    // Keep-last per tab + per-key in-flight guard, VM-side (the #161 port shape, unified by
+    // #162 — KeepLastByKey): the last successful list per (branchId, status) survives
+    // Loading/Error and composition re-entry (the old screen-side remember cache died on
+    // pop-back). Keyed by branch defensively — the list route takes no branch arg (picked via
+    // the accessible-branch picker); in practice a branch change re-enters the route with a
+    // fresh VM, but the key keeps the mirror honest either way. Written ONLY by commit() at
+    // the list transform; the screen's render gate keys on the SELECTED tab's mirror, so a
+    // cross-tab response can never render foreign rows (a fetch landing after a tab switch
+    // previously last-writer-won on the single list state).
+    private val keptByTab = KeepLastByKey<String, List<RemittanceResponse>>()
+    val lastByTab: StateFlow<Map<String, List<RemittanceResponse>>> = keptByTab.lastByKey
 
     // D1 — list, status-filtered (DRAFT/SUBMITTED/ALL).
     fun loadRemittances(
@@ -81,8 +74,13 @@ class RemittanceViewModel(
         status: String,
     ) {
         val key = remittanceListKey(branchId, status)
-        if (key in listLoadsInFlight.value) return
-        listLoadsInFlight.value = listLoadsInFlight.value + key
+        // Synchronous per-key guard (the #143 in-flight shape): the handler's Loading
+        // assignment is not guaranteed to land before launch returns, so a state-based guard
+        // would race a same-frame double-tap — the entry + tab effects both fire the default
+        // tab's load on first composition. Per-key, NOT a single slot: a tab switch while
+        // another tab's load is in flight must not skip the new tab's fetch. Cleared on every
+        // handler exit path (commit / non-success / exception) so no key can wedge.
+        if (!keptByTab.tryBegin(key)) return
         handler.launch(
             state = _remittanceList,
             operation = "loadRemittances",
@@ -96,16 +94,15 @@ class RemittanceViewModel(
             },
             transform = { response ->
                 val body = response.body<List<RemittanceResponse>>()
-                _lastByTab.value = _lastByTab.value + (key to body)
-                listLoadsInFlight.value = listLoadsInFlight.value - key
+                keptByTab.commit(key, body)
                 body
             },
             onNonSuccess = {
-                listLoadsInFlight.value = listLoadsInFlight.value - key
+                keptByTab.finish(key)
                 false
             },
             onError = {
-                listLoadsInFlight.value = listLoadsInFlight.value - key
+                keptByTab.finish(key)
             },
         )
     }

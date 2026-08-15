@@ -23,9 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -61,8 +59,12 @@ fun ClientsScreen(
     // survives a detail push → pop-back (composition remember died on re-entry, clearing the
     // query one frame after the kept list re-rendered).
     val query by viewModel.query.collectAsState()
+    // Keep-last-results while typing (D2 / #97 Q5 axis; the #162 KeepLast unifier — VM-side so
+    // it survives pop-back, unlike the old screen-side remember): any Success caches into the
+    // VM's freshest flow, and Loading/Error with held content keeps rendering it (the in-field
+    // spinner is the only busy signal — no list flicker).
+    val cachedResults by viewModel.freshestResults.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var cachedResults by remember { mutableStateOf<List<ClientResponse>?>(null) }
 
     LaunchedEffect(Unit) {
         logInfo("ClientsScreen", "composable entered (first composition)")
@@ -79,8 +81,6 @@ fun ClientsScreen(
             }
         }
     }
-
-    (searchState as? UiState.Success<List<ClientResponse>>)?.let { cachedResults = it.data }
 
     val isLoading = searchState is UiState.Loading
     val errorMessage = (searchState as? UiState.Error)?.message

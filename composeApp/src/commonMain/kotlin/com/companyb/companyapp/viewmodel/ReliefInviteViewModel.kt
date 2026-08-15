@@ -17,8 +17,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.launch
 
 /**
  * Relief invite flow (#160) — both surfaces in one VM:
@@ -37,13 +35,12 @@ class ReliefInviteViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "ReliefInviteVM")
 
-    private val _received = MutableStateFlow<UiState<List<ReliefInviteResponse>>>(UiState.Idle)
-    val received: StateFlow<UiState<List<ReliefInviteResponse>>> = _received.asStateFlow()
-
-    // keep-last (the #143 shape, VM-side): the last successful list survives Loading/Error so
-    // the section keeps rendering across reloads and composition re-entries.
-    private val _lastReceived = MutableStateFlow<List<ReliefInviteResponse>?>(null)
-    val lastReceived: StateFlow<List<ReliefInviteResponse>?> = _lastReceived.asStateFlow()
+    // keep-last (the #143 shape, VM-side; the #162 KeepLast unifier): the freshest received
+    // list survives Loading/Error so the section keeps rendering across reloads and composition
+    // re-entries.
+    private val keptReceived = KeepLast<List<ReliefInviteResponse>>(viewModelScope)
+    val received: StateFlow<UiState<List<ReliefInviteResponse>>> = keptReceived.state
+    val freshestReceived: StateFlow<List<ReliefInviteResponse>?> = keptReceived.freshest
 
     private val _acceptResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val acceptResult: StateFlow<UiState<Unit>> = _acceptResult.asStateFlow()
@@ -54,22 +51,21 @@ class ReliefInviteViewModel(
     private val _candidates = MutableStateFlow<UiState<List<ReliefCandidateResponse>>>(UiState.Idle)
     val candidates: StateFlow<UiState<List<ReliefCandidateResponse>>> = _candidates.asStateFlow()
 
-    private val _sentInvites = MutableStateFlow<UiState<List<ReliefInviteResponse>>>(UiState.Idle)
-    val sentInvites: StateFlow<UiState<List<ReliefInviteResponse>>> = _sentInvites.asStateFlow()
+    // Throwaway handler target for the sent list (the #162 keyed-mirror shape): the screen
+    // renders ONLY the branch-keyed mirror (sentByKey) — the live Loading/Error transitions
+    // land here and are consumed by no one (the mirror renders through them).
+    private val sentListFlow = MutableStateFlow<UiState<List<ReliefInviteResponse>>>(UiState.Idle)
 
-    // keep-last for the inviter's sent list — the panel re-opens per branch card and a reload
-    // must keep the previous list rendered (the #143 shape, VM-side). The list is BRANCH-scoped:
-    // _sentBranch marks whose list _lastSent holds, so switching panels never bleeds branch A's
-    // rows (with live Retract) under branch B (pass-1 HARD).
-    private val _lastSent = MutableStateFlow<List<ReliefInviteResponse>?>(null)
-    val lastSent: StateFlow<List<ReliefInviteResponse>?> = _lastSent.asStateFlow()
-
-    private val _sentBranch = MutableStateFlow<String?>(null)
-    val sentBranch: StateFlow<String?> = _sentBranch.asStateFlow()
-
-    // Bumped per loadSent: a load that lands with a mismatched stamp belongs to an older branch
-    // panel — committing it would serve branch A's rows under branch B (out-of-order response).
-    private var sentStamp = 0L
+    // keep-last for the inviter's sent list, BRANCH-KEYED (the #162 KeepLastByKey shape — the
+    // panel re-opens per branch card and a reload must keep the previous list rendered). Keying
+    // the mirror by branchId makes the #160 pass-1/pass-2 cross-branch bleed structurally
+    // unrenderable: the screen gates on the CURRENT panel's key, so another branch's rows (with
+    // live Retract) can never pass the gate — the commit-stamp machinery (`_sentBranch` +
+    // `sentStamp` + the stale-response substitution) that guarded the old single-slot mirror is
+    // deleted with it. A stale in-flight response still commits to the live state, but the
+    // screen never renders the live state — only this keyed mirror.
+    private val keptSent = KeepLastByKey<String, List<ReliefInviteResponse>>()
+    val sentByKey: StateFlow<Map<String, List<ReliefInviteResponse>>> = keptSent.lastByKey
 
     private val _createResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createResult: StateFlow<UiState<Unit>> = _createResult.asStateFlow()
@@ -85,28 +81,11 @@ class ReliefInviteViewModel(
     // cancellation instead of committing.
     private var searchJob: Job? = null
 
-    init {
-        // NOTE (pass-3): the keep-last mirrors below rely on the FIFO-Main ordering contract —
-        // viewModelScope dispatches on Main.immediate, so a state assignment queues the mirror
-        // collector BEFORE any later-started coroutine's resume. A dispatcher change would
-        // silently re-open the #141 resurrect window the substitution guards close.
-        viewModelScope.launch {
-            _received
-                .filterIsInstance<UiState.Success<List<ReliefInviteResponse>>>()
-                .collect { state -> _lastReceived.value = state.data }
-        }
-        viewModelScope.launch {
-            _sentInvites
-                .filterIsInstance<UiState.Success<List<ReliefInviteResponse>>>()
-                .collect { state -> _lastSent.value = state.data }
-        }
-    }
-
     fun loadReceived(): Job {
-        if (_received.value is UiState.Loading) return Job()
+        if (keptReceived.state.value is UiState.Loading) return Job()
         val stamp = actionStamp
         return handler.launch(
-            state = _received,
+            state = keptReceived.stateFlow,
             operation = "loadReceived",
             endpoint = "GET /api/relief-invites",
             block = { apiClient.httpClient.get("/api/relief-invites") },
@@ -233,37 +212,34 @@ class ReliefInviteViewModel(
 
     fun loadSent(branchId: String): Job {
         // No in-flight guard and no synchronous branch pre-set: a newer load must always
-        // launch (the guard would let branch A's in-flight load swallow branch B's), and
-        // _sentBranch flips only at COMMIT (pass-2 HARD) — the gate
-        // `sentBranch == panelBranch` must never hold while the keep-last slot still holds
-        // another branch's rows. Stale in-flight responses are stamped out below.
-        val stamp = ++sentStamp
+        // launch (a same-key guard would let an in-flight load swallow a panel re-open's
+        // refetch). Stale in-flight responses are inert by construction — the mirror is
+        // keyed by branch, so a response for another branch commits under its own key and
+        // the screen's per-key gate never renders it.
         return handler.launch(
-            state = _sentInvites,
+            state = sentListFlow,
             operation = "loadSent",
             endpoint = "GET /api/branches/$branchId/relief-invites",
             block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
             transform = { response ->
                 val body = response.body<List<ReliefInviteResponse>>()
-                if (stamp != sentStamp) {
-                    // A newer panel load launched while this one was in flight — substituting
-                    // the current list keeps the stale branch's rows from committing under the
-                    // new branch (the #141 substitution pattern). _sentBranch is NOT touched:
-                    // the substituted list belongs to whichever branch committed last.
-                    currentSentList() ?: emptyList()
-                } else {
-                    // Commit-stamp: the branch label flips together with the committed body —
-                    // the screen gate can then trust that a passing gate means the rendered
-                    // list IS this panel's.
-                    _sentBranch.value = branchId
-                    body
-                }
+                // Keyed commit (the #162 KeepLastByKey shape): the mirror entry for this
+                // branch flips together with the committed body — the screen gate
+                // `lastByKey[panelBranch]` can then trust that a passing gate means the
+                // rendered list IS this panel's. A stale response for an older panel commits
+                // under the OLD branch's key and can never render here.
+                keptSent.commit(branchId, body)
+                body
+            },
+            onNonSuccess = {
+                keptSent.finish(branchId)
+                false
+            },
+            onError = {
+                keptSent.finish(branchId)
             },
         )
     }
-
-    private fun currentSentList(): List<ReliefInviteResponse>? =
-        (_sentInvites.value as? UiState.Success)?.data ?: _lastSent.value
 
     fun retractInvite(
         inviteId: String,
@@ -280,18 +256,16 @@ class ReliefInviteViewModel(
             },
         )
 
-    private fun currentReceivedList(): List<ReliefInviteResponse>? =
-        (_received.value as? UiState.Success)?.data ?: _lastReceived.value
+    private fun currentReceivedList(): List<ReliefInviteResponse>? = keptReceived.freshestValue()
 
     private fun removeReceived(inviteId: String) {
         // Decrement only when the row actually left a KNOWN list: with no list loaded the badge
         // baseline is the poller's count, and decrementing against an unknown list would corrupt
         // it — the 60s poll overwrite self-corrects (the unread markRead precedent).
-        val current = _received.value
-        val list = (current as? UiState.Success)?.data ?: _lastReceived.value ?: return
-        val remaining = list.filterNot { it.id == inviteId }
-        if (remaining.size == list.size) return
-        _received.value = UiState.Success(remaining)
+        val current = keptReceived.freshestValue() ?: return
+        val remaining = current.filterNot { it.id == inviteId }
+        if (remaining.size == current.size) return
+        keptReceived.stateFlow.value = UiState.Success(remaining)
         NotificationState.decrementInvites()
     }
 }

@@ -15,26 +15,22 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.launch
 
 class NotificationViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "NotificationVM")
 
-    private val _notifications = MutableStateFlow<UiState<List<NotificationResponse>>>(UiState.Idle)
-    val notifications: StateFlow<UiState<List<NotificationResponse>>> = _notifications.asStateFlow()
-
-    // #97 Q5 silent-refresh / #113 D2 keep-last-results, VM-side (audit #141 pass-5): the last
-    // successful list survives Loading/Error so the screen keeps rendering it across reloads AND
-    // composition re-entries (a screen-side remember would die on re-entry; the VM is
-    // entry-scoped). It is also the fallback the markRead/markAll transforms operate on when
-    // _notifications is Loading/Error — actions must not no-op against a rendered list. The
-    // actionStamp (see loadUnreadNotifications) keeps a stale pre-action load from resurrecting
-    // read rows into it.
-    private val _lastUnread = MutableStateFlow<List<NotificationResponse>?>(null)
-    val lastUnread: StateFlow<List<NotificationResponse>?> = _lastUnread.asStateFlow()
+    // #97 Q5 silent-refresh / #113 D2 keep-last-results, VM-side (audit #141 pass-5; the #162
+    // KeepLast unifier): the freshest unread list survives Loading/Error so the screen keeps
+    // rendering it across reloads AND composition re-entries (a screen-side remember would die
+    // on re-entry; the VM is entry-scoped). It is also the fallback the markRead/markAll
+    // transforms operate on when the state is Loading/Error — actions must not no-op against a
+    // rendered list. The actionStamp (see loadUnreadNotifications) keeps a stale pre-action
+    // load from resurrecting read rows into it.
+    private val keptNotifications = KeepLast<List<NotificationResponse>>(viewModelScope)
+    val notifications: StateFlow<UiState<List<NotificationResponse>>> = keptNotifications.state
+    val freshestNotifications: StateFlow<List<NotificationResponse>?> = keptNotifications.freshest
 
     private val _markReadResult = MutableStateFlow<UiState<NotificationResponse>>(UiState.Idle)
     val markReadResult: StateFlow<UiState<NotificationResponse>> = _markReadResult.asStateFlow()
@@ -49,21 +45,10 @@ class NotificationViewModel(
     // landing with a mismatched stamp is a stale pre-action snapshot — see loadUnreadNotifications.
     private var actionStamp = 0L
 
-    init {
-        // Single writer for lastUnread: every Success that lands on _notifications (load, the
-        // markRead/markAll transforms' mutated lists) mirrors into it (the badge-VM collector
-        // pattern).
-        viewModelScope.launch {
-            _notifications
-                .filterIsInstance<UiState.Success<List<NotificationResponse>>>()
-                .collect { state -> _lastUnread.value = state.data }
-        }
-    }
-
     fun loadUnreadNotifications(): Job {
         val loadStamp = actionStamp
         return handler.launch(
-            state = _notifications,
+            state = keptNotifications.stateFlow,
             operation = "loadUnreadNotifications",
             endpoint = "GET /api/notifications",
             block = { apiClient.httpClient.get("/api/notifications") },
@@ -74,10 +59,10 @@ class NotificationViewModel(
                     // the snapshot predates it — committing it would resurrect read rows under
                     // the new badge count (audit #141 pass-6/7). Substitute the post-action
                     // list: the current Success read is race-free (the action's assignment is
-                    // synchronous same-thread); lastUnread is the next-freshest; fail toward
-                    // the invariant (emptyList) rather than committing the stale body. The
-                    // resurrect frame is eliminated even if the re-issue GET below fails; the
-                    // re-issue still runs so post-action arrivals surface.
+                    // synchronous same-thread); the freshest mirror is the next-freshest; fail
+                    // toward the invariant (emptyList) rather than committing the stale body.
+                    // The resurrect frame is eliminated even if the re-issue GET below fails;
+                    // the re-issue still runs so post-action arrivals surface.
                     loadUnreadNotifications()
                     currentUnreadList() ?: emptyList()
                 } else {
@@ -162,7 +147,7 @@ class NotificationViewModel(
         val current = currentUnreadList() ?: return false
         val remaining = current.filterNot { it.id == notification.id }
         if (remaining.size == current.size) return false
-        _notifications.value = UiState.Success(remaining)
+        keptNotifications.stateFlow.value = UiState.Success(remaining)
         _readThisSession.value = _readThisSession.value + notification
         return true
     }
@@ -170,10 +155,9 @@ class NotificationViewModel(
     private fun moveAllToReadThisSession() {
         val current = currentUnreadList() ?: return
         val newRead = current.filterNot { row -> _readThisSession.value.any { it.id == row.id } }
-        _notifications.value = UiState.Success(emptyList())
+        keptNotifications.stateFlow.value = UiState.Success(emptyList())
         _readThisSession.value = _readThisSession.value + newRead
     }
 
-    private fun currentUnreadList(): List<NotificationResponse>? =
-        (_notifications.value as? UiState.Success<List<NotificationResponse>>)?.data ?: _lastUnread.value
+    private fun currentUnreadList(): List<NotificationResponse>? = keptNotifications.freshestValue()
 }

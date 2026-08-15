@@ -233,7 +233,7 @@ class NotificationViewModelTest {
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
             // the mirror keeps the re-derived list in sync
-            assertEquals(expected = listOf("n3"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n3"), actual = vm.freshestNotifications.value?.map { it.id })
         }
 
     @Test
@@ -277,21 +277,21 @@ class NotificationViewModelTest {
 
             vm.loadUnreadNotifications()
             runCurrent()
-            assertEquals(expected = listOf("n1", "n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.freshestNotifications.value?.map { it.id })
 
-            // Reload in flight (GET held at +70s virtual): the rendered list stays via lastUnread,
-            // and a markRead during the reload must still move the row + decrement the badge —
-            // the transform falls back to lastUnread when _notifications is Loading.
+            // Reload in flight (GET held at +70s virtual): the rendered list stays via the
+            // freshest flow, and a markRead during the reload must still move the row +
+            // decrement the badge — the transform falls back to it when the state is Loading.
             vm.loadUnreadNotifications()
             runCurrent()
             assertIs<UiState.Loading>(vm.notifications.value)
-            assertEquals(expected = listOf("n1", "n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.freshestNotifications.value?.map { it.id })
 
             val job = vm.markRead("n1")
             runCurrent()
             job.join()
 
-            assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n2"), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
 
@@ -300,14 +300,14 @@ class NotificationViewModelTest {
             // badge and let a re-tap double-decrement).
             advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
-            assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n2"), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
 
             // The re-issue lands the post-action truth and converges.
             advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
-            assertEquals(expected = listOf("n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n2"), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 1, actual = NotificationState.unreadCount.value)
         }
@@ -332,14 +332,14 @@ class NotificationViewModelTest {
             runCurrent()
 
             // Reload in flight (held), then Mark all: the transform empties the rendered list via
-            // the lastUnread fallback + sets the authoritative badge.
+            // the freshest-flow fallback + sets the authoritative badge.
             vm.loadUnreadNotifications()
             runCurrent()
             val job = vm.markAllRead()
             runCurrent()
             job.join()
 
-            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = emptyList<String>(), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
 
@@ -349,14 +349,14 @@ class NotificationViewModelTest {
             // duplicate-free.
             advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
-            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = emptyList<String>(), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
 
             // The re-issue lands the post-action truth (empty) and converges.
             advanceTimeBy(HOLD_MS.milliseconds)
             runCurrent()
-            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = emptyList<String>(), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
         }
@@ -376,19 +376,19 @@ class NotificationViewModelTest {
             runCurrent()
 
             // The reload fails (403 — non-retried by the retry plugin, so the Error lands
-            // deterministically) → Error; lastUnread keeps the rendered list (keep-last-results),
+            // deterministically) → Error; the freshest flow keeps the rendered list (keep-last),
             // so Mark all stays reachable and must empty the list + badge instead of no-oping
             // into a persistent rows-with-zero-badge divergence.
             vm.loadUnreadNotifications()
             runCurrent()
             assertIs<UiState.Error>(vm.notifications.value)
-            assertEquals(expected = listOf("n1", "n2"), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = listOf("n1", "n2"), actual = vm.freshestNotifications.value?.map { it.id })
 
             val job = vm.markAllRead()
             runCurrent()
             job.join()
 
-            assertEquals(expected = emptyList<String>(), actual = vm.lastUnread.value?.map { it.id })
+            assertEquals(expected = emptyList<String>(), actual = vm.freshestNotifications.value?.map { it.id })
             assertEquals(expected = listOf("n1", "n2"), actual = vm.readThisSession.value.map { it.id })
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
         }

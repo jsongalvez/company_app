@@ -190,10 +190,10 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
 
-            // The mirror keeps the last successful list through an Error so the render gate never
-            // swaps held rows for an ErrorCard (keep-last, #161 port).
+            // The freshest flow keeps the last successful list through an Error so the render
+            // gate never swaps held rows for an ErrorCard (keep-last, #161 port / #162 unifier).
             assertIs<UiState.Error>(vm.users.value)
-            val held = vm.lastUsers.value
+            val held = vm.freshestUsers.value
             assertNotNull(held)
             assertEquals(expected = listOf("u1", "u2", "u3"), actual = held.map { it.id })
         }
