@@ -105,9 +105,10 @@ class KeepLastTest {
             assertEquals(7, kept.freshestValue())
             assertNull(kept.freshest.value, "the collected flow converges only after a hop")
 
-            // The mirror converges on the next dispatch; only then can Loading be entered in
-            // production (a load launch crosses a dispatch boundary — see the KDoc), so the
-            // Loading-window fallback reads the converged mirror.
+            // The mirror converges on the next dispatch under the test dispatcher; the assert
+            // advances first so the Loading-window fallback reads the converged mirror (on
+            // Main.immediate the collector resumes inline at the Success assignment — see the
+            // KeepLast KDoc).
             advanceUntilIdle()
             kept.stateFlow.value = UiState.Loading
             assertEquals(7, kept.freshestValue())

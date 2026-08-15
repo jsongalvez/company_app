@@ -45,11 +45,9 @@ class KeepLast<T>(
      * Synchronous freshest read for VM-internal decisions (mutation transforms must read exact
      * current values — never a collected snapshot; the #141 stale-snapshot class). Reads the
      * state directly, so it is exact even mid-collector-hop. The mirror fallback (reached only
-     * during Loading/Error) converges with the Success assignment on Main.immediate (the
-     * collector resumes inline); under test dispatchers it can lag one hop — but Loading/Error
-     * are only ever entered across a dispatch boundary (a load launch suspends at its GET), by
-     * which time the collector has converged; mutations are additionally gated during Loading
-     * (the #161 pass-1 shape).
+     * during Loading/Error) is exact on Main.immediate — the collector resumes inline at every
+     * Success assignment, so any later read sees the converged mirror; under test dispatchers
+     * it can lag one hop until the scheduler advances (tests advance before reading).
      */
     fun freshestValue(): T? = (stateFlow.value as? UiState.Success<T>)?.data ?: _freshest.value
 
