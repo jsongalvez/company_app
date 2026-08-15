@@ -165,10 +165,11 @@ class InFlightGuard<K> {
  * call sites (the #166-P5 caveat: message-bearing coupling must not leak into the unifier).
  *
  * [clear] resets both the markers and the errors wholesale — the superseded-context escape
- * (a reload replacing the list whose errors describe pre-reload actions; an edit-panel close
- * superseding its section actions) — and inherits [InFlightGuard.clear]'s cross-wire hazard:
- * adopters gate stale terminal paths (the FinanceReports generation guard) so a superseded
- * completion never touches a re-armed marker.
+ * (an edit-panel close superseding its section actions) — and inherits [InFlightGuard.clear]'s
+ * cross-wire hazard: adopters gate stale terminal paths (the FinanceReports generation guard)
+ * so a superseded completion never touches a re-armed marker. [clearErrors] resets only the
+ * errors — the fresh-data-supersedes-stale-errors shape (a reload replacing the list whose
+ * errors describe pre-reload actions).
  */
 class ActionTracker<K> {
     private val inFlightGuard = InFlightGuard<K>()
@@ -207,6 +208,15 @@ class ActionTracker<K> {
      */
     fun clear() {
         inFlightGuard.clear()
+        _errors.value = emptyMap()
+    }
+
+    /**
+     * Drop every error, markers untouched — the fresh-data-supersedes-stale-errors shape (a
+     * reload replacing the list whose errors describe pre-reload actions). Contrast with
+     * [clear], the superseded-context escape that also clears the markers.
+     */
+    fun clearErrors() {
         _errors.value = emptyMap()
     }
 

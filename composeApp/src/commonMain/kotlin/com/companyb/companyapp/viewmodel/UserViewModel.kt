@@ -153,10 +153,10 @@ class UserViewModel(
         // VM.
         keptUsers.stateFlow.value = UiState.Loading
         // A reload replaces the list; the errors describe actions against the pre-reload list
-        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale). The
-        // in-flight markers are empty here by the guard above (it skips while any mutation is
-        // in flight), so the wholesale reset is behavior-identical.
-        actionTracker.clear()
+        // (pass-1 P4: "Deactivate failed: 500" persisting beside fresh data is stale). Errors
+        // only — markers are untouched (empty here anyway: the guard above skips while any
+        // mutation is in flight).
+        actionTracker.clearErrors()
         handler.launch(
             state = keptUsers.stateFlow,
             operation = "loadUsers",

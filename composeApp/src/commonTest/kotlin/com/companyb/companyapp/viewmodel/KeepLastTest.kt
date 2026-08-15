@@ -396,6 +396,19 @@ class KeepLastTest {
         }
 
     @Test
+    fun actionTracker_clearErrors_drops_errors_leaves_markers() =
+        runTest(testScheduler) {
+            val tracker = ActionTracker<String>()
+            tracker.begin("a")
+            tracker.fail("b", "boom")
+
+            tracker.clearErrors()
+
+            assertTrue(tracker.errors.value.isEmpty())
+            assertTrue("a" in tracker.inFlight.value, "clearErrors leaves markers untouched")
+        }
+
+    @Test
     fun actionTracker_clearWhere_removes_matching_errors_only_and_leaves_markers() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
