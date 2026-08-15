@@ -93,9 +93,11 @@ class ReliefInviteViewModel(
             // accept/decline landing while the load was in flight must not resurrect the resolved
             // row (the #141 resurrect class). The stamp read at landing disagrees with the
             // launch-captured read, so the handler substitutes the fallback: currentReceivedList
-            // reads the exact post-action Success (removeReceived assigns synchronously); the
-            // re-issue converges server truth — rows the action couldn't know (cross-device
-            // accepts, new invites) land from the fresh GET. Both paths are pinned by tests.
+            // reads the exact post-action list (removeReceived assigns Success synchronously,
+            // and at fallback time the stale landing's own Loading write is current — the read
+            // resolves to the freshest mirror, exact on Main.immediate); the re-issue converges
+            // server truth — rows the action couldn't know (cross-device accepts, new invites)
+            // land from the fresh GET. Both paths are pinned by tests.
             stamp = { actionStamp },
             fallback = {
                 loadReceived()

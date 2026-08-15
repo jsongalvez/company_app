@@ -57,9 +57,11 @@ class NotificationViewModel(
             // its pre-action snapshot (audit #141 pass-6/7) — the stamp read at landing disagrees
             // with the launch-captured read, and the handler substitutes the fallback instead.
             // The substitution is race-free (the action's assignment is synchronous
-            // same-thread; currentUnreadList reads the exact Success); the re-issue (a new load
-            // carrying the post-action stamp) converges server truth — post-action arrivals
-            // surface, and the resurrect frame is eliminated even if the re-issue GET fails.
+            // same-thread, and freshestValue reads the exact post-action Success — the stale
+            // landing's own Loading write is current at fallback time, so the read resolves to
+            // the mirror, exact on Main.immediate); the re-issue (a new load carrying the
+            // post-action stamp) converges server truth — post-action arrivals surface, and the
+            // resurrect frame is eliminated even if the re-issue GET fails.
             stamp = { actionStamp },
             fallback = {
                 loadUnreadNotifications()

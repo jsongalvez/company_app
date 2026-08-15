@@ -163,10 +163,14 @@ class ApiCallHandlerTest {
                 }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
-            var stamp = 0L
 
             // The 500 lands on the real IO thread (the #93 class idiom: non-2xx responses
             // complete off the test scheduler) — join per the established pattern.
+            // The stamp source makes the landing deterministically stale (the launch capture
+            // reads 0, the landing reads 1 — a counter, so every second read disagrees)
+            // regardless of IO-thread timing — so a guard that wrongly gated non-success
+            // responses would commit the fallback Success and fail the Error assert below.
+            var reads = 0L
             val job =
                 handler.launch(
                     state = state,
@@ -174,12 +178,9 @@ class ApiCallHandlerTest {
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
                     transform = { emptyList() },
-                    stamp = { stamp },
+                    stamp = { reads++ },
                     fallback = { emptyList() },
                 )
-            // A bump would make a success landing stale — but the guard only gates success:
-            // a non-success response must still commit Error, never the fallback.
-            stamp = 1
             job.join()
 
             assertIs<UiState.Error>(state.value)
