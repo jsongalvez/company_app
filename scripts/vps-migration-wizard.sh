@@ -550,12 +550,19 @@ stage "SSH hardening" 2
 if [[ "$SSH_MODE" == "public" ]]; then
   vps 'printf "Port 22\nPort 51920\nPermitRootLogin no\nPasswordAuthentication no\n" | sudo tee /etc/ssh/sshd_config.d/99-hardening.conf'
   # Ubuntu 24.04 socket-activates sshd: the ssh.socket owns the listening
-  # sockets and ignores sshd_config Port — switch to the classic service.
-  vps 'sudo systemctl disable --now ssh.socket 2>/dev/null || true; sudo systemctl enable --now ssh && sudo systemctl daemon-reload'
+  # sockets and ignores sshd_config Port — switch to the classic service and
+  # RESTART it (enable alone is a no-op when sshd is already active via the
+  # socket; the restart rebinds with the new config).
+  if vps 'sudo systemctl disable --now ssh.socket 2>/dev/null || true; sudo systemctl enable --now ssh && sudo systemctl restart ssh && sudo systemctl daemon-reload'; then
+    note "sshd reconfigured"
+  else
+    warn "sshd reconfiguration failed — manual fix: ssh $VPS_USER@$TS_IP 'sudo systemctl restart ssh', then check: sudo ss -tln"
+    pause "sshd fixed?"
+  fi
   if vps 'sudo ss -tln | grep -q ":22 " && sudo ss -tln | grep -q ":51920 "'; then
     note "✓ sshd listening on 22 (tailnet) and 51920 (public)"
   else
-    warn "sshd not listening on both ports — check: sudo ss -tln"
+    warn "sshd not listening on both ports — check: sudo ss -tln; fix: sudo systemctl restart ssh"
     pause "ports fixed?"
   fi
   vps 'sudo sshd -T | grep -E "^(permitrootlogin|passwordauthentication)"'
@@ -569,7 +576,7 @@ if [[ "$SSH_MODE" == "public" ]]; then
 stage "Fail2ban (public ssh)" 3
 vps 'sudo apt-get install -y fail2ban'
 vps 'printf "[sshd]\nenabled = true\nport = 22,51920\n" | sudo tee /etc/fail2ban/jail.d/sshd-ports.conf && sudo systemctl restart fail2ban'
-if vps 'sudo fail2ban-client status sshd | head -6'; then
+if vps 'sudo fail2ban-client status sshd' >/dev/null 2>&1; then
   note "✓ jail active on both ports (22 tailnet + 51920 public)"
 else
   warn "fail2ban jail check failed — inspect: sudo fail2ban-client status sshd"
@@ -667,6 +674,7 @@ pause "Postgres resource running? Note its internal hostname (usually 'postgres'
 
 stage "Coolify — the app resource" 8
 # Coolify pulls from GitHub — the branch must be current on origin BEFORE the deploy.
+git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   BEHIND=$(git -C "$REPO" rev-list --count "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null || echo 999)
 else
@@ -682,8 +690,8 @@ if [[ "$BEHIND" != "0" ]]; then
 fi
 LOCAL_ORIGIN="$(git -C "$REPO" remote get-url origin 2>/dev/null || true)"
 if [[ -n "$LOCAL_ORIGIN" ]]; then
-  NORM_LOCAL="$(printf '%s' "$LOCAL_ORIGIN" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#\.git$##')"
-  NORM_REPO="$(printf '%s' "$REPO_URL" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#\.git$##')"
+  NORM_LOCAL="$(printf '%s' "$LOCAL_ORIGIN" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#:#/#; s#\.git$##')"
+  NORM_REPO="$(printf '%s' "$REPO_URL" | sed -E 's#^[a-z]+://##; s#^git@##; s#^[^@]+@##; s#:#/#; s#\.git$##')"
   [[ "$NORM_LOCAL" == "$NORM_REPO" ]] || warn "this checkout's origin ($LOCAL_ORIGIN) differs from the Coolify repo ($REPO_URL) — pushes land elsewhere; Coolify pulls $REPO_URL"
 fi
 open_url "http://$TS_IP:8000"
@@ -772,16 +780,17 @@ fi
 
 stage "Push the branch (carries the handoff)" 4
 # Push AFTER the kill: anything a session committed up to the boundary lands in this push.
+git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
-    git -C "$REPO" push origin "$DEPLOY_BRANCH" || { warn "push FAILED — re-run resumes at this stage"; exit 1; }
+    git -C "$REPO" push origin "$DEPLOY_BRANCH" || { warn "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease (or fix and re-run — the wizard resumes at this stage)"; exit 1; }
     note "pushed (~3 min pre-push gate)"
   else
     note "already up to date"
   fi
 else
-  note "branch never pushed — pushing it now with upstream"
-  git -C "$REPO" push -u origin "HEAD:$DEPLOY_BRANCH" || { warn "push FAILED — re-run resumes at this stage"; exit 1; }
+  note "branch has no upstream — pushing it now"
+  git -C "$REPO" push -u origin "HEAD:$DEPLOY_BRANCH" || { warn "push FAILED — fix and re-run (the wizard resumes at this stage)"; exit 1; }
 fi
 
 stage "Start the VPS daemon" 5
