@@ -48,7 +48,7 @@ Run as root/ubuntu on the VPS.
 sudo apt update && sudo apt install -y openjdk-21-jdk git tmux curl unzip npm
 
 # 2. Docker + compose plugin (for Postgres 18)
-sudo apt install -y docker.io docker-compose-plugin
+sudo apt install -y docker.io docker-compose-v2
 sudo usermod -aG docker ubuntu          # re-login for the group to take effect
 sudo systemctl enable --now docker
 

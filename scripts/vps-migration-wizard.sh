@@ -190,8 +190,8 @@ finish() {
 # Replace the example below. Set the two totals to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=33
-TOTAL_MINUTES=145
+TOTAL_STAGES=34
+TOTAL_MINUTES=150
 
 # Wizard state: VPS_IP, TS_IP, GH_PAT*, APP_DOMAIN, COOLIFY_ADMIN_* — gitignored.
 ENV_FILE=".wayfinder-vps.env"
@@ -208,7 +208,7 @@ stage "Pre-flight — branch state" 2
 say "Your session record before the move:"
 git -C "$REPO" log --oneline -1
 note "branch: $(git -C "$REPO" branch --show-current) — ahead of origin by $(git -C "$REPO" rev-list --count origin/master..HEAD 2>/dev/null || echo '?') commits"
-git -C "$REPO" status --short | head -10
+git -C "$REPO" status --short | head -10 || true
 command -v gh >/dev/null 2>&1 && gh issue list --state open --limit 10 || warn "gh not available locally"
 pause "Noted the session number + branch state"
 
@@ -219,7 +219,7 @@ if confirm "Push the branch to origin now"; then
   git -C "$REPO" push
   note "pushed (pre-push gate ~3 min)"
 else
-  warn "deferred — pushed at the switch stage (stage 30); Coolify deploy must wait for it"
+  warn "deferred — the branch reaches origin at the switch push (stage 31); the Coolify app stage (28) will push first if it is behind"
 fi
 
 # ── Phase 1 — Oracle VM + first access ─────────────────────────────────────
@@ -270,10 +270,12 @@ stage "Tailscale auth key" 2
 open_url "https://login.tailscale.com/admin/settings/keys"
 step "Generate an auth key (ephemeral is fine — it is used once)"
 ask_secret TS_AUTHKEY "Paste the Tailscale auth key:"
+[[ -n "$TS_AUTHKEY" ]] || { warn "empty auth key — cannot join the tailnet"; exit 1; }
 
 stage "Join the tailnet" 5
-if TS_IP=$(_existing TS_IP || true) && [[ -n "$TS_IP" ]] && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_IP" 'true' 2>/dev/null; then
-  note "already on the tailnet at $TS_IP — skipping"
+if TS_IP=$(_existing TS_IP || true) && [[ -n "$TS_IP" ]] \
+   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_IP" 'hostname' 2>/dev/null | grep -q company-vps; then
+  note "already on the tailnet at $TS_IP (hostname company-vps) — skipping"
 else
   note "installing tailscale on the VPS and joining (via public IP)…"
   ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" \
@@ -297,7 +299,7 @@ vpsscp() { scp -o ConnectTimeout=15 "$@"; }
 # ── Phase 3 — VPS bootstrap (scripted over tailnet) ────────────────────────
 
 stage "Base packages" 6
-vps 'sudo apt-get update && sudo apt-get install -y openjdk-21-jdk git tmux curl unzip npm gh docker.io docker-compose-plugin'
+vps 'sudo apt-get update && sudo apt-get install -y openjdk-21-jdk git tmux curl unzip npm gh docker.io docker-compose-v2'
 vps 'java -version 2>&1 | head -1; tmux -V; gh --version | head -1'
 
 stage "Docker service" 3
@@ -309,13 +311,14 @@ stage "GitHub CLI auth" 5
 open_url "https://github.com/settings/tokens/new"
 step "Create a CLASSIC token with the repo scope (covers issues + git-credential)"
 ask_secret GH_PAT "Paste the GitHub PAT (repo scope):"
+[[ -n "$GH_PAT" ]] || { warn "empty PAT — cannot auth gh on the VPS"; exit 1; }
 printf '%s' "$GH_PAT" | vps 'gh auth login --with-token'
 vps 'gh auth status'
 note "PAT consumed by the VPS — nothing written to disk locally"
 
 stage "opencode2 (pinned)" 3
 vps 'sudo npm install -g @opencode-ai/cli@0.0.0-next-17444'
-vps 'opencode2 --version'
+vps 'opencode2 --version | grep -q next-17444'
 
 stage "Copy opencode config + keys" 3
 vps 'mkdir -p ~/.config ~/.local/share/opencode'
@@ -331,7 +334,11 @@ vps 'opencode2 api get /api/model'
 pause "Does the model response above look right? (not an error)"
 
 stage "Clone the repo" 3
-vps 'git clone https://github.com/jsongalvez/company_app.git ~/company_app'
+if vps 'test -d ~/company_app/.git'; then
+  note "repo already cloned — skipping"
+else
+  vps 'git clone https://github.com/jsongalvez/company_app.git ~/company_app'
+fi
 if vps 'git -C ~/company_app switch ralph/company-app-full-build'; then
   note "branch checked out"
 else
@@ -348,6 +355,7 @@ vps 'wc -c ~/company_app/.env ~/company_app/.wayfinder-loop.env'
 
 stage "Postgres 18 (gate DB)" 4
 vps 'cd ~/company_app && docker compose -f docker/docker-compose.yml up -d'
+warn "compose publishes 5432 on 0.0.0.0 — Docker traffic bypasses ufw; the Oracle security list (default: only 22) is the gate until stage 23 tightens it"
 for i in $(seq 1 12); do
   sleep 10
   if vps "cd ~/company_app && docker compose -f docker/docker-compose.yml ps" | grep -q healthy; then
@@ -368,7 +376,15 @@ for i in $(seq 1 40); do
   printf '  %s%s\n' "$DIM" "$last"
   if vps 'grep -qE "BUILD (SUCCESSFUL|FAILED)" /tmp/gate-warm.log'; then break; fi
 done
-vps 'tail -n 3 /tmp/gate-warm.log'
+if vps 'grep -q "BUILD SUCCESSFUL" /tmp/gate-warm.log'; then
+  note "✓ gate warm — BUILD SUCCESSFUL"
+elif vps 'grep -q "BUILD FAILED" /tmp/gate-warm.log'; then
+  warn "gate warm FAILED — the first VPS session commit would break. Fix before continuing."
+  confirm "Continue anyway?" || exit 1
+else
+  warn "gate warm neither succeeded nor failed after 20 min — investigate before continuing."
+  confirm "Continue anyway?" || exit 1
+fi
 
 # ── Phase 4 — harden ───────────────────────────────────────────────────────
 
@@ -399,8 +415,14 @@ pause "Security list updated?"
 stage "Install Coolify" 8
 note "installing (downloads ~5 min)…"
 vps 'curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash'
-sleep 3
-vps 'curl -sf http://127.0.0.1:8000/api/health' && note "✓ Coolify API is up"
+note "waiting for the Coolify API (first boot pulls images)…"
+for i in $(seq 1 12); do
+  sleep 10
+  if vps 'curl -sf http://127.0.0.1:8000/api/health' >/dev/null 2>&1; then
+    note "✓ Coolify API is up"; break
+  fi
+  [[ $i -eq 12 ]] && warn "Coolify API not up after ~2 min — check: sudo docker ps | grep coolify"
+done
 
 stage "Coolify dashboard first run" 5
 open_url "http://$TS_IP:8000"
@@ -434,12 +456,22 @@ step "Projects → New Project (e.g. company) → inside it: + New Resource → 
 step "Set POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD to the values from your repo .env (paste from below):"
 note "  — values below are read from your local .env —"
 for k in POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD; do
-  note "  $k=$(grep -E "^$k=" "$REPO/.env" | head -1 | cut -d= -f2-)"
+  note "  $k=$(grep -E "^$k=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || echo '<from .env>')"
 done
 step "Deploy the Postgres resource and wait for it to run"
 pause "Postgres resource running? Note its internal hostname (usually 'postgres')"
 
 stage "Coolify — the app resource" 8
+# Coolify pulls from GitHub — the branch must be current on origin BEFORE the deploy.
+if git -C "$REPO" rev-parse --verify -q origin/ralph/company-app-full-build >/dev/null 2>&1; then
+  BEHIND=$(git -C "$REPO" rev-list --count origin/ralph/company-app-full-build..HEAD 2>/dev/null || echo 999)
+else
+  BEHIND=999
+fi
+if [[ "$BEHIND" != "0" ]]; then
+  note "branch is $BEHIND commit(s) ahead of origin — pushing so Coolify deploys the current code."
+  confirm "Push now?" && git -C "$REPO" push || warn "Coolify will deploy the PUSHED branch — the deploy may be stale"
+fi
 open_url "http://$TS_IP:8000"
 step "+ New Resource → Public Repository"
 step "Git repository: https://github.com/jsongalvez/company_app.git"
@@ -481,10 +513,16 @@ fi
 
 stage "Boundary check" 2
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
-note "latest handoff: ${HANDOFF:-none found}"
+if [[ -z "$HANDOFF" ]]; then
+  warn "no handoff found in docs/agents/ — the switch bootstraps from one. Type its name below."
+  ask HANDOFF_OVERRIDE "Handoff filename (e.g. wayfinder-168-handoff.md):"
+  HANDOFF="$HANDOFF_OVERRIDE"
+fi
+note "latest handoff: $HANDOFF"
 git -C "$REPO" log --oneline -3
-if [[ -n "$HANDOFF" ]] && git -C "$REPO" status --porcelain | grep -q "wayfinder-"; then
-  warn "the handoff is NOT committed yet — it must land before the switch"
+if [[ -n "$HANDOFF" ]]; then
+  UNCOMMITTED_HANDOFF="$(git -C "$REPO" status --porcelain 2>/dev/null | grep "wayfinder-" || true)"
+  [[ -n "$UNCOMMITTED_HANDOFF" ]] && warn "the handoff is NOT committed yet — it must land before the switch"
 fi
 pause "Session N complete — handoff committed, and the next session number is the one that handoff names?"
 
@@ -508,12 +546,22 @@ if confirm "Kill the local wayfinder-loop daemon NOW (this is the switch)?"; the
     note "✓ local daemon dead"
   fi
 else
-  warn "switch skipped — the VPS daemon MUST NOT start while the local one lives"
-  pause "press Enter to continue anyway (VPS daemon start is next)"
+  warn "SWITCH ABORTED — the VPS daemon must never run while the local one lives."
+  warn "Nothing was started; re-run the wizard later to resume (state is saved)."
+  exit 1
 fi
 
 stage "Start the VPS daemon" 5
-vps "cd ~/company_app && git fetch origin && (git switch ralph/company-app-full-build 2>/dev/null || git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build) && git pull --ff-only && tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap ${HANDOFF:-wayfinder-latest-handoff.md}'\""
+warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
+# Re-derive the handoff AFTER the kill — a session may have committed a newer one meanwhile.
+HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
+[[ -n "$HANDOFF" ]] || { warn "no handoff to bootstrap — aborting before the VPS daemon start"; exit 1; }
+note "bootstrapping with: $HANDOFF"
+if vps 'tmux has-session -t wayfinder-loop' 2>/dev/null; then
+  note "VPS daemon session already exists — skipping (verify below)"
+else
+  vps "cd ~/company_app && git fetch origin && (git switch ralph/company-app-full-build 2>/dev/null || git switch -C ralph/company-app-full-build origin/ralph/company-app-full-build) && git pull --ff-only && tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\""
+fi
 sleep 15
 vps 'tail -n 20 ~/company_app/.wayfinder-loop.log'
 note "expect a line like: spawned ses_… reading <handoff>.md"
@@ -521,7 +569,9 @@ pause "ntfy topic fired ('wayfinder session started')?"
 
 stage "Post-migration checks" 3
 vps 'cd ~/company_app && gh issue view 89 --json number,title,state -q ".number + \" \" + .title + \" (\" + .state + \")\""'
-note "map reachable from the VPS ✓ — first VPS pre-commit gate runs on the next session commit (watch it succeed end-to-end)"
+vps 'cd ~/company_app && git push --dry-run && gh issue list --state open'
+note "map reachable from the VPS ✓ — dry-run shows the branch set; issue list covers #89/#110/#139 (runbook Phase 2 verify block)"
+note "first VPS pre-commit gate runs on the next session commit (watch it succeed end-to-end)"
 note "k6 skipped (optional): pre-push warns + skips the load test on the VPS"
 note "next session on the VPS works the map as usual — same branch, same issues"
 
