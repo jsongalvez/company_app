@@ -216,7 +216,7 @@ env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || 
 _clear
 printf '\n%s%s  VPS wizard — configure%s\n' "$BOLD" "$BLUE" "$RESET"
 say "One-time setup questions — press Enter to accept the shown default (type when no default fits)."
-say "Have at hand: the Oracle Cloud console (VM creation), the Tailscale admin console, and a GitHub PAT (full mode)."
+say "Have at hand (first run): the Oracle Cloud console (VM creation), the Tailscale admin console, and a GitHub PAT (full mode)."
 note "re-runs keep your answers — Enter re-confirms them (a blank domain stays blank)."
 
 note "MODE: full = wayfinder daemon + Coolify deploy (this project); app-only = just the app (no daemon)."
@@ -251,7 +251,7 @@ note "DEPLOY_BRANCH: the branch Coolify deploys and the daemon works on — defa
 ask DEPLOY_BRANCH "Branch Coolify deploys" "$(git -C "$REPO" branch --show-current 2>/dev/null || true)"
 [[ -n "$DEPLOY_BRANCH" ]] || abort "empty deploy branch"
 [[ "$DEPLOY_BRANCH" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || abort "branch name must start with a letter or digit (letters, digits, dots, hyphens, underscores, slashes only)"
-git -C "$REPO" check-ref-format "refs/heads/$DEPLOY_BRANCH" || abort "not a valid git branch name (no //, no .., no trailing dot)"
+git -C "$REPO" check-ref-format "refs/heads/$DEPLOY_BRANCH" || abort "not a valid git branch name (git's check-ref-format rules: no //, no .., no leading dot, no trailing / or .)"
 write_env DEPLOY_BRANCH "$DEPLOY_BRANCH"
 
 note "APP_DOMAIN: leave blank for a free api.<VPS_IP>.nip.io name (no DNS setup); a real domain must point its A record at the VPS IP. Re-runs keep a saved domain — delete the line in .wayfinder-vps.env to go back to nip.io."
@@ -343,6 +343,7 @@ stage "Capture the public IP" 2
 ask VPS_IP "Paste the instance public IP:"
 [[ -n "$VPS_IP" ]] || abort "empty IP — cannot continue"
 [[ "$VPS_IP" =~ ^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$ ]] || abort "invalid IPv4 — paste the instance public IP from the Oracle console"
+[[ "$VPS_IP" != 127.* && "$VPS_IP" != 0.0.0.0 && "$VPS_IP" != 10.* && "$VPS_IP" != 192.168.* && "$VPS_IP" != 169.254.* && "$VPS_IP" != 172.1[6-9].* && "$VPS_IP" != 172.2[0-9].* && "$VPS_IP" != 172.3[0-1].* ]] || abort "that is a private/loopback address — paste the instance's PUBLIC IP from the Oracle console"
 write_env VPS_IP "$VPS_IP"
 pause "Press Enter to test SSH (first connect accepts the host key)"
 
@@ -369,7 +370,7 @@ fi
 stage "Join the tailnet" 5
 TS_SAVED="$(_existing TS_IP || true)"
 if [[ -n "$TS_SAVED" ]] \
-   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_SAVED" 'hostname' 2>/dev/null | grep -qF -- "$TS_HOSTNAME"; then
+   && ssh -o ConnectTimeout=10 "$VPS_USER@$TS_SAVED" 'hostname' 2>/dev/null | grep -qiF -- "$TS_HOSTNAME"; then
   TS_IP="$TS_SAVED"
   note "already on the tailnet at $TS_SAVED (hostname $TS_HOSTNAME) — skipping"
 else
@@ -395,7 +396,7 @@ else
   fi
   TS_IP="$(ssh -o StrictHostKeyChecking=accept-new "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || TS_IP=""
   [[ -n "$TS_IP" ]] || { warn "no tailnet IP — is the auth key valid/expired?"; pause "fix, then press Enter" ; TS_IP="$(ssh "$VPS_USER@$VPS_IP" 'tailscale ip -4' | tr -d '[:space:]')" || abort "still no tailnet IP — fix tailscale on the VPS, then re-run" ; }
-  [[ "$TS_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || abort "could not read a valid tailnet IP from the VPS — tailscale up may still be pending; re-run to re-join"
+  [[ "$TS_IP" =~ ^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$ ]] || abort "could not read a valid tailnet IP from the VPS — tailscale up may still be pending; re-run to re-join"
   write_env TS_IP "$TS_IP"
 fi
 note "tailnet IP: $TS_IP"
@@ -828,14 +829,14 @@ stage "Push the branch (carries the handoff)" 4
 git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
-    git -C "$REPO" push origin "$DEPLOY_BRANCH" || { warn "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease; if the PRE-PUSH HOOK failed: fix the gate. Then re-run (the wizard resumes at this stage)"; exit 1; }
+    git -C "$REPO" push origin "$DEPLOY_BRANCH" || abort "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease; if the PRE-PUSH HOOK failed: fix the gate. Then re-run (the wizard resumes at this stage)"
     note "pushed (~3 min pre-push gate)"
   else
     note "already up to date"
   fi
 else
   note "branch has no upstream — pushing it now"
-  git -C "$REPO" push -u origin "HEAD:$DEPLOY_BRANCH" || { warn "push FAILED — fix and re-run (the wizard resumes at this stage)"; exit 1; }
+  git -C "$REPO" push -u origin "HEAD:$DEPLOY_BRANCH" || abort "push FAILED — fix and re-run (the wizard resumes at this stage)"
 fi
 
 stage "Start the VPS daemon" 5
