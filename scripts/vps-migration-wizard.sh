@@ -790,10 +790,10 @@ if [[ "$MODE" == "full" ]]; then
 
 stage "Boundary check" 2
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
-[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
 if [[ -z "$HANDOFF" ]]; then
   abort "no handoff found in docs/agents/ — the switch bootstraps from one"
 fi
+[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
 note "latest handoff: $HANDOFF"
 git -C "$REPO" log --oneline -3
 UNCOMMITTED_HANDOFF="$(git -C "$REPO" status --porcelain 2>/dev/null | grep "wayfinder-" || true)"
@@ -835,8 +835,8 @@ stage "Start the VPS daemon" 5
 warn "Rollback: on the local box — tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh (resumes its state file)"
 # Re-derive the handoff AFTER the kill+push — the push just carried whatever the re-derive finds.
 HANDOFF="$(ls -t "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
-[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
 [[ -n "$HANDOFF" ]] || abort "no handoff to bootstrap — aborting before the VPS daemon start"
+[[ "$HANDOFF" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
 note "bootstrapping with: $HANDOFF"
 if vps 'tmux has-session -t wayfinder-loop' >/dev/null 2>&1; then
   HAS_RC=0
