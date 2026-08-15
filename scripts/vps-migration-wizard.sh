@@ -631,6 +631,7 @@ fi
 # ── Phase 4 — harden ───────────────────────────────────────────────────────
 
 stage "Firewall (ufw)" 3
+vps 'sudo apt-get install -y ufw'
 if [[ "$SSH_MODE" == "public" ]]; then
   vps "sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow in on tailscale0 && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 51920/tcp && sudo ufw allow 41641/udp && sudo ufw --force enable"
 else
