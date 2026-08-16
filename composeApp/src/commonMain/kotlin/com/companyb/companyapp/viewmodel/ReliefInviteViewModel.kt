@@ -220,7 +220,8 @@ class ReliefInviteViewModel(
         // its own key and the screen's per-key gate never renders it. Same-branch ordering is
         // closed by the stale gate (the #173 shape): only the NEWEST launch's response
         // commits, whenever it lands (the gate runs BEFORE transform, so a stale body is never
-        // deserialized — observable behavior identical to the old in-hook guard).
+        // deserialized — state/UI behavior identical to the old in-hook guard; only the wasted
+        // parse and the stale landing's spurious error log are gone).
         val stamp = ++sentStamp
         return handler.launchStateless(
             operation = "loadSent",
@@ -230,7 +231,7 @@ class ReliefInviteViewModel(
                 val body = response.body<List<ReliefInviteResponse>>()
                 // Keyed commit (the #162 KeepLastByKey shape, mirror-only half), newest-launch-
                 // wins: the mirror entry for this branch flips together with the committed body —
-                // the screen gate `lastByKey[panelBranch]` can then trust that a passing gate
+                // the screen gate `sentByKey[panelBranch]` can then trust that a passing gate
                 // means the rendered list IS this panel's.
                 keptSent.commit(branchId, body)
             },
