@@ -573,13 +573,12 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
-    fun feed_supersededTransportFailure_staysInert() =
+    fun feed_coldStaleFailure_staysInert() =
         runTest(testScheduler) {
-            // The #170 pin-2 mirror for the feed (cold stale path). COVERAGE NOTE: a cold
-            // stale failure is double-suppressed — the onError generation guard AND
-            // handlePageFailure's cold keep-last (feed already Success lands suppression) —
-            // so this test cannot isolate the guard; its observable (stays-on-B) holds either
-            // way. It pins the composed cold-stale-inert property;
+            // The #170 pin-2 mirror for the feed (cold stale path) — the composed cold-stale
+            // property, not a guard pin (P5a): the onError generation guard AND
+            // handlePageFailure's cold keep-last (feed already Success lands suppression)
+            // both suppress, so this observable holds with either mechanism stripped.
             // refreshFeed_staleTransportFailure_doesNotBleedOntoNewBranch uniquely pins the
             // guard, and feed_transportFailure_-/refreshFeed_transportFailure_ carry the
             // onError-existence load for fetchPage.
