@@ -428,8 +428,8 @@ class FinanceReportsViewModelTest {
         runTest(testScheduler) {
             // The #170 fix — the rollup surface's onError pin: a transport failure must move
             // _monthlyRollup Loading → Error (terminal), not park on Loading forever (the
-            // #168/#169 P5 sibling — the sole onError-less stateless site parking a UiState;
-            // loadSent is onError-less by keep-last design, no Loading to park).
+            // #168/#169 P5 sibling — pre-fix the sole onError-less stateless site parking a
+            // UiState; loadSent is onError-less by keep-last design, no Loading to park).
             val handler: MockRequestHandler = { request ->
                 when {
                     request.url.encodedPath == "/api/branches/accessible" -> {
@@ -464,10 +464,9 @@ class FinanceReportsViewModelTest {
     @Test
     fun monthlyRollup_supersededTransportFailure_staysInert() =
         runTest(testScheduler) {
-            // The onError generation guard (P4 SOFT): a transport failure from a superseded
-            // launch must not clobber a newer Success. First rollup request hangs on a gate;
-            // a branch switch reloads and succeeds; the stale failure then lands — the guard
-            // must suppress it (the #143 class).
+            // The onError generation guard (the #143 class): a stale failure landing after a
+            // newer Success must be suppressed. First rollup request hangs on a gate; a branch
+            // switch reloads and succeeds; the stale failure then lands.
             val staleGate = CompletableDeferred<Unit>()
             val handler: MockRequestHandler = { request ->
                 when {
