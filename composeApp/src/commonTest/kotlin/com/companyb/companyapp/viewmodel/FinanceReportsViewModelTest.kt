@@ -31,6 +31,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -390,6 +391,133 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
+    fun feed_transportFailure_is_loud_error() =
+        runTest(testScheduler) {
+            // The #170 transport-pin shape (feed fetchPage leg): a thrown IOException during
+            // the cold auto-load must move the feed Loading → Error (terminal loud card), not
+            // park on Loading. HTTP-status pins already exist; this pins the onError
+            // exception-path wiring.
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            advanceUntilIdle()
+
+            val feed = vm.feedEntries.value
+            assertIs<UiState.Error>(feed)
+            assertTrue(feed.message.contains("connection reset"))
+        }
+
+    @Test
+    fun refreshFeed_transportFailure_keeps_list_and_reports_error() =
+        runTest(testScheduler) {
+            var failFeed = false
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        if (failFeed) {
+                            throw java.io.IOException("connection reset")
+                        }
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(vm.feedEntries.value)
+
+            failFeed = true
+            vm.refreshFeed()
+            advanceUntilIdle()
+
+            // Keep-last: the feed stays rendered; the failure surfaces on the refresh error
+            // line and the refresh flag clears (no frozen Refresh button).
+            val feed = vm.feedEntries.value
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(feed)
+            assertEquals(listOf("2026-08-14"), feed.data.map { it.date })
+            assertTrue(
+                vm.refreshError.value
+                    .orEmpty()
+                    .contains("connection reset"),
+            )
+            assertFalse(vm.isRefreshing.value)
+        }
+
+    @Test
+    fun feed_supersededTransportFailure_staysInert() =
+        runTest(testScheduler) {
+            // The #170 pin-2 mirror for the feed: the onError generation guard (#143 class).
+            // The first BRANCH_A feed request hangs on a gate; a branch switch reloads and
+            // succeeds; the stale IOException then lands and must be suppressed — the list
+            // stays on the newer branch's Success.
+            val staleGate = CompletableDeferred<Unit>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        staleGate.await()
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-13")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.selectBranch(BRANCH_B)
+            runCurrent()
+            val afterSwitch = vm.feedEntries.value
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(afterSwitch)
+            assertEquals(listOf("2026-08-13"), afterSwitch.data.map { it.date })
+
+            staleGate.complete(Unit)
+            advanceUntilIdle()
+
+            // A superseded failure is suppressed in onError (generation != feedGeneration) —
+            // the fresh list is not clobbered by the stale error.
+            val feed = vm.feedEntries.value
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(feed)
+            assertEquals(
+                listOf("2026-08-13"),
+                feed.data.map { it.date },
+                "a superseded failure must not replace the newer Success",
+            )
+        }
+
+    @Test
     fun monthlyRollup404_landsSuccessNull() =
         runTest(testScheduler) {
             val handler: MockRequestHandler = { request ->
@@ -587,6 +715,61 @@ class FinanceReportsViewModelTest {
             val deleted = expenses.data.first { it.id == "e2" }
             assertTrue(deleted.deletedAt != null, "soft-deleted rows ride the GET (#153 Q1)")
             assertEquals("Wrong entry", deleted.deletedReason)
+            assertIs<UiState.Success<List<*>>>(vm.editCompensations.value)
+            assertIs<UiState.Success<List<*>>>(vm.editAllowances.value)
+            assertIs<UiState.Success<List<*>>>(vm.editUsers.value)
+        }
+
+    @Test
+    fun sectionLoad_transportFailure_surfacesError_per_section() =
+        runTest(testScheduler) {
+            // The #170 transport-pin shape (loadSection leg): a thrown IOException on one
+            // section's endpoint moves THAT section Loading → Error while the others land
+            // Success — per-section wiring is independent, one exception must not poison the rest.
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/expenses" -> {
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    request.url.encodedPath == "/api/compensations" -> {
+                        respondJson("[]")
+                    }
+
+                    request.url.encodedPath == "/api/allowances" -> {
+                        respondJson("[]")
+                    }
+
+                    request.url.encodedPath == "/api/branch-days/$DAY_ID/users" -> {
+                        respondJson("[]")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+            val feed = vm.feedEntries.value
+            val day = (feed as UiState.Success).data.single()
+
+            vm.selectDay(day)
+            vm.setEditMode(true)
+            advanceUntilIdle()
+
+            val expenses = vm.editExpenses.value
+            assertIs<UiState.Error>(expenses)
+            assertTrue(expenses.message.contains("connection reset"))
             assertIs<UiState.Success<List<*>>>(vm.editCompensations.value)
             assertIs<UiState.Success<List<*>>>(vm.editAllowances.value)
             assertIs<UiState.Success<List<*>>>(vm.editUsers.value)

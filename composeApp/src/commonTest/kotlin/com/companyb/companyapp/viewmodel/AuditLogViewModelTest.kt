@@ -479,6 +479,53 @@ class AuditLogViewModelTest {
         }
 
     @Test
+    fun loadFlaggedEntries_transportFailure_is_loud_error() =
+        runTest(testScheduler) {
+            // The #170 transport-pin shape (fetchFlagged leg): a thrown IOException must move
+            // the cold load Loading → Error (terminal) AND clear the in-flight guard — the
+            // wire the launchStateless onError hook owns (#169), the surface the old
+            // block/transform catches used to be. HTTP-status pins already exist; this pins
+            // the exception path.
+            val harness = AuditHarness()
+            val vm = AuditLogViewModel(mockApiClient(harness.handler()))
+
+            harness.flaggedFailure = true
+            vm.loadFlaggedEntries()
+            advanceUntilIdle()
+
+            val state = assertIs<UiState.Error>(vm.flaggedEntries.value)
+            assertTrue(state.message.contains("network down"))
+            assertFalse(
+                vm.flaggedLoadInFlight.value,
+                "the transport failure must clear the in-flight guard (no frozen Refresh button)",
+            )
+        }
+
+    @Test
+    fun refreshFlagged_transportFailure_keeps_list_and_reports_error() =
+        runTest(testScheduler) {
+            val harness = AuditHarness()
+            val vm = AuditLogViewModel(mockApiClient(harness.handler()))
+
+            vm.loadFlaggedEntries()
+            advanceUntilIdle()
+            harness.flaggedFailure = true
+            vm.refreshFlagged()
+            advanceUntilIdle()
+
+            // Keep-last: the list stays rendered; the failure surfaces on the tab's refresh
+            // error line, and the in-flight guard clears so a re-entry reload still fires.
+            val state = assertIs<UiState.Success<List<AuditLogEntryResponse>>>(vm.flaggedEntries.value)
+            assertEquals(expected = listOf("e1", "e2"), actual = state.data.map { it.id })
+            assertTrue(
+                vm.flaggedRefreshError.value
+                    .orEmpty()
+                    .contains("network down"),
+            )
+            assertFalse(vm.flaggedLoadInFlight.value)
+        }
+
+    @Test
     fun refreshFlagged_during_ack_converges_without_resurrection() =
         runTest(testScheduler) {
             val harness = AuditHarness()
@@ -723,6 +770,10 @@ class AuditLogViewModelTest {
         // When true the acknowledge handler throws — a network failure before any response.
         var ackFailure: Boolean = false
 
+        // When true the flagged handler throws — the #170 transport-pin shape: a network
+        // failure before any response must complete the flagged error surface via onError.
+        var flaggedFailure: Boolean = false
+
         // When true the entries handler throws — a network failure before any response.
         var browseFailure: Boolean = false
 
@@ -740,6 +791,9 @@ class AuditLogViewModelTest {
                 when {
                     request.method == HttpMethod.Get &&
                         request.url.encodedPath == "/api/audit-log/flagged" -> {
+                        if (flaggedFailure) {
+                            throw IOException("network down")
+                        }
                         flaggedCount++
                         jsonRespond(flaggedStatus, flaggedBody)
                     }
