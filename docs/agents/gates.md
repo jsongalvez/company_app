@@ -22,13 +22,20 @@ passes can reference them.
 ## The implement sequence
 
 1. **Before any code**: write the gates file from the ticket's resolution comment, then run
-   the checker — expecting fail-red or already-met (a freshly written gates file against an
-   unimplemented ticket should be red where the fix isn't in).
+   the checker — it must come back **fail-red** on the gates that need the fix (their
+   `EVIDENCE` stays `pending`). That red run is the **negative-control record**: the target
+   test demonstrably fails without the implementation, and the first run's output is the
+   proof. Keep that output in the ticket's resolution comment.
 2. Implement.
-3. **Before claiming done**: re-run the checker — every box checked with evidence, the
-   negative-control gate included, then the phased review loop (`docs/agents/code-review-loop.md`).
+3. **Before claiming done**: re-run the checker — every box checked with evidence, then the
+   phased review loop (`docs/agents/code-review-loop.md`).
 
-The skip rule above applies at step 1 — no gates file, the sequence is just "implement".
+The vacuous-test watch-lens (a test that would still pass with the fix stripped) stays a
+**loop lens** — phases re-derive it on the composed tree — never a gate command. A
+state-mutating "strip the fix" command (git stash chains) is out of scope for the checker:
+it cannot be re-run safely and its verdict depends on the fix's VCS state, not the code.
+
+The skip rule applies at step 1 — no gates file, the sequence is just "implement".
 
 ## Format
 
@@ -39,61 +46,41 @@ The skip rule above applies at step 1 — no gates file, the sequence is just "i
   EVIDENCE: <written by the checker on a verified run>
 ```
 
-Gate ids are `G<n>` (or `G-nc` for the negative-control gate, section below).
-
 - `CHECK` runs from the **repo root** by construction — the checker resolves it from its own
-  path, so invocation CWD never changes a verdict.
-- `EXPECT` defaults to `EXIT 0` when the line is omitted. A present-but-blank `EXPECT` is
-  unmet (malformed, not a wildcard).
-- `MATCHES` is a regex over stdout+stderr (multiline); a bad regex fails the gate closed.
+  path, so invocation CWD never changes a verdict. `CHECK` commands should not background
+  processes: a child that holds stdout pins the run, and one that blocks past the 60s
+  timeout leaves an orphan.
+- `EXPECT` defaults to `EXIT 0` when the line is *omitted*. A present-but-blank `EXPECT` is
+  unmet (malformed, not a wildcard); an `EXIT`-prefixed non-numeric value is unmet too.
+- `MATCHES` is a regex over stdout+stderr (multiline, input capped); a bad regex fails the
+  gate closed.
 - The checker truncates evidence to the first non-empty output line (200 chars).
 - A gate without a `CHECK` is unmet; the run reports it and exits 1.
-- A malformed box line (a `- [` line that doesn't parse as a gate) is an **error**, never a
-  silent skip — a file with one fails without flipping anything.
+- A malformed box line (a `- [` line that doesn't parse as a gate — keep these files free of
+  stray list markers) is an **error**, never a silent skip — a file with one fails without
+  flipping anything.
 - The checker clears `EVIDENCE` to `pending` when a previously met gate regresses, and
   re-verifies a hand-checked box rather than trusting it.
-
-## Negative-control gate — default on builds
-
-Every build carries a gate that proves the fix is load-bearing, guarding the **vacuous-test**
-watch-lens (handoffs' watch-lists live in the #178/#179 pattern; the lens name is
-"Useless-test pruning" in P5a):
-
-```
-- [ ] G-nc: <test> fails red with the fix stripped
-  CHECK: git stash push -q -- <paths to the fix>; ./gradlew <target> --tests "<test>"; rc=$?; git stash pop -q; if [ "$rc" -ne 0 ]; then echo "EXPECTED RED"; exit 0; else echo "test did NOT fail red with the fix stripped"; exit 1; fi
-  EXPECT: EXPECTED RED
-  EVIDENCE: pending
-```
-
-Shape rules — all three are load-bearing:
-
-- The restore runs **unconditionally** (`;` chains, never `&&`): the test failing red (the
-  gate's whole purpose) must not abandon the stash.
-- The verdict is a **marker**, not the last command's exit code — `git stash pop` rebases the
-  shell's exit status; decide on the echoed marker.
-- `EXPECTED RED` (exit 0) proves the red state; the vacuous outcome is a nonzero exit with
-  its own message, so a fix-less test fails the gate.
 
 ## Checker
 
 ```bash
-node scripts/gate-check.mjs docs/gates/<file>.md     # run + write
-node scripts/gate-check.mjs --dry docs/gates/*.md    # verdicts only
+node scripts/gate-check.mjs docs/gates/<file>.md     # run + write (atomic)
+node scripts/gate-check.mjs --dry docs/gates/*.md    # verdicts only, never writes
 ```
 
-- Flips `- [ ]` → `- [x]` and writes fresh `EVIDENCE` only when `EXPECT` matches; a stale or
-  failing claim is unflipped or overwritten, never trusted.
+- One writer per review pass: the **driving agent** runs the checker on the ticket's gates
+  file; phases read the verdict. A phase that wants its own verdict uses `--dry`.
 - Exit codes: 0 = every gate met, 1 = any gate unmet / file error, 2 = usage error.
-- The harness (`tests/gates/run.sh`, 36 assertions) guards the checker itself.
+- Writes are atomic (temp + rename) — concurrent runs cannot tear the file.
+- Zero-dep Node 16+, 60s timeout per check. The harness (`tests/gates/run.sh`) guards the
+  checker itself.
 
 ## How the loop consumes it
 
-- **P1 (spec conformance)**: run the checker first — the mechanical half of the phase is
-  "every box met with fresh evidence". The lens then spends its budget on what it judges:
-  partial, scope-creep, wrong-implementation.
-- **Every later pass**: re-run the checker on the current tree — the evidence is re-derived,
-  never inherited (self-certification is worthless).
+- **P1 (spec conformance)**: the driving agent's checker verdict is the mechanical half of
+  the phase — every box met with fresh evidence. The lens then spends its budget on
+  partial/scope-creep/wrong-implementation judgment.
 - **Handoffs**: build picks cite their gates file, so the next session's first act is
   `node scripts/gate-check.mjs <file>` — fail-red-or-met, no re-reading the spec.
 - **Resolution comment**: carries decisions; the gates file carries acceptance.
@@ -108,8 +95,4 @@ node scripts/gate-check.mjs --dry docs/gates/*.md    # verdicts only
   EXPECT: <pattern>
   EVIDENCE: pending
 ...
-- [ ] G-nc: <test> fails red with the fix stripped
-  CHECK: <negative-control command per the shape rules>
-  EXPECT: EXPECTED RED
-  EVIDENCE: pending
 ```

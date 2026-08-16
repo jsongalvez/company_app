@@ -4,12 +4,12 @@
 // Format spec: docs/agents/gates.md
 // Zero-dep Node 16+.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const BOX_RE = /^\s*- \[(.)\] (G[\w-]+):\s*(.*)$/;
+const BOX_RE = /^\s*- \[([ x])] (G[\w-]+):\s*(.*)$/;
 const BOX_ANY_RE = /^\s*- \[/;
 
 const usage = `usage: node scripts/gate-check.mjs [--dry] <gates-file>...
@@ -24,7 +24,7 @@ function matchExpect(expect, stdout, stderr, code) {
   const exit = /^EXIT (\d+)$/.exec(expect);
   if (exit) return code === Number(exit[1]);
   const matches = /^MATCHES (.+)$/s.exec(expect);
-  const combined = stdout + "\n" + stderr;
+  const combined = (stdout + "\n" + stderr).slice(0, 200_000);
   if (matches) {
     try {
       return new RegExp(matches[1], "m").test(combined);
@@ -63,14 +63,23 @@ function parse(lines) {
 
 function runGate(gate) {
   if (gate.check === null) return { ok: false, why: "no CHECK line" };
-  if ((gate.expect ?? "").trim() === "") return { ok: false, why: "blank EXPECT — EXPECT: EXIT N, MATCHES <regex>, or text; not empty" };
+  const expect = (gate.expect === null ? EXPECT_DEFAULT : gate.expect).trim();
+  if (gate.expect !== null && expect === "") {
+    return { ok: false, why: "blank EXPECT — EXPECT: EXIT N, MATCHES <regex>, or text; not empty" };
+  }
+  if (expect.startsWith("EXIT")) {
+    if (!/^EXIT \d+$/.test(expect)) {
+      return { ok: false, why: `malformed EXPECT "${expect}" — EXIT takes a number, or use MATCHES / plain text` };
+    }
+  }
   const r = spawnSync("sh", ["-c", gate.check], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 60_000 });
   const code = r.status ?? r.error?.code ?? "?";
-  const ok = matchExpect(gate.expect ?? EXPECT_DEFAULT, r.stdout ?? "", r.stderr ?? "", r.status ?? -1);
-  const out = ((r.stdout ?? "") + (r.stderr ?? "")).split("\n").map((l) => l.trim()).find((l) => l !== "");
+  const combined = (r.stdout ?? "") + "\n" + (r.stderr ?? "");
+  const ok = matchExpect(expect, r.stdout ?? "", r.stderr ?? "", r.status ?? -1);
+  const out = combined.split("\n").map((l) => l.trim()).find((l) => l !== "");
   return {
     ok,
-    why: ok ? null : `EXPECT "${gate.expect}" not matched (exit ${code})`,
+    why: ok ? null : `EXPECT "${expect}" not matched (exit ${code})`,
     evidence: out === undefined ? `exit ${code}` : out.slice(0, 200),
   };
 }
@@ -98,13 +107,13 @@ for (const file of files) {
   }
   const lines = src.split("\n").map((l) => l.replace(/\r$/, ""));
   const { gates, errors } = parse(lines);
-  if (gates.length === 0) {
-    console.error(`${file}: no gates found`);
+  if (errors.length > 0) {
+    for (const e of errors) console.error(`${file}: ${e}`);
     allOk = false;
     continue;
   }
-  if (errors.length > 0) {
-    for (const e of errors) console.error(`${file}: ${e}`);
+  if (gates.length === 0) {
+    console.error(`${file}: no gates found`);
     allOk = false;
     continue;
   }
@@ -131,7 +140,8 @@ for (const file of files) {
   }
   if (!dry) {
     try {
-      writeFileSync(file, lines.join("\n"));
+      writeFileSync(`${file}.tmp.${process.pid}`, lines.join("\n"));
+      renameSync(`${file}.tmp.${process.pid}`, file);
     } catch {
       console.error(`${file}: cannot write`);
       allOk = false;

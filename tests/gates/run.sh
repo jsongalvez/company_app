@@ -94,23 +94,20 @@ node "$CHECKER" "$WORK/pass.md" > /dev/null 2>&1; c7=$?
 assert "rerun: exit 0" "$c7" "0"
 assert "rerun: boxes stay flipped" "$(grep -c '^\s*- \[x\]' "$WORK/pass.md")" "2"
 
-# --- fixture 7: G-nc-style id parses and never corrupts a sibling --------------
-cat > "$WORK/nc.md" <<'EOF'
-- [ ] G1: first gate keeps its own check
-  CHECK: echo g1
-  EXPECT: g1
+# --- fixture 7: omitted EXPECT defaults to EXIT 0 ------------------------------
+cat > "$WORK/omitexpect.md" <<'EOF'
+- [ ] G1: no EXPECT line, passes
+  CHECK: true
   EVIDENCE: pending
 
-- [ ] G-nc: negative control
-  CHECK: echo red
-  EXPECT: red
+- [ ] G2: no EXPECT line, fails
+  CHECK: exit 1
   EVIDENCE: pending
 EOF
-node "$CHECKER" "$WORK/nc.md" > "$WORK/out7" 2>&1; c7b=$?
-assert "G-nc: exit 0" "$c7b" "0"
-assert "G-nc: G1 flipped with own check" "$(grep -c '^\s*- \[x\] G1' "$WORK/nc.md")" "1"
-assert "G-nc: G-nc flipped" "$(grep -c '^\s*- \[x\] G-nc' "$WORK/nc.md")" "1"
-assert "G-nc: both reported" "$(grep -o '2/2 gates met' "$WORK/out7")" "2/2 gates met"
+node "$CHECKER" "$WORK/omitexpect.md" > "$WORK/out7" 2>&1; c7b=$?
+assert "omitexpect: mix exits 1" "$c7b" "1"
+assert "omitexpect: G1 flipped" "$(grep -c '^\s*- \[x\] G1' "$WORK/omitexpect.md")" "1"
+assert "omitexpect: G1 report 1/2" "$(grep -o '1/2 gates met' "$WORK/out7")" "1/2 gates met"
 
 # --- fixture 8: malformed box line fails loudly --------------------------------
 cat > "$WORK/mal.md" <<'EOF'
@@ -161,10 +158,11 @@ assert "clear: box unflipped" "$(grep -c '^\s*- \[x\]' "$WORK/clear.md")" "0"
 assert "clear: evidence pending not stale" "$(grep -c 'EVIDENCE: pending' "$WORK/clear.md")" "1"
 
 # --- fixture 12: CHECK runs from the repo root regardless of CWD ---------------
-cat > "$WORK/cwd.md" <<'EOF'
+REPO_NAME="$(basename "$ROOT")"
+cat > "$WORK/cwd.md" <<EOF
 - [ ] G1: pwd is repo root
   CHECK: pwd
-  EXPECT: company_app
+  EXPECT: $REPO_NAME
   EVIDENCE: pending
 EOF
 (cd /tmp && node "$CHECKER" "$WORK/cwd.md" > "$WORK/out12" 2>&1); c12=$?
