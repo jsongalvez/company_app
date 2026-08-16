@@ -403,12 +403,16 @@ write_env VPS_IP "$VPS_IP"
 pause "Press Enter to test SSH (first connect accepts the host key)"
 
 stage "Verify SSH via public IP" 2
-note "connecting…"
-if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m; lsb_release -d; hostname'; then
-  note "ssh works"
+if [[ -n "$(_existing TS_IP || true)" ]]; then
+  note "tailnet already joined (TS_IP saved) — skipping the public-IP ssh check (22 is off the security list by design in tailnet mode)"
 else
-  warn "ssh failed — check the IP, the key, and that the instance is RUNNING (not Provisioning/Stopped)"
-  pause "Fixed? Press Enter to retry" && ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m' || abort "ssh still failing — re-check the IP, the key, and that the instance is RUNNING (if the IP was reused by a new VM, delete its stale ~/.ssh/known_hosts entry)"
+  note "connecting…"
+  if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m; lsb_release -d; hostname'; then
+    note "ssh works"
+  else
+    warn "ssh failed — check the IP, the key, and that the instance is RUNNING (not Provisioning/Stopped)"
+    pause "Fixed? Press Enter to retry" && ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$VPS_USER@$VPS_IP" 'uname -m' || abort "ssh still failing — re-check the IP, the key, and that the instance is RUNNING (if the IP was reused by a new VM, delete its stale ~/.ssh/known_hosts entry)"
+  fi
 fi
 
 # ── Phase 2 — Tailscale ────────────────────────────────────────────────────
