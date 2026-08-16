@@ -283,7 +283,7 @@ class ApiCallHandlerTest {
                 )
 
             // Drive the coroutine into awaitCancellation BEFORE cancelling — otherwise cancel()
-            // hits a not-yet-started job and the test passes vacuously (the ReliefInviteVMTest
+            // hits a not-yet-started job and the test passes vacuously (the ReliefInviteViewModelTest
             // :221 precedent: "without the delay, cancel() would hit a dead job").
             runCurrent()
             // #113 invariant: cancellation isn't a request failure — it must rethrow, never
