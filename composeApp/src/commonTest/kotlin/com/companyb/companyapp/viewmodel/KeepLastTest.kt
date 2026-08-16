@@ -253,7 +253,7 @@ class KeepLastTest {
 
             mirror.commit("a", 1)
 
-            assertEquals(1, mirror.freshest("a"))
+            assertEquals(1, mirror.lastByKey.value["a"])
             assertEquals(mapOf("a" to 1), mirror.lastByKey.value)
         }
 
@@ -266,20 +266,20 @@ class KeepLastTest {
 
             mirror.commit("a", 10)
 
-            assertEquals(10, mirror.freshest("a"), "a same-key re-commit is last-writer-wins")
-            assertEquals(2, mirror.freshest("b"), "another key's entry is untouched")
+            assertEquals(10, mirror.lastByKey.value["a"], "a same-key re-commit is last-writer-wins")
+            assertEquals(2, mirror.lastByKey.value["b"], "another key's entry is untouched")
         }
 
     @Test
-    fun keyedMirror_commit_reads_flow_and_freshest_is_per_key() =
+    fun keyedMirror_commit_reads_flow_per_key() =
         runTest(testScheduler) {
             val mirror = KeyedMirror<String, Int>()
             mirror.commit("a", 1)
             mirror.commit("b", 2)
 
-            assertEquals(1, mirror.freshest("a"))
-            assertEquals(2, mirror.freshest("b"))
-            assertNull(mirror.freshest("c"), "a never-loaded key has no mirror")
+            assertEquals(1, mirror.lastByKey.value["a"])
+            assertEquals(2, mirror.lastByKey.value["b"])
+            assertNull(mirror.lastByKey.value["c"], "a never-loaded key has no mirror")
             assertEquals(setOf("a", "b"), mirror.lastByKey.value.keys)
         }
 

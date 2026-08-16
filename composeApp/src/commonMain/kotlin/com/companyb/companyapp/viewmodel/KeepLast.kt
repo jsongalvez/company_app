@@ -233,11 +233,11 @@ class ActionTracker<K> {
 
 /**
  * Per-key keep-last mirror (the #166 P5 mirror-only split): the map mirror of the last
- * successful payload per key — [commit] + [lastByKey] + [freshest] — WITHOUT the
- * [InFlightGuard]. For consumers whose same-key ordering is closed by a stamp instead of a
- * guard (ReliefInvite's `keptSent` newest-launch-wins via `sentStamp`), the composed guard
- * was dead weight. [KeepLastByKey] composes this mirror with the [InFlightGuard] for the
- * full shape (Remittance).
+ * successful payload per key — [commit] + [lastByKey] — WITHOUT the [InFlightGuard]. For
+ * consumers whose same-key ordering is closed by a stamp instead of a guard (ReliefInvite's
+ * `keptSent` newest-launch-wins via `sentStamp`), the composed guard was dead weight.
+ * [KeepLastByKey] composes this mirror with the [InFlightGuard] for the full shape
+ * (Remittance).
  */
 class KeyedMirror<K, T> {
     private val _lastByKey = MutableStateFlow<Map<K, T>>(emptyMap())
@@ -253,9 +253,6 @@ class KeyedMirror<K, T> {
     ) {
         _lastByKey.value = _lastByKey.value + (key to data)
     }
-
-    /** The last successful payload for [key], or null when that key never loaded. */
-    fun freshest(key: K): T? = _lastByKey.value[key]
 }
 
 /**
@@ -306,5 +303,5 @@ class KeepLastByKey<K, T> {
     fun finish(key: K) = inFlightGuard.finish(key)
 
     /** The last successful payload for [key], or null when that key never loaded. */
-    fun freshest(key: K): T? = mirror.freshest(key)
+    fun freshest(key: K): T? = mirror.lastByKey.value[key]
 }
