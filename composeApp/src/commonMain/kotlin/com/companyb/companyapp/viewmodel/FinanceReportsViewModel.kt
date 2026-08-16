@@ -484,7 +484,8 @@ class FinanceReportsViewModel(
             },
             // #170 — the loadReliefDay shape: a transport failure moves Loading → Error
             // (terminal) instead of parking on Loading forever (the #168/#169 P5 sibling —
-            // the tree's sole onError-less stateless site pre-fix).
+            // pre-fix the sole onError-less stateless site parking a UiState on Loading;
+            // loadSent is onError-less by keep-last design — no state to park).
             onError = { e ->
                 if (generation == rollupGeneration) {
                     _monthlyRollup.value = UiState.Error(e.message ?: "Unknown error")

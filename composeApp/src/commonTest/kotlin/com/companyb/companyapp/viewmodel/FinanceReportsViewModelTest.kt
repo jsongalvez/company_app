@@ -16,6 +16,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -427,10 +428,8 @@ class FinanceReportsViewModelTest {
         runTest(testScheduler) {
             // The #170 fix — the rollup surface's onError pin: a transport failure must move
             // _monthlyRollup Loading → Error (terminal), not park on Loading forever (the
-            // #168/#169 P5 sibling — the tree's sole onError-less launchStateless site).
-            // #170 fix — the rollup surface's onError pin: a transport failure must move
-            // _monthlyRollup Loading → Error (terminal), not park on Loading forever (the
-            // #168/#169 P5 sibling — the tree's sole onError-less launchStateless site).
+            // #168/#169 P5 sibling — the sole onError-less stateless site parking a UiState;
+            // loadSent is onError-less by keep-last design, no Loading to park).
             val handler: MockRequestHandler = { request ->
                 when {
                     request.url.encodedPath == "/api/branches/accessible" -> {
@@ -460,6 +459,63 @@ class FinanceReportsViewModelTest {
             val rollup = vm.monthlyRollup.value
             assertIs<UiState.Error>(rollup)
             assertTrue(rollup.message.contains("connection reset"))
+        }
+
+    @Test
+    fun monthlyRollup_supersededTransportFailure_staysInert() =
+        runTest(testScheduler) {
+            // The onError generation guard (P4 SOFT): a transport failure from a superseded
+            // launch must not clobber a newer Success. First rollup request hangs on a gate;
+            // a branch switch reloads and succeeds; the stale failure then lands — the guard
+            // must suppress it (the #143 class).
+            val staleGate = CompletableDeferred<Unit>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-13")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        staleGate.await()
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/monthly-summary" -> {
+                        respondJson(
+                            """{"branchId":"$BRANCH_B","year":2026,"month":8,"totalRemittances":1,"sessionCount":1,"productCount":0,"grossIncome":"1000.00","totalCompensation":"200.00","totalExpenses":"50.00","netIncome":"750.00"}""",
+                        )
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            runCurrent()
+
+            vm.selectBranch(BRANCH_B)
+            runCurrent()
+            assertIs<UiState.Success<MonthlyRemittanceSummaryResponse?>>(vm.monthlyRollup.value)
+
+            staleGate.complete(Unit)
+            advanceUntilIdle()
+
+            val rollup = vm.monthlyRollup.value
+            assertIs<UiState.Success<MonthlyRemittanceSummaryResponse?>>(rollup)
+            assertEquals(BRANCH_B, rollup.data?.branchId, "a superseded failure must not clobber the newer Success")
         }
 
     // ─────────────────────────── edit mode ───────────────────────────
