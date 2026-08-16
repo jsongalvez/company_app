@@ -55,7 +55,12 @@ function parse(lines) {
       gates.push(cur);
       return;
     }
-    if (!cur) return;
+    if (!cur) {
+      if (/^\s*(CHECK|EXPECT|EVIDENCE):/.test(line)) {
+        errors.push(`line ${i + 1}: field line outside any gate (${line.trim()}) — fields belong under a "- [ ]" box`);
+      }
+      return;
+    }
     if (line.trim() === "") { cur = null; return; }
     const check = /^\s*CHECK:\s*(.+)$/.exec(line);
     if (check) { cur.check = check[1]; cur.lastField = i; return; }
@@ -79,7 +84,10 @@ function runGate(gate) {
     }
   }
   const r = spawnSync("sh", ["-c", gate.check], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 60_000 });
-  const code = r.status ?? r.error?.code ?? "?";
+  if (r.error || r.status === null) {
+    return { ok: false, why: `CHECK failed (${r.error?.code ?? "killed"})`, evidence: `${r.error?.code ?? "killed"} — partial output not trusted` };
+  }
+  const code = r.status ?? "?";
   const combined = (r.stdout ?? "") + "\n" + (r.stderr ?? "");
   const ok = matchExpect(expect, r.stdout ?? "", r.stderr ?? "", r.status ?? -1);
   const out = combined.split("\n").map((l) => l.trim()).find((l) => l !== "");
@@ -133,7 +141,7 @@ for (const file of files) {
       gate.lastField++;
       for (const g of gates.slice(gates.indexOf(gate) + 1)) { g.line++; g.lastField++; if (g.evidence) g.evidence.line++; }
     } else if (gate.evidence !== null && !dry) {
-      lines[gate.evidence.line] = lines[gate.evidence.line].replace(/EVIDENCE:.*/, `EVIDENCE: ${result.ok ? result.evidence : "pending"}`);
+      lines[gate.evidence.line] = lines[gate.evidence.line].replace(/EVIDENCE:.*/, () => `EVIDENCE: ${result.ok ? result.evidence : "pending"}`);
     }
     if (result.ok) okCount++;
     else failures.push(`${gate.id}: ${result.why}`);

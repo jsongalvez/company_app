@@ -197,5 +197,35 @@ assert "noev: exit 0" "$c14" "0"
 assert "noev: box flipped" "$(grep -c '^\s*- \[x\] G1' "$WORK/noev.md")" "1"
 assert "noev: evidence line inserted" "$(grep -c 'EVIDENCE: inserted' "$WORK/noev.md")" "1"
 
+# --- fixture 15: evidence containing $-tokens survives rewrite -----------------
+cat > "$WORK/dollars.md" <<'EOF'
+- [ ] G1: dollars in evidence
+  CHECK: printf '%s' 'got $& $'"'"' and $1'
+  EXPECT: got
+  EVIDENCE: pending
+EOF
+node "$CHECKER" "$WORK/dollars.md" > /dev/null 2>&1; c15=$?
+assert "dollars: exit 0" "$c15" "0"
+assert "dollars: evidence intact, no token expansion" "$(grep -c "EVIDENCE: got \\\$& \\\$' and \\\$1" "$WORK/dollars.md")" "1"
+
+# --- fixture 16: stray field line between gates is an error ---------------------
+cat > "$WORK/stray.md" <<'EOF'
+- [ ] G1: fine
+  CHECK: true
+  EXPECT: EXIT 0
+  EVIDENCE: pending
+
+CHECK: stray field between gates
+
+- [ ] G2: never run
+  CHECK: echo nope
+  EXPECT: nope
+  EVIDENCE: pending
+EOF
+node "$CHECKER" "$WORK/stray.md" > "$WORK/out16" 2>&1; c16=$?
+assert "stray: exit 1" "$c16" "1"
+assert "stray: reported" "$(grep -c 'field line outside any gate' "$WORK/out16")" "1"
+assert "stray: nothing flipped" "$(grep -c '^\s*- \[x\]' "$WORK/stray.md")" "0"
+
 if [ "$fails" -gt 0 ]; then echo "$fails assertion(s) failed"; exit 1; fi
 echo "all green — checker harness ($WORK)"

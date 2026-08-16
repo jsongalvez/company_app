@@ -53,17 +53,20 @@ The skip rule applies at step 1 — no gates file, the sequence is just "impleme
 - `EXPECT` defaults to `EXIT 0` when the line is *omitted*. A present-but-blank `EXPECT`
   (bare `EXPECT:` or whitespace only) is unmet (malformed, not a wildcard); an
   `EXIT`-prefixed non-numeric value is unmet too.
-- `MATCHES` is a regex over stdout+stderr (multiline), evaluated in a **time-boxed child
-  (5s)** — a bad regex or a backtracking-heavy pattern fails the gate closed, it never hangs
-  the pass. An `^$` pattern matches only when both streams are truly empty.
+- `MATCHES` is a regex over stdout+stderr (multiline, input capped at 200k chars — a match
+  beyond the cap fails the gate), evaluated in a **time-boxed child (5s)** — a bad regex or a
+  backtracking-heavy pattern fails the gate closed, it never hangs the pass. `^$` matches
+  only truly-empty output (trailing newlines are stripped first, so a stray trailing `\n`
+  doesn't fake an empty line).
 - The checker truncates evidence to the first non-empty output line (200 chars), or records
   `exit <code>` when the command produces none.
 - A gate without a `CHECK` is unmet; the run reports it and exits 1.
 - A malformed box line (a `- [` line that doesn't parse as a gate — keep these files free of
   stray list markers) is an **error**, never a silent skip — a file with one fails without
   flipping anything.
-- Gate ids are `G1`, `G2`, … (numeric). Belt fields are contiguous under their gate: a blank
-  line ends the gate's field block.
+- Gate ids are `G1`, `G2`, … (numeric). The gate's fields are contiguous under it: a blank
+  line ends the field block, and a stray `CHECK:`/`EXPECT:`/`EVIDENCE:` line between gates is
+  an **error**, never silently absorbed into the wrong gate.
 - The checker clears `EVIDENCE` to `pending` when a previously met gate regresses, and
   re-verifies a hand-checked box rather than trusting it.
 
@@ -83,9 +86,8 @@ node scripts/gate-check.mjs --dry docs/gates/*.md    # verdicts only, never writ
 
 ## How the loop consumes it
 
-- **P1 (spec conformance)**: the driving agent's checker verdict is the mechanical half of
-  the phase — every box met with fresh evidence. The lens then spends its budget on
-  partial/scope-creep/wrong-implementation judgment.
+- **Review passes**: see `code-review-loop.md` P1 — the driving agent's checker verdict is
+  the mechanical half of spec conformance; phases verify with `--dry` only.
 - **Handoffs**: build picks cite their gates file, so the next session's first act is
   `node scripts/gate-check.mjs <file>` — fail-red-or-met, no re-reading the spec.
 - **Resolution comment**: carries decisions; the gates file carries acceptance.
