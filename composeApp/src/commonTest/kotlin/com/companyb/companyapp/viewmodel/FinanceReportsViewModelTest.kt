@@ -466,12 +466,123 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
+    fun loadMore_transportFailure_keeps_list_and_sets_error() =
+        runTest(testScheduler) {
+            // The feed paging leg of the transport pin: a thrown IOException on the LoadMore
+            // fetch must keep the accumulated feed rendered, surface the load-more error line,
+            // and clear the in-flight flag (no frozen Load-more button).
+            var page = 0
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        page++
+                        if (page == 1) {
+                            respondJson(feedResponse(listOf("2026-08-14"), nextCursor = "c1"))
+                        } else {
+                            throw java.io.IOException("connection reset")
+                        }
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.loadMore()
+            advanceUntilIdle()
+
+            val feed = vm.feedEntries.value
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(feed)
+            assertEquals(listOf("2026-08-14"), feed.data.map { it.date })
+            assertTrue(
+                vm.loadMoreError.value
+                    .orEmpty()
+                    .contains("connection reset"),
+            )
+            assertFalse(vm.isLoadingMore.value)
+        }
+
+    @Test
+    fun refreshFeed_staleTransportFailure_doesNotBleedOntoNewBranch() =
+        runTest(testScheduler) {
+            // Uniquely pins the fetchPage onError generation guard on the REFRESH path (the
+            // #143 class). The cold stale pin below cannot isolate the guard — cold
+            // handlePageFailure keep-last suppresses just the same; the refresh path writes
+            // refreshError unconditionally, so ONLY the guard stops a stale refresh failure
+            // (armed on branch A) from bleeding onto the newer branch's view.
+            var aHits = 0
+            val staleGate = CompletableDeferred<Unit>()
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        aHits++
+                        if (aHits == 1) {
+                            respondJson(feedResponse(listOf("2026-08-14")))
+                        } else {
+                            staleGate.await()
+                            throw java.io.IOException("connection reset")
+                        }
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_B/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-13")))
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.refreshFeed()
+            runCurrent()
+            vm.selectBranch(BRANCH_B)
+            runCurrent()
+            val afterSwitch = vm.feedEntries.value
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(afterSwitch)
+            assertEquals(listOf("2026-08-13"), afterSwitch.data.map { it.date })
+
+            staleGate.complete(Unit)
+            advanceUntilIdle()
+
+            // The stale refresh failure is inert: the new branch's view carries no error line,
+            // no refresh flag, and the branch B feed stays rendered.
+            assertNull(
+                vm.refreshError.value,
+                "a superseded refresh failure must not bleed onto the new branch",
+            )
+            assertFalse(vm.isRefreshing.value)
+            val feed = vm.feedEntries.value
+            assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(feed)
+            assertEquals(listOf("2026-08-13"), feed.data.map { it.date })
+        }
+
+    @Test
     fun feed_supersededTransportFailure_staysInert() =
         runTest(testScheduler) {
-            // The #170 pin-2 mirror for the feed: the onError generation guard (#143 class).
-            // The first BRANCH_A feed request hangs on a gate; a branch switch reloads and
-            // succeeds; the stale IOException then lands and must be suppressed — the list
-            // stays on the newer branch's Success.
+            // The #170 pin-2 mirror for the feed (cold stale path). COVERAGE NOTE: a cold
+            // stale failure is double-suppressed — the onError generation guard AND
+            // handlePageFailure's cold keep-last (feed already Success lands suppression) —
+            // so this test cannot isolate the guard; its observable (stays-on-B) holds either
+            // way. It pins the composed cold-stale-inert property;
+            // refreshFeed_staleTransportFailure_doesNotBleedOntoNewBranch uniquely pins the
+            // guard, and feed_transportFailure_-/refreshFeed_transportFailure_ carry the
+            // onError-existence load for fetchPage.
             val staleGate = CompletableDeferred<Unit>()
             val handler: MockRequestHandler = { request ->
                 when {
@@ -721,7 +832,7 @@ class FinanceReportsViewModelTest {
         }
 
     @Test
-    fun sectionLoad_transportFailure_surfacesError_per_section() =
+    fun sectionLoad_transportFailure_surfacesError() =
         runTest(testScheduler) {
             // The #170 transport-pin shape (loadSection leg): a thrown IOException on one
             // section's endpoint moves THAT section Loading → Error while the others land
