@@ -434,8 +434,8 @@ class UserManagementViewModelTest {
             // The stale-mirror shape: a swap for a user absent from the held list must not
             // write — the null-guard maps to no-write (the old `?: return` path). Note what
             // this test does NOT pin: a crash-class guard regression (e.g. first{} on the
-            // missing user) would throw inside the transform, and ApiCallHandler swallows it
-            // onto the private throwaway mutation flow — unobservable through the public
+            // missing user) would throw inside the transform, and the state-less handler's
+            // onError no-op swallows it (the #168 launch) — unobservable through the public
             // surface, so no-crash is unpinnable here (the list-unchanged assert is the pin).
             vm.swapSlots(branchId = "b1", userIdA = "ghost", userIdB = "u2")
             advanceUntilIdle()
