@@ -51,11 +51,6 @@ class ReliefInviteViewModel(
     private val _candidates = MutableStateFlow<UiState<List<ReliefCandidateResponse>>>(UiState.Idle)
     val candidates: StateFlow<UiState<List<ReliefCandidateResponse>>> = _candidates.asStateFlow()
 
-    // Throwaway handler target for the sent list (the #162 keyed-mirror shape): the screen
-    // renders ONLY the branch-keyed mirror (sentByKey) — the live Loading/Error transitions
-    // land here and are consumed by no one (the mirror renders through them).
-    private val sentListFlow = MutableStateFlow<UiState<List<ReliefInviteResponse>>>(UiState.Idle)
-
     // keep-last for the inviter's sent list, BRANCH-KEYED (the #162 KeepLastByKey shape — the
     // panel re-opens per branch card and a reload must keep the previous list rendered). Keying
     // the mirror by branchId makes the #160 pass-1/pass-2 cross-branch bleed structurally
@@ -223,10 +218,10 @@ class ReliefInviteViewModel(
         // construction — the mirror is keyed, so a response for another branch commits under
         // its own key and the screen's per-key gate never renders it. Same-branch ordering is
         // closed by the stamp below: only the NEWEST launch's response commits, whenever it
-        // lands (a stale response still lands on the throwaway state flow, which nobody reads).
+        // lands (a stale response is still deserialized for the commit check — the #168
+        // state-less launch variant just has no state flow to land on).
         val stamp = ++sentStamp
-        return handler.launch(
-            state = sentListFlow,
+        return handler.launchStateless(
             operation = "loadSent",
             endpoint = "GET /api/branches/$branchId/relief-invites",
             block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
@@ -240,7 +235,6 @@ class ReliefInviteViewModel(
                 if (stamp == sentStamp) {
                     keptSent.commit(branchId, body)
                 }
-                body
             },
         )
     }

@@ -123,10 +123,10 @@ class UserViewModel(
     val inFlight: StateFlow<Set<String>> = actionTracker.inFlight
     val actionErrors: StateFlow<Map<String, String>> = actionTracker.errors
 
-    // Throwaway flow: every mutation lands here so a failure/in-flight fetch can never clobber
-    // the accumulated users list (the #122/#120 keep-last-list shape).
-    private val mutation = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-
+    // Every mutation lands here with a state-less handler call (the #168 state-less launch):
+    // the real effects route through actionTracker (begin/fail/finish) + the in-place list
+    // transforms, so the throwaway UiState flow the stateful launch would have written is
+    // unneeded (the #122/#120 keep-last-list shape).
     fun loadUsers() {
         // Guard 1 (mutations): a reload mid-mutation would let the mutation's in-place transform
         // re-apply to the fresh list (swap double-applies — pass-1 P2/P4 HARD class; the
@@ -264,8 +264,7 @@ class UserViewModel(
         // the same-frame tap that slips past the composition gate.
         if (keptUsers.state.value is UiState.Loading) return
         if (!actionTracker.begin(key)) return
-        handler.launch(
-            state = mutation,
+        handler.launchStateless(
             operation = operation,
             endpoint = endpoint,
             block = {
@@ -276,8 +275,8 @@ class UserViewModel(
                 } catch (e: Exception) {
                     // Network failure — clear the in-flight guard so buttons re-enable AND surface
                     // an inline error (ADR-0022 pessimistic contract: the row is kept and the
-                    // failure is visible). The handler still assigns Error to the throwaway flow;
-                    // the inline error is what the screen renders. (transform never deserializes
+                    // failure is visible). The state-less launch has no state flow to write; the
+                    // inline error is what the screen renders. (transform never deserializes
                     // for these 204 ops, so only block() can throw here.)
                     actionTracker.fail(key, e.message ?: "$operation failed")
                     throw e
@@ -290,7 +289,6 @@ class UserViewModel(
             },
             onNonSuccess = { response ->
                 actionTracker.fail(key, statusMessage(response.status))
-                true
             },
         )
     }

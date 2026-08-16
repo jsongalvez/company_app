@@ -106,13 +106,6 @@ class SessionDashboardViewModel(
     private val _editState = MutableStateFlow<DashboardEditState?>(null)
     val editState: StateFlow<DashboardEditState?> = _editState.asStateFlow()
 
-    // The PATCH result flow is plumbing for ApiCallHandler (it must write somewhere); the
-    // machine ([editState]) carries what the UI renders. The 403/409/other branches reset
-    // it to Idle so it never parks on a stale Loading (the #141 class); the success and
-    // exception paths park Success/Error (nothing collects the flow — display is the
-    // machine's error field).
-    private val editResultFlow = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
-
     private var consecutiveFailures = 0
     private var pollJob: Job? = null
 
@@ -301,8 +294,7 @@ class SessionDashboardViewModel(
         }
         _editState.value = state.asInFlight()
         val request = editRequest(state)
-        handler.launch(
-            state = editResultFlow,
+        handler.launchStateless(
             operation = "updateSession",
             endpoint = "PATCH ${request.path}",
             block = {
@@ -311,10 +303,11 @@ class SessionDashboardViewModel(
                 }
             },
             transform = {
+                // The updated row is committed to the machine ([editState] carries what the UI
+                // renders — the #168 state-less launch has no result flow to write).
                 val updated = it.body<SessionResponse>()
                 commitRow(updated)
                 _editState.value = null
-                updated
             },
             onNonSuccess = { response ->
                 when (response.status.value) {
@@ -324,8 +317,6 @@ class SessionDashboardViewModel(
                         logWarn("DashboardVM", "edit forbidden (403) — affordance hidden")
                         _editState.value = null
                         _canEdit.value = false
-                        editResultFlow.value = UiState.Idle
-                        true
                     }
 
                     // ADR-0022: 409 — version conflict: keep the draft + inline error +
@@ -333,16 +324,12 @@ class SessionDashboardViewModel(
                     // lost update — the expectedVersion is the edit-start snapshot).
                     409 -> {
                         _editState.value = _editState.value?.asConflict(CONFLICT_MESSAGE)
-                        editResultFlow.value = UiState.Idle
-                        true
                     }
 
                     // Model A: any other HTTP failure keeps the draft + inline error.
                     else -> {
                         _editState.value =
                             _editState.value?.asFailed("Update failed (${response.status.value}) — retry or discard")
-                        editResultFlow.value = UiState.Idle
-                        true
                     }
                 }
             },

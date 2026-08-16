@@ -277,8 +277,6 @@ class FinanceReportsViewModel(
     private val _refreshError = MutableStateFlow<String?>(null)
     val refreshError: StateFlow<String?> = _refreshError.asStateFlow()
 
-    private val pageFetch = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-
     // Every window/mode/branch change bumps the generation; an in-flight page from a superseded
     // generation is inert (no list/cursor/error writes) — the AuditLog #144 shape.
     private var feedGeneration = 0
@@ -356,8 +354,7 @@ class FinanceReportsViewModel(
         val generation = feedGeneration
         if (mode == FetchMode.Refresh) _isRefreshing.value = true
         if (mode == FetchMode.LoadMore) _isLoadingMore.value = true
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = mode.operationName,
             endpoint = "GET /api/branches/$branchId/daily-summaries",
             block = {
@@ -409,7 +406,6 @@ class FinanceReportsViewModel(
                     handlePageFailure(mode, "feed failed: ${response.status.value}")
                     finish(mode)
                 }
-                true
             },
         )
     }
@@ -472,8 +468,7 @@ class FinanceReportsViewModel(
         rollupGeneration++
         val generation = rollupGeneration
         _monthlyRollup.value = UiState.Loading
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "loadMonthlyRollup",
             endpoint = "GET /api/branches/$branchId/monthly-summary",
             block = {
@@ -503,7 +498,6 @@ class FinanceReportsViewModel(
                         _monthlyRollup.value = UiState.Error("monthly rollup failed: ${response.status.value}")
                     }
                 }
-                true
             },
         )
     }
@@ -546,8 +540,9 @@ class FinanceReportsViewModel(
         // while editing must not leave the OLD day's edit sections armed (editExpenses etc.
         // hold the previous day's rows; a later Edit toggle would mutate the wrong day).
         // Mirrors refreshWindowAndFeed's reset + loadSection's generation guard. The state
-        // write is manual (dummy pageFetch to the handler) so a superseded response never
-        // lands Success on the UI. The VM's [_selectedBranchId] is deliberately NOT touched:
+        // write is manual (the state-less #168 launch writes no Loading/Success) so a
+        // superseded response never lands Success on the UI. The VM's [_selectedBranchId] is
+        // deliberately NOT touched:
         // the relief surface reads the clocked-in branch from SessionState (pass-2 HARD —
         // writing it would pin the hybrid's reports surface to the relief branch).
         reliefGeneration++
@@ -556,8 +551,7 @@ class FinanceReportsViewModel(
         _selectedDay.value = null
         clearEditData()
         _reliefDay.value = UiState.Loading
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "loadReliefDay",
             endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
             block = { apiClient.httpClient.get("/api/branches/$branchId/daily-summary?date=$date") },
@@ -573,7 +567,6 @@ class FinanceReportsViewModel(
                 if (generation == reliefGeneration) {
                     _reliefDay.value = UiState.Error("loadReliefDay failed: ${response.status.value}")
                 }
-                true
             },
             onError = { e ->
                 if (generation == reliefGeneration) {
@@ -771,8 +764,7 @@ class FinanceReportsViewModel(
         params: List<Pair<String, String>>,
         errorKeyPrefixes: List<String> = emptyList(),
     ) {
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = operation,
             endpoint = "GET $endpoint",
             block = {
@@ -814,7 +806,6 @@ class FinanceReportsViewModel(
                 if (generation == editDataGeneration) {
                     state.value = UiState.Error("$operation failed: ${response.status.value}")
                 }
-                true
             },
         )
     }
@@ -843,8 +834,7 @@ class FinanceReportsViewModel(
         val key = "expense:create"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "createExpense",
             endpoint = "POST /api/expenses",
             block = {
@@ -880,7 +870,6 @@ class FinanceReportsViewModel(
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "expense:create", response)
                 }
-                true
             },
             onError = { e ->
                 // Pass-9 HARD — a transport/timeout failure must keep the dialog open with an
@@ -902,8 +891,7 @@ class FinanceReportsViewModel(
         val key = "expense:update:${expense.id}"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "updateExpense",
             endpoint = "PATCH /api/expenses/${expense.id}",
             block = {
@@ -938,7 +926,6 @@ class FinanceReportsViewModel(
                         reloadSection(EditSection.EXPENSES)
                     }
                 }
-                true
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
@@ -955,8 +942,7 @@ class FinanceReportsViewModel(
         val key = "expense:delete:${expense.id}"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "deleteExpense",
             endpoint = "DELETE /api/expenses/${expense.id}",
             block = {
@@ -976,7 +962,6 @@ class FinanceReportsViewModel(
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "expense:delete", response)
                 }
-                true
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
@@ -993,8 +978,7 @@ class FinanceReportsViewModel(
         val key = "expense:restore:${expense.id}"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "restoreExpense",
             endpoint = "POST /api/expenses/${expense.id}/restore",
             block = {
@@ -1014,7 +998,6 @@ class FinanceReportsViewModel(
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "expense:restore", response)
                 }
-                true
             },
             onError = { e ->
                 // Pass-10 HARD — the one onError the pass-9 batch missed: a transport failure
@@ -1048,8 +1031,7 @@ class FinanceReportsViewModel(
         val key = "comp:create"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "createCompensation",
             endpoint = "POST /api/compensation",
             block = {
@@ -1091,7 +1073,6 @@ class FinanceReportsViewModel(
                         conflictMessage = "Already compensated on this day",
                     )
                 }
-                true
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
@@ -1110,8 +1091,7 @@ class FinanceReportsViewModel(
         val key = "comp:update:${compensation.id}"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "updateCompensation",
             endpoint = "PATCH /api/compensation/${compensation.id}",
             block = {
@@ -1151,7 +1131,6 @@ class FinanceReportsViewModel(
                         reloadSection(EditSection.COMPENSATIONS)
                     }
                 }
-                true
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
@@ -1172,8 +1151,7 @@ class FinanceReportsViewModel(
         val key = "allow:create"
         if (!actionTracker.begin(key)) return
         val generation = editDataGeneration
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "createAllowance",
             endpoint = "POST /api/allowances",
             block = {
@@ -1206,7 +1184,6 @@ class FinanceReportsViewModel(
                 if (generation == editDataGeneration) {
                     failActionOrSilent403(key, "allow:create", response)
                 }
-                true
             },
             onError = { e ->
                 if (generation == editDataGeneration) {
@@ -1237,8 +1214,7 @@ class FinanceReportsViewModel(
         if (_downloads.value.containsKey(key) && _downloads.value[key] is UiState.Loading) return
         _exportErrors.value = _exportErrors.value - key
         _downloads.value = _downloads.value + (key to UiState.Loading)
-        handler.launch(
-            state = pageFetch,
+        handler.launchStateless(
             operation = "export:$key",
             endpoint = "GET export $key",
             block = { apiClient.httpClient.get(url) },
@@ -1251,7 +1227,6 @@ class FinanceReportsViewModel(
             onNonSuccess = { response ->
                 _downloads.value = _downloads.value - key
                 _exportErrors.value = _exportErrors.value + (key to "Export failed: ${response.status.value}")
-                true
             },
             onError = { e ->
                 _downloads.value = _downloads.value - key

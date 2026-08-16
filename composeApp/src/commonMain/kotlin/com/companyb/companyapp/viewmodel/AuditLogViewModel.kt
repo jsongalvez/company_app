@@ -48,11 +48,10 @@ class AuditLogViewModel(
 
     private val _flaggedEntries = MutableStateFlow<UiState<List<AuditLogEntryResponse>>>(UiState.Idle)
     val flaggedEntries: StateFlow<UiState<List<AuditLogEntryResponse>>> = _flaggedEntries.asStateFlow()
-    private val flaggedPage = MutableStateFlow<UiState<Unit>>(UiState.Idle)
 
-    // Synchronous in-flight guard shared by the cold load and the silent refresh (the handler's
-    // Loading lands on flaggedPage only after launch, so a state-based guard would race a rapid
-    // double-tap). One slot for both: cold and refresh write the same list, so they must be
+    // Synchronous in-flight guard shared by the cold load and the silent refresh (a state-based
+    // guard would race a rapid double-tap — the state-less launch writes no Loading at all).
+    // One slot for both: cold and refresh write the same list, so they must be
     // mutually exclusive (two overlapping snapshots would last-writer-win). StateFlow so the
     // Refresh button can disable per tab.
     private val _flaggedLoadInFlight = MutableStateFlow(false)
@@ -66,17 +65,16 @@ class AuditLogViewModel(
     private val acknowledgedIds = mutableSetOf<String>()
 
     // D2 — ack in-flight set + per-row inline errors (ADR-0022: pessimistic, failure keeps row).
-    private val acknowledgeResult = MutableStateFlow<UiState<AuditLogEntryResponse>>(UiState.Idle)
+    // The acknowledge response routes through ackTracker + the list writes; no state flow.
     private val ackTracker = ActionTracker<String>()
     val acknowledgingIds: StateFlow<Set<String>> = ackTracker.inFlight
     val ackErrors: StateFlow<Map<String, String>> = ackTracker.errors
 
     // D5/D8/D10 — browse: accumulated pages + cursor; page-1 loads drive [browseEntries], while
-    // refresh/load-more calls land on a throwaway flow so the accumulated list is never clobbered
-    // by a failed or in-flight page fetch.
+    // refresh/load-more calls are state-less (the #168 launch) so the accumulated list is never
+    // clobbered by a failed or in-flight page fetch.
     private val _browseEntries = MutableStateFlow<UiState<List<AuditLogEntryResponse>>>(UiState.Idle)
     val browseEntries: StateFlow<UiState<List<AuditLogEntryResponse>>> = _browseEntries.asStateFlow()
-    private val pageFetch = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     private val _appliedFilters = MutableStateFlow(AuditLogFilters())
     val appliedFilters: StateFlow<AuditLogFilters> = _appliedFilters.asStateFlow()
     private val _nextCursor = MutableStateFlow<String?>(null)
@@ -136,8 +134,7 @@ class AuditLogViewModel(
     // closes the flagged side).
     private fun fetchFlagged(cold: Boolean) {
         _flaggedLoadInFlight.value = true
-        handler.launch(
-            state = flaggedPage,
+        handler.launchStateless(
             operation = if (cold) "loadFlaggedEntries" else "refreshFlagged",
             endpoint = "GET /api/audit-log/flagged",
             block = {
@@ -172,7 +169,6 @@ class AuditLogViewModel(
             onNonSuccess = { response ->
                 flaggedLoadFailure(cold, "flagged load failed: ${response.status.value}")
                 _flaggedLoadInFlight.value = false
-                true
             },
         )
     }
@@ -192,8 +188,7 @@ class AuditLogViewModel(
     // (incl. the server-enforced self-ack 409) keeps the row and surfaces an inline per-row error.
     fun acknowledge(entry: AuditLogEntryResponse) {
         if (!ackTracker.begin(entry.id)) return
-        handler.launch(
-            state = acknowledgeResult,
+        handler.launchStateless(
             operation = "acknowledgeEntry",
             endpoint = "PATCH /api/audit-log/${entry.id}/acknowledge",
             block = {
@@ -210,7 +205,7 @@ class AuditLogViewModel(
             },
             transform = {
                 try {
-                    val acknowledged = it.body<AuditLogEntryResponse>()
+                    it.body<AuditLogEntryResponse>()
                     acknowledgedIds += entry.id
                     removeFlaggedRow(entry.id)
                     // D2/D10 in-place semantics on both lists: the All-activity row keeps its
@@ -218,7 +213,6 @@ class AuditLogViewModel(
                     // on an already-acked row — stale state masking success).
                     markAcknowledgedInBrowse(entry.id)
                     ackTracker.finish(entry.id)
-                    acknowledged
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -238,7 +232,6 @@ class AuditLogViewModel(
                         "Acknowledge failed: ${response.status.value}"
                     },
                 )
-                true
             },
         )
     }
@@ -349,10 +342,9 @@ class AuditLogViewModel(
         val generation = browseGeneration
         if (mode == FetchMode.Refresh) _isRefreshing.value = true
         if (mode == FetchMode.LoadMore) _isLoadingMore.value = true
-        handler.launch(
-            // Every mode lands on the throwaway flow; the list state is mutated in transform, so
-            // a failed or in-flight page fetch can never clobber the accumulated list (D10).
-            state = pageFetch,
+        handler.launchStateless(
+            // State-less (#168): the list state is mutated in transform, so a failed or
+            // in-flight page fetch can never clobber the accumulated list (D10).
             operation = mode.operationName,
             endpoint = "GET /api/audit-log/entries",
             block = {
@@ -361,10 +353,10 @@ class AuditLogViewModel(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // Network failure: the handler assigns Error to the throwaway flow; route the
-                    // error to the mode's error surface and clear the in-flight flags — but only
-                    // if this fetch belongs to the current filter generation (a superseded
-                    // fetch's failure must not surface as an error on the new list).
+                    // Network failure: route the error to the mode's error surface and clear the
+                    // in-flight flags — but only if this fetch belongs to the current filter
+                    // generation (a superseded fetch's failure must not surface as an error on
+                    // the new list).
                     if (generation == browseGeneration) {
                         handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
                         finish(mode)
@@ -435,7 +427,6 @@ class AuditLogViewModel(
                     handlePageFailure(mode, "browse failed: ${response.status.value}")
                     finish(mode)
                 }
-                true
             },
         )
     }

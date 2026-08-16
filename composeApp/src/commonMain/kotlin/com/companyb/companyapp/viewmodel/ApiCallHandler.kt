@@ -107,4 +107,47 @@ class ApiCallHandler(
             onError = onError,
             scope = scope,
         )
+
+    // State-less launch (the #162 P5 handler state-less launch graduate, #168): the same
+    // logging / cancellation / onNonSuccess / onError discipline as [launch], but NO state
+    // writes — no Loading, no Success, no Error. For callers whose observable effect is a
+    // side effect inside [transform] (the keyed-mirror commit of
+    // ReliefInviteViewModel.loadSent, the action-tracker terminal paths of
+    // UserViewModel.runMutation / AuditLogViewModel acknowledge, the list writes of
+    // AuditLogViewModel fetchPage / FinanceReportsViewModel page loads), the state param was
+    // a throwaway flow no consumer reads — this variant makes the adapter unnecessary.
+    // [onNonSuccess] has no Boolean "handled" contract: there is no generic Error assignment
+    // to skip, so the caller's hook runs and that is all.
+    fun launchStateless(
+        operation: String,
+        endpoint: String,
+        block: suspend () -> HttpResponse,
+        transform: suspend (HttpResponse) -> Unit,
+        entryMessage: String = "$operation called",
+        onNonSuccess: suspend (HttpResponse) -> Unit = {},
+        onError: (Throwable) -> Unit = {},
+        scope: CoroutineScope = this.scope,
+    ): Job {
+        logInfo(tag, entryMessage)
+        return scope.launch {
+            try {
+                logInfo(tag, endpoint)
+                val response = block()
+                if (response.status.isSuccess()) {
+                    logInfo(tag, "$operation success")
+                    transform(response)
+                } else {
+                    logWarn(tag, "$operation failed: status=${response.status.value}")
+                    onNonSuccess(response)
+                }
+            } catch (e: CancellationException) {
+                // Re-throw: a cancelled launch (e.g. #113's debounce job cancelled by a newer
+                // keystroke) must not surface as an error — cancellation isn't a request failure.
+                throw e
+            } catch (e: Exception) {
+                logError(tag, "$operation exception on $endpoint", e)
+                onError(e)
+            }
+        }
+    }
 }

@@ -185,4 +185,82 @@ class ApiCallHandlerTest {
 
             assertIs<UiState.Error>(state.value)
         }
+
+    // ── #168 state-less launch ────────────────────────────────────────────────────────
+    // The state-less variant writes no UiState at all — its observable contract is which of
+    // transform / onNonSuccess / onError runs, matching the [ApiCallHandler.launch] status
+    // branches minus the state assignments.
+
+    @Test
+    fun stateless_success_runs_transform() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var transformCalls = 0
+            var onNonSuccessCalls = 0
+
+            handler.launchStateless(
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { apiClient.httpClient.get("/api/items") },
+                transform = { transformCalls++ },
+                onNonSuccess = { onNonSuccessCalls++ },
+            )
+
+            runCurrent()
+
+            assertEquals(1, transformCalls, "a 2xx must run transform")
+            assertEquals(0, onNonSuccessCalls, "a 2xx must not run onNonSuccess")
+        }
+
+    @Test
+    fun stateless_non_success_runs_onNonSuccess() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient { _ ->
+                    respond(
+                        content = ByteReadChannel(""),
+                        status = HttpStatusCode.InternalServerError,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var transformCalls = 0
+            var onNonSuccessCalls = 0
+
+            // Non-2xx completes off the test scheduler (the #93 class idiom) — join.
+            val job =
+                handler.launchStateless(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = { transformCalls++ },
+                    onNonSuccess = { onNonSuccessCalls++ },
+                )
+            job.join()
+
+            assertEquals(0, transformCalls, "a non-2xx must not run transform")
+            assertEquals(1, onNonSuccessCalls, "a non-2xx must run onNonSuccess")
+        }
+
+    @Test
+    fun stateless_exception_runs_onError() =
+        runTest(testScheduler) {
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var onErrorCalls = 0
+            var transformCalls = 0
+
+            handler.launchStateless(
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { error("boom") },
+                transform = { transformCalls++ },
+                onError = { onErrorCalls++ },
+            )
+
+            runCurrent()
+
+            assertEquals(0, transformCalls, "a throwing block must not run transform")
+            assertEquals(1, onErrorCalls, "a throwing block must run onError")
+        }
 }
