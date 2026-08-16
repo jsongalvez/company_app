@@ -83,7 +83,20 @@ newest_unprocessed() {
 
 pending_forms() { api get "/api/session/$1/form" 2>/dev/null | jq -r '.data[] | select(.metadata.kind == "question") | .id' 2>/dev/null || true; }
 pending_perms() { api get "/api/session/$1/permission" 2>/dev/null | jq -r '.data[] | .id' 2>/dev/null || true; }
-session_alive() { api get "/api/session/active" 2>/dev/null | jq -e --arg s "$1" '.data | any(.id == $s)' >/dev/null 2>&1; }
+# active is an OBJECT keyed by session id ({sid: {type: ...}}), not an array of {id:...}
+# objects — has($s) is the membership test (the old any(.id == $s) never matched, so a
+# live session read as dead).
+session_alive() { api get "/api/session/active" 2>/dev/null | jq -e --arg s "$1" '.data | has($s)' >/dev/null 2>&1; }
+# session_progress: a monotone activity fingerprint for zombie detection. time.updated is NOT
+# reliable as a liveness signal — this daemon bumps it only on USER-message landings, so an
+# actively-working session (tool calls, sub-agent dispatches) shows a frozen time.updated.
+# Token counters advance on every message/tool result in BOTH daemon generations; summing them
+# gives a monotone "work happened" signal. Returns the sum (or -1 on API error).
+session_progress() {
+  api get "/api/session/$1" 2>/dev/null | jq -r '
+    (.data.tokens.input // 0) + (.data.tokens.output // 0) + (.data.tokens.reasoning // 0)
+  ' 2>/dev/null || echo -1
+}
 # active_children: true when any ACTIVE session lists $1 as its parent — the session is
 # awaiting parallel sub-agent results (the phased-review-loop shape: P1–P4 run as 4 child
 # sessions). Its own time.updated legitimately lags while the children do the work, so the
@@ -210,7 +223,7 @@ wait_for_doc() {
 }
 
 supervise_session() {
-  local notified=0 notified_perm=0 outages=0 rc idle_ticks=0 last_updated=0 upd
+  local notified=0 notified_perm=0 outages=0 rc idle_ticks=0 last_prog=0 last_updated=0 upd prog
   while :; do
     rc=0; wait_idle "$session_id" || rc=$?
     if [ $rc -eq 124 ]; then
@@ -228,20 +241,32 @@ supervise_session() {
         notified_perm=1
       fi
       if [ -z "$p" ] && [ "$notified_perm" -eq 1 ]; then notified_perm=0; fi
-      # zombie detection: a live loop bumps session time.updated as messages
-      # land (tool results included); WAIT_SECS*STALL_SLICES without a change
-      # = stalled, resume it in place
+      # zombie detection: a live loop advances its token counters as work lands
+      # (tool results, model output, reasoning — time.updated is not a reliable
+      # signal: this daemon bumps it only on USER-message landings, so an actively
+      # working session shows a frozen time.updated). WAIT_SECS*STALL_SLICES
+      # without ANY progress = stalled, resume it in place. Pending question/
+      # permission is not a stall (the session is parked on a human, not hung) —
+      # skip the detector entirely while one is open.
+      if [ -n "$f" ] || [ -n "$p" ]; then
+        idle_ticks=0
+        continue
+      fi
+      prog="$(session_progress "$session_id")"
       upd="$(api get "/api/session/$session_id" 2>/dev/null | jq -r '.data.time.updated' 2>/dev/null || echo -1)"
-      if [ "$upd" -ge 0 ] && [ "$last_updated" -gt 0 ] && [ "$upd" -eq "$last_updated" ]; then
+      # stalled only when BOTH the token fingerprint and time.updated are unchanged
+      if [ "$prog" -ge 0 ] && [ "$last_prog" -gt 0 ] && [ "$prog" -eq "$last_prog" ] &&
+         [ "$upd" -ge 0 ] && [ "$last_updated" -gt 0 ] && [ "$upd" -eq "$last_updated" ]; then
         idle_ticks=$((idle_ticks+1))
       else
         idle_ticks=0
       fi
+      [ "$prog" -ge 0 ] && last_prog="$prog"
       [ "$upd" -ge 0 ] && last_updated="$upd"
       if [ "$idle_ticks" -ge "$STALL_SLICES" ]; then
         # A parent session awaiting parallel sub-agents (the phased-review-loop shape) does not
-        # advance time.updated while its children run — not a stall. Reset the tick counter and
-        # keep waiting; the resume path (session_dead resume) must not fire on sub-agent work.
+        # advance its own counters while its children run — not a stall. Reset the tick counter
+        # and keep waiting; the resume path (session_dead resume) must not fire on sub-agent work.
         if active_children "$session_id"; then
           idle_ticks=0
           continue
