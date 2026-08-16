@@ -267,7 +267,6 @@ class ApiCallHandlerTest {
     @Test
     fun stateless_cancellation_rethrows_without_onError() =
         runTest(testScheduler) {
-            val apiClient = mockApiClient { respond200() }
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             var onErrorCalls = 0
 
@@ -283,6 +282,10 @@ class ApiCallHandlerTest {
                     onError = { onErrorCalls++ },
                 )
 
+            // Drive the coroutine into awaitCancellation BEFORE cancelling — otherwise cancel()
+            // hits a not-yet-started job and the test passes vacuously (the ReliefInviteVMTest
+            // :221 precedent: "without the delay, cancel() would hit a dead job").
+            runCurrent()
             // #113 invariant: cancellation isn't a request failure — it must rethrow, never
             // surface as an error hook invocation.
             job.cancel()
