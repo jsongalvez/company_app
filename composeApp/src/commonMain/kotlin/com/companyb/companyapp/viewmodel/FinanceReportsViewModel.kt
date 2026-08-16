@@ -1153,7 +1153,6 @@ class FinanceReportsViewModel(
                 _downloads.value =
                     _downloads.value +
                     (key to UiState.Success(DownloadPayload(fileName = fileNameOf(it), bytes = it.readRawBytes())))
-                Unit
             },
             onNonSuccess = { response ->
                 _downloads.value = _downloads.value - key
