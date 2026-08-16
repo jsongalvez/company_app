@@ -324,9 +324,11 @@ class ApiCallHandlerTest {
                 stale = { stale },
             )
 
-            // A concurrent action makes the generation stale while the request is in flight:
-            // the landing must be inert. (Flipped pre-landing on the test scheduler; gone
-            // stale would otherwise be indistinguishable from a launch-time read.)
+            // The generation flips between dispatch and landing: the launch is queued on the
+            // test scheduler (StandardTestDispatcher), so setting stale=true BEFORE runCurrent
+            // guarantees the landing reads it. A launch-time (or coroutine-start) evaluation
+            // would read false, run transform, and fail the assert — the test pins that the
+            // gate is evaluated at LANDING.
             stale = true
             runCurrent()
 
@@ -383,8 +385,9 @@ class ApiCallHandlerTest {
                 stale = { stale },
             )
 
-            // The generation bumps while the block is (about to be) in flight — the failure
-            // lands stale and must not surface on the moved-on surface.
+            // The generation bumps while the request is queued — the failure lands stale (the
+            // exception is thrown and caught inside runCurrent, after the flip) and must not
+            // surface on the moved-on surface.
             stale = true
             runCurrent()
 

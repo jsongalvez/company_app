@@ -463,7 +463,8 @@ class FinanceReportsViewModel(
                 }
             },
             // #173 — the generation guard folds into the stale gate (a superseded rollup —
-            // branch/mode/month switched — must not write any state).
+            // branch/month switched — must not write any state; a DAILY-mode switch doesn't
+            // bump the generation — the pre-existing #170 accepted SOFT, benign while DAILY).
             stale = { generation != rollupGeneration },
             transform = {
                 // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
@@ -910,7 +911,6 @@ class FinanceReportsViewModel(
                     setBody(DeleteExpenseRequest(reason = reason))
                 }
             },
-            // #173 — the superseded-action gate folds into the stale flag.
             stale = { generation != editDataGeneration },
             transform = {
                 val deleted = it.body<ExpenseResponse>()
@@ -941,7 +941,6 @@ class FinanceReportsViewModel(
                     setBody(RestoreExpenseRequest(reason = reason))
                 }
             },
-            // #173 — the superseded-action gate folds into the stale flag.
             stale = { generation != editDataGeneration },
             transform = {
                 val restored = it.body<ExpenseResponse>()
@@ -999,7 +998,6 @@ class FinanceReportsViewModel(
                     )
                 }
             },
-            // #173 — the superseded-action gate folds into the stale flag.
             stale = { generation != editDataGeneration },
             transform = {
                 val created = it.body<CompensationResponse>()
@@ -1051,7 +1049,6 @@ class FinanceReportsViewModel(
                     )
                 }
             },
-            // #173 — the superseded-action gate folds into the stale flag.
             stale = { generation != editDataGeneration },
             transform = {
                 val updated = it.body<CompensationResponse>()
@@ -1107,7 +1104,6 @@ class FinanceReportsViewModel(
                     )
                 }
             },
-            // #173 — the superseded-action gate folds into the stale flag.
             stale = { generation != editDataGeneration },
             transform = {
                 val created = it.body<AllowanceResponse>()
