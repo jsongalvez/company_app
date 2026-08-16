@@ -576,7 +576,7 @@ class FinanceReportsViewModelTest {
     fun feed_coldStaleFailure_staysInert() =
         runTest(testScheduler) {
             // The #170 pin-2 mirror for the feed (cold stale path) — the composed cold-stale
-            // property, not a guard pin (P5a): the onError generation guard AND
+            // property, not a guard pin: the onError generation guard AND
             // handlePageFailure's cold keep-last (feed already Success lands suppression)
             // both suppress, so this observable holds with either mechanism stripped.
             // refreshFeed_staleTransportFailure_doesNotBleedOntoNewBranch uniquely pins the
