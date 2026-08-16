@@ -14,7 +14,6 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -267,28 +266,21 @@ class UserViewModel(
         handler.launchStateless(
             operation = operation,
             endpoint = endpoint,
-            block = {
-                try {
-                    block()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Network failure — clear the in-flight guard so buttons re-enable AND surface
-                    // an inline error (ADR-0022 pessimistic contract: the row is kept and the
-                    // failure is visible). The state-less launch has no state flow to write; the
-                    // inline error is what the screen renders. (transform never deserializes
-                    // for these 204 ops, so only block() can throw here.)
-                    actionTracker.fail(key, e.message ?: "$operation failed")
-                    throw e
-                }
-            },
+            block = { block() },
             transform = {
                 actionTracker.finish(key)
                 onSuccess()
-                Unit
             },
             onNonSuccess = { response ->
                 actionTracker.fail(key, statusMessage(response.status))
+            },
+            onError = { e ->
+                // Network failure — clear the in-flight guard so buttons re-enable AND surface
+                // an inline error (ADR-0022 pessimistic contract: the row is kept and the
+                // failure is visible). The state-less launch has no state flow to write; the
+                // inline error is what the screen renders. (transform never deserializes
+                // for these 204 ops, so only block() can throw here — onError covers it.)
+                actionTracker.fail(key, e.message ?: "$operation failed")
             },
         )
     }

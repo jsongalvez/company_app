@@ -38,7 +38,6 @@ import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -357,52 +356,41 @@ class FinanceReportsViewModel(
             operation = mode.operationName,
             endpoint = "GET /api/branches/$branchId/daily-summaries",
             block = {
-                try {
-                    apiClient.httpClient.get("/api/branches/$branchId/daily-summaries") {
-                        cursor?.let { parameter("cursor", it) }
-                        parameter("limit", FEED_PAGE_SIZE)
-                        currentWindow().from?.let { parameter("from", it) }
-                        currentWindow().to?.let { parameter("to", it) }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    if (generation == feedGeneration) {
-                        handlePageFailure(mode, "feed failed: ${e.message ?: "network error"}")
-                        finish(mode)
-                    }
-                    throw e
+                apiClient.httpClient.get("/api/branches/$branchId/daily-summaries") {
+                    cursor?.let { parameter("cursor", it) }
+                    parameter("limit", FEED_PAGE_SIZE)
+                    currentWindow().from?.let { parameter("from", it) }
+                    currentWindow().to?.let { parameter("to", it) }
                 }
             },
             transform = {
-                try {
-                    val page = it.body<DailySalesSummaryBrowseResponse>()
-                    if (generation == feedGeneration) {
-                        val listAlreadyCommitted =
-                            mode == FetchMode.Cold && _feedEntries.value is UiState.Success
-                        if (listAlreadyCommitted) {
-                            logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
-                        } else {
-                            _refreshError.value = null
-                            _nextCursor.value = page.nextCursor
-                            applyPage(mode, page.entries)
-                        }
-                        finish(mode)
+                val page = it.body<DailySalesSummaryBrowseResponse>()
+                if (generation == feedGeneration) {
+                    val listAlreadyCommitted =
+                        mode == FetchMode.Cold && _feedEntries.value is UiState.Success
+                    if (listAlreadyCommitted) {
+                        logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
+                    } else {
+                        _refreshError.value = null
+                        _nextCursor.value = page.nextCursor
+                        applyPage(mode, page.entries)
                     }
-                    Unit
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    if (generation == feedGeneration) {
-                        handlePageFailure(mode, "feed failed: ${e.message ?: "parse error"}")
-                        finish(mode)
-                    }
-                    throw e
+                    finish(mode)
                 }
             },
             onNonSuccess = { response ->
                 if (generation == feedGeneration) {
                     handlePageFailure(mode, "feed failed: ${response.status.value}")
+                    finish(mode)
+                }
+            },
+            onError = { e ->
+                // Network or deserialization failure — same error surface + flag cleanup so the
+                // list state and buttons never freeze (keep-last-list); gated on the current
+                // feed generation (a superseded fetch's failure must not surface on the new
+                // list). onError is that single surface (#169).
+                if (generation == feedGeneration) {
+                    handlePageFailure(mode, "feed failed: ${e.message ?: "network error"}")
                     finish(mode)
                 }
             },
@@ -763,43 +751,32 @@ class FinanceReportsViewModel(
             operation = operation,
             endpoint = "GET $endpoint",
             block = {
-                try {
-                    apiClient.httpClient.get(endpoint) {
-                        params.forEach { (k, v) -> parameter(k, v) }
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    if (generation == editDataGeneration) {
-                        state.value = UiState.Error("$operation failed: ${e.message ?: "network error"}")
-                    }
-                    throw e
+                apiClient.httpClient.get(endpoint) {
+                    params.forEach { (k, v) -> parameter(k, v) }
                 }
             },
             transform = {
-                try {
-                    val list = it.body<List<T>>()
-                    if (generation == editDataGeneration) {
-                        state.value = UiState.Success(list)
-                        // #143 class — a fresh list supersedes the section's stale action
-                        // errors (e.g. a 409-reload landing beside its own error line).
-                        if (errorKeyPrefixes.isNotEmpty()) {
-                            actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
-                        }
+                val list = it.body<List<T>>()
+                if (generation == editDataGeneration) {
+                    state.value = UiState.Success(list)
+                    // #143 class — a fresh list supersedes the section's stale action
+                    // errors (e.g. a 409-reload landing beside its own error line).
+                    if (errorKeyPrefixes.isNotEmpty()) {
+                        actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
                     }
-                    Unit
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    if (generation == editDataGeneration) {
-                        state.value = UiState.Error("$operation failed: ${e.message ?: "parse error"}")
-                    }
-                    throw e
                 }
             },
             onNonSuccess = { response ->
                 if (generation == editDataGeneration) {
                     state.value = UiState.Error("$operation failed: ${response.status.value}")
+                }
+            },
+            onError = { e ->
+                // Transport or deserialization failure: route to the section's error state —
+                // gated on the current edit-data generation so a superseded day/branch load
+                // can't error the cleared sections. onError is that single surface (#169).
+                if (generation == editDataGeneration) {
+                    state.value = UiState.Error("$operation failed: ${e.message ?: "network error"}")
                 }
             },
         )

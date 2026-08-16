@@ -13,7 +13,6 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -137,37 +136,25 @@ class AuditLogViewModel(
         handler.launchStateless(
             operation = if (cold) "loadFlaggedEntries" else "refreshFlagged",
             endpoint = "GET /api/audit-log/flagged",
-            block = {
-                try {
-                    apiClient.httpClient.get("/api/audit-log/flagged")
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "network error"}")
-                    _flaggedLoadInFlight.value = false
-                    throw e
-                }
-            },
+            block = { apiClient.httpClient.get("/api/audit-log/flagged") },
             transform = {
-                try {
-                    _flaggedEntries.value =
-                        UiState.Success(
-                            it.body<List<AuditLogEntryResponse>>().filterNot { entry ->
-                                entry.id in acknowledgedIds
-                            },
-                        )
-                    _flaggedLoadInFlight.value = false
-                    Unit
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "parse error"}")
-                    _flaggedLoadInFlight.value = false
-                    throw e
-                }
+                _flaggedEntries.value =
+                    UiState.Success(
+                        it.body<List<AuditLogEntryResponse>>().filterNot { entry ->
+                            entry.id in acknowledgedIds
+                        },
+                    )
+                _flaggedLoadInFlight.value = false
             },
             onNonSuccess = { response ->
                 flaggedLoadFailure(cold, "flagged load failed: ${response.status.value}")
+                _flaggedLoadInFlight.value = false
+            },
+            onError = { e ->
+                // Transport or deserialization failure: run the same surface + in-flight-flag
+                // clear the pre-port block/transform catches ran — onError is the single
+                // failure surface, the handler keeps its logging (#169).
+                flaggedLoadFailure(cold, "flagged load failed: ${e.message ?: "network error"}")
                 _flaggedLoadInFlight.value = false
             },
         )
@@ -191,36 +178,16 @@ class AuditLogViewModel(
         handler.launchStateless(
             operation = "acknowledgeEntry",
             endpoint = "PATCH /api/audit-log/${entry.id}/acknowledge",
-            block = {
-                try {
-                    apiClient.httpClient.patch("/api/audit-log/${entry.id}/acknowledge")
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Network failure — every failure path clears the in-flight guard and
-                    // surfaces an inline per-row error (ADR-0022; #123 decision 2).
-                    ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
-                    throw e
-                }
-            },
+            block = { apiClient.httpClient.patch("/api/audit-log/${entry.id}/acknowledge") },
             transform = {
-                try {
-                    it.body<AuditLogEntryResponse>()
-                    acknowledgedIds += entry.id
-                    removeFlaggedRow(entry.id)
-                    // D2/D10 in-place semantics on both lists: the All-activity row keeps its
-                    // badge + Acknowledge button until a refresh otherwise (a re-tap would 404
-                    // on an already-acked row — stale state masking success).
-                    markAcknowledgedInBrowse(entry.id)
-                    ackTracker.finish(entry.id)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Deserialization failure — clear the in-flight guard so the row's button
-                    // re-enables, and surface an inline error (ADR-0022 pessimistic axis).
-                    ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "parse error"}")
-                    throw e
-                }
+                it.body<AuditLogEntryResponse>()
+                acknowledgedIds += entry.id
+                removeFlaggedRow(entry.id)
+                // D2/D10 in-place semantics on both lists: the All-activity row keeps its
+                // badge + Acknowledge button until a refresh otherwise (a re-tap would 404
+                // on an already-acked row — stale state masking success).
+                markAcknowledgedInBrowse(entry.id)
+                ackTracker.finish(entry.id)
             },
             onNonSuccess = { response ->
                 ackTracker.fail(
@@ -232,6 +199,12 @@ class AuditLogViewModel(
                         "Acknowledge failed: ${response.status.value}"
                     },
                 )
+            },
+            onError = { e ->
+                // Every failure path (transport or deserialization) clears the in-flight guard
+                // so the row's button re-enables, and surfaces an inline error (ADR-0022
+                // pessimistic axis; #123 decision 2) — onError is that surface (#169).
+                ackTracker.fail(entry.id, "Acknowledge failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -347,84 +320,65 @@ class AuditLogViewModel(
             // in-flight page fetch can never clobber the accumulated list (D10).
             operation = mode.operationName,
             endpoint = "GET /api/audit-log/entries",
-            block = {
-                try {
-                    browseRequest(filters, cursor)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Network failure: route the error to the mode's error surface and clear the
-                    // in-flight flags — but only if this fetch belongs to the current filter
-                    // generation (a superseded fetch's failure must not surface as an error on
-                    // the new list).
-                    if (generation == browseGeneration) {
-                        handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
-                        finish(mode)
-                    }
-                    throw e
-                }
-            },
+            block = { browseRequest(filters, cursor) },
             transform = {
-                try {
-                    val page = it.body<AuditLogBrowseResponse>()
-                    // A stale response (applyFilters bumped the generation while this fetch was
-                    // in flight) is inert: no list write, no cursor write, no flag cleanup
-                    // (applyFilters already reset the flags).
-                    if (generation == browseGeneration) {
-                        // A cold response that lands after a concurrent same-generation fetch
-                        // already wrote Success is the older snapshot (older rows + older
-                        // cursor — accumulated load-more pages would truncate): skip the whole
-                        // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
-                        // guard). Cold only launches from Loading/Error/Idle, so Success at
-                        // landing ⟺ a concurrent refresh already committed.
-                        val listAlreadyCommitted =
-                            mode == FetchMode.Cold && _browseEntries.value is UiState.Success
-                        if (listAlreadyCommitted) {
-                            logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
-                        } else {
-                            if (_browseRefreshError.value != null) {
-                                // Any successful commit supersedes a failed refresh's error line:
-                                // the list below is fresh, so the line would be stale (pass-6
-                                // SOFT); log rather than vanish silently.
-                                logWarn(
-                                    "AuditLogVM",
-                                    "browse commit cleared stale refresh error: ${_browseRefreshError.value}",
-                                )
-                            }
-                            _browseRefreshError.value = null
-                            _nextCursor.value = page.nextCursor
-                            // A page snapshot taken before an ack commit may still carry the
-                            // now-acked row's flag — clear it for locally-acknowledged ids (the
-                            // flagged-transform mirror; the badge must not resurrect on browse).
-                            applyPage(
-                                mode,
-                                page.entries.map { entry ->
-                                    if (entry.id in acknowledgedIds) {
-                                        entry.copy(isFlagged = false)
-                                    } else {
-                                        entry
-                                    }
-                                },
+                val page = it.body<AuditLogBrowseResponse>()
+                // A stale response (applyFilters bumped the generation while this fetch was
+                // in flight) is inert: no list write, no cursor write, no flag cleanup
+                // (applyFilters already reset the flags).
+                if (generation == browseGeneration) {
+                    // A cold response that lands after a concurrent same-generation fetch
+                    // already wrote Success is the older snapshot (older rows + older
+                    // cursor — accumulated load-more pages would truncate): skip the whole
+                    // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
+                    // guard). Cold only launches from Loading/Error/Idle, so Success at
+                    // landing ⟺ a concurrent refresh already committed.
+                    val listAlreadyCommitted =
+                        mode == FetchMode.Cold && _browseEntries.value is UiState.Success
+                    if (listAlreadyCommitted) {
+                        logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
+                    } else {
+                        if (_browseRefreshError.value != null) {
+                            // Any successful commit supersedes a failed refresh's error line:
+                            // the list below is fresh, so the line would be stale (pass-6
+                            // SOFT); log rather than vanish silently.
+                            logWarn(
+                                "AuditLogVM",
+                                "browse commit cleared stale refresh error: ${_browseRefreshError.value}",
                             )
                         }
-                        finish(mode)
+                        _browseRefreshError.value = null
+                        _nextCursor.value = page.nextCursor
+                        // A page snapshot taken before an ack commit may still carry the
+                        // now-acked row's flag — clear it for locally-acknowledged ids (the
+                        // flagged-transform mirror; the badge must not resurrect on browse).
+                        applyPage(
+                            mode,
+                            page.entries.map { entry ->
+                                if (entry.id in acknowledgedIds) {
+                                    entry.copy(isFlagged = false)
+                                } else {
+                                    entry
+                                }
+                            },
+                        )
                     }
-                    Unit
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // Deserialization failure — same error surface + flag cleanup as a network
-                    // failure so the list state and buttons never freeze (keep-last-list).
-                    if (generation == browseGeneration) {
-                        handlePageFailure(mode, "browse failed: ${e.message ?: "parse error"}")
-                        finish(mode)
-                    }
-                    throw e
+                    finish(mode)
                 }
             },
             onNonSuccess = { response ->
                 if (generation == browseGeneration) {
                     handlePageFailure(mode, "browse failed: ${response.status.value}")
+                    finish(mode)
+                }
+            },
+            onError = { e ->
+                // Network or deserialization failure — same error surface + flag cleanup so the
+                // list state and buttons never freeze (keep-last-list); gated on the current
+                // filter generation (a superseded fetch's failure must not surface as an error
+                // on the new list). onError is that single surface (#169).
+                if (generation == browseGeneration) {
+                    handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
                     finish(mode)
                 }
             },
