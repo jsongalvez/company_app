@@ -21,7 +21,9 @@ EVIDENCE only when EXPECT matches. Exit 0 iff every gate is met.
 const EXPECT_DEFAULT = "EXIT 0";
 
 function testRegex(pattern, stdout, stderr) {
-  const data = ((stdout === "" && stderr === "") ? "" : `${stdout}\n${stderr}`).replace(/\n+$/, "");
+  const raw = (stdout === "" && stderr === "") ? "" : `${stdout}\n${stderr}`;
+  if (pattern === "^$") return raw.replace(/\n+$/, "") === "";
+  const data = raw.replace(/\n+$/, "");
   const script = `const fs=require("node:fs");const d=fs.readFileSync(0,"utf8");try{process.stdout.write(String(new RegExp(process.argv[1],"m").test(d)))}catch{process.stdout.write("false")}`;
   const r = spawnSync(process.execPath, ["-e", script, pattern], {
     input: data.slice(0, 200_000),

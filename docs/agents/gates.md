@@ -61,9 +61,9 @@ The skip rule applies at step 1 — no gates file, the sequence is just "impleme
 - The checker truncates evidence to the first non-empty output line (200 chars), or records
   `exit <code>` when the command produces none.
 - A gate without a `CHECK` is unmet; the run reports it and exits 1.
-- A malformed box line (a `- [` line that doesn't parse as a gate — keep these files free of
-  stray list markers) is an **error**, never a silent skip — a file with one fails without
-  flipping anything.
+- Every `- [` line is consumed as a gate: a parseable one executes and writes evidence, a
+  malformed one is an **error** (nothing flipped). Keep gates files free of ALL stray `- [`
+  markers — in prose, fences, or headers alike: a fence-shaped gate becomes a real gate.
 - Gate ids are `G1`, `G2`, … (numeric). The gate's fields are contiguous under it: a blank
   line ends the field block, and a stray `CHECK:`/`EXPECT:`/`EVIDENCE:` line between gates is
   an **error**, never silently absorbed into the wrong gate.

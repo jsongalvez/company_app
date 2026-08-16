@@ -30,7 +30,7 @@ node "$CHECKER" "$WORK/pass.md" > "$WORK/out1" 2>&1; c1=$?
 assert "pass: exit 0" "$c1" "0"
 assert "pass: G1 flipped" "$(grep -c '^\s*- \[x\] G1' "$WORK/pass.md")" "1"
 assert "pass: G2 flipped" "$(grep -c '^\s*- \[x\] G2' "$WORK/pass.md")" "1"
-assert "pass: G1 evidence written" "$(grep 'EVIDENCE:' "$WORK/pass.md" | sed -n 1p | grep -c pending)" "0"
+assert "pass: G1 evidence written" "$(grep 'EVIDENCE: exit 0' "$WORK/pass.md" | head -1 | grep -c 'exit 0')" "1"
 assert "pass: report 2/2" "$(grep -o '2/2 gates met' "$WORK/out1")" "2/2 gates met"
 
 # --- fixture 2: failing check ------------------------------------------------
@@ -226,6 +226,23 @@ node "$CHECKER" "$WORK/stray.md" > "$WORK/out16" 2>&1; c16=$?
 assert "stray: exit 1" "$c16" "1"
 assert "stray: reported" "$(grep -c 'field line outside any gate' "$WORK/out16")" "1"
 assert "stray: nothing flipped" "$(grep -c '^\s*- \[x\]' "$WORK/stray.md")" "0"
+
+# --- fixture 17: ^$ means truly-empty, never a faked blank line -----------------
+cat > "$WORK/emptyre.md" <<'EOF'
+- [ ] G1: leading newline fakes an empty line
+  CHECK: printf '\nfoo'
+  EXPECT: MATCHES ^$
+  EVIDENCE: pending
+
+- [ ] G2: truly empty output
+  CHECK: true
+  EXPECT: MATCHES ^$
+  EVIDENCE: pending
+EOF
+node "$CHECKER" "$WORK/emptyre.md" > "$WORK/out17" 2>&1; c17=$?
+assert "emptyre: exit 1" "$c17" "1"
+assert "emptyre: G1 unflipped" "$(grep -c '^\s*- \[ \] G1' "$WORK/emptyre.md")" "1"
+assert "emptyre: G2 flipped" "$(grep -c '^\s*- \[x\] G2' "$WORK/emptyre.md")" "1"
 
 if [ "$fails" -gt 0 ]; then echo "$fails assertion(s) failed"; exit 1; fi
 echo "all green — checker harness ($WORK)"
