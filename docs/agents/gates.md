@@ -50,15 +50,20 @@ The skip rule applies at step 1 — no gates file, the sequence is just "impleme
   path, so invocation CWD never changes a verdict. `CHECK` commands should not background
   processes: a child that holds stdout pins the run, and one that blocks past the 60s
   timeout leaves an orphan.
-- `EXPECT` defaults to `EXIT 0` when the line is *omitted*. A present-but-blank `EXPECT` is
-  unmet (malformed, not a wildcard); an `EXIT`-prefixed non-numeric value is unmet too.
-- `MATCHES` is a regex over stdout+stderr (multiline, input capped); a bad regex fails the
-  gate closed.
-- The checker truncates evidence to the first non-empty output line (200 chars).
+- `EXPECT` defaults to `EXIT 0` when the line is *omitted*. A present-but-blank `EXPECT`
+  (bare `EXPECT:` or whitespace only) is unmet (malformed, not a wildcard); an
+  `EXIT`-prefixed non-numeric value is unmet too.
+- `MATCHES` is a regex over stdout+stderr (multiline), evaluated in a **time-boxed child
+  (5s)** — a bad regex or a backtracking-heavy pattern fails the gate closed, it never hangs
+  the pass. An `^$` pattern matches only when both streams are truly empty.
+- The checker truncates evidence to the first non-empty output line (200 chars), or records
+  `exit <code>` when the command produces none.
 - A gate without a `CHECK` is unmet; the run reports it and exits 1.
 - A malformed box line (a `- [` line that doesn't parse as a gate — keep these files free of
   stray list markers) is an **error**, never a silent skip — a file with one fails without
   flipping anything.
+- Gate ids are `G1`, `G2`, … (numeric). Belt fields are contiguous under their gate: a blank
+  line ends the gate's field block.
 - The checker clears `EVIDENCE` to `pending` when a previously met gate regresses, and
   re-verifies a hand-checked box rather than trusting it.
 

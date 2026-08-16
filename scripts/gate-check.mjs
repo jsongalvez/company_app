@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const BOX_RE = /^\s*- \[([ x])] (G[\w-]+):\s*(.*)$/;
+const BOX_RE = /^\s*- \[([ x])] (G\d+):\s*(.*)$/;
 const BOX_ANY_RE = /^\s*- \[/;
 
 const usage = `usage: node scripts/gate-check.mjs [--dry] <gates-file>...
@@ -20,18 +20,23 @@ EVIDENCE only when EXPECT matches. Exit 0 iff every gate is met.
 
 const EXPECT_DEFAULT = "EXIT 0";
 
+function testRegex(pattern, stdout, stderr) {
+  const data = ((stdout === "" && stderr === "") ? "" : `${stdout}\n${stderr}`).replace(/\n+$/, "");
+  const script = `const fs=require("node:fs");const d=fs.readFileSync(0,"utf8");try{process.stdout.write(String(new RegExp(process.argv[1],"m").test(d)))}catch{process.stdout.write("false")}`;
+  const r = spawnSync(process.execPath, ["-e", script, pattern], {
+    input: data.slice(0, 200_000),
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+  return r.stdout?.trim() === "true";
+}
+
 function matchExpect(expect, stdout, stderr, code) {
   const exit = /^EXIT (\d+)$/.exec(expect);
   if (exit) return code === Number(exit[1]);
   const matches = /^MATCHES (.+)$/s.exec(expect);
-  const combined = (stdout + "\n" + stderr).slice(0, 200_000);
-  if (matches) {
-    try {
-      return new RegExp(matches[1], "m").test(combined);
-    } catch {
-      return false;
-    }
-  }
+  if (matches) return testRegex(matches[1], stdout, stderr);
+  const combined = `${stdout}\n${stderr}`;
   return combined.includes(expect);
 }
 
@@ -51,12 +56,13 @@ function parse(lines) {
       return;
     }
     if (!cur) return;
+    if (line.trim() === "") { cur = null; return; }
     const check = /^\s*CHECK:\s*(.+)$/.exec(line);
     if (check) { cur.check = check[1]; cur.lastField = i; return; }
-    const expect = /^\s*EXPECT:\s*(.+)$/.exec(line);
+    const expect = /^\s*EXPECT:\s*(.*)$/.exec(line);
     if (expect) { cur.expect = expect[1]; cur.lastField = i; return; }
     const evidence = /^\s*EVIDENCE:\s*(.*)$/.exec(line);
-    if (evidence) { cur.evidence = { line: i, text: evidence[1] }; cur.lastField = i; }
+    if (evidence) { cur.evidence = { line: i }; cur.lastField = i; }
   });
   return { gates, errors };
 }

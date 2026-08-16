@@ -134,14 +134,20 @@ assert "crlf: box flipped" "$(grep -c '^\s*- \[x\] G1' "$WORK/crlf.md")" "1"
 
 # --- fixture 10: blank EXPECT is unmet -----------------------------------------
 cat > "$WORK/blank.md" <<'EOF'
-- [ ] G1: blank expect
+- [ ] G1: blank expect, trailing space
   CHECK: true
   EXPECT: 
+  EVIDENCE: pending
+
+- [ ] G2: bare expect, no trailing space
+  CHECK: true
+  EXPECT:
   EVIDENCE: pending
 EOF
 node "$CHECKER" "$WORK/blank.md" > "$WORK/out10" 2>&1; c10=$?
 assert "blank-exp: exit 1" "$c10" "1"
-assert "blank-exp: reported" "$(grep -c 'blank EXPECT' "$WORK/out10")" "1"
+assert "blank-exp: reported" "$(grep -c 'blank EXPECT' "$WORK/out10")" "2"
+assert "blank-exp: neither flips" "$(grep -c '^\s*- \[x\]' "$WORK/blank.md")" "0"
 
 # --- fixture 11: failed re-run clears evidence --------------------------------
 cat > "$WORK/clear.md" <<'EOF'
