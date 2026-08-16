@@ -263,4 +263,31 @@ class ApiCallHandlerTest {
             assertEquals(0, transformCalls, "a throwing block must not run transform")
             assertEquals(1, onErrorCalls, "a throwing block must run onError")
         }
+
+    @Test
+    fun stateless_cancellation_rethrows_without_onError() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var onErrorCalls = 0
+
+            val job =
+                handler.launchStateless(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = {
+                        // Suspend forever so the launch is genuinely in flight when cancelled.
+                        kotlinx.coroutines.awaitCancellation()
+                    },
+                    transform = {},
+                    onError = { onErrorCalls++ },
+                )
+
+            // #113 invariant: cancellation isn't a request failure — it must rethrow, never
+            // surface as an error hook invocation.
+            job.cancel()
+            runCurrent()
+
+            assertEquals(0, onErrorCalls, "cancellation must not run onError")
+        }
 }

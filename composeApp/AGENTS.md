@@ -54,5 +54,6 @@ class ExampleViewModel(private val apiClient: ApiClient) : ViewModel() {
 - `launch`: for calls that deserialize a response body. Use `transform = { it.body() }` for standard deserialization.
 - `launchUnit`: for calls that only need success/failure status (no response body).
 - `entryMessage`: optional parameter to customize the entry log (defaults to `"$operation called"`).
-- The handler automatically manages `UiState.Loading`, `UiState.Success`, `UiState.Error`, and all logging (`logInfo` for lifecycle, `logError` for exceptions).
+- The handler automatically manages `UiState.Loading`, `UiState.Success`, `UiState.Error`, and all logging (`logInfo` for lifecycle, `logError` for exceptions). The stateful variants (`launch`/`launchUnit`) write all three states.
+- **`launchStateless`** — the state-less variant (#168): no `state` param, no `UiState` writes at all (no Loading/Success/Error). Only for callers whose observable effect is a side effect in `transform`/`onNonSuccess`/`onError` (keyed-mirror commits, action-tracker terminal paths, list writes done manually in the hooks). Never pass a throwaway `MutableStateFlow` to the stateful variants — use `launchStateless` instead.
 - ViewModels that use `ApiCallHandler` exclusively do not need to import `logInfo`, `logError`, or `launch` from kotlinx.coroutines.

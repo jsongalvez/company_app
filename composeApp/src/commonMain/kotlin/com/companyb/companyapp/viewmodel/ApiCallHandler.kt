@@ -114,7 +114,8 @@ class ApiCallHandler(
     // side effect inside [transform] (the keyed-mirror commit of
     // ReliefInviteViewModel.loadSent, the action-tracker terminal paths of
     // UserViewModel.runMutation / AuditLogViewModel acknowledge, the list writes of
-    // AuditLogViewModel fetchPage / FinanceReportsViewModel page loads), the state param was
+    // AuditLogViewModel fetchPage / FinanceReportsViewModel page loads, the edit-machine
+    // transitions of SessionDashboardViewModel.updateSession), the state param was
     // a throwaway flow no consumer reads — this variant makes the adapter unnecessary.
     // [onNonSuccess] has no Boolean "handled" contract: there is no generic Error assignment
     // to skip, so the caller's hook runs and that is all.

@@ -480,13 +480,9 @@ class FinanceReportsViewModel(
             transform = {
                 if (generation == rollupGeneration) {
                     // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
-                    // error: the rollup card simply doesn't render.
-                    _monthlyRollup.value =
-                        if (it.status == HttpStatusCode.NotFound) {
-                            UiState.Success(null)
-                        } else {
-                            UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
-                        }
+                    // error: the rollup card simply doesn't render. Transform only sees 2xx —
+                    // the 404 branch lives in onNonSuccess below.
+                    _monthlyRollup.value = UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
                 }
                 Unit
             },

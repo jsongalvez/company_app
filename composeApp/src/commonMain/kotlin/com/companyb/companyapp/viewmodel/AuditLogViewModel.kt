@@ -332,7 +332,7 @@ class AuditLogViewModel(
             )
     }
 
-    // Any failure type must clear the in-flight flags before the handler assigns Error.
+    // Any failure type must clear the in-flight flags before the failure is surfaced.
     @Suppress("TooGenericExceptionCaught")
     private fun fetchPage(
         mode: FetchMode,
