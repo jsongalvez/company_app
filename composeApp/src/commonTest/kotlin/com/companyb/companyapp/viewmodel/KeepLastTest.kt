@@ -29,7 +29,9 @@ import kotlin.test.assertTrue
  * test; on Main.immediate it converges inline, see the KeepLast KDoc).
  *
  * [KeepLastByKey] mirrors per-key and coalesces same-key in-flight loads while leaving other
- * keys' loads unblocked (the Remittance tab-switch contract); [InFlightGuard] is its
+ * keys' loads unblocked (the Remittance tab-switch contract); [KeyedMirror] is its mirror
+ * half, split out for mirror-only consumers (ReliefInvite's `keptSent` — the #166 P5
+ * mirror-only split); [InFlightGuard] is its
  * coalescing set-guard, now composed rather than hand-rolled at the UserVM / FinanceReportsVM
  * / AuditLogVM ack sites (#166). [ActionTracker] composes [InFlightGuard] + a per-key error
  * map — the guard and per-action inline-error bookkeeping adopted by the UserVM /
@@ -240,6 +242,46 @@ class KeepLastTest {
             assertFalse(removed, "nothing loaded — no write")
             assertNull(kept.freshest.value)
             assertTrue(kept.state.value is UiState.Idle, "Idle was never left")
+        }
+
+    // ─────────────────────────── KeyedMirror (#166 P5 mirror-only split) ───────────────────────────
+
+    @Test
+    fun keyedMirror_commit_mirrors_per_key() =
+        runTest(testScheduler) {
+            val mirror = KeyedMirror<String, Int>()
+            assertTrue(mirror.lastByKey.value.isEmpty(), "no entry before any commit")
+
+            mirror.commit("a", 1)
+
+            assertEquals(1, mirror.freshest("a"))
+            assertEquals(mapOf("a" to 1), mirror.lastByKey.value)
+        }
+
+    @Test
+    fun keyedMirror_commit_last_writer_wins_per_key_others_untouched() =
+        runTest(testScheduler) {
+            val mirror = KeyedMirror<String, Int>()
+            mirror.commit("a", 1)
+            mirror.commit("b", 2)
+
+            mirror.commit("a", 10)
+
+            assertEquals(10, mirror.freshest("a"), "a same-key re-commit is last-writer-wins")
+            assertEquals(2, mirror.freshest("b"), "another key's entry is untouched")
+        }
+
+    @Test
+    fun keyedMirror_commit_reads_flow_and_freshest_is_per_key() =
+        runTest(testScheduler) {
+            val mirror = KeyedMirror<String, Int>()
+            mirror.commit("a", 1)
+            mirror.commit("b", 2)
+
+            assertEquals(1, mirror.freshest("a"))
+            assertEquals(2, mirror.freshest("b"))
+            assertNull(mirror.freshest("c"), "a never-loaded key has no mirror")
+            assertEquals(setOf("a", "b"), mirror.lastByKey.value.keys)
         }
 
     @Test

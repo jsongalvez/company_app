@@ -51,15 +51,16 @@ class ReliefInviteViewModel(
     private val _candidates = MutableStateFlow<UiState<List<ReliefCandidateResponse>>>(UiState.Idle)
     val candidates: StateFlow<UiState<List<ReliefCandidateResponse>>> = _candidates.asStateFlow()
 
-    // keep-last for the inviter's sent list, BRANCH-KEYED (the #162 KeepLastByKey shape — the
+    // keep-last for the inviter's sent list, BRANCH-KEYED (the #162 KeyedMirror shape — the
+    // #166 P5 mirror-only split: `keptSent` uses only the mirror half of KeepLastByKey; the
     // panel re-opens per branch card and a reload must keep the previous list rendered). Keying
     // the mirror by branchId makes the #160 pass-1/pass-2 cross-branch bleed structurally
     // unrenderable: the screen gates on the CURRENT panel's key, so another branch's rows (with
     // live Retract) can never pass the gate — the `_sentBranch` label + the stale-response
     // substitution that guarded the old single-slot mirror are deleted with it. Same-key
     // ordering (a stale snapshot landing after a mutation-triggered reload) is closed by the
-    // loadSent stamp: only the newest launch's response commits (see loadSent).
-    private val keptSent = KeepLastByKey<String, List<ReliefInviteResponse>>()
+    // loadSent stale gate (the #173 shape): only the newest launch's response commits.
+    private val keptSent = KeyedMirror<String, List<ReliefInviteResponse>>()
     val sentByKey: StateFlow<Map<String, List<ReliefInviteResponse>>> = keptSent.lastByKey
 
     private val _createResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
@@ -217,9 +218,9 @@ class ReliefInviteViewModel(
         // refetch or a mutation-triggered reload). Cross-branch staleness is inert by
         // construction — the mirror is keyed, so a response for another branch commits under
         // its own key and the screen's per-key gate never renders it. Same-branch ordering is
-        // closed by the stamp below: only the NEWEST launch's response commits, whenever it
-        // lands (a stale response is still deserialized for the commit check — the #168
-        // state-less launch variant just has no state flow to land on).
+        // closed by the stale gate (the #173 shape): only the NEWEST launch's response
+        // commits, whenever it lands (the gate runs BEFORE transform, so a stale body is never
+        // deserialized — observable behavior identical to the old in-hook guard).
         val stamp = ++sentStamp
         return handler.launchStateless(
             operation = "loadSent",
@@ -227,15 +228,15 @@ class ReliefInviteViewModel(
             block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
             transform = { response ->
                 val body = response.body<List<ReliefInviteResponse>>()
-                // Keyed commit (the #162 KeepLastByKey shape), newest-launch-wins: the mirror
+                // Keyed commit (the #162 KeyedMirror shape), newest-launch-wins: the mirror
                 // entry for this branch flips together with the committed body — the screen
                 // gate `lastByKey[panelBranch]` can then trust that a passing gate means the
-                // rendered list IS this panel's. A stale response (any older launch) skips the
-                // commit entirely.
-                if (stamp == sentStamp) {
-                    keptSent.commit(branchId, body)
-                }
+                // rendered list IS this panel's. A stale response (any older launch) is
+                // skipped wholesale by the stale gate above — the commit only ever runs for
+                // the newest launch.
+                keptSent.commit(branchId, body)
             },
+            stale = { stamp != sentStamp },
         )
     }
 
