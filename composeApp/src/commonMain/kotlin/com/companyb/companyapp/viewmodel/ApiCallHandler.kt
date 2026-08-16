@@ -119,6 +119,23 @@ class ApiCallHandler(
     // a throwaway flow no consumer reads — this variant makes the adapter unnecessary.
     // [onNonSuccess] has no Boolean "handled" contract: there is no generic Error assignment
     // to skip, so the caller's hook runs and that is all.
+    //
+    // Stale-suppression gate (the #173 stale-gate graduate — the #165 class, stateless leg):
+    // when [stale] reads true at a landing, transform / onNonSuccess / onError are all
+    // SKIPPED — the landing is inert. This absorbs the hand-rolled
+    // `if (generation == XGeneration) { <surface>; finish }` guards at the page/rollup/
+    // section/action sites: a response that lands after the caller's surface moved on
+    // (window/branch/mode/filter switched while the request was in flight) must not write
+    // list/cursor/error/flags, nor run the local finish/action-tracker terminals (the
+    // generation bump's own reset/clear covers them — same as the in-hook guards did).
+    // [stale] is evaluated at LANDING (not launch) — the caller captures the launch-time
+    // generation in the lambda, exactly like the guard it replaces. Deliberate semantic
+    // consequence (the #165 precedent): the gate runs BEFORE the hook, so a stale body is
+    // never deserialized — observable behavior is identical (the guards already made stale
+    // landings fully inert), only the wasted parse is gone. The default `{ false }` keeps
+    // every caller without a stale-generation concern behavior-identical. The stateful
+    // [launch] keeps its #165 stamp/fallback SUBSTITUTION shape — this gate is the skip
+    // shape; a stateless surface has no UiState to substitute, no fallback value to commit.
     fun launchStateless(
         operation: String,
         endpoint: String,
@@ -127,6 +144,9 @@ class ApiCallHandler(
         entryMessage: String = "$operation called",
         onNonSuccess: suspend (HttpResponse) -> Unit = {},
         onError: (Throwable) -> Unit = {},
+        // #173 — when true at a landing, all three hooks are skipped (the stale-generation
+        // gate). Default false = every non-gated caller unchanged.
+        stale: () -> Boolean = { false },
         scope: CoroutineScope = this.scope,
     ): Job {
         logInfo(tag, entryMessage)
@@ -136,10 +156,14 @@ class ApiCallHandler(
                 val response = block()
                 if (response.status.isSuccess()) {
                     logInfo(tag, "$operation success")
-                    transform(response)
+                    if (!stale()) {
+                        transform(response)
+                    }
                 } else {
                     logWarn(tag, "$operation failed: status=${response.status.value}")
-                    onNonSuccess(response)
+                    if (!stale()) {
+                        onNonSuccess(response)
+                    }
                 }
             } catch (e: CancellationException) {
                 // Re-throw: a cancelled launch (e.g. #113's debounce job cancelled by a newer
@@ -147,7 +171,9 @@ class ApiCallHandler(
                 throw e
             } catch (e: Exception) {
                 logError(tag, "$operation exception on $endpoint", e)
-                onError(e)
+                if (!stale()) {
+                    onError(e)
+                }
             }
         }
     }

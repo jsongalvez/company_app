@@ -320,66 +320,62 @@ class AuditLogViewModel(
             operation = mode.operationName,
             endpoint = "GET /api/audit-log/entries",
             block = { browseRequest(filters, cursor) },
+            // #173 — the hand-rolled browseGeneration guard folds into the state-less stale
+            // gate: a stale response (applyFilters bumped the generation while this fetch was
+            // in flight) is inert — no list write, no cursor write, no error line, no flag
+            // cleanup (applyFilters already reset the flags).
+            stale = { generation != browseGeneration },
             transform = {
                 val page = it.body<AuditLogBrowseResponse>()
-                // A stale response (applyFilters bumped the generation while this fetch was
-                // in flight) is inert: no list write, no cursor write, no flag cleanup
-                // (applyFilters already reset the flags).
-                if (generation == browseGeneration) {
-                    // A cold response that lands after a concurrent same-generation fetch
-                    // already wrote Success is the older snapshot (older rows + older
-                    // cursor — accumulated load-more pages would truncate): skip the whole
-                    // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
-                    // guard). Cold only launches from Loading/Error/Idle, so Success at
-                    // landing ⟺ a concurrent refresh already committed.
-                    val listAlreadyCommitted =
-                        mode == FetchMode.Cold && _browseEntries.value is UiState.Success
-                    if (listAlreadyCommitted) {
-                        logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
-                    } else {
-                        if (_browseRefreshError.value != null) {
-                            // Any successful commit supersedes a failed refresh's error line:
-                            // the list below is fresh, so the line would be stale (pass-6
-                            // SOFT); log rather than vanish silently.
-                            logWarn(
-                                "AuditLogVM",
-                                "browse commit cleared stale refresh error: ${_browseRefreshError.value}",
-                            )
-                        }
-                        _browseRefreshError.value = null
-                        _nextCursor.value = page.nextCursor
-                        // A page snapshot taken before an ack commit may still carry the
-                        // now-acked row's flag — clear it for locally-acknowledged ids (the
-                        // flagged-transform mirror; the badge must not resurrect on browse).
-                        applyPage(
-                            mode,
-                            page.entries.map { entry ->
-                                if (entry.id in acknowledgedIds) {
-                                    entry.copy(isFlagged = false)
-                                } else {
-                                    entry
-                                }
-                            },
+                // A cold response that lands after a concurrent same-generation fetch
+                // already wrote Success is the older snapshot (older rows + older
+                // cursor — accumulated load-more pages would truncate): skip the whole
+                // commit (pass-6 HARD, the success-side mirror of the pass-5 failure
+                // guard). Cold only launches from Loading/Error/Idle, so Success at
+                // landing ⟺ a concurrent refresh already committed.
+                val listAlreadyCommitted =
+                    mode == FetchMode.Cold && _browseEntries.value is UiState.Success
+                if (listAlreadyCommitted) {
+                    logWarn("AuditLogVM", "cold browse success suppressed — list superseded")
+                } else {
+                    if (_browseRefreshError.value != null) {
+                        // Any successful commit supersedes a failed refresh's error line:
+                        // the list below is fresh, so the line would be stale (pass-6
+                        // SOFT); log rather than vanish silently.
+                        logWarn(
+                            "AuditLogVM",
+                            "browse commit cleared stale refresh error: ${_browseRefreshError.value}",
                         )
                     }
-                    finish(mode)
+                    _browseRefreshError.value = null
+                    _nextCursor.value = page.nextCursor
+                    // A page snapshot taken before an ack commit may still carry the
+                    // now-acked row's flag — clear it for locally-acknowledged ids (the
+                    // flagged-transform mirror; the badge must not resurrect on browse).
+                    applyPage(
+                        mode,
+                        page.entries.map { entry ->
+                            if (entry.id in acknowledgedIds) {
+                                entry.copy(isFlagged = false)
+                            } else {
+                                entry
+                            }
+                        },
+                    )
                 }
+                finish(mode)
             },
             onNonSuccess = { response ->
-                if (generation == browseGeneration) {
-                    handlePageFailure(mode, "browse failed: ${response.status.value}")
-                    finish(mode)
-                }
+                handlePageFailure(mode, "browse failed: ${response.status.value}")
+                finish(mode)
             },
             onError = { e ->
                 // Network or deserialization failure — same error surface + flag cleanup so the
-                // list state and buttons never freeze (keep-last-list); gated on the current
-                // filter generation (a superseded fetch's failure must not surface as an error
-                // on the new list). onError is that single surface (#169).
-                if (generation == browseGeneration) {
-                    handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
-                    finish(mode)
-                }
+                // list state and buttons never freeze (keep-last-list); gated by the stale flag
+                // so a superseded fetch's failure can't surface on the new list. onError is
+                // that single surface (#169).
+                handlePageFailure(mode, "browse failed: ${e.message ?: "network error"}")
+                finish(mode)
             },
         )
     }

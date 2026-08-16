@@ -38,6 +38,10 @@ import kotlin.test.assertIs
  * The default-param cases pin that every existing handler caller (which passes no guard
  * params) keeps the exact pre-#165 behavior: the guard never diverges — a constant stamp
  * always agrees, so transform always commits and the fallback is never invoked.
+ *
+ * The stateless section covers [ApiCallHandler.launchStateless]'s hooks + the #173
+ * stale-gate (`stale` skips all three hooks on a superseded landing — the #165 class's
+ * stateless leg, replacing the hand-rolled generation guards).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApiCallHandlerTest {
@@ -292,5 +296,99 @@ class ApiCallHandlerTest {
             runCurrent()
 
             assertEquals(0, onErrorCalls, "cancellation must not run onError")
+        }
+
+    // ── #173 stateless stale-gate ─────────────────────────────────────────────────────
+    // The stale-suppression gate (the #165 class, stateless leg): a landing that reads
+    // stale() == true must run NO hook — transform / onNonSuccess / onError are all skipped.
+    // The gate is evaluated at LANDING (the caller's captured generation vs the current
+    // field — the hand-rolled `if (generation == XGeneration)` it replaces), so the flip
+    // happens AFTER dispatch in the tests below: a launch-time-only or absent evaluation
+    // would run the hook and fail the assert.
+
+    @Test
+    fun stateless_stale_success_skips_transform() =
+        runTest(testScheduler) {
+            val apiClient = mockApiClient { respond200() }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var transformCalls = 0
+            var onNonSuccessCalls = 0
+            var stale = false
+
+            handler.launchStateless(
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { apiClient.httpClient.get("/api/items") },
+                transform = { transformCalls++ },
+                onNonSuccess = { onNonSuccessCalls++ },
+                stale = { stale },
+            )
+
+            // A concurrent action makes the generation stale while the request is in flight:
+            // the landing must be inert. (Flipped pre-landing on the test scheduler; gone
+            // stale would otherwise be indistinguishable from a launch-time read.)
+            stale = true
+            runCurrent()
+
+            assertEquals(0, transformCalls, "a stale success landing must skip transform")
+            assertEquals(0, onNonSuccessCalls, "a stale success landing must not run onNonSuccess")
+        }
+
+    @Test
+    fun stateless_stale_non_success_skips_onNonSuccess() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient { _ ->
+                    respond(
+                        content = ByteReadChannel(""),
+                        status = HttpStatusCode.InternalServerError,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var transformCalls = 0
+            var onNonSuccessCalls = 0
+
+            // Non-2xx completes off the test scheduler (the #93 class idiom) — join.
+            val job =
+                handler.launchStateless(
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = { transformCalls++ },
+                    onNonSuccess = { onNonSuccessCalls++ },
+                    // Structurally stale before any landing — the gate must skip the hook.
+                    stale = { true },
+                )
+            job.join()
+
+            assertEquals(0, onNonSuccessCalls, "a stale non-success landing must skip onNonSuccess")
+            assertEquals(0, transformCalls, "a stale non-success landing must not run transform")
+        }
+
+    @Test
+    fun stateless_stale_exception_skips_onError() =
+        runTest(testScheduler) {
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            var transformCalls = 0
+            var onErrorCalls = 0
+            var stale = false
+
+            handler.launchStateless(
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { error("boom") },
+                transform = { transformCalls++ },
+                onError = { onErrorCalls++ },
+                stale = { stale },
+            )
+
+            // The generation bumps while the block is (about to be) in flight — the failure
+            // lands stale and must not surface on the moved-on surface.
+            stale = true
+            runCurrent()
+
+            assertEquals(0, onErrorCalls, "a stale exception must skip onError")
+            assertEquals(0, transformCalls, "a stale exception must not run transform")
         }
 }

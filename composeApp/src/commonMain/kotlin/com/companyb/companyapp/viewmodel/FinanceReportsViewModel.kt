@@ -363,36 +363,34 @@ class FinanceReportsViewModel(
                     currentWindow().to?.let { parameter("to", it) }
                 }
             },
+            // #173 — the hand-rolled generation guard folds into the state-less stale gate: a
+            // superseded landing (window/branch/mode switched while this page was in flight)
+            // is inert — no list/cursor/error/flags writes, no finish.
+            stale = { generation != feedGeneration },
             transform = {
                 val page = it.body<DailySalesSummaryBrowseResponse>()
-                if (generation == feedGeneration) {
-                    val listAlreadyCommitted =
-                        mode == FetchMode.Cold && _feedEntries.value is UiState.Success
-                    if (listAlreadyCommitted) {
-                        logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
-                    } else {
-                        _refreshError.value = null
-                        _nextCursor.value = page.nextCursor
-                        applyPage(mode, page.entries)
-                    }
-                    finish(mode)
+                val listAlreadyCommitted =
+                    mode == FetchMode.Cold && _feedEntries.value is UiState.Success
+                if (listAlreadyCommitted) {
+                    logWarn("FinanceVM", "cold feed success suppressed — feed superseded")
+                } else {
+                    _refreshError.value = null
+                    _nextCursor.value = page.nextCursor
+                    applyPage(mode, page.entries)
                 }
+                finish(mode)
             },
             onNonSuccess = { response ->
-                if (generation == feedGeneration) {
-                    handlePageFailure(mode, "feed failed: ${response.status.value}")
-                    finish(mode)
-                }
+                handlePageFailure(mode, "feed failed: ${response.status.value}")
+                finish(mode)
             },
             onError = { e ->
                 // Network or deserialization failure — same error surface + flag cleanup so the
-                // list state and buttons never freeze (keep-last-list); gated on the current
-                // feed generation (a superseded fetch's failure must not surface on the new
-                // list). onError is that single surface (#169).
-                if (generation == feedGeneration) {
-                    handlePageFailure(mode, "feed failed: ${e.message ?: "network error"}")
-                    finish(mode)
-                }
+                // list state and buttons never freeze (keep-last-list); gated by stale — a
+                // superseded fetch's failure must not surface on the new list. onError is that
+                // single surface (#169).
+                handlePageFailure(mode, "feed failed: ${e.message ?: "network error"}")
+                finish(mode)
             },
         )
     }
@@ -464,22 +462,20 @@ class FinanceReportsViewModel(
                     parameter("month", month.month.ordinal + 1)
                 }
             },
+            // #173 — the generation guard folds into the stale gate (a superseded rollup —
+            // branch/mode/month switched — must not write any state).
+            stale = { generation != rollupGeneration },
             transform = {
-                if (generation == rollupGeneration) {
-                    // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
-                    // error: the rollup card simply doesn't render. Transform only sees 2xx —
-                    // the 404 branch lives in onNonSuccess below.
-                    _monthlyRollup.value = UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
-                }
-                Unit
+                // 404 (no remittance submitted that month — the #105 F5 shape) is NOT an
+                // error: the rollup card simply doesn't render. Transform only sees 2xx —
+                // the 404 branch lives in onNonSuccess below.
+                _monthlyRollup.value = UiState.Success(it.body<MonthlyRemittanceSummaryResponse>())
             },
             onNonSuccess = { response ->
-                if (generation == rollupGeneration) {
-                    if (response.status == HttpStatusCode.NotFound) {
-                        _monthlyRollup.value = UiState.Success(null)
-                    } else {
-                        _monthlyRollup.value = UiState.Error("monthly rollup failed: ${response.status.value}")
-                    }
+                if (response.status == HttpStatusCode.NotFound) {
+                    _monthlyRollup.value = UiState.Success(null)
+                } else {
+                    _monthlyRollup.value = UiState.Error("monthly rollup failed: ${response.status.value}")
                 }
             },
             // #170 — the loadReliefDay shape: a transport failure moves Loading → Error
@@ -487,9 +483,7 @@ class FinanceReportsViewModel(
             // pre-fix the sole onError-less stateless site parking a UiState on Loading;
             // loadSent is onError-less by keep-last design — no state to park).
             onError = { e ->
-                if (generation == rollupGeneration) {
-                    _monthlyRollup.value = UiState.Error(e.message ?: "Unknown error")
-                }
+                _monthlyRollup.value = UiState.Error(e.message ?: "Unknown error")
             },
         )
     }
@@ -547,23 +541,19 @@ class FinanceReportsViewModel(
             operation = "loadReliefDay",
             endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
             block = { apiClient.httpClient.get("/api/branches/$branchId/daily-summary?date=$date") },
+            // #173 — the generation guard folds into the stale gate (a superseded relief
+            // fetch — clearReliefState or a new date — must not write [reliefDay]/[selectedDay]).
+            stale = { generation != reliefGeneration },
             transform = {
                 val day = it.body<DailySalesSummaryResponse>()
-                if (generation == reliefGeneration) {
-                    _reliefDay.value = UiState.Success(day)
-                    selectDay(day)
-                }
-                Unit
+                _reliefDay.value = UiState.Success(day)
+                selectDay(day)
             },
             onNonSuccess = { response ->
-                if (generation == reliefGeneration) {
-                    _reliefDay.value = UiState.Error("loadReliefDay failed: ${response.status.value}")
-                }
+                _reliefDay.value = UiState.Error("loadReliefDay failed: ${response.status.value}")
             },
             onError = { e ->
-                if (generation == reliefGeneration) {
-                    _reliefDay.value = UiState.Error(e.message ?: "Unknown error")
-                }
+                _reliefDay.value = UiState.Error(e.message ?: "Unknown error")
             },
         )
     }
@@ -764,29 +754,26 @@ class FinanceReportsViewModel(
                     params.forEach { (k, v) -> parameter(k, v) }
                 }
             },
+            // #173 — the generation guard folds into the stale gate (a superseded day/branch
+            // section load — clearEditData during flight — must not repopulate cleared state).
+            stale = { generation != editDataGeneration },
             transform = {
                 val list = it.body<List<T>>()
-                if (generation == editDataGeneration) {
-                    state.value = UiState.Success(list)
-                    // #143 class — a fresh list supersedes the section's stale action
-                    // errors (e.g. a 409-reload landing beside its own error line).
-                    if (errorKeyPrefixes.isNotEmpty()) {
-                        actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
-                    }
+                state.value = UiState.Success(list)
+                // #143 class — a fresh list supersedes the section's stale action
+                // errors (e.g. a 409-reload landing beside its own error line).
+                if (errorKeyPrefixes.isNotEmpty()) {
+                    actionTracker.clearWhere { key -> errorKeyPrefixes.any { key.startsWith(it) } }
                 }
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    state.value = UiState.Error("$operation failed: ${response.status.value}")
-                }
+                state.value = UiState.Error("$operation failed: ${response.status.value}")
             },
             onError = { e ->
                 // Transport or deserialization failure: route to the section's error state —
-                // gated on the current edit-data generation so a superseded day/branch load
-                // can't error the cleared sections. onError is that single surface (#169).
-                if (generation == editDataGeneration) {
-                    state.value = UiState.Error("$operation failed: ${e.message ?: "network error"}")
-                }
+                // gated by the stale flag so a superseded day/branch load can't error the
+                // cleared sections. onError is that single surface (#169).
+                state.value = UiState.Error("$operation failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -832,32 +819,28 @@ class FinanceReportsViewModel(
                     )
                 }
             },
+            // #173 — a superseded action (branch/day switched mid-flight) is inert: no row
+            // write onto the new day's sections, no tracker terminal (clearEditData cleared it).
+            stale = { generation != editDataGeneration },
             transform = {
                 val created = it.body<ExpenseResponse>()
-                if (generation == editDataGeneration) {
-                    val current = _editExpenses.value
-                    if (current is UiState.Success) {
-                        _editExpenses.value = UiState.Success(current.data + created)
-                    } else {
-                        // Pass-8 SOFT — appending onto an Error section would truncate the
-                        // list to the new row; reload the section instead.
-                        reloadSection(EditSection.EXPENSES)
-                    }
-                    actionTracker.finish(key)
+                val current = _editExpenses.value
+                if (current is UiState.Success) {
+                    _editExpenses.value = UiState.Success(current.data + created)
+                } else {
+                    // Pass-8 SOFT — appending onto an Error section would truncate the
+                    // list to the new row; reload the section instead.
+                    reloadSection(EditSection.EXPENSES)
                 }
-                Unit
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    failActionOrSilent403(key, "expense:create", response)
-                }
+                failActionOrSilent403(key, "expense:create", response)
             },
             onError = { e ->
                 // Pass-9 HARD — a transport/timeout failure must keep the dialog open with an
                 // inline error (the close-on-success effect keys on the ABSENCE of an error).
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "expense:create failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "expense:create failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -888,30 +871,26 @@ class FinanceReportsViewModel(
                     )
                 }
             },
+            // #173 — the superseded-PATCH gate folds into the stale flag (a branch/day switch
+            // mid-flight must leave the action + its tracker terminal inert).
+            stale = { generation != editDataGeneration },
             transform = {
                 val updated = it.body<ExpenseResponse>()
-                if (generation == editDataGeneration) {
-                    replaceExpenseRow(updated)
-                    actionTracker.finish(key)
-                }
-                Unit
+                replaceExpenseRow(updated)
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    failActionOrSilent403(
-                        key,
-                        "expense:update",
-                        response,
-                        conflictMessage = "Expense changed elsewhere — reloaded",
-                    ) {
-                        reloadSection(EditSection.EXPENSES)
-                    }
+                failActionOrSilent403(
+                    key,
+                    "expense:update",
+                    response,
+                    conflictMessage = "Expense changed elsewhere — reloaded",
+                ) {
+                    reloadSection(EditSection.EXPENSES)
                 }
             },
             onError = { e ->
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "expense:update failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "expense:update failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -931,23 +910,18 @@ class FinanceReportsViewModel(
                     setBody(DeleteExpenseRequest(reason = reason))
                 }
             },
+            // #173 — the superseded-action gate folds into the stale flag.
+            stale = { generation != editDataGeneration },
             transform = {
                 val deleted = it.body<ExpenseResponse>()
-                if (generation == editDataGeneration) {
-                    replaceExpenseRow(deleted)
-                    actionTracker.finish(key)
-                }
-                Unit
+                replaceExpenseRow(deleted)
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    failActionOrSilent403(key, "expense:delete", response)
-                }
+                failActionOrSilent403(key, "expense:delete", response)
             },
             onError = { e ->
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "expense:delete failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "expense:delete failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -967,26 +941,21 @@ class FinanceReportsViewModel(
                     setBody(RestoreExpenseRequest(reason = reason))
                 }
             },
+            // #173 — the superseded-action gate folds into the stale flag.
+            stale = { generation != editDataGeneration },
             transform = {
                 val restored = it.body<ExpenseResponse>()
-                if (generation == editDataGeneration) {
-                    replaceExpenseRow(restored)
-                    actionTracker.finish(key)
-                }
-                Unit
+                replaceExpenseRow(restored)
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    failActionOrSilent403(key, "expense:restore", response)
-                }
+                failActionOrSilent403(key, "expense:restore", response)
             },
             onError = { e ->
                 // Pass-10 HARD — the one onError the pass-9 batch missed: a transport failure
                 // must keep the restore dialog open with an inline error (the close-on-success
                 // effect keys on the ABSENCE of an error).
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "expense:restore failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "expense:restore failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -1030,35 +999,30 @@ class FinanceReportsViewModel(
                     )
                 }
             },
+            // #173 — the superseded-action gate folds into the stale flag.
+            stale = { generation != editDataGeneration },
             transform = {
                 val created = it.body<CompensationResponse>()
-                if (generation == editDataGeneration) {
-                    val current = _editCompensations.value
-                    if (current is UiState.Success) {
-                        _editCompensations.value = UiState.Success(current.data + created)
-                    } else {
-                        reloadSection(EditSection.COMPENSATIONS)
-                    }
-                    actionTracker.finish(key)
+                val current = _editCompensations.value
+                if (current is UiState.Success) {
+                    _editCompensations.value = UiState.Success(current.data + created)
+                } else {
+                    reloadSection(EditSection.COMPENSATIONS)
                 }
-                Unit
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    // #101 D4 — 409 duplicate (one per user per paying day) → inline error on the
-                    // picker; the row is already compensated (the list shows it).
-                    failActionOrSilent403(
-                        key,
-                        "comp:create",
-                        response,
-                        conflictMessage = "Already compensated on this day",
-                    )
-                }
+                // #101 D4 — 409 duplicate (one per user per paying day) → inline error on the
+                // picker; the row is already compensated (the list shows it).
+                failActionOrSilent403(
+                    key,
+                    "comp:create",
+                    response,
+                    conflictMessage = "Already compensated on this day",
+                )
             },
             onError = { e ->
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "comp:create failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "comp:create failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -1087,36 +1051,31 @@ class FinanceReportsViewModel(
                     )
                 }
             },
+            // #173 — the superseded-action gate folds into the stale flag.
+            stale = { generation != editDataGeneration },
             transform = {
                 val updated = it.body<CompensationResponse>()
-                if (generation == editDataGeneration) {
-                    _editCompensations.value =
-                        UiState.Success(
-                            (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)
-                                ?.data
-                                .orEmpty()
-                                .map { row -> if (row.id == updated.id) updated else row },
-                        )
-                    actionTracker.finish(key)
-                }
-                Unit
+                _editCompensations.value =
+                    UiState.Success(
+                        (_editCompensations.value as? UiState.Success<List<CompensationResponse>>)
+                            ?.data
+                            .orEmpty()
+                            .map { row -> if (row.id == updated.id) updated else row },
+                    )
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    failActionOrSilent403(
-                        key,
-                        "comp:update",
-                        response,
-                        conflictMessage = "Compensation changed elsewhere — reloaded",
-                    ) {
-                        reloadSection(EditSection.COMPENSATIONS)
-                    }
+                failActionOrSilent403(
+                    key,
+                    "comp:update",
+                    response,
+                    conflictMessage = "Compensation changed elsewhere — reloaded",
+                ) {
+                    reloadSection(EditSection.COMPENSATIONS)
                 }
             },
             onError = { e ->
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "comp:update failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "comp:update failed: ${e.message ?: "network error"}")
             },
         )
     }
@@ -1148,28 +1107,23 @@ class FinanceReportsViewModel(
                     )
                 }
             },
+            // #173 — the superseded-action gate folds into the stale flag.
+            stale = { generation != editDataGeneration },
             transform = {
                 val created = it.body<AllowanceResponse>()
-                if (generation == editDataGeneration) {
-                    val current = _editAllowances.value
-                    if (current is UiState.Success) {
-                        _editAllowances.value = UiState.Success(current.data + created)
-                    } else {
-                        reloadSection(EditSection.ALLOWANCES)
-                    }
-                    actionTracker.finish(key)
+                val current = _editAllowances.value
+                if (current is UiState.Success) {
+                    _editAllowances.value = UiState.Success(current.data + created)
+                } else {
+                    reloadSection(EditSection.ALLOWANCES)
                 }
-                Unit
+                actionTracker.finish(key)
             },
             onNonSuccess = { response ->
-                if (generation == editDataGeneration) {
-                    failActionOrSilent403(key, "allow:create", response)
-                }
+                failActionOrSilent403(key, "allow:create", response)
             },
             onError = { e ->
-                if (generation == editDataGeneration) {
-                    actionTracker.fail(key, "allow:create failed: ${e.message ?: "network error"}")
-                }
+                actionTracker.fail(key, "allow:create failed: ${e.message ?: "network error"}")
             },
         )
     }
