@@ -51,8 +51,8 @@ class ReliefInviteViewModel(
     private val _candidates = MutableStateFlow<UiState<List<ReliefCandidateResponse>>>(UiState.Idle)
     val candidates: StateFlow<UiState<List<ReliefCandidateResponse>>> = _candidates.asStateFlow()
 
-    // keep-last for the inviter's sent list, BRANCH-KEYED (the #162 KeyedMirror shape — the
-    // #166 P5 mirror-only split: `keptSent` uses only the mirror half of KeepLastByKey; the
+    // keep-last for the inviter's sent list, BRANCH-KEYED (the #162 KeepLastByKey shape,
+    // mirror-only half — the #166 P5 mirror-only split: `keptSent` uses only the mirror; the
     // panel re-opens per branch card and a reload must keep the previous list rendered). Keying
     // the mirror by branchId makes the #160 pass-1/pass-2 cross-branch bleed structurally
     // unrenderable: the screen gates on the CURRENT panel's key, so another branch's rows (with
@@ -228,12 +228,10 @@ class ReliefInviteViewModel(
             block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
             transform = { response ->
                 val body = response.body<List<ReliefInviteResponse>>()
-                // Keyed commit (the #162 KeyedMirror shape), newest-launch-wins: the mirror
-                // entry for this branch flips together with the committed body — the screen
-                // gate `lastByKey[panelBranch]` can then trust that a passing gate means the
-                // rendered list IS this panel's. A stale response (any older launch) is
-                // skipped wholesale by the stale gate above — the commit only ever runs for
-                // the newest launch.
+                // Keyed commit (the #162 KeepLastByKey shape, mirror-only half), newest-launch-
+                // wins: the mirror entry for this branch flips together with the committed body —
+                // the screen gate `lastByKey[panelBranch]` can then trust that a passing gate
+                // means the rendered list IS this panel's.
                 keptSent.commit(branchId, body)
             },
             stale = { stamp != sentStamp },
