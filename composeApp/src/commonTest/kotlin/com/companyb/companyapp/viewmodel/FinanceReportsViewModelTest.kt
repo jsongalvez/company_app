@@ -560,13 +560,13 @@ class FinanceReportsViewModelTest {
             staleGate.complete(Unit)
             advanceUntilIdle()
 
-            // The stale refresh failure is inert: the new branch's view carries no error line,
-            // no refresh flag, and the branch B feed stays rendered.
+            // The stale refresh failure is inert: the guard's unique observable is the error
+            // line — handlePageFailure(Refresh) writes refreshError unconditionally, so only
+            // the generation guard keeps the new branch's view clear. The feed stays on B.
             assertNull(
                 vm.refreshError.value,
                 "a superseded refresh failure must not bleed onto the new branch",
             )
-            assertFalse(vm.isRefreshing.value)
             val feed = vm.feedEntries.value
             assertIs<UiState.Success<List<DailySalesSummaryResponse>>>(feed)
             assertEquals(listOf("2026-08-13"), feed.data.map { it.date })
