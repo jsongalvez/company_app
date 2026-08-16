@@ -65,6 +65,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Issue tracking | `docs/agents/issue-tracker.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
 | Decision-loop lenses + standing frame (HITL design review) | `docs/agents/decision-loop.md` |
+| Gate ledger (runnable CHECK/EXPECT acceptance for builds) | `docs/agents/gates.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
 | Load test results | `tests/k6/results/baseline-results.md` |
 

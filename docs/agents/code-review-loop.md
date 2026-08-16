@@ -91,6 +91,13 @@ code-verified or contradicted with evidence. Quote the spec line for each findin
 Under 400 words. Format: [MISSING|SCOPE-CREEP|WRONG|CLAIM-FALSE] — spec line — problem.
 ```
 
+If the ticket has a gates file (`docs/gates/<n>-*.md`), run
+`node scripts/gate-check.mjs <file>` FIRST — re-run each gate yourself, never trust the
+file's checked boxes. Every gate met with fresh evidence is the mechanical half of spec
+conformance; report any unmet gate as `[GATE-MISSING]` and let the driving agent rerun the
+fix loop. Your judgment budget goes to (a)–(d), not to re-reading acceptance the machine
+already decided.
+
 ### P2 — Standards + constraints
 
 ```
