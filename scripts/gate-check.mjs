@@ -139,7 +139,7 @@ for (const file of files) {
     const result = runGate(gate);
     if (result.ok && gate.evidence === null && !dry) {
       lines.splice(gate.lastField + 1, 0, `  EVIDENCE: ${result.evidence}`);
-      gate.evidence = { line: gate.lastField + 1, text: "" };
+      gate.evidence = { line: gate.lastField + 1 };
       gate.lastField++;
       for (const g of gates.slice(gates.indexOf(gate) + 1)) { g.line++; g.lastField++; if (g.evidence) g.evidence.line++; }
     } else if (gate.evidence !== null && !dry) {

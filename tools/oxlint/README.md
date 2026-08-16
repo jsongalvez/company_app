@@ -6,7 +6,9 @@ scripts that tooling agents write.
 
 - `oxlint.config.json` — enables the 15 `anti-slop` rules (error) + oxlint core.
 - `tools/oxlint/anti-slop/` — vendored from `dmmulroy/anti-slop` (MIT; LICENSE ships
-  alongside). Keep byte-identical to upstream `src/`; re-copy on upgrade.
+  alongside). Keep byte-identical to upstream `src/` — including the vendored `*.test.ts`
+  files, which exist as upstream provenance for the re-copy diff, not as runnable tests here.
+  Re-copy on upgrade.
 - `package.json` — `lint:js` script runs `oxlint scripts tests/gates`.
 
 **`@oxlint/binding-linux-arm64-gnu` is pinned on purpose**: npm 9 has an
