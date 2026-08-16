@@ -14,6 +14,7 @@ Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the l
 | `~/.local/share/opencode/auth.json` | provider API keys (`opencode-go` = the chain's `deepseek-v4-flash`) | copy (126 B) — do NOT copy the 2.1 GB `opencode.db` |
 | `gh` CLI + auth | issue tracker: `gh issue create/view/close/edit`, `gh api …/sub_issues` | install + `gh auth login` (token needs `repo` scope) |
 | JDK 21 + Gradle 8.14.3 wrapper | build/test gates | `openjdk-21-jdk`; wrapper downloads Gradle |
+| Android SDK (cmdline-tools, platform 36, build-tools 36.0.0) | Android compile + unit tests (the pre-push Android leg) | `sdkmanager` (wizard stage); on aarch64 first add qemu-user-static binfmt + amd64 multiarch libs — AGP's aapt2 is x86_64-only |
 | Postgres 18 (docker compose) | pre-commit gate + backend tests | `docker compose -f docker/docker-compose.yml up -d` |
 | `.env` (repo root) | DB creds, JWT secret, test-user creds | copy real values from local box |
 | `.wayfinder-loop.env` (gitignored) | ntfy topic + `WAYFINDER_MODEL` | copy |
@@ -21,7 +22,7 @@ Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the l
 | k6 (optional) | pre-push load-test baseline | skip OK (pre-push warns + skips); or install aarch64 binary |
 | git + GitHub push auth | sessions commit; you push | `gh auth git-credential` (from `gh auth login`) |
 
-All components have aarch64 builds (JDK 21, Postgres 18 image, Gradle, ktlint jar). 2 OCPU / 12 GB is sufficient — the local box runs the same gates.
+All components have aarch64 builds (JDK 21, Postgres 18 image, Gradle, ktlint jar). The one x86_64-only toolchain piece is AGP's `aapt2` (no `linux-arm64` on the Maven repo) — handled by qemu-user-static binfmt + amd64 multiarch libs in the SDK step below. 2 OCPU / 12 GB is sufficient — the local box runs the same gates.
 
 ## Phase 0 — pre-flight (this machine)
 
@@ -92,9 +93,40 @@ docker compose -f docker/docker-compose.yml ps   # wait for healthy
 # 10. Hooks + ktlint
 bash scripts/setup-hooks.sh
 
-# 11. Warm the gate once (downloads Gradle + deps; ~10-15 min first run)
+# 11. Android SDK — pre-push compiles the Android leg, so the SDK must exist.
+#     On aarch64 (the A1) AGP's aapt2 is x86_64-only, so first make x86_64
+#     binaries runnable: qemu-user-static binfmt + the amd64 glibc loader.
+#     (AGP 8.12 publishes no linux-arm64 aapt2 — checked against the Maven repo.)
+if [ "$(uname -m)" = aarch64 ]; then
+  sudo apt-get install -y qemu-user-static binfmt-support
+  # amd64 libs (loader at /lib64/ld-linux-x86-64.so.2) — the ports mirror has no
+  # amd64 binaries, so add archive.ubuntu.com for the amd64 arch.
+  sudo dpkg --add-architecture amd64
+  sudo tee /etc/apt/sources.list.d/amd64.sources >/dev/null <<APTEOF
+Types: deb
+URIs: http://archive.ubuntu.com/ubuntu/
+Suites: noble noble-updates noble-backports
+Components: main universe restricted multiverse
+Architectures: amd64
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+APTEOF
+  sudo apt-get update && sudo apt-get install -y libc6:amd64 libstdc++6:amd64 zlib1g:amd64
+fi
+mkdir -p ~/android-sdk/cmdline-tools
+cd /tmp && curl -fSLO https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+unzip -q commandlinetools-linux-11076708_latest.zip -d ~/android-sdk/cmdline-tools
+mv ~/android-sdk/cmdline-tools/cmdline-tools ~/android-sdk/cmdline-tools/latest
+rm -f /tmp/commandlinetools-linux-11076708_latest.zip
+yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+printf '\n# Android SDK (wizard)\nexport ANDROID_HOME="$HOME/android-sdk"\nexport ANDROID_SDK_ROOT="$ANDROID_HOME"\nexport PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"\n' >> ~/.bashrc
+# sdk.dir in repo local.properties carries SDK discovery for the daemon's
+# non-interactive shells (no .bashrc read); AGP also honors ANDROID_HOME.
+echo "sdk.dir=$HOME/android-sdk" >> ~/company_app/local.properties
+
+# 12. Warm the gate once (downloads Gradle + deps; ~10-15 min first run)
 ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
-./gradlew :composeApp:compileKotlinDesktop
+./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:testDebugUnitTest
 ```
 
 Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#110/#139.
