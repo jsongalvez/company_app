@@ -112,6 +112,7 @@ After `bash scripts/setup-hooks.sh`:
 - Gradle configuration cache and build cache are enabled (`gradle.properties`).
 - ktlint + detekt applied to all subprojects via root `build.gradle.kts` `subprojects {}`. Detekt config: `config/detekt/detekt.yml`. Plugin: `detekt-formatting`.
 - EditorConfig: 4-space indent, 120-char max line for Kotlin, no-wildcard-imports disabled.
+- **Permissions** — `opencode.json`'s `permissions` array at repo root holds the agent's access rules. When you need to know what you may access, or must request a new access, read **only that section** — the plugin/skill/server blocks are unrelated config and don't justify whole-file reads.
 
 ## composeApp
 
