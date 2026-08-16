@@ -312,9 +312,9 @@ else
 fi
 _validate_config
 
-TOTAL_STAGES=21
-TOTAL_MINUTES=95
-[[ "$MODE" == "full" ]] && { TOTAL_STAGES=36; TOTAL_MINUTES=155; }
+TOTAL_STAGES=23
+TOTAL_MINUTES=101
+[[ "$MODE" == "full" ]] && { TOTAL_STAGES=38; TOTAL_MINUTES=166; }
 [[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
 
 banner "Oracle Cloud VPS — ${MODE} setup (${SSH_MODE} ssh)"
@@ -494,9 +494,10 @@ stage "Android SDK (aarch64 support + platform 36)" 8
 if vps 'test -d ~/android-sdk/platforms/android-36'; then
   note "Android SDK already installed — skipping"
 else
-  note "aarch64 host: AGP ships an x86_64-only aapt2 (no linux-arm64 on the Maven repo) — first make x86_64 binaries runnable via qemu binfmt + the amd64 loader"
-  vps 'if [ -f /proc/sys/fs/binfmt_misc/qemu-x86_64 ]; then echo "x86_64 binfmt already registered"; else sudo apt-get install -y qemu-user-static binfmt-support >/dev/null; fi'
-  vps 'if [ -f /lib64/ld-linux-x86-64.so.2 ]; then echo "amd64 loader present"; else sudo dpkg --add-architecture amd64 && sudo tee /etc/apt/sources.list.d/amd64.sources >/dev/null <<APTEOF
+  if vps '[ "$(uname -m)" = aarch64 ]'; then
+    note "aarch64 host: AGP ships an x86_64-only aapt2 (no linux-arm64 on the Maven repo) — first make x86_64 binaries runnable via qemu binfmt + the amd64 loader"
+    vps 'if [ -f /proc/sys/fs/binfmt_misc/qemu-x86_64 ]; then echo "x86_64 binfmt already registered"; else sudo apt-get install -y qemu-user-static binfmt-support >/dev/null; fi'
+    vps 'if [ -f /lib64/ld-linux-x86-64.so.2 ]; then echo "amd64 loader present"; else sudo dpkg --add-architecture amd64 && sudo tee /etc/apt/sources.list.d/amd64.sources >/dev/null <<APTEOF
 Types: deb
 URIs: http://archive.ubuntu.com/ubuntu/
 Suites: noble noble-updates noble-backports
@@ -505,12 +506,18 @@ Architectures: amd64
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 APTEOF
 sudo apt-get update >/dev/null && sudo apt-get install -y libc6:amd64 libstdc++6:amd64 zlib1g:amd64 >/dev/null; fi'
+  fi
   vps 'mkdir -p ~/android-sdk/cmdline-tools && cd /tmp && if [ -x ~/android-sdk/cmdline-tools/latest/bin/sdkmanager ]; then echo "cmdline-tools present"; else curl -fSLO https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip && unzip -q commandlinetools-linux-11076708_latest.zip -d ~/android-sdk/cmdline-tools && mv ~/android-sdk/cmdline-tools/cmdline-tools ~/android-sdk/cmdline-tools/latest && rm -f commandlinetools-linux-11076708_latest.zip; fi'
   vps 'yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null 2>&1; ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" >/dev/null 2>&1'
   vps 'grep -q ANDROID_HOME ~/.bashrc || echo -e "\n# Android SDK (installed by wizard)\nexport ANDROID_HOME=\$HOME/android-sdk\nexport ANDROID_SDK_ROOT=\$ANDROID_HOME\nexport PATH=\$ANDROID_HOME/platform-tools:\$ANDROID_HOME/cmdline-tools/latest/bin:\$PATH" >> ~/.bashrc'
-  vps 'grep -q sdk.dir ~/company_app/local.properties 2>/dev/null || echo "sdk.dir=\$HOME/android-sdk" >> ~/company_app/local.properties'
+  vps 'grep -q sdk.dir ~/company_app/local.properties 2>/dev/null || echo "sdk.dir=$HOME/android-sdk" >> ~/company_app/local.properties'
 fi
-note "verify on the VPS: ~/android-sdk/platforms/android-36 + build-tools/36.0.0 exist; adb --version runs (under qemu on aarch64)"
+if vps '~/android-sdk/cmdline-tools/latest/bin/sdkmanager --list_installed 2>/dev/null | grep -q "platforms;android-36"'; then
+  note "✓ SDK packages verified on the VPS (platform 36 + build-tools 36.0.0)"
+else
+  warn "SDK install did NOT verify on the VPS — the warm gate will fail"
+  confirm "Continue anyway?" || exit 1
+fi
 
 stage "GitHub CLI auth" 5
 if vps 'gh auth status' 2>/dev/null; then
@@ -601,7 +608,7 @@ stage "Git hooks + ktlint" 2
 vps 'cd ~/company_app && bash scripts/setup-hooks.sh'
 
 stage "Warm the build gate" 16
-GATE_CMD="cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid > /tmp/gate-warm.log 2>&1 &"
+GATE_CMD="cd ~/company_app && nohup ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:testDebugUnitTest > /tmp/gate-warm.log 2>&1 &"
 LAST_BUILD="$(vps 'grep -E "BUILD (SUCCESSFUL|FAILED)" /tmp/gate-warm.log 2>/dev/null | tail -1' || true)"
 if [[ "$LAST_BUILD" == *"FAILED"* ]]; then
   warn "gate warm FAILED in an earlier run — the first VPS session commit would break."
