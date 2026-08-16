@@ -13,6 +13,8 @@
 # Env:
 #   WAYFINDER_NTFY_TOPIC   ntfy.sh topic for phone push (unset = desktop only)
 #   WAYFINDER_POLL_SECS    doc poll interval (default 15)
+#   WAYFINDER_TICK_SECS    session poll interval — form/permission/completion checks (default 5)
+#   WAYFINDER_STALL_SECS   no-progress zombie threshold in seconds (default 540 = old WAIT_SECS×STALL_SLICES)
 #   WAYFINDER_DRY_RUN      non-empty = log transitions, never spawn
 set -euo pipefail
 
@@ -23,8 +25,8 @@ LOG_FILE="$REPO/.wayfinder-loop.log"
 [ -f "$REPO/.wayfinder-loop.env" ] && set -a && . "$REPO/.wayfinder-loop.env" && set +a
 NTFY_TOPIC="${WAYFINDER_NTFY_TOPIC:-}"
 POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
-WAIT_SECS="${WAYFINDER_WAIT_SECS:-180}"
-STALL_SLICES="${WAYFINDER_STALL_SLICES:-3}"
+TICK_SECS="${WAYFINDER_TICK_SECS:-5}"
+STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
 DRY_RUN="${WAYFINDER_DRY_RUN:-}"
 OC_BIN="${OPENCODE_BIN:-$(command -v opencode2 || command -v opencode || true)}"
 
@@ -33,6 +35,7 @@ die() { log "FATAL: $*"; notify "wayfinder-loop FAILED" "$*"; exit 1; }
 
 notify() {
   local title="$1" body="$2"
+  log "notify: $title — $body"
   command -v notify-send >/dev/null 2>&1 && notify-send -a wayfinder-loop "$title" "$body" || true
   if [ -n "$NTFY_TOPIC" ]; then
     curl -sf -d "$body" -H "Title: $title" -H "Priority: high" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1 || true
@@ -87,16 +90,6 @@ pending_perms() { api get "/api/session/$1/permission" 2>/dev/null | jq -r '.dat
 # objects — has($s) is the membership test (the old any(.id == $s) never matched, so a
 # live session read as dead).
 session_alive() { api get "/api/session/active" 2>/dev/null | jq -e --arg s "$1" '.data | has($s)' >/dev/null 2>&1; }
-# session_progress: a monotone activity fingerprint for zombie detection. time.updated is NOT
-# reliable as a liveness signal — this daemon bumps it only on USER-message landings, so an
-# actively-working session (tool calls, sub-agent dispatches) shows a frozen time.updated.
-# Token counters advance on every message/tool result in BOTH daemon generations; summing them
-# gives a monotone "work happened" signal. Returns the sum (or -1 on API error).
-session_progress() {
-  api get "/api/session/$1" 2>/dev/null | jq -r '
-    (.data.tokens.input // 0) + (.data.tokens.output // 0) + (.data.tokens.reasoning // 0)
-  ' 2>/dev/null || echo -1
-}
 # active_children: true when any ACTIVE session lists $1 as its parent — the session is
 # awaiting parallel sub-agent results (the phased-review-loop shape: P1–P4 run as 4 child
 # sessions). Its own time.updated legitimately lags while the children do the work, so the
@@ -158,15 +151,123 @@ Operating rules for this automated run:
   notify "wayfinder session started" "session $sid — reading $doc"
 }
 
-wait_idle() {
-  # 0 = idle, 124 = still running/blocked (bounded wait fired), 1 = API error
-  # NB: timeout must wrap the binary, not the api() function (functions aren't exec-able)
-  timeout "$WAIT_SECS" "$OC_BIN" api post "/api/session/$1/wait" >/dev/null 2>&1
-  case $? in
-    0) return 0 ;;
-    124) return 124 ;;
-    *) return 1 ;;
-  esac
+supervise_session() {
+  # Short-tick poll loop. Decouples form/permission detection from the blocking
+  # /wait: the old structure checked pending_forms/pending_perms ONLY after
+  # wait_idle (a 180s blocking POST /wait) returned, so a question asked and
+  # answered inside one wait slice was never observed — "wayfinder needs you"
+  # never fired for quick questions (the session-74 live probe: a ~5s question
+  # produced no ping). Every tick checks completion/forms/perms fresh, so a
+  # pending question pings within TICK_SECS even if answered moments later.
+  local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
+  local upd prog d f p sess not_alive_ticks=0
+  while :; do
+    sleep "$TICK_SECS"
+    # completion first: a finished session writes its handoff doc as its final act
+    d="$(newest_unprocessed || true)"
+    if [ -n "$d" ]; then
+      log "session $session_id completed; next handoff: $d"
+      notify "wayfinder session done" "handoff written: $d — starting next"
+      last_doc="$d"
+      mark_seen "$d"
+      retries=0
+      save_state
+      spawn_session "$d" || { log "dry-run: chain would continue"; exit 0; }
+      # keep supervising the freshly spawned session (the old `return 0` left it
+      # to wait_for_doc, which only picks sessions up after their handoff lands —
+      # session-176 ran ~5h unsupervised until a manual daemon restart)
+      notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0
+      continue
+    fi
+
+    # pending question / permission — notify-once each until answered
+    f="$(pending_forms "$session_id")"
+    p="$(pending_perms "$session_id")"
+    if [ -n "$f" ] && [ "$notified" -eq 0 ]; then
+      notify "wayfinder needs you" "session $session_id is asking a question — attach TUI and answer"
+      notified=1
+    elif [ -z "$f" ] && [ "$notified" -eq 1 ]; then
+      log "session $session_id question answered — resuming"
+      notified=0
+    fi
+    if [ -n "$p" ] && [ "$notified_perm" -eq 0 ]; then
+      notify "wayfinder needs permission" "session $session_id blocked on a permission request — attach TUI to approve"
+      notified_perm=1
+    elif [ -z "$p" ] && [ "$notified_perm" -eq 1 ]; then
+      log "session $session_id permission granted — resuming"
+      notified_perm=0
+    fi
+    # a parked question/permission is not a stall — skip the detector while one is open
+    if [ -n "$f" ] || [ -n "$p" ]; then
+      idle_secs=0
+      continue
+    fi
+
+    # API health + session state: one fetch per tick, reused below. Fetch
+    # failing while the service answers = session gone (respawn fresh); failing
+    # while the service itself is down = transient outage (count, notify at 3,
+    # retry — don't kill a healthy session on a blip).
+    sess="$(api get "/api/session/$session_id" 2>/dev/null || true)"
+    if [ -z "$sess" ]; then
+      if api get "/api/session/active" >/dev/null 2>&1; then
+        session_dead fresh
+      else
+        outages=$((outages+1))
+        if [ "$outages" -eq 3 ]; then
+          notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
+          outages=0
+        fi
+        sleep 30
+      fi
+      continue
+    fi
+    outages=0
+
+    # liveness: session left the active set with no new doc = died without a
+    # handoff — resume it in place. Grace period: a just-spawned session may
+    # take a few ticks to appear in /active; and a parent awaiting parallel
+    # sub-agents (the phased-review-loop shape) also leaves the set — never
+    # resume while its children run.
+    if ! session_alive "$session_id"; then
+      not_alive_ticks=$((not_alive_ticks + 1))
+      if [ "$not_alive_ticks" -ge 12 ] && ! active_children "$session_id"; then
+        not_alive_ticks=0
+        session_dead resume
+      fi
+      continue
+    fi
+    not_alive_ticks=0
+
+    # zombie detection: a live loop advances its token counters as work lands
+    # (tool results, model output, reasoning — time.updated is not a reliable
+    # signal: this daemon bumps it only on USER-message landings, so an actively
+    # working session shows a frozen time.updated). STALL_SECS without ANY
+    # progress = stalled, resume it in place.
+    prog="$(printf '%s' "$sess" | jq -r '(.data.tokens.input // 0) + (.data.tokens.output // 0) + (.data.tokens.reasoning // 0)' 2>/dev/null || echo -1)"
+    upd="$(printf '%s' "$sess" | jq -r '.data.time.updated' 2>/dev/null || echo -1)"
+    # stalled only when BOTH the token fingerprint and time.updated are unchanged
+    if [ "$prog" -ge 0 ] && [ "$last_prog" -gt 0 ] && [ "$prog" -eq "$last_prog" ] &&
+       [ "$upd" -ge 0 ] && [ "$last_updated" -gt 0 ] && [ "$upd" -eq "$last_updated" ]; then
+      idle_secs=$((idle_secs + TICK_SECS))
+    else
+      idle_secs=0
+    fi
+    [ "$prog" -ge 0 ] && last_prog="$prog"
+    [ "$upd" -ge 0 ] && last_updated="$upd"
+    if [ "$idle_secs" -ge "$STALL_SECS" ]; then
+      # A parent session awaiting parallel sub-agents (the phased-review-loop shape) does not
+      # advance its own counters while its children run — not a stall. Reset the tick counter
+      # and keep waiting; the resume path (session_dead resume) must not fire on sub-agent work.
+      if active_children "$session_id"; then
+        idle_secs=0
+        continue
+      fi
+      log "session $session_id stalled (no activity across $STALL_SECS seconds) — resuming in place"
+      idle_secs=0
+      session_dead resume
+      continue
+    fi
+  done
 }
 
 session_dead() {
@@ -219,112 +320,6 @@ wait_for_doc() {
       exit 0
     fi
     sleep "$POLL_SECS"
-  done
-}
-
-supervise_session() {
-  local notified=0 notified_perm=0 outages=0 rc idle_ticks=0 last_prog=0 last_updated=0 upd prog
-  while :; do
-    rc=0; wait_idle "$session_id" || rc=$?
-    if [ $rc -eq 124 ]; then
-      # wait bounded = still running or zombie; check for parked question/permission
-      local f p
-      f="$(pending_forms "$session_id")"
-      p="$(pending_perms "$session_id")"
-      if [ -n "$f" ] && [ "$notified" -eq 0 ]; then
-        notify "wayfinder needs you" "session $session_id is asking a question — attach TUI and answer"
-        notified=1
-      fi
-      if [ -z "$f" ] && [ "$notified" -eq 1 ]; then notified=0; fi
-      if [ -n "$p" ] && [ "$notified_perm" -eq 0 ]; then
-        notify "wayfinder needs permission" "session $session_id blocked on a permission request — attach TUI to approve"
-        notified_perm=1
-      fi
-      if [ -z "$p" ] && [ "$notified_perm" -eq 1 ]; then notified_perm=0; fi
-      # zombie detection: a live loop advances its token counters as work lands
-      # (tool results, model output, reasoning — time.updated is not a reliable
-      # signal: this daemon bumps it only on USER-message landings, so an actively
-      # working session shows a frozen time.updated). WAIT_SECS*STALL_SLICES
-      # without ANY progress = stalled, resume it in place. Pending question/
-      # permission is not a stall (the session is parked on a human, not hung) —
-      # skip the detector entirely while one is open.
-      if [ -n "$f" ] || [ -n "$p" ]; then
-        idle_ticks=0
-        continue
-      fi
-      prog="$(session_progress "$session_id")"
-      upd="$(api get "/api/session/$session_id" 2>/dev/null | jq -r '.data.time.updated' 2>/dev/null || echo -1)"
-      # stalled only when BOTH the token fingerprint and time.updated are unchanged
-      if [ "$prog" -ge 0 ] && [ "$last_prog" -gt 0 ] && [ "$prog" -eq "$last_prog" ] &&
-         [ "$upd" -ge 0 ] && [ "$last_updated" -gt 0 ] && [ "$upd" -eq "$last_updated" ]; then
-        idle_ticks=$((idle_ticks+1))
-      else
-        idle_ticks=0
-      fi
-      [ "$prog" -ge 0 ] && last_prog="$prog"
-      [ "$upd" -ge 0 ] && last_updated="$upd"
-      if [ "$idle_ticks" -ge "$STALL_SLICES" ]; then
-        # A parent session awaiting parallel sub-agents (the phased-review-loop shape) does not
-        # advance its own counters while its children run — not a stall. Reset the tick counter
-        # and keep waiting; the resume path (session_dead resume) must not fire on sub-agent work.
-        if active_children "$session_id"; then
-          idle_ticks=0
-          continue
-        fi
-        log "session $session_id stalled (no activity across $STALL_SLICES wait slices) — resuming in place"
-        idle_ticks=0
-        session_dead resume
-        continue
-      fi
-      continue
-    fi
-    if [ $rc -eq 1 ]; then
-      # API error: service down or session gone
-      if api get "/api/session/$session_id" >/dev/null 2>&1; then
-        outages=$((outages+1))
-        if [ $outages -eq 3 ]; then
-          notify "opencode2 API unstable" "daemon will keep retrying — check 'opencode2 service status'"
-          outages=0
-        fi
-        sleep 30
-      else
-        session_dead fresh
-      fi
-      continue
-    fi
-    # rc=0: loop idle — classify
-    outages=0
-    local d
-    d="$(newest_unprocessed || true)"
-    if [ -n "$d" ]; then
-      log "session $session_id completed; next handoff: $d"
-      notify "wayfinder session done" "handoff written: $d — starting next"
-      last_doc="$d"
-      mark_seen "$d"
-      retries=0
-      save_state
-      spawn_session "$d" || { log "dry-run: chain would continue"; exit 0; }
-      return 0
-    fi
-    # no doc: blocked on a question answered via TUI, or parked on permission, or dead
-    if [ -n "$(pending_forms "$session_id")" ]; then
-      [ "$notified" -eq 0 ] && { notify "wayfinder needs you" "session $session_id is asking a question — attach TUI and answer"; notified=1; }
-      while [ -n "$(pending_forms "$session_id")" ]; do sleep 20; done
-      notified=0
-      log "session $session_id question answered — resuming"
-      continue
-    fi
-    if [ -n "$(pending_perms "$session_id")" ]; then
-      [ "$notified_perm" -eq 0 ] && { notify "wayfinder needs permission" "session $session_id blocked on a permission request — attach TUI to approve"; notified_perm=1; }
-      while [ -n "$(pending_perms "$session_id")" ]; do sleep 20; done
-      notified_perm=0
-      log "session $session_id permission granted — resuming"
-      continue
-    fi
-    if session_alive "$session_id"; then
-      continue
-    fi
-    session_dead resume
   done
 }
 
