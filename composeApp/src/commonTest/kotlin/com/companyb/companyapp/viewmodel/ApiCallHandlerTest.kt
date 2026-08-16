@@ -303,8 +303,8 @@ class ApiCallHandlerTest {
     // stale() == true must run NO hook — transform / onNonSuccess / onError are all skipped.
     // The gate is evaluated at LANDING (the caller's captured generation vs the current
     // field — the hand-rolled `if (generation == XGeneration)` it replaces), so the flip
-    // happens AFTER dispatch in the tests below: an invocation-only or absent evaluation
-    // would run the hook and fail the assert.
+    // happens AFTER dispatch in the tests below: an absent evaluation — or, for the two
+    // flip-based tests, an invocation-only one — would run the hook and fail the assert.
 
     @Test
     fun stateless_stale_success_skips_transform() =
