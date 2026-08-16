@@ -422,6 +422,46 @@ class FinanceReportsViewModelTest {
             assertNull(rollup.data, "404 = no rollup, not an error (#105 F5)")
         }
 
+    @Test
+    fun monthlyRollup_transportFailure_surfacesError() =
+        runTest(testScheduler) {
+            // The #170 fix — the rollup surface's onError pin: a transport failure must move
+            // _monthlyRollup Loading → Error (terminal), not park on Loading forever (the
+            // #168/#169 P5 sibling — the tree's sole onError-less launchStateless site).
+            // #170 fix — the rollup surface's onError pin: a transport failure must move
+            // _monthlyRollup Loading → Error (terminal), not park on Loading forever (the
+            // #168/#169 P5 sibling — the tree's sole onError-less launchStateless site).
+            val handler: MockRequestHandler = { request ->
+                when {
+                    request.url.encodedPath == "/api/branches/accessible" -> {
+                        respondJson(BRANCHES_JSON)
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/daily-summaries" -> {
+                        respondJson(feedResponse(listOf("2026-08-14")))
+                    }
+
+                    request.url.encodedPath == "/api/branches/$BRANCH_A/monthly-summary" -> {
+                        throw java.io.IOException("connection reset")
+                    }
+
+                    else -> {
+                        respondJson("{}", HttpStatusCode.NotFound)
+                    }
+                }
+            }
+            val vm = FinanceReportsViewModel(mockApiClient(handler), now = NOW)
+            vm.loadBranches()
+            runCurrent()
+
+            vm.setMode(ReportMode.MONTHLY)
+            advanceUntilIdle()
+
+            val rollup = vm.monthlyRollup.value
+            assertIs<UiState.Error>(rollup)
+            assertTrue(rollup.message.contains("connection reset"))
+        }
+
     // ─────────────────────────── edit mode ───────────────────────────
 
     @Test

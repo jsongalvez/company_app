@@ -482,6 +482,14 @@ class FinanceReportsViewModel(
                     }
                 }
             },
+            // #170 — the loadReliefDay shape: a transport failure moves Loading → Error
+            // (terminal) instead of parking on Loading forever (the #168/#169 P5 sibling —
+            // the tree's sole onError-less stateless site pre-fix).
+            onError = { e ->
+                if (generation == rollupGeneration) {
+                    _monthlyRollup.value = UiState.Error(e.message ?: "Unknown error")
+                }
+            },
         )
     }
 
