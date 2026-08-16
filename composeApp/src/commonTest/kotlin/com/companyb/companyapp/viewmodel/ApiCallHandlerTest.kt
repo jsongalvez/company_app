@@ -324,11 +324,11 @@ class ApiCallHandlerTest {
                 stale = { stale },
             )
 
-            // The generation flips between dispatch and landing: the launch is queued on the
-            // test scheduler (StandardTestDispatcher), so setting stale=true BEFORE runCurrent
-            // guarantees the landing reads it. A launch-time (or coroutine-start) evaluation
-            // would read false, run transform, and fail the assert — the test pins that the
-            // gate is evaluated at LANDING.
+            // The launch is queued on the test scheduler (StandardTestDispatcher): the coroutine
+            // body runs only at runCurrent, so setting stale=true before runCurrent makes the
+            // body's read see true. A synchronous evaluation at the launchStateless invocation
+            // (pre-flip) would read false, run transform, and fail the assert — the test pins
+            // the gate is evaluated AFTER dispatch, not at invocation.
             stale = true
             runCurrent()
 
