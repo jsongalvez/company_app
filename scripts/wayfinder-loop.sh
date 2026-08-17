@@ -237,11 +237,11 @@ spawn_session() {
   local prompt
   prompt="Fresh session with zero prior context. You are driven by an unattended chain runner.
 
-Read docs/agents/$doc — the latest wayfinder handoff — and follow its \"How to drive the next session\" instructions exactly (load the wayfinder skill, claim before work, one ticket per session, map #89 discipline).
+ Read docs/agents/$doc — the latest wayfinder handoff — and follow its canonical map and \"How to drive the next session\" instructions exactly (load the wayfinder skill, claim before work, one active ticket at a time; a ticket may span sessions).
 
 Operating rules for this automated run:
 1. Work autonomously as far as you can. Prefer AFK-capable work from the map's own \"Recommended next pick\" when no human decision is truly needed.
-2. If you need a human decision (grilling, fog-graduation pick, HITL design), ask via the question tool and WAIT. Do not guess.
+2. If you need a human decision, or a full architecture audit finds no justifiable candidate, ask via the question tool and WAIT. Do not guess, ask which candidate to choose, or write a completion handoff while waiting.
 3. When done, write docs/agents/wayfinder-<N>-handoff.md (next session number) following the existing format. That file is the chain's completion signal — it MUST exist before you stop.
 4. Push committed changes to the configured remote after verification. If push is blocked by a documented gate or missing credential, record exact blocker in the handoff and stop.
 5. Then stop. Do not start follow-up work."

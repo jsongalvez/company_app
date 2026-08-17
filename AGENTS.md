@@ -21,27 +21,32 @@ When a fresh agent opens a GitHub issue to work on:
 5. Open the relevant doc from the Document Map below (e.g. `docs/architecture.md` for layering, `docs/engines.md` for pseudocode, `docs/business-requirements.md` for rules)
 6. Load the skill indicated by the workflow (`/implement`, `/code-review`, etc.)
 
-## Code review — phased loop
+## Code review — risk-based graph
 
-Every `/implement` ticket gets a **phased review loop** (adopted in session 38 after a round-3 sanity pass caught 7 issues rounds 1+2 missed — the two-round structure reviewed the same lens twice; distinct lenses + a real exit condition fix the class). The loop runs until **one full pass reports zero HARD findings**.
+Implementation work uses a review profile matched to blast radius. Review work is a dependency graph, not fixed ceremony: independent read-only lanes run in parallel, one writer applies a coherent fix batch, and only affected checks rerun.
 
-A **pass** = four phases, each a different review mode, run as parallel `/code-review` sub-agents per phase (Standards + Spec axes default; the phase templates in `docs/agents/code-review-loop.md` slot into them):
+- **Fast profile** — docs, configuration, tests, and sub-30-minute mechanical fixes: targeted validation and focused review. Gates are skipped when `docs/agents/gates.md` permits it.
+- **Standard profile** — normal implementation: parallel P1 Spec, P2 Standards, P3 Behavior, and P4 Adversarial review once; fix HARD findings; rerun only lenses affected by the fix; stop when required lenses report zero HARD and no unadjudicated ESCALATE.
+- **High-risk profile** — auth, finance, migrations, concurrency, shared contracts, `commonMain`, `expect`/`actual`, Gradle, or cross-module interfaces: standard profile plus earlier full validation and targeted architecture review. Run full P5 only when risk or evidence warrants it.
 
-1. **P1 Spec conformance** — full delta vs the ticket line-by-line: missing / partial / scope-creep / wrong-implementation, quoted spec lines.
-2. **P2 Standards + constraints** — full delta vs documented standards **and every constraint source the code consumes** (theme mappings, shared DTOs/enums, ApiCallHandler contract, ADR axes, both platform actuals, k6 conventions) — constraint files often live outside the diff.
-3. **P3 Behavior trace** — end-to-end state machines on the **composed tree**: every user flow + error path *including repeated attempts* (attempt-1 fail → attempt-2 semantics) and the nav back-stack; each flow PASS/FAIL with evidence.
-4. **P4 Adversarial edges** — what breaks it: races/orderings, double-taps, stale state after clear/cancel, empty/zero states, dead branches, non-exhaustive `when`s, unmapped theme slots.
+P1-P4 remain available as independent review packets:
 
-The **exit pass** also runs **P5 — architecture residue** as two parallel sub-agents: **architecture-depth** (re-rate the ticket's two-sighted SOFTs from the architecture angle + the depth lenses: convoluted logic, dup unifiers, useless tests, shallow abstractions) and **hygiene sweep** (grep-proven dead code + layering — a crossing of a documented boundary reports HARD, not ARCH). Findings land in the **ARCH bucket** — non-blocking, excluded from the SOFT budget — graduating into the map's fog lines via the resolution comment. **P5 loop-back**: either P5 agent's in-ticket fixes get one standard P1–4 pass before exit (rule: `docs/agents/code-review-loop.md`).
+1. **P1 Spec conformance** — ticket requirements, missing/partial behavior, scope creep, and false claims.
+2. **P2 Standards + constraints** — documented standards and every constraint source consumed by changed code.
+3. **P3 Behavior trace** — composed-tree flows, error paths, repeated attempts, lifecycle, and back-stack.
+4. **P4 Adversarial edges** — races, stale state, empty states, dead branches, unmapped slots, and format coupling.
 
-**Loop mechanics:**
+P5 is not a mandatory exit phase. Cheap hygiene checks run with each fix batch. Architecture-depth review triggers when the delta changes an interface, seam, shared state, layering, or creates repeated structure; findings become separate architecture tickets or cheap in-ticket fixes. Full P5 can run for high-risk deltas or when focused review finds architecture residue.
 
-- **Review points**: batch-fix commits per pass; each pass diffs `git diff <last-pass-commit>`. Untracked files are handed to the sub-agents explicitly on the first pass.
-- **Triage**: HARD (bug / regression / security / documented-standard breach / **lesson-class register match** — register in `docs/agents/code-review-loop.md`) → must fix, loop continues. SOFT (smell / judgement call) → fix if cheap; else accept **with a logged reason** under the **two-sighting rule**: an accepted SOFT rides to P5/fog only on two independent phase sightings (the accepting lens + one other of P1–P4, possibly across passes) — every phase prompt seeds the accepted list and the confirming lens re-rates from its own angle; triage's re-derivation and P5's architecture re-rate confirm the disposition, never the SOFT class. Acceptance is never load-bearing (round-1 SOFTs became round-3 HARDs); at exit, ≤3 two-sighted SOFTs may ride.
-- **Exit**: one full pass with zero HARD findings across all four phases. Converges naturally — each pass's delta is fixes only (typically 2–3 passes for a build ticket).
-- Agents are never told "previous rounds passed" as authority; each pass re-derives flows from the ticket.
+**Graph mechanics:**
 
-The review points + each pass's outcome are recorded in the resolution comment (e.g. "#140 — pass 3 (P3 flow-2 catch) → pass 4: 0 HARD, 2 accepted SOFTs").
+- Parallel agents are read-only unless they own disjoint isolated work. One writer/integrator owns production edits, formatting, compilation, and commits.
+- A ticket may span multiple sessions. Handoffs record claimed ticket, phase, last verified commit, evidence, blockers, and next action. Handoff before context becomes crowded; stay below 150k tokens.
+- Review agents do not run expensive aggregate builds. The writer runs targeted checks after a fix batch and one full compile/test gate at integration. High-risk changes escalate earlier.
+- HARD findings, security issues, regressions, data loss, documented breaches, and lesson-class matches must be fixed. SOFT findings need a logged disposition. Unresolved ESCALATE findings block exit.
+- Each pass re-derives behavior from the ticket and composed tree; previous passes are evidence, never authority.
+
+Record selected profile, review lanes, fix batches, validation, skipped checks, accepted SOFTs, and architecture findings in the resolution comment.
 
 ## Decision loop — HITL design review
 

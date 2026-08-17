@@ -1,29 +1,24 @@
-# Code Review — Phased Loop (operational reference)
+# Code Review — Risk-Based Graph (operational reference)
 
-The loop contract lives in `AGENTS.md` ("Code review — phased loop"). This file is the
-operational artifact: the phase prompt templates + flow-trace checklist + **lesson-class
-register**, so every pass runs the same lenses (session 38's round-3 sanity pass was ad-hoc
-and caught 7 issues the two-round structure missed — this doc makes that lens reproducible).
+The active contract lives in `AGENTS.md` ("Code review — risk-based graph"). This file is the
+operational artifact: review packet templates + flow-trace checklist + **lesson-class
+register**. The former uniform contract is preserved in `docs/agents/code-review-loop-legacy.md`.
 
-## Pass structure
+## Review graph
 
-A **pass** = P1–P4 as parallel sub-agents against the current delta. Fix → commit
-(batch-fix commits) → next pass diffs `git diff <last-pass-commit>`. Every phase prompt
-seeds the current accepted-SOFT list ("previously accepted — re-examine from your angle;
-confirm, or re-rate upward if HARD-class from your lens") — the seeding is mandatory, the
-load-bearing half of the two-sighting rule (Triage). Exit when one full pass reports
-**zero HARD findings and no unadjudicated ESCALATEs** (triage empties the bucket
-before exit). The exit pass then runs **P5 — architecture residue** (two parallel
-sub-agents: architecture-depth + hygiene sweep; templates below) — its findings land in
-the ARCH bucket (below), which never extends the loop; either P5 agent's in-ticket fixes
-trigger the P5 loop-back (below).
+The selected risk profile in `AGENTS.md` determines which review packets run. Standard
+work launches P1–P4 as parallel read-only sub-agents against the current delta. The writer
+triages findings, applies one coherent fix batch, commits it, and reruns only packets whose
+inputs changed. Exit when required packets report **zero HARD findings and no unadjudicated
+ESCALATEs**. Review agents do not run expensive aggregate builds; the writer owns targeted
+checks and the full integration gate.
 
-**P5 loop-back** — P5's `fix-in-ticket` dispositions change code after the last standard
-pass; they get the standard treatment like any fix batch. After P5's fixes commit: **one
-standard P1–4 pass over `git diff <the P5 batch>`** — 0 HARD → exit; HARDs continue the loop
-normally; no in-ticket fixes → no extra pass. Deliberately not per-pass: the residue lens is
-empty on fix-sized deltas, and the gap is P5's *output*, not its timing (the #160 P5 batch
-shipped a #141-class resurrect that the 4-lens review caught).
+P5 is optional. Run architecture-depth and hygiene review when a risk trigger or focused
+review warrants it. P5 findings land in the ARCH bucket (below). In-ticket P5 fixes get one
+targeted review of the changed packet; they do not automatically reopen every lens.
+
+**Targeted loop-back** — a P5 fix changes code after the last review; run the packets whose
+contracts changed over `git diff <the P5 batch>`. No in-ticket fixes means no loop-back.
 
 | Phase | Lens | Inputs |
 |---|---|---|
@@ -37,7 +32,7 @@ shipped a #141-class resurrect that the 4-lens review caught).
 ### Finding buckets
 
 - **HARD** = bug / regression / security / data-loss / explicit documented-standard breach, or a lesson-class register match (below) — must fix, loop continues.
-- **SOFT** = smell / judgement call → fix if cheap; else accept with a logged reason. Acceptance is provisional until the **two-sighting rule** is met (Triage): a SOFT survives to the exit pass only on two independent phase sightings; at exit, ≤3 two-sighted SOFTs may ride to P5/fog.
+- **SOFT** = smell / judgement call → fix if cheap; else accept with a logged reason. Acceptance is provisional until the **two-sighting rule** is met (Triage): a SOFT survives review only on two independent lens sightings; at most three two-sighted SOFTs may ride to the resolution or architecture fog.
 - **ESCALATE** = HARD-class flavor (regression / data / security) whose reachability the phase cannot fully prove. The phase reports it as ESCALATE and **triage adjudicates** — reachability doubt never downgrades a HARD-flavored finding to SOFT; it escalates.
 - **ARCH** = architecture residue (P5, exit pass only): depth/locality findings — convoluted logic, dup unifiers, useless tests, shallow abstractions (architecture-depth agent) — plus hygiene findings — grep-proven dead code, layering crossings (hygiene-sweep agent). Never blocks exit, never counts toward the SOFT budget; ≤4 per ticket (architecture-depth) / ≤3 (hygiene sweep), merged by triage. Fix if cheap in-ticket; else record in the resolution comment, from where it graduates into the map's fog lines (the wayfinder graduation pipeline). A finding that matches a registered lesson-class is HARD, not ARCH.
 
@@ -62,8 +57,8 @@ Triage re-derives **every** finding's class from the phase's own evidence — ph
 
 - every finding re-classified from evidence, register matches checked, ESCALATE entries adjudicated (HARD → fix, or rejected with proof of inertness);
 - the driving agent itself hunts the register classes in the constraint sources — reads the AGENTS.md/ADR/KDoc lines the delta depends on (the #146 doc contradiction was caught this way, not by a phase);
-- every accepted SOFT is sighted twice (**the two-sighting rule**): the accepting lens plus an independent confirmation — a later phase's re-examination from its own angle, possibly across passes. The mandatory prompt seeding supplies it: every phase prompt lists the accepted SOFTs and instructs "re-examine from your angle; confirm, or re-rate upward if HARD-class from your lens" — each phase addresses every listed SOFT explicitly. The confirming lens must cover the finding's class (triage assigns it at acceptance; P5's architecture re-rate confirms architecture-flavored SOFTs only — never the correctness/behavior/standards classes); triage's own re-derivation confirms the disposition, never the SOFT class. Acceptance is never load-bearing (round-1 SOFTs became round-3 HARDs — the handoff caught them; the rule makes the handoff unskippable).
-- the exit pass cannot accept a one-sighting SOFT: it is fixed in-ticket or deferred to a seeded confirmation pass (usually empty-delta — the phases re-examine the SOFTs and re-derive the ticket's flows); at exit, ≤3 two-sighted SOFTs may ride to P5/fog, each with a logged reason.
+- every accepted SOFT is sighted twice (**the two-sighting rule**): the accepting lens plus an independent confirmation — a later packet's re-examination from its own angle, possibly across fix batches. The confirming lens must cover the finding's class; triage's own re-derivation confirms the disposition, never the SOFT class. Acceptance is never load-bearing.
+- a one-sighting SOFT cannot ride to resolution: fix it or run the affected packet again; at most three two-sighted SOFTs may ride to resolution or fog, each with a logged reason.
 
 ## Phase prompt templates
 
@@ -157,9 +152,9 @@ Hunt what breaks it:
 Report [HARD|SOFT|ESCALATE] file:line — problem — fix. Under 400 words.
 ```
 
-### P5 — Architecture residue (exit pass)
+### P5 — Optional architecture residue
 
-Runs once, after triage reports 0 HARD on the exit pass. **Two parallel sub-agents**:
+Runs only when a risk trigger or focused review warrants it. **Two parallel sub-agents**:
 **P5a — architecture-depth** (below) and **P5b — hygiene sweep** (below), both seeded with
 the ticket's two-sighted SOFTs (all passes). Classifies into the ARCH bucket (above); a
 finding matching a registered lesson-class is HARD, not ARCH — report it in the HARD format
@@ -172,8 +167,9 @@ fog line it should graduate into).
 ```
 You are the ARCHITECTURE reviewer on the FULL ticket delta `git diff <pre-ticket-commit>` —
 the whole ticket's shipped code, not the exit pass's last batch-fix delta (fixes are too
-small to carry architecture residue; the residue lives across the ticket). This is the
-exit pass — the loop found 0 HARD; your job is residue, not blocking findings.
+small to carry architecture residue; the residue lives across the ticket). This is an
+architecture review after required correctness packets are clean; your job is residue, not
+blocking findings.
 Repo: /mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app.
 Vocabulary: use the /codebase-design terms exactly — module, interface, depth, seam, adapter,
 locality, leverage, the deletion test, the two-adapters rule (one adapter = hypothetical seam,
@@ -201,8 +197,7 @@ Then sweep the delta + composed tree through four lenses, one section each:
 
 Report at most 4 findings total: [ARCH] file:line — problem — fix-shape — disposition
 (fix-in-ticket | graduate: <fog-line name>). One section per lens, empty sections say so.
-In-ticket fixes go through the P5 loop-back (one standard P1–4 pass over the P5 batch)
-before exit.
+In-ticket fixes go through targeted review of the changed packet before resolution.
 Under 350 words.
 ```
 
@@ -213,7 +208,8 @@ belong to the architecture-depth agent.
 ```
 You are the HYGIENE reviewer on the FULL ticket delta `git diff <pre-ticket-commit>` + the
 composed tree — the whole ticket's shipped code, not the exit pass's last batch-fix delta.
-This is the exit pass — the loop found 0 HARD; your job is residue, not blocking findings.
+This is an architecture review after required correctness packets are clean; your job is
+mechanical residue, not blocking findings.
 Repo: /mnt/windows10/BACKUP/Jayson/home/Workspace/IdeaProjects/company-app.
 
 Three mechanical sweeps, each finding quoted with its grep evidence:
@@ -230,7 +226,7 @@ Three mechanical sweeps, each finding quoted with its grep evidence:
    (a flow no screen collects, a function no caller reaches).
 
 Report at most 3 findings total: [HARD|ARCH] file:line — problem — fix — disposition
-(fix-in-ticket | graduate: <fog-line name>). In-ticket fixes go through the P5 loop-back.
+(fix-in-ticket | graduate: <fog-line name>). In-ticket fixes go through targeted review.
 Under 250 words.
 ```
 
