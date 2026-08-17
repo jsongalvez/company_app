@@ -188,7 +188,7 @@ Repository inventory at review: 167 backend production Kotlin files, 64 backend 
 
 ## Follow-up Work
 
-Implementation recommendations require separate child tasks of Map #89. Human-choice fog remains for R3's unknown enum strategy and R5's deployment-volume priority; this AFK audit does not guess. The resolution comment links created tasks and their dependencies.
+Implementation recommendations require separate child tasks of audit task #180. Task #180 is itself a child of Map #89, preserving one main issue for audit follow-ups. Human-choice fog remains for R3's unknown enum strategy and R5's deployment-volume priority; this AFK audit does not guess. The resolution comment links created tasks and their dependencies.
 
 ## Related Audit
 

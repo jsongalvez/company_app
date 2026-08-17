@@ -9,7 +9,7 @@ Session 98 completed AFK architecture-audit task #180, which had blocked Map #89
 - Closed [AFK architecture audit: reduce code and harden future-agent seams](https://github.com/jsongalvez/company_app/issues/180).
 - Added canonical report: `docs/agents/architecture-audit-180.md`.
 - Added durable lesson ledger: `docs/agents/architecture-lessons.md`.
-- Created and linked Map #89 child tickets #181-#190 for accepted recommendations. #181 records human enum-compatibility choice; do not guess it.
+- Created and linked audit-task #180 child tickets #181-#190. Audit task #180 remains a child of Map #89, so all audit follow-ups stay under one main issue. #181 records human enum-compatibility choice; do not guess it.
 - No product source, tests, migrations, generated contracts, or architecture behavior changed.
 - No Map #89 implementation ticket was claimed or resolved in this session.
 
@@ -24,7 +24,7 @@ Session 98 completed AFK architecture-audit task #180, which had blocked Map #89
 
 - Task #180 was AFK and required no phased product-code review loop.
 - Product code remained unchanged; audit used independent bounded subsystem reviews plus fresh coverage, duplication, materiality, schema, and priority passes.
-- Map #89 is no longer blocked by #180. Open child tickets #181-#190 are unclaimed; choose only one next ticket.
+- Map #89 is no longer blocked by #180. Open grandchildren #181-#190 sit under #180 and are unclaimed; choose only one next ticket.
 
 ## Recommended next pick
 
