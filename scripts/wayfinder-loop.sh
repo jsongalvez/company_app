@@ -434,7 +434,8 @@ load_state
 
 if [ "${1:-}" = "--bootstrap" ]; then
   [ $# -ge 2 ] || die "--bootstrap requires <doc> (e.g. wayfinder-162-handoff.md)"
-  doc="$2"
+  # Accept either a handoff basename or a path copied from a log/prompt.
+  doc="${2##*/}"
   [ -f "$DOCS_DIR/$doc" ] || die "bootstrap doc not found: $DOCS_DIR/$doc"
   # seed: every existing handoff is seen; the bootstrap doc spawns immediately
   seen_docs="$(handoff_docs | paste -sd, -)"
