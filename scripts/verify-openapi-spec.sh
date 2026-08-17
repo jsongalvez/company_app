@@ -53,7 +53,7 @@ if (new Set(operationIds).size !== operationIds.length) throw new Error("Operati
 if (operations.some((operation) => operation.requestBody?.content?.["application/json"]?.schema?.type === "object")) {
   throw new Error("Request bodies must reference DTO schemas, not generic objects");
 }
-if (operations.some((operation) => typeof operation["x-route-source"] !== "string")) {
+if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].handler !== "string")) {
   throw new Error("Every operation must retain its route registration source binding");
 }
 function assertRefs(value) {
@@ -82,11 +82,11 @@ for (const [path, methods] of Object.entries(spec.paths || {})) {
     }
   }
 }
-console.log("OPENAPI_ROUTE_COVERAGE_OK");
 NODE
 
 if grep -Fq "JWT_SECRET" "$spec" || grep -Fq "POSTGRES_PASSWORD" "$spec" || grep -Fq "TEST_PASSWORD" "$spec"; then
   echo "OpenAPI secret scan failed" >&2
   exit 1
 fi
+echo "OPENAPI_ROUTE_COVERAGE_OK"
 echo "OPENAPI_SECRET_SCAN_OK"

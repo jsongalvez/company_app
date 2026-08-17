@@ -8,7 +8,7 @@
 - [x] G2: Backend compiles with OpenAPI annotation processing
   CHECK: ./gradlew :backend:compileKotlin
   EXPECT: EXIT 0
-  EVIDENCE: Starting a Gradle Daemon, 1 busy and 4 stopped Daemons could not be reused, use --status for details
+  EVIDENCE: Reusing configuration cache.
 
 - [x] G3: Generated OpenAPI document exists and declares OpenAPI 3.1
   CHECK: test -f backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json && grep -q '"openapi"[[:space:]]*:[[:space:]]*"3.1.0"' backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json
@@ -21,6 +21,6 @@
   EVIDENCE: OPENAPI_ROUTE_COVERAGE_OK
 
 - [x] G5: Generated documentation contains metadata, bearer scheme, path parameters, and no configured secret values
-  CHECK: ./scripts/verify-openapi-spec.sh
+  CHECK: ./scripts/verify-openapi-spec.sh | grep OPENAPI_SECRET_SCAN_OK
   EXPECT: MATCHES OPENAPI_SECRET_SCAN_OK
-  EVIDENCE: OPENAPI_ROUTE_COVERAGE_OK
+  EVIDENCE: OPENAPI_SECRET_SCAN_OK
