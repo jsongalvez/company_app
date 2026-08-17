@@ -1,13 +1,6 @@
 package com.companyb.companyapp.util
 
 import android.util.Log
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-private val dateFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.systemDefault())
-
-private fun formatNow(): String = dateFormatter.format(Instant.now())
 
 actual fun logDebug(
     tag: String,
@@ -41,5 +34,3 @@ actual fun logError(
         Log.e(tag, message)
     }
 }
-
-actual fun currentTimestamp(): String = formatNow()

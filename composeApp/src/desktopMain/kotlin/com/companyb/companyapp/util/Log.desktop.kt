@@ -2,18 +2,11 @@ package com.companyb.companyapp.util
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
-
-private val dateFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.systemDefault())
 
 private val loggers = ConcurrentHashMap<String, Logger>()
 
 private fun getLogger(tag: String): Logger = loggers.getOrPut(tag) { LoggerFactory.getLogger(tag) }
-
-private fun formatNow(): String = dateFormatter.format(Instant.now())
 
 actual fun logDebug(
     tag: String,
@@ -51,5 +44,3 @@ actual fun logError(
         logger.error("{}", message)
     }
 }
-
-actual fun currentTimestamp(): String = formatNow()

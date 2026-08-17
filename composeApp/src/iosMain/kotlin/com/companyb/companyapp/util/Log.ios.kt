@@ -10,8 +10,6 @@ private val dateFormatter: NSDateFormatter =
 
 private fun formatNow(): String = dateFormatter.stringFromDate(NSDate())
 
-actual fun currentTimestamp(): String = formatNow()
-
 actual fun logDebug(
     tag: String,
     message: String,

@@ -20,5 +20,3 @@ expect fun logError(
     message: String,
     throwable: Throwable? = null,
 )
-
-expect fun currentTimestamp(): String
