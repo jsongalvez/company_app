@@ -27,11 +27,19 @@ NTFY_TOPIC="${WAYFINDER_NTFY_TOPIC:-}"
 POLL_SECS="${WAYFINDER_POLL_SECS:-15}"
 TICK_SECS="${WAYFINDER_TICK_SECS:-5}"
 STALL_SECS="${WAYFINDER_STALL_SECS:-540}"
+# Free-disk floor in GiB — below it the chain pings instead of silently wedging
+# (the session-176 class: bun .so extractions filled /tmp, builds started dying
+# with no signal). The daily tmp-bun-so-clean.timer + manual build-dir cleanup
+# are the recovery; the loop is the tripwire.
+DISK_FLOOR_GB="${WAYFINDER_DISK_FLOOR_GB:-5}"
 DRY_RUN="${WAYFINDER_DRY_RUN:-}"
 OC_BIN="${OPENCODE_BIN:-$(command -v opencode2 || command -v opencode || true)}"
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; echo "$(date '+%T') $*"; }
 die() { log "FATAL: $*"; notify "wayfinder-loop FAILED" "$*"; exit 1; }
+
+# Free space on the repo's filesystem, in GiB (string — caller compares numerically).
+free_disk_gb() { df -BG --output=avail "$REPO" 2>/dev/null | awk 'NR==2{gsub(/G/,""); print $1}'; }
 
 notify() {
   local title="$1" body="$2"
@@ -134,6 +142,16 @@ spawn_session() {
       log "worktree clean — spawn resumes"
     fi
   fi
+  # Disk floor gate: a session started half-full of disk dies mid-build (the session-176
+  # /tmp .so fill) — hold the spawn and ping until the space is back, then proceed.
+  local free_gb
+  free_gb="$(free_disk_gb)"
+  if [ -n "$free_gb" ] && [ "$free_gb" -lt "$DISK_FLOOR_GB" ]; then
+    log "free disk ${free_gb}G < ${DISK_FLOOR_GB}G — spawn paused for $doc"
+    notify "wayfinder paused" "low disk (${free_gb}G free) — free space on the VPS (see /tmp, composeApp/build, ~/.gradle); the chain resumes automatically"
+    while [ -n "$(free_disk_gb)" ] && [ "$(free_disk_gb)" -lt "$DISK_FLOOR_GB" ]; do sleep 60; done
+    log "disk space recovered — spawn resumes"
+  fi
   session_id="$sid"
   save_state
   local prompt
@@ -160,7 +178,7 @@ supervise_session() {
   # produced no ping). Every tick checks completion/forms/perms fresh, so a
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
-  local upd prog d f p sess not_alive_ticks=0
+  local upd prog d f p sess not_alive_ticks=0 disk_notified=0 free_gb=""
   while :; do
     sleep "$TICK_SECS"
     # completion first: a finished session writes its handoff doc as its final act
@@ -176,8 +194,22 @@ supervise_session() {
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
-      notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0
+      notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0
       continue
+    fi
+
+    # disk floor tripwire: a mid-session fill (the session-176 /tmp .so class, or a
+    # runaway build dir) kills the build with no signal — ping once per crossing,
+    # keep supervising (the daily .so timer is the auto-recovery).
+    if [ "$disk_notified" -eq 0 ]; then
+      free_gb="$(free_disk_gb)"
+      if [ -n "$free_gb" ] && [ "$free_gb" -lt "$DISK_FLOOR_GB" ]; then
+        notify "wayfinder low disk" "session $session_id running on ${free_gb}G free — free space or builds will start failing"
+        disk_notified=1
+      fi
+    elif [ -n "$(free_disk_gb)" ] && [ "$(free_disk_gb)" -ge "$DISK_FLOOR_GB" ]; then
+      log "disk space recovered — supervisor resumes watching"
+      disk_notified=0
     fi
 
     # pending question / permission — notify-once each until answered
