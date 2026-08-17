@@ -2,7 +2,7 @@
 
 ## What this is
 
-Session 98 completed AFK architecture-audit task #180, which had blocked Map #89. The audit is resolved and Map #89's new follow-up children are now visible in the frontier.
+Session 98 completed audit phase for AFK architecture task #180. Parent #180 remains OPEN as Map #89's native blocker while its architecture-improvement children are worked.
 
 ## Session outcome
 
@@ -22,9 +22,9 @@ Session 98 completed AFK architecture-audit task #180, which had blocked Map #89
 
 ## Review status
 
-- Task #180 was AFK and required no phased product-code review loop.
+- Task #180 was AFK and required no phased product-code review loop. Audit phase is complete; parent remains open until architecture follow-ups are exhausted.
 - Product code remained unchanged; audit used independent bounded subsystem reviews plus fresh coverage, duplication, materiality, schema, and priority passes.
-- Map #89 is no longer blocked by #180. Open grandchildren #181-#190 sit under #180 and are unclaimed; choose only one next ticket.
+- Map #89 remains blocked by OPEN #180. Open grandchildren #181-#190 sit under #180 and are unclaimed; choose only one next ticket.
 
 ## Recommended next pick
 
@@ -50,7 +50,7 @@ Take [Build: remove unused currentTimestamp platform seam](https://github.com/js
 
 ## Critical blockers
 
-- None for Map #89 after #180 closure.
+- #180 remains the deliberate architecture blocker for Map #89 until all improvement children are resolved and no further AFK architecture work remains.
 - #181 requires human compatibility policy; do not infer it.
 - `.wayfinder-loop.lock` is unrelated state; preserve it.
 
