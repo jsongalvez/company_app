@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -19,14 +19,14 @@ import java.time.LocalDate
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branches/{branchId}/daily-summaries",
+    path = ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "daily_summaries",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/daily-summary",
+    path = ApiRoutes.BRANCH_DAILY_SUMMARY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "daily_summary",
@@ -35,7 +35,7 @@ import java.util.UUID
 object DailySalesSummaryRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{branchId}/daily-summary") { context ->
+        config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             val date = parseRequiredDate(context)
             // #158 — the single-day read accepts the relief grant: a BRANCH_DAY
@@ -53,7 +53,7 @@ object DailySalesSummaryRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/daily-summaries") { context ->
+        config.routes.before(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
@@ -62,7 +62,7 @@ object DailySalesSummaryRoutes {
             )
         }
 
-        config.routes.get("/api/branches/{branchId}/daily-summary") { context ->
+        config.routes.get(ApiRoutes.BRANCH_DAILY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             val date = parseRequiredDate(context)
 
@@ -72,7 +72,7 @@ object DailySalesSummaryRoutes {
             context.json(summary.toResponse())
         }
 
-        config.routes.get("/api/branches/{branchId}/daily-summaries") { context ->
+        config.routes.get(ApiRoutes.BRANCH_DAILY_SUMMARIES_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             val cursor = parseCursor(context.queryParam("cursor"))
             val limit = parseBrowseLimit(context.queryParam("limit"))

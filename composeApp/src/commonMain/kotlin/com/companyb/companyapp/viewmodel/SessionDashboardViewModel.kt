@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
@@ -169,7 +170,7 @@ class SessionDashboardViewModel(
             state = _dashboardState,
             operation = "loadDashboard",
             endpoint = "GET /api/branches/$branchId/dashboard/today",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/dashboard/today") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchDashboardToday(branchId)) },
             transform = {
                 it.body<DashboardResponse>().also { data ->
                     // Q5a — the failure counter and the timestamp reset only on SUCCESS.

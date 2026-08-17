@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CommissionInclusionResponse
 import com.companyb.companyapp.dto.CommissionSplitResponse
 import com.companyb.companyapp.dto.CreateCommissionInclusionRequest
@@ -45,7 +44,7 @@ class CommissionViewModel(
             state = _splits,
             operation = "loadSplits",
             endpoint = "GET /api/commission-splits/$branchDayId",
-            block = { apiClient.httpClient.get("/api/commission-splits/$branchDayId") },
+            block = { apiClient.httpClient.get(ApiRoutes.commissionSplits(branchDayId)) },
             transform = { it.body() },
         )
     }

@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
@@ -184,7 +183,7 @@ class UserViewModel(
             key = "deactivate:$userId",
             operation = "deactivateUser",
             endpoint = "PATCH /api/users/$userId/deactivate",
-            block = { apiClient.httpClient.patch("/api/users/$userId/deactivate") },
+            block = { apiClient.httpClient.patch(ApiRoutes.userDeactivate(userId)) },
             onSuccess = { mutateUser(userId) { it.withStatus(USER_STATUS_INACTIVE) } },
             statusMessage = { "Deactivate failed: ${it.value}" },
         )
@@ -197,7 +196,7 @@ class UserViewModel(
             key = "reactivate:$userId",
             operation = "reactivateUser",
             endpoint = "PATCH /api/users/$userId/reactivate",
-            block = { apiClient.httpClient.patch("/api/users/$userId/reactivate") },
+            block = { apiClient.httpClient.patch(ApiRoutes.userReactivate(userId)) },
             onSuccess = { mutateUser(userId) { it.withStatus(USER_STATUS_ACTIVE) } },
             statusMessage = { "Reactivate failed: ${it.value}" },
         )
@@ -218,7 +217,7 @@ class UserViewModel(
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/slots/swap") {
+                apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
                     setBody(SwapSlotsRequest(userIdA, userIdB))
                 }
             },
@@ -238,7 +237,7 @@ class UserViewModel(
             operation = "updateSlot",
             endpoint = "PATCH /api/branches/$branchId/assignments/$userId/slot",
             block = {
-                apiClient.httpClient.patch("/api/branches/$branchId/assignments/$userId/slot") {
+                apiClient.httpClient.patch(ApiRoutes.branchAssignmentSlot(branchId, userId)) {
                     setBody(UpdateSlotRequest(slot))
                 }
             },

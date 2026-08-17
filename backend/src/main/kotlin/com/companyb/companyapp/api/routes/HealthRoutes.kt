@@ -1,5 +1,6 @@
 package com.companyb.companyapp.api.routes
 
+import com.companyb.companyapp.api.ApiRoutes
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
@@ -16,7 +17,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 )
 object HealthRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.get("/health") { context ->
+        config.routes.get(ApiRoutes.HEALTH) { context ->
             if (isDatabaseReachable()) {
                 context.status(HttpStatus.OK)
                 context.json(mapOf("status" to "UP"))

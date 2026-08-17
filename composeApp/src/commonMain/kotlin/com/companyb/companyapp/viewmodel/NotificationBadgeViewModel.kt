@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient

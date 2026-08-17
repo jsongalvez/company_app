@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CreateProductCategoryRequest
 import com.companyb.companyapp.dto.CreateProductRequest
 import com.companyb.companyapp.dto.ProductCategoryResponse
@@ -56,7 +55,7 @@ class ProductViewModel(
             state = _productDetail,
             operation = "loadProduct",
             endpoint = "GET /api/products/$productId",
-            block = { apiClient.httpClient.get("/api/products/$productId") },
+            block = { apiClient.httpClient.get(ApiRoutes.product(productId)) },
             transform = { it.body() },
         )
     }
@@ -84,7 +83,7 @@ class ProductViewModel(
             operation = "updateProduct",
             endpoint = "PATCH /api/products/$productId",
             block = {
-                apiClient.httpClient.patch("/api/products/$productId") {
+                apiClient.httpClient.patch(ApiRoutes.product(productId)) {
                     setBody(request)
                 }
             },

@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.BranchType
@@ -30,28 +30,28 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/export/all-time",
+    path = ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "export_all_time",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/export/daily",
+    path = ApiRoutes.BRANCH_EXPORT_DAILY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "export_daily",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/export/monthly",
+    path = ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "export_monthly",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/export/range",
+    path = ApiRoutes.BRANCH_EXPORT_RANGE_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "export_range",
@@ -83,22 +83,22 @@ object ExportRoutes {
             )
         }
 
-        config.routes.get("/api/branches/{branchId}/export/daily") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_DAILY_PATH) { context ->
             handleDailyExport(context)
         }
-        config.routes.get("/api/branches/{branchId}/export/range") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_RANGE_PATH) { context ->
             handleRangeExport(context)
         }
-        config.routes.get("/api/branches/{branchId}/export/monthly") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH) { context ->
             handleMonthlyExport(context)
         }
-        config.routes.get("/api/branches/{branchId}/export/all-time") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH) { context ->
             handleAllTimeExport(context)
         }
-        config.routes.get("/api/branches/export/provincial") { context ->
+        config.routes.get(ApiRoutes.BRANCHES_EXPORT_PROVINCIAL_PATH) { context ->
             handleBranchTypeExport(context, BranchType.PROVINCIAL_TOUR)
         }
-        config.routes.get("/api/branches/export/medical-mission") { context ->
+        config.routes.get(ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH) { context ->
             handleBranchTypeExport(context, BranchType.MEDICAL_MISSION)
         }
     }

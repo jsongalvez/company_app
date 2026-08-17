@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.dto.CreateReliefInviteRequest
 import com.companyb.companyapp.dto.ReliefCandidateResponse
@@ -81,7 +80,7 @@ object ReliefInviteRoutes {
 
     @Suppress("LongMethod", "ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/relief-invites") { context ->
+        config.routes.post(ApiRoutes.BRANCH_RELIEF_INVITES_PATH) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<CreateReliefInviteRequest>()
@@ -97,7 +96,7 @@ object ReliefInviteRoutes {
             )
         }
 
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/relief-invites") { context ->
+        config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_PATH) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
@@ -105,7 +104,7 @@ object ReliefInviteRoutes {
             context.json(ReliefInviteService.listSent(callerId, branchId).map { it.toResponse() })
         }
 
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/relief-candidates") { context ->
+        config.routes.get(ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val query = context.queryParam("q").orEmpty()
@@ -132,7 +131,7 @@ object ReliefInviteRoutes {
             context.json(ReliefInviteService.listReceived(callerId).map { it.toResponse() })
         }
 
-        config.routes.post("/api/relief-invites/{$INVITE_ID_PARAM}/accept") { context ->
+        config.routes.post(ApiRoutes.RELIEF_INVITE_ACCEPT_PATH) { context ->
             val callerId = context.callerUuid()
             val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
 
@@ -144,7 +143,7 @@ object ReliefInviteRoutes {
             )
         }
 
-        config.routes.post("/api/relief-invites/{$INVITE_ID_PARAM}/decline") { context ->
+        config.routes.post(ApiRoutes.RELIEF_INVITE_DECLINE_PATH) { context ->
             val callerId = context.callerUuid()
             val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
 
@@ -156,7 +155,7 @@ object ReliefInviteRoutes {
             )
         }
 
-        config.routes.post("/api/relief-invites/{$INVITE_ID_PARAM}/retract") { context ->
+        config.routes.post(ApiRoutes.RELIEF_INVITE_RETRACT_PATH) { context ->
             val callerId = context.callerUuid()
             val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
 

@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
@@ -78,7 +79,7 @@ class SessionDetailViewModel(
                 state = _detail,
                 operation = "loadDetail",
                 endpoint = "GET /api/sessions/$sessionId",
-                block = { apiClient.httpClient.get("/api/sessions/$sessionId") },
+                block = { apiClient.httpClient.get(ApiRoutes.session(sessionId)) },
                 transform = { it.body() },
             ).invokeOnCompletion { inFlight = false }
     }

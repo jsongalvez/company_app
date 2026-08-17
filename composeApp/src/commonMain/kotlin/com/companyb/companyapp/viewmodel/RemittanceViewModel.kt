@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
@@ -199,7 +198,7 @@ class RemittanceViewModel(
             operation = "loadRemittance",
             endpoint = "GET /api/remittances/$remittanceId",
             entryMessage = "loadRemittance called: remittanceId=$remittanceId",
-            block = { apiClient.httpClient.get("/api/remittances/$remittanceId") },
+            block = { apiClient.httpClient.get(ApiRoutes.remittance(remittanceId)) },
             transform = { it.body() },
         )
     }
@@ -216,7 +215,7 @@ class RemittanceViewModel(
             endpoint = "GET /api/branches/$branchId/remittance-sessions",
             entryMessage = "loadSessionPicker called: branchId=$branchId from=$from to=$to",
             block = {
-                apiClient.httpClient.get("/api/branches/$branchId/remittance-sessions") {
+                apiClient.httpClient.get(ApiRoutes.branchRemittanceSessions(branchId)) {
                     parameter("from", from)
                     parameter("to", to)
                 }
@@ -237,7 +236,7 @@ class RemittanceViewModel(
             endpoint = "GET /api/branches/$branchId/remittance-product-sales",
             entryMessage = "loadProductSalePicker called: branchId=$branchId from=$from to=$to",
             block = {
-                apiClient.httpClient.get("/api/branches/$branchId/remittance-product-sales") {
+                apiClient.httpClient.get(ApiRoutes.branchRemittanceProductSales(branchId)) {
                     parameter("from", from)
                     parameter("to", to)
                 }
@@ -258,7 +257,7 @@ class RemittanceViewModel(
             endpoint = "GET /api/branches/$branchId/remittance-days",
             entryMessage = "loadDayPicker called: branchId=$branchId from=$from to=$to",
             block = {
-                apiClient.httpClient.get("/api/branches/$branchId/remittance-days") {
+                apiClient.httpClient.get(ApiRoutes.branchRemittanceDays(branchId)) {
                     parameter("from", from)
                     parameter("to", to)
                 }
@@ -277,7 +276,7 @@ class RemittanceViewModel(
             endpoint = "POST /api/remittances/$remittanceId/lines",
             block = {
                 apiClient.httpClient.post(
-                    "/api/remittances/$remittanceId/lines",
+                    ApiRoutes.remittanceLines(remittanceId),
                 ) {
                     setBody(request)
                 }
@@ -312,7 +311,7 @@ class RemittanceViewModel(
             endpoint = "DELETE /api/remittances/$remittanceId/lines/$lineId",
             block = {
                 apiClient.httpClient.delete(
-                    "/api/remittances/$remittanceId/lines/$lineId",
+                    ApiRoutes.remittanceLine(remittanceId, lineId),
                 )
             },
             onNonSuccess = { response ->
@@ -344,7 +343,7 @@ class RemittanceViewModel(
             endpoint = "POST /api/remittances/$remittanceId/day-breakdowns",
             block = {
                 apiClient.httpClient.post(
-                    "/api/remittances/$remittanceId/day-breakdowns",
+                    ApiRoutes.remittanceDayBreakdowns(remittanceId),
                 ) {
                     setBody(request)
                 }
@@ -380,7 +379,7 @@ class RemittanceViewModel(
             endpoint = "DELETE /api/remittances/$remittanceId/day-breakdowns/$breakdownId",
             block = {
                 apiClient.httpClient.delete(
-                    "/api/remittances/$remittanceId/day-breakdowns/$breakdownId",
+                    ApiRoutes.remittanceDayBreakdown(remittanceId, breakdownId),
                 )
             },
             onNonSuccess = { response ->
@@ -413,7 +412,7 @@ class RemittanceViewModel(
             endpoint = "POST /api/remittances/$remittanceId/submit",
             block = {
                 apiClient.httpClient.post(
-                    "/api/remittances/$remittanceId/submit",
+                    ApiRoutes.remittanceSubmit(remittanceId),
                 ) {
                     setBody(request)
                 }
@@ -449,7 +448,7 @@ class RemittanceViewModel(
             endpoint = "POST /api/remittances/$remittanceId/undo",
             block = {
                 apiClient.httpClient.post(
-                    "/api/remittances/$remittanceId/undo",
+                    ApiRoutes.remittanceUndo(remittanceId),
                 ) {
                     setBody(request)
                 }
@@ -485,7 +484,7 @@ class RemittanceViewModel(
             endpoint = "PATCH /api/remittances/$remittanceId",
             entryMessage = "updateHeader called: remittanceId=$remittanceId",
             block = {
-                apiClient.httpClient.patch("/api/remittances/$remittanceId") {
+                apiClient.httpClient.patch(ApiRoutes.remittance(remittanceId)) {
                     setBody(request)
                 }
             },
@@ -516,7 +515,7 @@ class RemittanceViewModel(
             operation = "loadDrift",
             endpoint = "GET /api/remittances/$remittanceId/drift",
             entryMessage = "loadDrift called: remittanceId=$remittanceId",
-            block = { apiClient.httpClient.get("/api/remittances/$remittanceId/drift") },
+            block = { apiClient.httpClient.get(ApiRoutes.remittanceDrift(remittanceId)) },
             transform = { it.body() },
         )
     }

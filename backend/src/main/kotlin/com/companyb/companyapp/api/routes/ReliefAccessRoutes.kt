@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.DenyReliefAccessRequest
@@ -19,20 +19,20 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/relief-access/request",
+    path = ApiRoutes.RELIEF_ACCESS_REQUEST,
     methods = [HttpMethod.POST],
     operationId = "relief_access_request",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-access/{requestId}/deny",
+    path = ApiRoutes.RELIEF_ACCESS_DENY_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_deny",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-access/{requestId}/grant",
+    path = ApiRoutes.RELIEF_ACCESS_GRANT_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_grant",
@@ -41,7 +41,7 @@ import java.util.UUID
 object ReliefAccessRoutes {
     @Suppress("ThrowsCount")
     fun grantReliefAccess(config: JavalinConfig) {
-        config.routes.patch("/api/relief-access/{requestId}/grant") { context ->
+        config.routes.patch(ApiRoutes.RELIEF_ACCESS_GRANT_PATH) { context ->
             val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<GrantReliefAccessRequest>()?.reason
@@ -65,7 +65,7 @@ object ReliefAccessRoutes {
 
     @Suppress("ThrowsCount")
     fun denyReliefAccess(config: JavalinConfig) {
-        config.routes.patch("/api/relief-access/{requestId}/deny") { context ->
+        config.routes.patch(ApiRoutes.RELIEF_ACCESS_DENY_PATH) { context ->
             val callerId = context.callerUuid()
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<DenyReliefAccessRequest>()?.reason
@@ -89,7 +89,7 @@ object ReliefAccessRoutes {
 
     @Suppress("ThrowsCount")
     fun requestReliefAccess(config: JavalinConfig) {
-        config.routes.post("/api/relief-access/request") { context ->
+        config.routes.post(ApiRoutes.RELIEF_ACCESS_REQUEST) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ReliefAccessRequest>()
 

@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CompensationResponse
 import com.companyb.companyapp.dto.CreateCompensationRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
@@ -49,7 +48,7 @@ class CompensationViewModel(
             operation = "updateCompensation",
             endpoint = "PATCH /api/compensation/$compensationId",
             block = {
-                apiClient.httpClient.patch("/api/compensation/$compensationId") {
+                apiClient.httpClient.patch(ApiRoutes.compensation(compensationId)) {
                     setBody(request)
                 }
             },

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -64,35 +63,35 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}",
+    path = ApiRoutes.REMITTANCE_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}",
+    path = ApiRoutes.REMITTANCE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/drift",
+    path = ApiRoutes.REMITTANCE_DRIFT_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_drift",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/day-breakdowns",
+    path = ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_day_breakdowns",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}",
+    path = ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [
         OpenApiParam(
@@ -105,14 +104,14 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/lines",
+    path = ApiRoutes.REMITTANCE_LINES_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_lines",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/lines/{lineId}",
+    path = ApiRoutes.REMITTANCE_LINE_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [
         OpenApiParam(
@@ -125,35 +124,35 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/submit",
+    path = ApiRoutes.REMITTANCE_SUBMIT_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_submit",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances/{remittanceId}/undo",
+    path = ApiRoutes.REMITTANCE_UNDO_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_undo",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/remittance-days",
+    path = ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_remittance_days",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/remittance-product-sales",
+    path = ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_remittance_product_sales",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches/{branchId}/remittance-sessions",
+    path = ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_remittance_sessions",
@@ -187,61 +186,61 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_PATH) { context ->
             val remittanceId = context.pathParamAsUuid("remittanceId")
             CapabilityFilter.requireBranchCapabilityForRemittance(context, remittanceId)
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/lines") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_LINES_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/lines/{lineId}") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_LINE_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/day-breakdowns") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/submit") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_SUBMIT_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/undo") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_UNDO_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/remittances/{remittanceId}/drift") { context ->
+        config.routes.before(ApiRoutes.REMITTANCE_DRIFT_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForRemittance(
                 context,
                 context.pathParamAsUuid("remittanceId"),
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/remittance-sessions") { context ->
+        config.routes.before(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 context.pathParamAsUuid("branchId"),
@@ -249,7 +248,7 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/remittance-product-sales") { context ->
+        config.routes.before(ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 context.pathParamAsUuid("branchId"),
@@ -257,7 +256,7 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.before("/api/branches/{branchId}/remittance-days") { context ->
+        config.routes.before(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH) { context ->
             CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
                 context.pathParamAsUuid("branchId"),
@@ -267,18 +266,18 @@ object RemittanceRoutes {
 
         config.routes.post(ApiRoutes.REMITTANCES, ::handleCreateDraft)
         config.routes.get(ApiRoutes.REMITTANCES, ::handleListRemittances)
-        config.routes.get("/api/remittances/{remittanceId}", ::handleGetRemittance)
-        config.routes.get("/api/remittances/{remittanceId}/drift", ::handleGetDrift)
-        config.routes.post("/api/remittances/{remittanceId}/lines", ::handleAddLine)
-        config.routes.delete("/api/remittances/{remittanceId}/lines/{lineId}", ::handleRemoveLine)
-        config.routes.post("/api/remittances/{remittanceId}/day-breakdowns", ::handleAddDayBreakdown)
-        config.routes.delete("/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}", ::handleRemoveDayBreakdown)
-        config.routes.post("/api/remittances/{remittanceId}/submit", ::handleSubmit)
-        config.routes.post("/api/remittances/{remittanceId}/undo", ::handleUndo)
-        config.routes.patch("/api/remittances/{remittanceId}", ::handleUpdateHeader)
-        config.routes.get("/api/branches/{branchId}/remittance-sessions", ::handleListSessionsInRange)
-        config.routes.get("/api/branches/{branchId}/remittance-product-sales", ::handleListProductSalesInRange)
-        config.routes.get("/api/branches/{branchId}/remittance-days", ::handleListDaysInRange)
+        config.routes.get(ApiRoutes.REMITTANCE_PATH, ::handleGetRemittance)
+        config.routes.get(ApiRoutes.REMITTANCE_DRIFT_PATH, ::handleGetDrift)
+        config.routes.post(ApiRoutes.REMITTANCE_LINES_PATH, ::handleAddLine)
+        config.routes.delete(ApiRoutes.REMITTANCE_LINE_PATH, ::handleRemoveLine)
+        config.routes.post(ApiRoutes.REMITTANCE_DAY_BREAKDOWNS_PATH, ::handleAddDayBreakdown)
+        config.routes.delete(ApiRoutes.REMITTANCE_DAY_BREAKDOWN_PATH, ::handleRemoveDayBreakdown)
+        config.routes.post(ApiRoutes.REMITTANCE_SUBMIT_PATH, ::handleSubmit)
+        config.routes.post(ApiRoutes.REMITTANCE_UNDO_PATH, ::handleUndo)
+        config.routes.patch(ApiRoutes.REMITTANCE_PATH, ::handleUpdateHeader)
+        config.routes.get(ApiRoutes.BRANCH_REMITTANCE_SESSIONS_PATH, ::handleListSessionsInRange)
+        config.routes.get(ApiRoutes.BRANCH_REMITTANCE_PRODUCT_SALES_PATH, ::handleListProductSalesInRange)
+        config.routes.get(ApiRoutes.BRANCH_REMITTANCE_DAYS_PATH, ::handleListDaysInRange)
     }
 
     @Suppress("ThrowsCount")

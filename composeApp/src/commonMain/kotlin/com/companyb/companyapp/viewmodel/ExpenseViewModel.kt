@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse
@@ -35,7 +34,7 @@ class ExpenseViewModel(
             state = _expenses,
             operation = "loadExpenses",
             endpoint = "GET /api/expenses?branchDayId=$branchDayId",
-            block = { apiClient.httpClient.get("/api/expenses?branchDayId=$branchDayId") },
+            block = { apiClient.httpClient.get(ApiRoutes.expenseCollectionWithBranchDay(branchDayId)) },
             transform = { it.body() },
         )
     }
@@ -63,7 +62,7 @@ class ExpenseViewModel(
             operation = "deleteExpense",
             endpoint = "DELETE /api/expenses/$expenseId",
             block = {
-                apiClient.httpClient.delete("/api/expenses/$expenseId") {
+                apiClient.httpClient.delete(ApiRoutes.expense(expenseId)) {
                     setBody(request)
                 }
             },

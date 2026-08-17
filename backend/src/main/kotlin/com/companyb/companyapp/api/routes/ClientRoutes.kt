@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -68,9 +67,9 @@ object ClientRoutes {
 
         config.routes.post(ApiRoutes.CLIENTS, ::handleCreate)
         config.routes.get(ApiRoutes.CLIENTS, ::handleSearch)
-        config.routes.get("/api/clients/{$CLIENT_ID_PARAM}", ::handleGetById)
-        config.routes.patch("/api/clients/{$CLIENT_ID_PARAM}", ::handleUpdate)
-        config.routes.post("/api/clients/{$CLIENT_ID_PARAM}/anonymize", ::handleAnonymize)
+        config.routes.get(ApiRoutes.CLIENT_PATH, ::handleGetById)
+        config.routes.patch(ApiRoutes.CLIENT_PATH, ::handleUpdate)
+        config.routes.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, ::handleAnonymize)
     }
 
     @Suppress("ThrowsCount")

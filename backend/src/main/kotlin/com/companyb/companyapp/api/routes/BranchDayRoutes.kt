@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -35,7 +35,7 @@ object BranchDayRoutes {
     private const val BRANCH_DAY_ID_PARAM = "branchDayId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{$BRANCH_ID_PARAM}/today") { context ->
+        config.routes.before(ApiRoutes.BRANCH_TODAY_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             // #158 — the day-status read accepts the relief grant: a BRANCH_DAY
             // `EDIT_BRANCH_DATA` holder reads today's status for their granted day.
@@ -57,7 +57,7 @@ object BranchDayRoutes {
             }
         }
 
-        config.routes.before("/api/branch-days/{$BRANCH_DAY_ID_PARAM}/users") { context ->
+        config.routes.before(ApiRoutes.BRANCH_DAY_USERS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid(BRANCH_DAY_ID_PARAM)
             CapabilityFilter.requireBranchCapability(
                 context,
@@ -66,9 +66,9 @@ object BranchDayRoutes {
             )
         }
 
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/today", ::handleGetToday)
+        config.routes.get(ApiRoutes.BRANCH_TODAY_PATH, ::handleGetToday)
 
-        config.routes.get("/api/branch-days/{$BRANCH_DAY_ID_PARAM}/users", ::handleGetUsers)
+        config.routes.get(ApiRoutes.BRANCH_DAY_USERS_PATH, ::handleGetUsers)
     }
 
     private fun handleGetToday(context: Context) {

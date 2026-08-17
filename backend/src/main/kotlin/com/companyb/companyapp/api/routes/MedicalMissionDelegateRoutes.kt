@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -25,7 +24,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/delegates/{delegateId}",
+    path = ApiRoutes.DELEGATE_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [OpenApiParam(name = "delegateId", type = UUID::class, required = true)],
     operationId = "delegate_delete",
@@ -67,14 +66,14 @@ object MedicalMissionDelegateRoutes {
 
     @Suppress("ThrowsCount")
     fun revokeDelegate(config: JavalinConfig) {
-        config.routes.before("/api/delegates/{delegateId}") { context ->
+        config.routes.before(ApiRoutes.DELEGATE_PATH) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.ASSIGN_DELEGATE,
             )
         }
 
-        config.routes.delete("/api/delegates/{delegateId}") { context ->
+        config.routes.delete(ApiRoutes.DELEGATE_PATH) { context ->
             val callerId = context.callerUuid()
             val delegateId = context.pathParamAsUuid("delegateId")
 

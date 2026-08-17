@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AssignDelegateRequest
 import com.companyb.companyapp.dto.DelegateResponse
 import com.companyb.companyapp.network.ApiClient
@@ -44,7 +43,7 @@ class DelegateViewModel(
             state = _revokeResult,
             operation = "revokeDelegate",
             endpoint = "DELETE /api/delegates/$delegateId",
-            block = { apiClient.httpClient.delete("/api/delegates/$delegateId") },
+            block = { apiClient.httpClient.delete(ApiRoutes.delegate(delegateId)) },
         )
     }
 }

@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
@@ -53,7 +52,7 @@ class BranchViewModel(
             state = _branchDetail,
             operation = "loadBranchDetail",
             endpoint = "GET /api/branches/$branchId",
-            block = { apiClient.httpClient.get("/api/branches/$branchId") },
+            block = { apiClient.httpClient.get(ApiRoutes.branch(branchId)) },
             transform = { it.body() },
         )
     }
@@ -77,7 +76,7 @@ class BranchViewModel(
             state = _assignments,
             operation = "loadAssignments",
             endpoint = "GET /api/branches/$branchId/assignments",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/assignments") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchAssignments(branchId)) },
             transform = { it.body() },
         )
     }
@@ -91,7 +90,7 @@ class BranchViewModel(
             operation = "createAssignment",
             endpoint = "POST /api/branches/$branchId/assignments",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/assignments") {
+                apiClient.httpClient.post(ApiRoutes.branchAssignments(branchId)) {
                     setBody(request)
                 }
             },
@@ -134,7 +133,7 @@ class BranchViewModel(
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/slots/swap") {
+                apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
                     setBody(request)
                 }
             },
@@ -152,7 +151,7 @@ class BranchViewModel(
             endpoint = "PATCH /api/branches/$branchId/assignments/$userId/slot",
             block = {
                 apiClient.httpClient.patch(
-                    "/api/branches/$branchId/assignments/$userId/slot",
+                    ApiRoutes.branchAssignmentSlot(branchId, userId),
                 ) {
                     setBody(request)
                 }
@@ -166,7 +165,7 @@ class BranchViewModel(
             state = _rates,
             operation = "loadRates",
             endpoint = "GET /api/branches/$branchId/rates",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/rates") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchRates(branchId)) },
             transform = { it.body() },
         )
     }
@@ -180,7 +179,7 @@ class BranchViewModel(
             operation = "setRate",
             endpoint = "POST /api/branches/$branchId/rates",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/rates") {
+                apiClient.httpClient.post(ApiRoutes.branchRates(branchId)) {
                     setBody(request)
                 }
             },

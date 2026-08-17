@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CreateReliefInviteRequest
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
@@ -108,7 +107,7 @@ class ReliefInviteViewModel(
             state = _acceptResult,
             operation = "acceptInvite",
             endpoint = "POST /api/relief-invites/$inviteId/accept",
-            block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/accept") },
+            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "accept")) },
             // #113 shape: a 409 means the invite is already resolved (double-tap race or a
             // cross-device accept) — the row must leave the section, so reload instead of
             // surfacing an error on a stale row (the markRead absent-row defense precedent).
@@ -125,7 +124,7 @@ class ReliefInviteViewModel(
             state = _declineResult,
             operation = "declineInvite",
             endpoint = "POST /api/relief-invites/$inviteId/decline",
-            block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/decline") },
+            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "decline")) },
             onNonSuccess = onConflictReload(_declineResult, inviteId),
             transform = {
                 actionStamp++
@@ -172,7 +171,7 @@ class ReliefInviteViewModel(
                 operation = "searchCandidates",
                 endpoint = "GET /api/branches/$branchId/relief-candidates?q=$encodedQuery&date=$date",
                 block = {
-                    apiClient.httpClient.get("/api/branches/$branchId/relief-candidates?q=$encodedQuery&date=$date")
+                    apiClient.httpClient.get("${ApiRoutes.branchReliefCandidates(branchId)}?q=$encodedQuery&date=$date")
                 },
                 transform = { it.body() },
             )
@@ -189,7 +188,7 @@ class ReliefInviteViewModel(
             operation = "sendInvite",
             endpoint = "POST /api/branches/$branchId/relief-invites",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/relief-invites") {
+                apiClient.httpClient.post(ApiRoutes.branchReliefInvites(branchId)) {
                     setBody(CreateReliefInviteRequest(inviteeUserId = inviteeUserId, date = date))
                 }
             },
@@ -227,7 +226,7 @@ class ReliefInviteViewModel(
         return handler.launchStateless(
             operation = "loadSent",
             endpoint = "GET /api/branches/$branchId/relief-invites",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/relief-invites") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchReliefInvites(branchId)) },
             transform = { response ->
                 val body = response.body<List<ReliefInviteResponse>>()
                 // Keyed commit (the #162 KeepLastByKey shape, mirror-only half), newest-launch-
@@ -248,7 +247,7 @@ class ReliefInviteViewModel(
             state = _retractResult,
             operation = "retractInvite",
             endpoint = "POST /api/relief-invites/$inviteId/retract",
-            block = { apiClient.httpClient.post("/api/relief-invites/$inviteId/retract") },
+            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "retract")) },
             transform = {
                 loadSent(branchId)
                 Unit

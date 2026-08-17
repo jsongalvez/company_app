@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.mapping.toErrorResponse
 import com.companyb.companyapp.auth.DenyList

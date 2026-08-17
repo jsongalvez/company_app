@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -29,7 +28,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/compensation/{compensationId}",
+    path = ApiRoutes.COMPENSATION_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "compensationId", type = UUID::class, required = true)],
     operationId = "compensation_update",
@@ -75,7 +74,7 @@ object CompensationRoutes {
             )
         }
 
-        config.routes.before("/api/compensation/{compensationId}") { context ->
+        config.routes.before(ApiRoutes.COMPENSATION_PATH) { context ->
             val compensationId = context.pathParamAsUuid("compensationId")
             val compensation =
                 com.companyb.companyapp.repository.CompensationRepository
@@ -120,7 +119,7 @@ object CompensationRoutes {
             context.json(compensations.map { it.toResponse() })
         }
 
-        config.routes.patch("/api/compensation/{compensationId}") { context ->
+        config.routes.patch(ApiRoutes.COMPENSATION_PATH) { context ->
             val callerId = context.callerUuid()
             val compensationId = context.pathParamAsUuid("compensationId")
             val request = context.bodyAsClass<UpdateCompensationRequest>()

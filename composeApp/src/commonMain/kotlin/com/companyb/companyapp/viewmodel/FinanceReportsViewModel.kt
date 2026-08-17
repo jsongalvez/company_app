@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
@@ -91,7 +90,7 @@ class FinanceReportsViewModel(
             state = _branches,
             operation = "loadBranches",
             endpoint = "GET /api/branches/accessible",
-            block = { apiClient.httpClient.get("/api/branches/accessible") },
+            block = { apiClient.httpClient.get(ApiRoutes.BRANCHES + "/accessible") },
             transform = {
                 val list = it.body<List<BranchResponse>>()
                 _branches.value = UiState.Success(list)
@@ -357,7 +356,7 @@ class FinanceReportsViewModel(
             operation = mode.operationName,
             endpoint = "GET /api/branches/$branchId/daily-summaries",
             block = {
-                apiClient.httpClient.get("/api/branches/$branchId/daily-summaries") {
+                apiClient.httpClient.get(ApiRoutes.branchDailySummaries(branchId)) {
                     cursor?.let { parameter("cursor", it) }
                     parameter("limit", FEED_PAGE_SIZE)
                     currentWindow().from?.let { parameter("from", it) }
@@ -458,7 +457,7 @@ class FinanceReportsViewModel(
             operation = "loadMonthlyRollup",
             endpoint = "GET /api/branches/$branchId/monthly-summary",
             block = {
-                apiClient.httpClient.get("/api/branches/$branchId/monthly-summary") {
+                apiClient.httpClient.get(ApiRoutes.branchMonthlySummary(branchId)) {
                     parameter("year", month.year)
                     parameter("month", month.month.ordinal + 1)
                 }
@@ -542,7 +541,7 @@ class FinanceReportsViewModel(
         handler.launchStateless(
             operation = "loadReliefDay",
             endpoint = "GET /api/branches/$branchId/daily-summary?date=$date",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/daily-summary?date=$date") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchDailySummaryWithDate(branchId, date)) },
             // #173 — the generation guard folds into the stale gate (a superseded relief
             // fetch — clearReliefState or a new date — must not write [reliefDay]/[selectedDay]).
             stale = { generation != reliefGeneration },
@@ -861,7 +860,7 @@ class FinanceReportsViewModel(
             operation = "updateExpense",
             endpoint = "PATCH /api/expenses/${expense.id}",
             block = {
-                apiClient.httpClient.patch("/api/expenses/${expense.id}") {
+                apiClient.httpClient.patch(ApiRoutes.expense(expense.id)) {
                     setBody(
                         UpdateExpenseRequest(
                             amount = amount,
@@ -908,7 +907,7 @@ class FinanceReportsViewModel(
             operation = "deleteExpense",
             endpoint = "DELETE /api/expenses/${expense.id}",
             block = {
-                apiClient.httpClient.delete("/api/expenses/${expense.id}") {
+                apiClient.httpClient.delete(ApiRoutes.expense(expense.id)) {
                     setBody(DeleteExpenseRequest(reason = reason))
                 }
             },
@@ -938,7 +937,7 @@ class FinanceReportsViewModel(
             operation = "restoreExpense",
             endpoint = "POST /api/expenses/${expense.id}/restore",
             block = {
-                apiClient.httpClient.post("/api/expenses/${expense.id}/restore") {
+                apiClient.httpClient.post(ApiRoutes.expenseRestore(expense.id)) {
                     setBody(RestoreExpenseRequest(reason = reason))
                 }
             },
@@ -1039,7 +1038,7 @@ class FinanceReportsViewModel(
             operation = "updateCompensation",
             endpoint = "PATCH /api/compensation/${compensation.id}",
             block = {
-                apiClient.httpClient.patch("/api/compensation/${compensation.id}") {
+                apiClient.httpClient.patch(ApiRoutes.compensation(compensation.id)) {
                     setBody(
                         UpdateCompensationRequest(
                             amount = amount,
@@ -1208,7 +1207,11 @@ class FinanceReportsViewModel(
         // screen's ExportButtons look up the SAME key (both sides must agree).
         exportMode(
             key = "day:${day.branchDayId}:$format",
-            url = "/api/branches/$branchId/export/daily?date=${day.date}&format=$format",
+            url =
+                ApiRoutes.branchExportWithQuery(
+                    ApiRoutes.branchExportDaily(branchId),
+                    "date=${day.date}&format=$format",
+                ),
         )
     }
 
@@ -1218,7 +1221,7 @@ class FinanceReportsViewModel(
     ) {
         exportMode(
             key = "public:$kind:$format",
-            url = "/api/branches/export/$kind?format=$format",
+            url = ApiRoutes.branchExportWithQuery("${ApiRoutes.BRANCHES_EXPORT}/$kind", "format=$format"),
         )
     }
 

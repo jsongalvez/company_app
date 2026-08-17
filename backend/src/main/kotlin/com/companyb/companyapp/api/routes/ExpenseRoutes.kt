@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.dto.CreateExpenseRequest
@@ -35,21 +34,21 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/expenses/{expenseId}",
+    path = ApiRoutes.EXPENSE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/expenses/{expenseId}",
+    path = ApiRoutes.EXPENSE_PATH,
     methods = [HttpMethod.DELETE],
     pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/expenses/{expenseId}/restore",
+    path = ApiRoutes.EXPENSE_RESTORE_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_restore",
@@ -79,16 +78,16 @@ object ExpenseRoutes {
             CapabilityFilter.requireBranchOrBranchDayCapability(context, branchDayId)
         }
 
-        config.routes.before("/api/expenses/{expenseId}") { context ->
+        config.routes.before(ApiRoutes.EXPENSE_PATH) { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
 
-        // #114 exact-segment lesson: before("/api/expenses/{expenseId}") does NOT fire on the
+        // #114 exact-segment lesson: before(ApiRoutes.EXPENSE_PATH) does NOT fire on the
         // 4-segment restore route — the restore filter is its own (record-scoped EDIT_BRANCH_DATA
         // via the expense's branch day; 404 for missing expense keeps the filter from running the
         // handler against a phantom).
-        config.routes.before("/api/expenses/{expenseId}/restore") { context ->
+        config.routes.before(ApiRoutes.EXPENSE_RESTORE_PATH) { context ->
             val expenseId = context.pathParamAsUuid("expenseId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForExpense(context, expenseId)
         }
@@ -121,7 +120,7 @@ object ExpenseRoutes {
             context.json(expense.toResponse())
         }
 
-        config.routes.patch("/api/expenses/{expenseId}") { context ->
+        config.routes.patch(ApiRoutes.EXPENSE_PATH) { context ->
             val callerId = context.callerUuid()
             val expenseId = context.pathParamAsUuid("expenseId")
             val request = context.bodyAsClass<UpdateExpenseRequest>()
@@ -146,7 +145,7 @@ object ExpenseRoutes {
             context.json(expense.toResponse())
         }
 
-        config.routes.delete("/api/expenses/{expenseId}") { context ->
+        config.routes.delete(ApiRoutes.EXPENSE_PATH) { context ->
             val callerId = context.callerUuid()
             val expenseId = context.pathParamAsUuid("expenseId")
             val request = context.bodyAsClass<DeleteExpenseRequest>()
@@ -164,7 +163,7 @@ object ExpenseRoutes {
             context.json(expense.toResponse())
         }
 
-        config.routes.post("/api/expenses/{expenseId}/restore") { context ->
+        config.routes.post(ApiRoutes.EXPENSE_RESTORE_PATH) { context ->
             val callerId = context.callerUuid()
             val expenseId = context.pathParamAsUuid("expenseId")
             val request = context.bodyAsClass<RestoreExpenseRequest>()

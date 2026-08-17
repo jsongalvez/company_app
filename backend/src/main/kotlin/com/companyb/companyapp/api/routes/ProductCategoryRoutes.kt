@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -71,7 +70,7 @@ object ProductCategoryRoutes {
             context.json(ProductCategoryService.findAll().map { it.toResponse() })
         }
 
-        config.routes.get("/api/product-categories/{$CATEGORY_ID_PARAM}") { context ->
+        config.routes.get(ApiRoutes.PRODUCT_CATEGORY_PATH) { context ->
             val categoryId = context.pathParamAsUuid(CATEGORY_ID_PARAM)
             context.json(ProductCategoryService.findById(categoryId).toResponse())
         }

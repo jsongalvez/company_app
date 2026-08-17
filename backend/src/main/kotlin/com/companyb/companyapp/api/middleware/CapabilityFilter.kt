@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.middleware
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.repository.ExpenseRepository

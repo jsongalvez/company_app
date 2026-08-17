@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -156,13 +156,13 @@ object BranchInventoryRoutes {
             )
         }
 
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleEnsureCard)
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/restock", ::handleRestock)
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory", ::handleGetInventory)
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory/low-stock", ::handleGetLowStock)
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/inventory/movements", ::handleGetMovements)
+        config.routes.post(ApiRoutes.BRANCH_INVENTORY_PATH, ::handleEnsureCard)
+        config.routes.post(ApiRoutes.BRANCH_INVENTORY_RESTOCK_PATH, ::handleRestock)
+        config.routes.get(ApiRoutes.BRANCH_INVENTORY_PATH, ::handleGetInventory)
+        config.routes.get(ApiRoutes.BRANCH_INVENTORY_LOW_STOCK_PATH, ::handleGetLowStock)
+        config.routes.get(ApiRoutes.BRANCH_INVENTORY_MOVEMENTS_PATH, ::handleGetMovements)
         config.routes.post(
-            "/api/branches/{$BRANCH_ID_PARAM}/inventory/{$PRODUCT_ID_PARAM}/movement",
+            ApiRoutes.BRANCH_INVENTORY_MOVEMENT_PATH,
             ::handleRecordMovement,
         )
     }

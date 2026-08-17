@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.ConcernResponse
@@ -22,7 +22,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branches/{branchId}/dashboard/today",
+    path = ApiRoutes.BRANCH_DASHBOARD_TODAY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "dashboard_today",
@@ -32,7 +32,7 @@ object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/dashboard/today", ::handleGetToday)
+        config.routes.get(ApiRoutes.BRANCH_DASHBOARD_TODAY_PATH, ::handleGetToday)
     }
 
     private fun handleGetToday(context: Context) {

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -29,14 +28,14 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/commission-splits/{branchDayId}",
+    path = ApiRoutes.COMMISSION_SPLITS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "commission_splits",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/commission/recalculate/{branchDayId}",
+    path = ApiRoutes.COMMISSION_RECALCULATE_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "commission_recalculate",
@@ -51,12 +50,12 @@ object CommissionRoutes {
             )
         }
 
-        config.routes.before("/api/commission-splits/{branchDayId}") { context ->
+        config.routes.before(ApiRoutes.COMMISSION_SPLITS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
             CapabilityFilter.requireBranchCapability(context, branchDayId, CapabilityCodes.VIEW_BRANCH_DATA)
         }
 
-        config.routes.before("/api/commission/recalculate/{branchDayId}") { context ->
+        config.routes.before(ApiRoutes.COMMISSION_RECALCULATE_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
             CapabilityFilter.requireBranchCapability(
                 context,
@@ -66,8 +65,8 @@ object CommissionRoutes {
         }
 
         config.routes.post(ApiRoutes.COMMISSION_INCLUSIONS, ::handleCreateInclusion)
-        config.routes.get("/api/commission-splits/{branchDayId}", ::handleGetSplits)
-        config.routes.post("/api/commission/recalculate/{branchDayId}", ::handleRecalculate)
+        config.routes.get(ApiRoutes.COMMISSION_SPLITS_PATH, ::handleGetSplits)
+        config.routes.post(ApiRoutes.COMMISSION_RECALCULATE_PATH, ::handleRecalculate)
     }
 
     @Suppress("ThrowsCount")

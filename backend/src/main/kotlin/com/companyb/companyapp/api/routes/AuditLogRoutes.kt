@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
@@ -28,25 +27,25 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/audit-log/entries",
+    path = ApiRoutes.AUDIT_LOG_ENTRIES_PATH,
     methods = [HttpMethod.GET],
     operationId = "audit_log_entries",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/audit-log/flagged",
+    path = ApiRoutes.AUDIT_LOG_FLAGGED_PATH,
     methods = [HttpMethod.GET],
     operationId = "audit_log_flagged",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/audit-log/tables",
+    path = ApiRoutes.AUDIT_LOG_TABLES_PATH,
     methods = [HttpMethod.GET],
     operationId = "audit_log_tables",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/audit-log/{entryId}/acknowledge",
+    path = ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "entryId", type = UUID::class, required = true)],
     operationId = "audit_log_acknowledge",
@@ -59,7 +58,7 @@ object AuditLogRoutes {
         // inside the service). The pre-#122 GLOBAL ASSIGN_COMPENSATION filter was
         // broken by construction (#104 F2) and is removed here.
 
-        config.routes.get("/api/audit-log/entries") { context ->
+        config.routes.get(ApiRoutes.AUDIT_LOG_ENTRIES_PATH) { context ->
             val callerId = context.callerUuid()
             val tableName = context.queryParam("tableName")
             val action = parseAction(context.queryParam("action"))
@@ -91,7 +90,7 @@ object AuditLogRoutes {
             context.json(response)
         }
 
-        config.routes.get("/api/audit-log/tables") { context ->
+        config.routes.get(ApiRoutes.AUDIT_LOG_TABLES_PATH) { context ->
             val tables: List<AuditLogTableResponse> = AuditLogService.listTables()
             context.status(HttpStatus.OK)
             context.json(tables)
@@ -109,7 +108,7 @@ object AuditLogRoutes {
             context.json(entries.map { it.toResponse() })
         }
 
-        config.routes.get("/api/audit-log/flagged") { context ->
+        config.routes.get(ApiRoutes.AUDIT_LOG_FLAGGED_PATH) { context ->
             val callerId = context.callerUuid()
 
             val entries = AuditLogService.findFlagged(callerId)
@@ -118,7 +117,7 @@ object AuditLogRoutes {
             context.json(entries.map { it.toResponse() })
         }
 
-        config.routes.patch("/api/audit-log/{entryId}/acknowledge") { context ->
+        config.routes.patch(ApiRoutes.AUDIT_LOG_ACKNOWLEDGE_PATH) { context ->
             val callerId = context.callerUuid()
             val entryId = context.pathParamAsUuid("entryId")
 

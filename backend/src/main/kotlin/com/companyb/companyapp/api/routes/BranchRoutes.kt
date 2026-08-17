@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -63,7 +62,7 @@ object BranchRoutes {
         // get an empty list (audit-log "zero-grant empty-not-403" pattern).
         // The 2-segment MANAGE_USERS before-filter above is exact-match and
         // does not fire on this 3-segment path (Javalin 7 segment matching).
-        config.routes.get("/api/branches/accessible") { context ->
+        config.routes.get(ApiRoutes.BRANCHES_ACCESSIBLE) { context ->
             val callerId = context.callerUuid()
             val window = BranchReadScope.windowBranchIds(callerId)
             val allBranches = BranchService.findAll()
@@ -98,7 +97,7 @@ object BranchRoutes {
             context.json(BranchService.findAll().map { it.toResponse() })
         }
 
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}") { context ->
+        config.routes.get(ApiRoutes.BRANCH_PARAM_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             context.json(BranchService.findById(branchId).toResponse())
         }

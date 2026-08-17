@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
@@ -137,7 +136,7 @@ class AuditLogViewModel(
         handler.launchStateless(
             operation = if (cold) "loadFlaggedEntries" else "refreshFlagged",
             endpoint = "GET /api/audit-log/flagged",
-            block = { apiClient.httpClient.get("/api/audit-log/flagged") },
+            block = { apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_FLAGGED) },
             transform = {
                 _flaggedEntries.value =
                     UiState.Success(
@@ -179,7 +178,7 @@ class AuditLogViewModel(
         handler.launchStateless(
             operation = "acknowledgeEntry",
             endpoint = "PATCH /api/audit-log/${entry.id}/acknowledge",
-            block = { apiClient.httpClient.patch("/api/audit-log/${entry.id}/acknowledge") },
+            block = { apiClient.httpClient.patch(ApiRoutes.auditLogAcknowledge(entry.id)) },
             transform = {
                 it.body<AuditLogEntryResponse>()
                 acknowledgedIds += entry.id
@@ -259,7 +258,7 @@ class AuditLogViewModel(
             state = _tables,
             operation = "loadTables",
             endpoint = "GET /api/audit-log/tables",
-            block = { apiClient.httpClient.get("/api/audit-log/tables") },
+            block = { apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_TABLES) },
             transform = { it.body() },
         )
     }
@@ -385,7 +384,7 @@ class AuditLogViewModel(
         filters: AuditLogFilters,
         cursor: String?,
     ): HttpResponse =
-        apiClient.httpClient.get("/api/audit-log/entries") {
+        apiClient.httpClient.get(ApiRoutes.AUDIT_LOG_ENTRIES) {
             filters.tableName?.takeIf { it.isNotBlank() }?.let { parameter("tableName", it) }
             filters.action?.let { parameter("action", it) }
             filters.callerName?.takeIf { it.isNotBlank() }?.let { parameter("callerName", it) }

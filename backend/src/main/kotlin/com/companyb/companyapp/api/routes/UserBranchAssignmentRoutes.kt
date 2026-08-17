@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AssignmentResponse
@@ -71,11 +71,11 @@ object UserBranchAssignmentRoutes {
     private const val USER_ID_PARAM = "userId"
 
     fun register(config: JavalinConfig) {
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/assignments", ::handleCreateAssignment)
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/assignments", ::handleGetAssignments)
-        config.routes.delete("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}", ::handleRemoveAssignment)
-        config.routes.patch("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}/slot", ::handleUpdateSlot)
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/slots/swap", ::handleSwapSlots)
+        config.routes.post(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleCreateAssignment)
+        config.routes.get(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleGetAssignments)
+        config.routes.delete(ApiRoutes.BRANCH_ASSIGNMENT_USER_PATH, ::handleRemoveAssignment)
+        config.routes.patch(ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH, ::handleUpdateSlot)
+        config.routes.post(ApiRoutes.BRANCH_SLOTS_SWAP_PATH, ::handleSwapSlots)
     }
 
     private fun handleCreateAssignment(context: Context) {

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -86,12 +85,12 @@ object ProductRoutes {
             context.json(ProductService.findAllActive().map { it.toResponse() })
         }
 
-        config.routes.get("/api/products/{$PRODUCT_ID_PARAM}") { context ->
+        config.routes.get(ApiRoutes.PRODUCT_PATH) { context ->
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             context.json(ProductService.findById(productId).toResponse())
         }
 
-        config.routes.patch("/api/products/{$PRODUCT_ID_PARAM}") { context ->
+        config.routes.patch(ApiRoutes.PRODUCT_PATH) { context ->
             val callerId = context.callerUuid()
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<UpdateProductRequest>()

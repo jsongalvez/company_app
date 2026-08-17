@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
@@ -81,7 +80,7 @@ class SessionViewModel(
             operation = "updateStatus",
             endpoint = "PATCH /api/sessions/$sessionId/status",
             block = {
-                apiClient.httpClient.patch("/api/sessions/$sessionId/status") {
+                apiClient.httpClient.patch(ApiRoutes.sessionStatus(sessionId)) {
                     setBody(request)
                 }
             },
@@ -98,7 +97,7 @@ class SessionViewModel(
             operation = "voidSession",
             endpoint = "POST /api/sessions/$sessionId/void",
             block = {
-                apiClient.httpClient.post("/api/sessions/$sessionId/void") {
+                apiClient.httpClient.post(ApiRoutes.sessionVoid(sessionId)) {
                     setBody(request)
                 }
             },
@@ -115,7 +114,7 @@ class SessionViewModel(
             operation = "unvoidSession",
             endpoint = "POST /api/sessions/$sessionId/unvoid",
             block = {
-                apiClient.httpClient.post("/api/sessions/$sessionId/unvoid") {
+                apiClient.httpClient.post(ApiRoutes.sessionUnvoid(sessionId)) {
                     setBody(request)
                 }
             },
@@ -128,7 +127,7 @@ class SessionViewModel(
             state = _practitioners,
             operation = "loadSessionPractitioners",
             endpoint = "GET /api/sessions/$sessionId/practitioners",
-            block = { apiClient.httpClient.get("/api/sessions/$sessionId/practitioners") },
+            block = { apiClient.httpClient.get(ApiRoutes.sessionPractitioners(sessionId)) },
             transform = { it.body() },
         )
     }
@@ -142,7 +141,7 @@ class SessionViewModel(
             operation = "addPractitioner",
             endpoint = "POST /api/sessions/$sessionId/practitioners",
             block = {
-                apiClient.httpClient.post("/api/sessions/$sessionId/practitioners") {
+                apiClient.httpClient.post(ApiRoutes.sessionPractitioners(sessionId)) {
                     setBody(request)
                 }
             },
@@ -161,7 +160,7 @@ class SessionViewModel(
             endpoint = "PATCH /api/sessions/$sessionId/practitioners/$practitionerId",
             block = {
                 apiClient.httpClient.patch(
-                    "/api/sessions/$sessionId/practitioners/$practitionerId",
+                    ApiRoutes.sessionPractitioner(sessionId, practitionerId),
                 ) {
                     setBody(request)
                 }
@@ -180,7 +179,7 @@ class SessionViewModel(
             endpoint = "DELETE /api/sessions/$sessionId/practitioners/$practitionerId",
             block = {
                 apiClient.httpClient.delete(
-                    "/api/sessions/$sessionId/practitioners/$practitionerId",
+                    ApiRoutes.sessionPractitioner(sessionId, practitionerId),
                 )
             },
             transform = {
@@ -210,7 +209,7 @@ class SessionViewModel(
             state = _sessionConcerns,
             operation = "loadSessionConcerns",
             endpoint = "GET /api/sessions/$sessionId/concerns",
-            block = { apiClient.httpClient.get("/api/sessions/$sessionId/concerns") },
+            block = { apiClient.httpClient.get(ApiRoutes.sessionConcerns(sessionId)) },
             transform = { it.body() },
         )
     }
@@ -224,7 +223,7 @@ class SessionViewModel(
             operation = "addSessionConcern",
             endpoint = "POST /api/sessions/$sessionId/concerns",
             block = {
-                apiClient.httpClient.post("/api/sessions/$sessionId/concerns") {
+                apiClient.httpClient.post(ApiRoutes.sessionConcerns(sessionId)) {
                     setBody(request)
                 }
             },
@@ -241,7 +240,7 @@ class SessionViewModel(
             endpoint = "DELETE /api/sessions/$sessionId/concerns/$concernId",
             block = {
                 apiClient.httpClient.delete(
-                    "/api/sessions/$sessionId/concerns/$concernId",
+                    ApiRoutes.sessionConcern(sessionId, concernId),
                 )
             },
         )
@@ -257,7 +256,7 @@ class SessionViewModel(
             endpoint = "POST /api/sessions/$sessionId/promote-concern",
             block = {
                 apiClient.httpClient.post(
-                    "/api/sessions/$sessionId/promote-concern",
+                    ApiRoutes.sessionPromoteConcern(sessionId),
                 ) {
                     setBody(request)
                 }

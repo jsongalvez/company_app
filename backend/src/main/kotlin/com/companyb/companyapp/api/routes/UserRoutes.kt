@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -45,7 +44,7 @@ object UserRoutes {
     }
 
     fun deactivate(config: JavalinConfig) {
-        config.routes.before("/api/users/{$USER_ID_PARAM}/deactivate") { context ->
+        config.routes.before(ApiRoutes.USER_DEACTIVATE_PATH) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_USERS,
@@ -53,7 +52,7 @@ object UserRoutes {
             )
         }
 
-        config.routes.patch("/api/users/{$USER_ID_PARAM}/deactivate") { context ->
+        config.routes.patch(ApiRoutes.USER_DEACTIVATE_PATH) { context ->
             val callerId = context.callerUuid()
             val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 
@@ -78,7 +77,7 @@ object UserRoutes {
     }
 
     private fun reactivate(config: JavalinConfig) {
-        config.routes.before("/api/users/{$USER_ID_PARAM}/reactivate") { context ->
+        config.routes.before(ApiRoutes.USER_REACTIVATE_PATH) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_USERS,
@@ -86,7 +85,7 @@ object UserRoutes {
             )
         }
 
-        config.routes.patch("/api/users/{$USER_ID_PARAM}/reactivate") { context ->
+        config.routes.patch(ApiRoutes.USER_REACTIVATE_PATH) { context ->
             val callerId = context.callerUuid()
             val targetUserId = context.pathParamAsUuid(USER_ID_PARAM)
 

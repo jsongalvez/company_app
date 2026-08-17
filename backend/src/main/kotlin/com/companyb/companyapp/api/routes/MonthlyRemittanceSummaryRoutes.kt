@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -16,7 +16,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branches/{branchId}/monthly-summary",
+    path = ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "monthly_summary",
@@ -28,7 +28,7 @@ object MonthlyRemittanceSummaryRoutes {
 
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{branchId}/monthly-summary") { context ->
+        config.routes.before(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
             CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
@@ -37,7 +37,7 @@ object MonthlyRemittanceSummaryRoutes {
             )
         }
 
-        config.routes.get("/api/branches/{branchId}/monthly-summary") { context ->
+        config.routes.get(ApiRoutes.BRANCH_MONTHLY_SUMMARY_PATH) { context ->
             val branchId = context.pathParamAsUuid("branchId")
 
             val yearParam =

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -59,21 +58,21 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}",
+    path = ApiRoutes.SESSION_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/concerns",
+    path = ApiRoutes.SESSION_CONCERNS_PATH,
     methods = [HttpMethod.GET],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_concerns_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/concerns",
+    path = ApiRoutes.SESSION_CONCERNS_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_concerns_post",
@@ -93,14 +92,14 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/final-price",
+    path = ApiRoutes.SESSION_FINAL_PRICE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_final_price",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/practitioners",
+    path = ApiRoutes.SESSION_PRACTITIONERS_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_practitioners",
@@ -140,28 +139,28 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/status",
+    path = ApiRoutes.SESSION_STATUS_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_status",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/type",
+    path = ApiRoutes.SESSION_TYPE_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_type",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/unvoid",
+    path = ApiRoutes.SESSION_UNVOID_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_unvoid",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions/{sessionId}/void",
+    path = ApiRoutes.SESSION_VOID_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_void",
@@ -200,7 +199,7 @@ object SessionRoutes {
             }
         }
 
-        config.routes.before("/api/sessions/{sessionId}/status") { context ->
+        config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
@@ -209,7 +208,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/type") { context ->
+        config.routes.before(ApiRoutes.SESSION_TYPE_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
@@ -218,7 +217,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/final-price") { context ->
+        config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
@@ -227,7 +226,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/void") { context ->
+        config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchCapabilityForSession(
                 context,
@@ -236,7 +235,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/unvoid") { context ->
+        config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchCapabilityForSession(
                 context,
@@ -245,7 +244,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/practitioners") { context ->
+        config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
@@ -254,7 +253,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/concerns") { context ->
+        config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
@@ -280,14 +279,14 @@ object SessionRoutes {
             )
         }
 
-        config.routes.get("/api/sessions/{sessionId}", ::handleGetSession)
+        config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
         config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
-        config.routes.patch("/api/sessions/{sessionId}/status", ::handleUpdateStatus)
-        config.routes.patch("/api/sessions/{sessionId}/type", ::handleUpdateType)
-        config.routes.patch("/api/sessions/{sessionId}/final-price", ::handleUpdateFinalPrice)
-        config.routes.post("/api/sessions/{sessionId}/void", ::handleVoidSession)
-        config.routes.post("/api/sessions/{sessionId}/unvoid", ::handleUnvoidSession)
-        config.routes.post("/api/sessions/{sessionId}/practitioners", ::handleAddPractitioner)
+        config.routes.patch(ApiRoutes.SESSION_STATUS_PATH, ::handleUpdateStatus)
+        config.routes.patch(ApiRoutes.SESSION_TYPE_PATH, ::handleUpdateType)
+        config.routes.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, ::handleUpdateFinalPrice)
+        config.routes.post(ApiRoutes.SESSION_VOID_PATH, ::handleVoidSession)
+        config.routes.post(ApiRoutes.SESSION_UNVOID_PATH, ::handleUnvoidSession)
+        config.routes.post(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleAddPractitioner)
         config.routes.patch(
             "/api/sessions/{sessionId}/practitioners/{practitionerId}",
             ::handleUpdatePractitionerRemarks,
@@ -297,10 +296,10 @@ object SessionRoutes {
             ::handleRemovePractitioner,
         )
         config.routes.get(ApiRoutes.CONCERNS, ::handleGetConcerns)
-        config.routes.get("/api/sessions/{sessionId}/concerns", ::handleGetSessionConcerns)
-        config.routes.post("/api/sessions/{sessionId}/concerns", ::handleAddSessionConcern)
-        config.routes.delete("/api/sessions/{sessionId}/concerns/{concernId}", ::handleRemoveSessionConcern)
-        config.routes.post("/api/sessions/{sessionId}/promote-concern", ::handlePromoteConcern)
+        config.routes.get(ApiRoutes.SESSION_CONCERNS_PATH, ::handleGetSessionConcerns)
+        config.routes.post(ApiRoutes.SESSION_CONCERNS_PATH, ::handleAddSessionConcern)
+        config.routes.delete(ApiRoutes.SESSION_CONCERN_PATH, ::handleRemoveSessionConcern)
+        config.routes.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, ::handlePromoteConcern)
     }
 
     private fun handleGetSession(context: Context) {

@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
@@ -145,7 +144,7 @@ class ClientViewModel(
                 operation = "loadClient",
                 endpoint = "GET /api/clients/$clientId",
                 entryMessage = "loadClient called: clientId=$clientId",
-                block = { apiClient.httpClient.get("/api/clients/$clientId") },
+                block = { apiClient.httpClient.get(ApiRoutes.client(clientId)) },
                 transform = { it.body() },
             )
     }
@@ -160,7 +159,7 @@ class ClientViewModel(
             endpoint = "PATCH /api/clients/$clientId",
             entryMessage = "updateClient called: clientId=$clientId",
             block = {
-                apiClient.httpClient.patch("/api/clients/$clientId") {
+                apiClient.httpClient.patch(ApiRoutes.client(clientId)) {
                     setBody(request)
                 }
             },
@@ -214,7 +213,7 @@ class ClientViewModel(
             operation = "anonymizeClient",
             endpoint = "POST /api/clients/$clientId/anonymize",
             entryMessage = "anonymizeClient called: clientId=$clientId",
-            block = { apiClient.httpClient.post("/api/clients/$clientId/anonymize") },
+            block = { apiClient.httpClient.post(ApiRoutes.client(clientId) + "/anonymize") },
             // 204 no body — transform runs only on success; the notice crosses the VM boundary to
             // the search screen's snackbar via ClientState (D1; the detail entry's VM is a
             // different instance than the search entry's — see ClientState doc comment).

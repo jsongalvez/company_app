@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.CreateAllowanceRequest
 import com.companyb.companyapp.network.ApiClient
@@ -30,7 +29,7 @@ class AllowanceViewModel(
             state = _allowances,
             operation = "loadAllowances",
             endpoint = "GET /api/allowances?branchDayId=$branchDayId",
-            block = { apiClient.httpClient.get("/api/allowances?branchDayId=$branchDayId") },
+            block = { apiClient.httpClient.get(ApiRoutes.allowanceCollectionWithBranchDay(branchDayId)) },
             transform = { it.body() },
         )
     }

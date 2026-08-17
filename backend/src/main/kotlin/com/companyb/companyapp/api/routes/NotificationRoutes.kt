@@ -1,6 +1,5 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
-
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
@@ -23,13 +22,13 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/notifications/read-all",
+    path = ApiRoutes.NOTIFICATIONS_READ_ALL,
     methods = [HttpMethod.POST],
     operationId = "notifications_read_all",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/notifications/{notificationId}/read",
+    path = ApiRoutes.NOTIFICATION_READ_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "notificationId", type = UUID::class, required = true)],
     operationId = "notification_read",
@@ -46,7 +45,7 @@ object NotificationRoutes {
             context.json(notifications.map { it.toResponse() })
         }
 
-        config.routes.post("/api/notifications/read-all") { context ->
+        config.routes.post(ApiRoutes.NOTIFICATIONS_READ_ALL) { context ->
             val callerId = context.callerUuid()
 
             val unreadCount = NotificationService.markAllRead(callerId)
@@ -55,7 +54,7 @@ object NotificationRoutes {
             context.json(NotificationMarkAllReadResponse(unreadCount))
         }
 
-        config.routes.patch("/api/notifications/{notificationId}/read") { context ->
+        config.routes.patch(ApiRoutes.NOTIFICATION_READ_PATH) { context ->
             val callerId = context.callerUuid()
             val notificationId = context.pathParamAsUuid("notificationId")
 

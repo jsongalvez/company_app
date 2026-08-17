@@ -1,8 +1,7 @@
 package com.companyb.companyapp.viewmodel
-import com.companyb.companyapp.api.ApiRoutes
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.NotificationMarkAllReadResponse
 import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.network.ApiClient
@@ -75,7 +74,7 @@ class NotificationViewModel(
             state = _markReadResult,
             operation = "markRead",
             endpoint = "PATCH /api/notifications/$notificationId/read",
-            block = { apiClient.httpClient.patch("/api/notifications/$notificationId/read") },
+            block = { apiClient.httpClient.patch(ApiRoutes.notificationRead(notificationId)) },
             onNonSuccess = { response ->
                 if (response.status == HttpStatusCode.NotFound) {
                     // Defense-in-depth: the backend 200s an already-read OWN row (WHERE id+user
@@ -116,7 +115,7 @@ class NotificationViewModel(
             state = _markAllResult,
             operation = "markAllRead",
             endpoint = "POST /api/notifications/read-all",
-            block = { apiClient.httpClient.post("/api/notifications/read-all") },
+            block = { apiClient.httpClient.post(ApiRoutes.NOTIFICATIONS_READ_ALL) },
             transform = {
                 val body = it.body<NotificationMarkAllReadResponse>()
                 // #111 count-semantics: badge assigned from the endpoint's authoritative response,

@@ -8,6 +8,17 @@ const spec = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
 const routeContract = JSON.parse(fs.readFileSync(new URL("./openapi-route-contract.json", import.meta.url), "utf8"));
 const routeDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/routes/", import.meta.url);
 const dtoDir = new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/dto/", import.meta.url);
+const apiRoutesSource = fs.readFileSync(new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt", import.meta.url), "utf8");
+const apiRouteConstants = new Map([...apiRoutesSource.matchAll(/const val (\w+)\s*=\s*"([^"]*)"/g)].map((match) => [match[1], match[2]]));
+function resolveApiRoute(value) {
+  let resolved = value;
+  for (let pass = 0; pass < 10; pass++) {
+    const next = resolved.replace(/\$([A-Z][A-Z0-9_]*)/g, (_, name) => apiRouteConstants.get(name) || `$${name}`);
+    if (next === resolved) return next;
+    resolved = next;
+  }
+  return resolved;
+}
 const routeSources = fs.readdirSync(routeDir).filter((name) => name.endsWith("Routes.kt")).map((name) => ({
    name,
    source: fs.readFileSync(new URL(name, routeDir), "utf8"),
@@ -124,7 +135,8 @@ function annotationMetadata(source, file) {
     const annotation = balancedDelimited(scanSource, open, "(", ")");
     if (!annotation.endsWith(")")) throw new Error(`Unclosed OpenApi annotation in ${file}`);
     const body = annotation.slice(1, -1);
-    const pathValue = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+    const pathMatch = body.match(/\bpath\s*=\s*(?:"((?:[^"\\]|\\.)*)"|ApiRoutes\.(\w+))/);
+    const pathValue = pathMatch ? resolveApiRoute(pathMatch[1] || apiRouteConstants.get(pathMatch[2]) || "") : undefined;
     const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
     if (!pathValue || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
     const owner = enclosingOwner(source, start);
@@ -246,8 +258,10 @@ function registrations() {
   const result = [];
   for (const { name, source } of routeSources) {
     const scanSource = withoutComments(source);
-    for (const match of scanSource.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
-      const pathValue = match[2].replace(/\$([A-Z0-9_]+)/g, (_, constant) => scanSource.match(new RegExp(`const val ${constant}\\s*=\\s*"([^"]+)"`))?.[1] || constant.toLowerCase().replace(/_PARAM$/, ""));
+    for (const match of scanSource.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+|ApiRoutes\.\w+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
+      const pathValue = match[2].startsWith("ApiRoutes.")
+        ? resolveApiRoute(apiRouteConstants.get(match[2].slice("ApiRoutes.".length)) || "")
+        : match[2].replace(/\$([A-Z0-9_]+)/g, (_, constant) => scanSource.match(new RegExp(`const val ${constant}\\s*=\\s*"([^"]+)"`))?.[1] || constant.toLowerCase().replace(/_PARAM$/, ""));
       const routePath = pathValue.replace(/"/g, "");
       const callStart = source.indexOf("(", match.index);
       const registration = `${source.slice(match.index, callStart)}${balancedDelimited(source, callStart, "(", ")")}`;
@@ -534,6 +548,12 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) for (const 
   ]);
 }
 const contractFingerprint = sourceHash(JSON.stringify(contractRows.sort()));
-if (contractFingerprint !== routeContract.fingerprint) throw new Error("OpenAPI route contract fingerprint is stale");
+if (contractFingerprint !== routeContract.fingerprint) {
+  if (process.env.UPDATE_OPENAPI_ROUTE_CONTRACT === "1") {
+    fs.writeFileSync(new URL("./openapi-route-contract.json", import.meta.url), `${JSON.stringify({ fingerprint: contractFingerprint }, null, 2)}\n`);
+  } else {
+    throw new Error("OpenAPI route contract fingerprint is stale");
+  }
+}
 fs.mkdirSync(path.dirname(path.resolve(targetPath)), { recursive: true });
 fs.writeFileSync(targetPath, `${JSON.stringify(spec, null, 2)}\n`);
