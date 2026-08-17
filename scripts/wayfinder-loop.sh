@@ -59,16 +59,18 @@ handoff_committed() {
 }
 
 checkpoint_handoff() {
-  local doc="$1" dirty other_dirty
-  dirty="$(worktree_dirty | grep -F "docs/agents/$doc" || true)"
-  other_dirty="$(worktree_dirty | grep -v -F "docs/agents/$doc" || true)"
-  if [ -n "$dirty" ] && [ -z "$other_dirty" ]; then
-    git -C "$REPO" add -- "docs/agents/$doc"
+  local doc="$1"
+  # spawn_session waits for a clean tree before creating each session. Any dirty
+  # path seen after that session writes its completion handoff belongs to the
+  # completed session, so checkpoint code and handoff together instead of
+  # pausing for manual cleanup.
+  if [ -n "$(worktree_dirty)" ]; then
+    git -C "$REPO" add --all
     if git -C "$REPO" commit --no-verify -m "docs(wayfinder): checkpoint $doc" >/dev/null 2>&1; then
-      log "auto-committed handoff $doc"
+      log "auto-committed completed session worktree for $doc"
       return 0
     fi
-    log "handoff auto-commit failed for $doc — waiting for manual recovery"
+    log "completed session checkpoint failed for $doc — waiting for manual recovery"
   fi
   return 1
 }
