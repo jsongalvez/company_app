@@ -4,7 +4,10 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 test -f "$spec"
-node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$spec"
+normalized_spec=$(mktemp)
+trap 'rm -f "$normalized_spec"' EXIT
+node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$normalized_spec"
+spec="$normalized_spec"
 
 OPENAPI_ROUTE_DIR="$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" node - "$spec" <<'NODE'
 const fs = require("fs");
@@ -16,21 +19,63 @@ if (!routeDir) throw new Error("OPENAPI_ROUTE_DIR is required");
 const constants = {};
 const routes = [];
 const annotated = new Map();
+const annotationSources = new Map();
+function balancedDelimited(source, start, opening, closing) {
+  let depth = 0;
+  let quoted = false;
+  for (let index = start; index < source.length; index++) {
+    if (source[index] === '"' && source[index - 1] !== '\\') quoted = !quoted;
+    if (quoted) continue;
+    if (source[index] === opening) depth++;
+    if (source[index] === closing && --depth === 0) return source.slice(start, index + 1);
+  }
+  throw new Error(`Unclosed delimiter at ${start}`);
+}
+function sourceAnnotations(source, file) {
+  const result = [];
+  let cursor = 0;
+  while (true) {
+    const start = source.indexOf('@OpenApi', cursor);
+    if (start < 0) return result;
+    const open = source.indexOf('(', start);
+    const annotation = balancedDelimited(source, open, '(', ')');
+    const body = annotation.slice(1, -1);
+    const path = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+    const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || '').matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
+    if (!path || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
+    result.push({ start, end: open + annotation.length, annotation, path, methods });
+    cursor = open + annotation.length;
+  }
+}
+function openApiParams(annotation) {
+  const entries = [];
+  let cursor = 0;
+  while (true) {
+    const start = annotation.indexOf('OpenApiParam', cursor);
+    if (start < 0) return entries;
+    const open = annotation.indexOf('(', start);
+    if (open < 0) throw new Error('OpenApiParam has no constructor');
+    const value = balancedDelimited(annotation, open, '(', ')');
+    entries.push(value.slice(1, -1));
+    cursor = open + value.length;
+  }
+}
 for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"))) {
   const source = fs.readFileSync(`${routeDir}/${file}`, "utf8");
   for (const match of source.matchAll(/const val ([A-Z0-9_]+)\s*=\s*"([^"]+)"/g)) constants[match[1]] = match[2];
-  for (const match of source.matchAll(/@OpenApi\([\s\S]*?path\s*=\s*"([^"]+)"[\s\S]*?methods\s*=\s*\[([^\]]+)\][\s\S]*?\)/g)) {
-    const annotation = source.slice(match.index, source.indexOf("operationId", match.index));
+  for (const match of sourceAnnotations(source, file)) {
+    const annotation = match.annotation;
     const pathParams = [...annotation.matchAll(/pathParams\s*=\s*\[[\s\S]*?\]/g)].flatMap((params) => [...params[0].matchAll(/name\s*=\s*"([^"]+)"/g)].map((param) => param[1]));
-    if (pathParams.length > 0 && (!/type\s*=\s*UUID::class/.test(annotation) || !/required\s*=\s*true/.test(annotation))) throw new Error(`Source OpenAPI path parameter type/required metadata invalid: ${file} ${match[1]}`);
-    const pathParamEntries = [...annotation.matchAll(/OpenApiParam\(([\s\S]*?)\)/g)].map((param) => param[1]);
-    if (pathParamEntries.some((param) => !/name\s*=\s*"[^"]+"/.test(param) || !/type\s*=\s*UUID::class/.test(param) || !/required\s*=\s*true/.test(param))) throw new Error(`Source OpenAPI path parameter entry invalid: ${file} ${match[1]}`);
-    const sourceParams = [...match[1].matchAll(/\{([^}]+)\}/g)].map((param) => param[1]);
-    if (JSON.stringify(pathParams.sort()) !== JSON.stringify(sourceParams.sort())) throw new Error(`Source OpenAPI path params differ: ${file} ${match[1]}`);
-    for (const method of match[2].matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)) {
-      const key = `${method[1].toLowerCase()} ${match[1]}`;
+    if (pathParams.length > 0 && (!/type\s*=\s*UUID::class/.test(annotation) || !/required\s*=\s*true/.test(annotation))) throw new Error(`Source OpenAPI path parameter type/required metadata invalid: ${file} ${match.path}`);
+    const pathParamEntries = openApiParams(annotation);
+    if (pathParamEntries.some((param) => !/name\s*=\s*"[^"]+"/.test(param) || !/type\s*=\s*UUID::class/.test(param) || !/required\s*=\s*true/.test(param))) throw new Error(`Source OpenAPI path parameter entry invalid: ${file} ${match.path}`);
+    const sourceParams = [...match.path.matchAll(/\{([^}]+)\}/g)].map((param) => param[1]);
+    if (JSON.stringify(pathParams.sort()) !== JSON.stringify(sourceParams.sort())) throw new Error(`Source OpenAPI path params differ: ${file} ${match.path}`);
+    for (const method of match.methods) {
+      const key = `${method} ${match.path}`;
       if (annotated.has(key)) throw new Error(`Duplicate source OpenAPI annotation: ${key}`);
       annotated.set(key, file);
+      annotationSources.set(key, { file, source: source.slice(match.start, match.end) });
     }
   }
   for (const match of source.matchAll(/routes\.(get|post|patch|delete)\s*\(\s*"([^"]+)"/g)) {
@@ -80,6 +125,16 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
 }
 if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].registration !== "string" || operation["x-route-source"].registration.length === 0)) {
   throw new Error("Every operation must retain its exact route registration source binding");
+}
+for (const [path, methods] of Object.entries(spec.paths || {})) for (const [method, operation] of Object.entries(methods)) {
+  const routeBinding = operation["x-route-source"];
+  const annotationBinding = operation["x-openapi-source"];
+  const expectedAnnotation = annotationSources.get(`${method} ${path}`);
+  if (!annotationBinding || annotationBinding.file !== expectedAnnotation?.file || annotationBinding.annotation !== expectedAnnotation?.source) {
+    throw new Error(`${method.toUpperCase()} ${path} does not retain exact source OpenApi annotation binding`);
+  }
+  const routeSource = fs.readFileSync(`${routeDir}/${routeBinding.file}`, "utf8");
+  if (!routeSource.includes(routeBinding.registration)) throw new Error(`${method.toUpperCase()} ${path} route registration binding is stale`);
 }
 function assertRefs(value) {
   if (!value || typeof value !== "object") return;

@@ -7,9 +7,36 @@ const spec = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
 const routeDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/routes/", import.meta.url);
 const dtoDir = new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/dto/", import.meta.url);
 const routeSources = fs.readdirSync(routeDir).filter((name) => name.endsWith("Routes.kt")).map((name) => ({
-  name,
-  source: fs.readFileSync(new URL(name, routeDir), "utf8"),
+   name,
+   source: fs.readFileSync(new URL(name, routeDir), "utf8"),
 }));
+
+function withoutComments(source) {
+  let result = "";
+  let index = 0;
+  let quote = null;
+  while (index < source.length) {
+    if (!quote && source.startsWith("//", index)) {
+      const end = source.indexOf("\n", index);
+      const stop = end < 0 ? source.length : end;
+      result += " ".repeat(stop - index);
+      index = stop;
+      continue;
+    }
+    if (!quote && source.startsWith("/*", index)) {
+      const end = source.indexOf("*/", index + 2);
+      const stop = end < 0 ? source.length : end + 2;
+      result += source.slice(index, stop).replace(/[^\n]/g, " ");
+      index = stop;
+      continue;
+    }
+    const character = source[index];
+    result += character;
+    if (character === '"' && source[index - 1] !== "\\") quote = quote ? null : '"';
+    index++;
+  }
+  return result;
+}
 
 function splitTopLevel(value) {
   const result = [];
@@ -55,6 +82,26 @@ function balancedDelimited(source, start, opening, closing) {
     if (source[index] === closing && --depth === 0) return source.slice(open, index + 1);
   }
   return source.slice(open);
+}
+
+function annotationMetadata(source, file) {
+  const scanSource = withoutComments(source);
+  const result = [];
+  let cursor = 0;
+  while (true) {
+    const start = scanSource.indexOf("@OpenApi", cursor);
+    if (start < 0) return result;
+    const open = scanSource.indexOf("(", start);
+    if (open < 0) throw new Error(`Unclosed OpenApi annotation in ${file}`);
+    const annotation = balancedDelimited(scanSource, open, "(", ")");
+    if (!annotation.endsWith(")")) throw new Error(`Unclosed OpenApi annotation in ${file}`);
+    const body = annotation.slice(1, -1);
+    const pathValue = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+    const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
+    if (!pathValue || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
+    result.push({ path: pathValue, methods, file, source: source.slice(start, open + annotation.length) });
+    cursor = open + annotation.length;
+  }
 }
 
 function functionBody(source, handler) {
@@ -117,8 +164,9 @@ const dtoSchemas = Object.fromEntries(Object.entries(dtoModels).map(([name, prop
 function registrations() {
   const result = [];
   for (const { name, source } of routeSources) {
-    for (const match of source.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
-      const pathValue = match[2].replace(/\$([A-Z0-9_]+)/g, (_, constant) => source.match(new RegExp(`const val ${constant}\\s*=\\s*"([^"]+)"`))?.[1] || constant.toLowerCase().replace(/_PARAM$/, ""));
+    const scanSource = withoutComments(source);
+    for (const match of scanSource.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
+      const pathValue = match[2].replace(/\$([A-Z0-9_]+)/g, (_, constant) => scanSource.match(new RegExp(`const val ${constant}\\s*=\\s*"([^"]+)"`))?.[1] || constant.toLowerCase().replace(/_PARAM$/, ""));
       const routePath = pathValue.replace(/"/g, "");
       const callStart = source.indexOf("(", match.index);
       const registration = `${source.slice(match.index, callStart)}${balancedDelimited(source, callStart, "(", ")")}`;
@@ -141,6 +189,14 @@ for (const route of routeRegistrations) {
   const key = `${route.method} ${route.path}`;
   if (byRoute.has(key)) throw new Error(`Duplicate production route registration: ${key}`);
   byRoute.set(key, route);
+}
+const annotationByRoute = new Map();
+for (const { name, source } of routeSources) for (const annotation of annotationMetadata(source, name)) {
+  for (const method of annotation.methods) {
+    const key = `${method} ${annotation.path}`;
+    if (annotationByRoute.has(key)) throw new Error(`Duplicate source OpenApi annotation: ${key}`);
+    annotationByRoute.set(key, annotation);
+  }
 }
 
 const queryOverrides = {
@@ -201,6 +257,9 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
       registration: registration.registration,
       ...(registration.handler ? { handler: registration.handler } : {}),
     };
+    const annotation = annotationByRoute.get(`${method} ${routePath}`);
+    if (!annotation) throw new Error(`Generated operation has no source OpenApi annotation: ${method} ${routePath}`);
+    operation["x-openapi-source"] = { file: annotation.file, annotation: annotation.source };
     operation.responses ??= {};
     const success = Object.keys(operation.responses).find((status) => /^2\d\d$/.test(status));
     let synthesizedSuccess = false;
