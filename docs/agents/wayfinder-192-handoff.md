@@ -7,7 +7,7 @@ Session 89 continued claimed ticket #178, Build: Add generated OpenAPI documenta
 ## Session outcome
 
 - Map #139 remains OPEN. Ticket #178 remains OPEN and assigned to `jsongalvez`.
-- No commit or push was made because the P1-P4 exit condition was not reached.
+- Checkpoint commit `02be809` was created by the unattended chain runner and pushed to `origin/ralph/company-app-full-build` after verification. Ticket was not closed because the P1-P4 exit condition was not reached.
 - `scripts/normalize-openapi-spec.mjs` now parses balanced `@OpenApi` annotations and records exact `x-openapi-source` file/text metadata.
 - `scripts/verify-openapi-spec.sh` now parses annotations with balanced delimiters, validates `OpenApiParam` constructors without the old first-close regex, and rejects stale route registration or annotation bindings.
 - Route and annotation source scans now ignore line/block comments while preserving source offsets for exact binding checks.
@@ -32,6 +32,7 @@ Fresh P1-P4 review found HARD findings:
 - `node --check scripts/normalize-openapi-spec.mjs`: passed.
 - `bash -n scripts/verify-openapi-spec.sh`: passed.
 - `git diff --check`: passed.
+- `git push origin ralph/company-app-full-build`: passed. Pre-push cleanliness and Compose compilation passed; k6 baseline was skipped because `k6` was not installed.
 - Full backend test was not run in this session.
 - `k6` remains unavailable per prior handoff.
 - Phased exit: P1/P2 HARD findings remain; P3 found and fixed normalization masking; P4 first-pass parser findings fixed, but no zero-HARD pass exists.
@@ -51,7 +52,7 @@ Fresh P1-P4 review found HARD findings:
 ## Critical blockers
 
 - Ticket #178 is not shippable: response/query/status metadata remains partly fabricated or regex-derived, and operation-to-handler source proof is incomplete.
-- No commit/push occurred because phased-review exit was not reached.
+- Ticket close and resolution comment were deferred because phased-review exit was not reached; checkpoint code and handoff were nevertheless pushed.
 - Full backend test remains unverified after prior timeout.
 - `k6` is unavailable; record exact pre-push skip if push becomes possible.
 

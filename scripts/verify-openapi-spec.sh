@@ -4,6 +4,13 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 test -f "$spec"
+if find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" \
+    "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" \
+    "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/domain" \
+    -type f -newer "$spec" -print -quit | grep -q .; then
+  echo "Generated OpenAPI artifact is older than source inputs" >&2
+  exit 1
+fi
 normalized_spec=$(mktemp)
 trap 'rm -f "$normalized_spec"' EXIT
 node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$normalized_spec"
@@ -20,6 +27,32 @@ const constants = {};
 const routes = [];
 const annotated = new Map();
 const annotationSources = new Map();
+function withoutComments(source) {
+  let result = '';
+  let index = 0;
+  let quote = null;
+  while (index < source.length) {
+    if (!quote && source.startsWith('//', index)) {
+      const end = source.indexOf('\n', index);
+      const stop = end < 0 ? source.length : end;
+      result += ' '.repeat(stop - index);
+      index = stop;
+      continue;
+    }
+    if (!quote && source.startsWith('/*', index)) {
+      const end = source.indexOf('*/', index + 2);
+      const stop = end < 0 ? source.length : end + 2;
+      result += source.slice(index, stop).replace(/[^\n]/g, ' ');
+      index = stop;
+      continue;
+    }
+    const character = source[index];
+    result += character;
+    if (character === '"' && source[index - 1] !== '\\') quote = quote ? null : '"';
+    index++;
+  }
+  return result;
+}
 function balancedDelimited(source, start, opening, closing) {
   let depth = 0;
   let quoted = false;
@@ -33,17 +66,21 @@ function balancedDelimited(source, start, opening, closing) {
 }
 function sourceAnnotations(source, file) {
   const result = [];
+  const scanSource = withoutComments(source);
   let cursor = 0;
   while (true) {
-    const start = source.indexOf('@OpenApi', cursor);
+    const start = scanSource.indexOf('@OpenApi', cursor);
     if (start < 0) return result;
-    const open = source.indexOf('(', start);
-    const annotation = balancedDelimited(source, open, '(', ')');
+    const open = scanSource.indexOf('(', start);
+    const annotation = balancedDelimited(scanSource, open, '(', ')');
     const body = annotation.slice(1, -1);
     const path = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
     const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || '').matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
     if (!path || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
-    result.push({ start, end: open + annotation.length, annotation, path, methods });
+    const owner = scanSource.slice(start).match(/(?:object|class)\s+(\w+)\s*\{/)?.[1];
+    const operationId = body.match(/\boperationId\s*=\s*"([^"]+)"/)?.[1];
+    if (!owner || !operationId) throw new Error(`OpenAPI annotation has no owner or operationId in ${file}`);
+    result.push({ start, end: open + annotation.length, annotation, path, methods, owner, operationId });
     cursor = open + annotation.length;
   }
 }
@@ -62,7 +99,8 @@ function openApiParams(annotation) {
 }
 for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"))) {
   const source = fs.readFileSync(`${routeDir}/${file}`, "utf8");
-  for (const match of source.matchAll(/const val ([A-Z0-9_]+)\s*=\s*"([^"]+)"/g)) constants[match[1]] = match[2];
+  const scanSource = withoutComments(source);
+  for (const match of scanSource.matchAll(/const val ([A-Z0-9_]+)\s*=\s*"([^"]+)"/g)) constants[match[1]] = match[2];
   for (const match of sourceAnnotations(source, file)) {
     const annotation = match.annotation;
     const pathParams = [...annotation.matchAll(/pathParams\s*=\s*\[[\s\S]*?\]/g)].flatMap((params) => [...params[0].matchAll(/name\s*=\s*"([^"]+)"/g)].map((param) => param[1]));
@@ -75,10 +113,15 @@ for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"
       const key = `${method} ${match.path}`;
       if (annotated.has(key)) throw new Error(`Duplicate source OpenAPI annotation: ${key}`);
       annotated.set(key, file);
-      annotationSources.set(key, { file, source: source.slice(match.start, match.end) });
+      annotationSources.set(key, {
+        file,
+        owner: match.owner,
+        operationId: match.operationId,
+        source: source.slice(match.start, match.end),
+      });
     }
   }
-  for (const match of source.matchAll(/routes\.(get|post|patch|delete)\s*\(\s*"([^"]+)"/g)) {
+  for (const match of scanSource.matchAll(/routes\.(get|post|patch|delete)\s*\(\s*"([^"]+)"/g)) {
     const path = match[2].replace(/\{\$([A-Z0-9_]+)\}/g, (_, name) => `{${constants[name] || name.toLowerCase().replace(/_PARAM$/, "")}}`);
     routes.push(`${match[1]} ${path}`);
   }
@@ -130,11 +173,15 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
   const routeBinding = operation["x-route-source"];
   const annotationBinding = operation["x-openapi-source"];
   const expectedAnnotation = annotationSources.get(`${method} ${path}`);
-  if (!annotationBinding || annotationBinding.file !== expectedAnnotation?.file || annotationBinding.annotation !== expectedAnnotation?.source) {
+  if (!annotationBinding || annotationBinding.file !== expectedAnnotation?.file || annotationBinding.owner !== expectedAnnotation?.owner || annotationBinding.operationId !== expectedAnnotation?.operationId || annotationBinding.annotation !== expectedAnnotation?.source) {
     throw new Error(`${method.toUpperCase()} ${path} does not retain exact source OpenApi annotation binding`);
+  }
+  if (annotationBinding.operationId !== operation.operationId) {
+    throw new Error(`${method.toUpperCase()} ${path} generated operationId differs from source operationId`);
   }
   const routeSource = fs.readFileSync(`${routeDir}/${routeBinding.file}`, "utf8");
   if (!routeSource.includes(routeBinding.registration)) throw new Error(`${method.toUpperCase()} ${path} route registration binding is stale`);
+  if (!routeBinding.owner || routeBinding.owner !== annotationBinding.owner) throw new Error(`${method.toUpperCase()} ${path} annotation and registration have different owners`);
 }
 function assertRefs(value) {
   if (!value || typeof value !== "object") return;

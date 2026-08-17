@@ -15,12 +15,12 @@
   EXPECT: EXIT 0
   EVIDENCE: exit 0
 
-- [x] G4: Every production route method and path is represented in generated documentation
+- [ ] G4: Every production route method and path is represented in generated documentation
   CHECK: ./scripts/verify-openapi-spec.sh
   EXPECT: MATCHES OPENAPI_ROUTE_COVERAGE_OK
-  EVIDENCE: OPENAPI_ROUTE_COVERAGE_OK
+  EVIDENCE: pending
 
-- [x] G5: Generated documentation contains metadata, bearer scheme, path parameters, and no configured secret values
+- [ ] G5: Generated documentation contains metadata, bearer scheme, path parameters, and no configured secret values
   CHECK: ./scripts/verify-openapi-spec.sh | grep OPENAPI_SECRET_SCAN_OK
   EXPECT: MATCHES OPENAPI_SECRET_SCAN_OK
-  EVIDENCE: OPENAPI_SECRET_SCAN_OK
+  EVIDENCE: pending

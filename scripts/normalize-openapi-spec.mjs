@@ -10,6 +10,9 @@ const routeSources = fs.readdirSync(routeDir).filter((name) => name.endsWith("Ro
    name,
    source: fs.readFileSync(new URL(name, routeDir), "utf8"),
 }));
+const serviceSources = fs.readdirSync(new URL("../backend/src/main/kotlin/com/companyb/companyapp/service/", import.meta.url), { withFileTypes: true })
+  .filter((entry) => entry.isFile() && entry.name.endsWith(".kt"))
+  .map((entry) => ({ name: entry.name, source: fs.readFileSync(new URL(entry.name, new URL("../backend/src/main/kotlin/com/companyb/companyapp/service/", import.meta.url)), "utf8") }));
 
 function withoutComments(source) {
   let result = "";
@@ -99,7 +102,11 @@ function annotationMetadata(source, file) {
     const pathValue = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
     const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
     if (!pathValue || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
-    result.push({ path: pathValue, methods, file, source: source.slice(start, open + annotation.length) });
+    const owner = source.slice(start).match(/(?:object|class)\s+(\w+)\s*\{/)?.[1];
+    if (!owner) throw new Error(`OpenApi annotation is not owned by a route object in ${file}`);
+    const operationId = body.match(/\boperationId\s*=\s*"([^"]+)"/)?.[1];
+    if (!operationId) throw new Error(`OpenApi annotation has no operationId in ${file}`);
+    result.push({ path: pathValue, methods, operationId, owner, file, source: source.slice(start, open + annotation.length) });
     cursor = open + annotation.length;
   }
 }
@@ -110,10 +117,41 @@ function functionBody(source, handler) {
 }
 
 function handlerSource(source, handler, routeIndex) {
-  if (handler) return functionBody(source, handler);
   const lambda = source.indexOf("->", routeIndex);
-  const open = lambda < 0 ? -1 : source.lastIndexOf("{", lambda);
-  return open < 0 ? "" : balancedBlock(source, open);
+  const callOpen = source.indexOf("(", routeIndex);
+  const call = callOpen < 0 ? "" : balancedDelimited(source, callOpen, "(", ")");
+  const open = handler ? -1 : lambda < 0 ? -1 : source.indexOf("{", routeIndex + call.length + (callOpen - routeIndex));
+  const nextRoute = source.indexOf("\n        config.routes.", routeIndex + 1);
+  const routeWindow = source.slice(routeIndex, nextRoute < 0 ? source.length : nextRoute);
+  const lambdaBody = open < 0 ? "" : source.slice(open, nextRoute < 0 ? source.length : nextRoute);
+  const initial = handler ? functionBody(source, handler) : open < 0 ? routeWindow : `${balancedBlock(source, open)}\n${lambdaBody}\n${routeWindow}`;
+  const included = new Set();
+  let result = initial;
+  for (let pass = 0; pass < 3; pass++) {
+    for (const match of result.matchAll(/\b([a-zA-Z_]\w*)\s*\(/g)) {
+      const name = match[1];
+      if (included.has(name) || ["if", "when", "runCatching", "context", "json", "status"].includes(name)) continue;
+      const helper = functionBody(source, name);
+      if (helper) {
+        included.add(name);
+        result += `\n${helper}`;
+      }
+    }
+  }
+  return result;
+}
+function enclosingOwner(source, index) {
+  const owners = [...source.slice(0, index).matchAll(/(?:object|class)\s+(\w+)\s*\{/g)];
+  return owners.at(-1)?.[1] || null;
+}
+function serviceBehavior(source) {
+  let result = "";
+  for (const match of source.matchAll(/\b(\w+Service)\.(\w+)\s*\(/g)) {
+    for (const service of serviceSources) {
+      if (service.source.includes(`fun ${match[2]}(`)) result += `\n${functionBody(service.source, match[2])}`;
+    }
+  }
+  return result;
 }
 
 const dtoModels = {};
@@ -177,6 +215,7 @@ function registrations() {
         handler: match[3] || null,
         registration: registration.trim(),
         source: handlerSource(source, match[3], match.index),
+        owner: enclosingOwner(source, match.index),
         fileSource: source,
       });
     }
@@ -199,26 +238,6 @@ for (const { name, source } of routeSources) for (const annotation of annotation
   }
 }
 
-const queryOverrides = {
-  "/api/allowances": { branchDayId: [true, { type: "string", format: "uuid" }] },
-  "/api/branches/{branchId}/daily-summary": { date: [true, { type: "string", format: "date" }] },
-  "/api/branches/{branchId}/monthly-summary": { year: [true, { type: "integer" }], month: [true, { type: "integer" }] },
-  "/api/branches/{branchId}/export/daily": { date: [true, { type: "string", format: "date" }], format: [true, { type: "string", enum: ["csv", "pdf"] }] },
-  "/api/branches/{branchId}/export/range": { from: [true, { type: "string", format: "date" }], to: [true, { type: "string", format: "date" }], format: [true, { type: "string", enum: ["csv", "pdf"] }] },
-  "/api/branches/{branchId}/export/monthly": { year: [true, { type: "integer" }], month: [true, { type: "integer" }], format: [true, { type: "string", enum: ["csv", "pdf"] }] },
-  "/api/branches/{branchId}/export/all-time": { format: [true, { type: "string", enum: ["csv", "pdf"] }] },
-  "/api/branches/export/provincial": { year: [false, { type: "integer" }], month: [false, { type: "integer" }], format: [true, { type: "string", enum: ["csv", "pdf"] }] },
-  "/api/branches/export/medical-mission": { year: [false, { type: "integer" }], month: [false, { type: "integer" }], format: [true, { type: "string", enum: ["csv", "pdf"] }] },
-  "/api/branches/{branchId}/relief-candidates": { q: [false, { type: "string" }], date: [true, { type: "string", format: "date" }] },
-  "/api/audit-log": { tableName: [true, { type: "string" }], recordId: [true, { type: "string", format: "uuid" }] },
-  "/api/branches/{branchId}/remittance-sessions": { from: [true, { type: "string", format: "date" }], to: [true, { type: "string", format: "date" }] },
-  "/api/branches/{branchId}/remittance-product-sales": { from: [true, { type: "string", format: "date" }], to: [true, { type: "string", format: "date" }] },
-  "/api/branches/{branchId}/remittance-days": { from: [true, { type: "string", format: "date" }], to: [true, { type: "string", format: "date" }] },
-  "/api/branches/{branchId}/daily-summaries": { limit: [false, { type: "integer" }], from: [false, { type: "string", format: "date" }], to: [false, { type: "string", format: "date" }] },
-  "/api/audit-log/entries": { limit: [false, { type: "integer" }], dateFrom: [false, { type: "string", format: "date" }], dateTo: [false, { type: "string", format: "date" }] },
-  "/api/branches/{branchId}/inventory/low-stock": { threshold: [false, { type: "integer" }] },
-  "/api/branches/{branchId}/inventory/movements": { date: [false, { type: "string", format: "date" }] },
-};
 const statusNames = { OK: "200", CREATED: "201", NO_CONTENT: "204", BAD_REQUEST: "400", UNAUTHORIZED: "401", FORBIDDEN: "403", NOT_FOUND: "404", CONFLICT: "409", UNPROCESSABLE_CONTENT: "422", TOO_MANY_REQUESTS: "429", SERVICE_UNAVAILABLE: "503" };
 const responseOverrides = {
   audit_log: ["AuditLogEntryResponse", true], audit_log_flagged: ["AuditLogEntryResponse", true], audit_log_tables: ["AuditLogTableResponse", true], audit_log_acknowledge: ["AuditLogEntryResponse", false],
@@ -252,14 +271,17 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
   for (const [method, operation] of Object.entries(methods)) {
     const registration = byRoute.get(`${method} ${routePath}`);
     if (!registration) throw new Error(`Generated operation is not bound to a route registration: ${method} ${routePath}`);
-    operation["x-route-source"] = {
-      file: registration.file,
-      registration: registration.registration,
-      ...(registration.handler ? { handler: registration.handler } : {}),
-    };
+     operation["x-route-source"] = {
+       file: registration.file,
+       registration: registration.registration,
+       owner: registration.owner,
+       ...(registration.handler ? { handler: registration.handler } : {}),
+     };
     const annotation = annotationByRoute.get(`${method} ${routePath}`);
     if (!annotation) throw new Error(`Generated operation has no source OpenApi annotation: ${method} ${routePath}`);
-    operation["x-openapi-source"] = { file: annotation.file, annotation: annotation.source };
+     if (annotation.owner !== registration.owner) throw new Error(`OpenAPI annotation owner does not match route owner: ${method} ${routePath}`);
+     operation["x-openapi-source"] = { file: annotation.file, owner: annotation.owner, operationId: annotation.operationId, annotation: annotation.source };
+     if (operation.operationId !== annotation.operationId) throw new Error(`Generated operationId does not match source annotation: ${method} ${routePath}`);
     operation.responses ??= {};
     const success = Object.keys(operation.responses).find((status) => /^2\d\d$/.test(status));
     let synthesizedSuccess = false;
@@ -288,8 +310,8 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     }
     const responseType = responseTypes[0];
     const override = responseOverrides[operation.operationId] || responsePathOverrides[`${method} ${routePath}`];
-    if (!responseType && override && dtoSchemas[override[0]]) responseTypes.push(override[0]);
-    const resolvedResponseType = responseTypes[0];
+     if (!responseType && override && dtoSchemas[override[0]]) responseTypes.push(override[0]);
+     const resolvedResponseType = responseTypes[0] || (override && dtoSchemas[override[0]] ? override[0] : undefined);
     const successStatuses = Object.keys(operation.responses).filter((status) => /^2\d\d$/.test(status) && status !== "204");
     if (resolvedResponseType && successStatuses.length) {
        const isArray = override?.[1] || typedResponse?.[1];
@@ -302,11 +324,14 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
       const healthSchema = { type: "object", additionalProperties: false, required: ["status"], properties: { status: { type: "string", enum: ["UP", "DOWN"] }, error: { type: "string" } } };
       for (const status of ["200", "503"]) operation.responses[status].content = { "application/json": { schema: healthSchema } };
     }
-    const explicitStatuses = [...registration.source.matchAll(/HttpStatus\.(\w+)/g)].map((match) => match[1]);
-    for (const match of registration.source.matchAll(/(?:BadRequestResponse|ValidationException)/g)) explicitStatuses.push("BAD_REQUEST");
-    for (const match of registration.source.matchAll(/(?:NotFoundException|NotFoundResponse)/g)) explicitStatuses.push("NOT_FOUND");
-    for (const match of registration.source.matchAll(/(?:ConflictException|ConflictResponse)/g)) explicitStatuses.push("CONFLICT");
-    if (synthesizedSuccess && !forcedSuccess && explicitStatuses.length && !explicitStatuses.includes("OK")) delete operation.responses["200"];
+     const behaviorSource = `${registration.source}\n${serviceBehavior(registration.source)}`;
+     const explicitStatuses = [...behaviorSource.matchAll(/HttpStatus\.(\w+)/g)].map((match) => match[1]);
+     for (const match of behaviorSource.matchAll(/(?:BadRequestResponse|ValidationException)/g)) explicitStatuses.push("BAD_REQUEST");
+     for (const match of behaviorSource.matchAll(/(?:NotFoundException|NotFoundResponse)/g)) explicitStatuses.push("NOT_FOUND");
+     for (const match of behaviorSource.matchAll(/(?:ConflictException|ConflictResponse)/g)) explicitStatuses.push("CONFLICT");
+     for (const match of behaviorSource.matchAll(/(?:ForbiddenException|ForbiddenResponse)/g)) explicitStatuses.push("FORBIDDEN");
+     // A route can return both a success result and domain errors. Keep synthesized success
+     // metadata when source evidence also contains error outcomes.
     for (const status of explicitStatuses) {
       const code = statusNames[status];
       if (code) operation.responses[code] ??= { description: status.replaceAll("_", " "), ...(code.startsWith("4") ? { content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } } : {}) };
@@ -319,12 +344,24 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
        operation.responses["401"] ??= { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } };
     }
     operation.parameters = (operation.parameters || []).filter((parameter) => parameter.in === "path");
-    const queries = method === "get" ? { ...(queryOverrides[routePath] || {}) } : {};
-    for (const match of registration.source.matchAll(/queryParam\s*\(\s*["']([^"']+)["']/g)) {
-      const required = new RegExp(`queryParam\\s*\\(\\s*["']${match[1]}["']\\s*\\)\\s*\\?:`).test(registration.source);
-      queries[match[1]] ??= [required, { type: "string" }];
-    }
-    for (const match of registration.source.matchAll(/uuidFromQuery\s*\(\s*["']([^"']+)["']/g)) queries[match[1]] ??= [true, { type: "string", format: "uuid" }];
+     const queries = {};
+     for (const match of registration.source.matchAll(/queryParam\s*\(\s*["']([^"']+)["']/g)) {
+       const required = new RegExp(`queryParam\\s*\\(\\s*["']${match[1]}["']\\s*\\)\\s*\\?:`).test(registration.source);
+       queries[match[1]] ??= [required, { type: "string" }];
+     }
+     for (const match of registration.source.matchAll(/uuidFromQuery\s*\(\s*["']([^"']+)["']/g)) queries[match[1]] ??= [true, { type: "string", format: "uuid" }];
+     for (const match of registration.source.matchAll(/parseRequiredDate\s*\(\s*[^,]+queryParam\s*\(\s*["']([^"']+)["']/g)) queries[match[1]] = [true, { type: "string", format: "date" }];
+     for (const match of registration.source.matchAll(/parseOptionalDate\s*\(\s*[^,]+queryParam\s*\(\s*["']([^"']+)["']/g)) queries[match[1]] = [false, { type: "string", format: "date" }];
+     for (const match of registration.source.matchAll(/parseRequiredDate\s*\(\s*\w+\s*,\s*["']([^"']+)["']/g)) queries[match[1]] = [true, { type: "string", format: "date" }];
+     for (const match of registration.source.matchAll(/parseRequiredInt\s*\(\s*\w+\s*,\s*["']([^"']+)["']/g)) queries[match[1]] = [true, { type: "integer" }];
+     for (const match of registration.source.matchAll(/queryParam\s*\(\s*["']([^"']+)["']\s*\)\?\.toIntOrNull\(\)/g)) queries[match[1]] = [false, { type: "integer" }];
+     for (const match of registration.source.matchAll(/(?:val|var)\s+(\w+)(?:Param)?\s*=\s*(?:\w+\.)?queryParam\s*\(\s*["']([^"']+)["']\s*\)/g)) {
+       const type = /(?:year|month|limit|threshold)/i.test(match[1]) ? { type: "integer" } : /date|from|to/i.test(match[1]) ? { type: "string", format: "date" } : { type: "string" };
+       const required = new RegExp(`${match[1]}(?:Param)?\\s*=\\s*queryParam[\\s\\S]{0,80}\\?:`).test(registration.source);
+       queries[match[2]] = [required, type];
+     }
+     if (registration.source.includes('"csv"') && registration.source.includes('"pdf"') && queries.format) queries.format[1] = { type: "string", enum: ["csv", "pdf"] };
+     for (const match of registration.source.matchAll(/queryParam\s*\(\s*["']([^"']+)["']\s*\)\s*\?:\s*throw/g)) queries[match[1]] = [true, queries[match[1]]?.[1] || { type: "string" }];
     for (const [name, [required, schema]] of Object.entries(queries)) operation.parameters.push({ name, in: "query", required, schema });
     for (const [, name] of routePath.matchAll(/\{([^}]+)\}/g)) if (!operation.parameters.some((parameter) => parameter.in === "path" && parameter.name === name)) operation.parameters.push({ name, in: "path", required: true, schema: { type: "string", format: "uuid" } });
   }
