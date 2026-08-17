@@ -14,18 +14,21 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
     path = "/api/branches/{branchId}/rates",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "session_rates_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/rates",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "session_rates_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

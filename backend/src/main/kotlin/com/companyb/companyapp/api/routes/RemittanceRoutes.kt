@@ -44,6 +44,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
@@ -64,72 +65,96 @@ import java.util.UUID
 @OpenApi(
     path = "/api/remittances/{remittanceId}",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/drift",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_drift",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/day-breakdowns",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_day_breakdowns",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "remittanceId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "breakdownId", type = UUID::class, required = true),
+    ],
     operationId = "remittance_day_breakdown_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/lines",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_lines",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/lines/{lineId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "remittanceId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "lineId", type = UUID::class, required = true),
+    ],
     operationId = "remittance_line_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/submit",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_submit",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}/undo",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "remittanceId", type = UUID::class, required = true)],
     operationId = "remittance_undo",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/remittance-days",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_remittance_days",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/remittance-product-sales",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_remittance_product_sales",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/remittance-sessions",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_remittance_sessions",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

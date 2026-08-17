@@ -14,9 +14,11 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.util.UUID
 
 @OpenApi(
     path = "/api/audit-log",
@@ -45,6 +47,7 @@ import java.time.OffsetDateTime
 @OpenApi(
     path = "/api/audit-log/{entryId}/acknowledge",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "entryId", type = UUID::class, required = true)],
     operationId = "audit_log_acknowledge",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

@@ -15,36 +15,54 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
     path = "/api/branches/{branchId}/assignments",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_assignments_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/assignments",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_assignments_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/assignments/{userId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "branchId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "userId", type = UUID::class, required = true),
+    ],
     operationId = "branch_assignment_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/assignments/{userId}/slot",
     methods = [HttpMethod.PATCH],
+    pathParams = [
+        OpenApiParam(
+            name = "branchId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "userId", type = UUID::class, required = true),
+    ],
     operationId = "branch_assignment_slot",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/slots/swap",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_slots_swap",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

@@ -16,6 +16,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -34,18 +35,21 @@ import java.util.UUID
 @OpenApi(
     path = "/api/clients/{clientId}",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/clients/{clientId}",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/clients/{clientId}/anonymize",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
     operationId = "client_anonymize",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

@@ -22,6 +22,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
@@ -35,36 +36,54 @@ private val ALLOWED_MOVEMENT_REASONS =
 @OpenApi(
     path = "/api/branches/{branchId}/inventory",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_inventory_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/inventory",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_inventory_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/inventory/low-stock",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "inventory_low_stock",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/inventory/movements",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "inventory_movements",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/inventory/{productId}/restock",
     methods = [HttpMethod.POST],
+    pathParams = [
+        OpenApiParam(
+            name = "branchId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "productId", type = UUID::class, required = true),
+    ],
     operationId = "inventory_restock",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/inventory/{productId}/movement",
     methods = [HttpMethod.POST],
+    pathParams = [
+        OpenApiParam(
+            name = "branchId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "productId", type = UUID::class, required = true),
+    ],
     operationId = "inventory_movement",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

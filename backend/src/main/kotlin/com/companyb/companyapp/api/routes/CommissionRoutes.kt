@@ -17,6 +17,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -29,12 +30,14 @@ import java.util.UUID
 @OpenApi(
     path = "/api/commission-splits/{branchDayId}",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "commission_splits",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/commission/recalculate/{branchDayId}",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "commission_recalculate",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

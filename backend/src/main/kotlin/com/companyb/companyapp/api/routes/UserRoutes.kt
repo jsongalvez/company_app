@@ -9,6 +9,7 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -21,12 +22,14 @@ import java.util.UUID
 @OpenApi(
     path = "/api/users/{userId}/deactivate",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "userId", type = UUID::class, required = true)],
     operationId = "user_deactivate",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/users/{userId}/reactivate",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "userId", type = UUID::class, required = true)],
     operationId = "user_reactivate",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

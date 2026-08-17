@@ -17,6 +17,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -35,18 +36,21 @@ import java.util.UUID
 @OpenApi(
     path = "/api/expenses/{expenseId}",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/expenses/{expenseId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/expenses/{expenseId}/restore",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "expenseId", type = UUID::class, required = true)],
     operationId = "expense_restore",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

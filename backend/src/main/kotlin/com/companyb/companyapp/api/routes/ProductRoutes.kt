@@ -15,6 +15,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -33,12 +34,14 @@ import java.util.UUID
 @OpenApi(
     path = "/api/products/{productId}",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
     operationId = "product_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/products/{productId}",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
     operationId = "product_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

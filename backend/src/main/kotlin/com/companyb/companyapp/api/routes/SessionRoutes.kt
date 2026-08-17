@@ -38,6 +38,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -59,78 +60,109 @@ import java.util.UUID
 @OpenApi(
     path = "/api/sessions/{sessionId}",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/concerns",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_concerns_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/concerns",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_concerns_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/concerns/{concernId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "sessionId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "concernId", type = UUID::class, required = true),
+    ],
     operationId = "session_concern_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/final-price",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_final_price",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/practitioners",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_practitioners",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
     methods = [HttpMethod.PATCH],
+    pathParams = [
+        OpenApiParam(
+            name = "sessionId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "practitionerId", type = UUID::class, required = true),
+    ],
     operationId = "session_practitioner_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "sessionId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "practitionerId", type = UUID::class, required = true),
+    ],
     operationId = "session_practitioner_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/promote-concern",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_promote_concern",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/status",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_status",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/type",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_type",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/unvoid",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_unvoid",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/void",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_void",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

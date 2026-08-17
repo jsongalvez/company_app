@@ -12,6 +12,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
@@ -28,18 +29,21 @@ import java.util.UUID
 @OpenApi(
     path = "/api/branches/{branchId}/relief-candidates",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "relief_candidates",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/relief-invites",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_relief_invites_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/relief-invites",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_relief_invites_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
@@ -52,18 +56,21 @@ import java.util.UUID
 @OpenApi(
     path = "/api/relief-invites/{inviteId}/accept",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_accept",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/relief-invites/{inviteId}/decline",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_decline",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/relief-invites/{inviteId}/retract",
     methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
     operationId = "relief_invite_retract",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

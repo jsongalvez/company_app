@@ -11,18 +11,22 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
+import java.util.UUID
 
 @OpenApi(
     path = "/api/branch-days/{branchDayId}/users",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
     operationId = "branch_day_users",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/today",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "branch_today",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

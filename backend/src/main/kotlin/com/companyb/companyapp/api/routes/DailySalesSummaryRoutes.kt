@@ -13,18 +13,22 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
+import java.util.UUID
 
 @OpenApi(
     path = "/api/branches/{branchId}/daily-summaries",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "daily_summaries",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/branches/{branchId}/daily-summary",
     methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
     operationId = "daily_summary",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

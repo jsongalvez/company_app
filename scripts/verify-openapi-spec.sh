@@ -19,7 +19,14 @@ const annotated = new Map();
 for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"))) {
   const source = fs.readFileSync(`${routeDir}/${file}`, "utf8");
   for (const match of source.matchAll(/const val ([A-Z0-9_]+)\s*=\s*"([^"]+)"/g)) constants[match[1]] = match[2];
-  for (const match of source.matchAll(/@OpenApi\(\s*path\s*=\s*"([^"]+)"[\s\S]*?methods\s*=\s*\[([^\]]+)\]/g)) {
+  for (const match of source.matchAll(/@OpenApi\([\s\S]*?path\s*=\s*"([^"]+)"[\s\S]*?methods\s*=\s*\[([^\]]+)\][\s\S]*?\)/g)) {
+    const annotation = source.slice(match.index, source.indexOf("operationId", match.index));
+    const pathParams = [...annotation.matchAll(/pathParams\s*=\s*\[[\s\S]*?\]/g)].flatMap((params) => [...params[0].matchAll(/name\s*=\s*"([^"]+)"/g)].map((param) => param[1]));
+    if (pathParams.length > 0 && (!/type\s*=\s*UUID::class/.test(annotation) || !/required\s*=\s*true/.test(annotation))) throw new Error(`Source OpenAPI path parameter type/required metadata invalid: ${file} ${match[1]}`);
+    const pathParamEntries = [...annotation.matchAll(/OpenApiParam\(([\s\S]*?)\)/g)].map((param) => param[1]);
+    if (pathParamEntries.some((param) => !/name\s*=\s*"[^"]+"/.test(param) || !/type\s*=\s*UUID::class/.test(param) || !/required\s*=\s*true/.test(param))) throw new Error(`Source OpenAPI path parameter entry invalid: ${file} ${match[1]}`);
+    const sourceParams = [...match[1].matchAll(/\{([^}]+)\}/g)].map((param) => param[1]);
+    if (JSON.stringify(pathParams.sort()) !== JSON.stringify(sourceParams.sort())) throw new Error(`Source OpenAPI path params differ: ${file} ${match[1]}`);
     for (const method of match[2].matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)) {
       const key = `${method[1].toLowerCase()} ${match[1]}`;
       if (annotated.has(key)) throw new Error(`Duplicate source OpenAPI annotation: ${key}`);
@@ -71,8 +78,8 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
     throw new Error(`${method.toUpperCase()} ${path} must declare a success response`);
   }
 }
-if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].handler !== "string")) {
-  throw new Error("Every operation must retain its route registration source binding");
+if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].registration !== "string" || operation["x-route-source"].registration.length === 0)) {
+  throw new Error("Every operation must retain its exact route registration source binding");
 }
 function assertRefs(value) {
   if (!value || typeof value !== "object") return;

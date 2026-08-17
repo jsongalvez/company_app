@@ -120,7 +120,17 @@ function registrations() {
     for (const match of source.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
       const pathValue = match[2].replace(/\$([A-Z0-9_]+)/g, (_, constant) => source.match(new RegExp(`const val ${constant}\\s*=\\s*"([^"]+)"`))?.[1] || constant.toLowerCase().replace(/_PARAM$/, ""));
       const routePath = pathValue.replace(/"/g, "");
-      result.push({ method: match[1], path: routePath, file: name, handler: match[3] || null, source: handlerSource(source, match[3], match.index), fileSource: source });
+      const callStart = source.indexOf("(", match.index);
+      const registration = `${source.slice(match.index, callStart)}${balancedDelimited(source, callStart, "(", ")")}`;
+      result.push({
+        method: match[1],
+        path: routePath,
+        file: name,
+        handler: match[3] || null,
+        registration: registration.trim(),
+        source: handlerSource(source, match[3], match.index),
+        fileSource: source,
+      });
     }
   }
   return result;
@@ -186,7 +196,11 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
   for (const [method, operation] of Object.entries(methods)) {
     const registration = byRoute.get(`${method} ${routePath}`);
     if (!registration) throw new Error(`Generated operation is not bound to a route registration: ${method} ${routePath}`);
-    operation["x-route-source"] = { file: registration.file, handler: registration.handler || "lambda" };
+    operation["x-route-source"] = {
+      file: registration.file,
+      registration: registration.registration,
+      ...(registration.handler ? { handler: registration.handler } : {}),
+    };
     operation.responses ??= {};
     const success = Object.keys(operation.responses).find((status) => /^2\d\d$/.test(status));
     let synthesizedSuccess = false;
@@ -219,7 +233,7 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     const resolvedResponseType = responseTypes[0];
     const successStatuses = Object.keys(operation.responses).filter((status) => /^2\d\d$/.test(status) && status !== "204");
     if (resolvedResponseType && successStatuses.length) {
-      const isArray = override?.[1] || registration.source.includes(".map") || typedResponse?.[1];
+       const isArray = override?.[1] || typedResponse?.[1];
       const schema = isArray ? { type: "array", items: { $ref: `#/components/schemas/${resolvedResponseType}` } } : { $ref: `#/components/schemas/${resolvedResponseType}` };
       for (const status of successStatuses) operation.responses[status].content = { "application/json": { schema } };
     }

@@ -13,6 +13,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -25,6 +26,7 @@ import java.util.UUID
 @OpenApi(
     path = "/api/delegates/{delegateId}",
     methods = [HttpMethod.DELETE],
+    pathParams = [OpenApiParam(name = "delegateId", type = UUID::class, required = true)],
     operationId = "delegate_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )

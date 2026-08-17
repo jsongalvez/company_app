@@ -14,6 +14,7 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
@@ -26,12 +27,14 @@ import java.util.UUID
 @OpenApi(
     path = "/api/relief-access/{requestId}/deny",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_deny",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/relief-access/{requestId}/grant",
     methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
     operationId = "relief_access_grant",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
