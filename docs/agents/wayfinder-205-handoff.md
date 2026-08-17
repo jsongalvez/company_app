@@ -30,12 +30,13 @@ Session 102 resolved one implementation child of canonical Map #180. Future wayf
 ## Tracker state
 
 - Issue #180 remains OPEN and permanent.
-- Issue #182 resolution comment succeeded, but closing #182 and adding the Map #180 checkpoint comment were blocked by GitHub API HTTP 503 after the comment operation. Retry both before selecting another ticket.
+- Issue #182 resolution comment succeeded. Closing #182 remains blocked by GitHub API HTTP 503; Map #180 checkpoint comment succeeded. Retry closing #182 before selecting another ticket.
 - No new ticket was created.
 
 ## Critical blockers
 
-- Retry GitHub operations for closing #182 and recording its Decisions-so-far checkpoint on #180; exact blocker: `No server is currently available to service your request` (HTTP 503).
+- Retry closing #182; exact blocker: `No server is currently available to service your request` (HTTP 503).
+- Commit `5a6117d` (`refactor(backend): batch appointment notifications`) is pushed to `origin/ralph/company-app-full-build`. Pre-push Compose desktop/Android compilation and k6 baseline passed.
 - #183 requires human enum compatibility policy; do not infer it.
 - Preserve `.wayfinder-loop.lock` and unrelated worktree state.
 
