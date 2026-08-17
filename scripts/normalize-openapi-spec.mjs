@@ -23,15 +23,17 @@ const serviceSources = kotlinSources(new URL("../backend/src/main/kotlin/com/com
 const mappingDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/mapping/", import.meta.url);
 const mappingSources = fs.readdirSync(mappingDir).filter((name) => name.endsWith(".kt")).map((name) => ({ name, source: fs.readFileSync(new URL(name, mappingDir), "utf8") }));
 const responseExtensions = new Map();
-const responseFunctions = new Map();
+function responseExtension(type, method) {
+  const key = `${type}.${method}`;
+  const known = responseExtensions.get(key);
+  if (known) return known;
+  const declaration = [...routeSources, ...serviceSources, ...mappingSources]
+    .map(({ source }) => source.match(new RegExp(`fun\\s+${type}\\.${method}\\([^)]*\\)\\s*:\\s*(\\w+Response)`)))
+    .find(Boolean);
+  return declaration?.[1] || (method === "toResponse" ? `${type}Response` : undefined);
+}
 for (const { source } of [...routeSources, ...serviceSources, ...mappingSources]) {
   for (const match of source.matchAll(/fun\s+(\w+)\.(\w+)\([\s\S]{0,300}?\)\s*:\s*(\w+Response)/g)) responseExtensions.set(`${match[1]}.${match[2]}`, match[3]);
-  for (const match of source.matchAll(/fun\s+(\w+)\s*\([\s\S]{0,5000}?\)\s*:\s*(\w+Response)/g)) responseFunctions.set(match[1], match[2]);
-  for (const match of source.matchAll(/fun\s+(\w+)\s*\(/g)) {
-    const parameters = balancedDelimited(source, match.index + match[0].length - 1, "(", ")");
-    const responseType = source.slice(match.index + match[0].length - 1 + parameters.length).match(/^\s*:\s*(\w+Response)/)?.[1];
-    if (responseType) responseFunctions.set(match[1], responseType);
-  }
 }
 
 function withoutComments(source) {
@@ -136,12 +138,15 @@ function functionBody(source, handler) {
   return start < 0 ? "" : balancedBlock(source, start);
 }
 
-function handlerSource(source, handler, routeIndex) {
+function directHandlerSource(source, handler, routeIndex) {
   const callOpen = source.indexOf("(", routeIndex);
   const call = callOpen < 0 ? "" : balancedDelimited(source, callOpen, "(", ")");
   const lambda = source.indexOf("->", callOpen + call.length);
   const open = handler ? -1 : lambda < 0 ? -1 : source.lastIndexOf("{", lambda);
-  const initial = handler ? functionBody(source, handler) : open < 0 ? "" : balancedBlock(source, open);
+  return handler ? functionBody(source, handler) : open < 0 ? "" : balancedBlock(source, open);
+}
+function handlerSource(source, handler, routeIndex) {
+  const initial = directHandlerSource(source, handler, routeIndex);
   const included = new Set();
   let result = initial;
   for (let pass = 0; pass < 3; pass++) {
@@ -256,10 +261,11 @@ function registrations() {
         path: routePath,
         file: name,
         handler: match[3] || null,
-        registration: registration.trim(),
-        source: handlerSource(source, match[3], match.index),
-        owner: enclosingOwner(source, match.index),
-        fileSource: source,
+         registration: registration.trim(),
+         source: handlerSource(source, match[3], match.index),
+         selectedHandlerSource: directHandlerSource(source, match[3] || null, match.index),
+         owner: enclosingOwner(source, match.index),
+       fileSource: source,
       });
     }
   }
@@ -300,18 +306,21 @@ for (const [name, schema] of Object.entries(dtoSchemas)) spec.components.schemas
 
 for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
   for (const [method, operation] of Object.entries(methods)) {
-    const registration = byRoute.get(`${method} ${routePath}`);
-    if (!registration) throw new Error(`Generated operation is not bound to a route registration: ${method} ${routePath}`);
+     const registration = byRoute.get(`${method} ${routePath}`);
+     if (!registration) throw new Error(`Generated operation is not bound to a route registration: ${method} ${routePath}`);
+     if (!registration.source.trim()) throw new Error(`Route has no selected handler source: ${method} ${routePath}`);
      operation["x-route-source"] = {
        file: registration.file,
        registration: registration.registration,
        owner: registration.owner,
        ...(registration.handler ? { handler: registration.handler } : {}),
+         selectedHandlerSource: registration.selectedHandlerSource,
+       key: `${method} ${routePath}`,
      };
     const annotation = annotationByRoute.get(`${method} ${routePath}`);
     if (!annotation) throw new Error(`Generated operation has no source OpenApi annotation: ${method} ${routePath}`);
      if (annotation.owner !== registration.owner) throw new Error(`OpenAPI annotation owner does not match route owner: ${method} ${routePath}`);
-     operation["x-openapi-source"] = { file: annotation.file, owner: annotation.owner, operationId: annotation.operationId, annotation: annotation.source };
+      operation["x-openapi-source"] = { file: annotation.file, owner: annotation.owner, operationId: annotation.operationId, annotation: annotation.source, key: `${method} ${routePath}` };
      if (operation.operationId !== annotation.operationId) throw new Error(`Generated operationId does not match source annotation: ${method} ${routePath}`);
     operation.responses ??= {};
     const success = Object.keys(operation.responses).find((status) => /^2\d\d$/.test(status));
@@ -335,14 +344,22 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
      const responseArgs = responseArguments(registration.source);
      const responseTypes = responseArgs.flatMap((argument) => [...argument.matchAll(/\b(\w+Response)\s*\(/g)].map((match) => match[1])).filter((name) => dtoSchemas[name]);
      const responseArray = responseArgs.some((argument) => /\.map\s*\{|\bList\s*</.test(argument));
-     for (const argument of responseArgs) {
-       for (const match of argument.matchAll(/(?:^|\.)(\w+)\.toResponse\s*\(/g)) {
-         const receiver = match[1][0].toUpperCase() + match[1].slice(1);
-         const responseType = responseExtensions.get(`${receiver}.toResponse`) ||
-           [...responseExtensions.entries()].find(([key]) => key.endsWith(`${receiver}.toResponse`))?.[1];
-         if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
-       }
-     }
+      for (const argument of responseArgs) {
+        for (const match of argument.matchAll(/(?:^|\.)(\w+)\.(to\w+Response)\s*\(/g)) {
+          const receiver = match[1][0].toUpperCase() + match[1].slice(1);
+          const responseType = responseExtension(receiver, match[2]);
+          if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
+        }
+      }
+      for (const declaration of registration.source.matchAll(/\b(?:val|var)\s+(\w+)\s*:\s*((?:List|Set)<)?([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)(?:>)?\s*=/g)) {
+        const typeName = declaration[3].split(".").at(-1);
+        const responseMethod = responseArgs
+          .map((argument) => new RegExp(`\\b${declaration[1]}\\.(to\\w+Response)\\s*\\(`).exec(argument)?.[1])
+          .find(Boolean);
+        if (!responseMethod) continue;
+        const responseType = responseExtension(typeName, responseMethod);
+        if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
+      }
      const typedResponse = registration.source.match(/:\s*(?:List<\s*)?(\w+Response)\s*(>)?\s*=\s*[\s\S]*?context\.json\s*\(/);
      if (typedResponse?.[1] && dtoSchemas[typedResponse[1]]) responseTypes.push(typedResponse[1]);
      if (registration.source.includes("toResponse()")) {
@@ -356,10 +373,14 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
         if (!service || !declaration) continue;
         const open = declaration.index + declaration[0].length - 1;
         const parameters = balancedDelimited(service.source, open, "(", ")");
-        const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
-        const responseType = returnType?.endsWith("Response")
-          ? returnType
-          : returnType && [...responseExtensions.entries()].find(([key]) => key.startsWith(`${returnType}.`))?.[1];
+         const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
+         const mapper = responseArgs
+           .filter((argument) => new RegExp(`\\b${assignment[1]}\\b`).test(argument))
+           .map((argument) => argument.match(/\.(to\w+Response)\s*\(/)?.[1])
+           .find(Boolean);
+         const responseType = returnType?.endsWith("Response")
+           ? returnType
+           : returnType && responseExtension(returnType, mapper || "toResponse");
         if (responseType && dtoSchemas[responseType]) responseTypes.push(responseType);
       }
       for (const argument of responseArgs) for (const call of argument.matchAll(/\b(\w+Service)\.(\w+)\s*\(/g)) {
@@ -369,24 +390,33 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
         const open = declaration.index + declaration[0].length - 1;
         const parameters = balancedDelimited(service.source, open, "(", ")");
         const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
-        const responseType = returnType?.endsWith("Response") ? returnType : returnType && [...responseExtensions.entries()].find(([key]) => key.startsWith(`${returnType}.`))?.[1];
+         const responseType = returnType?.endsWith("Response") ? returnType : returnType && responseExtension(returnType, "toResponse");
         if (responseType && dtoSchemas[responseType]) responseTypes.push(responseType);
-      }
-     if (responseTypes.length === 0 && responseArgs.some((argument) => /\.toResponse\s*\(/.test(argument))) {
-        const fallback = registration.fileSource.match(/fun\s+\w+\.toResponse\([\s\S]{0,300}?\)\s*:\s*(\w+Response)/)?.[1];
-       if (fallback && dtoSchemas[fallback] && !/ErrorResponse$/.test(fallback)) responseTypes.push(fallback);
-     }
-      const resolvedResponseType = responseTypes[0];
-      for (const argument of responseArgs) for (const match of argument.matchAll(/\b(\w+)\s*\(/g)) {
-        if (match[1] === "toResponse") continue;
-        const responseType = responseFunctions.get(match[1]);
-        if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
       }
       if (responseArgs.some((argument) => /\bmapDashboardSession\s*\(/.test(argument))) {
         responseTypes.length = 0;
         responseTypes.push("DashboardSessionResponse");
       }
-      if (operation.operationId === "session" && responseTypes.length === 0) responseTypes.push("DashboardSessionResponse");
+       if (operation.operationId === "session" && responseTypes.length === 0) responseTypes.push("DashboardSessionResponse");
+      const directTypedMapper = registration.selectedHandlerSource.match(/\b(?:val|var)\s+\w+\s*:\s*(?:[\w.]+\.)?(\w+)\s*=\s*[\s\S]*?\.toResponse\s*\(\)/);
+      if (directTypedMapper && dtoSchemas[`${directTypedMapper[1]}Response`]) responseTypes.push(`${directTypedMapper[1]}Response`);
+      const listMapper = registration.selectedHandlerSource.match(/\b(?:val|var)\s+\w+\s*:\s*List<\s*(\w+)\s*>\s*=[\s\S]*?\.map\s*\{[\s\S]*?\.((?:to)\w+Response)\s*\(\)/);
+      const listResponseType = listMapper && responseExtension(listMapper[1], listMapper[2]);
+      if (listResponseType && dtoSchemas[listResponseType]) responseTypes.push(listResponseType);
+      for (const match of responseArgs.flatMap((argument) => [...argument.matchAll(/\b(\w+)\.(to\w+Response)\s*\(/g)])) {
+        const receiverSuffix = match[1][0].toUpperCase() + match[1].slice(1);
+        const candidates = [...registration.fileSource.matchAll(new RegExp(`fun\\s+(\\w*${receiverSuffix})\\.${match[2]}\\([^)]*\\)\\s*:\\s*(\\w+Response)`, "g"))];
+        if (candidates.length === 1 && dtoSchemas[candidates[0][2]]) responseTypes.push(candidates[0][2]);
+      }
+      for (const declaration of registration.fileSource.matchAll(/fun\s+(\w+)\.(to\w+Response)\s*\([^)]*\)\s*:\s*(\w+Response)/g)) {
+        if (registration.selectedHandlerSource.includes(`.${declaration[2]}(`) && dtoSchemas[declaration[3]]) responseTypes.push(declaration[3]);
+      }
+      for (const call of registration.selectedHandlerSource.matchAll(/\.(\w+)\.(toResponse)\s*\(\)/g)) {
+        const candidates = [...registration.fileSource.matchAll(/fun\s+(\w+)\.toResponse\s*\(\)\s*:\s*(\w+Response)/g)]
+          .filter((candidate) => candidate[1].toLowerCase().endsWith(call[1].toLowerCase()));
+        if (candidates.length === 1 && dtoSchemas[candidates[0][2]]) responseTypes.push(candidates[0][2]);
+      }
+      const resolvedResponseType = responseTypes[0];
      const explicitStatuses = [...registration.source.matchAll(/HttpStatus\.(\w+)/g)].map((match) => statusNames[match[1]]).filter(Boolean);
       if (explicitStatuses.length) {
        for (const status of Object.keys(operation.responses)) {

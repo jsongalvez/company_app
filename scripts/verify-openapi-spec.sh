@@ -170,14 +170,14 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
     throw new Error(`${method.toUpperCase()} ${path} must declare a success response`);
   }
 }
-if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].registration !== "string" || operation["x-route-source"].registration.length === 0)) {
+if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].registration !== "string" || operation["x-route-source"].registration.length === 0 || typeof operation["x-route-source"].selectedHandlerSource !== "string" || operation["x-route-source"].selectedHandlerSource.trim().length === 0)) {
   throw new Error("Every operation must retain its exact route registration source binding");
 }
 for (const [path, methods] of Object.entries(spec.paths || {})) for (const [method, operation] of Object.entries(methods)) {
   const routeBinding = operation["x-route-source"];
   const annotationBinding = operation["x-openapi-source"];
   const expectedAnnotation = annotationSources.get(`${method} ${path}`);
-  if (!annotationBinding || annotationBinding.file !== expectedAnnotation?.file || annotationBinding.owner !== expectedAnnotation?.owner || annotationBinding.operationId !== expectedAnnotation?.operationId || annotationBinding.annotation !== expectedAnnotation?.source) {
+  if (!annotationBinding || annotationBinding.key !== `${method} ${path}` || annotationBinding.file !== expectedAnnotation?.file || annotationBinding.owner !== expectedAnnotation?.owner || annotationBinding.operationId !== expectedAnnotation?.operationId || annotationBinding.annotation !== expectedAnnotation?.source) {
     throw new Error(`${method.toUpperCase()} ${path} does not retain exact source OpenApi annotation binding`);
   }
   if (annotationBinding.operationId !== operation.operationId) {
@@ -185,7 +185,9 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
   }
   const routeSource = fs.readFileSync(`${routeDir}/${routeBinding.file}`, "utf8");
   if (!routeSource.includes(routeBinding.registration)) throw new Error(`${method.toUpperCase()} ${path} route registration binding is stale`);
+  if (!routeBinding.key || routeBinding.key !== `${method} ${path}`) throw new Error(`${method.toUpperCase()} ${path} route registration key is not exact`);
   if (!routeBinding.owner || routeBinding.owner !== annotationBinding.owner) throw new Error(`${method.toUpperCase()} ${path} annotation and registration have different owners`);
+  if (!routeSource.includes(routeBinding.selectedHandlerSource)) throw new Error(`${method.toUpperCase()} ${path} selected handler source binding is stale`);
 }
 function assertRefs(value) {
   if (!value || typeof value !== "object") return;
