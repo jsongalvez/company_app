@@ -43,17 +43,36 @@ fi
 
 log cleanliness "Checking tables: $TABLES_TO_CHECK"
 
+# Build one identifier-quoted query so cleanliness checks use one database round trip.
+COUNT_QUERY=$(docker exec company-postgres psql \
+    -U "$DB_USER" \
+    -d "$DB_NAME" \
+    -t -A -c "
+SELECT string_agg(
+    format('SELECT %L AS table_name, count(*) AS row_count FROM %I', tablename, tablename),
+    ' UNION ALL '
+)
+FROM pg_tables
+WHERE schemaname = 'public'
+  AND tablename NOT IN ($(echo $SEED_TABLES | sed "s/ /', '/g" | sed "s/^/'/;s/$/'/"));
+" 2>/dev/null)
+
+if [ -z "$COUNT_QUERY" ]; then
+    log cleanliness "ERROR: Could not build test-data count query."
+    exit 1
+fi
+
+COUNTS=$(docker exec company-postgres psql \
+    -U "$DB_USER" \
+    -d "$DB_NAME" \
+    -t -A -F '|' -c "$COUNT_QUERY")
+
 LEAKED=""
-for tbl in $TABLES_TO_CHECK; do
-    COUNT=$(docker exec company-postgres psql \
-        -U "$DB_USER" \
-        -d "$DB_NAME" \
-        -t -A -c "SELECT count(*) FROM \"$tbl\";" 2>/dev/null || echo "0")
-    COUNT=$(echo "$COUNT" | tr -d ' ')
-    if [ "$COUNT" != "0" ]; then
-        LEAKED="$LEAKED $tbl($COUNT)"
+while IFS='|' read -r tbl count; do
+    if [ -n "$tbl" ] && [ "$count" != "0" ]; then
+        LEAKED="$LEAKED $tbl($count)"
     fi
-done
+done <<< "$COUNTS"
 
 if [ -n "$LEAKED" ]; then
     log cleanliness "ERROR: Test-data leak detected in tables:$LEAKED"

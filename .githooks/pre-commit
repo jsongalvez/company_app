@@ -46,8 +46,8 @@ fi
 # ----------------------------------------------------------------
 # 2. Quality gate
 # ----------------------------------------------------------------
-log pre-commit "Running quality gate (detekt, ktlint, test)..."
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test --no-daemon 2>&1 | tail -5
+log pre-commit "Running quality gate (detekt, ktlint, test, shared compile)..."
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:compileKotlinJvm --no-daemon 2>&1 | tail -5
 log pre-commit "Quality gate passed."
 
 # ----------------------------------------------------------------
@@ -63,10 +63,8 @@ log pre-commit "Test-data cleanliness check passed."
 # ----------------------------------------------------------------
 # 4. Shared module compilation check
 # ----------------------------------------------------------------
-log pre-commit "Compiling shared module (JVM)..."
 # shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
-./gradlew :shared:compileKotlinJvm --no-daemon 2>&1 | tail -3
-log pre-commit "Shared module compilation passed."
+log pre-commit "Shared module compilation included in quality gate."
 
 # ----------------------------------------------------------------
 # 5. Ensure Postgres is reachable
