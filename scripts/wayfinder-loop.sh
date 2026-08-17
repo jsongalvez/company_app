@@ -52,6 +52,30 @@ notify() {
 
 handoff_docs() { find "$DOCS_DIR" -maxdepth 1 -name 'wayfinder-*-handoff.md' -printf '%f\n' 2>/dev/null | sort; }
 
+worktree_dirty() { git -C "$REPO" status --porcelain 2>/dev/null; }
+
+handoff_committed() {
+  git -C "$REPO" cat-file -e "HEAD:docs/agents/$1" 2>/dev/null
+}
+
+wait_for_clean_handoff() {
+  local doc="$1" dirty notified=0
+  while :; do
+    dirty="$(worktree_dirty)"
+    if [ -z "$dirty" ] && handoff_committed "$doc"; then
+      [ "$notified" -eq 0 ] || log "worktree clean and $doc committed — spawn resumes"
+      return 0
+    fi
+    if [ "$notified" -eq 0 ]; then
+      log "spawn paused before session creation for $doc — commit handoff and clean worktree"
+      [ -z "$dirty" ] || log "dirty paths: $(printf '%s' "$dirty" | tr '\n' ' ')"
+      notify "wayfinder paused" "commit $doc and clean worktree before next session creation"
+      notified=1
+    fi
+    sleep 60
+  done
+}
+
 api() { "$OC_BIN" api "$@"; }
 
 load_state() {
@@ -140,6 +164,9 @@ spawn_session() {
     log "DRY-RUN: would spawn session for $doc"
     return 1
   fi
+  if [ -z "${WAYFINDER_ALLOW_DIRTY:-}" ]; then
+    wait_for_clean_handoff "$doc"
+  fi
   local model_ref="null" pid
   if [ -n "${WAYFINDER_MODEL:-}" ]; then
     # `|| true` keeps the die below reachable: under `set -e`, a failing pipeline would abort
@@ -152,15 +179,6 @@ spawn_session() {
     '{title: ("wayfinder-loop: " + $d), location: {directory: $dir}, model: $ref}')" | jq -r '.data.id' || true)"
   [ -n "$sid" ] && [ "$sid" != "null" ] || die "session create failed for $doc"
   log "created $sid for $doc${WAYFINDER_MODEL:+ (model $WAYFINDER_MODEL)}"
-  if [ -z "$DRY_RUN" ] && [ -z "${WAYFINDER_ALLOW_DIRTY:-}" ]; then
-    if [ -n "$(git -C "$REPO" status --porcelain 2>/dev/null | head -1)" ]; then
-      log "worktree dirty — spawn paused for $doc"
-      notify "wayfinder paused" "worktree has uncommitted changes — commit or stash; the chain resumes automatically"
-      while [ -n "$(git -C "$REPO" status --porcelain 2>/dev/null | head -1)" ]; do sleep 60; done
-      notify "wayfinder resumed" "worktree clean — spawning $doc"
-      log "worktree clean — spawn resumes"
-    fi
-  fi
   # Disk floor gate: a session started half-full of disk dies mid-build (the session-176
   # /tmp .so fill) — hold the spawn and ping until the space is back, then proceed.
   local free_gb
