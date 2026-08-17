@@ -5,8 +5,12 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 test -f "$spec"
 if find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" \
+    "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/service" \
+    "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/domain" \
+    "$repo_root/scripts/normalize-openapi-spec.mjs" \
+    "$repo_root/scripts/verify-openapi-spec.sh" \
     -type f -newer "$spec" -print -quit | grep -q .; then
   echo "Generated OpenAPI artifact is older than source inputs" >&2
   exit 1

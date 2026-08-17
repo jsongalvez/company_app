@@ -32,7 +32,7 @@ Fresh P1-P4 review found HARD findings:
 - `./scripts/verify-openapi-spec.sh`: passed before final handler/service-status edits; latest run is blocked by missing success response content for `POST /api/attendance/clock-out`.
 - `node scripts/gate-check.mjs docs/gates/178-openapi-documentation.md`: last clean run was 5/5 before final handler/service-status edits; latest run is not clean because G4/G5 follow the clock-out verifier failure.
 - `git diff --check`: passed before final edits; rerun.
-- Full backend test was started with a 10-minute timeout but completion was not observed before handoff; treat it as unverified.
+- `./gradlew :backend:test --console=plain` reached `:backend:test` but exceeded 600000 ms; Gradle reported timeout. Full test result is unverified. Next session must retry with larger timeout and clean test DB after timeout.
 - `k6` remains unavailable per prior handoff.
 
 ## How to drive the next session
@@ -52,7 +52,7 @@ Fresh P1-P4 review found HARD findings:
 - Ticket #178 is not shippable: response/query/status source proof remains incomplete, and annotation-to-handler correspondence is not proven.
 - Latest verifier failure: `POST /api/attendance/clock-out` success 201 has no response content.
 - No commit/push occurred because phased-review exit was not reached.
-- Full backend test remains unverified after prior background run.
+- Full backend test reached execution but timed out after 600000 ms; result remains unverified and test DB cleanliness must be checked before retry.
 - `k6` is unavailable; record exact pre-push skip if push becomes possible.
 
 ## Suggested skills for next session

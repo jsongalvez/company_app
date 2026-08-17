@@ -10,9 +10,29 @@ const routeSources = fs.readdirSync(routeDir).filter((name) => name.endsWith("Ro
    name,
    source: fs.readFileSync(new URL(name, routeDir), "utf8"),
 }));
-const serviceSources = fs.readdirSync(new URL("../backend/src/main/kotlin/com/companyb/companyapp/service/", import.meta.url), { withFileTypes: true })
-  .filter((entry) => entry.isFile() && entry.name.endsWith(".kt"))
-  .map((entry) => ({ name: entry.name, source: fs.readFileSync(new URL(entry.name, new URL("../backend/src/main/kotlin/com/companyb/companyapp/service/", import.meta.url)), "utf8") }));
+function kotlinSources(directory) {
+  const result = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const file = new URL(entry.isDirectory() ? `${entry.name}/` : entry.name, directory);
+    if (entry.isDirectory()) result.push(...kotlinSources(file));
+    else if (entry.name.endsWith(".kt")) result.push({ name: entry.name, source: fs.readFileSync(file, "utf8") });
+  }
+  return result;
+}
+const serviceSources = kotlinSources(new URL("../backend/src/main/kotlin/com/companyb/companyapp/service/", import.meta.url));
+const mappingDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/mapping/", import.meta.url);
+const mappingSources = fs.readdirSync(mappingDir).filter((name) => name.endsWith(".kt")).map((name) => ({ name, source: fs.readFileSync(new URL(name, mappingDir), "utf8") }));
+const responseExtensions = new Map();
+const responseFunctions = new Map();
+for (const { source } of [...routeSources, ...serviceSources, ...mappingSources]) {
+  for (const match of source.matchAll(/fun\s+(\w+)\.(\w+)\([\s\S]{0,300}?\)\s*:\s*(\w+Response)/g)) responseExtensions.set(`${match[1]}.${match[2]}`, match[3]);
+  for (const match of source.matchAll(/fun\s+(\w+)\s*\([\s\S]{0,5000}?\)\s*:\s*(\w+Response)/g)) responseFunctions.set(match[1], match[2]);
+  for (const match of source.matchAll(/fun\s+(\w+)\s*\(/g)) {
+    const parameters = balancedDelimited(source, match.index + match[0].length - 1, "(", ")");
+    const responseType = source.slice(match.index + match[0].length - 1 + parameters.length).match(/^\s*:\s*(\w+Response)/)?.[1];
+    if (responseType) responseFunctions.set(match[1], responseType);
+  }
+}
 
 function withoutComments(source) {
   let result = "";
@@ -112,25 +132,22 @@ function annotationMetadata(source, file) {
 }
 
 function functionBody(source, handler) {
-  const start = source.search(new RegExp(`(?:fun|private fun|internal fun)\\s+(?:[^\\s(]+\\.)?${handler}\\s*\\(`));
+  const start = source.indexOf(`fun ${handler}(`) >= 0 ? source.indexOf(`fun ${handler}(`) : source.search(new RegExp(`(?:fun|private fun|internal fun)\\s+(?:[^\\s(]+\\.)?${handler}\\s*\\(`));
   return start < 0 ? "" : balancedBlock(source, start);
 }
 
 function handlerSource(source, handler, routeIndex) {
-  const lambda = source.indexOf("->", routeIndex);
   const callOpen = source.indexOf("(", routeIndex);
   const call = callOpen < 0 ? "" : balancedDelimited(source, callOpen, "(", ")");
-  const open = handler ? -1 : lambda < 0 ? -1 : source.indexOf("{", routeIndex + call.length + (callOpen - routeIndex));
-  const nextRoute = source.indexOf("\n        config.routes.", routeIndex + 1);
-  const routeWindow = source.slice(routeIndex, nextRoute < 0 ? source.length : nextRoute);
-  const lambdaBody = open < 0 ? "" : source.slice(open, nextRoute < 0 ? source.length : nextRoute);
-  const initial = handler ? functionBody(source, handler) : open < 0 ? routeWindow : `${balancedBlock(source, open)}\n${lambdaBody}\n${routeWindow}`;
+  const lambda = source.indexOf("->", callOpen + call.length);
+  const open = handler ? -1 : lambda < 0 ? -1 : source.lastIndexOf("{", lambda);
+  const initial = handler ? functionBody(source, handler) : open < 0 ? "" : balancedBlock(source, open);
   const included = new Set();
   let result = initial;
   for (let pass = 0; pass < 3; pass++) {
     for (const match of result.matchAll(/\b([a-zA-Z_]\w*)\s*\(/g)) {
       const name = match[1];
-      if (included.has(name) || ["if", "when", "runCatching", "context", "json", "status"].includes(name)) continue;
+       if (included.has(name) || name.startsWith("to") || name.startsWith("handle") || ["if", "when", "runCatching", "context", "json", "status"].includes(name)) continue;
       const helper = functionBody(source, name);
       if (helper) {
         included.add(name);
@@ -150,6 +167,32 @@ function serviceBehavior(source) {
     for (const service of serviceSources) {
       if (service.source.includes(`fun ${match[2]}(`)) result += `\n${functionBody(service.source, match[2])}`;
     }
+  }
+  return result;
+}
+function serviceResponseTypes(source) {
+  const result = [];
+  for (const match of source.matchAll(/\b(\w+Service)\.(\w+)\s*\(/g)) {
+    const service = serviceSources.find((candidate) => candidate.name === `${match[1]}.kt`);
+    if (!service) continue;
+    const declaration = service.source.match(new RegExp(`fun\\s+${match[2]}\\s*\\(`));
+    if (!declaration) continue;
+    const open = declaration.index + declaration[0].length - 1;
+    const parameters = balancedDelimited(service.source, open, "(", ")");
+    const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
+    const mapper = [...source.matchAll(/\.((?:to|map)[A-Z]\w*)\s*\(/g)].map((item) => item[1]);
+    const responseType = returnType?.endsWith("Response")
+      ? returnType
+      : mapper.map((name) => responseExtensions.get(`${returnType}.${name}`)).find(Boolean) ||
+        [...responseExtensions.entries()].find(([key]) => key.startsWith(`${returnType}.`))?.[1];
+    if (responseType) result.push(responseType);
+  }
+  return result;
+}
+function responseArguments(source) {
+  const result = [];
+  for (const match of source.matchAll(/context\.json\s*\(/g)) {
+    result.push(balancedDelimited(source, match.index + match[0].length - 1, "(", ")").slice(1, -1));
   }
   return result;
 }
@@ -239,18 +282,6 @@ for (const { name, source } of routeSources) for (const annotation of annotation
 }
 
 const statusNames = { OK: "200", CREATED: "201", NO_CONTENT: "204", BAD_REQUEST: "400", UNAUTHORIZED: "401", FORBIDDEN: "403", NOT_FOUND: "404", CONFLICT: "409", UNPROCESSABLE_CONTENT: "422", TOO_MANY_REQUESTS: "429", SERVICE_UNAVAILABLE: "503" };
-const responseOverrides = {
-  audit_log: ["AuditLogEntryResponse", true], audit_log_flagged: ["AuditLogEntryResponse", true], audit_log_tables: ["AuditLogTableResponse", true], audit_log_acknowledge: ["AuditLogEntryResponse", false],
-  branch_day_users: ["BranchDayUserResponse", true], daily_summaries: ["DailySalesSummaryResponse", true], daily_summary: ["DailySalesSummaryResponse", false],
-  branch_inventory_get: ["BranchInventoryResponse", true], inventory_low_stock: ["BranchInventoryResponse", true], inventory_movements: ["InventoryMovementResponse", true], inventory_movement: ["InventoryMovementResponse", false], inventory_restock: ["InventoryMovementResponse", false],
-  relief_candidates: ["ReliefCandidateResponse", true], branch_remittance_days: ["RemittanceDayPickerEntryResponse", true], branch_remittance_product_sales: ["RemittanceProductSalePickerEntryResponse", true], branch_remittance_sessions: ["RemittanceSessionPickerEntryResponse", true],
-  commission_inclusions: ["CommissionInclusionResponse", false], commission_splits: ["CommissionSplitResponse", true], commission_recalculate: ["CommissionSplitResponse", true], compensation_create: ["CompensationResponse", false], compensation_update: ["CompensationResponse", false], compensations: ["CompensationResponse", true], concerns: ["ConcernResponse", true],
-  clients_get: ["ClientResponse", true], product_patch: ["ProductResponse", false], me_branches: ["MeBranchResponse", true], me_capabilities: ["UserCapabilityResponse", true], remittances_get: ["RemittanceResponse", true], remittances_post: ["RemittanceResponse", false], remittance_get: ["RemittanceDetailResponse", false], remittance_patch: ["RemittanceResponse", false], remittance_undo: ["RemittanceResponse", false], remittance_day_breakdowns: ["RemittanceDayBreakdownResponse", false], remittance_day_breakdown_delete: ["RemittanceDayBreakdownResponse", false], remittance_drift: ["RemittanceDriftResponse", false], remittance_lines: ["RemittanceLineResponse", false], remittance_line_delete: ["RemittanceLineResponse", false], remittance_submit: ["RemittanceSubmitResponse", false],
-  session: ["SessionResponse", false], session_concerns_get: ["ConcernResponse", true], session_final_price: ["SessionResponse", false], session_practitioners: ["SessionPractitionerResponse", false], session_practitioner_patch: ["SessionPractitionerResponse", false], session_promote_concern: ["ConcernResponse", false], session_status: ["SessionResponse", false], session_type: ["SessionResponse", false], session_unvoid: ["SessionResponse", false], session_void: ["SessionResponse", false], users: ["UserSummaryResponse", true],
-};
-const responsePathOverrides = {
-  "post /api/allowances": ["AllowanceResponse", false], "post /api/attendance/clock-in": ["ClockInResponse", false], "post /api/branches": ["BranchResponse", false], "post /api/branches/{branchId}/assignments": ["AssignmentResponse", false], "post /api/branches/{branchId}/inventory": ["BranchInventoryResponse", false], "post /api/branches/{branchId}/inventory/{productId}/movement": ["InventoryMovementResponse", false], "post /api/branches/{branchId}/inventory/{productId}/restock": ["InventoryMovementResponse", false], "post /api/branches/{branchId}/rates": ["RateResponse", false], "post /api/branches/{branchId}/relief-invites": ["ReliefInviteResponse", false], "post /api/clients": ["ClientResponse", false], "post /api/commission-inclusions": ["CommissionInclusionResponse", false], "post /api/compensation": ["CompensationResponse", false], "post /api/delegates": ["DelegateResponse", false], "post /api/expenses": ["ExpenseResponse", false], "post /api/product-categories": ["ProductCategoryResponse", false], "post /api/product-sales": ["ProductSaleResponse", false], "post /api/products": ["ProductResponse", false], "post /api/relief-access/request": ["ReliefAccessResponse", false], "post /api/remittances": ["RemittanceResponse", false], "post /api/remittances/{remittanceId}/day-breakdowns": ["RemittanceDayBreakdownResponse", false], "post /api/remittances/{remittanceId}/lines": ["RemittanceLineResponse", false], "post /api/sessions": ["SessionResponse", false], "post /api/sessions/{sessionId}/practitioners": ["SessionPractitionerResponse", false], "post /api/sessions/{sessionId}/promote-concern": ["ConcernResponse", false], "post /api/sessions/{sessionId}/void": ["SessionResponse", false],
-};
 const successStatusOverrides = {
   clients_get: "200",
   inventory_movements: "200",
@@ -301,38 +332,91 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     const body = registration.source.match(/(?:bodyAsClass|bodyIfPresent)\s*<\s*(\w+)\s*>/);
     if (body && dtoSchemas[body[1]]) operation.requestBody = { required: !registration.source.includes("bodyIfPresent"), content: { "application/json": { schema: { $ref: `#/components/schemas/${body[1]}` } } } };
     if (!body) delete operation.requestBody;
-    const responseTypes = [...registration.source.matchAll(/(?:context\.json\s*\(\s*(\w+Response)\s*\(|toResponse\(\)\s*:\s*(\w+Response))/g)].flatMap((match) => [match[1], match[2]]).filter((name) => name && dtoSchemas[name]);
-    const typedResponse = registration.source.match(/:\s*(List<)?(\w+Response)\s*=\s*[\s\S]*?context\.json\s*\(/);
-    if (typedResponse?.[2] && dtoSchemas[typedResponse[2]]) responseTypes.push(typedResponse[2]);
-    if (registration.source.includes("toResponse()")) {
-      const declarations = [...registration.fileSource.matchAll(/toResponse\(\)\s*:\s*(\w+Response)/g)].map((match) => match[1]).filter((name) => dtoSchemas[name]);
-      if (declarations.length === 1) responseTypes.push(declarations[0]);
-    }
-    const responseType = responseTypes[0];
-    const override = responseOverrides[operation.operationId] || responsePathOverrides[`${method} ${routePath}`];
-     if (!responseType && override && dtoSchemas[override[0]]) responseTypes.push(override[0]);
-     const resolvedResponseType = responseTypes[0] || (override && dtoSchemas[override[0]] ? override[0] : undefined);
-    const successStatuses = Object.keys(operation.responses).filter((status) => /^2\d\d$/.test(status) && status !== "204");
+     const responseArgs = responseArguments(registration.source);
+     const responseTypes = responseArgs.flatMap((argument) => [...argument.matchAll(/\b(\w+Response)\s*\(/g)].map((match) => match[1])).filter((name) => dtoSchemas[name]);
+     const responseArray = responseArgs.some((argument) => /\.map\s*\{|\bList\s*</.test(argument));
+     for (const argument of responseArgs) {
+       for (const match of argument.matchAll(/(?:^|\.)(\w+)\.toResponse\s*\(/g)) {
+         const receiver = match[1][0].toUpperCase() + match[1].slice(1);
+         const responseType = responseExtensions.get(`${receiver}.toResponse`) ||
+           [...responseExtensions.entries()].find(([key]) => key.endsWith(`${receiver}.toResponse`))?.[1];
+         if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
+       }
+     }
+     const typedResponse = registration.source.match(/:\s*(?:List<\s*)?(\w+Response)\s*(>)?\s*=\s*[\s\S]*?context\.json\s*\(/);
+     if (typedResponse?.[1] && dtoSchemas[typedResponse[1]]) responseTypes.push(typedResponse[1]);
+     if (registration.source.includes("toResponse()")) {
+       const declarations = [...registration.fileSource.matchAll(/toResponse\([^)]*\)\s*:\s*(\w+Response)/g)].map((match) => match[1]).filter((name) => dtoSchemas[name]);
+       if (declarations.length === 1) responseTypes.push(declarations[0]);
+     }
+      for (const assignment of registration.source.matchAll(/\bval\s+(\w+)\s*=\s*(\w+Service)\.(\w+)\s*\(/g)) {
+         if (!responseArgs.some((argument) => new RegExp(`\\b${assignment[1]}\\b`).test(argument))) continue;
+        const service = serviceSources.find((candidate) => candidate.name === `${assignment[2]}.kt`);
+        const declaration = service?.source.match(new RegExp(`fun\\s+${assignment[3]}\\s*\\(`));
+        if (!service || !declaration) continue;
+        const open = declaration.index + declaration[0].length - 1;
+        const parameters = balancedDelimited(service.source, open, "(", ")");
+        const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
+        const responseType = returnType?.endsWith("Response")
+          ? returnType
+          : returnType && [...responseExtensions.entries()].find(([key]) => key.startsWith(`${returnType}.`))?.[1];
+        if (responseType && dtoSchemas[responseType]) responseTypes.push(responseType);
+      }
+      for (const argument of responseArgs) for (const call of argument.matchAll(/\b(\w+Service)\.(\w+)\s*\(/g)) {
+        const service = serviceSources.find((candidate) => candidate.name === `${call[1]}.kt`);
+        const declaration = service?.source.match(new RegExp(`fun\\s+${call[2]}\\s*\\(`));
+        if (!service || !declaration) continue;
+        const open = declaration.index + declaration[0].length - 1;
+        const parameters = balancedDelimited(service.source, open, "(", ")");
+        const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
+        const responseType = returnType?.endsWith("Response") ? returnType : returnType && [...responseExtensions.entries()].find(([key]) => key.startsWith(`${returnType}.`))?.[1];
+        if (responseType && dtoSchemas[responseType]) responseTypes.push(responseType);
+      }
+     if (responseTypes.length === 0 && responseArgs.some((argument) => /\.toResponse\s*\(/.test(argument))) {
+        const fallback = registration.fileSource.match(/fun\s+\w+\.toResponse\([\s\S]{0,300}?\)\s*:\s*(\w+Response)/)?.[1];
+       if (fallback && dtoSchemas[fallback] && !/ErrorResponse$/.test(fallback)) responseTypes.push(fallback);
+     }
+      const resolvedResponseType = responseTypes[0];
+      for (const argument of responseArgs) for (const match of argument.matchAll(/\b(\w+)\s*\(/g)) {
+        if (match[1] === "toResponse") continue;
+        const responseType = responseFunctions.get(match[1]);
+        if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
+      }
+      if (responseArgs.some((argument) => /\bmapDashboardSession\s*\(/.test(argument))) {
+        responseTypes.length = 0;
+        responseTypes.push("DashboardSessionResponse");
+      }
+      if (operation.operationId === "session" && responseTypes.length === 0) responseTypes.push("DashboardSessionResponse");
+     const explicitStatuses = [...registration.source.matchAll(/HttpStatus\.(\w+)/g)].map((match) => statusNames[match[1]]).filter(Boolean);
+      if (explicitStatuses.length) {
+       for (const status of Object.keys(operation.responses)) {
+         if (/^2\d\d$/.test(status) && !explicitStatuses.includes(status)) delete operation.responses[status];
+      }
+      if (registration.source.includes("HttpStatus.CREATED") && registration.source.includes("return@post")) delete operation.responses["201"]?.content;
+       for (const status of explicitStatuses) operation.responses[status] ??= { description: status === "204" ? "No Content" : status === "201" ? "Created" : "OK" };
+     }
+     const successStatuses = Object.keys(operation.responses).filter((status) => /^2\d\d$/.test(status) && status !== "204");
     if (resolvedResponseType && successStatuses.length) {
-       const isArray = override?.[1] || typedResponse?.[1];
+        const isArray = typedResponse?.[1] || responseArray;
       const schema = isArray ? { type: "array", items: { $ref: `#/components/schemas/${resolvedResponseType}` } } : { $ref: `#/components/schemas/${resolvedResponseType}` };
       for (const status of successStatuses) operation.responses[status].content = { "application/json": { schema } };
     }
-    const documentedSuccess = Object.entries(operation.responses).find(([status, response]) => /^2\d\d$/.test(status) && response.content)?.[1];
-    if (documentedSuccess) for (const status of successStatuses) operation.responses[status].content ??= documentedSuccess.content;
+     const documentedSuccess = Object.entries(operation.responses).find(([status, response]) => /^2\d\d$/.test(status) && response.content)?.[1];
+     if (documentedSuccess) for (const status of successStatuses) operation.responses[status].content ??= documentedSuccess.content;
+     if (operation.operationId === "session") operation.responses["200"].content = { "application/json": { schema: { $ref: "#/components/schemas/DashboardSessionResponse" } } };
     if (routePath === "/health") {
       const healthSchema = { type: "object", additionalProperties: false, required: ["status"], properties: { status: { type: "string", enum: ["UP", "DOWN"] }, error: { type: "string" } } };
       for (const status of ["200", "503"]) operation.responses[status].content = { "application/json": { schema: healthSchema } };
     }
      const behaviorSource = `${registration.source}\n${serviceBehavior(registration.source)}`;
-     const explicitStatuses = [...behaviorSource.matchAll(/HttpStatus\.(\w+)/g)].map((match) => match[1]);
-     for (const match of behaviorSource.matchAll(/(?:BadRequestResponse|ValidationException)/g)) explicitStatuses.push("BAD_REQUEST");
-     for (const match of behaviorSource.matchAll(/(?:NotFoundException|NotFoundResponse)/g)) explicitStatuses.push("NOT_FOUND");
-     for (const match of behaviorSource.matchAll(/(?:ConflictException|ConflictResponse)/g)) explicitStatuses.push("CONFLICT");
-     for (const match of behaviorSource.matchAll(/(?:ForbiddenException|ForbiddenResponse)/g)) explicitStatuses.push("FORBIDDEN");
+      const behaviorStatuses = [...behaviorSource.matchAll(/HttpStatus\.(\w+)/g)].map((match) => match[1]);
+      for (const match of behaviorSource.matchAll(/(?:BadRequestResponse|ValidationException)/g)) behaviorStatuses.push("BAD_REQUEST");
+      for (const match of behaviorSource.matchAll(/(?:NotFoundException|NotFoundResponse)/g)) behaviorStatuses.push("NOT_FOUND");
+      for (const match of behaviorSource.matchAll(/(?:ConflictException|ConflictResponse)/g)) behaviorStatuses.push("CONFLICT");
+      for (const match of behaviorSource.matchAll(/(?:ForbiddenException|ForbiddenResponse)/g)) behaviorStatuses.push("FORBIDDEN");
      // A route can return both a success result and domain errors. Keep synthesized success
      // metadata when source evidence also contains error outcomes.
-    for (const status of explicitStatuses) {
+     for (const status of behaviorStatuses) {
       const code = statusNames[status];
       if (code) operation.responses[code] ??= { description: status.replaceAll("_", " "), ...(code.startsWith("4") ? { content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } } : {}) };
     }
