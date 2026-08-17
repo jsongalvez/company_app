@@ -52,7 +52,7 @@ Session 97 charted AFK architecture-audit task #180 as a child of Map #89 and ad
 
 - Map #89 is intentionally blocked by open task #180.
 - Task #180 has no human blocker; it is AFK.
-- k6 remains unavailable in environment; future pre-push runs emit documented skip unless k6 is installed.
+- k6 v2.2.0 is installed at `/usr/local/bin/k6` and verified on `linux/arm64`; future pre-push runs can execute the load-test baseline.
 - `.wayfinder-loop.lock` is unrelated untracked state; preserve it.
 
 ## Suggested skills for next session
