@@ -64,7 +64,7 @@ object MedicalMissionDelegateRoutes {
 
     @Suppress("ThrowsCount")
     fun revokeDelegate(config: JavalinConfig) {
-        config.routes.before("/api/delegates") { context ->
+        config.routes.before("/api/delegates/{delegateId}") { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.ASSIGN_DELEGATE,

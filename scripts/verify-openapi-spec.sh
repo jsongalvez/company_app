@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 test -f "$spec"
+node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$spec"
 
 OPENAPI_ROUTE_DIR="$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" node - "$spec" <<'NODE'
 const fs = require("fs");
@@ -53,6 +54,16 @@ if (new Set(operationIds).size !== operationIds.length) throw new Error("Operati
 if (operations.some((operation) => operation.requestBody?.content?.["application/json"]?.schema?.type === "object")) {
   throw new Error("Request bodies must reference DTO schemas, not generic objects");
 }
+for (const [path, methods] of Object.entries(spec.paths || {})) for (const [method, operation] of Object.entries(methods)) {
+  for (const [status, response] of Object.entries(operation.responses || {})) {
+    if (!(path === "/health" && status === "503") && /^4\d\d$|^5\d\d$/.test(status) && response.content?.["application/json"]?.schema?.$ref !== "#/components/schemas/ErrorResponse") {
+      throw new Error(`${method.toUpperCase()} ${path} error ${status} must use ErrorResponse`);
+    }
+    if (/^2\d\d$/.test(status) && status !== "204" && !(method === "post" && (path === "/api/auth/logout" || path === "/auth/register")) && !response.content) {
+      throw new Error(`${method.toUpperCase()} ${path} success ${status} must declare response content or be explicitly bodyless`);
+    }
+  }
+}
 if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].handler !== "string")) {
   throw new Error("Every operation must retain its route registration source binding");
 }
@@ -66,6 +77,14 @@ function assertRefs(value) {
 }
 assertRefs(spec.paths);
 assertRefs(spec.components);
+function assertSchemas(value, location = "schema") {
+  if (!value || typeof value !== "object") return;
+  if (value.type === "object" && !value.$ref && !value.properties && location !== "schema.ErrorResponse") {
+    throw new Error(`Generic object schema is not allowed at ${location}`);
+  }
+  for (const [key, child] of Object.entries(value)) assertSchemas(child, `${location}.${key}`);
+}
+assertSchemas(spec.components);
 for (const operation of operations) {
   for (const parameter of operation.parameters || []) {
     if (parameter.in === "query" && !parameter.schema) throw new Error(`Query parameter ${parameter.name} has no schema`);
