@@ -43,7 +43,7 @@ opencode attach http://localhost:8080
 
 ## Wayfinder Loop (Automated Wayfinder Chain)
 
-Automates the wayfinder session chain: watches `docs/agents/` for new `wayfinder-*-handoff.md` files (each session's completion signal), spawns a fresh zero-context opencode2 session that reads the newest handoff and drives the next session per its instructions, and notifies you when the agent parks on a question or the chain breaks. Sessions are one-ticket-per-session, claim-first, per the handoff docs.
+Automates the wayfinder session chain: watches `docs/agents/` for new `wayfinder-*-handoff.md` files, waits for the producing session and its child sessions to exit, then spawns one fresh zero-context opencode2 session that reads the handoff and drives the next session per its instructions. A lock prevents duplicate daemons. Sessions are one-ticket-per-session, claim-first, per the handoff docs.
 
 ```bash
 # First start (seed with the latest handoff and spawn immediately)

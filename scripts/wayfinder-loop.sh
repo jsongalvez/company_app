@@ -50,7 +50,15 @@ notify() {
   fi
 }
 
-handoff_docs() { find "$DOCS_DIR" -maxdepth 1 -name 'wayfinder-*-handoff.md' -printf '%f\n' 2>/dev/null | sort; }
+# Only one daemon may own chain state. A second watcher could observe the same
+# handoff and create a second active session before either watcher saves state.
+exec 9>"$REPO/.wayfinder-loop.lock"
+flock -n 9 || die "another wayfinder-loop daemon is already running"
+
+handoff_docs() {
+  find "$DOCS_DIR" -maxdepth 1 -name 'wayfinder-*-handoff.md' -printf '%f\n' 2>/dev/null |
+    sort -t- -k2,2n
+}
 
 worktree_dirty() { git -C "$REPO" status --porcelain 2>/dev/null; }
 
@@ -99,7 +107,7 @@ wait_for_clean_handoff() {
 api() { "$OC_BIN" api "$@"; }
 
 load_state() {
-  last_doc=""; session_id=""
+  last_doc=""; session_id=""; pending_doc=""
   [ -f "$STATE_FILE" ] || return 0
   # shellcheck disable=SC1090
   source "$STATE_FILE"
@@ -109,9 +117,24 @@ save_state() {
   {
     echo "last_doc=$last_doc"
     echo "session_id=$session_id"
+    echo "pending_doc=${pending_doc:-}"
     echo "retries=${retries:-0}"
     echo "seen_docs=$seen_docs"
   } > "$STATE_FILE"
+}
+
+wait_for_session_exit() {
+  local notified=0
+  while session_alive "$session_id" || active_children "$session_id"; do
+    if [ "$notified" -eq 0 ]; then
+      log "handoff $pending_doc detected; waiting for session $session_id to exit before spawning"
+      notify "wayfinder waiting" "handoff $pending_doc is ready; waiting for session $session_id to finish"
+      notified=1
+    fi
+    sleep "$TICK_SECS"
+  done
+  # API active-state removal and final filesystem writes can cross one poll tick.
+  sleep "$TICK_SECS"
 }
 
 # seen_docs is a comma-separated list of processed handoff basenames
@@ -242,13 +265,18 @@ supervise_session() {
     # completion first: a finished session writes its handoff doc as its final act
     d="$(newest_unprocessed || true)"
     if [ -n "$d" ]; then
-      log "session $session_id completed; next handoff: $d"
-      notify "wayfinder session done" "handoff written: $d — starting next"
-      last_doc="$d"
-      mark_seen "$d"
+      pending_doc="$d"
       retries=0
       save_state
-      spawn_session "$d" || { log "dry-run: chain would continue"; exit 0; }
+      wait_for_session_exit
+      [ -f "$DOCS_DIR/$pending_doc" ] || die "pending handoff disappeared: $pending_doc"
+      log "session $session_id completed; next handoff: $pending_doc"
+      notify "wayfinder session done" "handoff written: $pending_doc — starting next"
+      last_doc="$pending_doc"
+      mark_seen "$pending_doc"
+      pending_doc=""
+      save_state
+      spawn_session "$last_doc" || { log "dry-run: chain would continue"; exit 0; }
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
