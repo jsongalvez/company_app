@@ -8,7 +8,7 @@
 - [x] G2: Backend compiles with OpenAPI annotation processing
   CHECK: ./gradlew :backend:compileKotlin
   EXPECT: EXIT 0
-  EVIDENCE: Calculating task graph as configuration cache cannot be reused because file 'backend/build.gradle.kts' has changed.
+  EVIDENCE: Starting a Gradle Daemon, 1 busy and 4 stopped Daemons could not be reused, use --status for details
 
 - [x] G3: Generated OpenAPI document exists and declares OpenAPI 3.1
   CHECK: test -f backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json && grep -q '"openapi"[[:space:]]*:[[:space:]]*"3.1.0"' backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json
