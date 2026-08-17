@@ -1,5 +1,10 @@
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.jvm.tasks.Jar
+
 plugins {
     kotlin("jvm")
+    kotlin("kapt")
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.jmh)
     application
@@ -10,6 +15,10 @@ dependencies {
 
     // Javalin
     implementation(libs.javalin)
+    implementation(libs.javalin.openapi.plugin)
+    implementation(libs.javalin.swagger.plugin)
+    kapt(libs.javalin.openapi.processor)
+    annotationProcessor(libs.javalin.openapi.processor)
 
     // Database
     implementation(libs.postgresql)
@@ -50,6 +59,19 @@ dependencies {
     // JMH
     jmh(libs.jmh.core)
     jmhAnnotationProcessor(libs.jmh.annprocess)
+}
+
+tasks.named<JavaCompile>("compileJava") {
+    doFirst {
+        options.compilerArgs.removeAll { it == "-proc:none" }
+        options.compilerArgs.addAll(
+            listOf("-processor", "io.javalin.openapi.processor.OpenApiAnnotationProcessor"),
+        )
+    }
+}
+
+tasks.named<Jar>("jar") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 application {

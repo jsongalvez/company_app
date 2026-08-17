@@ -22,6 +22,7 @@ jansi = "2.4.3"
 jmh = "1.37"
 jmhPlugin = "0.7.3"
 javalin = "7.2.2"
+javalinOpenapi = "7.2.2"
 junit = "4.13.2"
 jwt = "4.5.1"
 kotlin = "2.3.10"
@@ -52,6 +53,9 @@ jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh"}
 jmh-annprocess = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh"}
 javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
 javalin-testtools = { module = "io.javalin:javalin-testtools", version.ref = "javalin" }
+javalin-openapi-processor = { module = "io.javalin.community.openapi:openapi-annotation-processor", version.ref = "javalinOpenapi" }
+javalin-openapi-plugin = { module = "io.javalin.community.openapi:javalin-openapi-plugin", version.ref = "javalinOpenapi" }
+javalin-swagger-plugin = { module = "io.javalin.community.openapi:javalin-swagger-plugin", version.ref = "javalinOpenapi" }
 jwt = { module = "com.auth0:java-jwt", version.ref = "jwt" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

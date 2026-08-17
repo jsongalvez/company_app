@@ -47,6 +47,8 @@ import com.companyb.companyapp.utils.Helper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
+import io.javalin.openapi.plugin.OpenApiPlugin
+import io.javalin.openapi.plugin.swagger.SwaggerPlugin
 import org.slf4j.MDC
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -76,6 +78,19 @@ fun initializeJavalin(config: AppConfig) {
 @Suppress("LongMethod")
 private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     config.jsonMapper(KotlinxSerializationMapper())
+    config.registerPlugin(
+        OpenApiPlugin { openapi ->
+            openapi.withDefinitionConfiguration { _, builder ->
+                builder.info { info ->
+                    info.title("CompanyApp Backend API")
+                    info.version("1.0.0")
+                }
+                builder.withBearerAuth("BearerAuth")
+                builder.withGlobalSecurity("BearerAuth")
+            }
+        },
+    )
+    config.registerPlugin(SwaggerPlugin())
     config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
     config.routes.before {
         // logback.xml %X{traceId} %X == %mdc
