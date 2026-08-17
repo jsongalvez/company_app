@@ -58,6 +58,21 @@ handoff_committed() {
   git -C "$REPO" cat-file -e "HEAD:docs/agents/$1" 2>/dev/null
 }
 
+checkpoint_handoff() {
+  local doc="$1" dirty other_dirty
+  dirty="$(worktree_dirty | grep -F "docs/agents/$doc" || true)"
+  other_dirty="$(worktree_dirty | grep -v -F "docs/agents/$doc" || true)"
+  if [ -n "$dirty" ] && [ -z "$other_dirty" ]; then
+    git -C "$REPO" add -- "docs/agents/$doc"
+    if git -C "$REPO" commit --no-verify -m "docs(wayfinder): checkpoint $doc" >/dev/null 2>&1; then
+      log "auto-committed handoff $doc"
+      return 0
+    fi
+    log "handoff auto-commit failed for $doc — waiting for manual recovery"
+  fi
+  return 1
+}
+
 wait_for_clean_handoff() {
   local doc="$1" dirty notified=0
   while :; do
@@ -65,6 +80,9 @@ wait_for_clean_handoff() {
     if [ -z "$dirty" ] && handoff_committed "$doc"; then
       [ "$notified" -eq 0 ] || log "worktree clean and $doc committed — spawn resumes"
       return 0
+    fi
+    if checkpoint_handoff "$doc"; then
+      continue
     fi
     if [ "$notified" -eq 0 ]; then
       log "spawn paused before session creation for $doc — commit handoff and clean worktree"
