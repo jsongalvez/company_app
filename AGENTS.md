@@ -52,6 +52,8 @@ Record selected profile, review lanes, fix batches, validation, skipped checks, 
 
 Grilling / wayfinder HITL tickets run the decision-loop discipline before a design reaches the human — `docs/agents/decision-loop.md`: five parallel lenses (fact integrity, domain coherence, long-term architecture, falsification, comprehension), HARD/SOFT triage, exit on one full zero-HARD pass. Standing frame for all human-facing questions: dev-stage — migration cost is zero, choose the best long-term option; falsify every claim; verify every fact in code before offering a choice (the false-premise defect); simple language — short sentences, gist at a glance, technical accuracy intact.
 
+Architectural choices are agent-owned by default. Do not ask the user to choose between implementation shapes, modules, seams, abstractions, or review dispositions when business requirements and existing constraints are clear. Select the strongest evidence-backed design, record important rationale in the ticket or ADR, and proceed. Ask only when business behavior, scope, safety, external authorization, or an explicit user preference is genuinely ambiguous.
+
 ## Document map
 
 This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `docs/adr/` (architecture decisions). Below is a quick-reference for where to find what.
