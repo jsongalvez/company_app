@@ -37,12 +37,9 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 
 class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     private val currentMonth = YearMonth.now(BranchDayService.manilaZone)
-    private val currentMonthStart = currentMonth.atDay(1)
-    private val currentMonthEnd = currentMonth.atEndOfMonth()
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
@@ -100,7 +97,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(1, summary.sessionCount)
         assertEquals(0, summary.productCount)
@@ -117,7 +113,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         val breakdownId = UUID.randomUUID()
         val branchDayId = resolveBranchDay(currentMonth.atDay(10))
 
-        createDraftRemittance(remittanceId, currentMonthStart, currentMonthEnd)
+        createDraftRemittance(remittanceId, currentMonth.atDay(1), currentMonth.atEndOfMonth())
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
         DatabaseTestHelper.insertTestCompensation(branchDayId, callerId, BigDecimal("300.00"), assignedBy = callerId)
@@ -153,7 +149,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, BigDecimal("2000.00").compareTo(summary.grossIncome))
         assertEquals(0, BigDecimal("300.00").compareTo(summary.totalCompensation))
@@ -175,7 +170,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, summary.sessionCount)
         assertEquals(1, summary.productCount)
@@ -200,7 +194,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(2, summary.totalRemittances)
         assertEquals(1, summary.sessionCount)
         assertEquals(1, summary.productCount)
@@ -239,7 +232,6 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, summary.sessionCount)
         assertEquals(1, summary.productCount)
@@ -256,7 +248,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         lineAmount: BigDecimal,
     ) {
         val branchDayId = resolveBranchDay(currentMonth.atDay(10))
-        createDraftRemittance(remittanceId, currentMonthStart, currentMonthEnd)
+        createDraftRemittance(remittanceId, currentMonth.atDay(1), currentMonth.atEndOfMonth())
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
@@ -297,8 +289,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             type = RemittanceType.PRODUCT,
             branchId = branchId,
             method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            dateRangeStart = currentMonthStart,
-            dateRangeEnd = currentMonthEnd,
+            dateRangeStart = currentMonth.atDay(1),
+            dateRangeEnd = currentMonth.atEndOfMonth(),
         )
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)

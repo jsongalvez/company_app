@@ -200,7 +200,8 @@ Operating rules for this automated run:
 1. Work autonomously as far as you can. Prefer AFK-capable work from the map's own \"Recommended next pick\" when no human decision is truly needed.
 2. If you need a human decision (grilling, fog-graduation pick, HITL design), ask via the question tool and WAIT. Do not guess.
 3. When done, write docs/agents/wayfinder-<N>-handoff.md (next session number) following the existing format. That file is the chain's completion signal — it MUST exist before you stop.
-4. Then stop. Do not start follow-up work."
+4. Push committed changes to the configured remote after verification. If push is blocked by a documented gate or missing credential, record exact blocker in the handoff and stop.
+5. Then stop. Do not start follow-up work."
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
