@@ -123,7 +123,7 @@ class UserViewModel(
     val actionErrors: StateFlow<Map<String, String>> = actionTracker.errors
 
     // Every mutation lands here with a state-less handler call (the #168 state-less launch):
-    // the real effects route through actionTracker (begin/fail/finish) + the in-place list
+    // the real effects route through actionTracker (tryBegin/fail/finish) + the in-place list
     // transforms, so the throwaway UiState flow the stateful launch would have written is
     // unneeded (the #122/#120 keep-last-list shape).
     fun loadUsers() {
@@ -262,7 +262,7 @@ class UserViewModel(
         // the screen disables the row actions + dialog confirms while Loading; this guard covers
         // the same-frame tap that slips past the composition gate.
         if (keptUsers.state.value is UiState.Loading) return
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         handler.launchStateless(
             operation = operation,
             endpoint = endpoint,

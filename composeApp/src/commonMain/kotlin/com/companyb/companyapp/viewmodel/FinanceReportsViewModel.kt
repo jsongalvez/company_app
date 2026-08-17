@@ -801,7 +801,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "expense:create"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "createExpense",
@@ -854,7 +854,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "expense:update:${expense.id}"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "updateExpense",
@@ -901,7 +901,7 @@ class FinanceReportsViewModel(
         reason: String,
     ) {
         val key = "expense:delete:${expense.id}"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "deleteExpense",
@@ -931,7 +931,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "expense:restore:${expense.id}"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "restoreExpense",
@@ -978,7 +978,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "comp:create"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "createCompensation",
@@ -1032,7 +1032,7 @@ class FinanceReportsViewModel(
         reason: String?,
     ) {
         val key = "comp:update:${compensation.id}"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "updateCompensation",
@@ -1086,7 +1086,7 @@ class FinanceReportsViewModel(
     ) {
         val day = _selectedDay.value ?: return
         val key = "allow:create"
-        if (!actionTracker.begin(key)) return
+        if (!actionTracker.tryBegin(key)) return
         val generation = editDataGeneration
         handler.launchStateless(
             operation = "createAllowance",

@@ -374,13 +374,13 @@ class KeepLastTest {
     // ─────────────────────────── ActionTracker (#167) ───────────────────────────
 
     @Test
-    fun actionTracker_begin_takes_marker_and_other_keys_unblocked() =
+    fun actionTracker_tryBegin_takes_marker_and_other_keys_unblocked() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
 
-            assertTrue(tracker.begin("a"))
-            assertFalse(tracker.begin("a"), "a same-key double-fire coalesces")
-            assertTrue(tracker.begin("b"), "another key is never blocked")
+            assertTrue(tracker.tryBegin("a"))
+            assertFalse(tracker.tryBegin("a"), "a same-key double-fire coalesces")
+            assertTrue(tracker.tryBegin("b"), "another key is never blocked")
             assertEquals(setOf("a", "b"), tracker.inFlight.value)
         }
 
@@ -388,7 +388,7 @@ class KeepLastTest {
     fun actionTracker_fail_records_error_and_clears_marker() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
-            assertTrue(tracker.begin("a"))
+            assertTrue(tracker.tryBegin("a"))
 
             tracker.fail("a", "boom")
 
@@ -400,7 +400,7 @@ class KeepLastTest {
     fun actionTracker_finish_clears_without_error_and_is_noop_when_idle() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
-            assertTrue(tracker.begin("a"))
+            assertTrue(tracker.tryBegin("a"))
 
             tracker.finish("a")
 
@@ -411,12 +411,12 @@ class KeepLastTest {
         }
 
     @Test
-    fun actionTracker_begin_after_fail_clears_stale_error() =
+    fun actionTracker_tryBegin_after_fail_clears_stale_error() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
             tracker.fail("a", "first attempt failed")
 
-            assertTrue(tracker.begin("a"), "a retry after a failure begins")
+            assertTrue(tracker.tryBegin("a"), "a retry after a failure begins")
             assertTrue("a" in tracker.inFlight.value)
             assertTrue(tracker.errors.value.isEmpty(), "the retry clears the stale error")
         }
@@ -425,22 +425,22 @@ class KeepLastTest {
     fun actionTracker_clear_resets_markers_and_errors() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
-            tracker.begin("a")
-            tracker.begin("b")
+            tracker.tryBegin("a")
+            tracker.tryBegin("b")
             tracker.fail("a", "boom")
 
             tracker.clear()
 
             assertTrue(tracker.inFlight.value.isEmpty())
             assertTrue(tracker.errors.value.isEmpty())
-            assertTrue(tracker.begin("a"), "a cleared key re-arms")
+            assertTrue(tracker.tryBegin("a"), "a cleared key re-arms")
         }
 
     @Test
     fun actionTracker_clearErrors_drops_errors_leaves_markers() =
         runTest(testScheduler) {
             val tracker = ActionTracker<String>()
-            tracker.begin("a")
+            tracker.tryBegin("a")
             tracker.fail("b", "boom")
 
             tracker.clearErrors()
@@ -456,7 +456,7 @@ class KeepLastTest {
             tracker.fail("expense:create", "create failed")
             tracker.fail("expense:update:e1", "update failed")
             tracker.fail("comp:create", "create failed")
-            tracker.begin("comp:update:c1")
+            tracker.tryBegin("comp:update:c1")
 
             tracker.clearWhere { key -> key.startsWith("expense:") }
 

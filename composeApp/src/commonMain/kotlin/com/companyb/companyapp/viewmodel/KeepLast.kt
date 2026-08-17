@@ -155,7 +155,7 @@ class InFlightGuard<K> {
 /**
  * Per-key action tracker (the #166 P5 per-key-action-tracker graduate): the guard + per-key
  * error-map pair — "successful `tryBegin` ⇒ clear that key's inline error" — once. Composes
- * [InFlightGuard] for the coalescing marker and owns the per-key error map: [begin] marks the
+ * [InFlightGuard] for the coalescing marker and owns the per-key error map: [tryBegin] marks the
  * key in flight AND clears its stale error, both gated on the marker being free (the
  * check-before-clear order all adopters used); [fail] records a key's error on a terminal
  * failure path while clearing its marker; [finish] clears the marker on a success path.
@@ -183,7 +183,7 @@ class ActionTracker<K> {
      * stale error stays) when a request is already running for [key]; true when this call took
      * the marker and cleared the error.
      */
-    fun begin(key: K): Boolean {
+    fun tryBegin(key: K): Boolean {
         if (!inFlightGuard.tryBegin(key)) return false
         _errors.value = _errors.value - key
         return true

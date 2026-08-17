@@ -174,7 +174,7 @@ class AuditLogViewModel(
     // D2 — one-tap acknowledge, pessimistic: row leaves the flagged list only on 2xx; a failure
     // (incl. the server-enforced self-ack 409) keeps the row and surfaces an inline per-row error.
     fun acknowledge(entry: AuditLogEntryResponse) {
-        if (!ackTracker.begin(entry.id)) return
+        if (!ackTracker.tryBegin(entry.id)) return
         handler.launchStateless(
             operation = "acknowledgeEntry",
             endpoint = "PATCH /api/audit-log/${entry.id}/acknowledge",
