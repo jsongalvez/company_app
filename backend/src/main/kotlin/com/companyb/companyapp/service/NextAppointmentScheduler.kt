@@ -8,7 +8,6 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -69,24 +68,18 @@ object NextAppointmentScheduler {
 
         val message = "You have an upcoming appointment on $target"
 
-        var created = 0
-        for (session in sessions) {
-            val coordinatorIds = coordinatorsByBranch[session.branchId].orEmpty()
-            for (userId in coordinatorIds) {
-                val exists = notificationExists(session.sessionId, userId)
-                if (!exists) {
-                    NotificationRepository.insert(
-                        NotificationCreateParams(
-                            sessionId = session.sessionId,
-                            userId = userId,
-                            branchId = session.branchId,
-                            message = message,
-                        ),
+        val candidates =
+            sessions.flatMap { session ->
+                coordinatorsByBranch[session.branchId].orEmpty().map { userId ->
+                    NotificationCreateParams(
+                        sessionId = session.sessionId,
+                        userId = userId,
+                        branchId = session.branchId,
+                        message = message,
                     )
-                    created++
                 }
             }
-        }
+        val created = NotificationRepository.insertBatch(candidates)
 
         logger.info {
             "[SCHEDULER] Created $created notifications for $target " +
@@ -144,19 +137,5 @@ object NextAppointmentScheduler {
                 .map { row ->
                     row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]
                 }.groupBy({ it.first }, { it.second })
-        }
-
-    private fun notificationExists(
-        sessionId: UUID,
-        userId: UUID,
-    ): Boolean =
-        transaction {
-            NotificationTable
-                .selectAll()
-                .where {
-                    (NotificationTable.sessionId eq sessionId) and
-                        (NotificationTable.userId eq userId)
-                }.empty()
-                .not()
         }
 }
