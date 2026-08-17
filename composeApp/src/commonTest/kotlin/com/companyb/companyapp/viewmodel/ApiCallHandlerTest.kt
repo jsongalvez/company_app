@@ -10,6 +10,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -206,24 +207,35 @@ class ApiCallHandlerTest {
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
             var onErrorCalls = 0
             var transformCalls = 0
+            var stamp = 0L
+            val requestStarted = CompletableDeferred<Unit>()
+            val releaseFailure = CompletableDeferred<Unit>()
 
-            // The counter stamp flips between launch capture (0) and the landing read (1): the
-            // exception lands stale. #176 gates the Error WRITE only — the hook still runs.
-            var reads = 0L
+            // Hold the exception in flight, then move the stamp before releasing it. #176 gates
+            // the Error WRITE only — the hook still runs after the real ordering flip.
             val job =
                 handler.launch(
                     state = state,
                     operation = "load",
                     endpoint = "GET /api/items",
-                    block = { error("boom") },
+                    block = {
+                        requestStarted.complete(Unit)
+                        releaseFailure.await()
+                        error("boom")
+                    },
                     transform = {
                         transformCalls++
                         emptyList()
                     },
                     onError = { onErrorCalls++ },
-                    stamp = { reads++ },
+                    stamp = { stamp },
                     fallback = { emptyList() },
                 )
+            runCurrent()
+            assertEquals(true, requestStarted.isCompleted, "the failure must be in flight before the stamp flip")
+            stamp = 1
+            releaseFailure.complete(Unit)
+            runCurrent()
             job.join()
 
             assertEquals(1, onErrorCalls, "the onError hook must still run on a stale failure")
