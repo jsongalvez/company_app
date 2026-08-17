@@ -43,14 +43,18 @@ class ApiCallHandler(
         // ReliefInviteVM.loadReceived; a load that lands after an action moved the state it was
         // launched against must not commit its pre-action snapshot. stamp() is a value-source
         // read twice — once synchronously at launch invocation (captured; exact at launch, not
-        // at coroutine start), once when a success response lands. Transform commits only when
-        // the two reads agree; a mismatched landing commits fallback() instead — the caller's
-        // substitution (a freshest-value read) + re-issue (a new launch carrying the post-action
-        // stamp). A stale body is never deserialized — its content is irrelevant to the
-        // invariant, and skipping the parse means a malformed stale body can no longer surface
-        // an Error for a response the caller would discard. Defaults are a no-op: a constant
-        // stamp always agrees, keeping every existing caller behavior-identical (the fallback
-        // default is unreachable then — a guard enabled without one fails loudly, not silently).
+        // at coroutine start), once at landing. A SUCCESS landing commits transform(response)
+        // only when the two reads agree; a mismatched success-compatible landing commits
+        // fallback() instead — the caller's substitution (a freshest-value read) + re-issue (a
+        // new launch carrying the post-action stamp). The FAILURE legs (#176 — the guard is no
+        // longer success-only): a non-success or exception landing may run its hooks but writes
+        // UiState.Error only when the reads agree — a superseded failure writes nothing onto the
+        // moved-on surface. A stale body is never deserialized — its content is irrelevant to
+        // the invariant, and skipping the parse means a malformed stale body can no longer
+        // surface an Error for a response the caller would discard. Defaults are a no-op: a
+        // constant stamp always agrees, keeping every existing caller behavior-identical (the
+        // fallback default is unreachable then — a guard enabled without one fails loudly, not
+        // silently).
         stamp: () -> Long = { 0L },
         fallback: () -> T = { error("stale-guard fallback invoked without a fallback param") },
     ): Job {
@@ -71,7 +75,11 @@ class ApiCallHandler(
                 } else {
                     logWarn(tag, "$operation failed: status=${response.status.value}")
                     if (!onNonSuccess(response)) {
-                        state.value = UiState.Error("$operation failed: ${response.status.value}")
+                        // #176 stateful stale-failure leg: a superseded failure writes nothing
+                        // onto the moved-on surface (the guard is no longer success-only).
+                        if (stamp() == captured) {
+                            state.value = UiState.Error("$operation failed: ${response.status.value}")
+                        }
                     }
                 }
             } catch (e: CancellationException) {
@@ -81,7 +89,11 @@ class ApiCallHandler(
             } catch (e: Exception) {
                 logError(tag, "$operation exception on $endpoint", e)
                 onError(e)
-                state.value = UiState.Error(e.message ?: "Unknown error")
+                // #176 stateful stale-failure leg: the hook keeps running, but a superseded
+                // failure's Error must not clobber the moved-on surface's newer write.
+                if (stamp() == captured) {
+                    state.value = UiState.Error(e.message ?: "Unknown error")
+                }
             }
         }
     }

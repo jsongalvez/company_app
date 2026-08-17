@@ -169,6 +169,80 @@ class NotificationViewModelTest {
         }
 
     @Test
+    fun in_flight_load_failure_after_404_reload_does_not_clobber_reload_success() =
+        runTest(testScheduler) {
+            NotificationState.setUnreadCount(2)
+            var getCount = 0
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(
+                        { request ->
+                            when {
+                                request.method == HttpMethod.Get &&
+                                    request.url.encodedPath == "/api/notifications" -> {
+                                    getCount++
+                                    if (getCount == 1) {
+                                        // The pre-404 load stays in flight (virtualized hold)
+                                        // while the 404-reload's Success lands; it FAILS (400) on
+                                        // completion — landing AFTER the reload. #176 (stateful
+                                        // stale-failure legs): the stale failure must not write
+                                        // Error over the reload's Success (the #175-identified
+                                        // markRead-404 clobber window, now closed).
+                                        withContext(StandardTestDispatcher(testScheduler)) {
+                                            delay(HOLD_MS)
+                                        }
+                                        jsonRespond(
+                                            status = HttpStatusCode.BadRequest,
+                                            body = """{"error":"bad request"}""",
+                                        )
+                                    } else {
+                                        jsonRespond(status = HttpStatusCode.OK, body = ARRIVAL_JSON)
+                                    }
+                                }
+
+                                request.method == HttpMethod.Patch &&
+                                    request.url.encodedPath == "/api/notifications/n1/read" -> {
+                                    jsonRespond(status = HttpStatusCode.NotFound, body = """{"error":"missing"}""")
+                                }
+
+                                else -> {
+                                    error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                                }
+                            }
+                        },
+                    ),
+                )
+
+            // Hold the first load in flight; the surface is Loading.
+            val loadJob = vm.loadUnreadNotifications()
+            runCurrent()
+            assertIs<UiState.Loading>(vm.notifications.value)
+
+            // The 404 markRead bumps the actionStamp + reloads; the reload's Success lands.
+            val markJob = vm.markRead("n1")
+            runCurrent()
+            markJob.join()
+            runCurrent() // drain the nested reload's GET (2xx — inline under runCurrent)
+            val afterReload = vm.notifications.value
+            assertIs<UiState.Success<List<NotificationResponse>>>(afterReload)
+            assertEquals(expected = listOf("n3"), actual = afterReload.data.map { it.id })
+
+            // The held pre-404 load FAILS (400) with a stale stamp — #176: no Error write; the
+            // reload's Success survives on the moved-on surface.
+            advanceTimeBy(HOLD_MS.milliseconds)
+            runCurrent()
+            loadJob.join()
+            runCurrent()
+
+            val finalState = vm.notifications.value
+            assertIs<UiState.Success<List<NotificationResponse>>>(
+                finalState,
+                "the stale failure must not clobber the 404-reload's Success with an Error",
+            )
+            assertEquals(expected = listOf("n3"), actual = finalState.data.map { it.id })
+        }
+
+    @Test
     fun markAllRead_success_empties_unread_and_sets_badge_from_response() =
         runTest(testScheduler) {
             NotificationState.setUnreadCount(7)

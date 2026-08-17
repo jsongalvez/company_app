@@ -155,7 +155,7 @@ class ApiCallHandlerTest {
         }
 
     @Test
-    fun non_success_response_commits_error_even_when_guard_enabled() =
+    fun stale_non_success_response_does_not_commit_error() =
         runTest(testScheduler) {
             val apiClient =
                 mockApiClient { _ ->
@@ -170,11 +170,13 @@ class ApiCallHandlerTest {
 
             // The 500 lands on the real IO thread (the #93 class idiom: non-2xx responses
             // complete off the test scheduler) — join per the established pattern.
-            // The stamp source makes the landing deterministically stale (the launch capture
+            // The counter stamp makes the landing deterministically stale (the launch capture
             // reads 0, the landing reads 1 — a counter, so every second read disagrees)
-            // regardless of IO-thread timing — so a guard that wrongly gated non-success
-            // responses would commit the fallback Success and fail the Error assert below.
+            // regardless of IO-thread timing.
+            // #176: the failure leg is gated — a superseded non-success must write NO Error,
+            // leaving the state at the launch's Loading (and never invoking the fallback).
             var reads = 0L
+            var fallbackCalls = 0
             val job =
                 handler.launch(
                     state = state,
@@ -183,10 +185,104 @@ class ApiCallHandlerTest {
                     block = { apiClient.httpClient.get("/api/items") },
                     transform = { emptyList() },
                     stamp = { reads++ },
+                    fallback = {
+                        fallbackCalls++
+                        emptyList()
+                    },
+                )
+            job.join()
+
+            assertEquals(0, fallbackCalls, "a failure carries no data — fallback substitutes nothing")
+            assertIs<UiState.Loading>(
+                state.value,
+                "a stale non-success landing must leave the state at Loading, not write Error",
+            )
+        }
+
+    @Test
+    fun stale_exception_does_not_commit_error_but_runs_onError() =
+        runTest(testScheduler) {
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            var onErrorCalls = 0
+            var transformCalls = 0
+
+            // The counter stamp flips between launch capture (0) and the landing read (1): the
+            // exception lands stale. #176 gates the Error WRITE only — the hook still runs.
+            var reads = 0L
+            val job =
+                handler.launch(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { error("boom") },
+                    transform = {
+                        transformCalls++
+                        emptyList()
+                    },
+                    onError = { onErrorCalls++ },
+                    stamp = { reads++ },
                     fallback = { emptyList() },
                 )
             job.join()
 
+            assertEquals(1, onErrorCalls, "the onError hook must still run on a stale failure")
+            assertEquals(0, transformCalls, "a throwing block must not run transform")
+            assertIs<UiState.Loading>(
+                state.value,
+                "a stale exception must not write Error onto the moved-on surface",
+            )
+        }
+
+    @Test
+    fun non_success_response_commits_error_when_current() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient { _ ->
+                    respond(
+                        content = ByteReadChannel(""),
+                        status = HttpStatusCode.InternalServerError,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                }
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+
+            // Default (constant) stamp — always agrees, so the non-success landing is CURRENT:
+            // the gate must not swallow a genuine failure (the #176 negative of the new pin).
+            val job =
+                handler.launch(
+                    state = state,
+                    operation = "load",
+                    endpoint = "GET /api/items",
+                    block = { apiClient.httpClient.get("/api/items") },
+                    transform = { emptyList() },
+                )
+            job.join()
+
+            assertIs<UiState.Error>(state.value)
+        }
+
+    @Test
+    fun exception_commits_error_when_current() =
+        runTest(testScheduler) {
+            val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
+            val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
+            var onErrorCalls = 0
+
+            // Default (constant) stamp — always agrees, so the exception is CURRENT: the gate
+            // must not swallow a genuine failure.
+            handler.launch(
+                state = state,
+                operation = "load",
+                endpoint = "GET /api/items",
+                block = { error("boom") },
+                transform = { emptyList() },
+                onError = { onErrorCalls++ },
+            )
+            runCurrent()
+
+            assertEquals(1, onErrorCalls)
             assertIs<UiState.Error>(state.value)
         }
 
