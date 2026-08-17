@@ -9,8 +9,9 @@ if find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" 
     "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/domain" \
-    "$repo_root/scripts/normalize-openapi-spec.mjs" \
-    "$repo_root/scripts/verify-openapi-spec.sh" \
+     "$repo_root/scripts/normalize-openapi-spec.mjs" \
+     "$repo_root/scripts/openapi-route-contract.json" \
+     "$repo_root/scripts/verify-openapi-spec.sh" \
     -type f -newer "$spec" -print -quit | grep -q .; then
   echo "Generated OpenAPI artifact is older than source inputs" >&2
   exit 1
@@ -170,7 +171,7 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
     throw new Error(`${method.toUpperCase()} ${path} must declare a success response`);
   }
 }
-if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].registration !== "string" || operation["x-route-source"].registration.length === 0 || typeof operation["x-route-source"].selectedHandlerSource !== "string" || operation["x-route-source"].selectedHandlerSource.trim().length === 0)) {
+if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].registration !== "string" || operation["x-route-source"].registration.length === 0 || typeof operation["x-route-source"].selectedHandlerSource !== "string" || operation["x-route-source"].selectedHandlerSource.trim().length === 0 || !Number.isInteger(operation["x-route-source"].selectedHandlerStart) || !Number.isInteger(operation["x-route-source"].selectedHandlerEnd))) {
   throw new Error("Every operation must retain its exact route registration source binding");
 }
 for (const [path, methods] of Object.entries(spec.paths || {})) for (const [method, operation] of Object.entries(methods)) {
@@ -184,10 +185,13 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
     throw new Error(`${method.toUpperCase()} ${path} generated operationId differs from source operationId`);
   }
   const routeSource = fs.readFileSync(`${routeDir}/${routeBinding.file}`, "utf8");
-  if (!routeSource.includes(routeBinding.registration)) throw new Error(`${method.toUpperCase()} ${path} route registration binding is stale`);
+   if (routeSource.split(routeBinding.registration).length - 1 !== 1) throw new Error(`${method.toUpperCase()} ${path} route registration binding is not unique or stale`);
   if (!routeBinding.key || routeBinding.key !== `${method} ${path}`) throw new Error(`${method.toUpperCase()} ${path} route registration key is not exact`);
   if (!routeBinding.owner || routeBinding.owner !== annotationBinding.owner) throw new Error(`${method.toUpperCase()} ${path} annotation and registration have different owners`);
-  if (!routeSource.includes(routeBinding.selectedHandlerSource)) throw new Error(`${method.toUpperCase()} ${path} selected handler source binding is stale`);
+   const expectedHash = require("crypto").createHash("sha256").update(routeBinding.selectedHandlerSource).digest("hex");
+   if (routeBinding.selectedHandlerHash !== expectedHash) throw new Error(`${method.toUpperCase()} ${path} selected handler source hash is missing or invalid`);
+   if (routeBinding.selectedHandlerStart < 0 || routeBinding.selectedHandlerEnd !== routeBinding.selectedHandlerStart + routeBinding.selectedHandlerSource.length || routeSource.slice(routeBinding.selectedHandlerStart, routeBinding.selectedHandlerEnd) !== routeBinding.selectedHandlerSource) throw new Error(`${method.toUpperCase()} ${path} selected handler source range is stale`);
+   if (routeSource.split(routeBinding.selectedHandlerSource).length - 1 !== 1) throw new Error(`${method.toUpperCase()} ${path} selected handler source binding is not unique or stale`);
 }
 function assertRefs(value) {
   if (!value || typeof value !== "object") return;

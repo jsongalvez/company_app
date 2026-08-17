@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 
 const [sourcePath, targetPath] = process.argv.slice(2);
 if (!sourcePath || !targetPath) throw new Error("source and target paths required");
 const spec = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
+const routeContract = JSON.parse(fs.readFileSync(new URL("./openapi-route-contract.json", import.meta.url), "utf8"));
 const routeDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/routes/", import.meta.url);
 const dtoDir = new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/dto/", import.meta.url);
 const routeSources = fs.readdirSync(routeDir).filter((name) => name.endsWith("Routes.kt")).map((name) => ({
@@ -25,15 +27,16 @@ const mappingSources = fs.readdirSync(mappingDir).filter((name) => name.endsWith
 const responseExtensions = new Map();
 function responseExtension(type, method) {
   const key = `${type}.${method}`;
-  const known = responseExtensions.get(key);
-  if (known) return known;
-  const declaration = [...routeSources, ...serviceSources, ...mappingSources]
-    .map(({ source }) => source.match(new RegExp(`fun\\s+${type}\\.${method}\\([^)]*\\)\\s*:\\s*(\\w+Response)`)))
-    .find(Boolean);
-  return declaration?.[1] || (method === "toResponse" ? `${type}Response` : undefined);
+  const candidates = responseExtensions.get(key) || [];
+  return candidates.length === 1 ? candidates[0] : undefined;
 }
 for (const { source } of [...routeSources, ...serviceSources, ...mappingSources]) {
-  for (const match of source.matchAll(/fun\s+(\w+)\.(\w+)\([\s\S]{0,300}?\)\s*:\s*(\w+Response)/g)) responseExtensions.set(`${match[1]}.${match[2]}`, match[3]);
+  for (const match of source.matchAll(/(?:(?:private|internal|public)\s+)?fun\s+(\w+)\.(\w+)\([\s\S]{0,300}?\)\s*:\s*(\w+Response)/g)) {
+    const key = `${match[1]}.${match[2]}`;
+    const candidates = responseExtensions.get(key) || [];
+    if (!candidates.includes(match[3])) candidates.push(match[3]);
+    responseExtensions.set(key, candidates);
+  }
 }
 
 function withoutComments(source) {
@@ -124,7 +127,7 @@ function annotationMetadata(source, file) {
     const pathValue = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
     const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
     if (!pathValue || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
-    const owner = source.slice(start).match(/(?:object|class)\s+(\w+)\s*\{/)?.[1];
+    const owner = enclosingOwner(source, start);
     if (!owner) throw new Error(`OpenApi annotation is not owned by a route object in ${file}`);
     const operationId = body.match(/\boperationId\s*=\s*"([^"]+)"/)?.[1];
     if (!operationId) throw new Error(`OpenApi annotation has no operationId in ${file}`);
@@ -135,7 +138,9 @@ function annotationMetadata(source, file) {
 
 function functionBody(source, handler) {
   const start = source.indexOf(`fun ${handler}(`) >= 0 ? source.indexOf(`fun ${handler}(`) : source.search(new RegExp(`(?:fun|private fun|internal fun)\\s+(?:[^\\s(]+\\.)?${handler}\\s*\\(`));
-  return start < 0 ? "" : balancedBlock(source, start);
+  const declarations = [...source.matchAll(new RegExp(`(?:^|\\n)\\s*(?:(?:private|internal|public)\\s+)?fun\\s+${handler}\\s*\\(`, "g"))];
+  if (declarations.length !== 1) return "";
+  return balancedBlock(source, declarations[0].index);
 }
 
 function directHandlerSource(source, handler, routeIndex) {
@@ -143,7 +148,12 @@ function directHandlerSource(source, handler, routeIndex) {
   const call = callOpen < 0 ? "" : balancedDelimited(source, callOpen, "(", ")");
   const lambda = source.indexOf("->", callOpen + call.length);
   const open = handler ? -1 : lambda < 0 ? -1 : source.lastIndexOf("{", lambda);
-  return handler ? functionBody(source, handler) : open < 0 ? "" : balancedBlock(source, open);
+  if (handler) {
+    const selected = functionBody(source, handler);
+    if (!selected) throw new Error(`Named route handler is not unique: ${handler}`);
+    return selected;
+  }
+  return open < 0 ? "" : balancedBlock(source, open);
 }
 function handlerSource(source, handler, routeIndex) {
   const initial = directHandlerSource(source, handler, routeIndex);
@@ -164,33 +174,18 @@ function handlerSource(source, handler, routeIndex) {
 }
 function enclosingOwner(source, index) {
   const owners = [...source.slice(0, index).matchAll(/(?:object|class)\s+(\w+)\s*\{/g)];
-  return owners.at(-1)?.[1] || null;
+  return owners.at(-1)?.[1] || source.slice(index).match(/(?:object|class)\s+(\w+)\s*\{/)?.[1] || null;
+}
+function sourceHash(source) {
+  return crypto.createHash("sha256").update(source).digest("hex");
 }
 function serviceBehavior(source) {
   let result = "";
   for (const match of source.matchAll(/\b(\w+Service)\.(\w+)\s*\(/g)) {
-    for (const service of serviceSources) {
-      if (service.source.includes(`fun ${match[2]}(`)) result += `\n${functionBody(service.source, match[2])}`;
-    }
-  }
-  return result;
-}
-function serviceResponseTypes(source) {
-  const result = [];
-  for (const match of source.matchAll(/\b(\w+Service)\.(\w+)\s*\(/g)) {
     const service = serviceSources.find((candidate) => candidate.name === `${match[1]}.kt`);
     if (!service) continue;
-    const declaration = service.source.match(new RegExp(`fun\\s+${match[2]}\\s*\\(`));
-    if (!declaration) continue;
-    const open = declaration.index + declaration[0].length - 1;
-    const parameters = balancedDelimited(service.source, open, "(", ")");
-    const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
-    const mapper = [...source.matchAll(/\.((?:to|map)[A-Z]\w*)\s*\(/g)].map((item) => item[1]);
-    const responseType = returnType?.endsWith("Response")
-      ? returnType
-      : mapper.map((name) => responseExtensions.get(`${returnType}.${name}`)).find(Boolean) ||
-        [...responseExtensions.entries()].find(([key]) => key.startsWith(`${returnType}.`))?.[1];
-    if (responseType) result.push(responseType);
+    const body = functionBody(service.source, match[2]);
+    if (body) result += `\n${body}`;
   }
   return result;
 }
@@ -309,13 +304,16 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
      const registration = byRoute.get(`${method} ${routePath}`);
      if (!registration) throw new Error(`Generated operation is not bound to a route registration: ${method} ${routePath}`);
      if (!registration.source.trim()) throw new Error(`Route has no selected handler source: ${method} ${routePath}`);
-     operation["x-route-source"] = {
+      operation["x-route-source"] = {
        file: registration.file,
        registration: registration.registration,
        owner: registration.owner,
        ...(registration.handler ? { handler: registration.handler } : {}),
-         selectedHandlerSource: registration.selectedHandlerSource,
-       key: `${method} ${routePath}`,
+        selectedHandlerSource: registration.selectedHandlerSource,
+        selectedHandlerHash: sourceHash(registration.selectedHandlerSource),
+        selectedHandlerStart: registration.fileSource.indexOf(registration.selectedHandlerSource),
+        selectedHandlerEnd: registration.fileSource.indexOf(registration.selectedHandlerSource) + registration.selectedHandlerSource.length,
+        key: `${method} ${routePath}`,
      };
     const annotation = annotationByRoute.get(`${method} ${routePath}`);
     if (!annotation) throw new Error(`Generated operation has no source OpenApi annotation: ${method} ${routePath}`);
@@ -341,11 +339,43 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     const body = registration.source.match(/(?:bodyAsClass|bodyIfPresent)\s*<\s*(\w+)\s*>/);
     if (body && dtoSchemas[body[1]]) operation.requestBody = { required: !registration.source.includes("bodyIfPresent"), content: { "application/json": { schema: { $ref: `#/components/schemas/${body[1]}` } } } };
     if (!body) delete operation.requestBody;
-     const responseArgs = responseArguments(registration.source);
-     const responseTypes = responseArgs.flatMap((argument) => [...argument.matchAll(/\b(\w+Response)\s*\(/g)].map((match) => match[1])).filter((name) => dtoSchemas[name]);
+      const responseArgs = responseArguments(registration.source);
+      const responseTypes = responseArgs
+        .flatMap((argument) => [...argument.matchAll(/\b(\w+Response)\s*\(/g)].map((match) => match[1]))
+        .filter((name) => name !== "ErrorResponse" && dtoSchemas[name]);
+      const directResponseTypes = [...new Set(responseTypes)];
+      for (const argument of responseArgs) {
+        const mappedVariable = argument.match(/\b(\w+)\.map\s*\{/i)?.[1];
+        if (!mappedVariable) continue;
+        const mapperDeclarations = [...registration.fileSource.matchAll(/(?:(?:private|internal|public)\s+)?fun\s+(\w+)\.toResponse\s*\([^)]*\)\s*:\s*(\w+Response)/g)]
+          .filter((match) => dtoSchemas[match[2]]);
+        if (mapperDeclarations.length === 1) responseTypes.push(mapperDeclarations[0][2]);
+        let sourceVariable = mappedVariable;
+        for (let depth = 0; depth < 3; depth++) {
+          const assignment = registration.source.match(new RegExp(`\\bval\\s+${sourceVariable}\\s*=([\\s\\S]*?)(?=\\n\\s*(?:val|context\\.|return|$))`));
+          const serviceCall = assignment?.[1]?.match(/\b(\w+Service)\.(\w+)\s*\(/);
+          if (serviceCall) {
+            const service = serviceSources.find((candidate) => candidate.name === `${serviceCall[1]}.kt`);
+            const declaration = service?.source.match(new RegExp(`fun\\s+${serviceCall[2]}\\s*\\(`));
+            if (service && declaration) {
+              const open = declaration.index + declaration[0].length - 1;
+              const parameters = balancedDelimited(service.source, open, "(", ")");
+              const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
+              const responseType = returnType && responseExtension(returnType, "toResponse");
+              if (responseType && dtoSchemas[responseType]) responseTypes.push(responseType);
+            }
+            break;
+          }
+          const upstream = assignment && [...assignment[1].matchAll(/\b(\w+)\b/g)]
+            .map((match) => match[1])
+            .find((name) => name !== sourceVariable && new RegExp(`\\bval\\s+${name}\\s*=`).test(registration.source));
+          if (!upstream || upstream[1] === sourceVariable) break;
+          sourceVariable = upstream[1];
+        }
+      }
      const responseArray = responseArgs.some((argument) => /\.map\s*\{|\bList\s*</.test(argument));
       for (const argument of responseArgs) {
-        for (const match of argument.matchAll(/(?:^|\.)(\w+)\.(to\w+Response)\s*\(/g)) {
+        for (const match of argument.matchAll(/(?:^|\.)(\w+)\.(toResponse|to\w+Response)\s*\(/g)) {
           const receiver = match[1][0].toUpperCase() + match[1].slice(1);
           const responseType = responseExtension(receiver, match[2]);
           if (responseType && dtoSchemas[responseType]) responseTypes.unshift(responseType);
@@ -362,10 +392,6 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
       }
      const typedResponse = registration.source.match(/:\s*(?:List<\s*)?(\w+Response)\s*(>)?\s*=\s*[\s\S]*?context\.json\s*\(/);
      if (typedResponse?.[1] && dtoSchemas[typedResponse[1]]) responseTypes.push(typedResponse[1]);
-     if (registration.source.includes("toResponse()")) {
-       const declarations = [...registration.fileSource.matchAll(/toResponse\([^)]*\)\s*:\s*(\w+Response)/g)].map((match) => match[1]).filter((name) => dtoSchemas[name]);
-       if (declarations.length === 1) responseTypes.push(declarations[0]);
-     }
       for (const assignment of registration.source.matchAll(/\bval\s+(\w+)\s*=\s*(\w+Service)\.(\w+)\s*\(/g)) {
          if (!responseArgs.some((argument) => new RegExp(`\\b${assignment[1]}\\b`).test(argument))) continue;
         const service = serviceSources.find((candidate) => candidate.name === `${assignment[2]}.kt`);
@@ -376,7 +402,7 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
          const returnType = service.source.slice(open + parameters.length).match(/^\s*:\s*(?:List<|Set<)?(\w+)/)?.[1];
          const mapper = responseArgs
            .filter((argument) => new RegExp(`\\b${assignment[1]}\\b`).test(argument))
-           .map((argument) => argument.match(/\.(to\w+Response)\s*\(/)?.[1])
+          .map((argument) => argument.match(/\.(toResponse|to\w+Response)\s*\(/)?.[1])
            .find(Boolean);
          const responseType = returnType?.endsWith("Response")
            ? returnType
@@ -397,26 +423,29 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
         responseTypes.length = 0;
         responseTypes.push("DashboardSessionResponse");
       }
-       if (operation.operationId === "session" && responseTypes.length === 0) responseTypes.push("DashboardSessionResponse");
+      if (responseArgs.some((argument) => /\.session\.toResponse\s*\(/.test(argument))) {
+        responseTypes.length = 0;
+        responseTypes.push("SessionResponse");
+      }
       const directTypedMapper = registration.selectedHandlerSource.match(/\b(?:val|var)\s+\w+\s*:\s*(?:[\w.]+\.)?(\w+)\s*=\s*[\s\S]*?\.toResponse\s*\(\)/);
       if (directTypedMapper && dtoSchemas[`${directTypedMapper[1]}Response`]) responseTypes.push(`${directTypedMapper[1]}Response`);
       const listMapper = registration.selectedHandlerSource.match(/\b(?:val|var)\s+\w+\s*:\s*List<\s*(\w+)\s*>\s*=[\s\S]*?\.map\s*\{[\s\S]*?\.((?:to)\w+Response)\s*\(\)/);
       const listResponseType = listMapper && responseExtension(listMapper[1], listMapper[2]);
       if (listResponseType && dtoSchemas[listResponseType]) responseTypes.push(listResponseType);
-      for (const match of responseArgs.flatMap((argument) => [...argument.matchAll(/\b(\w+)\.(to\w+Response)\s*\(/g)])) {
+      for (const match of responseArgs.flatMap((argument) => [...argument.matchAll(/\b(\w+)\.(toResponse|to\w+Response)\s*\(/g)])) {
         const receiverSuffix = match[1][0].toUpperCase() + match[1].slice(1);
         const candidates = [...registration.fileSource.matchAll(new RegExp(`fun\\s+(\\w*${receiverSuffix})\\.${match[2]}\\([^)]*\\)\\s*:\\s*(\\w+Response)`, "g"))];
         if (candidates.length === 1 && dtoSchemas[candidates[0][2]]) responseTypes.push(candidates[0][2]);
-      }
-      for (const declaration of registration.fileSource.matchAll(/fun\s+(\w+)\.(to\w+Response)\s*\([^)]*\)\s*:\s*(\w+Response)/g)) {
-        if (registration.selectedHandlerSource.includes(`.${declaration[2]}(`) && dtoSchemas[declaration[3]]) responseTypes.push(declaration[3]);
       }
       for (const call of registration.selectedHandlerSource.matchAll(/\.(\w+)\.(toResponse)\s*\(\)/g)) {
         const candidates = [...registration.fileSource.matchAll(/fun\s+(\w+)\.toResponse\s*\(\)\s*:\s*(\w+Response)/g)]
           .filter((candidate) => candidate[1].toLowerCase().endsWith(call[1].toLowerCase()));
         if (candidates.length === 1 && dtoSchemas[candidates[0][2]]) responseTypes.push(candidates[0][2]);
       }
-      const resolvedResponseType = responseTypes[0];
+      const distinctResponseTypes = [...new Set(responseTypes)];
+      const resolvedResponseType = directResponseTypes.length === 1
+        ? directResponseTypes[0]
+        : distinctResponseTypes.length === 1 ? distinctResponseTypes[0] : undefined;
      const explicitStatuses = [...registration.source.matchAll(/HttpStatus\.(\w+)/g)].map((match) => statusNames[match[1]]).filter(Boolean);
       if (explicitStatuses.length) {
        for (const status of Object.keys(operation.responses)) {
@@ -425,15 +454,23 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
       if (registration.source.includes("HttpStatus.CREATED") && registration.source.includes("return@post")) delete operation.responses["201"]?.content;
        for (const status of explicitStatuses) operation.responses[status] ??= { description: status === "204" ? "No Content" : status === "201" ? "Created" : "OK" };
      }
-     const successStatuses = Object.keys(operation.responses).filter((status) => /^2\d\d$/.test(status) && status !== "204");
+      const successStatuses = Object.keys(operation.responses).filter((status) => /^2\d\d$/.test(status) && status !== "204");
+      const explicitlyBodylessSuccess =
+        registration.source.includes("HttpStatus.NO_CONTENT") ||
+        operation.operationId === "auth_register" ||
+        operation.operationId === "auth_logout" ||
+        (method === "post" && routePath === "/api/branches/{branchId}/inventory") ||
+        routePath.includes("/export/");
+      if (routePath !== "/health" && successStatuses.length > 0 && resolvedResponseType === undefined && !explicitlyBodylessSuccess) {
+        throw new Error(`Response contract is missing or ambiguous: ${method.toUpperCase()} ${routePath}`);
+      }
     if (resolvedResponseType && successStatuses.length) {
         const isArray = typedResponse?.[1] || responseArray;
       const schema = isArray ? { type: "array", items: { $ref: `#/components/schemas/${resolvedResponseType}` } } : { $ref: `#/components/schemas/${resolvedResponseType}` };
       for (const status of successStatuses) operation.responses[status].content = { "application/json": { schema } };
     }
-     const documentedSuccess = Object.entries(operation.responses).find(([status, response]) => /^2\d\d$/.test(status) && response.content)?.[1];
-     if (documentedSuccess) for (const status of successStatuses) operation.responses[status].content ??= documentedSuccess.content;
-     if (operation.operationId === "session") operation.responses["200"].content = { "application/json": { schema: { $ref: "#/components/schemas/DashboardSessionResponse" } } };
+      const documentedSuccess = Object.entries(operation.responses).find(([status, response]) => /^2\d\d$/.test(status) && response.content)?.[1];
+      if (resolvedResponseType && documentedSuccess) for (const status of successStatuses) operation.responses[status].content ??= documentedSuccess.content;
     if (routePath === "/health") {
       const healthSchema = { type: "object", additionalProperties: false, required: ["status"], properties: { status: { type: "string", enum: ["UP", "DOWN"] }, error: { type: "string" } } };
       for (const status of ["200", "503"]) operation.responses[status].content = { "application/json": { schema: healthSchema } };
@@ -486,5 +523,17 @@ for (const methods of Object.values(spec.paths ?? {})) for (const [method, opera
    if (operationIds.has(operation.operationId)) throw new Error(`Duplicate generated operationId: ${operation.operationId}`);
   operationIds.add(operation.operationId);
 }
+const contractRows = [];
+for (const [routePath, methods] of Object.entries(spec.paths ?? {})) for (const [method, operation] of Object.entries(methods)) {
+  contractRows.push([
+    `${method} ${routePath}`,
+    operation.operationId,
+    operation["x-openapi-source"]?.annotation,
+    operation["x-route-source"]?.registration,
+    operation["x-route-source"]?.selectedHandlerSource,
+  ]);
+}
+const contractFingerprint = sourceHash(JSON.stringify(contractRows.sort()));
+if (contractFingerprint !== routeContract.fingerprint) throw new Error("OpenAPI route contract fingerprint is stale");
 fs.mkdirSync(path.dirname(path.resolve(targetPath)), { recursive: true });
 fs.writeFileSync(targetPath, `${JSON.stringify(spec, null, 2)}\n`);
