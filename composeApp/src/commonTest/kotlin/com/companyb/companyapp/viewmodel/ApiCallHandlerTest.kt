@@ -158,8 +158,13 @@ class ApiCallHandlerTest {
     @Test
     fun stale_non_success_response_does_not_commit_error() =
         runTest(testScheduler) {
+            val requestStarted = CompletableDeferred<Unit>()
+            val releaseResponse = CompletableDeferred<Unit>()
             val apiClient =
                 mockApiClient { _ ->
+                    if (requestStarted.complete(Unit)) {
+                        releaseResponse.await()
+                    }
                     respond(
                         content = ByteReadChannel(""),
                         status = HttpStatusCode.InternalServerError,
@@ -169,14 +174,10 @@ class ApiCallHandlerTest {
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
 
-            // The 500 lands on the real IO thread (the #93 class idiom: non-2xx responses
-            // complete off the test scheduler) — join per the established pattern.
-            // The counter stamp makes the landing deterministically stale (the launch capture
-            // reads 0, the landing reads 1 — a counter, so every second read disagrees)
-            // regardless of IO-thread timing.
-            // #176: the failure leg is gated — a superseded non-success must write NO Error,
-            // leaving the state at the launch's Loading (and never invoking the fallback).
-            var reads = 0L
+            // Hold the first non-success response in flight, then move the stamp before
+            // releasing it. #176 gates the Error WRITE only — a superseded failure writes NO
+            // Error, leaving the state at the launch's Loading (and never invoking fallback).
+            var stamp = 0L
             var fallbackCalls = 0
             val job =
                 handler.launch(
@@ -185,12 +186,21 @@ class ApiCallHandlerTest {
                     endpoint = "GET /api/items",
                     block = { apiClient.httpClient.get("/api/items") },
                     transform = { emptyList() },
-                    stamp = { reads++ },
+                    stamp = { stamp },
                     fallback = {
                         fallbackCalls++
                         emptyList()
                     },
                 )
+            runCurrent()
+            assertEquals(
+                true,
+                requestStarted.isCompleted,
+                "the non-success response must be in flight before the stamp flip",
+            )
+            stamp = 1
+            releaseResponse.complete(Unit)
+            runCurrent()
             job.join()
 
             assertEquals(0, fallbackCalls, "a failure carries no data — fallback substitutes nothing")
