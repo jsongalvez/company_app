@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -50,7 +51,7 @@ class NotificationViewModel(
             state = keptNotifications.stateFlow,
             operation = "loadUnreadNotifications",
             endpoint = "GET /api/notifications",
-            block = { apiClient.httpClient.get("/api/notifications") },
+            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS) },
             transform = { it.body<List<NotificationResponse>>() },
             // #165 stale-substitution guard (concentrated from the former in-transform block): a
             // load that lands after an action (markRead/markAll) moved the list must not commit

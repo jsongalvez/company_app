@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.middleware
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -30,7 +31,7 @@ import java.util.UUID
  *
  * Usage in a route object's `register`:
  * ```
- * config.routes.before("/api/expenses") { context ->
+ * config.routes.before(ApiRoutes.EXPENSES) { context ->
  *     val branchDayId = // extract from query / body / path
  *     CapabilityFilter.requireBranchCapability(context, branchDayId)
  * }

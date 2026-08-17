@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -57,12 +58,12 @@ class SessionBootstrapViewModel(
                 operation = "validateSession",
                 endpoint = "GET /api/me",
                 entryMessage = "validateSession called (token present)",
-                block = { apiClient.httpClient.get("/api/me") },
+                block = { apiClient.httpClient.get(ApiRoutes.ME) },
                 transform = { response ->
                     val me = response.body<MeResponse>()
                     SessionState.setUser(me)
                     logInfo("SessionBootstrapVM", "GET /api/me/capabilities (post-login/launch trigger)")
-                    val capabilitiesResponse = apiClient.httpClient.get("/api/me/capabilities")
+                    val capabilitiesResponse = apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES)
                     when {
                         capabilitiesResponse.status.isSuccess() -> {
                             val capabilities = capabilitiesResponse.body<List<UserCapabilityResponse>>()

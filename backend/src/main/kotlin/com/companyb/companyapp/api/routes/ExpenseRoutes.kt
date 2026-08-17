@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -22,13 +23,13 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/expenses",
+    path = ApiRoutes.EXPENSES,
     methods = [HttpMethod.GET],
     operationId = "expenses_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/expenses",
+    path = ApiRoutes.EXPENSES,
     methods = [HttpMethod.POST],
     operationId = "expenses_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -59,7 +60,7 @@ object ExpenseRoutes {
     fun register(config: JavalinConfig) {
         // --- Capability filters: EDIT_BRANCH_DATA (BRANCH or BRANCH_DAY — #157) ---
 
-        config.routes.before("/api/expenses") { context ->
+        config.routes.before(ApiRoutes.EXPENSES) { context ->
             val branchDayId =
                 when (context.method()) {
                     HandlerType.POST -> {
@@ -94,7 +95,7 @@ object ExpenseRoutes {
 
         // --- Route handlers ---
 
-        config.routes.post("/api/expenses") { context ->
+        config.routes.post(ApiRoutes.EXPENSES) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateExpenseRequest>()
 
@@ -179,7 +180,7 @@ object ExpenseRoutes {
             context.json(expense.toResponse())
         }
 
-        config.routes.get("/api/expenses") { context ->
+        config.routes.get(ApiRoutes.EXPENSES) { context ->
             val callerId = context.callerUuid()
             val branchDayId = context.uuidFromQuery("branchDayId")
 

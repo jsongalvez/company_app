@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -117,7 +118,7 @@ class ClientViewModel(
             endpoint = "GET /api/clients",
             entryMessage = entryMessage,
             block = {
-                apiClient.httpClient.get("/api/clients") {
+                apiClient.httpClient.get(ApiRoutes.CLIENTS) {
                     parameter("q", query)
                 }
             },

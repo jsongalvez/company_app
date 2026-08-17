@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -22,7 +23,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/commission-inclusions",
+    path = ApiRoutes.COMMISSION_INCLUSIONS,
     methods = [HttpMethod.POST],
     operationId = "commission_inclusions",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -43,7 +44,7 @@ import java.util.UUID
 )
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/commission-inclusions") { context ->
+        config.routes.before(ApiRoutes.COMMISSION_INCLUSIONS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.ASSIGN_COMPENSATION,
@@ -64,7 +65,7 @@ object CommissionRoutes {
             )
         }
 
-        config.routes.post("/api/commission-inclusions", ::handleCreateInclusion)
+        config.routes.post(ApiRoutes.COMMISSION_INCLUSIONS, ::handleCreateInclusion)
         config.routes.get("/api/commission-splits/{branchDayId}", ::handleGetSplits)
         config.routes.post("/api/commission/recalculate/{branchDayId}", ::handleRecalculate)
     }

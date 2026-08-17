@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,7 +32,7 @@ class CompensationViewModel(
             operation = "createCompensation",
             endpoint = "POST /api/compensation",
             block = {
-                apiClient.httpClient.post("/api/compensation") {
+                apiClient.httpClient.post(ApiRoutes.COMPENSATION) {
                     setBody(request)
                 }
             },

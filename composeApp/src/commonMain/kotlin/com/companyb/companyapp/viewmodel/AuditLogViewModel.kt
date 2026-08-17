@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -273,7 +274,7 @@ class AuditLogViewModel(
             operation = "loadHistory",
             endpoint = "GET /api/audit-log?tableName=$tableName&recordId=$recordId",
             block = {
-                apiClient.httpClient.get("/api/audit-log") {
+                apiClient.httpClient.get(ApiRoutes.AUDIT_LOG) {
                     parameter("tableName", tableName)
                     parameter("recordId", recordId)
                 }

@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -82,7 +83,7 @@ class NotificationBadgeViewModel(
             state = _pollResult,
             operation = "refreshUnreadCount",
             endpoint = "GET /api/notifications",
-            block = { apiClient.httpClient.get("/api/notifications") },
+            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS) },
             transform = { it.body<List<NotificationResponse>>().size },
         )
     }
@@ -93,7 +94,7 @@ class NotificationBadgeViewModel(
             state = _invitePollResult,
             operation = "refreshInviteCount",
             endpoint = "GET /api/relief-invites",
-            block = { apiClient.httpClient.get("/api/relief-invites") },
+            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
             transform = { response ->
                 val today = manilaToday()
                 response.body<List<ReliefInviteResponse>>().count { invite ->

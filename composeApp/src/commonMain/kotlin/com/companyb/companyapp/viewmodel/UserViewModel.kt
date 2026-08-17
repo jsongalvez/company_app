@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -160,7 +161,7 @@ class UserViewModel(
             state = keptUsers.stateFlow,
             operation = "loadUsers",
             endpoint = "GET /api/users",
-            block = { apiClient.httpClient.get("/api/users") },
+            block = { apiClient.httpClient.get(ApiRoutes.USERS) },
             transform = { it.body() },
         )
     }
@@ -170,7 +171,7 @@ class UserViewModel(
             state = _branches,
             operation = "loadBranches",
             endpoint = "GET /api/branches",
-            block = { apiClient.httpClient.get("/api/branches") },
+            block = { apiClient.httpClient.get(ApiRoutes.BRANCHES) },
             transform = { it.body() },
         )
     }

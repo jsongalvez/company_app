@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -71,7 +72,7 @@ class AuthViewModel(
             operation = "logout",
             endpoint = "POST /api/auth/logout",
             entryMessage = "logout attempt start",
-            block = { apiClient.httpClient.post("/api/auth/logout") },
+            block = { apiClient.httpClient.post(ApiRoutes.AUTH_LOGOUT) },
         )
     }
 }

@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -63,7 +64,7 @@ class SessionViewModel(
             operation = "createSession",
             endpoint = "POST /api/sessions",
             block = {
-                apiClient.httpClient.post("/api/sessions") {
+                apiClient.httpClient.post(ApiRoutes.SESSIONS) {
                     setBody(request)
                 }
             },
@@ -199,7 +200,7 @@ class SessionViewModel(
             state = _concerns,
             operation = "loadAllConcerns",
             endpoint = "GET /api/concerns",
-            block = { apiClient.httpClient.get("/api/concerns") },
+            block = { apiClient.httpClient.get(ApiRoutes.CONCERNS) },
             transform = { it.body() },
         )
     }

@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.dto.CreateReliefInviteRequest
@@ -48,7 +49,7 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/relief-invites",
+    path = ApiRoutes.RELIEF_INVITES,
     methods = [HttpMethod.GET],
     operationId = "relief_invites",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -124,7 +125,7 @@ object ReliefInviteRoutes {
             )
         }
 
-        config.routes.get("/api/relief-invites") { context ->
+        config.routes.get(ApiRoutes.RELIEF_INVITES) { context ->
             val callerId = context.callerUuid()
 
             context.status(HttpStatus.OK)

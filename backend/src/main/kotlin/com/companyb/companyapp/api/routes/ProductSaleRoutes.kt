@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -17,7 +18,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/product-sales",
+    path = ApiRoutes.PRODUCT_SALES,
     methods = [HttpMethod.POST],
     operationId = "product_sales",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -25,7 +26,7 @@ import java.util.UUID
 object ProductSaleRoutes {
     @Suppress("ThrowsCount", "CyclomaticComplexMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/product-sales") { context ->
+        config.routes.before(ApiRoutes.PRODUCT_SALES) { context ->
             if (context.method() != io.javalin.http.HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateProductSaleRequest>()
             val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
@@ -36,7 +37,7 @@ object ProductSaleRoutes {
             )
         }
 
-        config.routes.post("/api/product-sales") { context ->
+        config.routes.post(ApiRoutes.PRODUCT_SALES) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductSaleRequest>()
 

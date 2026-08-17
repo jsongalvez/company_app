@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -18,7 +19,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/delegates",
+    path = ApiRoutes.DELEGATES,
     methods = [HttpMethod.POST],
     operationId = "delegates",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -33,14 +34,14 @@ import java.util.UUID
 object MedicalMissionDelegateRoutes {
     @Suppress("ThrowsCount")
     fun assignDelegate(config: JavalinConfig) {
-        config.routes.before("/api/delegates") { context ->
+        config.routes.before(ApiRoutes.DELEGATES) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.ASSIGN_DELEGATE,
             )
         }
 
-        config.routes.post("/api/delegates") { context ->
+        config.routes.post(ApiRoutes.DELEGATES) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<AssignDelegateRequest>()
 

@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,7 +46,7 @@ class ProductViewModel(
             state = _products,
             operation = "loadProducts",
             endpoint = "GET /api/products",
-            block = { apiClient.httpClient.get("/api/products") },
+            block = { apiClient.httpClient.get(ApiRoutes.PRODUCTS) },
             transform = { it.body() },
         )
     }
@@ -66,7 +67,7 @@ class ProductViewModel(
             operation = "createProduct",
             endpoint = "POST /api/products",
             block = {
-                apiClient.httpClient.post("/api/products") {
+                apiClient.httpClient.post(ApiRoutes.PRODUCTS) {
                     setBody(request)
                 }
             },
@@ -96,7 +97,7 @@ class ProductViewModel(
             state = _categories,
             operation = "loadCategories",
             endpoint = "GET /api/product-categories",
-            block = { apiClient.httpClient.get("/api/product-categories") },
+            block = { apiClient.httpClient.get(ApiRoutes.PRODUCT_CATEGORIES) },
             transform = { it.body() },
         )
     }
@@ -107,7 +108,7 @@ class ProductViewModel(
             operation = "createCategory",
             endpoint = "POST /api/product-categories",
             block = {
-                apiClient.httpClient.post("/api/product-categories") {
+                apiClient.httpClient.post(ApiRoutes.PRODUCT_CATEGORIES) {
                     setBody(request)
                 }
             },

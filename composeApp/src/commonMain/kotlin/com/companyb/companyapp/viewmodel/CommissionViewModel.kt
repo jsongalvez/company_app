@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,7 +32,7 @@ class CommissionViewModel(
             operation = "createInclusion",
             endpoint = "POST /api/commission-inclusions",
             block = {
-                apiClient.httpClient.post("/api/commission-inclusions") {
+                apiClient.httpClient.post(ApiRoutes.COMMISSION_INCLUSIONS) {
                     setBody(request)
                 }
             },

@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -20,13 +21,13 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/branches",
+    path = ApiRoutes.BRANCHES,
     methods = [HttpMethod.GET],
     operationId = "branches_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/branches",
+    path = ApiRoutes.BRANCHES,
     methods = [HttpMethod.POST],
     operationId = "branches_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -48,7 +49,7 @@ object BranchRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches") { context ->
+        config.routes.before(ApiRoutes.BRANCHES) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_USERS,
@@ -75,7 +76,7 @@ object BranchRoutes {
             context.json(branches.map { it.toResponse() })
         }
 
-        config.routes.post("/api/branches") { context ->
+        config.routes.post(ApiRoutes.BRANCHES) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateBranchRequest>()
             val branchId = uuidOrThrow(request.id, "branch id")
@@ -93,7 +94,7 @@ object BranchRoutes {
             context.json(result.branch.toResponse())
         }
 
-        config.routes.get("/api/branches") { context ->
+        config.routes.get(ApiRoutes.BRANCHES) { context ->
             context.json(BranchService.findAll().map { it.toResponse() })
         }
 

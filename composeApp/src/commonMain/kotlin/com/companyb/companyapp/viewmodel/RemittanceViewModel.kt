@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -89,7 +90,7 @@ class RemittanceViewModel(
             endpoint = "GET /api/remittances",
             entryMessage = "loadRemittances called: branchId=$branchId status=$status",
             block = {
-                apiClient.httpClient.get("/api/remittances") {
+                apiClient.httpClient.get(ApiRoutes.REMITTANCES) {
                     parameter("branchId", branchId)
                     parameter("status", status)
                 }
@@ -176,7 +177,7 @@ class RemittanceViewModel(
             operation = "createDraft",
             endpoint = "POST /api/remittances",
             block = {
-                apiClient.httpClient.post("/api/remittances") {
+                apiClient.httpClient.post(ApiRoutes.REMITTANCES) {
                     setBody(request)
                 }
             },

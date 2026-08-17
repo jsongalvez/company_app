@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -45,7 +46,7 @@ class ExpenseViewModel(
             operation = "createExpense",
             endpoint = "POST /api/expenses",
             block = {
-                apiClient.httpClient.post("/api/expenses") {
+                apiClient.httpClient.post(ApiRoutes.EXPENSES) {
                     setBody(request)
                 }
             },

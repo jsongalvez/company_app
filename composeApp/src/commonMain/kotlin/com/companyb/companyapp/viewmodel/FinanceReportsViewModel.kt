@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -667,7 +668,7 @@ class FinanceReportsViewModel(
                 generation,
                 _editExpenses,
                 "expenses",
-                "/api/expenses",
+                ApiRoutes.EXPENSES,
                 params = listOf("branchDayId" to branchDayId),
                 errorKeyPrefixes = listOf("expense:"),
             )
@@ -677,7 +678,7 @@ class FinanceReportsViewModel(
                 generation,
                 _editCompensations,
                 "compensations",
-                "/api/compensations",
+                ApiRoutes.COMPENSATIONS,
                 params = listOf("branchDayId" to branchDayId),
                 errorKeyPrefixes = listOf("comp:"),
             )
@@ -685,7 +686,7 @@ class FinanceReportsViewModel(
                 generation,
                 _editAllowances,
                 "allowances",
-                "/api/allowances",
+                ApiRoutes.ALLOWANCES,
                 params = listOf("branchDayId" to branchDayId),
                 errorKeyPrefixes = listOf("allow:"),
             )
@@ -708,7 +709,7 @@ class FinanceReportsViewModel(
                     generation,
                     _editExpenses,
                     "expenses",
-                    "/api/expenses",
+                    ApiRoutes.EXPENSES,
                     params = listOf("branchDayId" to day.branchDayId),
                     errorKeyPrefixes = listOf("expense:"),
                 )
@@ -719,7 +720,7 @@ class FinanceReportsViewModel(
                     generation,
                     _editCompensations,
                     "compensations",
-                    "/api/compensations",
+                    ApiRoutes.COMPENSATIONS,
                     params = listOf("branchDayId" to day.branchDayId),
                     errorKeyPrefixes = listOf("comp:"),
                 )
@@ -730,7 +731,7 @@ class FinanceReportsViewModel(
                     generation,
                     _editAllowances,
                     "allowances",
-                    "/api/allowances",
+                    ApiRoutes.ALLOWANCES,
                     params = listOf("branchDayId" to day.branchDayId),
                     errorKeyPrefixes = listOf("allow:"),
                 )
@@ -807,7 +808,7 @@ class FinanceReportsViewModel(
             operation = "createExpense",
             endpoint = "POST /api/expenses",
             block = {
-                apiClient.httpClient.post("/api/expenses") {
+                apiClient.httpClient.post(ApiRoutes.EXPENSES) {
                     setBody(
                         CreateExpenseRequest(
                             id = newId(),
@@ -984,7 +985,7 @@ class FinanceReportsViewModel(
             operation = "createCompensation",
             endpoint = "POST /api/compensation",
             block = {
-                apiClient.httpClient.post("/api/compensation") {
+                apiClient.httpClient.post(ApiRoutes.COMPENSATION) {
                     setBody(
                         CreateCompensationRequest(
                             id = newId(),
@@ -1092,7 +1093,7 @@ class FinanceReportsViewModel(
             operation = "createAllowance",
             endpoint = "POST /api/allowances",
             block = {
-                apiClient.httpClient.post("/api/allowances") {
+                apiClient.httpClient.post(ApiRoutes.ALLOWANCES) {
                     setBody(
                         CreateAllowanceRequest(
                             id = newId(),

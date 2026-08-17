@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.mapping.toErrorResponse
@@ -37,7 +38,7 @@ import java.util.UUID
     responses = [OpenApiResponse(status = "201"), OpenApiResponse(status = "409"), OpenApiResponse(status = "422")],
 )
 @OpenApi(
-    path = "/api/auth/logout",
+    path = ApiRoutes.AUTH_LOGOUT,
     methods = [HttpMethod.POST],
     operationId = "auth_logout",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -72,7 +73,7 @@ object AuthRoutes {
     }
 
     fun logout(config: JavalinConfig) {
-        config.routes.post("/api/auth/logout") { context ->
+        config.routes.post(ApiRoutes.AUTH_LOGOUT) { context ->
             val callerId = context.callerUuid()
             DenyList.deny(callerId)
             context.status(HttpStatus.OK)

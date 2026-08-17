@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.dto.ClockInRequest
@@ -16,13 +17,13 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/attendance/clock-in",
+    path = ApiRoutes.ATTENDANCE_CLOCK_IN,
     methods = [HttpMethod.POST],
     operationId = "attendance_clock_in",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/attendance/clock-out",
+    path = ApiRoutes.ATTENDANCE_CLOCK_OUT,
     methods = [HttpMethod.POST],
     operationId = "attendance_clock_out",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -30,7 +31,7 @@ import java.util.UUID
 object AttendanceRoutes {
     @Suppress("ThrowsCount")
     fun clockOut(config: JavalinConfig) {
-        config.routes.post("/api/attendance/clock-out") { context ->
+        config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_OUT) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockOutRequest>()
 
@@ -55,7 +56,7 @@ object AttendanceRoutes {
 
     @Suppress("ThrowsCount")
     fun clockIn(config: JavalinConfig) {
-        config.routes.post("/api/attendance/clock-in") { context ->
+        config.routes.post(ApiRoutes.ATTENDANCE_CLOCK_IN) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<ClockInRequest>()
 

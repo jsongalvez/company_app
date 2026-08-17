@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -19,13 +20,13 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/product-categories",
+    path = ApiRoutes.PRODUCT_CATEGORIES,
     methods = [HttpMethod.GET],
     operationId = "product_categories_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/product-categories",
+    path = ApiRoutes.PRODUCT_CATEGORIES,
     methods = [HttpMethod.POST],
     operationId = "product_categories_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -41,7 +42,7 @@ object ProductCategoryRoutes {
     private const val CATEGORY_ID_PARAM = "categoryId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/product-categories") { context ->
+        config.routes.before(ApiRoutes.PRODUCT_CATEGORIES) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_PRODUCTS,
@@ -49,7 +50,7 @@ object ProductCategoryRoutes {
             )
         }
 
-        config.routes.post("/api/product-categories") { context ->
+        config.routes.post(ApiRoutes.PRODUCT_CATEGORIES) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductCategoryRequest>()
             val categoryId = uuidOrThrow(request.id, "category id")
@@ -66,7 +67,7 @@ object ProductCategoryRoutes {
             context.json(category.toResponse())
         }
 
-        config.routes.get("/api/product-categories") { context ->
+        config.routes.get(ApiRoutes.PRODUCT_CATEGORIES) { context ->
             context.json(ProductCategoryService.findAll().map { it.toResponse() })
         }
 

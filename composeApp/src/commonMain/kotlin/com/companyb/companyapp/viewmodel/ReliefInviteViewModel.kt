@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -83,7 +84,7 @@ class ReliefInviteViewModel(
             state = keptReceived.stateFlow,
             operation = "loadReceived",
             endpoint = "GET /api/relief-invites",
-            block = { apiClient.httpClient.get("/api/relief-invites") },
+            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
             transform = { it.body<List<ReliefInviteResponse>>() },
             // #165 stale-substitution guard (concentrated from the former in-transform block): an
             // accept/decline landing while the load was in flight must not resurrect the resolved

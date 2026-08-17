@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -38,7 +39,7 @@ class AttendanceViewModel(
             operation = "clockIn",
             endpoint = "POST /api/attendance/clock-in",
             block = {
-                apiClient.httpClient.post("/api/attendance/clock-in") {
+                apiClient.httpClient.post(ApiRoutes.ATTENDANCE_CLOCK_IN) {
                     setBody(request)
                 }
             },
@@ -62,7 +63,7 @@ class AttendanceViewModel(
             operation = "clockOut",
             endpoint = "POST /api/attendance/clock-out",
             block = {
-                apiClient.httpClient.post("/api/attendance/clock-out") {
+                apiClient.httpClient.post(ApiRoutes.ATTENDANCE_CLOCK_OUT) {
                     setBody(request)
                 }
             },

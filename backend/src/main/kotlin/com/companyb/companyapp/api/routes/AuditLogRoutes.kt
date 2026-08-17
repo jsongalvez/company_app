@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
@@ -21,7 +22,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/audit-log",
+    path = ApiRoutes.AUDIT_LOG,
     methods = [HttpMethod.GET],
     operationId = "audit_log",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -96,7 +97,7 @@ object AuditLogRoutes {
             context.json(tables)
         }
 
-        config.routes.get("/api/audit-log") { context ->
+        config.routes.get(ApiRoutes.AUDIT_LOG) { context ->
             val callerId = context.callerUuid()
             val tableName = context.queryParam("tableName") ?: throw BadRequestResponse("tableName is required")
             val recordIdParam = context.queryParam("recordId") ?: throw BadRequestResponse("recordId is required")

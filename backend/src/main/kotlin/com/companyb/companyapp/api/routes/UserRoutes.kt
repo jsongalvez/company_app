@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -14,7 +15,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/users",
+    path = ApiRoutes.USERS,
     methods = [HttpMethod.GET],
     operationId = "users",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -62,7 +63,7 @@ object UserRoutes {
     }
 
     private fun list(config: JavalinConfig) {
-        config.routes.before("/api/users") { context ->
+        config.routes.before(ApiRoutes.USERS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_USERS,
@@ -70,7 +71,7 @@ object UserRoutes {
             )
         }
 
-        config.routes.get("/api/users") { context ->
+        config.routes.get(ApiRoutes.USERS) { context ->
             context.status(HttpStatus.OK)
             context.json(UserService.listUsers())
         }

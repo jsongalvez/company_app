@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -53,7 +54,7 @@ class BranchSelectViewModel(
             state = _branches,
             operation = "loadBranches",
             endpoint = "GET /api/me/branches",
-            block = { apiClient.httpClient.get("/api/me/branches") },
+            block = { apiClient.httpClient.get(ApiRoutes.ME_BRANCHES) },
             transform = { it.body() },
         )
     }
@@ -90,7 +91,7 @@ class BranchSelectViewModel(
             state = _refreshState,
             operation = "refreshCapabilities",
             endpoint = "GET /api/me/capabilities",
-            block = { apiClient.httpClient.get("/api/me/capabilities") },
+            block = { apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES) },
             transform = {
                 // #156 — the full row list is stored (the client-side branch slice filter
                 // is gone; resolution happens at consumption sites).

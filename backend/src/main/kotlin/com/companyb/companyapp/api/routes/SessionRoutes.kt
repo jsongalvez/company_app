@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -46,13 +47,13 @@ import java.util.UUID
 
 @Suppress("TooManyFunctions")
 @OpenApi(
-    path = "/api/concerns",
+    path = ApiRoutes.CONCERNS,
     methods = [HttpMethod.GET],
     operationId = "concerns",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/sessions",
+    path = ApiRoutes.SESSIONS,
     methods = [HttpMethod.POST],
     operationId = "sessions",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -177,7 +178,7 @@ object SessionRoutes {
 
     @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/sessions") { context ->
+        config.routes.before(ApiRoutes.SESSIONS) { context ->
             if (context.method() != HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateSessionRequest>()
             val branchId = uuidOrThrow(request.branchId, "branch id")
@@ -262,7 +263,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/concerns") { context ->
+        config.routes.before(ApiRoutes.CONCERNS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -280,7 +281,7 @@ object SessionRoutes {
         }
 
         config.routes.get("/api/sessions/{sessionId}", ::handleGetSession)
-        config.routes.post("/api/sessions", ::handleCreateSession)
+        config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
         config.routes.patch("/api/sessions/{sessionId}/status", ::handleUpdateStatus)
         config.routes.patch("/api/sessions/{sessionId}/type", ::handleUpdateType)
         config.routes.patch("/api/sessions/{sessionId}/final-price", ::handleUpdateFinalPrice)
@@ -295,7 +296,7 @@ object SessionRoutes {
             "/api/sessions/{sessionId}/practitioners/{practitionerId}",
             ::handleRemovePractitioner,
         )
-        config.routes.get("/api/concerns", ::handleGetConcerns)
+        config.routes.get(ApiRoutes.CONCERNS, ::handleGetConcerns)
         config.routes.get("/api/sessions/{sessionId}/concerns", ::handleGetSessionConcerns)
         config.routes.post("/api/sessions/{sessionId}/concerns", ::handleAddSessionConcern)
         config.routes.delete("/api/sessions/{sessionId}/concerns/{concernId}", ::handleRemoveSessionConcern)

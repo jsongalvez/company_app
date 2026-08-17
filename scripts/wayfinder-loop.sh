@@ -262,7 +262,8 @@ Operating rules for this automated run:
 2. Ask via the question tool and WAIT only for genuinely ambiguous business behavior, scope, safety, external authorization, or explicit user preference. Do not ask the user to choose implementation shapes or architecture. If a full architecture audit finds no justifiable candidate, ask the exact no-candidate question required by the handoff.
 3. When done, write docs/agents/wayfinder-<N>-handoff.md (next session number) following the existing format. That file is the chain's completion signal — it MUST exist before you stop.
 4. Push committed changes to the configured remote after verification. If push is blocked by a documented gate or missing credential, record exact blocker in the handoff and stop.
-5. Then stop. Do not start follow-up work."
+5. Then stop. Do not start follow-up work.
+6. Use maximum available reasoning effort. Do not trade correctness, coverage, or verification for speed."
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"

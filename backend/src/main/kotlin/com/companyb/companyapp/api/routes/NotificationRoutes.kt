@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -16,7 +17,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/notifications",
+    path = ApiRoutes.NOTIFICATIONS,
     methods = [HttpMethod.GET],
     operationId = "notifications",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -36,7 +37,7 @@ import java.util.UUID
 )
 object NotificationRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.get("/api/notifications") { context ->
+        config.routes.get(ApiRoutes.NOTIFICATIONS) { context ->
             val callerId = context.callerUuid()
 
             val notifications = NotificationService.listUnread(callerId)

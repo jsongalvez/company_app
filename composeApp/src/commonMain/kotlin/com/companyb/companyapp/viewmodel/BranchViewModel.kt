@@ -1,4 +1,5 @@
 package com.companyb.companyapp.viewmodel
+import com.companyb.companyapp.api.ApiRoutes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -63,7 +64,7 @@ class BranchViewModel(
             operation = "createBranch",
             endpoint = "POST /api/branches",
             block = {
-                apiClient.httpClient.post("/api/branches") {
+                apiClient.httpClient.post(ApiRoutes.BRANCHES) {
                     setBody(request)
                 }
             },

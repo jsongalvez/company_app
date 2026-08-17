@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -51,13 +52,13 @@ import java.util.UUID
 
 @Suppress("TooManyFunctions")
 @OpenApi(
-    path = "/api/remittances",
+    path = ApiRoutes.REMITTANCES,
     methods = [HttpMethod.GET],
     operationId = "remittances_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/remittances",
+    path = ApiRoutes.REMITTANCES,
     methods = [HttpMethod.POST],
     operationId = "remittances_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -161,7 +162,7 @@ import java.util.UUID
 object RemittanceRoutes {
     @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/remittances") { context ->
+        config.routes.before(ApiRoutes.REMITTANCES) { context ->
             val branchId =
                 when (context.method()) {
                     HandlerType.POST -> {
@@ -264,8 +265,8 @@ object RemittanceRoutes {
             )
         }
 
-        config.routes.post("/api/remittances", ::handleCreateDraft)
-        config.routes.get("/api/remittances", ::handleListRemittances)
+        config.routes.post(ApiRoutes.REMITTANCES, ::handleCreateDraft)
+        config.routes.get(ApiRoutes.REMITTANCES, ::handleListRemittances)
         config.routes.get("/api/remittances/{remittanceId}", ::handleGetRemittance)
         config.routes.get("/api/remittances/{remittanceId}/drift", ::handleGetDrift)
         config.routes.post("/api/remittances/{remittanceId}/lines", ::handleAddLine)

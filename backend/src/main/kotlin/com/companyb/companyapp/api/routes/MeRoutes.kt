@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.dto.MeBranchResponse
@@ -13,26 +14,26 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/me",
+    path = ApiRoutes.ME,
     methods = [HttpMethod.GET],
     operationId = "me",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/me/branches",
+    path = ApiRoutes.ME_BRANCHES,
     methods = [HttpMethod.GET],
     operationId = "me_branches",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/me/capabilities",
+    path = ApiRoutes.ME_CAPABILITIES,
     methods = [HttpMethod.GET],
     operationId = "me_capabilities",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 object MeRoutes {
     fun getMe(config: JavalinConfig) {
-        config.routes.get("/api/me") { context ->
+        config.routes.get(ApiRoutes.ME) { context ->
             val callerId = context.callerUuid()
             val response: MeResponse = MeService.getMe(callerId)
             context.status(HttpStatus.OK)
@@ -41,7 +42,7 @@ object MeRoutes {
     }
 
     fun getCapabilities(config: JavalinConfig) {
-        config.routes.get("/api/me/capabilities") { context ->
+        config.routes.get(ApiRoutes.ME_CAPABILITIES) { context ->
             val callerId = context.callerUuid()
             val response: List<UserCapabilityResponse> = MeService.getCapabilities(callerId)
             context.status(HttpStatus.OK)
@@ -50,7 +51,7 @@ object MeRoutes {
     }
 
     fun getBranches(config: JavalinConfig) {
-        config.routes.get("/api/me/branches") { context ->
+        config.routes.get(ApiRoutes.ME_BRANCHES) { context ->
             val callerId = context.callerUuid()
             val response: List<MeBranchResponse> = MeService.getBranches(callerId)
             context.status(HttpStatus.OK)

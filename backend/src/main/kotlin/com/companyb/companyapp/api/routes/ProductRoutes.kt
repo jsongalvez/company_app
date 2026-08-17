@@ -1,4 +1,5 @@
 package com.companyb.companyapp.api.routes
+import com.companyb.companyapp.api.ApiRoutes
 
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
@@ -20,13 +21,13 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/api/products",
+    path = ApiRoutes.PRODUCTS,
     methods = [HttpMethod.GET],
     operationId = "products_get",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = "/api/products",
+    path = ApiRoutes.PRODUCTS,
     methods = [HttpMethod.POST],
     operationId = "products_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
@@ -50,7 +51,7 @@ object ProductRoutes {
 
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/products") { context ->
+        config.routes.before(ApiRoutes.PRODUCTS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_PRODUCTS,
@@ -58,7 +59,7 @@ object ProductRoutes {
             )
         }
 
-        config.routes.post("/api/products") { context ->
+        config.routes.post(ApiRoutes.PRODUCTS) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductRequest>()
             val productId = uuidOrThrow(request.id, "product id")
@@ -81,7 +82,7 @@ object ProductRoutes {
             context.json(result.product.toResponse())
         }
 
-        config.routes.get("/api/products") { context ->
+        config.routes.get(ApiRoutes.PRODUCTS) { context ->
             context.json(ProductService.findAllActive().map { it.toResponse() })
         }
 
