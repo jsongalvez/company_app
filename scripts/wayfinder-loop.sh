@@ -234,7 +234,7 @@ spawn_session() {
     # the whole script BEFORE the guard (silent chain death — no FATAL log, no push).
     pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' | head -1)" || true
     [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' lookup failed via /api/model (model/provider absent, or the API errored)"
-    model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" '{id: $id, providerID: $p}')"
+    model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" '{id: $id, providerID: $p, variant: "max"}')"
   fi
   sid="$(api post /api/session --data "$(jq -nc --arg d "$doc" --arg dir "$REPO" --argjson ref "$model_ref" \
     '{title: ("wayfinder-loop: " + $d), location: {directory: $dir}, model: $ref}')" | jq -r '.data.id' || true)"
