@@ -2,7 +2,7 @@
 
 ## What this is
 
-Session 100 completed AFK architecture child #190. Parent architecture audit #180 remains OPEN by human decision. Map #89 is CLOSED and remains closed until #180 is resolved or explicitly overridden.
+Session 100 completed AFK architecture child #190. Parent architecture audit #180 remains OPEN by human decision. Map #89 is CLOSED until further notice.
 
 ## Session outcome
 
@@ -28,8 +28,8 @@ Session 100 completed AFK architecture child #190. Parent architecture audit #18
 ## Tracker state
 
 - #190 CLOSED.
-- #180 OPEN by design; latest resolution instruction says keep Map #89 blocked until all architecture children #181-#190 resolve and no further AFK architecture work remains.
-- #89 CLOSED; do not reopen or start another ticket while #180 awaits human override/resolution.
+- #180 OPEN by design and sole active architecture effort.
+- #89 CLOSED until further notice; do not reopen it for child completion.
 
 ## Critical blockers
 
@@ -40,6 +40,6 @@ Session 100 completed AFK architecture child #190. Parent architecture audit #18
 
 ## How to drive the next session
 
-1. Confirm #180 and #89 tracker state before any work. #180 is OPEN and #89 is CLOSED.
-2. Stop unless human explicitly resolves/overrides #180 and reopens Map #89 with a new recommendation.
-3. Preserve unrelated worktree state and do not claim another architecture child in this closed-map state.
+1. Direct all architecture work to #180. Do not reopen Map #89.
+2. When #180 runs out of issues, run a new `/improve-codebase-architecture` audit rather than resuming Map #89.
+3. Preserve unrelated worktree state and do not claim another Map #89 child.
