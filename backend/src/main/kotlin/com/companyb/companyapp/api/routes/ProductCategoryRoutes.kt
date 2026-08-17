@@ -19,8 +19,14 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/product-categories",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "product_categories",
+    methods = [HttpMethod.GET],
+    operationId = "product_categories_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/product-categories",
+    methods = [HttpMethod.POST],
+    operationId = "product_categories_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

@@ -20,8 +20,14 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/branches",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "branches",
+    methods = [HttpMethod.GET],
+    operationId = "branches_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches",
+    methods = [HttpMethod.POST],
+    operationId = "branches_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

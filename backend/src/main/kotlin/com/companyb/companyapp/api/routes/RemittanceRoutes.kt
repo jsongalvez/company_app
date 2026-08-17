@@ -51,14 +51,26 @@ import java.util.UUID
 @Suppress("TooManyFunctions")
 @OpenApi(
     path = "/api/remittances",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "remittances",
+    methods = [HttpMethod.GET],
+    operationId = "remittances_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances",
+    methods = [HttpMethod.POST],
+    operationId = "remittances_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/remittances/{remittanceId}",
-    methods = [HttpMethod.GET, HttpMethod.PATCH],
-    operationId = "remittance",
+    methods = [HttpMethod.GET],
+    operationId = "remittance_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}",
+    methods = [HttpMethod.PATCH],
+    operationId = "remittance_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

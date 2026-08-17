@@ -21,14 +21,26 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/clients",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "clients",
+    methods = [HttpMethod.GET],
+    operationId = "clients_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients",
+    methods = [HttpMethod.POST],
+    operationId = "clients_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/clients/{clientId}",
-    methods = [HttpMethod.GET, HttpMethod.PATCH],
-    operationId = "client",
+    methods = [HttpMethod.GET],
+    operationId = "client_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients/{clientId}",
+    methods = [HttpMethod.PATCH],
+    operationId = "client_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

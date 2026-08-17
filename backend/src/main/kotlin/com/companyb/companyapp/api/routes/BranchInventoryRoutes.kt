@@ -34,8 +34,14 @@ private val ALLOWED_MOVEMENT_REASONS =
 
 @OpenApi(
     path = "/api/branches/{branchId}/inventory",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "branch_inventory",
+    methods = [HttpMethod.GET],
+    operationId = "branch_inventory_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/inventory",
+    methods = [HttpMethod.POST],
+    operationId = "branch_inventory_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

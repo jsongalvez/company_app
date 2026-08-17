@@ -64,8 +64,14 @@ import java.util.UUID
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/concerns",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "session_concerns",
+    methods = [HttpMethod.GET],
+    operationId = "session_concerns_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/concerns",
+    methods = [HttpMethod.POST],
+    operationId = "session_concerns_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
@@ -88,8 +94,14 @@ import java.util.UUID
 )
 @OpenApi(
     path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
-    methods = [HttpMethod.PATCH, HttpMethod.DELETE],
-    operationId = "session_practitioner",
+    methods = [HttpMethod.PATCH],
+    operationId = "session_practitioner_patch",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+    methods = [HttpMethod.DELETE],
+    operationId = "session_practitioner_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

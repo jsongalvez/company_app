@@ -19,8 +19,14 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/branches/{branchId}/rates",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "session_rates",
+    methods = [HttpMethod.GET],
+    operationId = "session_rates_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/rates",
+    methods = [HttpMethod.POST],
+    operationId = "session_rates_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 object SessionBaseRateRoutes {

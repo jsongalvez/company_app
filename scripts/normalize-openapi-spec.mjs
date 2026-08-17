@@ -157,14 +157,21 @@ const statusNames = { OK: "200", CREATED: "201", NO_CONTENT: "204", BAD_REQUEST:
 const responseOverrides = {
   audit_log: ["AuditLogEntryResponse", true], audit_log_flagged: ["AuditLogEntryResponse", true], audit_log_tables: ["AuditLogTableResponse", true], audit_log_acknowledge: ["AuditLogEntryResponse", false],
   branch_day_users: ["BranchDayUserResponse", true], daily_summaries: ["DailySalesSummaryResponse", true], daily_summary: ["DailySalesSummaryResponse", false],
-  branch_inventory: ["BranchInventoryResponse", true], branch_inventory_post: ["BranchInventoryResponse", false], inventory_low_stock: ["BranchInventoryResponse", true], inventory_movement: ["InventoryMovementResponse", false], inventory_restock: ["InventoryMovementResponse", false],
+  branch_inventory_get: ["BranchInventoryResponse", true], inventory_low_stock: ["BranchInventoryResponse", true], inventory_movements: ["InventoryMovementResponse", true], inventory_movement: ["InventoryMovementResponse", false], inventory_restock: ["InventoryMovementResponse", false],
   relief_candidates: ["ReliefCandidateResponse", true], branch_remittance_days: ["RemittanceDayPickerEntryResponse", true], branch_remittance_product_sales: ["RemittanceProductSalePickerEntryResponse", true], branch_remittance_sessions: ["RemittanceSessionPickerEntryResponse", true],
   commission_inclusions: ["CommissionInclusionResponse", false], commission_splits: ["CommissionSplitResponse", true], commission_recalculate: ["CommissionSplitResponse", true], compensation_create: ["CompensationResponse", false], compensation_update: ["CompensationResponse", false], compensations: ["CompensationResponse", true], concerns: ["ConcernResponse", true],
-  me_branches: ["MeBranchResponse", true], me_capabilities: ["UserCapabilityResponse", true], remittances_post: ["RemittanceResponse", false], remittance: ["RemittanceDetailResponse", false], remittance_patch: ["RemittanceResponse", false], remittance_day_breakdowns: ["RemittanceDayBreakdownResponse", false], remittance_day_breakdown_delete: ["RemittanceDayBreakdownResponse", false], remittance_drift: ["RemittanceDriftResponse", false], remittance_lines: ["RemittanceLineResponse", false], remittance_line_delete: ["RemittanceLineResponse", false], remittance_submit: ["RemittanceSubmitResponse", false],
-  session: ["SessionResponse", false], session_concerns: ["ConcernResponse", true], session_final_price: ["SessionResponse", false], session_practitioners: ["SessionPractitionerResponse", false], session_practitioner_patch: ["SessionPractitionerResponse", false], session_promote_concern: ["ConcernResponse", false], session_status: ["SessionResponse", false], session_type: ["SessionResponse", false], session_unvoid: ["SessionResponse", false], session_void: ["SessionResponse", false], users: ["UserSummaryResponse", true],
+  clients_get: ["ClientResponse", true], product_patch: ["ProductResponse", false], me_branches: ["MeBranchResponse", true], me_capabilities: ["UserCapabilityResponse", true], remittances_get: ["RemittanceResponse", true], remittances_post: ["RemittanceResponse", false], remittance_get: ["RemittanceDetailResponse", false], remittance_patch: ["RemittanceResponse", false], remittance_undo: ["RemittanceResponse", false], remittance_day_breakdowns: ["RemittanceDayBreakdownResponse", false], remittance_day_breakdown_delete: ["RemittanceDayBreakdownResponse", false], remittance_drift: ["RemittanceDriftResponse", false], remittance_lines: ["RemittanceLineResponse", false], remittance_line_delete: ["RemittanceLineResponse", false], remittance_submit: ["RemittanceSubmitResponse", false],
+  session: ["SessionResponse", false], session_concerns_get: ["ConcernResponse", true], session_final_price: ["SessionResponse", false], session_practitioners: ["SessionPractitionerResponse", false], session_practitioner_patch: ["SessionPractitionerResponse", false], session_promote_concern: ["ConcernResponse", false], session_status: ["SessionResponse", false], session_type: ["SessionResponse", false], session_unvoid: ["SessionResponse", false], session_void: ["SessionResponse", false], users: ["UserSummaryResponse", true],
 };
 const responsePathOverrides = {
   "post /api/allowances": ["AllowanceResponse", false], "post /api/attendance/clock-in": ["ClockInResponse", false], "post /api/branches": ["BranchResponse", false], "post /api/branches/{branchId}/assignments": ["AssignmentResponse", false], "post /api/branches/{branchId}/inventory": ["BranchInventoryResponse", false], "post /api/branches/{branchId}/inventory/{productId}/movement": ["InventoryMovementResponse", false], "post /api/branches/{branchId}/inventory/{productId}/restock": ["InventoryMovementResponse", false], "post /api/branches/{branchId}/rates": ["RateResponse", false], "post /api/branches/{branchId}/relief-invites": ["ReliefInviteResponse", false], "post /api/clients": ["ClientResponse", false], "post /api/commission-inclusions": ["CommissionInclusionResponse", false], "post /api/compensation": ["CompensationResponse", false], "post /api/delegates": ["DelegateResponse", false], "post /api/expenses": ["ExpenseResponse", false], "post /api/product-categories": ["ProductCategoryResponse", false], "post /api/product-sales": ["ProductSaleResponse", false], "post /api/products": ["ProductResponse", false], "post /api/relief-access/request": ["ReliefAccessResponse", false], "post /api/remittances": ["RemittanceResponse", false], "post /api/remittances/{remittanceId}/day-breakdowns": ["RemittanceDayBreakdownResponse", false], "post /api/remittances/{remittanceId}/lines": ["RemittanceLineResponse", false], "post /api/sessions": ["SessionResponse", false], "post /api/sessions/{sessionId}/practitioners": ["SessionPractitionerResponse", false], "post /api/sessions/{sessionId}/promote-concern": ["ConcernResponse", false], "post /api/sessions/{sessionId}/void": ["SessionResponse", false],
+};
+const successStatusOverrides = {
+  clients_get: "200",
+  inventory_movements: "200",
+  product_patch: "200",
+  remittances_get: "200",
+  remittance_undo: "200",
 };
 
 spec.info = { ...spec.info, title: "CompanyApp Backend API", version: "1.0.0" };
@@ -183,6 +190,11 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     operation.responses ??= {};
     const success = Object.keys(operation.responses).find((status) => /^2\d\d$/.test(status));
     let synthesizedSuccess = false;
+    const forcedSuccess = successStatusOverrides[operation.operationId];
+    if (!success && forcedSuccess) {
+      operation.responses[forcedSuccess] = { description: forcedSuccess === "201" ? "Created" : "OK" };
+      synthesizedSuccess = true;
+    }
     if (!success && (registration.source.includes("context.json(") || registration.source.includes("context.result("))) {
       operation.responses["200"] = { description: "OK" };
       synthesizedSuccess = true;
@@ -221,7 +233,7 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     for (const match of registration.source.matchAll(/(?:BadRequestResponse|ValidationException)/g)) explicitStatuses.push("BAD_REQUEST");
     for (const match of registration.source.matchAll(/(?:NotFoundException|NotFoundResponse)/g)) explicitStatuses.push("NOT_FOUND");
     for (const match of registration.source.matchAll(/(?:ConflictException|ConflictResponse)/g)) explicitStatuses.push("CONFLICT");
-    if (synthesizedSuccess && explicitStatuses.length && !explicitStatuses.includes("OK")) delete operation.responses["200"];
+    if (synthesizedSuccess && !forcedSuccess && explicitStatuses.length && !explicitStatuses.includes("OK")) delete operation.responses["200"];
     for (const status of explicitStatuses) {
       const code = statusNames[status];
       if (code) operation.responses[code] ??= { description: status.replaceAll("_", " "), ...(code.startsWith("4") ? { content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } } : {}) };
@@ -229,10 +241,9 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
     for (const [code, response] of Object.entries(operation.responses)) {
       if (/^[45]\d\d$/.test(code)) response.content ??= { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } };
     }
-    if (routePath.startsWith("/api/")) {
-      operation.security ??= [{ BearerAuth: [] }];
-      for (const code of ["401", "403"]) operation.responses[code] ??= { description: code === "401" ? "Unauthorized" : "Forbidden", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } };
-      if (routePath.startsWith("/api/branches/export/")) delete operation.responses["403"];
+  if (routePath.startsWith("/api/")) {
+       operation.security ??= [{ BearerAuth: [] }];
+       operation.responses["401"] ??= { description: "Unauthorized", content: { "application/json": { schema: { $ref: "#/components/schemas/ErrorResponse" } } } };
     }
     operation.parameters = (operation.parameters || []).filter((parameter) => parameter.in === "path");
     const queries = method === "get" ? { ...(queryOverrides[routePath] || {}) } : {};
@@ -247,9 +258,8 @@ for (const [routePath, methods] of Object.entries(spec.paths ?? {})) {
 }
 const operationIds = new Set();
 for (const methods of Object.values(spec.paths ?? {})) for (const [method, operation] of Object.entries(methods)) {
-  if (!operation.operationId) throw new Error(`Missing operationId for ${method}`);
-  if (operationIds.has(operation.operationId)) operation.operationId = `${operation.operationId}_${method}`;
-  if (operationIds.has(operation.operationId)) throw new Error(`Duplicate generated operationId: ${operation.operationId}`);
+   if (!operation.operationId) throw new Error(`Missing operationId for ${method}`);
+   if (operationIds.has(operation.operationId)) throw new Error(`Duplicate generated operationId: ${operation.operationId}`);
   operationIds.add(operation.operationId);
 }
 fs.mkdirSync(path.dirname(path.resolve(targetPath)), { recursive: true });

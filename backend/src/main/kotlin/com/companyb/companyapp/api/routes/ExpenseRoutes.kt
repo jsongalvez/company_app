@@ -22,14 +22,26 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/expenses",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "expenses",
+    methods = [HttpMethod.GET],
+    operationId = "expenses_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/expenses",
+    methods = [HttpMethod.POST],
+    operationId = "expenses_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/expenses/{expenseId}",
-    methods = [HttpMethod.PATCH, HttpMethod.DELETE],
-    operationId = "expense",
+    methods = [HttpMethod.PATCH],
+    operationId = "expense_patch",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/expenses/{expenseId}",
+    methods = [HttpMethod.DELETE],
+    operationId = "expense_delete",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

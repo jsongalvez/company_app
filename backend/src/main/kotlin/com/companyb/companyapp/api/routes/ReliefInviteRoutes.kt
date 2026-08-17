@@ -33,8 +33,14 @@ import java.util.UUID
 )
 @OpenApi(
     path = "/api/branches/{branchId}/relief-invites",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "branch_relief_invites",
+    methods = [HttpMethod.GET],
+    operationId = "branch_relief_invites_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/relief-invites",
+    methods = [HttpMethod.POST],
+    operationId = "branch_relief_invites_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(

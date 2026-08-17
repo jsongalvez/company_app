@@ -18,8 +18,14 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/allowances",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "allowances",
+    methods = [HttpMethod.GET],
+    operationId = "allowances_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/allowances",
+    methods = [HttpMethod.POST],
+    operationId = "allowances_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 object AllowanceRoutes {

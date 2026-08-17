@@ -59,9 +59,16 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
     if (!(path === "/health" && status === "503") && /^4\d\d$|^5\d\d$/.test(status) && response.content?.["application/json"]?.schema?.$ref !== "#/components/schemas/ErrorResponse") {
       throw new Error(`${method.toUpperCase()} ${path} error ${status} must use ErrorResponse`);
     }
-    if (/^2\d\d$/.test(status) && status !== "204" && !(method === "post" && (path === "/api/auth/logout" || path === "/auth/register")) && !response.content) {
+    const explicitlyBodyless =
+      status === "204" ||
+      (method === "post" && (path === "/api/auth/logout" || path === "/auth/register")) ||
+      (method === "post" && path === "/api/branches/{branchId}/inventory" && status === "201");
+    if (/^2\d\d$/.test(status) && !explicitlyBodyless && !response.content) {
       throw new Error(`${method.toUpperCase()} ${path} success ${status} must declare response content or be explicitly bodyless`);
     }
+  }
+  if (!Object.keys(operation.responses || {}).some((status) => /^2\d\d$/.test(status))) {
+    throw new Error(`${method.toUpperCase()} ${path} must declare a success response`);
   }
 }
 if (operations.some((operation) => !operation["x-route-source"] || typeof operation["x-route-source"].file !== "string" || typeof operation["x-route-source"].handler !== "string")) {

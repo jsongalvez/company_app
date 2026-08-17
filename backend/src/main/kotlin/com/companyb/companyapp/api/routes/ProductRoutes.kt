@@ -20,14 +20,26 @@ import java.util.UUID
 
 @OpenApi(
     path = "/api/products",
-    methods = [HttpMethod.GET, HttpMethod.POST],
-    operationId = "products",
+    methods = [HttpMethod.GET],
+    operationId = "products_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/products",
+    methods = [HttpMethod.POST],
+    operationId = "products_post",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
     path = "/api/products/{productId}",
-    methods = [HttpMethod.GET, HttpMethod.PATCH],
-    operationId = "product",
+    methods = [HttpMethod.GET],
+    operationId = "product_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/products/{productId}",
+    methods = [HttpMethod.PATCH],
+    operationId = "product_patch",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 object ProductRoutes {
