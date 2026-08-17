@@ -44,7 +44,7 @@ free_disk_gb() { df -BG --output=avail "$REPO" 2>/dev/null | awk 'NR==2{gsub(/G/
 notify() {
   local title="$1" body="$2"
   log "notify: $title — $body"
-  command -v notify-send >/dev/null 2>&1 && notify-send -a wayfinder-loop "$title" "$body" || true
+  command -v notify-send >/dev/null 2>&1 && notify-send -a wayfinder-loop "$title" "$body" >/dev/null 2>&1 || true
   if [ -n "$NTFY_TOPIC" ]; then
     curl -sf -d "$body" -H "Title: $title" -H "Priority: high" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1 || true
   fi
@@ -201,6 +201,21 @@ stopped_assistant_message() {
     ' 2>/dev/null || true
 }
 
+# Return a completed assistant error without feeding it the continuation prompt.
+# Provider/auth failures cannot be repaired by asking the same session to continue.
+assistant_error() {
+  api get "/api/session/$1/message?limit=1" 2>/dev/null |
+    jq -r '
+      .data[-1] |
+      if ((.type // .role) == "assistant") and
+         (.time.completed != null) and
+         ((.finish // "") == "error") then
+        ((.error.type // "assistant.error") + ": " + (.error.message // "unknown error"))
+      else ""
+      end
+    ' 2>/dev/null || true
+}
+
 spawn_session() {
   local doc="$1" sid
   if [ -n "$DRY_RUN" ]; then
@@ -210,13 +225,16 @@ spawn_session() {
   if [ -z "${WAYFINDER_ALLOW_DIRTY:-}" ]; then
     wait_for_clean_handoff "$doc"
   fi
-  local model_ref="null" pid
+  local model_ref="null" pid model_id model_provider
   if [ -n "${WAYFINDER_MODEL:-}" ]; then
+    model_id="${WAYFINDER_MODEL##*/}"
+    model_provider=""
+    [[ "$WAYFINDER_MODEL" == */* ]] && model_provider="${WAYFINDER_MODEL%%/*}"
     # `|| true` keeps the die below reachable: under `set -e`, a failing pipeline would abort
     # the whole script BEFORE the guard (silent chain death — no FATAL log, no push).
-    pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$WAYFINDER_MODEL" '.data[] | select(.id == $id) | .providerID' | head -1)" || true
-    [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' lookup failed via /api/model (model absent, or the API errored)"
-    model_ref="$(jq -nc --arg id "$WAYFINDER_MODEL" --arg p "$pid" '{id: $id, providerID: $p}')"
+    pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' | head -1)" || true
+    [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' lookup failed via /api/model (model/provider absent, or the API errored)"
+    model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" '{id: $id, providerID: $p}')"
   fi
   sid="$(api post /api/session --data "$(jq -nc --arg d "$doc" --arg dir "$REPO" --argjson ref "$model_ref" \
     '{title: ("wayfinder-loop: " + $d), location: {directory: $dir}, model: $ref}')" | jq -r '.data.id' || true)"
@@ -340,6 +358,15 @@ supervise_session() {
       continue
     fi
     outages=0
+
+    # Terminal assistant errors are not recoverable continuation stops. Pausing here avoids
+    # repeated prompts against provider/auth failures and preserves the exact error in logs.
+    assistant_failure="$(assistant_error "$session_id")"
+    if [ -n "$assistant_failure" ]; then
+      log "session $session_id ended with assistant error — chain paused: $assistant_failure"
+      notify "wayfinder chain paused" "session $session_id failed: $assistant_failure"
+      exit 0
+    fi
 
     # Immediate stop detector: a final assistant turn without a handoff is not a healthy
     # parked state. Send the same continuation prompt used by the slower zombie path as soon
