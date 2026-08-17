@@ -1,0 +1,29 @@
+# Architecture Lessons Ledger
+
+Durable lessons from repository architecture audits. Future agents consume this before proposing simplifications.
+
+## Current Lessons
+
+- **Authoritative paths beat cached inventories.** Flyway migration directory is schema history; `docs/adr/*.md` is decision history. Documentation must point to these authorities instead of enumerating a stale subset.
+- **Shared contract ownership must be complete or absent.** A partial `ApiRoutes` object creates false confidence while backend and Compose literals drift. Either migrate a route family fully or leave ownership explicit until its implementation ticket is ready.
+- **Type finite wire values once.** Shared DTO strings duplicate persistence enums and permit invalid states. Convert only with an explicit unknown-value and serialized-name compatibility policy.
+- **One adapter is a hypothetical seam.** Do not introduce generic repository/service interfaces or registries without a second concrete adapter and a deletion test showing complexity concentrates.
+- **Deletion test is necessary but not sufficient for schema changes.** Removing apparently redundant indexes requires query plans and representative data; removing Exposed metadata requires proving no schema tooling consumes it.
+- **Idempotency belongs beside uniqueness.** Scheduler check-then-insert logic is not atomic. When duplicate prevention matters, repository bulk operations and database uniqueness should own it together.
+- **Lifecycle state should be one snapshot.** Related JWT algorithm, verifier, issuer, and audience fields must not be independently observable during initialization.
+- **Tooling parsers need one implementation.** Normalizer and verifier duplicate source parsing; any syntax rule change must be made once and tested against malformed input.
+- **Thresholds need one source.** k6 helper thresholds are authoritative; suite-specific profiles must be named rather than copied.
+- **Dead ownership seams should be deleted, not documented.** `ReportViewModel` had no consumers while `FinanceReportsViewModel` owned active report state; an unused module is an invitation to future-agent misrouting.
+
+## Rejected Recommendations
+
+- Exposed unique-index metadata removal rejected: no material behavior or ownership gain proven without a schema-tooling path.
+- Broad Compose state refactor rejected: no second adapter or specific invalid-state reduction proven; recent `ApiCallHandler` and KeepLast decisions remain authoritative.
+- Generic interface/registry abstractions rejected: deletion test relocates complexity instead of concentrating it.
+
+## Reopen Markers
+
+- R3 reopens when enum unknown-value and backward-client policy is decided.
+- R5 reopens when multi-instance scheduler volume or deployment concurrency becomes material.
+- R7 reopens after representative query plans prove the two single-column trigram indexes redundant.
+- A third transport-pin consumer reopens shared fixture design; existing marker is preserved in Map #89 fog.
