@@ -174,9 +174,9 @@ class ApiCallHandlerTest {
             val handler = ApiCallHandler(CoroutineScope(Dispatchers.Main), "Test")
             val state = MutableStateFlow<UiState<List<Int>>>(UiState.Idle)
 
-            // Hold the first non-success response in flight, then move the stamp before
-            // releasing it. #176 gates the Error WRITE only — a superseded failure writes NO
-            // Error, leaving the state at the launch's Loading (and never invoking fallback).
+            // Hold the first non-success response in flight, then move the stamp and write the
+            // newer action Success before releasing it. #176 gates the Error WRITE only — a
+            // superseded failure writes NO Error over that moved-on state (and never fallback).
             var stamp = 0L
             var fallbackCalls = 0
             val job =
@@ -199,15 +199,18 @@ class ApiCallHandlerTest {
                 "the non-success response must be in flight before the stamp flip",
             )
             stamp = 1
+            state.value = UiState.Success(listOf(7))
             releaseResponse.complete(Unit)
             runCurrent()
             job.join()
 
             assertEquals(0, fallbackCalls, "a failure carries no data — fallback substitutes nothing")
-            assertIs<UiState.Loading>(
-                state.value,
-                "a stale non-success landing must leave the state at Loading, not write Error",
-            )
+            val staleState =
+                assertIs<UiState.Success<List<Int>>>(
+                    state.value,
+                    "a stale non-success landing must leave the moved-on Success, not write Error",
+                )
+            assertEquals(listOf(7), staleState.data)
         }
 
     @Test
