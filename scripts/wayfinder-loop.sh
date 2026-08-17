@@ -115,6 +115,25 @@ active_children() {
   return 1
 }
 
+# Return completed assistant message id only when its turn stopped without a tool call.
+# A completed `tool-calls` turn is normal — the next model turn follows it. A completed
+# `stop`/`length`/`error` turn with no handoff is the unattended-chain failure: prompt it
+# immediately instead of waiting for the 540-second zombie threshold.
+stopped_assistant_message() {
+  api get "/api/session/$1/message?limit=1" 2>/dev/null |
+    jq -r '
+      .data[-1] |
+      if ((.type // .role) != "assistant") or
+         (.time.completed == null) or
+         ((.finish // "") == "") or
+         .finish == "tool-calls" then ""
+      elif ([.content[]? | select(.type == "tool" and
+          ((.state.status // "") == "running" or (.state.status // "") == "pending"))] | length) > 0 then ""
+      else .id // ""
+      end
+    ' 2>/dev/null || true
+}
+
 spawn_session() {
   local doc="$1" sid
   if [ -n "$DRY_RUN" ]; then
@@ -178,7 +197,7 @@ supervise_session() {
   # produced no ping). Every tick checks completion/forms/perms fresh, so a
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
-  local upd prog d f p sess not_alive_ticks=0 disk_notified=0 free_gb=""
+  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message=""
   while :; do
     sleep "$TICK_SECS"
     # completion first: a finished session writes its handoff doc as its final act
@@ -194,7 +213,7 @@ supervise_session() {
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
-      notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0
+       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""
       continue
     fi
 
@@ -254,6 +273,21 @@ supervise_session() {
       continue
     fi
     outages=0
+
+    # Immediate stop detector: a final assistant turn without a handoff is not a healthy
+    # parked state. Send the same continuation prompt used by the slower zombie path as soon
+    # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
+    stop_message="$(stopped_assistant_message "$session_id")"
+    if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
+      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Continue exactly where you left off. Do not stop until you write the next handoff or ask via the question tool and wait."}')" >/dev/null 2>&1; then
+        last_stop_message="$stop_message"
+        log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
+        notify "wayfinder continuing" "session $session_id stopped without handoff — continuation sent"
+      else
+        log "immediate continuation prompt failed for $session_id — zombie detector remains active"
+      fi
+      continue
+    fi
 
     # liveness: session left the active set with no new doc = died without a
     # handoff — resume it in place. Grace period: a just-spawned session may
