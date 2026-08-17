@@ -11,8 +11,23 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/delegates",
+    methods = [HttpMethod.POST],
+    operationId = "delegates",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/delegates/{delegateId}",
+    methods = [HttpMethod.DELETE],
+    operationId = "delegate_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object MedicalMissionDelegateRoutes {
     @Suppress("ThrowsCount")
     fun assignDelegate(config: JavalinConfig) {

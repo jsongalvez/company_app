@@ -20,6 +20,9 @@ import io.javalin.http.Context
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
@@ -29,6 +32,36 @@ private val NEGATIVE_QUANTITY_REASONS =
 private val ALLOWED_MOVEMENT_REASONS =
     NEGATIVE_QUANTITY_REASONS + InventoryMovementReason.ADJUSTMENT
 
+@OpenApi(
+    path = "/api/branches/{branchId}/inventory",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "branch_inventory",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/inventory/low-stock",
+    methods = [HttpMethod.GET],
+    operationId = "inventory_low_stock",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/inventory/movements",
+    methods = [HttpMethod.GET],
+    operationId = "inventory_movements",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/inventory/{productId}/restock",
+    methods = [HttpMethod.POST],
+    operationId = "inventory_restock",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/inventory/{productId}/movement",
+    methods = [HttpMethod.POST],
+    operationId = "inventory_movement",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object BranchInventoryRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val PRODUCT_ID_PARAM = "productId"

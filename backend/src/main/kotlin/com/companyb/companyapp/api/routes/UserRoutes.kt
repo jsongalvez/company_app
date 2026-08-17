@@ -7,8 +7,29 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.service.UserService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/users",
+    methods = [HttpMethod.GET],
+    operationId = "users",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/users/{userId}/deactivate",
+    methods = [HttpMethod.PATCH],
+    operationId = "user_deactivate",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/users/{userId}/reactivate",
+    methods = [HttpMethod.PATCH],
+    operationId = "user_reactivate",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object UserRoutes {
     private const val USER_ID_PARAM = "userId"
     private const val MANAGE_USERS_MESSAGE = "MANAGE_USERS capability required to manage users"

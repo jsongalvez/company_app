@@ -12,8 +12,37 @@ import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
+import io.javalin.openapi.OpenApiRequestBody
+import io.javalin.openapi.OpenApiResponse
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/auth/login",
+    methods = [HttpMethod.POST],
+    operationId = "auth_login",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = LoginRequest::class)]),
+    responses = [OpenApiResponse(status = "200"), OpenApiResponse(status = "401"), OpenApiResponse(status = "429")],
+)
+@OpenApi(
+    path = "/auth/register",
+    methods = [HttpMethod.POST],
+    operationId = "auth_register",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RegisterRequest::class)]),
+    responses = [OpenApiResponse(status = "201"), OpenApiResponse(status = "409"), OpenApiResponse(status = "422")],
+)
+@OpenApi(
+    path = "/api/auth/logout",
+    methods = [HttpMethod.POST],
+    operationId = "auth_logout",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [OpenApiResponse(status = "200")],
+)
 object AuthRoutes {
     fun login(context: JavalinConfig) {
         context.routes.post("/auth/login") { context ->

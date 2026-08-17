@@ -15,8 +15,29 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/compensation",
+    methods = [HttpMethod.POST],
+    operationId = "compensation_create",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/compensation/{compensationId}",
+    methods = [HttpMethod.PATCH],
+    operationId = "compensation_update",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/compensations",
+    methods = [HttpMethod.GET],
+    operationId = "compensations",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object CompensationRoutes {
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {

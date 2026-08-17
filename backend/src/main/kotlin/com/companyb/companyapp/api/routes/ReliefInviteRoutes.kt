@@ -10,6 +10,9 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
@@ -22,6 +25,42 @@ import java.util.UUID
  * 2-segment `/api/branches` MANAGE_USERS filter does not fire on these 4-segment paths —
  * Javalin 7 segment matching).
  */
+@OpenApi(
+    path = "/api/branches/{branchId}/relief-candidates",
+    methods = [HttpMethod.GET],
+    operationId = "relief_candidates",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/relief-invites",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "branch_relief_invites",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/relief-invites",
+    methods = [HttpMethod.GET],
+    operationId = "relief_invites",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/relief-invites/{inviteId}/accept",
+    methods = [HttpMethod.POST],
+    operationId = "relief_invite_accept",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/relief-invites/{inviteId}/decline",
+    methods = [HttpMethod.POST],
+    operationId = "relief_invite_decline",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/relief-invites/{inviteId}/retract",
+    methods = [HttpMethod.POST],
+    operationId = "relief_invite_retract",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ReliefInviteRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val INVITE_ID_PARAM = "inviteId"

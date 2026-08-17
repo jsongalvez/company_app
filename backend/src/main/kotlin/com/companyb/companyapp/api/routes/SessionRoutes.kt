@@ -36,11 +36,92 @@ import io.javalin.http.Context
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
+@OpenApi(
+    path = "/api/concerns",
+    methods = [HttpMethod.GET],
+    operationId = "concerns",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions",
+    methods = [HttpMethod.POST],
+    operationId = "sessions",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}",
+    methods = [HttpMethod.GET],
+    operationId = "session",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/concerns",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "session_concerns",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/concerns/{concernId}",
+    methods = [HttpMethod.DELETE],
+    operationId = "session_concern_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/final-price",
+    methods = [HttpMethod.PATCH],
+    operationId = "session_final_price",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/practitioners",
+    methods = [HttpMethod.POST],
+    operationId = "session_practitioners",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+    methods = [HttpMethod.PATCH, HttpMethod.DELETE],
+    operationId = "session_practitioner",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/promote-concern",
+    methods = [HttpMethod.POST],
+    operationId = "session_promote_concern",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/status",
+    methods = [HttpMethod.PATCH],
+    operationId = "session_status",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/type",
+    methods = [HttpMethod.PATCH],
+    operationId = "session_type",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/unvoid",
+    methods = [HttpMethod.POST],
+    operationId = "session_unvoid",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/void",
+    methods = [HttpMethod.POST],
+    operationId = "session_void",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object SessionRoutes {
     /**
      * Request-scoped attribute: the branch day the create gate resolved (#157). The handler

@@ -9,8 +9,17 @@ import com.companyb.companyapp.service.MonthlyRemittanceSummaryService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/branches/{branchId}/monthly-summary",
+    methods = [HttpMethod.GET],
+    operationId = "monthly_summary",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object MonthlyRemittanceSummaryRoutes {
     private const val MAX_MONTH = 12
     private const val MIN_MONTH = 1

@@ -13,8 +13,29 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/branches",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "branches",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/accessible",
+    methods = [HttpMethod.GET],
+    operationId = "branches_accessible",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}",
+    methods = [HttpMethod.GET],
+    operationId = "branch",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object BranchRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 

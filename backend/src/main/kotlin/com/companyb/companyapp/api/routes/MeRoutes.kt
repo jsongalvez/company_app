@@ -7,8 +7,29 @@ import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.service.MeService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/me",
+    methods = [HttpMethod.GET],
+    operationId = "me",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/me/branches",
+    methods = [HttpMethod.GET],
+    operationId = "me_branches",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/me/capabilities",
+    methods = [HttpMethod.GET],
+    operationId = "me_capabilities",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object MeRoutes {
     fun getMe(config: JavalinConfig) {
         config.routes.get("/api/me") { context ->

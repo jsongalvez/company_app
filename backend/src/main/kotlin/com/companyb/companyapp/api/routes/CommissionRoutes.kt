@@ -15,8 +15,29 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/commission-inclusions",
+    methods = [HttpMethod.POST],
+    operationId = "commission_inclusions",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/commission-splits/{branchDayId}",
+    methods = [HttpMethod.GET],
+    operationId = "commission_splits",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/commission/recalculate/{branchDayId}",
+    methods = [HttpMethod.POST],
+    operationId = "commission_recalculate",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
         config.routes.before("/api/commission-inclusions") { context ->

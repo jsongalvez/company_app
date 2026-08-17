@@ -1,7 +1,3 @@
-import org.gradle.api.tasks.compile.JavaCompile
-import org.gradle.api.file.DuplicatesStrategy
-import org.gradle.jvm.tasks.Jar
-
 plugins {
     kotlin("jvm")
     kotlin("kapt")
@@ -18,7 +14,6 @@ dependencies {
     implementation(libs.javalin.openapi.plugin)
     implementation(libs.javalin.swagger.plugin)
     kapt(libs.javalin.openapi.processor)
-    annotationProcessor(libs.javalin.openapi.processor)
 
     // Database
     implementation(libs.postgresql)
@@ -61,17 +56,13 @@ dependencies {
     jmhAnnotationProcessor(libs.jmh.annprocess)
 }
 
-tasks.named<JavaCompile>("compileJava") {
-    doFirst {
-        options.compilerArgs.removeAll { it == "-proc:none" }
-        options.compilerArgs.addAll(
-            listOf("-processor", "io.javalin.openapi.processor.OpenApiAnnotationProcessor"),
-        )
-    }
+tasks.register<Exec>("publishOpenApiSpec") {
+    val generated = layout.buildDirectory.file("tmp/kapt3/classes/main/openapi-plugin/openapi-default.json")
+    commandLine("node", "../scripts/normalize-openapi-spec.mjs", generated.get().asFile, generated.get().asFile)
 }
 
-tasks.named<Jar>("jar") {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+tasks.named("compileKotlin") {
+    finalizedBy("publishOpenApiSpec")
 }
 
 application {

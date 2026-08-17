@@ -14,8 +14,29 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/clients",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "clients",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients/{clientId}",
+    methods = [HttpMethod.GET, HttpMethod.PATCH],
+    operationId = "client",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients/{clientId}/anonymize",
+    methods = [HttpMethod.POST],
+    operationId = "client_anonymize",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 

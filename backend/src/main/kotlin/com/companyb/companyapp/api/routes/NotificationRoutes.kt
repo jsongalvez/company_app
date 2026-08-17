@@ -9,8 +9,29 @@ import com.companyb.companyapp.service.NotificationService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/notifications",
+    methods = [HttpMethod.GET],
+    operationId = "notifications",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/notifications/read-all",
+    methods = [HttpMethod.POST],
+    operationId = "notifications_read_all",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/notifications/{notificationId}/read",
+    methods = [HttpMethod.PATCH],
+    operationId = "notification_read",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object NotificationRoutes {
     fun register(config: JavalinConfig) {
         config.routes.get("/api/notifications") { context ->

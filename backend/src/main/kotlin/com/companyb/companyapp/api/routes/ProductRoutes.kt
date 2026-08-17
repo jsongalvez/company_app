@@ -13,8 +13,23 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/products",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "products",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/products/{productId}",
+    methods = [HttpMethod.GET, HttpMethod.PATCH],
+    operationId = "product",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ProductRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
 

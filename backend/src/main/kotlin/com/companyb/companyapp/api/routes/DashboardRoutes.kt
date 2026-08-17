@@ -15,8 +15,17 @@ import com.companyb.companyapp.service.dashboard.DashboardData
 import com.companyb.companyapp.service.dashboard.DashboardService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/branches/{branchId}/dashboard/today",
+    methods = [HttpMethod.GET],
+    operationId = "dashboard_today",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object DashboardRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 

@@ -10,8 +10,23 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/attendance/clock-in",
+    methods = [HttpMethod.POST],
+    operationId = "attendance_clock_in",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/attendance/clock-out",
+    methods = [HttpMethod.POST],
+    operationId = "attendance_clock_out",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object AttendanceRoutes {
     @Suppress("ThrowsCount")
     fun clockOut(config: JavalinConfig) {

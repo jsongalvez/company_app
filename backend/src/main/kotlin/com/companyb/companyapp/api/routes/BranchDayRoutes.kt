@@ -9,8 +9,23 @@ import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.Context
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 
+@OpenApi(
+    path = "/api/branch-days/{branchDayId}/users",
+    methods = [HttpMethod.GET],
+    operationId = "branch_day_users",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/today",
+    methods = [HttpMethod.GET],
+    operationId = "branch_today",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object BranchDayRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val BRANCH_DAY_ID_PARAM = "branchDayId"

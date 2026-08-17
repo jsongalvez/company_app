@@ -12,8 +12,17 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/branches/{branchId}/rates",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "session_rates",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object SessionBaseRateRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 

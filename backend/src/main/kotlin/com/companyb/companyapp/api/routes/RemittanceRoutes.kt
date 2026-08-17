@@ -42,10 +42,85 @@ import io.javalin.http.Context
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
+@OpenApi(
+    path = "/api/remittances",
+    methods = [HttpMethod.GET, HttpMethod.POST],
+    operationId = "remittances",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}",
+    methods = [HttpMethod.GET, HttpMethod.PATCH],
+    operationId = "remittance",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/drift",
+    methods = [HttpMethod.GET],
+    operationId = "remittance_drift",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/day-breakdowns",
+    methods = [HttpMethod.POST],
+    operationId = "remittance_day_breakdowns",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/day-breakdowns/{breakdownId}",
+    methods = [HttpMethod.DELETE],
+    operationId = "remittance_day_breakdown_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/lines",
+    methods = [HttpMethod.POST],
+    operationId = "remittance_lines",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/lines/{lineId}",
+    methods = [HttpMethod.DELETE],
+    operationId = "remittance_line_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/submit",
+    methods = [HttpMethod.POST],
+    operationId = "remittance_submit",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/remittances/{remittanceId}/undo",
+    methods = [HttpMethod.POST],
+    operationId = "remittance_undo",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/remittance-days",
+    methods = [HttpMethod.GET],
+    operationId = "branch_remittance_days",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/remittance-product-sales",
+    methods = [HttpMethod.GET],
+    operationId = "branch_remittance_product_sales",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/remittance-sessions",
+    methods = [HttpMethod.GET],
+    operationId = "branch_remittance_sessions",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object RemittanceRoutes {
     @Suppress("LongMethod")
     fun register(config: JavalinConfig) {

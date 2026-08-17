@@ -12,9 +12,42 @@ import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.OffsetDateTime
 
+@OpenApi(
+    path = "/api/audit-log",
+    methods = [HttpMethod.GET],
+    operationId = "audit_log",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/audit-log/entries",
+    methods = [HttpMethod.GET],
+    operationId = "audit_log_entries",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/audit-log/flagged",
+    methods = [HttpMethod.GET],
+    operationId = "audit_log_flagged",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/audit-log/tables",
+    methods = [HttpMethod.GET],
+    operationId = "audit_log_tables",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/audit-log/{entryId}/acknowledge",
+    methods = [HttpMethod.PATCH],
+    operationId = "audit_log_acknowledge",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object AuditLogRoutes {
     @Suppress("LongMethod", "ThrowsCount")
     fun register(config: JavalinConfig) {

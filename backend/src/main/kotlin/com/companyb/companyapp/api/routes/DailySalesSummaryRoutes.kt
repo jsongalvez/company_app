@@ -11,8 +11,23 @@ import com.companyb.companyapp.service.toResponse
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 
+@OpenApi(
+    path = "/api/branches/{branchId}/daily-summaries",
+    methods = [HttpMethod.GET],
+    operationId = "daily_summaries",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/daily-summary",
+    methods = [HttpMethod.GET],
+    operationId = "daily_summary",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object DailySalesSummaryRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {

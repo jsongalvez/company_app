@@ -12,8 +12,29 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/relief-access/request",
+    methods = [HttpMethod.POST],
+    operationId = "relief_access_request",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/relief-access/{requestId}/deny",
+    methods = [HttpMethod.PATCH],
+    operationId = "relief_access_deny",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/relief-access/{requestId}/grant",
+    methods = [HttpMethod.PATCH],
+    operationId = "relief_access_grant",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ReliefAccessRoutes {
     @Suppress("ThrowsCount")
     fun grantReliefAccess(config: JavalinConfig) {

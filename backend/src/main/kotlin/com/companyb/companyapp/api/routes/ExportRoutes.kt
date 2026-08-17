@@ -9,10 +9,49 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Header
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
+@OpenApi(
+    path = "/api/branches/export/medical-mission",
+    methods = [HttpMethod.GET],
+    operationId = "export_medical_mission",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/export/provincial",
+    methods = [HttpMethod.GET],
+    operationId = "export_provincial",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/export/all-time",
+    methods = [HttpMethod.GET],
+    operationId = "export_all_time",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/export/daily",
+    methods = [HttpMethod.GET],
+    operationId = "export_daily",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/export/monthly",
+    methods = [HttpMethod.GET],
+    operationId = "export_monthly",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/export/range",
+    methods = [HttpMethod.GET],
+    operationId = "export_range",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ExportRoutes {
     private const val MAX_MONTH = 12
     private const val MIN_MONTH = 1
