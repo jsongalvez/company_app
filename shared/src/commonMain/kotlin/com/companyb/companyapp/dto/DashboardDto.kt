@@ -1,5 +1,7 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -13,9 +15,9 @@ data class DashboardSessionResponse(
     val id: String,
     val clientId: String,
     val clientName: String?,
-    val sessionType: String,
+    val sessionType: SessionType,
     val isWalkIn: Boolean,
-    val sessionStatus: String,
+    val sessionStatus: SessionStatus,
     val basePrice: String,
     val finalPrice: String,
     val remarks: String?,

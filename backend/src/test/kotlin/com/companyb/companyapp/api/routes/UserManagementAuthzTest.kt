@@ -125,7 +125,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         }
         assertEquals(3, users.size)
         val target = users.single { it.id == targetUser.toString() }
-        assertEquals("ACTIVE", target.status)
+        assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, target.status)
         assertEquals(1, target.assignments.size)
         assertEquals("Authz Branch", target.assignments[0].branchName)
         assertEquals(1, target.assignments[0].slot)

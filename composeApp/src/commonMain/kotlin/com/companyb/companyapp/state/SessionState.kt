@@ -126,7 +126,7 @@ fun List<UserCapabilityResponse>.hasCapability(
     contextId: String?,
 ): Boolean =
     contextId != null &&
-        any { it.capabilityCode == code && it.contextType == contextType && it.contextId == contextId }
+        any { it.capabilityCode == code && it.contextType.name == contextType && it.contextId == contextId }
 
 /**
  * #156 — the #92 Q3 "some branch" route-gate semantics: true iff [code] is held at
@@ -142,7 +142,7 @@ fun List<UserCapabilityResponse>.hasCapabilityAnyContext(code: String): Boolean 
 fun List<UserCapabilityResponse>.hasCapabilityAtContextType(
     code: String,
     contextType: String,
-): Boolean = any { it.capabilityCode == code && it.contextType == contextType }
+): Boolean = any { it.capabilityCode == code && it.contextType.name == contextType }
 
 /**
  * #158 — the relief day-grant shape shared by the drawer, both NavHost gates and the

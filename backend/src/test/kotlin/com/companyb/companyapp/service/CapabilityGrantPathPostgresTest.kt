@@ -228,16 +228,20 @@ class CapabilityGrantPathPostgresTest : BasePostgresTest() {
                 .getCapabilitiesForUser(dedupUser)
                 .filter { it.capabilityCode == CapabilityCodes.MANAGE_USERS }
         assertEquals(1, manageUsers.size, "view must dedup direct + derived rows")
-        assertEquals("SYSTEM", manageUsers.single().sourceType, "direct grant (priority 100) must win over derived (5)")
+        assertEquals(
+            "SYSTEM",
+            manageUsers.single().sourceType.name,
+            "direct grant (priority 100) must win over derived (5)",
+        )
     }
 
     @Test
     fun `derived rows are reported with ROLE source and GLOBAL context`() {
         val caps = CapabilityService.getCapabilitiesForUser(ownerUser)
-        val derived = caps.filter { it.sourceType == CapabilitySourceType.ROLE.name }
+        val derived = caps.filter { it.sourceType == com.companyb.companyapp.domain.CapabilitySourceType.ROLE }
         assertEquals(3, derived.size, "OWNER derives exactly MANAGE_USERS + ASSIGN_DELEGATE + ASSIGN_COMPENSATION")
         derived.forEach {
-            assertEquals(CapabilityContextType.GLOBAL.name, it.contextType)
+            assertEquals(com.companyb.companyapp.domain.CapabilityContextType.GLOBAL, it.contextType)
             assertEquals(CapabilityService.GLOBAL_CONTEXT_ID.toString(), it.contextId)
         }
         assertEquals(

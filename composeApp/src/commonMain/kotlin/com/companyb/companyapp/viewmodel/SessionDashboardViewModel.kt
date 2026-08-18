@@ -411,14 +411,22 @@ class SessionDashboardViewModel(
             DashboardEditField.TYPE -> {
                 EditRequest(
                     "/api/sessions/${state.sessionId}/type",
-                    UpdateSessionTypeRequest(state.draft, state.baselineVersion),
+                    UpdateSessionTypeRequest(
+                        com.companyb.companyapp.domain.SessionType
+                            .valueOf(state.draft),
+                        state.baselineVersion,
+                    ),
                 )
             }
 
             DashboardEditField.STATUS -> {
                 EditRequest(
                     "/api/sessions/${state.sessionId}/status",
-                    UpdateSessionStatusRequest(state.draft, state.baselineVersion),
+                    UpdateSessionStatusRequest(
+                        com.companyb.companyapp.domain.SessionStatus
+                            .valueOf(state.draft),
+                        state.baselineVersion,
+                    ),
                 )
             }
 

@@ -2,6 +2,8 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.DashboardCommissionResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
@@ -89,9 +91,9 @@ internal fun mapDashboardSession(
             listOfNotNull(client?.firstName, client?.lastName)
                 .joinToString(" ")
                 .ifBlank { null },
-        sessionType = session.sessionType,
+        sessionType = SessionType.valueOf(session.sessionType),
         isWalkIn = session.isWalkIn,
-        sessionStatus = session.sessionStatus,
+        sessionStatus = SessionStatus.valueOf(session.sessionStatus),
         basePrice = session.basePrice.toPlainString(),
         finalPrice = session.finalPrice.toPlainString(),
         remarks = session.remarks,

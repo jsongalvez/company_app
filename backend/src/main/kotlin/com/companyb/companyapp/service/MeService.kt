@@ -36,7 +36,9 @@ object MeService {
             MeResponse(
                 id = row[AppUserTable.id].toString(),
                 username = row[AppUserTable.username],
-                status = row[AppUserTable.status].name,
+                status =
+                    com.companyb.companyapp.domain.UserStatus
+                        .valueOf(row[AppUserTable.status].name),
                 createdAt =
                     row[AppUserTable.createdAt]
                         .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),

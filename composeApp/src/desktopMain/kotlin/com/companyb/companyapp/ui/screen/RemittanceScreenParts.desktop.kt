@@ -56,13 +56,13 @@ actual fun RemittanceRowList(
                             .clickable { onRemittanceClick(remittance) }
                             .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
                 ) {
-                    TableCell(remittanceTypeLabel(remittance.type), modifier = Modifier.weight(1f))
-                    TableCell(remittanceMethodLabel(remittance.method), modifier = Modifier.weight(1f))
+                    TableCell(remittanceTypeLabel(remittance.type.name), modifier = Modifier.weight(1f))
+                    TableCell(remittanceMethodLabel(remittance.method.name), modifier = Modifier.weight(1f))
                     TableCell(
                         "${remittance.dateRangeStart} – ${remittance.dateRangeEnd}",
                         modifier = Modifier.weight(2f),
                     )
-                    TableCell(remittance.status, modifier = Modifier.weight(1f))
+                    TableCell(remittance.status.name, modifier = Modifier.weight(1f))
                     val net = submittedSessionNet(remittance)
                     TableCell(
                         text = if (net != null) peso(net) else "—",

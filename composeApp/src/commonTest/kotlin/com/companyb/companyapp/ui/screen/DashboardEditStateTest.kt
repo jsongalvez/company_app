@@ -23,9 +23,13 @@ class DashboardEditStateTest {
         id = id,
         clientId = "c1",
         clientName = "Client",
-        sessionType = type,
+        sessionType =
+            com.companyb.companyapp.domain.SessionType
+                .valueOf(type),
         isWalkIn = false,
-        sessionStatus = status,
+        sessionStatus =
+            com.companyb.companyapp.domain.SessionStatus
+                .valueOf(status),
         basePrice = "2500.00",
         finalPrice = price,
         remarks = null,
@@ -208,7 +212,7 @@ class DashboardEditStateTest {
         assertEquals(2, merged.size)
         assertEquals("s1", merged[0].id)
         assertEquals(2, merged[0].version, "a stale poll must never regress a committed row")
-        assertEquals("COMPLETED", merged[0].sessionStatus)
+        assertEquals("COMPLETED", merged[0].sessionStatus.name)
         assertEquals("s3", merged[1].id, "membership is backend-authoritative")
     }
 
@@ -220,7 +224,7 @@ class DashboardEditStateTest {
         val merged = mergeDashboardRows(existing, incoming)
 
         assertEquals(1, merged.size)
-        assertEquals("PENDING", merged[0].sessionStatus, "same version — incoming wins (backend-authoritative)")
+        assertEquals("PENDING", merged[0].sessionStatus.name, "same version — incoming wins (backend-authoritative)")
     }
 
     @Test

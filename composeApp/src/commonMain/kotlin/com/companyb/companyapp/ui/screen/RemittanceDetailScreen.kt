@@ -324,8 +324,10 @@ private fun RemittanceDetailContent(
     onCloseSubmitDialog: () -> Unit,
     onCloseUndoDialog: () -> Unit,
 ) {
-    val isDraft = detail.status == "DRAFT"
-    val isSubmittedSession = detail.status == "SUBMITTED" && detail.type == "SESSION"
+    val isDraft = detail.status == com.companyb.companyapp.domain.RemittanceStatus.DRAFT
+    val isSubmittedSession =
+        detail.status == com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED &&
+            detail.type == com.companyb.companyapp.domain.RemittanceType.SESSION
 
     val sessionLabels =
         (sessionPickerState as? UiState.Success)
@@ -356,7 +358,7 @@ private fun RemittanceDetailContent(
             )
             Spacer(Modifier.width(Spacing.sm))
             Text(
-                text = detail.status,
+                text = detail.status.name,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -367,8 +369,8 @@ private fun RemittanceDetailContent(
                 }
             }
         }
-        DetailRow("Type", remittanceTypeLabel(detail.type))
-        DetailRow("Method", remittanceMethodLabel(detail.method))
+        DetailRow("Type", remittanceTypeLabel(detail.type.name))
+        DetailRow("Method", remittanceMethodLabel(detail.method.name))
         DetailRow("Date range", "${detail.dateRangeStart} – ${detail.dateRangeEnd}")
         DetailRow("Created", formatRelativeTimestamp(detail.createdAt))
         if (detail.submittedDate.isNotBlank()) {
@@ -413,7 +415,7 @@ private fun RemittanceDetailContent(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = day?.status.orEmpty(),
+                    text = day?.status?.name.orEmpty(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -495,7 +497,7 @@ private fun RemittanceDetailContent(
     if (showSessionPicker && branchId != null) {
         val includedIds =
             detail.lines
-                .filter { it.type == "SESSION" }
+                .filter { it.type == com.companyb.companyapp.domain.RemittanceLineType.SESSION }
                 .mapNotNull { it.sessionId }
                 .toSet()
         SessionPickerDialog(
@@ -516,7 +518,7 @@ private fun RemittanceDetailContent(
     if (showProductSalePicker && branchId != null) {
         val includedIds =
             detail.lines
-                .filter { it.type == "PRODUCT_SALE" }
+                .filter { it.type == com.companyb.companyapp.domain.RemittanceLineType.PRODUCT_SALE }
                 .mapNotNull { it.productSaleId }
                 .toSet()
         ProductSalePickerDialog(
@@ -604,9 +606,18 @@ private fun lineLabel(
     productSaleLabels: Map<String, String>,
 ): String =
     when (line.type) {
-        "SESSION" -> sessionLabels[line.sessionId] ?: "Session"
-        "PRODUCT_SALE" -> productSaleLabels[line.productSaleId] ?: "Product sale"
-        else -> "Line"
+        com.companyb.companyapp.domain.RemittanceLineType.SESSION -> {
+            sessionLabels[line.sessionId] ?: "Session"
+        }
+
+        com.companyb.companyapp.domain.RemittanceLineType.PRODUCT_SALE -> {
+            productSaleLabels[line.productSaleId]
+                ?: "Product sale"
+        }
+
+        else -> {
+            "Line"
+        }
     }
 
 @Composable
@@ -624,7 +635,7 @@ private fun LineRow(
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = lineTypeLabel(line.type),
+                    text = lineTypeLabel(line.type.name),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
@@ -876,13 +887,13 @@ private fun HeaderEditDialog(
 ) {
     var type by remember {
         mutableStateOf(
-            RemittanceTypeChoice.entries.firstOrNull { it.raw == detail.type }
+            RemittanceTypeChoice.entries.firstOrNull { it.raw == detail.type.name }
                 ?: RemittanceTypeChoice.SESSIONS,
         )
     }
     var method by remember {
         mutableStateOf(
-            RemittanceMethodChoice.entries.firstOrNull { it.raw == detail.method }
+            RemittanceMethodChoice.entries.firstOrNull { it.raw == detail.method.name }
                 ?: RemittanceMethodChoice.BANK_TRANSFER,
         )
     }
@@ -905,8 +916,12 @@ private fun HeaderEditDialog(
         dateError = null
         onSave(
             UpdateRemittanceHeaderRequest(
-                type = type.raw,
-                method = method.raw,
+                type =
+                    com.companyb.companyapp.domain.RemittanceType
+                        .valueOf(type.raw),
+                method =
+                    com.companyb.companyapp.domain.RemittanceMethod
+                        .valueOf(method.raw),
                 dateRangeStart = startDate,
                 dateRangeEnd = endDate,
                 expectedVersion = detail.version,
@@ -1149,7 +1164,7 @@ private fun SessionPickerDialog(
         toRequest = { id, amount ->
             CreateRemittanceLineRequest(
                 id = Uuid.random().toString(),
-                type = "SESSION",
+                type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
                 sessionId = id,
                 amount = amount,
             )
@@ -1184,7 +1199,7 @@ private fun ProductSalePickerDialog(
         toRequest = { id, amount ->
             CreateRemittanceLineRequest(
                 id = Uuid.random().toString(),
-                type = "PRODUCT_SALE",
+                type = com.companyb.companyapp.domain.RemittanceLineType.PRODUCT_SALE,
                 productSaleId = id,
                 amount = amount,
             )
@@ -1291,7 +1306,7 @@ private fun DayPickerDialog(
                         } else {
                             s.data.forEach { entry ->
                                 val included = entry.id in includedIds
-                                val remitted = entry.status == "REMITTED"
+                                val remitted = entry.status == com.companyb.companyapp.domain.DayStatus.REMITTED
                                 val selectable = !included && !remitted
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -1333,7 +1348,7 @@ private fun DayPickerDialog(
                                             when {
                                                 included -> "Added"
                                                 remitted -> "Already remitted"
-                                                else -> entry.status
+                                                else -> entry.status.name
                                             },
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1472,13 +1487,13 @@ private fun SubmitConfirmDialog(
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    text = remittanceTypeLabel(detail.type),
+                    text = remittanceTypeLabel(detail.type.name),
                     style = MaterialTheme.typography.titleSmall,
                 )
                 Spacer(Modifier.size(Spacing.xs))
                 Text(
                     text =
-                        "Method: ${remittanceMethodLabel(detail.method)}\n" +
+                        "Method: ${remittanceMethodLabel(detail.method.name)}\n" +
                             "Days covered: ${detail.dayBreakdowns.size}\n" +
                             "Lines: ${detail.lines.size}\n" +
                             "Line total: ${peso(detail.totalAmount)}",

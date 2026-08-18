@@ -1,11 +1,12 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.DayStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class BranchDayTodayResponse(
     val branchDayId: String,
-    val status: String,
+    val status: DayStatus,
 )
 
 @Serializable

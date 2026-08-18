@@ -174,7 +174,7 @@ internal fun SessionTypeBadge(session: DashboardSessionResponse) {
             },
     ) {
         Text(
-            text = session.sessionType,
+            text = session.sessionType.name,
             style = MaterialTheme.typography.labelSmall,
             color =
                 if (session.isVoided) {
@@ -202,7 +202,7 @@ internal fun SessionStatusBadge(session: DashboardSessionResponse) {
             },
     ) {
         Text(
-            text = session.sessionStatus,
+            text = session.sessionStatus.name,
             style = MaterialTheme.typography.labelSmall,
             color =
                 if (session.isVoided) {

@@ -48,6 +48,12 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
+import com.companyb.companyapp.domain.DayStatus as WireDayStatus
+import com.companyb.companyapp.domain.RemittanceLineType as WireRemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod as WireRemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus as WireRemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType as WireRemittanceType
+import com.companyb.companyapp.domain.SessionStatus as WireSessionStatus
 
 @Suppress("TooManyFunctions")
 @OpenApi(
@@ -286,7 +292,7 @@ object RemittanceRoutes {
         val request = context.bodyAsClass<CreateRemittanceDraftRequest>()
 
         val id = uuidOrThrow(request.id, "remittance id")
-        val header = parseHeader(request.type, request.method, request.dateRangeStart, request.dateRangeEnd)
+        val header = parseHeader(request.type.name, request.method.name, request.dateRangeStart, request.dateRangeEnd)
         val branchId = uuidOrThrow(request.branchId, "branch id")
 
         val remittance =
@@ -438,12 +444,7 @@ object RemittanceRoutes {
 
         val id = uuidOrThrow(request.id, "line id")
         val type =
-            runCatching { RemittanceLineType.valueOf(request.type.uppercase()) }
-                .getOrElse {
-                    throw BadRequestResponse(
-                        "Invalid remittance line type: must be SESSION or PRODUCT_SALE",
-                    )
-                }
+            RemittanceLineType.valueOf(request.type.name)
         val sessionId = request.sessionId?.let { uuidOrThrow(it, "session id") }
         val productSaleId = request.productSaleId?.let { uuidOrThrow(it, "product sale id") }
         val amount = parsePositiveBigDecimal(request.amount, "amount")
@@ -552,7 +553,7 @@ object RemittanceRoutes {
         val remittanceId = context.pathParamAsUuid("remittanceId")
         val request = context.bodyAsClass<UpdateRemittanceHeaderRequest>()
 
-        val header = parseHeader(request.type, request.method, request.dateRangeStart, request.dateRangeEnd)
+        val header = parseHeader(request.type.name, request.method.name, request.dateRangeStart, request.dateRangeEnd)
 
         val remittance =
             RemittanceService.updateHeader(
@@ -571,10 +572,10 @@ object RemittanceRoutes {
     private fun Remittance.toResponse(): RemittanceResponse =
         RemittanceResponse(
             id = id.toString(),
-            type = type.name,
-            status = status.name,
+            type = WireRemittanceType.valueOf(type.name),
+            status = WireRemittanceStatus.valueOf(status.name),
             branchId = branchId.toString(),
-            method = method.name,
+            method = WireRemittanceMethod.valueOf(method.name),
             submittedDate = submittedDate.toString(),
             submittedAt = submittedAt?.toString(),
             submittedBy = submittedBy.toString(),
@@ -591,7 +592,7 @@ object RemittanceRoutes {
         RemittanceLineResponse(
             id = id.toString(),
             remittanceId = remittanceId.toString(),
-            type = type.name,
+            type = WireRemittanceLineType.valueOf(type.name),
             sessionId = sessionId?.toString(),
             productSaleId = productSaleId?.toString(),
             createdBy = createdBy.toString(),
@@ -611,10 +612,10 @@ object RemittanceRoutes {
     private fun RemittanceDetail.toResponse(): RemittanceDetailResponse =
         RemittanceDetailResponse(
             id = remittance.id.toString(),
-            type = remittance.type.name,
-            status = remittance.status.name,
+            type = WireRemittanceType.valueOf(remittance.type.name),
+            status = WireRemittanceStatus.valueOf(remittance.status.name),
             branchId = remittance.branchId.toString(),
-            method = remittance.method.name,
+            method = WireRemittanceMethod.valueOf(remittance.method.name),
             submittedDate = remittance.submittedDate.toString(),
             submittedAt = remittance.submittedAt?.toString(),
             submittedBy = remittance.submittedBy.toString(),
@@ -651,7 +652,7 @@ object RemittanceRoutes {
             id = id.toString(),
             clientName = clientName,
             bookedAt = bookedAt?.toString(),
-            sessionStatus = sessionStatus.name,
+            sessionStatus = WireSessionStatus.valueOf(sessionStatus.name),
             finalPrice = finalPrice.toPlainString(),
         )
 
@@ -668,16 +669,16 @@ object RemittanceRoutes {
         RemittanceDayPickerEntryResponse(
             id = id.toString(),
             date = date.toString(),
-            status = status.name,
+            status = WireDayStatus.valueOf(status.name),
         )
 
     private fun RemittanceSubmissionResult.toSubmitResponse(): RemittanceSubmitResponse =
         RemittanceSubmitResponse(
             id = remittance.id.toString(),
-            type = remittance.type.name,
-            status = remittance.status.name,
+            type = WireRemittanceType.valueOf(remittance.type.name),
+            status = WireRemittanceStatus.valueOf(remittance.status.name),
             branchId = remittance.branchId.toString(),
-            method = remittance.method.name,
+            method = WireRemittanceMethod.valueOf(remittance.method.name),
             submittedDate = remittance.submittedDate.toString(),
             submittedAt = remittance.submittedAt?.toString(),
             submittedBy = remittance.submittedBy.toString(),

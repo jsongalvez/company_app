@@ -35,7 +35,7 @@ internal fun centsToMoney(cents: Long): String {
  */
 internal fun grossIncomeCents(sessions: List<DashboardSessionResponse>): Long =
     sessions
-        .filter { it.sessionStatus == SESSION_STATUS_COMPLETED && !it.isVoided }
+        .filter { it.sessionStatus.name == SESSION_STATUS_COMPLETED && !it.isVoided }
         .sumOf { moneyToCents(it.finalPrice) }
 
 internal fun commissionLabel(productSalesCount: Int): String =

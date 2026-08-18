@@ -41,6 +41,11 @@ Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githo
 
 To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
 
+Postgres test database is shared by all backend test processes. Clean it with
+`bash scripts/clean-test-db.sh` before rerunning contaminated tests, then run the
+full backend gate as one Gradle invocation. Parallel `./gradlew :backend:test`
+processes race on test data and can produce false duplicate-key or scope failures.
+
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 
 Run the app: `./gradlew :backend:run` (requires Postgres at `DB_HOST:DB_PORT`).

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.ExpenseCategory
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -7,7 +8,7 @@ data class CreateExpenseRequest(
     val id: String,
     val branchDayId: String,
     val amount: String,
-    val category: String,
+    val category: ExpenseCategory,
     val notes: String? = null,
     val reason: String? = null,
 )
@@ -27,7 +28,7 @@ data class RestoreExpenseRequest(
 @Serializable
 data class UpdateExpenseRequest(
     val amount: String,
-    val category: String,
+    val category: ExpenseCategory,
     val notes: String? = null,
     val expectedVersion: Int,
     val reason: String? = null,
@@ -38,7 +39,7 @@ data class ExpenseResponse(
     val id: String,
     val branchDayId: String,
     val amount: String,
-    val category: String,
+    val category: ExpenseCategory,
     val notes: String?,
     val createdBy: String,
     val createdAt: String,

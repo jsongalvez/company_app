@@ -1,5 +1,7 @@
 package com.companyb.companyapp.state
 
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
 import kotlin.test.assertFalse
@@ -18,9 +20,9 @@ class SessionCapabilityMatcherTest {
         contextId: String = "00000000-0000-0000-0000-000000000000",
     ) = UserCapabilityResponse(
         capabilityCode = code,
-        contextType = contextType,
+        contextType = CapabilityContextType.valueOf(contextType),
         contextId = contextId,
-        sourceType = "DIRECT",
+        sourceType = CapabilitySourceType.MANUAL_OVERRIDE,
     )
 
     private val rows =

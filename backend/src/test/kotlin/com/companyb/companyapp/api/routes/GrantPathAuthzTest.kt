@@ -172,7 +172,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
             "owner /api/me/capabilities must include role-derived ASSIGN_DELEGATE",
         )
         assertTrue(
-            ownerCaps.filter { it.capabilityCode == CapabilityCodes.MANAGE_USERS }.all { it.sourceType == "ROLE" },
+            ownerCaps.filter { it.capabilityCode == CapabilityCodes.MANAGE_USERS }.all { it.sourceType.name == "ROLE" },
             "derived rows must carry sourceType ROLE",
         )
     }
@@ -183,7 +183,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
         assertTrue(
             accountantCaps.any {
                 it.capabilityCode == CapabilityCodes.VIEW_BRANCH_DATA &&
-                    it.contextType == "GLOBAL" &&
+                    it.contextType.name == "GLOBAL" &&
                     it.contextId == "00000000-0000-0000-0000-000000000000"
             },
             "ACCOUNTANT must see GLOBAL VIEW_BRANCH_DATA (all-branches read, #131 window semantics)",

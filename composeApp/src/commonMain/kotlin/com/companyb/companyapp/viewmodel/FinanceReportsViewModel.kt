@@ -813,7 +813,9 @@ class FinanceReportsViewModel(
                             id = newId(),
                             branchDayId = day.branchDayId,
                             amount = amount,
-                            category = categoryCode,
+                            category =
+                                com.companyb.companyapp.domain.ExpenseCategory
+                                    .valueOf(categoryCode),
                             notes = notes,
                             reason = reason,
                         ),
@@ -864,7 +866,9 @@ class FinanceReportsViewModel(
                     setBody(
                         UpdateExpenseRequest(
                             amount = amount,
-                            category = categoryCode,
+                            category =
+                                com.companyb.companyapp.domain.ExpenseCategory
+                                    .valueOf(categoryCode),
                             notes = notes,
                             expectedVersion = expense.version,
                             reason = reason,

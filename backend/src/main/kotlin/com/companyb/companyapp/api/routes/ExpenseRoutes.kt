@@ -102,8 +102,7 @@ object ExpenseRoutes {
             val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
             val amount = parsePositiveBigDecimal(request.amount, "amount")
             val category =
-                runCatching { ExpenseCategory.valueOf(request.category.uppercase()) }
-                    .getOrElse { throw BadRequestResponse("Invalid expense category") }
+                ExpenseCategory.valueOf(request.category.name)
 
             val expense =
                 ExpenseService.create(
@@ -127,8 +126,7 @@ object ExpenseRoutes {
 
             val amount = parsePositiveBigDecimal(request.amount, "amount")
             val category =
-                runCatching { ExpenseCategory.valueOf(request.category.uppercase()) }
-                    .getOrElse { throw BadRequestResponse("Invalid expense category") }
+                ExpenseCategory.valueOf(request.category.name)
 
             val expense =
                 ExpenseService.update(
@@ -195,7 +193,9 @@ object ExpenseRoutes {
             id = id.toString(),
             branchDayId = branchDayId.toString(),
             amount = amount.toPlainString(),
-            category = category.name,
+            category =
+                com.companyb.companyapp.domain.ExpenseCategory
+                    .valueOf(category.name),
             notes = notes,
             createdBy = createdBy.toString(),
             createdAt = createdAt.toString(),

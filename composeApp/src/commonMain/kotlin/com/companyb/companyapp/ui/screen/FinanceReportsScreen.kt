@@ -1411,7 +1411,7 @@ private fun ExpenseRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = expense.category,
+            text = expense.category.name,
             style = MaterialTheme.typography.bodySmall,
             color = if (deleted) InkSubtle else MaterialTheme.colorScheme.onSurface,
             modifier =
@@ -1488,6 +1488,7 @@ private fun ExpenseDialog(
         remember(initial) {
             initial
                 ?.category
+                ?.name
                 ?.takeIf { it !in expenseCategoryCodes }
                 ?.let { code -> expenseCategories + (code to code) }
                 ?: expenseCategories
@@ -1496,6 +1497,7 @@ private fun ExpenseDialog(
         mutableStateOf(
             initial
                 ?.category
+                ?.name
                 ?.let { code -> dialogCategories.indexOfFirst { it.first == code } }
                 ?.takeIf { it >= 0 }
                 ?: 0,

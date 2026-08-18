@@ -45,7 +45,7 @@ class MeServicePostgresTest : BasePostgresTest() {
 
         assertEquals(userId.toString(), response.id)
         assertEquals("me-caller-$userId", response.username)
-        assertEquals("ACTIVE", response.status)
+        assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, response.status)
         assertTrue(response.createdAt.isNotBlank())
     }
 

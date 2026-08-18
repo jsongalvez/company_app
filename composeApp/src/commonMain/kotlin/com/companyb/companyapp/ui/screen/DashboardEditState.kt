@@ -35,8 +35,8 @@ data class DashboardEditState(
 /** The displayed (committed) value of [field] on [row]. */
 fun DashboardSessionResponse.fieldValue(field: DashboardEditField): String =
     when (field) {
-        DashboardEditField.TYPE -> sessionType
-        DashboardEditField.STATUS -> sessionStatus
+        DashboardEditField.TYPE -> sessionType.name
+        DashboardEditField.STATUS -> sessionStatus.name
         DashboardEditField.FINAL_PRICE -> finalPrice
     }
 

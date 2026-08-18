@@ -241,9 +241,13 @@ private fun CreateRemittanceDialog(
         onCreate(
             CreateRemittanceDraftRequest(
                 id = Uuid.random().toString(),
-                type = type.raw,
+                type =
+                    com.companyb.companyapp.domain.RemittanceType
+                        .valueOf(type.raw),
                 branchId = branchId,
-                method = method.raw,
+                method =
+                    com.companyb.companyapp.domain.RemittanceMethod
+                        .valueOf(method.raw),
                 dateRangeStart = startDate,
                 dateRangeEnd = endDate,
             ),

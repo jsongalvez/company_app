@@ -31,7 +31,13 @@ class DrawerViewModelTest {
 
     // #156 — drawer items gate on any-context membership, so the seeded context is irrelevant
     // to visibility; BRANCH rows are used for realism.
-    private fun row(code: String): UserCapabilityResponse = UserCapabilityResponse(code, "BRANCH", "b1", "DIRECT")
+    private fun row(code: String): UserCapabilityResponse =
+        UserCapabilityResponse(
+            code,
+            com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+            "b1",
+            com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+        )
 
     @Test
     fun allCapabilityCodesVisible_allItemsVisible() {
@@ -135,9 +141,9 @@ class DrawerViewModelTest {
             listOf(
                 UserCapabilityResponse(
                     capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                    contextType = "BRANCH_DAY",
+                    contextType = com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
                     contextId = "d1",
-                    sourceType = "DIRECT",
+                    sourceType = com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
                 ),
             ),
         )

@@ -1,5 +1,7 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -18,14 +20,14 @@ data class CreateSessionRequest(
 
 @Serializable
 data class UpdateSessionStatusRequest(
-    val status: String,
+    val status: SessionStatus,
     val version: Int,
     val reason: String? = null,
 )
 
 @Serializable
 data class UpdateSessionTypeRequest(
-    val sessionType: String,
+    val sessionType: SessionType,
     val version: Int,
     val reason: String? = null,
 )
@@ -66,9 +68,9 @@ data class SessionResponse(
     val clientId: String,
     val branchDayId: String,
     val requestedPractitionerId: String?,
-    val sessionType: String,
+    val sessionType: SessionType,
     val isWalkIn: Boolean,
-    val sessionStatus: String,
+    val sessionStatus: SessionStatus,
     val basePrice: String,
     val finalPrice: String,
     val remarks: String?,

@@ -235,9 +235,9 @@ class RemittanceViewModelTest {
             vm.createDraft(
                 CreateRemittanceDraftRequest(
                     id = "new-id",
-                    type = "SESSION",
+                    type = com.companyb.companyapp.domain.RemittanceType.SESSION,
                     branchId = "b1",
-                    method = "BANK_TRANSFER",
+                    method = com.companyb.companyapp.domain.RemittanceMethod.BANK_TRANSFER,
                     dateRangeStart = "2026-08-01",
                     dateRangeEnd = "2026-08-09",
                 ),
@@ -317,7 +317,12 @@ class RemittanceViewModelTest {
 
             vm.addLine(
                 "r1",
-                CreateRemittanceLineRequest(id = "l1", type = "SESSION", sessionId = "s1", amount = "500.00"),
+                CreateRemittanceLineRequest(
+                    id = "l1",
+                    type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
+                    sessionId = "s1",
+                    amount = "500.00",
+                ),
             )
             runCurrent()
 
@@ -335,7 +340,12 @@ class RemittanceViewModelTest {
 
             vm.addLine(
                 "r1",
-                CreateRemittanceLineRequest(id = "l1", type = "SESSION", sessionId = "s1", amount = "500.00"),
+                CreateRemittanceLineRequest(
+                    id = "l1",
+                    type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
+                    sessionId = "s1",
+                    amount = "500.00",
+                ),
             )
             runCurrent()
 
@@ -361,7 +371,12 @@ class RemittanceViewModelTest {
 
             vm.addLine(
                 "r1",
-                CreateRemittanceLineRequest(id = "l1", type = "SESSION", sessionId = "s1", amount = "500.00"),
+                CreateRemittanceLineRequest(
+                    id = "l1",
+                    type = com.companyb.companyapp.domain.RemittanceLineType.SESSION,
+                    sessionId = "s1",
+                    amount = "500.00",
+                ),
             )
             runCurrent()
 
@@ -494,7 +509,7 @@ class RemittanceViewModelTest {
             runCurrent()
 
             val state = assertIs<UiState.Success<RemittanceResponse>>(vm.undoResult.value)
-            assertEquals(expected = "DRAFT", actual = state.data.status)
+            assertEquals(expected = "DRAFT", actual = state.data.status.name)
         }
 
     @Test
@@ -531,7 +546,7 @@ class RemittanceViewModelTest {
             runCurrent()
 
             val state = assertIs<UiState.Success<RemittanceResponse>>(vm.headerUpdateResult.value)
-            assertEquals(expected = "PRODUCT", actual = state.data.type)
+            assertEquals(expected = "PRODUCT", actual = state.data.type.name)
         }
 
     @Test
@@ -587,8 +602,8 @@ class RemittanceViewModelTest {
 
     private fun headerRequest(version: Int) =
         UpdateRemittanceHeaderRequest(
-            type = "PRODUCT",
-            method = "HANDED_TO_ACCOUNTANT",
+            type = com.companyb.companyapp.domain.RemittanceType.PRODUCT,
+            method = com.companyb.companyapp.domain.RemittanceMethod.HANDED_TO_ACCOUNTANT,
             dateRangeStart = "2026-08-01",
             dateRangeEnd = "2026-08-09",
             expectedVersion = version,

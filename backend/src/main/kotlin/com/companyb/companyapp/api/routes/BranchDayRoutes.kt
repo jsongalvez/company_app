@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.service.attendance.AttendanceService
@@ -83,7 +84,7 @@ object BranchDayRoutes {
         context.json(
             BranchDayTodayResponse(
                 branchDayId = branchDay.id.toString(),
-                status = effectiveStatus.name,
+                status = DayStatus.valueOf(effectiveStatus.name),
             ),
         )
     }

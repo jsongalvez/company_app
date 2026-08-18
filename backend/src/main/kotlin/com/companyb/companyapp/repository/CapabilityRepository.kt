@@ -61,9 +61,15 @@ object CapabilityRepository {
                 .map { row ->
                     UserCapabilityResponse(
                         capabilityCode = row[CapabilityTable.code],
-                        contextType = row[ActiveUserCapabilitiesView.contextType].name,
+                        contextType =
+                            com.companyb.companyapp.domain.CapabilityContextType.valueOf(
+                                row[ActiveUserCapabilitiesView.contextType].name,
+                            ),
                         contextId = row[ActiveUserCapabilitiesView.contextId].toString(),
-                        sourceType = row[ActiveUserCapabilitiesView.sourceType].name,
+                        sourceType =
+                            com.companyb.companyapp.domain.CapabilitySourceType.valueOf(
+                                row[ActiveUserCapabilitiesView.sourceType].name,
+                            ),
                     )
                 }
         }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }

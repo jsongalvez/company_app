@@ -1,5 +1,6 @@
 package com.companyb.companyapp.config
 
+import io.javalin.http.BadRequestResponse
 import io.javalin.json.JsonMapper
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -22,10 +23,14 @@ class KotlinxSerializationMapper : JsonMapper {
         json: String,
         targetType: Type,
     ): T =
-        this@KotlinxSerializationMapper.json.decodeFromString(
-            serializerForType(targetType),
-            json,
-        ) as T
+        try {
+            this@KotlinxSerializationMapper.json.decodeFromString(
+                serializerForType(targetType),
+                json,
+            ) as T
+        } catch (_: SerializationException) {
+            throw BadRequestResponse("Invalid request body")
+        }
 
     override fun toJsonString(
         obj: Any,

@@ -111,11 +111,11 @@ class SessionBootstrapViewModelTest {
             val caps = SessionState.capabilities.value
             assertEquals(3, caps.size)
             assertEquals("MANAGE_USERS", caps[0].capabilityCode)
-            assertEquals("GLOBAL", caps[0].contextType)
+            assertEquals("GLOBAL", caps[0].contextType.name)
             assertEquals("SUBMIT_REMITTANCE", caps[1].capabilityCode)
-            assertEquals("BRANCH", caps[1].contextType)
+            assertEquals("BRANCH", caps[1].contextType.name)
             assertEquals("EDIT_BRANCH_DATA", caps[2].capabilityCode)
-            assertEquals("BRANCH", caps[2].contextType)
+            assertEquals("BRANCH", caps[2].contextType.name)
         }
 
     @Test

@@ -1,13 +1,19 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.domain.SessionStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class CreateRemittanceDraftRequest(
     val id: String,
-    val type: String,
+    val type: RemittanceType,
     val branchId: String,
-    val method: String,
+    val method: RemittanceMethod,
     val dateRangeStart: String,
     val dateRangeEnd: String,
 )
@@ -15,10 +21,10 @@ data class CreateRemittanceDraftRequest(
 @Serializable
 data class RemittanceResponse(
     val id: String,
-    val type: String,
-    val status: String,
+    val type: RemittanceType,
+    val status: RemittanceStatus,
     val branchId: String,
-    val method: String,
+    val method: RemittanceMethod,
     val submittedDate: String,
     val submittedAt: String? = null,
     val submittedBy: String,
@@ -32,7 +38,7 @@ data class RemittanceResponse(
 @Serializable
 data class CreateRemittanceLineRequest(
     val id: String,
-    val type: String,
+    val type: RemittanceLineType,
     val sessionId: String? = null,
     val productSaleId: String? = null,
     val amount: String,
@@ -42,7 +48,7 @@ data class CreateRemittanceLineRequest(
 data class RemittanceLineResponse(
     val id: String,
     val remittanceId: String,
-    val type: String,
+    val type: RemittanceLineType,
     val sessionId: String?,
     val productSaleId: String?,
     val createdBy: String,
@@ -78,8 +84,8 @@ data class UndoRemittanceRequest(
 
 @Serializable
 data class UpdateRemittanceHeaderRequest(
-    val type: String,
-    val method: String,
+    val type: RemittanceType,
+    val method: RemittanceMethod,
     val dateRangeStart: String,
     val dateRangeEnd: String,
     val expectedVersion: Int,
@@ -88,10 +94,10 @@ data class UpdateRemittanceHeaderRequest(
 @Serializable
 data class RemittanceSubmitResponse(
     val id: String,
-    val type: String,
-    val status: String,
+    val type: RemittanceType,
+    val status: RemittanceStatus,
     val branchId: String,
-    val method: String,
+    val method: RemittanceMethod,
     val submittedDate: String,
     val submittedAt: String? = null,
     val submittedBy: String,
@@ -108,10 +114,10 @@ data class RemittanceSubmitResponse(
 @Serializable
 data class RemittanceDetailResponse(
     val id: String,
-    val type: String,
-    val status: String,
+    val type: RemittanceType,
+    val status: RemittanceStatus,
     val branchId: String,
-    val method: String,
+    val method: RemittanceMethod,
     val submittedDate: String,
     val submittedAt: String? = null,
     val submittedBy: String,
@@ -148,7 +154,7 @@ data class RemittanceSessionPickerEntryResponse(
     val id: String,
     val clientName: String?,
     val bookedAt: String?,
-    val sessionStatus: String,
+    val sessionStatus: SessionStatus,
     val finalPrice: String,
 )
 
@@ -165,5 +171,5 @@ data class RemittanceProductSalePickerEntryResponse(
 data class RemittanceDayPickerEntryResponse(
     val id: String,
     val date: String,
-    val status: String,
+    val status: DayStatus,
 )

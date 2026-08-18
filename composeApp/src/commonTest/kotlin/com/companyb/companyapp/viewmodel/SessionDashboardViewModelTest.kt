@@ -113,7 +113,14 @@ class SessionDashboardViewModelTest {
 
     // #156 — canEdit resolves branch-scoped vs the selected branch (setup sets "b1").
     private fun editRow(): List<UserCapabilityResponse> =
-        listOf(UserCapabilityResponse(CapabilityCodes.EDIT_BRANCH_DATA, "BRANCH", "b1", "DIRECT"))
+        listOf(
+            UserCapabilityResponse(
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                "b1",
+                com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+            ),
+        )
 
     @Test
     fun init_fires_first_poll_and_writes_data() =
@@ -616,7 +623,7 @@ class SessionDashboardViewModelTest {
                     vm.lastData.value!!
                         .sessions
                         .single()
-                assertEquals("SECOND_SESSION", row.sessionType)
+                assertEquals("SECOND_SESSION", row.sessionType.name)
                 assertEquals(2, row.version)
                 assertEquals("Test Client", row.clientName, "dashboard-only fields survive the merge")
             } finally {
@@ -703,7 +710,7 @@ class SessionDashboardViewModelTest {
                     vm.lastData.value!!
                         .sessions
                         .single()
-                        .sessionType,
+                        .sessionType.name,
                 )
 
                 // The next poll returns the pre-commit state (v1) — the monotonic merge
@@ -715,7 +722,7 @@ class SessionDashboardViewModelTest {
                     vm.lastData.value!!
                         .sessions
                         .single()
-                assertEquals("SECOND_SESSION", row.sessionType)
+                assertEquals("SECOND_SESSION", row.sessionType.name)
                 assertEquals(2, row.version)
             } finally {
                 vm.pause()
@@ -1210,7 +1217,7 @@ class SessionDashboardViewModelTest {
                     vm.lastData.value!!
                         .sessions
                         .single()
-                        .sessionStatus,
+                        .sessionStatus.name,
                 )
             } finally {
                 vm.pause()
@@ -1240,9 +1247,11 @@ class SessionDashboardViewModelTest {
             id = id,
             clientId = "c",
             clientName = "C",
-            sessionType = "REGULAR",
+            sessionType = com.companyb.companyapp.domain.SessionType.REGULAR,
             isWalkIn = false,
-            sessionStatus = status,
+            sessionStatus =
+                com.companyb.companyapp.domain.SessionStatus
+                    .valueOf(status),
             basePrice = price,
             finalPrice = price,
             remarks = null,

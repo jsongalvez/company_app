@@ -9,9 +9,8 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
 
-// #120 — shared display vocabulary for the Remittance screens: backend enums are String-typed in
-// the DTOs (serialize enum.name, #116 precedent), so the labels live in one frontend place per
-// screen family instead of being hardcoded at every call site.
+// #120 — shared display vocabulary for the Remittance screens. Labels live in one frontend place
+// per screen family instead of being hardcoded at every call site.
 
 /** D1/D2 — type choices (create popup + header PATCH) and display labels. */
 internal enum class RemittanceTypeChoice(
@@ -46,7 +45,13 @@ internal fun remittanceMethodLabel(raw: String): String =
 
 // D1 — Net appears only on submitted SESSION rows (the snapshot join; PRODUCT has no snapshot).
 internal fun submittedSessionNet(raw: RemittanceResponse): String? =
-    if (raw.status == "SUBMITTED" && raw.type == "SESSION") raw.netIncome else null
+    if (raw.status == com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED &&
+        raw.type == com.companyb.companyapp.domain.RemittanceType.SESSION
+    ) {
+        raw.netIncome
+    } else {
+        null
+    }
 
 internal fun peso(raw: String): String = "₱$raw"
 
@@ -67,7 +72,7 @@ internal fun isValidIsoDate(value: String): Boolean =
 // The server is authoritative; this is the hide-when-expired affordance (the #119 hide key:
 // submittedAt != null && status == SUBMITTED, plus the clock check).
 internal fun remittanceCanUndo(detail: RemittanceDetailResponse): Boolean {
-    if (detail.status != "SUBMITTED") return false
+    if (detail.status != com.companyb.companyapp.domain.RemittanceStatus.SUBMITTED) return false
     val submittedAt =
         detail.submittedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
             ?: return false

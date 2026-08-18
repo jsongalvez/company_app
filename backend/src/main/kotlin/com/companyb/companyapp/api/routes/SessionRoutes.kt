@@ -369,9 +369,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
-        val newStatus =
-            runCatching { SessionStatus.valueOf(request.status.uppercase()) }
-                .getOrElse { throw BadRequestResponse("Invalid session status: ${request.status}") }
+        val newStatus = request.status
 
         val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
 
@@ -384,9 +382,7 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionTypeRequest>()
 
-        val newType =
-            runCatching { SessionType.valueOf(request.sessionType.uppercase()) }
-                .getOrElse { throw BadRequestResponse("Invalid session type: ${request.sessionType}") }
+        val newType = request.sessionType
 
         val updated = SessionService.updateType(callerId, sessionId, newType, request.version, request.reason)
 
@@ -543,9 +539,9 @@ object SessionRoutes {
             clientId = clientId.toString(),
             branchDayId = branchDayId.toString(),
             requestedPractitionerId = requestedPractitionerId?.toString(),
-            sessionType = sessionType,
+            sessionType = SessionType.valueOf(sessionType),
             isWalkIn = isWalkIn,
-            sessionStatus = sessionStatus,
+            sessionStatus = SessionStatus.valueOf(sessionStatus),
             basePrice = basePrice.toPlainString(),
             finalPrice = finalPrice.toPlainString(),
             remarks = remarks,

@@ -134,8 +134,8 @@ class BranchSelectViewModelTest {
                 listOf("MANAGE_USERS", "SUBMIT_REMITTANCE", "EDIT_BRANCH_DATA"),
                 caps.map { it.capabilityCode },
             )
-            assertEquals(listOf("GLOBAL", "BRANCH", "BRANCH"), caps.map { it.contextType })
-            assertEquals(listOf("b1", "b2"), caps.filter { it.contextType == "BRANCH" }.map { it.contextId })
+            assertEquals(listOf("GLOBAL", "BRANCH", "BRANCH"), caps.map { it.contextType.name })
+            assertEquals(listOf("b1", "b2"), caps.filter { it.contextType.name == "BRANCH" }.map { it.contextId })
         }
 
     @Test

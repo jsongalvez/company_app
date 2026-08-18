@@ -2,22 +2,25 @@ package com.companyb.companyapp.dto
 
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
+import com.companyb.companyapp.domain.UserStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class MeResponse(
     val id: String,
     val username: String,
-    val status: String,
+    val status: UserStatus,
     val createdAt: String,
 )
 
 @Serializable
 data class UserCapabilityResponse(
     val capabilityCode: String,
-    val contextType: String,
+    val contextType: CapabilityContextType,
     val contextId: String,
-    val sourceType: String,
+    val sourceType: CapabilitySourceType,
 )
 
 @Serializable

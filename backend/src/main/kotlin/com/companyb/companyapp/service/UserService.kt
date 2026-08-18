@@ -84,7 +84,9 @@ object UserService {
                 id = user.id,
                 username = user.username,
                 displayName = user.displayName,
-                status = user.status.name,
+                status =
+                    com.companyb.companyapp.domain.UserStatus
+                        .valueOf(user.status.name),
                 deactivatedAt =
                     user.deactivatedAt
                         ?.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),

@@ -85,7 +85,12 @@ class FinanceReportsViewModelTest {
     // #156 — a BRANCH-context row for the test branch (the per-element gates resolve
     // branch-scoped vs selectedBranchId).
     private fun branchRow(code: String): UserCapabilityResponse =
-        UserCapabilityResponse(code, "BRANCH", BRANCH_A, "DIRECT")
+        UserCapabilityResponse(
+            code,
+            com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+            BRANCH_A,
+            com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+        )
 
     @AfterTest
     fun teardown() {
@@ -1383,8 +1388,18 @@ class FinanceReportsViewModelTest {
                 listOf(
                     branchRow("EDIT_BRANCH_DATA"),
                     branchRow("ASSIGN_COMPENSATION"),
-                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH", BRANCH_B, "DIRECT"),
-                    UserCapabilityResponse("ASSIGN_COMPENSATION", "BRANCH", BRANCH_B, "DIRECT"),
+                    UserCapabilityResponse(
+                        "EDIT_BRANCH_DATA",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        BRANCH_B,
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
+                    UserCapabilityResponse(
+                        "ASSIGN_COMPENSATION",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        BRANCH_B,
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
                 ),
             )
             vm.loadBranches()
@@ -1648,7 +1663,12 @@ class FinanceReportsViewModelTest {
             SessionState.setCapabilities(
                 listOf(
                     branchRow("VIEW_BRANCH_DATA"),
-                    UserCapabilityResponse("ASSIGN_COMPENSATION", "BRANCH", "branch-b", "DIRECT"),
+                    UserCapabilityResponse(
+                        "ASSIGN_COMPENSATION",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        "branch-b",
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
                 ),
             )
             assertTrue(
@@ -1662,9 +1682,9 @@ class FinanceReportsViewModelTest {
                     branchRow("VIEW_BRANCH_DATA"),
                     UserCapabilityResponse(
                         "ASSIGN_COMPENSATION",
-                        "GLOBAL",
+                        com.companyb.companyapp.domain.CapabilityContextType.GLOBAL,
                         "00000000-0000-0000-0000-000000000000",
-                        "ROLE",
+                        com.companyb.companyapp.domain.CapabilitySourceType.ROLE,
                     ),
                 ),
             )
@@ -1699,7 +1719,12 @@ class FinanceReportsViewModelTest {
             // Only a BRANCH_DAY grant for the day row's branchDayId satisfies the leg.
             SessionState.setCapabilities(
                 listOf(
-                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", DAY_ID, "DIRECT"),
+                    UserCapabilityResponse(
+                        "EDIT_BRANCH_DATA",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                        DAY_ID,
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
                 ),
             )
             vm.selectDay(day)
@@ -1714,7 +1739,12 @@ class FinanceReportsViewModelTest {
             vm.selectDay(day)
             SessionState.setCapabilities(
                 listOf(
-                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", "other-day", "DIRECT"),
+                    UserCapabilityResponse(
+                        "EDIT_BRANCH_DATA",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                        "other-day",
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
                 ),
             )
             assertTrue(!vm.hasEditBranchDataCapability(), "a grant for another day must not resolve")
@@ -1722,7 +1752,12 @@ class FinanceReportsViewModelTest {
             // Without any grant the branch legs still fail closed for a day-grant-free user.
             SessionState.setCapabilities(
                 listOf(
-                    UserCapabilityResponse("VIEW_BRANCH_DATA", "BRANCH", BRANCH_A, "DIRECT"),
+                    UserCapabilityResponse(
+                        "VIEW_BRANCH_DATA",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                        BRANCH_A,
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
                 ),
             )
             assertTrue(!vm.hasEditBranchDataCapability(), "VIEW alone never satisfies the EDIT gate")
@@ -1825,7 +1860,12 @@ class FinanceReportsViewModelTest {
             // sections never load and the Idle assert is trivially true).
             SessionState.setCapabilities(
                 listOf(
-                    UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", DAY_ID, "DIRECT"),
+                    UserCapabilityResponse(
+                        "EDIT_BRANCH_DATA",
+                        com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                        DAY_ID,
+                        com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+                    ),
                 ),
             )
             vm.loadReliefDay("2026-08-14")

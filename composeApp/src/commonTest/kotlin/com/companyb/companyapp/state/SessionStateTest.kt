@@ -15,13 +15,33 @@ import kotlin.test.assertTrue
  */
 class SessionStateTest {
     private val user =
-        MeResponse(id = "u1", username = "dev", status = "ACTIVE", createdAt = "2026-08-10T00:00:00+08:00")
+        MeResponse(
+            id = "u1",
+            username = "dev",
+            status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
+            createdAt = "2026-08-10T00:00:00+08:00",
+        )
 
     private val rows =
         listOf(
-            UserCapabilityResponse("MANAGE_USERS", "GLOBAL", "00000000-0000-0000-0000-000000000000", "ROLE"),
-            UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH", "b1", "DIRECT"),
-            UserCapabilityResponse("EDIT_BRANCH_DATA", "BRANCH_DAY", "d1", "RELIEF_ACCESS"),
+            UserCapabilityResponse(
+                "MANAGE_USERS",
+                com.companyb.companyapp.domain.CapabilityContextType.GLOBAL,
+                "00000000-0000-0000-0000-000000000000",
+                com.companyb.companyapp.domain.CapabilitySourceType.ROLE,
+            ),
+            UserCapabilityResponse(
+                "EDIT_BRANCH_DATA",
+                com.companyb.companyapp.domain.CapabilityContextType.BRANCH,
+                "b1",
+                com.companyb.companyapp.domain.CapabilitySourceType.MANUAL_OVERRIDE,
+            ),
+            UserCapabilityResponse(
+                "EDIT_BRANCH_DATA",
+                com.companyb.companyapp.domain.CapabilityContextType.BRANCH_DAY,
+                "d1",
+                com.companyb.companyapp.domain.CapabilitySourceType.RELIEF_ACCESS,
+            ),
         )
 
     @Test

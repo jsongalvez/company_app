@@ -465,7 +465,7 @@ private fun UserRow(
     onEditSlot: (UserAssignmentResponse) -> Unit,
     errors: List<String>,
 ) {
-    val isDeactivated = user.status == USER_STATUS_INACTIVE
+    val isDeactivated = user.status.name == USER_STATUS_INACTIVE
     Surface(
         shape = RoundedCornerShape(CornerRadius.md),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -506,7 +506,7 @@ private fun UserRow(
                     }
                 }
                 Spacer(Modifier.width(Spacing.sm))
-                StatusBadge(status = user.status)
+                StatusBadge(status = user.status.name)
             }
 
             if (expanded) {

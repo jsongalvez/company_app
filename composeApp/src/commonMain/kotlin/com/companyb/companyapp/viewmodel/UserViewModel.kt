@@ -45,7 +45,7 @@ fun slotOrderForBranch(
                 UserSlotRow(
                     userId = user.id,
                     displayName = user.displayName,
-                    isDeactivated = user.status == USER_STATUS_INACTIVE,
+                    isDeactivated = user.status.name == USER_STATUS_INACTIVE,
                     slot = assignment.slot,
                 )
             }
@@ -359,10 +359,14 @@ private fun UserSummaryResponse.withSlot(
 private fun UserSummaryResponse.withStatus(status: String): UserSummaryResponse =
     when (status) {
         USER_STATUS_INACTIVE -> {
-            copy(status = status, deactivatedAt = deactivatedAt ?: Clock.System.now().toString())
+            copy(
+                status = com.companyb.companyapp.domain.UserStatus.INACTIVE,
+                deactivatedAt =
+                    deactivatedAt ?: Clock.System.now().toString(),
+            )
         }
 
         else -> {
-            copy(status = status, deactivatedAt = null)
+            copy(status = com.companyb.companyapp.domain.UserStatus.ACTIVE, deactivatedAt = null)
         }
     }
