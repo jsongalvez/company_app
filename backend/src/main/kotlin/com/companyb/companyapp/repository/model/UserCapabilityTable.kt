@@ -1,14 +1,12 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
-
-enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
-
-enum class CapabilitySourceType { RELIEF_ACCESS, MEDICAL_MISSION_DELEGATE, MANUAL_OVERRIDE, SYSTEM, ROLE }
 
 object UserCapabilityTable : Table("user_capability") {
     val id = javaUUID("id").autoGenerate()

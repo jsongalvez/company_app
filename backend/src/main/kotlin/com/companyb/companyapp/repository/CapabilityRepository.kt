@@ -1,8 +1,8 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilityTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
@@ -61,15 +61,9 @@ object CapabilityRepository {
                 .map { row ->
                     UserCapabilityResponse(
                         capabilityCode = row[CapabilityTable.code],
-                        contextType =
-                            com.companyb.companyapp.domain.CapabilityContextType.valueOf(
-                                row[ActiveUserCapabilitiesView.contextType].name,
-                            ),
+                        contextType = row[ActiveUserCapabilitiesView.contextType],
                         contextId = row[ActiveUserCapabilitiesView.contextId].toString(),
-                        sourceType =
-                            com.companyb.companyapp.domain.CapabilitySourceType.valueOf(
-                                row[ActiveUserCapabilitiesView.sourceType].name,
-                            ),
+                        sourceType = row[ActiveUserCapabilitiesView.sourceType],
                     )
                 }
         }.also { logger.info { "[FIND-CAPABILITIES] Fetched ${it.size} capabilities for user $userId" } }

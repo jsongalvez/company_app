@@ -1,12 +1,12 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest

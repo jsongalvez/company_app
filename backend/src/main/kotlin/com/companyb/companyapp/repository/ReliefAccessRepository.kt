@@ -1,9 +1,9 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess

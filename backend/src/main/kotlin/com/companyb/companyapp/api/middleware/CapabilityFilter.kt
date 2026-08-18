@@ -2,9 +2,9 @@ package com.companyb.companyapp.api.middleware
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService

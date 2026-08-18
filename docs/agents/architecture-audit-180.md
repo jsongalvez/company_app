@@ -1029,3 +1029,49 @@ behavior retain their existing ownership.
 | 42 | Independent deterministic verification | R36 deletion confirmed; shared enum and cleanup candidates retained |
 | 43 | Adversarial and deletion-test pass | table/view/grant behavior remains active; scheduler branch pairing and role derivation verified |
 | 44 | Coverage, duplication, materiality, priority | R36 implemented as sole child; no scheduler child; future candidates preserved |
+
+## Permanent-Map Refresh - Session 249
+
+After implementation child #216, the frontier was empty again. Four bounded read-only
+lanes rechecked C-01..C-14, with focused attention on shared capability enum ownership,
+test-database cleanup policy, and mobile navigation duplication. Product source, tests,
+migrations, and behavior were unchanged during the audit.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| C-05 - use shared capability enums in backend persistence models | Shared and backend enums have identical values; backend consumers span persistence, authorization, scheduler, grants, seeders, and tests; `CapabilityRepository` converts by name | PostgreSQL custom-enumeration bindings accept shared enums; migrations and wire names match; no second persistence representation is required | implement, P1; child #217 |
+| C-13 - centralize test-database cleanup policy | `check-test-cleanliness.sh` and `clean-test-db.sh` repeat discovery and seed exclusions | Policy is currently intentional and correct; no false-success fallback remains; extraction is useful but lower-risk P2 | defer |
+| C-01/C-04 - consolidate Android/iOS mobile navigation and session list | Mobile actuals duplicate routes and card rendering | Route order, VM ownership, state reads, navigation, and card behavior match; ADR-0020 permits platform split and no lifecycle defect exists | defer, P2 |
+
+### C-05 dossier - use shared capability enums in backend persistence models
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** serializable shared enums live at `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/WireEnums.kt:40-43`; duplicate backend enums were at `backend/src/main/kotlin/com/companyb/companyapp/repository/model/UserCapability.kt:9-11`; backend consumers imported the repository copies across middleware, services, repositories, seeders, and tests. `CapabilityRepository.kt:62-73` converted backend values to shared values using `valueOf(name)`.
+- **Current invalid state:** one PostgreSQL capability enum has two Kotlin representations. A new value can be added to one side and fail at the conversion seam; backend interfaces also reject the shared type despite identical domain meaning.
+- **Competing representation:** retain backend persistence enums and continue name mapping. This preserves a separate storage type but fails the shared-module rule and keeps drift/conversion failure possible. A database-specific wrapper is unnecessary because `customEnumeration` only requires a Kotlin enum and `PGobject` binding.
+- **Simpler representation:** use shared `CapabilityContextType` and `CapabilitySourceType` directly in `UserCapabilityTable`, `ActiveUserCapabilitiesView`, backend authorization/grant code, seeders, and tests. Remove name conversions. Keep PostgreSQL bindings and migrations unchanged.
+- **Smallest credible scope:** imports and enum declarations in backend production/test Kotlin; rename the table file after deleting its dead data-class declaration; direct DTO mapping in `CapabilityRepository`. No schema or HTTP change.
+- **Risks and validation:** same-package resolution, import ordering, generic `customEnumeration` inference, and accidental enum-value changes. Validate shared/backend compilation, capability grant-path and scheduler tests, backend quality, full tests, and repository-wide absence of backend duplicate declarations.
+- **Dependencies:** completed finite-wire enum work and existing ADR-0023 capability-view ownership. **Deletion test:** deleting backend enum declarations leaves PostgreSQL table/view bindings, authorization, direct grants, role-derived rows, and tests valid after imports move to shared; no new adapter seam appears.
+
+### Deferred and rejected leads
+
+- Cleanup-policy centralization remains a P2 candidate. The two scripts intentionally serve separate check and cleanup operations, and current discovery failure handling is fail-closed after #203; defer until shell-test or database-tooling work makes a shared helper earn its seam.
+- Android/iOS `AppNavHost` and `SessionList` duplication remains P2 maintenance work. Common `App`/ViewModel/state ownership and platform-specific desktop behavior make a broad consolidation unnecessary now; no candidate survives the deletion test as a material defect.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 rechecked across Compose/platform bridges, shared contracts, backend/auth/persistence, schema, tests/tooling, CI, and docs.
+- Duplication: shared capability enums are distinct from the deleted `UserCapability` data class; cleanup scripts remain separate from the capability contract; mobile duplication does not overlap the retired iOS bridge candidate.
+- Materiality: shared enum ownership is a concrete cross-module drift seam; cleanup and mobile leads are lower-priority maintenance without current invalid behavior.
+- Schema: V1/V15 PostgreSQL enum values match shared values; no migration or database representation change is justified.
+- Priority: #217 is sole implementation child. No second child was created.
+
+| Pass | Work | Result |
+|---|---|---|
+| 45 | Four bounded coverage lanes | C-01..C-14 complete; shared enum, cleanup, and mobile leads reviewed |
+| 46 | Independent deterministic verification | Shared enum duplication and direct conversion confirmed; cleanup fallback and mobile state defects falsified |
+| 47 | Adversarial and deletion-test pass | Enum drift, PostgreSQL binding, script outage, platform lifecycle, and ADR overlap checked |
+| 48 | Coverage, duplication, materiality, schema, priority | #217 selected as sole P1 child; lower candidates retained/deferred |

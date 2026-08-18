@@ -1,12 +1,12 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable

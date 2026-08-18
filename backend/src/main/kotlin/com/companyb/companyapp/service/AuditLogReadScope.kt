@@ -1,7 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.repository.model.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilityContextType
 import java.util.UUID
 
 /**

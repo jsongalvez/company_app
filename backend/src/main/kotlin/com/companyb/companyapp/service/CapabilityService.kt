@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import java.util.UUID
 
 /**
