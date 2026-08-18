@@ -282,19 +282,15 @@ spawn_session() {
   session_id="$sid"
   save_state
   local prompt
-  prompt="Fresh session with zero prior context. You are driven by an unattended chain runner.
+  prompt="Fresh context. Read docs/agents/$doc and follow its map and next-session instructions. Load /wayfinder and every applicable Context Pointer before Map #180 work.
 
- Read docs/agents/$doc — the latest wayfinder handoff — and follow its canonical map and \"How to drive the next session\" instructions exactly (load the wayfinder skill, claim before work, one active ticket at a time; a ticket may span sessions). For Map #180, read the map body and load every applicable document or skill named under its Context Pointers before investigating or editing.
-
-Operating rules for this automated run:
-1. Work autonomously. Architectural choices are yours when business requirements and existing constraints are clear; choose the strongest evidence-backed design, record important rationale, and proceed.
-2. Ask via the question tool and WAIT only for genuinely ambiguous business behavior, scope, safety, external authorization, or explicit user preference. Do not ask the user to choose implementation shapes or architecture. If a full architecture audit finds no justifiable candidate, ask the exact no-candidate question required by the handoff.
-3. Use workspace-relative paths in every read, grep, glob, and patch call. Never request external-directory access for /home/ubuntu/*; do not use absolute paths under the repository. Use repository-relative paths instead.
-4. Resolve exactly one active wayfinder ticket per session. Continue through local failures: diagnose root causes, repair them, validate the repair, and retry. On this VPS, the project database is disposable; clean, recreate, migrate, or repair it when gates require it. Never alter user or production data.
-5. Push committed changes after verification. Diagnose and retry local hook, build, test, cleanliness, and authentication problems. Defer only confirmed external failures such as GitHub, network, or unavailable external services; record the exact evidence in the handoff.
-6. ADRs are optional. Create or reopen one only when the decision is durable architecture and the ADR requirements are fully satisfied.
-7. Finish all recovery, ADR, tracker, commit, and push work before writing docs/agents/wayfinder-<N>-handoff.md (next session number) following the existing format. That file is the chain's completion signal. After writing it, stop and start no further work.
-8. Use maximum available reasoning effort. Do not trade correctness, coverage, or verification for speed."
+Rules:
+1. Work autonomously; choose implementation and architecture when requirements are clear.
+2. Use question only for unresolved business, scope, safety, authorization, or explicit preference. Follow handoff no-candidate procedure when applicable.
+3. Use workspace-relative paths for read, grep, glob, and patch. Claim and complete one active ticket.
+4. Diagnose and retry local failures; test DB is disposable, production data is not. Verify, resolve tracker work, commit, and push. Defer only evidenced external failures.
+5. Create or update ADR only for durable architecture decisions.
+6. Finish all work before writing docs/agents/wayfinder-<N>-handoff.md. Write handoff last, then stop."
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
