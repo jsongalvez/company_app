@@ -1,59 +1,56 @@
-# Handoff - Architecture Map #180, Ticket #221
+# Handoff - Architecture Map #180, No Active Ticket
 
 ## Session outcome
 
-- Loaded latest handoff, Map #180, `/wayfinder`, `/codebase-design`, project-local
-  `.opencode/skills/improve-codebase-architecture`, `/implement`, `/code-review`,
+- Loaded latest handoff, Map #180, `/wayfinder`, `/codebase-design`,
   `/writing-for-agents`, and every applicable Map #180 Context Pointer.
-- Claimed Map #180 before full C-01..C-14 audit. Initial no-candidate checkpoint was
-  corrected when backend/tooling lanes completed and surfaced R37. Created and claimed
-  child #221: [Build: enforce product-sale session branch ownership](https://github.com/jsongalvez/company_app/issues/221).
-- Fixed cross-branch product-sale integrity: `ProductSaleService` rejects sessions whose
-  branch day differs from sale branch day; `ProductSaleRepository` rejects existing sale
-  UUID retries under a different branch day while preserving same-parent idempotency.
-- Added regression coverage for fresh foreign sessions and foreign-parent existing UUIDs.
-  No schema or migration change.
-- Updated canonical `docs/agents/architecture-audit-180.md` with R37, R38 remittance
-  source ownership, R39 pre-push k6 fail-open, corrected audit-of-audit, and priority.
-  Updated stale #253 handoff with supersession note.
+- Claimed Map #180 before work. No open child existed; latest Session 253 correction
+  identified R38 as next P0 candidate.
+- Created and claimed child #222, then resolved it: remittance line creation now
+  validates SESSION and PRODUCT_SALE source Branch Day ownership against remittance
+  branch before line insertion, version mutation, or audit callback.
+- Added regression coverage for both foreign source types. Same-branch lines,
+  idempotency, duplicate-source conflicts, submission, and audit behavior remain
+  unchanged. No schema or migration change.
+- Updated canonical `docs/agents/architecture-audit-180.md` with Session 254
+  implementation checkpoint and audit-of-audit, and added
+  `docs/gates/222-remittance-source-ownership.md`.
 
 ## Verification
 
-- Gate ledger `docs/gates/221-product-sale-session-ownership.md`: G1-G4 PASS.
-- Negative-control gate before implementation: target rejection/regression/quality gates
-  failed as expected; whitespace gate passed.
-- Product-sale focused test: PASS.
-- `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`: PASS, 6m31s.
-- Pre-commit: formatting, backend quality, OpenAPI contract, cleanliness, shared compile,
-  and Postgres connectivity: PASS.
-- Pre-push: OpenAPI contract, Compose Android/Desktop compilation, backend distribution,
-  health check, k6 baseline with 0% errors, and final test-database cleanup: PASS.
-- Standard review profile: P1/P2/P3 passed; P4 found one HARD parent-child idempotency
-  defect, fixed in one batch; loop-back P4 passed with zero findings. Accepted SOFT:
-  pre-existing service validation-before-repository idempotency ordering, unchanged to
-  avoid duplicate lookup and repository ownership relocation.
-- `git diff --check`: PASS. No production data touched.
+- Focused `RemittanceLineServicePostgresTest`: PASS, 30 tests.
+- `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`: PASS, 8m15s.
+- Pre-commit: formatting, backend quality, OpenAPI contract, cleanliness, shared
+  compile, and Postgres connectivity: PASS.
+- Pre-push: cleanliness, OpenAPI contract, Compose Android/Desktop compilation,
+  backend distribution, and k6 baseline: PASS; k6 errors 0%, all thresholds passed.
+- `git diff --check`: PASS.
+- Disposable test database clean. No production data touched.
 
 ## Tracker and remote
 
-- #221 resolution comment posted and issue closed.
-- Map #180 updated with #221 decision and child context pointers.
-- Commits `ef63a2d`, `cb1000c`, and `6c03a31` pushed to
-  `origin/ralph/company-app-full-build`.
-- Worktree was clean before this handoff was written.
+- Map #180 remains open and assigned to `jsongalvez`.
+- Child #222 is closed and assigned to `jsongalvez`; resolution and corrected
+  verification comments are recorded.
+- Map #180 Decisions-so-far includes #222 context pointer.
+- Commit `489624f` pushed to `origin/ralph/company-app-full-build`.
+- Worktree clean before this handoff.
 
 ## How to drive next session
 
-1. Load Map #180, this handoff, every Context Pointer, `/wayfinder`, `/codebase-design`,
-   and project-local `.opencode/skills/improve-codebase-architecture/SKILL.md`.
-2. Apply no-question policy unconditionally. Never invoke `question`; defer human decisions
-   as labeled tracker issues.
-3. Claim Map #180 before the next focused C-01..C-14 audit.
-4. Query children/frontier. #221 is closed; select the first open, unblocked, unassigned
-   child. R38 remittance source ownership is next P0 candidate; R39 pre-push k6 fail-open
-   follows as P1 tooling candidate. Do not resolve more than one active ticket.
-5. Recheck R15 only if deployment topology or overlapping scheduler invocation evidence
-   appears. Keep route-test setup and cleanup extraction deferred without fresh material
-   leverage or failure evidence.
-6. Finish tracker, validation, commit, and push work before writing the next numbered
-   handoff. After writing it, stop immediately.
+1. Load Map #180, this handoff, every Context Pointer, `/wayfinder`,
+   `/codebase-design`, and project-local architecture-audit skill instructions.
+2. Apply no-question policy unconditionally. Never invoke `question`; defer human
+   decisions as labeled tracker issues.
+3. Claim Map #180 before any new focused or full audit.
+4. Query children/frontier. If a child was created externally, claim and resolve
+   only that one active ticket. Otherwise inspect R39 evidence from Session 253/254
+   and create/claim one child only if its exact opt-out or failure contract is now
+   sufficiently specified; do not guess.
+5. R39 is the next retained candidate: pre-push k6 currently skips missing k6 or
+   credentials despite the documented mandatory gate. Preserve explicit opt-out
+   semantics as a separate scope question if requirements remain unclear. R15 and
+   historical role-assignment workflow remain fog without deployment or business
+   evidence.
+6. Finish tracker, validation, commit, and push work before writing the next
+   numbered handoff. After writing it, stop immediately.
