@@ -326,6 +326,15 @@ internal object RemittanceRepository {
             val totalExpenses = calculateExpenseSum(breakdownIds)
             val netIncome = netOf(grossIncome, totalCompensation, totalExpenses)
 
+            val branchDayBeforeRows =
+                breakdownIds.map { bdId ->
+                    BranchDayTable
+                        .selectAll()
+                        .where { BranchDayTable.id eq bdId }
+                        .single()
+                        .toBranchDay()
+                }
+
             writeFinancialSnapshot(
                 remittanceType,
                 remittanceId,
@@ -342,22 +351,15 @@ internal object RemittanceRepository {
                     ?: error("remittance not found after submit for $remittanceId")
 
             val branchDayPairs =
-                breakdownIds
-                    .map { bdId ->
+                branchDayBeforeRows.map { before ->
+                    val after =
                         BranchDayTable
                             .selectAll()
-                            .where { BranchDayTable.id eq bdId }
+                            .where { BranchDayTable.id eq before.id }
                             .single()
                             .toBranchDay()
-                    }.map { before ->
-                        val after =
-                            BranchDayTable
-                                .selectAll()
-                                .where { BranchDayTable.id eq before.id }
-                                .single()
-                                .toBranchDay()
-                        before to after
-                    }
+                    before to after
+                }
 
             auditFn(
                 SubmitAuditContext(

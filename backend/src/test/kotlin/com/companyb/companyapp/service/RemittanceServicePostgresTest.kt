@@ -441,7 +441,8 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId!!)
         trackOwned(ClientTable, ClientTable.id, clientId)
 
-        RemittanceService.submit(callerId, remittanceId, 2)
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
 
         val auditCount =
             transaction {
@@ -457,6 +458,75 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertTrue(auditCount >= 2)
+    }
+
+    @Test
+    fun `submit branch day audit preserves lazy past before status`() {
+        val remittanceId = UUID.randomUUID()
+        val breakdownId = UUID.randomUUID()
+
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, breakdownId, branchDayId)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.action eq AuditAction.UPDATE) and
+                            (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                            (AuditLogTable.recordId eq branchDayId)
+                    }.single()
+            }
+        assertEquals("OPEN", DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
+        assertEquals(
+            "REMITTED",
+            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
+        )
+    }
+
+    @Test
+    fun `submit branch day audit preserves current open before status`() {
+        val remittanceId = UUID.randomUUID()
+        val breakdownId = UUID.randomUUID()
+
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveCurrentBranchDay()
+        addDayBreakdown(remittanceId, breakdownId, branchDayId)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.action eq AuditAction.UPDATE) and
+                            (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                            (AuditLogTable.recordId eq branchDayId)
+                    }.single()
+            }
+        assertEquals("OPEN", DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
+        assertEquals(
+            "REMITTED",
+            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
+        )
     }
 
     @Test
@@ -505,6 +575,11 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private fun resolveBranchDay(): UUID {
         val today = LocalDate.of(2026, 7, 10)
         val bd = BranchDayService.resolveOrCreate(branchId, today)
+        return bd.id
+    }
+
+    private fun resolveCurrentBranchDay(): UUID {
+        val bd = BranchDayService.resolveOrCreate(branchId, LocalDate.now(BranchDayService.manilaZone))
         return bd.id
     }
 
