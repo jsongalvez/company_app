@@ -255,7 +255,7 @@ spawn_session() {
   local prompt
   prompt="Fresh session with zero prior context. You are driven by an unattended chain runner.
 
- Read docs/agents/$doc — the latest wayfinder handoff — and follow its canonical map and \"How to drive the next session\" instructions exactly (load the wayfinder skill, claim before work, one active ticket at a time; a ticket may span sessions).
+ Read docs/agents/$doc — the latest wayfinder handoff — and follow its canonical map and \"How to drive the next session\" instructions exactly (load the wayfinder skill, claim before work, one active ticket at a time; a ticket may span sessions). For Map #180, read the map body and load every applicable document or skill named under its Context Pointers before investigating or editing.
 
 Operating rules for this automated run:
 1. Work autonomously. Architectural choices are yours when business requirements and existing constraints are clear; choose the strongest evidence-backed design, record important rationale, and proceed.

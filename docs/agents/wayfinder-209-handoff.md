@@ -49,6 +49,18 @@ Session 106 updated wayfinder runner policy after user-directed grilling. No Map
 - `/diagnosing-bugs` — use when local gates or runtime behavior fail; repair root cause before stopping.
 - `/writing-for-agents` — required before editing handoffs or other agent-facing documentation.
 
+## Map #180 context pointers
+
+Every session working on Map #180 must read the map's `Context Pointers` and load every applicable pointer before investigation or edits:
+
+- `CONTEXT.md`
+- `docs/business-requirements.md`
+- `docs/agents/audit-your-codebase.md`
+- `/improve-codebase-architecture`
+- `/codebase-design`
+- `docs/agents/issue-tracker.md`
+- Relevant module `AGENTS.md` and area ADRs
+
 ## How to drive the next session
 
 1. Load Map #180 and this handoff; choose the first live unblocked child before work.
