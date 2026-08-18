@@ -15,8 +15,8 @@ import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
@@ -24,6 +24,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -85,27 +86,35 @@ class GrantPathAuthzTest : BasePostgresTest() {
         }
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noRoleUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                MeRoutes.getCapabilities(cfg)
+                BranchRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            MeRoutes.getCapabilities(cfg)
-            BranchRoutes.register(cfg)
         }
     }
 
@@ -116,7 +125,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
         user: UUID,
     ): Int {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.get(path, asUser(user)).code
         }
         return status
@@ -124,7 +133,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
 
     private fun getCapabilities(user: UUID): List<UserCapabilityResponse> {
         var body: List<UserCapabilityResponse> = emptyList()
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/me/capabilities", asUser(user))
             body =
                 response.body

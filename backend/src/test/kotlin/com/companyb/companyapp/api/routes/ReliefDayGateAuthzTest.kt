@@ -35,9 +35,9 @@ import com.companyb.companyapp.service.inventory.MovementType
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -46,6 +46,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -267,30 +268,44 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         )
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noGrantUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                    if (ctx.header("X-Test-User") == null) {
+                        val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                        ctx.attribute("userId", JwtService.verifyToken(token) ?: throw UnauthorizedResponse())
+                    }
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                ExpenseRoutes.register(cfg)
+                SessionRoutes.register(cfg)
+                ProductSaleRoutes.register(cfg)
+                DailySalesSummaryRoutes.register(cfg)
+                BranchDayRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            ExpenseRoutes.register(cfg)
-            SessionRoutes.register(cfg)
-            ProductSaleRoutes.register(cfg)
-            DailySalesSummaryRoutes.register(cfg)
-            BranchDayRoutes.register(cfg)
         }
     }
 
@@ -308,7 +323,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user creates expense on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(reliefUser))
             assertEquals(201, response.code)
         }
@@ -316,7 +331,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user expense on a non-granted day at the same branch is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(otherDaySameBranch), asUser(reliefUser))
             assertEquals(403, response.code)
         }
@@ -324,7 +339,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user expense on another branch day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(dayOtherBranch), asUser(reliefUser))
             assertEquals(403, response.code)
         }
@@ -332,7 +347,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `day-scoped grant for another day does not satisfy the gate`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(wrongDayUser))
             assertEquals(403, response.code)
         }
@@ -340,7 +355,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `expired relief grant is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(expiredUser))
             assertEquals(403, response.code)
         }
@@ -348,7 +363,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `no-grant user is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(noGrantUser))
             assertEquals(403, response.code)
         }
@@ -356,7 +371,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `branch-scoped grant still satisfies the gate`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(branchUser))
             assertEquals(201, response.code)
         }
@@ -366,7 +381,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user reads expenses on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/expenses?branchDayId=$grantedDay", asUser(reliefUser))
             assertEquals(200, response.code)
         }
@@ -374,7 +389,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user expense read on a non-granted day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/expenses?branchDayId=$otherDaySameBranch", asUser(reliefUser))
             assertEquals(403, response.code)
         }
@@ -384,7 +399,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user patches an expense on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val expenseId = UUID.randomUUID()
             trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
             transaction {
@@ -414,7 +429,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user creates a session on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val sessionId = UUID.randomUUID()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
@@ -432,7 +447,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user session create at an ungranted branch is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val sessionId = UUID.randomUUID()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
@@ -452,7 +467,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user creates a product sale on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val saleId = UUID.randomUUID()
             trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
             val body =
@@ -471,7 +486,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user product sale on a non-granted day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val saleId = UUID.randomUUID()
             trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
             val body =
@@ -498,7 +513,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `global grant does not satisfy the day gates`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay), asUser(globalUser))
             assertEquals(403, response.code)
         }
@@ -508,7 +523,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `session create at a no-day branch falls back to the branch gate without creating a day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val sessionId = UUID.randomUUID()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
@@ -534,7 +549,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `branch-granted user creates a session at a branch with no day row`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val sessionId = UUID.randomUUID()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
@@ -578,7 +593,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     // the real-JWT harness (the #147/ReportsReadScopeAuthzTest precedent).
     @Test
     fun `unauthenticated request gets 401`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             val response = client.post("/api/expenses", expenseBody(grantedDay))
             assertEquals(401, response.code)
         }
@@ -619,7 +634,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user reads the single-day summary on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(reliefUser))
             assertEquals(200, response.code, response.body?.string().orEmpty())
         }
@@ -627,7 +642,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user single-day summary on a non-granted day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val url = "/api/branches/$branchA/daily-summary?date=${today.plusDays(1)}"
             val response = client.get(url, asUser(reliefUser))
             assertEquals(403, response.code)
@@ -636,7 +651,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user single-day summary at another branch is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchB/daily-summary?date=$today", asUser(reliefUser))
             assertEquals(403, response.code)
         }
@@ -644,7 +659,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user single-day summary with no day row falls back to the branch gate`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$noDayDate", asUser(reliefUser))
             assertEquals(403, response.code)
         }
@@ -652,7 +667,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `day-scoped grant for another day does not satisfy the single-day read`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(wrongDayUser))
             assertEquals(403, response.code)
         }
@@ -660,7 +675,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `expired relief grant cannot read the single-day summary`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(expiredUser))
             assertEquals(403, response.code)
         }
@@ -668,7 +683,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `BRANCH VIEW_BRANCH_DATA holder still reads the single-day summary`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(viewUser))
             assertEquals(200, response.code, response.body?.string().orEmpty())
         }
@@ -676,7 +691,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GLOBAL VIEW_BRANCH_DATA holder still reads the single-day summary`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(globalViewUser))
             assertEquals(200, response.code, response.body?.string().orEmpty())
         }
@@ -684,7 +699,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GLOBAL EDIT_BRANCH_DATA does not satisfy the single-day read`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             // The read's branch/global leg is VIEW_BRANCH_DATA; a GLOBAL EDIT grant is
             // not a read grant (and the day leg checks the BRANCH_DAY form only).
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(globalUser))
@@ -694,7 +709,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user reads today day-status on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/today", asUser(reliefUser))
             assertEquals(200, response.code, response.body?.string().orEmpty())
         }
@@ -702,7 +717,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `relief user today day-status on a non-granted day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/today", asUser(wrongDayUser))
             assertEquals(403, response.code)
         }
@@ -710,7 +725,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `BRANCH EDIT_BRANCH_DATA holder still reads today day-status`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/today", asUser(branchUser))
             assertEquals(200, response.code, response.body?.string().orEmpty())
         }
@@ -718,7 +733,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `today day-status at a no-day branch falls back to the branch gate`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchC/today", asUser(reliefUser))
             assertEquals(403, response.code)
         }
@@ -728,7 +743,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `GLOBAL EDIT_BRANCH_DATA does not satisfy the today day-status read`() {
         // The /today fallback is the plain BRANCH gate — GLOBAL never passes (the #131
         // strictness; the pass-2 doc amendment pins the asymmetry).
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/today", asUser(globalUser))
             assertEquals(403, response.code)
         }
@@ -736,37 +751,9 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     @Test
     fun `unauthenticated single-day summary read gets 401`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today")
             assertEquals(401, response.code)
-        }
-    }
-
-    private fun createAppWithJwt(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-            }
-            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
-                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-                ctx.attribute("userId", userId)
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            ExpenseRoutes.register(cfg)
-            DailySalesSummaryRoutes.register(cfg)
         }
     }
 }

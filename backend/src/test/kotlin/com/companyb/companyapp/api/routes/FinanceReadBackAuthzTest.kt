@@ -24,10 +24,11 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.ExpenseService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.junit.ClassRule
 import java.math.BigDecimal
 import java.util.UUID
 import java.util.function.Consumer
@@ -118,31 +119,39 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, editOnlyUser)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noneUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
+                }
+                CompensationRoutes.register(cfg)
+                BranchDayRoutes.register(cfg)
+                ExpenseRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-            }
-            CompensationRoutes.register(cfg)
-            BranchDayRoutes.register(cfg)
-            ExpenseRoutes.register(cfg)
         }
     }
 
@@ -167,7 +176,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET compensations allowed for ASSIGN_COMPENSATION user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/compensations?branchDayId=$branchDayId",
@@ -188,7 +197,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                 .minusDays(1)
         val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayBranchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/compensations?branchDayId=$otherDayBranchDayId",
@@ -202,7 +211,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET compensations forbidden for EDIT_BRANCH_DATA-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/compensations?branchDayId=$branchDayId", asUser(editOnlyUser)).code,
@@ -212,7 +221,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET compensations forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/compensations?branchDayId=$branchDayId", asUser(noneUser)).code,
@@ -222,7 +231,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET compensations forbidden for ASSIGN_COMPENSATION user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/compensations?branchDayId=$otherBranchDayId", asUser(assignUser)).code,
@@ -234,7 +243,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     fun `GET compensations returns 404 for missing branch day with grant`() {
         val missingBranchId = UUID.randomUUID()
         grantAssignOnBranch(assignUser, missingBranchId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.get("/api/compensations?branchDayId=$missingBranchId", asUser(assignUser)).code,
@@ -248,7 +257,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET branch-day users allowed for ASSIGN_COMPENSATION user with names`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branch-days/$branchDayId/users",
@@ -271,7 +280,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayBranchDayId)
         DatabaseTestHelper.insertTestAttendance(otherDayBranchDayId, targetUser1)
         trackOwned(AttendanceTable, AttendanceTable.branchDayId, otherDayBranchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branch-days/$otherDayBranchDayId/users",
@@ -286,7 +295,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET branch-day users forbidden for EDIT_BRANCH_DATA-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branch-days/$branchDayId/users", asUser(editOnlyUser)).code,
@@ -296,7 +305,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET branch-day users forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branch-days/$branchDayId/users", asUser(noneUser)).code,
@@ -306,7 +315,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET branch-day users forbidden on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branch-days/$otherBranchDayId/users", asUser(assignUser)).code,
@@ -318,7 +327,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     fun `GET branch-day users returns 404 for missing branch day with grant`() {
         val missingBranchId = UUID.randomUUID()
         grantAssignOnBranch(assignUser, missingBranchId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.get("/api/branch-days/$missingBranchId/users", asUser(assignUser)).code,
@@ -332,7 +341,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense allowed for EDIT_BRANCH_DATA user with version bump`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "750.00",
@@ -356,7 +365,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense forbidden for ASSIGN_COMPENSATION-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "750.00",
@@ -373,7 +382,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "750.00",
@@ -401,7 +410,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, otherBranchDayId)
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "400.00",
@@ -418,7 +427,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense returns 409 on version mismatch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "750.00",
@@ -435,7 +444,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense returns 400 on invalid amount`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "-5.00",
@@ -452,7 +461,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense returns 400 on invalid category`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "amount" to "750.00",
@@ -489,7 +498,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/expenses/$deletedId/restore",
@@ -524,7 +533,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -555,7 +564,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -586,7 +595,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, otherBranchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -601,7 +610,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore returns 404 for missing expense`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client
@@ -616,7 +625,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore returns 400 for already-live expense`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -647,7 +656,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val first =
                 client.post(
                     "/api/expenses/$deletedId/restore",
@@ -683,7 +692,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         )
         trackOwned(ExpenseTable, ExpenseTable.createdBy, editOnlyUser)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, branchDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/expenses?branchDayId=$branchDayId",

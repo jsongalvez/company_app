@@ -22,11 +22,12 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.junit.ClassRule
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -94,26 +95,40 @@ class SessionEditAuthzTest : BasePostgresTest() {
         )
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noGrantUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                    if (ctx.header("X-Test-User") == null) {
+                        val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                        ctx.attribute("userId", JwtService.verifyToken(token) ?: throw UnauthorizedResponse())
+                    }
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                SessionRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            SessionRoutes.register(cfg)
         }
     }
 
@@ -121,7 +136,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
 
     @Test
     fun `granted user patches final price`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body = mapOf("finalPrice" to "2750.00", "version" to 1)
             val response = client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser))
 
@@ -134,7 +149,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
 
     @Test
     fun `final price patch forbidden without grant`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body = mapOf("finalPrice" to "2750.00", "version" to 1)
             assertEquals(403, client.patch("/api/sessions/$sessionId/final-price", body, asUser(noGrantUser)).code)
         }
@@ -142,7 +157,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
 
     @Test
     fun `final price patch negative value gets 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body = mapOf("finalPrice" to "-100.00", "version" to 1)
             assertEquals(400, client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser)).code)
         }
@@ -152,36 +167,9 @@ class SessionEditAuthzTest : BasePostgresTest() {
     // the real-JWT harness (the #147/ReportsReadScopeAuthzTest precedent).
     @Test
     fun `unauthenticated request gets 401`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             val body = mapOf("status" to "COMPLETED", "version" to 1)
             assertEquals(401, client.patch("/api/sessions/$sessionId/status", body).code)
-        }
-    }
-
-    private fun createAppWithJwt(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-            }
-            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
-                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-                ctx.attribute("userId", userId)
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            SessionRoutes.register(cfg)
         }
     }
 }

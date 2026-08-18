@@ -17,13 +17,14 @@ import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -71,23 +72,31 @@ class BranchDayAuthzTest : BasePostgresTest() {
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, manageOnlyUser)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noneUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                BranchDayRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            BranchDayRoutes.register(cfg)
         }
     }
 
@@ -99,7 +108,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today allowed for EDIT_BRANCH_DATA user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 200,
                 client.get("/api/branches/$branchId/today", asUser(editOnlyUser)).code,
@@ -109,7 +118,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today returns branchDayId and OPEN status payload`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 client
                     .get("/api/branches/$branchId/today", asUser(editOnlyUser))
@@ -129,7 +138,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
                 it[BranchDayTable.status] = DayStatus.REMITTED
             }
         }
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 client
                     .get("/api/branches/$branchId/today", asUser(editOnlyUser))
@@ -142,7 +151,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today forbidden for MANAGE_PRODUCTS-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/today", asUser(manageOnlyUser)).code,
@@ -152,7 +161,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/today", asUser(noneUser)).code,
@@ -162,7 +171,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today forbidden for EDIT_BRANCH_DATA user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$otherBranchId/today", asUser(editOnlyUser)).code,
@@ -180,7 +189,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
             contextId = missingBranchId,
             sourceId = sourceId,
         )
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.get("/api/branches/$missingBranchId/today", asUser(editOnlyUser)).code,

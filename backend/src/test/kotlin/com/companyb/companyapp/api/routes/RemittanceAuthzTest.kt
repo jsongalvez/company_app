@@ -32,10 +32,11 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.junit.ClassRule
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -207,29 +208,37 @@ class RemittanceAuthzTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, submitUser)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noneUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                RemittanceRoutes.register(cfg)
             }
-            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            RemittanceRoutes.register(cfg)
         }
     }
 
@@ -241,7 +250,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list allowed with net for granted user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/remittances?branchId=$branchId",
@@ -255,7 +264,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list filtered by status`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/remittances?branchId=$branchId&status=SUBMITTED",
@@ -270,7 +279,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/remittances?branchId=$branchId", asUser(noneUser)).code,
@@ -280,7 +289,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list forbidden on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/remittances?branchId=$otherBranchId", asUser(submitUser)).code,
@@ -299,7 +308,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, submitUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.get("/api/remittances?branchId=$missingBranchId", asUser(submitUser)).code,
@@ -309,7 +318,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list returns 400 without branchId`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client.get("/api/remittances", asUser(submitUser)).code,
@@ -319,7 +328,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list accepts ALL status`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/remittances?branchId=$branchId&status=ALL",
@@ -334,7 +343,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list returns 400 on invalid status`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client.get("/api/remittances?branchId=$branchId&status=NOPE", asUser(submitUser)).code,
@@ -348,7 +357,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET sessions picker allowed with client name`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branches/$branchId/remittance-sessions?from=$rangeStart&to=$rangeEnd",
@@ -363,7 +372,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET sessions picker forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -377,7 +386,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET product-sales picker allowed with product name`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branches/$branchId/remittance-product-sales?from=$rangeStart&to=$rangeEnd",
@@ -392,7 +401,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET product-sales picker forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -406,7 +415,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET days picker allowed with effective statuses`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branches/$branchId/remittance-days?from=$rangeStart&to=$rangeEnd",
@@ -420,7 +429,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET days picker forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -434,7 +443,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET days picker returns 400 on reversed range`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -448,7 +457,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET days picker returns 400 on invalid date`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -462,7 +471,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET pickers forbidden on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -480,7 +489,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `DELETE day breakdown allowed for granted user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.delete(
                     "/api/remittances/$draftRemittanceId/day-breakdowns/$breakdownId",
@@ -495,7 +504,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `DELETE day breakdown forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -510,7 +519,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `DELETE day breakdown forbidden on other branch remittance`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -525,7 +534,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `DELETE day breakdown on submitted remittance returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -544,7 +553,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET detail includes snapshot for submitted SESSION remittance`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/remittances/$submittedRemittanceId",
@@ -559,7 +568,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET drift allowed for granted user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/remittances/$submittedRemittanceId/drift",
@@ -574,7 +583,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET drift forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/remittances/$submittedRemittanceId/drift", asUser(noneUser)).code,
@@ -584,7 +593,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET drift returns 404 for draft without snapshot`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.get("/api/remittances/$draftRemittanceId/drift", asUser(submitUser)).code,
@@ -594,7 +603,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET drift returns 403 on other branch remittance`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/remittances/$otherBranchDraftId/drift", asUser(submitUser)).code,
@@ -608,7 +617,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST line forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -625,7 +634,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST line duplicate session in same draft returns 409`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -652,7 +661,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         )
         trackOwned(SessionTable, SessionTable.id, freshSessionId)
         trackOwned(BranchDayTable, BranchDayTable.id, freshDayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -690,7 +699,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             amount = BigDecimal("75.00"),
         )
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, draftRemittanceId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -707,7 +716,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     fun `POST day-breakdown forbidden for no-capability user`() {
         val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, LocalDate.of(2026, 7, 11))
         trackOwned(BranchDayTable, BranchDayTable.id, dayId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -722,7 +731,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST submit forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -741,7 +750,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo allowed for granted user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val version = RemittanceService.getRemittance(submittedRemittanceId).remittance.version
             val response =
                 client.post(
@@ -757,7 +766,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -772,7 +781,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo forbidden on other branch remittance`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -787,7 +796,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo on non-submitted remittance returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -802,7 +811,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo without reason returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -817,7 +826,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo with multi-line reason returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -832,7 +841,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST undo with version mismatch returns 409`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 409,
                 client
@@ -847,7 +856,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header allowed for granted user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "PRODUCT",
@@ -866,7 +875,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header to a type already used for the submitted date returns 409`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "SESSION",
@@ -884,7 +893,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "SESSION",
@@ -902,7 +911,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header forbidden on other branch remittance`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "SESSION",
@@ -920,7 +929,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header invalid type returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "NOPE",
@@ -938,7 +947,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header reversed range returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "SESSION",
@@ -956,7 +965,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header on submitted remittance returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "SESSION",
@@ -974,7 +983,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH header with version mismatch returns 409`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "type" to "SESSION",

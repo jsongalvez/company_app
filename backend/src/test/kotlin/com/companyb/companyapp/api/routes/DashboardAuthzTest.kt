@@ -16,11 +16,12 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -61,27 +62,41 @@ class DashboardAuthzTest : BasePostgresTest() {
         AttendanceService.clockIn(UUID.randomUUID(), otherBranchId, otherBranchUser)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: notClockedInUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                    if (ctx.header("X-Test-User") == null) {
+                        val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                        ctx.attribute("userId", JwtService.verifyToken(token) ?: throw UnauthorizedResponse())
+                    }
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(
+                        mapOf("error" to (e.message ?: "Forbidden")),
+                    )
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(
+                        mapOf("error" to (e.message ?: "Not Found")),
+                    )
+                }
+                DashboardRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(
-                    mapOf("error" to (e.message ?: "Forbidden")),
-                )
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(
-                    mapOf("error" to (e.message ?: "Not Found")),
-                )
-            }
-            DashboardRoutes.register(cfg)
         }
     }
 
@@ -89,65 +104,37 @@ class DashboardAuthzTest : BasePostgresTest() {
 
     @Test
     fun `clocked in user reads dashboard`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(200, client.get("/api/branches/$branchId/dashboard/today", asUser(clockedInUser)).code)
         }
     }
 
     @Test
     fun `user not clocked in gets 403`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(403, client.get("/api/branches/$branchId/dashboard/today", asUser(notClockedInUser)).code)
         }
     }
 
     @Test
     fun `user clocked in at another branch gets 403`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(403, client.get("/api/branches/$branchId/dashboard/today", asUser(otherBranchUser)).code)
         }
     }
 
     @Test
     fun `missing branch with clocked in user gets 404`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val missingBranch = UUID.randomUUID()
             assertEquals(404, client.get("/api/branches/$missingBranch/dashboard/today", asUser(clockedInUser)).code)
         }
     }
 
-    // #128 lesson — the X-Test-User bypass harness can't exercise the real auth filter;
-    // the #147 ticket's spec lists "unauthenticated 401", and the in-repo precedent
-    // (ReportsReadScopeAuthzTest.createAppWithJwt) is to add the JWT harness when 401
-    // verification matters, not to skip it (pass-2 re-rate).
     @Test
     fun `unauthenticated request gets 401`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(401, client.get("/api/branches/$branchId/dashboard/today").code)
-        }
-    }
-
-    private fun createAppWithJwt(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-            }
-            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
-                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-                ctx.attribute("userId", userId)
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            DashboardRoutes.register(cfg)
         }
     }
 }

@@ -21,10 +21,11 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.junit.ClassRule
 import java.time.LocalDate
 import java.util.UUID
 import java.util.function.Consumer
@@ -82,20 +83,28 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noneUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                BranchInventoryRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            BranchInventoryRoutes.register(cfg)
         }
     }
 
@@ -119,7 +128,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET inventory allowed for EDIT_BRANCH_DATA user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 200,
                 client.get("/api/branches/$branchId/inventory", asUser(editOnlyUser)).code,
@@ -129,7 +138,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET inventory forbidden for MANAGE_PRODUCTS-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/inventory", asUser(manageOnlyUser)).code,
@@ -139,7 +148,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET inventory forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/inventory", asUser(noneUser)).code,
@@ -149,7 +158,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET inventory forbidden for EDIT_BRANCH_DATA user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$otherBranchId/inventory", asUser(editOnlyUser)).code,
@@ -163,7 +172,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET low-stock allowed for EDIT_BRANCH_DATA user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 200,
                 client.get("/api/branches/$branchId/inventory/low-stock", asUser(editOnlyUser)).code,
@@ -173,7 +182,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET low-stock forbidden for MANAGE_PRODUCTS-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/inventory/low-stock", asUser(manageOnlyUser)).code,
@@ -183,7 +192,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET low-stock forbidden for EDIT_BRANCH_DATA user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$otherBranchId/inventory/low-stock", asUser(editOnlyUser)).code,
@@ -200,7 +209,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -219,7 +228,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restock forbidden for EDIT_BRANCH_DATA-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -240,7 +249,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restock forbidden for MANAGE_PRODUCTS user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -271,7 +280,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, editOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, editOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val restockBody =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -299,7 +308,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST movement TESTER forbidden for MANAGE_PRODUCTS-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -314,7 +323,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST movement TESTER forbidden for EDIT_BRANCH_DATA user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -332,7 +341,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchId/inventory/$productId/movement",
@@ -345,7 +354,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST movement ADJUSTMENT forbidden for EDIT_BRANCH_DATA-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client
@@ -367,7 +376,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val restockBody =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -395,7 +404,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val restockBody =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -424,7 +433,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements forbidden for MANAGE_PRODUCTS-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/inventory/movements", asUser(manageOnlyUser)).code,
@@ -434,7 +443,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements forbidden for no-capability user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$branchId/inventory/movements", asUser(noneUser)).code,
@@ -444,7 +453,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements forbidden for EDIT_BRANCH_DATA user on other branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client.get("/api/branches/$otherBranchId/inventory/movements", asUser(editOnlyUser)).code,
@@ -457,7 +466,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, manageOnlyUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val restockBody =
                 mapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -492,7 +501,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET movements with invalid date returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -512,7 +521,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     fun `POST ensureCard allowed for MANAGE_PRODUCTS user`() {
         trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, manageOnlyUser)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchId/inventory",
@@ -525,7 +534,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST ensureCard forbidden for EDIT_BRANCH_DATA-only user`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 403,
                 client

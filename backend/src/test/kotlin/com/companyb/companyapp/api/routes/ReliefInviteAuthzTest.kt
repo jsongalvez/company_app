@@ -26,9 +26,9 @@ import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -38,6 +38,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import org.junit.ClassRule
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -136,29 +137,43 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherInvitee)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: nonAssigned.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                    if (ctx.header("X-Test-User") == null) {
+                        val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                        ctx.attribute("userId", JwtService.verifyToken(token) ?: throw UnauthorizedResponse())
+                    }
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                ReliefInviteRoutes.register(cfg)
             }
-            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            ReliefInviteRoutes.register(cfg)
         }
     }
 
@@ -177,7 +192,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `assigned inviter creates an invite for a future day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -195,7 +210,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     @Test
     fun `assigned inviter invite resolves the day row when missing`() {
         val noDayDate = tomorrow.plusDays(2)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -216,7 +231,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `non-assigned user cannot create an invite`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -229,7 +244,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `inviter cannot invite themselves`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -242,7 +257,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `inactive invitee is rejected`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -255,7 +270,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `create on a past day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -268,7 +283,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `duplicate invite for the same invitee and day conflicts`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val first =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -295,7 +310,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             contextId = tomorrowDayId,
             sourceId = sourceId,
         )
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -308,7 +323,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `two invitees can hold invites for the same day`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val first =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -328,7 +343,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `re-invite after decline succeeds`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -359,7 +374,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `sent list is scoped to the caller and branch`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
             client.post(
                 "/api/branches/$branchA/relief-invites",
@@ -377,7 +392,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `sent list requires the assignment gate`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/relief-invites", asUser(nonAssigned))
             assertEquals(403, response.code)
         }
@@ -387,7 +402,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `received list serves only the caller's invites`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
             client.post("/api/branches/$branchA/relief-invites", createBody(otherInvitee, tomorrow), asUser(inviter))
 
@@ -403,7 +418,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `received list serves only pending invites`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val first =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -427,7 +442,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     @Test
     fun `accept writes the day grant immediately`() {
         var inviteId = ""
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -458,7 +473,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `accept by a non-invitee is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -478,7 +493,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `accept on a past day is rejected as expired`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             // A past-day invite can only exist via a direct row (create 403s on past days).
             val pastDayId = BranchDayService.resolveOrCreate(branchA, yesterday).id
             trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
@@ -508,7 +523,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `double accept conflicts on the second attempt`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -532,7 +547,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `decline sets DECLINED and frees the slot`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -560,7 +575,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `retract by the inviter sets RETRACTED`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -581,7 +596,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `retract by a non-inviter is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -601,7 +616,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `retract after accept conflicts`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val created =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -631,7 +646,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             contextId = tomorrowDayId,
             sourceId = sourceId,
         )
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
 
             val response = client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(inviter))
@@ -647,7 +662,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `candidates filter by username or display name prefix`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/relief-candidates?q=ali&date=$tomorrow", asUser(inviter))
             assertEquals(200, response.code, response.body?.string().orEmpty())
             val body = response.body?.string().orEmpty()
@@ -659,7 +674,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     @Test
     fun `candidate search with no day row applies no exclusions and creates nothing`() {
         val noDayDate = tomorrow.plusDays(5)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branches/$branchA/relief-candidates?date=$noDayDate",
@@ -682,7 +697,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `candidates require the assignment gate`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(nonAssigned))
             assertEquals(403, response.code)
         }
@@ -690,7 +705,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `invalid date is a 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -705,40 +720,10 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
     @Test
     fun `unauthenticated requests get 401`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(401, client.get("/api/relief-invites").code)
             assertEquals(401, client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow)).code)
             assertEquals(401, client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow").code)
-        }
-    }
-
-    private fun createAppWithJwt(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-            }
-            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
-                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-                ctx.attribute("userId", userId)
-            }
-            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            ReliefInviteRoutes.register(cfg)
         }
     }
 }

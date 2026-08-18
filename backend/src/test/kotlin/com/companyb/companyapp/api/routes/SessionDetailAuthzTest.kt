@@ -17,11 +17,12 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -64,23 +65,37 @@ class SessionDetailAuthzTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: otherUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                    if (ctx.header("X-Test-User") == null) {
+                        val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                        ctx.attribute("userId", JwtService.verifyToken(token) ?: throw UnauthorizedResponse())
+                    }
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                SessionRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            SessionRoutes.register(cfg)
         }
     }
 
@@ -89,7 +104,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     @Test
     fun `bearer with unread notification gets 200 with dashboard-shaped response`() {
         seedNotification(sessionId, bearerUser, branchId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/sessions/$sessionId", asUser(bearerUser))
 
             assertEquals(200, response.code)
@@ -104,7 +119,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     fun `bearer with read notification gets 200`() {
         val notification = seedNotification(sessionId, bearerUser, branchId)
         NotificationService.markRead(bearerUser, notification.id)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(200, client.get("/api/sessions/$sessionId", asUser(bearerUser)).code)
         }
     }
@@ -112,14 +127,14 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     @Test
     fun `user without notification gets 404`() {
         seedNotification(sessionId, otherUser, branchId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(404, client.get("/api/sessions/$sessionId", asUser(bearerUser)).code)
         }
     }
 
     @Test
     fun `missing session gets 404`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(404, client.get("/api/sessions/${UUID.randomUUID()}", asUser(bearerUser)).code)
         }
     }
@@ -128,32 +143,8 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     // real-JWT harness (the #147/ReportsReadScopeAuthzTest precedent).
     @Test
     fun `unauthenticated request gets 401`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(401, client.get("/api/sessions/$sessionId").code)
-        }
-    }
-
-    private fun createAppWithJwt(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-            }
-            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
-                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-                ctx.attribute("userId", userId)
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            SessionRoutes.register(cfg)
         }
     }
 

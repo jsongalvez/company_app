@@ -19,14 +19,15 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -82,36 +83,44 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         }
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noGrantUser.toString())
-            }
-            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            UserBranchAssignmentRoutes.register(cfg)
-        }
-    }
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
 
-    private val json =
-        Json {
-            ignoreUnknownKeys = true
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                UserBranchAssignmentRoutes.register(cfg)
+            }
         }
+
+        private val json =
+            Json {
+                ignoreUnknownKeys = true
+            }
+    }
 
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
@@ -135,7 +144,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `POST assignments is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .post(
@@ -156,7 +165,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         val newId = UUID.randomUUID()
         trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, newId)
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .post(
@@ -172,7 +181,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `GET assignments is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.get("/api/branches/$branchId/assignments", asUser(noGrantUser)).code
         }
         assertEquals(403, status)
@@ -182,7 +191,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     fun `GET assignments by manager lists active assignments`() {
         var status = 0
         var assignments: List<AssignmentResponse> = emptyList()
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/$branchId/assignments", asUser(managerUser))
             status = response.code
             assignments =
@@ -198,7 +207,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `DELETE assignment is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.delete("/api/branches/$branchId/assignments/$userAId", null, asUser(noGrantUser)).code
         }
         assertEquals(403, status)
@@ -207,7 +216,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `DELETE own assignment is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.delete("/api/branches/$branchId/assignments/$userAId", null, asUser(userAId)).code
         }
         assertEquals(403, status)
@@ -216,7 +225,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `DELETE assignment by manager ends it`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.delete("/api/branches/$branchId/assignments/$userAId", null, asUser(managerUser)).code
         }
         assertEquals(204, status)
@@ -236,7 +245,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
         trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, managerAssignmentId)
 
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.delete("/api/branches/$branchId/assignments/$managerUser", null, asUser(managerUser)).code
         }
         assertEquals(204, status)
@@ -246,7 +255,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `PATCH slot is forbidden without MANAGE_USERS for another user`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .patch(
@@ -261,7 +270,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `PATCH own slot is allowed without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .patch(
@@ -277,7 +286,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `POST swap is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .post(
@@ -292,7 +301,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `POST swap by manager swaps slots`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .post(
@@ -309,7 +318,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     @Test
     fun `POST swap self-service is allowed without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status =
                 client
                     .post(

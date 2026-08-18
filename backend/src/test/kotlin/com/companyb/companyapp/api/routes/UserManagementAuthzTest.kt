@@ -18,14 +18,15 @@ import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.UserService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.util.UUID
 import java.util.function.Consumer
 import kotlin.test.Test
@@ -75,29 +76,37 @@ class UserManagementAuthzTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, managerUser)
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noGrantUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ValidationException::class.java) { e, ctx ->
+                    ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                UserRoutes.register(cfg)
             }
-            cfg.routes.exception(ValidationException::class.java) { e, ctx ->
-                ctx.status(400).json(mapOf("error" to (e.message ?: "Bad Request")))
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            UserRoutes.register(cfg)
         }
     }
 
@@ -106,7 +115,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
     @Test
     fun `GET users is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.get("/api/users", asUser(noGrantUser)).code
         }
         assertEquals(403, status)
@@ -115,7 +124,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
     @Test
     fun `GET users returns the full user list with active assignments`() {
         var users: List<UserSummaryResponse> = emptyList()
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/users", asUser(managerUser))
             assertEquals(200, response.code)
             users =
@@ -134,7 +143,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
     @Test
     fun `reactivate is forbidden without MANAGE_USERS`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.patch("/api/users/$targetUser/reactivate", null, asUser(noGrantUser)).code
         }
         assertEquals(403, status)
@@ -145,7 +154,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         UserService.deactivate(managerUser, targetUser)
 
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.patch("/api/users/$targetUser/reactivate", null, asUser(managerUser)).code
         }
         assertEquals(204, status)
@@ -163,7 +172,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
     fun `self-deactivate returns 400 through HTTP`() {
         var status = 0
         var body = ""
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.patch("/api/users/$managerUser/deactivate", null, asUser(managerUser))
             status = response.code
             body = response.body?.string().orEmpty()
@@ -175,7 +184,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
     @Test
     fun `deactivate without MANAGE_USERS is forbidden`() {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.patch("/api/users/$targetUser/deactivate", null, asUser(noGrantUser)).code
         }
         assertEquals(403, status)

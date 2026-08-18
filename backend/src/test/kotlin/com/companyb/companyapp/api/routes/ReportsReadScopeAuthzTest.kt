@@ -24,14 +24,15 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -118,52 +119,40 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         }
     }
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noneUser.toString())
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            ExportRoutes.register(cfg)
-            DailySalesSummaryRoutes.register(cfg)
-            MonthlyRemittanceSummaryRoutes.register(cfg)
-            BranchRoutes.register(cfg)
-        }
-    }
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
 
-    // The real JWT before-filter (Main.kt) — for the #128 "unauthenticated
-    // still 401" regression. The X-Test-User bypass app above can't exercise it.
-    private fun createAppWithJwt(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
+                    if (ctx.header("X-Test-User") == null) {
+                        val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
+                        ctx.attribute("userId", JwtService.verifyToken(token) ?: throw UnauthorizedResponse())
+                    }
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                ExportRoutes.register(cfg)
+                DailySalesSummaryRoutes.register(cfg)
+                MonthlyRemittanceSummaryRoutes.register(cfg)
+                BranchRoutes.register(cfg)
             }
-            cfg.routes.before("${ApiRoutes.API_PREFIX}*") { ctx ->
-                val token = ctx.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
-                val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
-                ctx.attribute("userId", userId)
-            }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            ExportRoutes.register(cfg)
         }
     }
 
@@ -174,7 +163,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
         path: String,
     ): Int {
         var status = 0
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             status = client.get(path, asUser(user)).code
         }
         return status
@@ -183,7 +172,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     private fun accessibleBranches(user: UUID): Pair<Int, List<BranchResponse>> {
         var status = 0
         var body: List<BranchResponse>? = null
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/branches/accessible", asUser(user))
             status = response.code
             body =
@@ -272,7 +261,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
                     totalExpenses = BigDecimal("50.00"),
                 ),
         )
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val provincial = client.get("/api/branches/export/provincial?format=csv", asUser(noneUser))
             assertEquals(200, provincial.code)
             assertTrue(
@@ -301,7 +290,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
 
     @Test
     fun `branch-type exports still require JWT auth`() {
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(401, client.get("/api/branches/export/provincial?format=csv").code)
             assertEquals(401, client.get("/api/branches/export/medical-mission?format=csv").code)
         }
@@ -310,7 +299,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     @Test
     fun `branch-type exports pass with a valid JWT`() {
         val token = JwtService.generateToken(noneUser.toString())
-        JavalinTest.test(createAppWithJwt()) { _, client ->
+        testServer.client.let { client ->
             val response =
                 client.get(
                     "/api/branches/export/provincial?format=csv",
