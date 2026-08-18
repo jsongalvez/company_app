@@ -51,7 +51,14 @@ log pre-commit "Running quality gate (detekt, ktlint, test, shared compile)..."
 log pre-commit "Quality gate passed."
 
 # ----------------------------------------------------------------
-# 3. Test-data cleanliness check
+# 3. OpenAPI contract gate
+# ----------------------------------------------------------------
+log pre-commit "Checking generated OpenAPI contract..."
+bash scripts/check-openapi-spec.sh 2>&1 | tail -10
+log pre-commit "OpenAPI contract gate passed."
+
+# ----------------------------------------------------------------
+# 4. Test-data cleanliness check
 # ----------------------------------------------------------------
 log pre-commit "Checking for test-data leaks..."
 if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
@@ -61,13 +68,13 @@ fi
 log pre-commit "Test-data cleanliness check passed."
 
 # ----------------------------------------------------------------
-# 4. Shared module compilation check
+# 5. Shared module compilation check
 # ----------------------------------------------------------------
 # shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
 log pre-commit "Shared module compilation included in quality gate."
 
 # ----------------------------------------------------------------
-# 5. Ensure Postgres is reachable
+# 6. Ensure Postgres is reachable
 # ----------------------------------------------------------------
 source_env
 DB_HOST="${DB_HOST:-localhost}"

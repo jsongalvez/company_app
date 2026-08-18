@@ -3,9 +3,9 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
-spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
+spec="${1:-$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json}"
 test -f "$spec"
-if find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" \
+if [ "${OPENAPI_VERIFY_SKIP_FRESHNESS:-0}" != "1" ] && find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" \
     "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/service" \
     "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" \

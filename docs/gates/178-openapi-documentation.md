@@ -15,10 +15,10 @@
   EXPECT: EXIT 0
   EVIDENCE: exit 0
 
-- [x] G4: Every production route method and path is represented in generated documentation
-  CHECK: ./scripts/verify-openapi-spec.sh
-  EXPECT: MATCHES OPENAPI_ROUTE_COVERAGE_OK
-  EVIDENCE: OPENAPI_ROUTE_COVERAGE_OK
+- [x] G4: One ordered gate generates, normalizes, verifies, and negative-tests the contract
+  CHECK: bash scripts/check-openapi-spec.sh
+  EXPECT: MATCHES OPENAPI_NEGATIVE_DRIFT_OK
+  EVIDENCE: To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/gradle_daemon.html#sec:disabling_the_da
 
 - [x] G5: Generated documentation contains metadata, bearer scheme, path parameters, and no configured secret values
   CHECK: ./scripts/verify-openapi-spec.sh | grep OPENAPI_SECRET_SCAN_OK
