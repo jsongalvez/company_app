@@ -356,3 +356,66 @@ The focused post-R18 audit retained every materially accepted candidate instead 
 | 14 | Focused lanes over all retained deferred leads and lifecycle seams | R13-R16 reverified; R19 surfaced; no candidate hidden |
 | 15 | Candidate completeness and overlap pass | Five materially distinct candidates retained; explicit skips remain excluded |
 | 16 | Lifecycle protocol pass | Every candidate requires dossier, deterministic checks, Luna verification, falsification, and disposition before ticketing |
+
+## Candidate Verification Refresh - Session 121
+
+Five retained candidates received complete read-only dossiers, deterministic repository checks,
+structured repeated rubric review (fallback mode; OpenCode2 scoring-token logprobs were not
+available), adversarial falsification, and explicit dispositions. Deterministic repository facts
+remain authoritative.
+
+### Candidate dossiers and dispositions
+
+#### R13 - make production persistence time use one clock authority
+
+- **Lifecycle:** `identified -> evidenced -> explored -> falsified -> verified -> dispositioned`.
+- **Deterministic evidence:** JVM `OffsetDateTime.now(UTC)` remains in `SessionBaseRateService.kt:45,72`, `SessionService.kt:134`, `AttendanceRepository.kt:71`, `ReliefAccessRepository.kt:72`, and `ReliefInviteRepository.kt:60`; most persistence writes use `CurrentTimestampWithTimeZone`; capability validity is evaluated by PostgreSQL `now()`.
+- **Falsification:** universal clock replacement is rejected. Manila calendar decisions, JWT timing, and test-controlled pure decisions have different ownership. The implementation slice is limited to persistence timestamps and rate-window transaction locality.
+- **Deletion test:** direct JVM persistence reads disappear from the selected paths; no universal clock module is introduced.
+- **Disposition:** **implement**, P1. First implementation ticket covers rate-window authority and the explicitly timestamped `insertIgnore` paths. Defer calendar consolidation, JWT/DenyList timing, and broad clock abstraction.
+
+#### R14 - enforce OpenAPI verification in mandatory gates
+
+- **Lifecycle:** `identified -> evidenced -> explored -> falsified -> verified -> dispositioned`.
+- **Deterministic evidence:** `backend/build.gradle.kts:59-66` normalizes only; `.githooks/pre-commit:49-51` and `.githooks/pre-push:13-108` do not verify; `scripts/verify-openapi-spec.sh:6-200` is fail-closed and currently manual; `docs/gates/178-openapi-documentation.md:18-25` is the only documented invocation.
+- **Falsification:** invoking verification without explicit generation/normalization ordering can produce false failures, so one ordered Gradle task must own compile, normalize, and verify. Local hooks alone are insufficient because direct pushes bypass them.
+- **Deletion test:** manual-only verification is removed while one shared mandatory gate remains; parser sharing from R10 is already complete.
+- **Disposition:** **implement**, P1. Add one ordered Gradle gate reused by hooks and CI, with source-path coverage and a negative drift check.
+
+#### R15 - return actual inserted count from notification batch creation
+
+- **Lifecycle:** `identified -> evidenced -> explored -> falsified -> verified -> dispositioned`.
+- **Deterministic evidence:** `NotificationRepository.kt:22-51` pre-queries and returns `pending.size` after `batchInsert(ignore = true)`, while `V1__full_schema.sql:567-581` correctly enforces unique `(session_id,user_id)`. Concurrent callers can report two creations for one committed row.
+- **Falsification:** `Main.initializeScheduler()` uses one single-thread executor (`Main.kt:176-202`), and architecture docs describe one backend deployment. Sequential reruns are correct. The race is real for multiple instances, overlapping invocations, or future callers, but deployment topology is not confirmed.
+- **Deletion test:** removing the precheck would concentrate idempotency in the database, but the correct Exposed bulk inserted-count API is not yet proven.
+- **Disposition:** **defer**, retained. No child until deployment topology or a concrete overlapping-caller requirement makes priority actionable. Preferred future shape is repository-owned idempotency with reliable inserted counts, using transactional `insertIgnore` summation if bulk counts cannot be proven.
+
+#### R16 - delete unused `SessionState.isLoggedIn` machinery
+
+- **Lifecycle:** `identified -> evidenced -> explored -> falsified -> verified -> dispositioned`.
+- **Deterministic evidence:** repository-wide Kotlin search finds only the declaration at `SessionState.kt:44-47`; active navigation uses `currentUser`, token validation uses `/api/me`, and tests assert explicit identity/clock state instead.
+- **Falsification:** no production, platform, test, reflection, DI, or service-loader consumer exists. Historical scratch specs do not create an active interface.
+- **Deletion test:** deleting the property and four supporting imports removes a `GlobalScope` coroutine seam without moving behavior.
+- **Disposition:** **implement**, P2. One-file deletion with common/desktop/Android/iOS compilation and focused state tests.
+
+#### R19 - own scheduler executor lifecycle
+
+- **Lifecycle:** `identified -> evidenced -> explored -> falsified -> verified -> dispositioned`.
+- **Deterministic evidence:** `Main.initializeScheduler():176-202` creates a local daemon executor, discards its reference, and exposes no stop/restart hook. `main(config):209-220` starts it before Javalin initialization. Only `NextAppointmentScheduler.run(clock)` is directly testable.
+- **Falsification:** one normal process still delivers notifications, and the notification unique key limits duplicate rows. Those facts do not provide shutdown, startup-failure cleanup, reinitialization safety, or lifecycle tests.
+- **Deletion test:** moving executor ownership behind an explicit lifecycle module deletes the ownerless local executor state; work computation remains in `NextAppointmentScheduler`.
+- **Disposition:** **implement**, P1. Define explicit start/stop ownership and deterministic lifecycle tests. Keep notification count semantics separate from R15.
+
+### Implementation order
+
+1. R19 scheduler lifecycle, because it owns the currently ownerless startup resource and prevents duplicate scheduler instances.
+2. R14 mandatory OpenAPI verification, because it hardens every later route/contract change.
+3. R13 targeted persistence-clock cleanup, because it changes backend write/read time semantics and needs the full backend gate.
+4. R16 dead `SessionState.isLoggedIn` deletion, because it is isolated and low-risk.
+5. R15 notification inserted-count truth remains deferred until deployment topology or overlapping invocation requirements are confirmed.
+
+### Verification notes
+
+- Five independent bounded dossiers were completed before ranking; no candidate was suppressed by a higher-ranked candidate.
+- Structured repeated rubric fallback covered fact integrity, domain coherence, long-term architecture, adversarial falsification, feasibility, and comprehension. Continuous Luna scoring was unavailable in this environment; no unsupported score is claimed.
+- No product code, tests, migrations, or behavior changed during this audit refresh.
