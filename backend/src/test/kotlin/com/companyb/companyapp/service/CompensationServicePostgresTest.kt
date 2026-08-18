@@ -20,7 +20,10 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -191,6 +194,46 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 note = null,
             )
         }
+    }
+
+    @Test
+    fun `concurrent creates with different ids return one conflict`() {
+        val start = CountDownLatch(1)
+        val results = Collections.synchronizedList(mutableListOf<Throwable?>())
+        val threads =
+            listOf(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+            ).map { id ->
+                thread(start = false) {
+                    start.await()
+                    try {
+                        CompensationService.create(
+                            callerId = callerId,
+                            id = id,
+                            workBranchDayId = workBranchDayId,
+                            payingBranchDayId = payingBranchDayId,
+                            userId = targetUserId,
+                            amount = BigDecimal("1500.00"),
+                            note = null,
+                        )
+                        results += null
+                    } catch (error: Throwable) {
+                        results += error
+                    }
+                }
+            }
+
+        threads.forEach { it.start() }
+        start.countDown()
+        threads.forEach {
+            it.join(30_000)
+            if (it.isAlive) it.interrupt()
+        }
+
+        assertEquals(2, results.size)
+        assertEquals(1, results.count { it == null })
+        assertEquals(1, results.count { it is ConflictException })
     }
 
     @Test

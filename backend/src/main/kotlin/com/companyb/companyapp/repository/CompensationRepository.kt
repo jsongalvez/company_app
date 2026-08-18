@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -10,7 +11,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -45,26 +46,35 @@ object CompensationRepository {
         auditFn: (Compensation) -> Unit = {},
     ): CompensationCreateResult =
         transaction {
-            val existing = findByIdInTransaction(params.id)
-            if (existing != null) {
-                return@transaction CompensationCreateResult(existing, created = false)
+            val insertedCount =
+                CompensationTable
+                    .insertIgnore {
+                        it[CompensationTable.id] = params.id
+                        it[CompensationTable.workBranchDayId] = params.workBranchDayId
+                        it[CompensationTable.payingBranchDayId] = params.payingBranchDayId
+                        it[CompensationTable.userId] = params.userId
+                        it[CompensationTable.amount] = params.amount
+                        it[CompensationTable.assignedBy] = params.assignedBy
+                        if (params.note != null) it[CompensationTable.note] = params.note
+                    }.insertedCount
+            val created = insertedCount > 0
+
+            if (!created) {
+                val existingByKey = findByUserAndPayingDayInTransaction(params.userId, params.payingBranchDayId)
+                val existingById = findByIdInTransaction(params.id)
+                if (existingById != null) {
+                    return@transaction CompensationCreateResult(existingById, created = false)
+                }
+                if (existingByKey != null) {
+                    throw ConflictException("Compensation already exists for this user and paying branch day")
+                }
+                error("compensation insert was ignored without a conflicting row for ${params.id}")
             }
 
-            CompensationTable.insert {
-                it[CompensationTable.id] = params.id
-                it[CompensationTable.workBranchDayId] = params.workBranchDayId
-                it[CompensationTable.payingBranchDayId] = params.payingBranchDayId
-                it[CompensationTable.userId] = params.userId
-                it[CompensationTable.amount] = params.amount
-                it[CompensationTable.assignedBy] = params.assignedBy
-                if (params.note != null) it[CompensationTable.note] = params.note
-            }
-
-            val created =
+            val compensation =
                 findByIdInTransaction(params.id) ?: error("compensation not found after insert for ${params.id}")
-
-            auditFn(created)
-            CompensationCreateResult(created, created = true)
+            auditFn(compensation)
+            CompensationCreateResult(compensation, created = true)
         }.also { result ->
             logger.info {
                 "[CREATE-COMPENSATION] Compensation ${result.compensation.id.toString().maskUUID()}" +
@@ -119,13 +129,7 @@ object CompensationRepository {
         payingBranchDayId: UUID,
     ): Compensation? =
         transaction {
-            CompensationTable
-                .selectAll()
-                .where {
-                    (CompensationTable.userId eq userId) and
-                        (CompensationTable.payingBranchDayId eq payingBranchDayId)
-                }.singleOrNull()
-                ?.toCompensation()
+            findByUserAndPayingDayInTransaction(userId, payingBranchDayId)
         }
 
     fun findByPayingBranchDayId(branchDayId: UUID): List<CompensationWithUser> =
@@ -154,6 +158,18 @@ object CompensationRepository {
             .selectAll()
             .where { CompensationTable.id eq id }
             .singleOrNull()
+            ?.toCompensation()
+
+    private fun findByUserAndPayingDayInTransaction(
+        userId: UUID,
+        payingBranchDayId: UUID,
+    ): Compensation? =
+        CompensationTable
+            .selectAll()
+            .where {
+                (CompensationTable.userId eq userId) and
+                    (CompensationTable.payingBranchDayId eq payingBranchDayId)
+            }.singleOrNull()
             ?.toCompensation()
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toCompensation(): Compensation =

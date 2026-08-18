@@ -1,6 +1,5 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
@@ -35,11 +34,6 @@ object CompensationService {
         BranchDayService.requireBranchDayExists(workBranchDayId)
 
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId, reason)
-
-        val existingByKey = CompensationRepository.findByUserAndPayingDay(userId, payingBranchDayId)
-        if (existingByKey != null && existingByKey.id != id) {
-            throw ConflictException("Compensation already exists for this user and paying branch day")
-        }
 
         val result =
             CompensationRepository.create(
