@@ -131,7 +131,7 @@ object NextAppointmentScheduler {
                     (UserBranchAssignmentTable.branchId inList branchIds) and
                         (UserBranchAssignmentTable.endedAt.isNull()) and
                         (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                        (ActiveUserCapabilitiesView.contextId inList branchIds) and
+                        (ActiveUserCapabilitiesView.contextId eq UserBranchAssignmentTable.branchId) and
                         (CapabilityTable.code eq RECEIVE_NEXT_APPOINTMENT_ALERTS)
                 }.withDistinct()
                 .map { row ->

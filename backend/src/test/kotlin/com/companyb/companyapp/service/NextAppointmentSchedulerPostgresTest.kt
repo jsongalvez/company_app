@@ -217,6 +217,19 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `scheduler scopes capability to matching assignment branch`() {
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        insertUserBranchAssignment(coordinatorId, branchId)
+        insertUserBranchAssignment(coordinatorId, otherBranchId)
+
+        val coordinatorsByBranch =
+            NextAppointmentScheduler.findActiveCoordinatorsForBranches(listOf(branchId, otherBranchId))
+
+        assertEquals(listOf(coordinatorId), coordinatorsByBranch[branchId])
+        assertEquals(null, coordinatorsByBranch[otherBranchId])
+    }
+
+    @Test
     fun `scheduler does not notify manager without coordinator capability`() {
         grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
