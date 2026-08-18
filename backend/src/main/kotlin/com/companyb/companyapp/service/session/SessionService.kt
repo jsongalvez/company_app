@@ -28,7 +28,6 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
@@ -131,8 +130,7 @@ object SessionService {
         branchId: UUID,
         sessionType: SessionType,
     ): BigDecimal {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-        val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId, now)
+        val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId)
         return activeRates
             .firstOrNull { it.sessionType == sessionType }
             ?.rate

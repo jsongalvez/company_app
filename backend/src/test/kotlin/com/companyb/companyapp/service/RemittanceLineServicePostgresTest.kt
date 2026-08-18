@@ -973,7 +973,6 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         id: UUID = rateId,
         sessionType: SessionType = SessionType.REGULAR,
     ) {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
         SessionBaseRateRepository.setRate(
             SessionBaseRateCreateParams(
                 id = id,
@@ -981,8 +980,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 branchId = branchId,
                 sessionType = sessionType,
                 rate = BigDecimal("2500.00"),
-                effectiveFrom = now,
-                effectiveUntil = now.plusYears(10),
+                effectiveUntil = OffsetDateTime.now(ZoneOffset.UTC).plusYears(10),
             ),
         )
     }

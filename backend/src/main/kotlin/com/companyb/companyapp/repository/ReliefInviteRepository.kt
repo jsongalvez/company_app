@@ -57,7 +57,7 @@ object ReliefInviteRepository {
                         // insertIgnore does not emit DEFAULT expressions — set both
                         // explicitly (the AGENTS.md insertIgnore convention).
                         it[ReliefInviteTable.status] = ReliefInviteStatus.PENDING
-                        it[ReliefInviteTable.createdAt] = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)
+                        it[ReliefInviteTable.createdAt] = CurrentTimestampWithTimeZone
                     }.insertedCount
             val isNew = insertedCount > 0
 

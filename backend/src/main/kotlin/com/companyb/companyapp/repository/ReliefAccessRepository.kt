@@ -19,7 +19,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 data class GrantWithCapabilityParams(
@@ -69,7 +68,7 @@ object ReliefAccessRepository {
             it[UserCapabilityTable.contextId] = branchDayId
             it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
             it[UserCapabilityTable.sourceId] = sourceId
-            it[UserCapabilityTable.validFrom] = OffsetDateTime.now(ZoneOffset.UTC)
+            it[UserCapabilityTable.validFrom] = CurrentTimestampWithTimeZone
             it[UserCapabilityTable.validTo] = validTo
             it[UserCapabilityTable.priority] = GrantPriorities.RELIEF_ACCESS
         }

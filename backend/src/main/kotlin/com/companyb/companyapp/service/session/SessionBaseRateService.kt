@@ -41,19 +41,14 @@ internal object SessionBaseRateService {
         branchId: UUID,
         sessionType: SessionType,
         rate: BigDecimal,
-    ): SetRateResult {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-
-        SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
-
-        return SessionBaseRateRepository.setRate(
+    ): SetRateResult =
+        SessionBaseRateRepository.setRate(
             SessionBaseRateCreateParams(
                 id = id,
                 setBy = callerId,
                 branchId = branchId,
                 sessionType = sessionType,
                 rate = rate,
-                effectiveFrom = now,
                 effectiveUntil = FAR_FUTURE,
             ),
             auditFn = { rate ->
@@ -66,10 +61,6 @@ internal object SessionBaseRateService {
                 )
             },
         )
-    }
 
-    fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-        return SessionBaseRateRepository.findActiveByBranch(branchId, now)
-    }
+    fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateRepository.findActiveByBranch(branchId)
 }

@@ -10,6 +10,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greater
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -31,6 +32,14 @@ object SessionBaseRateRepository {
         auditFn: (SessionBaseRate) -> Unit = {},
     ): SetRateResult =
         transaction {
+            SessionBaseRateTable
+                .update({
+                    (SessionBaseRateTable.branchId eq params.branchId) and
+                        (SessionBaseRateTable.sessionType eq params.sessionType) and
+                        (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
+                }) {
+                    it[SessionBaseRateTable.effectiveUntil] = CurrentTimestampWithTimeZone
+                }
             val insertedCount =
                 SessionBaseRateTable
                     .insertIgnore {
@@ -39,7 +48,7 @@ object SessionBaseRateRepository {
                         it[SessionBaseRateTable.branchId] = params.branchId
                         it[SessionBaseRateTable.sessionType] = params.sessionType
                         it[SessionBaseRateTable.rate] = params.rate
-                        it[SessionBaseRateTable.effectiveFrom] = params.effectiveFrom
+                        it[SessionBaseRateTable.effectiveFrom] = CurrentTimestampWithTimeZone
                         it[SessionBaseRateTable.effectiveUntil] = params.effectiveUntil
                     }.insertedCount
             val inserted = insertedCount > 0
@@ -59,33 +68,13 @@ object SessionBaseRateRepository {
             }
         }
 
-    fun deactivatePreviousRates(
-        branchId: UUID,
-        sessionType: SessionType,
-        now: OffsetDateTime,
-    ) {
-        transaction {
-            SessionBaseRateTable
-                .update({
-                    (SessionBaseRateTable.branchId eq branchId) and
-                        (SessionBaseRateTable.sessionType eq sessionType) and
-                        (SessionBaseRateTable.effectiveUntil greater now)
-                }) {
-                    it[SessionBaseRateTable.effectiveUntil] = now
-                }
-        }
-    }
-
-    fun findActiveByBranch(
-        branchId: UUID,
-        now: OffsetDateTime,
-    ): List<SessionBaseRate> =
+    fun findActiveByBranch(branchId: UUID): List<SessionBaseRate> =
         transaction {
             SessionBaseRateTable
                 .selectAll()
                 .where {
                     (SessionBaseRateTable.branchId eq branchId) and
-                        (SessionBaseRateTable.effectiveUntil greater now)
+                        (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
                 }.orderBy(
                     SessionBaseRateTable.sessionType to SortOrder.ASC,
                     SessionBaseRateTable.effectiveFrom to SortOrder.DESC,

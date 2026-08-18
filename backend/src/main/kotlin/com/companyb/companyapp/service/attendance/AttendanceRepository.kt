@@ -20,7 +20,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -68,7 +67,7 @@ internal object AttendanceRepository {
                         it[AttendanceTable.branchDayId] = params.branchDayId
                         it[AttendanceTable.userId] = params.userId
                         it[AttendanceTable.markedBy] = params.markedBy
-                        it[AttendanceTable.clockIn] = OffsetDateTime.now(ZoneOffset.UTC)
+                        it[AttendanceTable.clockIn] = CurrentTimestampWithTimeZone
                     }.insertedCount
             val isNew = insertedCount > 0
 

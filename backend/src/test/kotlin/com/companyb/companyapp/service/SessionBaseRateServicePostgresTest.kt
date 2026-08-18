@@ -107,6 +107,19 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertTrue(first.created)
         assertTrue(second.created)
 
+        val persistedRates =
+            transaction {
+                SessionBaseRateTable
+                    .selectAll()
+                    .where { SessionBaseRateTable.id eq rateId }
+                    .single()[SessionBaseRateTable.effectiveUntil] to
+                    SessionBaseRateTable
+                        .selectAll()
+                        .where { SessionBaseRateTable.id eq rateId2 }
+                        .single()[SessionBaseRateTable.effectiveFrom]
+            }
+        assertEquals(persistedRates.first, persistedRates.second)
+
         val activeRates = SessionService.findActiveRates(branchId)
         assertEquals(1, activeRates.size)
         assertEquals("3000.00", activeRates[0].rate.toPlainString())
