@@ -59,8 +59,8 @@ class SessionBootstrapViewModelTest {
         """
         [
           {"capabilityCode":"MANAGE_USERS","contextType":"GLOBAL","contextId":"00000000-0000-0000-0000-000000000000","sourceType":"ROLE"},
-          {"capabilityCode":"SUBMIT_REMITTANCE","contextType":"BRANCH","contextId":"b1","sourceType":"DIRECT"},
-          {"capabilityCode":"EDIT_BRANCH_DATA","contextType":"BRANCH","contextId":"b2","sourceType":"DIRECT"}
+          {"capabilityCode":"SUBMIT_REMITTANCE","contextType":"BRANCH","contextId":"b1","sourceType":"MANUAL_OVERRIDE"},
+          {"capabilityCode":"EDIT_BRANCH_DATA","contextType":"BRANCH","contextId":"b2","sourceType":"MANUAL_OVERRIDE"}
         ]
         """.trimIndent()
 
