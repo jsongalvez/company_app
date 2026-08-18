@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchInventory
@@ -49,6 +50,9 @@ object ProductSaleRepository {
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
+                if (existing.branchDayId != params.branchDayId) {
+                    throw NotFoundException("Product sale not found for this branch day")
+                }
                 logger.info { "[PRODUCT-SALE] Sale ${params.id} already exists, returning existing (idempotent)" }
                 return@transaction existing
             }

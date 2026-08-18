@@ -45,8 +45,11 @@ object ProductSaleService {
             throw ValidationException("Product is not active")
         }
 
-        if (sessionId != null && SessionRepository.findById(sessionId) == null) {
-            throw NotFoundException("Session not found")
+        if (sessionId != null) {
+            val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
+            if (session.branchDayId != branchDayId) {
+                throw NotFoundException("Session not found for this branch day")
+            }
         }
 
         val result =

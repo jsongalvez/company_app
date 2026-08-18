@@ -1259,3 +1259,27 @@ behavior remained unchanged during the audit.
 | 61 | Full bounded C-01..C-14 lanes | All ownership areas rechecked; no omission |
 | 62 | Independent evidence and falsification | Resolved candidates retired; route-test and cleanup seams narrowed; fog retained |
 | 63 | Coverage, duplication, materiality, schema, priority | No justifiable new implementation child |
+
+### Session 253 correction
+
+The backend and tooling lanes completed after the initial no-candidate checkpoint and
+surfaced actionable findings that supersede the table above:
+
+- **R37 - enforce product-sale session branch ownership:** `ProductSaleService.sell` checked
+  only session existence while accepting an independent `branchDayId`; independent foreign
+  keys permit cross-branch sale, inventory, commission, and remittance contamination. A second
+  adversarial pass also found existing sale UUID idempotency was not parent-scoped. Child #221
+  owns both checks and was implemented in this session.
+- **R38 - enforce remittance source ownership:** remittance lines independently reference
+  source sessions/product sales without validating source branch against remittance branch.
+  Retained as the next P0 candidate; no second child opened.
+- **R39 - fail closed when pre-push k6 is unavailable:** the hook skips missing k6 or missing
+  credentials despite the root contract describing k6 as a mandatory pre-push gate. Retained
+  as P1 tooling candidate; explicit opt-out semantics need separate scope.
+- The Compose lane's remaining identical mobile UI actuals are P2 maintenance, not a runtime
+  defect; scheduler ownership, route-test setup, and cleanup policy remain resolved/deferred
+  as previously recorded.
+
+The initial no-candidate conclusion was corrected before remote push. The full audit's final
+priority is R37 first, R38 second, R39 third. R15 and historical role-assignment workflow
+remain fog without new deployment or business evidence.

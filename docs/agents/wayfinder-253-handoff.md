@@ -46,3 +46,10 @@
    unless a narrow seam with material leverage is proven.
 6. Finish tracker, validation, commit, and push work before writing the next numbered handoff.
    After writing it, stop immediately.
+
+## Correction before push
+
+Backend and tooling lanes completed after this handoff was drafted and found R37, a P0
+cross-branch product-sale ownership defect. This no-candidate conclusion is superseded
+before remote push. Child #221 was created and claimed; implementation and verification
+are recorded in the next handoff.
