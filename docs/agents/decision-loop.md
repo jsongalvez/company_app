@@ -1,6 +1,18 @@
-# Decision loop — HITL design review
+# Decision loop — deferred human review
 
-Every HITL decision ticket (grilling) on this map runs the decision-loop discipline before a design reaches the human. It mirrors the code-review phased loop (`docs/agents/code-review-loop.md`) — parallel sub-agents per phase, HARD/SOFT triage, batch-fix commits, exit on one full pass with zero HARD — but the artifact under review is a **design**, not a diff.
+## No-question policy
+
+The agent never asks the user a question or invokes the question tool. A design that
+needs human input becomes a separate tracker issue labeled `needs-info` or
+`ready-for-human`, with verified facts, the exact decision, and its blocking impact.
+The agent continues independent AFK work; if none remains, it records the blocker and
+stops. Human review happens asynchronously on that issue.
+
+Every deferred human-review ticket on this map runs the decision-loop discipline before
+its design reaches the human. It mirrors the code-review phased loop
+(`docs/agents/code-review-loop.md`) — parallel sub-agents per phase, HARD/SOFT triage,
+batch-fix commits, exit on one full pass with zero HARD — but the artifact under review
+is a **design**, not a diff.
 
 ## Standing frame (applies to every lens, every pass)
 
@@ -9,7 +21,8 @@ Every HITL decision ticket (grilling) on this map runs the decision-loop discipl
 - **Falsify every claim.** Every premise, every recommendation, every "this gate already exists" gets an adversarial attempt at proof-wrong before it enters a question.
 - **Facts are the agent's job, never the human's.** Any premise that needs verification is verified in code/migrations/docs BEFORE it is presented as a choice. A choice built on an unverified claim is a false-premise defect — the decision loop's cardinal sin (session-56 Q3: a BRANCH `EDIT_BRANCH_DATA` inviter gate was presented and only fact-checking against V2/V16 revealed it was a vacuous gate with zero eligible holders).
 - **Present to the human in simple language.** Short sentences. No jargon where a plain word works. The gist of the question must be graspable at a glance. Technical accuracy is NOT sacrificed for simplicity — the two coexist.
-- The human decides. The loop sharpens and falsifies; it never stands in for the human's side of a HITL exchange.
+- The human decides asynchronously on the tracker issue. The loop sharpens and falsifies;
+  it never guesses or closes the decision on the human's behalf.
 
 ## The lenses
 

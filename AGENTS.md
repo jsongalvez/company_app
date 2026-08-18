@@ -21,6 +21,14 @@ When a fresh agent opens a GitHub issue to work on:
 5. Open the relevant doc from the Document Map below (e.g. `docs/architecture.md` for layering, `docs/engines.md` for pseudocode, `docs/business-requirements.md` for rules)
 6. Load the skill indicated by the workflow (`/implement`, `/code-review`, etc.)
 
+## Human Decisions
+
+Never ask the user a question or invoke the question tool. When business behavior,
+scope, safety, external authorization, or preference needs human input, create a
+separate issue with `needs-info` or `ready-for-human`, record verified facts and the
+blocking decision, and continue unrelated AFK work. If no safe continuation exists,
+record the blocker in the handoff and stop. Never guess.
+
 ## Code review — risk-based graph
 
 Implementation work uses a review profile matched to blast radius. Review work is a dependency graph, not fixed ceremony: independent read-only lanes run in parallel, one writer applies a coherent fix batch, and only affected checks rerun.
@@ -48,11 +56,11 @@ P5 is not a mandatory exit phase. Cheap hygiene checks run with each fix batch. 
 
 Record selected profile, review lanes, fix batches, validation, skipped checks, accepted SOFTs, and architecture findings in the resolution comment.
 
-## Decision loop — HITL design review
+## Decision loop — deferred human review
 
-Grilling / wayfinder HITL tickets run the decision-loop discipline before a design reaches the human — `docs/agents/decision-loop.md`: five parallel lenses (fact integrity, domain coherence, long-term architecture, falsification, comprehension), HARD/SOFT triage, exit on one full zero-HARD pass. Standing frame for all human-facing questions: dev-stage — migration cost is zero, choose the best long-term option; falsify every claim; verify every fact in code before offering a choice (the false-premise defect); simple language — short sentences, gist at a glance, technical accuracy intact.
+Grilling / wayfinder human-review tickets run the decision-loop discipline before a design reaches the human — `docs/agents/decision-loop.md`: five parallel lenses (fact integrity, domain coherence, long-term architecture, falsification, comprehension), HARD/SOFT triage, exit on one full zero-HARD pass. Decisions are delivered asynchronously through tracker issues, never through questions in-session.
 
-Architectural choices are agent-owned by default. Do not ask the user to choose between implementation shapes, modules, seams, abstractions, or review dispositions when business requirements and existing constraints are clear. Select the strongest evidence-backed design, record important rationale in the ticket or ADR, and proceed. Ask only when business behavior, scope, safety, external authorization, or an explicit user preference is genuinely ambiguous.
+Architectural choices are agent-owned by default. Do not ask the user to choose between implementation shapes, modules, seams, abstractions, or review dispositions when business requirements and existing constraints are clear. Select the strongest evidence-backed design, record important rationale in the ticket or ADR, and proceed. When business behavior, scope, safety, external authorization, or explicit preference is ambiguous, defer it as a separate appropriately labeled tracker issue and continue only with safe independent work.
 
 ## Document map
 
@@ -71,7 +79,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
 | Issue tracking | `docs/agents/issue-tracker.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
-| Decision-loop lenses + standing frame (HITL design review) | `docs/agents/decision-loop.md` |
+| Decision-loop lenses + deferred human-review frame | `docs/agents/decision-loop.md` |
 | Gate ledger (runnable CHECK/EXPECT acceptance for builds) | `docs/agents/gates.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
 | Load test results | `tests/k6/results/baseline-results.md` |
