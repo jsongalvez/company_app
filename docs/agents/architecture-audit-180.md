@@ -1333,3 +1333,34 @@ failures is clear, but an explicit local opt-out requires human-approved name,
 authorization scope, and CI policy. Issue [Decision: define pre-push k6 opt-out policy]
 (https://github.com/jsongalvez/company_app/issues/223) records verified facts and
 smallest decision. No production or test code changed.
+
+## Permanent-Map Refresh - Session 256
+
+Implementation child #224 resolved the CI retry-evidence defect. The existing workflow
+change was inspected from commit `0140bf5`, which is present on the tracked branch.
+
+### R40 implementation checkpoint
+
+- `.github/workflows/jmh.yml` now writes the complete retry benchmark output to
+  `/tmp/company-app-jmh-retry.log` before `check-baselines.sh` reads it; the former
+  `tee | tail -5` truncation is gone.
+- `scripts/check-baselines-test.sh` covers empty, truncated, missing, malformed,
+  complete, and regressed JMH output. The malformed and truncated cases fail closed,
+  so they cannot be classified as a reproduced performance regression.
+- No benchmark implementation or `backend/jmh-baselines.md` change was made. The
+  baseline remains unproven until a complete retry establishes actual performance.
+
+### Validation
+
+- `bash scripts/check-baselines-test.sh`: PASS.
+- `bash -n scripts/check-baselines.sh scripts/check-baselines-test.sh`: PASS.
+- Workflow inspection confirmed complete retry-log preservation and comparator ordering.
+
+### Audit-of-audit
+
+- Ownership pass: workflow log preservation is separate from comparator parsing and
+  from unresolved pre-push k6 policy in issue #223.
+- Adversarial pass: malformed comparator input remains a failed evidence gate; a
+  complete retry can now be evaluated instead of being reduced to five Gradle lines.
+- Priority pass: #224 is closed; #223 remains human decision fog, with R15 and
+  historical role-assignment workflow still deferred.
