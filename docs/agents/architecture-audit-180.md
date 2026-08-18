@@ -428,3 +428,75 @@ subset completed in 20s. This is now the highest-priority follow-up audit ahead 
 R14/R13/R16 implementation children: explain test discovery and worker behavior, database setup
 and cleanup cost, serial bottlenecks, and any hidden hangs; then optimize without weakening test
 isolation or coverage. Tracking ticket: `Audit: diagnose slow Gradle backend tests`.
+
+## Permanent-Map Refresh - Session 228
+
+After implementation child #200, the frontier was empty. A fresh full read-only audit rechecked
+all C-01..C-14 ownership areas through four bounded lanes: Compose/platform bridges, shared
+contracts, backend production/schema, and tests/tooling/docs. Independent verification then
+falsified or narrowed every lead before disposition. Product source, tests, migrations, and
+behavior remain unchanged.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Exploration | Falsification / verification | Disposition |
+|---|---|---|---|---|
+| R20 - enforce remittance line parent-scoped idempotency | complete | complete | verified; `addLine` returns a line found by global ID before checking `remittanceId` | implement, P0 |
+| R21 - enforce remittance day-breakdown branch ownership | complete | complete | verified; service checks day existence but not remittance branch; submission can include a foreign branch day | implement, P0 |
+| R22 - fail closed on cleanliness discovery failure | complete | complete | verified; first `docker exec` failure becomes empty output and exit 0 | implement, P1 |
+| R23 - pair selected branch and clock state flows | complete | complete | verified as real torn-state risk, but broad consumer migration and ADR-0021 interaction make it lower priority | defer |
+| R24 - remove BranchSelect child ViewModel ownership | complete | complete | verified lifecycle split; parent route also uses `remember`, requiring a broader lifecycle decision | defer |
+| R25 - remove duplicate route template constants | complete | complete | narrowed: templates are needed by Javalin registrations; only exact aliases are mechanical and low materiality | reject as broad finding |
+| R26 - unify attendance response DTOs | complete | complete | narrowed: wire shapes match, but operation-specific types are intentional readable interfaces with plausible future divergence | defer |
+
+### R20 - Enforce remittance line parent-scoped idempotency
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceLineRepository.kt:44-51` selects by line ID alone and returns the row before checking `params.remittanceId`. The route authorizes the URL remittance, so a UUID belonging to remittance A can be replayed through remittance B and return A's line. The later raced lookup at `:66-75` does include entity reference but still omits parent scope.
+- **Current invalid state:** parent-child URL ownership and idempotency identity disagree; a child from another remittance can cross the parent seam.
+- **Simpler representation:** treat `(remittanceId, clientLineId)` as the request identity. Scope both existing-row reads to the parent; reject a UUID collision with a different parent rather than returning the foreign line.
+- **Smallest scope:** `RemittanceLineRepository.addLine`, its service/API tests, and any exception mapping needed for the explicit conflict. No schema change.
+- **Risks and validation:** preserve same-parent retries, duplicate session/product conflict behavior, version/audit atomicity, and concurrent different-ID handling. Add same-parent retry and cross-parent UUID tests; verify foreign data, version, and audit rows remain unchanged.
+- **Dependencies:** existing line primary key and ADR-0019 repository transaction ownership. **Deletion test:** removing the parent predicate makes the cross-parent UUID test return the foreign line.
+
+### R21 - Enforce remittance day-breakdown branch ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceService.kt:314-323` verifies remittance status and calls global `requireBranchDayExists`. Existing `BranchDayService.requireBranchDayForBranch` at `:67-72` is unused here. `RemittanceDayBreakdownRepository.kt:18-50` stores independent parent/day IDs, and `V1__full_schema.sql:456-461` has no cross-branch constraint. Remittance submission consumes breakdown day IDs, so branch A can attach branch B's day.
+- **Current invalid state:** a remittance's day breakdown can point outside its branch, crossing financial ownership and day-state transitions.
+- **Simpler representation:** resolve the day through `requireBranchDayForBranch(branchDayId, remittance.branchId)` before insertion; keep the existing schema and repository parent key.
+- **Smallest scope:** one service call plus service/API tests for same-branch success and foreign-branch rejection. Add parent-scoped UUID-collision coverage for `RemittanceDayBreakdownRepository.addDayBreakdown`, which currently ignores `insertedCount` before selecting by global ID.
+- **Risks and validation:** reject malformed existing writes without mutating them; verify no foreign breakdown, snapshot contamination, remitted-day transition, or audit row. Migration is unnecessary for new data; inspect disposable test data before any cleanup.
+- **Dependencies:** existing branch-scoped resolver and parent-child URL rule in `backend/AGENTS.md`. **Deletion test:** restoring global existence allows a foreign branch day to enter the remittance.
+
+### R22 - Fail closed on test-database discovery failure
+
+- **Verdict:** recommend; **disposition:** implement after R20/R21; **priority:** P1; **confidence:** high.
+- **Evidence:** `scripts/check-test-cleanliness.sh:23-35` appends `|| echo ""` to the first `docker exec psql` query. Lines `37-41` then interpret empty output as an uninitialized database and exit 0. Hooks propagate script status, so this is a false-success quality gate when the container, database, or authentication is unavailable.
+- **Current invalid state:** “database is clean” and “database could not be inspected” share the same successful result.
+- **Simpler representation:** let the discovery query fail under `set -euo pipefail`; retain the intentional successful empty-schema skip. Do not broaden this slice into container configuration.
+- **Smallest scope:** script and shell-focused tests/mocks. **Risks:** unavailable Docker correctly blocks hooks; hardcoded container naming remains a separate operational concern.
+- **Validation:** `bash -n`; mocked docker failure, valid empty discovery, leaked row, and count-query failure; live cleanliness check.
+- **Dependencies:** none. **Deletion test:** restoring the fallback makes the mocked discovery-failure test pass incorrectly.
+
+### Deferred and rejected leads
+
+- R23 remains deferred: pair only selected-branch and clock-state values if a focused Compose lifecycle/state ticket becomes higher priority; do not redesign ADR-0021 capability timing.
+- R24 remains deferred: child ViewModel scope is not parent-owned, but fixing it requires deciding whether the route-created parent itself becomes lifecycle-owned. No speculative helper seam is justified in this audit.
+- R25 is rejected as a broad candidate: Javalin template constants and client builders are different interfaces. Keep only exact aliases/mechanical cleanup for a future route audit.
+- R26 is deferred: identical current payloads do not prove one shared interface is better; operation-specific DTO names preserve locality and future divergence without material cost.
+
+### Audit-of-audit
+
+- Coverage pass: C-01..C-14 all rechecked; platform hosts, generated-contract ownership, migrations, hooks, and test infrastructure included.
+- Duplication/ownership pass: route-template duplication narrowed to aliases; attendance DTO duplication not promoted; remittance findings kept separate because one is child idempotency and one is branch ownership.
+- Materiality pass: retained only parent-crossing financial defects and a false-success mandatory gate; state/lifecycle leads deferred with explicit scope reasons.
+- Schema pass: verified remittance/day foreign keys are independent and existing unique keys do not encode branch ownership.
+- Dependency/priority pass: R20 and R21 are the next financial integrity slice; R22 follows as a tooling gate fix. No parallel implementation child is opened in this session.
+
+| Pass | Work | Result |
+|---|---|---|
+| 17 | Fresh bounded repository audit | C-01..C-14 complete; seven leads recorded |
+| 18 | Independent deterministic verification | R20-R22 verified; R23-R24 verified but deferred; R25-R26 narrowed/rejected or deferred |
+| 19 | Adversarial and deletion-test pass | Cross-parent UUID, foreign day, DB outage, torn state, lifecycle ownership, and route-template counterexamples checked |
+| 20 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R20/R21 selected as one implementation slice, R22 next |

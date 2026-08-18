@@ -36,3 +36,6 @@ Durable lessons from repository architecture audits. Future agents consume this 
 - **Persistence time belongs to the persistence owner.** JVM timestamps mixed with PostgreSQL `now()` create untestable boundary behavior; narrow fixes should use the database clock without inventing a universal clock abstraction.
 - **Generated-contract checks must run in one ordered gate.** Normalization, verification, and source freshness are one dependency chain; documenting the verifier without invoking it in hooks and CI leaves drift unchecked.
 - **Ownerless executors are hidden application state.** A scheduler executor created in startup but never retained cannot be stopped, restarted safely, or tested; lifecycle ownership must be explicit while work logic stays separate.
+- **Parent-child idempotency must include URL parent.** A globally unique child UUID is not enough: idempotent lookup must scope by the parent embedded in the route, or a retry can return a foreign child.
+- **Financial child links need domain ownership checks.** Independent foreign keys do not prove a remittance day belongs to remittance branch; resolve child through parent branch before writing.
+- **Required gates must fail closed at discovery.** Empty output after an infrastructure/query failure is not an empty database; mandatory cleanliness checks must distinguish “clean” from “not inspected.”
