@@ -987,3 +987,45 @@ state invariant at the persistence seam.
 | 38 | Independent deterministic verification | Relief predicates absent; R15 count/pair defect and R36 dead declaration confirmed |
 | 39 | Adversarial and deletion-test pass | Grant/deny race survives; database ownership beats process lock; no candidate overlap |
 | 40 | Coverage, duplication, materiality, priority | Relief race is sole next P1 child; lower candidates retained/deferred |
+
+## Permanent-Map Refresh - Session 248
+
+After scheduler notification capability scoping (#215), four bounded read-only lanes
+rechecked C-01..C-14 and directly revalidated the retained R36 dead model candidate.
+The scheduler/capability seam is now coherent: recipient selection correlates the
+branch-scoped capability context with the same active assignment branch, V21 derives
+the capability only for active Coordinator assignments, and lifecycle ownership remains
+explicit in `SchedulerLifecycle`.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R36 - delete unused `UserCapability` data class | `UserCapability.kt` declaration had no constructor or type consumers; table and enums remain active | symbol search is empty after deletion; backend compile, scheduler tests, detekt, ktlint, and full backend tests pass | implemented, P2 |
+| C-05 - use shared capability enums in backend persistence models | `shared/.../domain/WireEnums.kt` and backend `UserCapability.kt` define duplicate `CapabilityContextType`/`CapabilitySourceType`; multiple backend consumers import the backend copies | wire names and PostgreSQL enum values match; migration ordering and active table/view usage remain compatible | retain, P1 candidate; no child under one-child cadence |
+| C-13 - centralize test-database cleanup policy | `check-test-cleanliness.sh` and `clean-test-db.sh` duplicate seed-table and discovery predicates | shared `scripts/lib/common.sh` seam exists; current behavior is intentional but drift-prone | retain, P2 candidate; no child under one-child cadence |
+
+### R36 implementation checkpoint
+
+`UserCapability` was removed from `backend/src/main/kotlin/com/companyb/companyapp/repository/model/UserCapability.kt`.
+`UserCapabilityTable`, `CapabilityContextType`, and `CapabilitySourceType` remain unchanged,
+so direct grants, role-derived view rows, scheduler capability derivation, and authorization
+behavior retain their existing ownership.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 complete across Compose/platform bridges, shared contracts, backend/auth/persistence,
+  schema, tests/tooling, CI, and docs.
+- Duplication: shared capability enums are distinct from dead data-class deletion; cleanup-policy duplication
+  is distinct from completed test-server lifecycle work.
+- Materiality: mobile navigation and SessionList duplication are real P2 candidates but require a separate
+  Compose implementation slice; no scheduler defect remains after #215.
+- Priority: shared capability enum ownership is next P1 candidate; cleanup policy and Compose duplication remain
+  lower-priority candidates. No second child was created this session.
+
+| Pass | Work | Result |
+|---|---|---|
+| 41 | Four bounded coverage lanes plus direct R36/scheduler verification | C-01..C-14 complete; R36 and adjacent ownership rechecked |
+| 42 | Independent deterministic verification | R36 deletion confirmed; shared enum and cleanup candidates retained |
+| 43 | Adversarial and deletion-test pass | table/view/grant behavior remains active; scheduler branch pairing and role derivation verified |
+| 44 | Coverage, duplication, materiality, priority | R36 implemented as sole child; no scheduler child; future candidates preserved |

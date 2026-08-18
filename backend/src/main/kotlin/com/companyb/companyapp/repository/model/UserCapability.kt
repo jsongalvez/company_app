@@ -5,20 +5,6 @@ import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
-import java.time.OffsetDateTime
-
-data class UserCapability(
-    val id: String,
-    val userId: String,
-    val capabilityId: String,
-    val contextType: String,
-    val contextId: String,
-    val validFrom: OffsetDateTime,
-    val validTo: OffsetDateTime?,
-    val sourceType: String,
-    val sourceId: String,
-    val priority: Short,
-)
 
 enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
 
