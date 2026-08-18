@@ -184,21 +184,10 @@ private fun DashboardTableRow(
                 WalkInDot(voided = session.isVoided, modifier = Modifier.padding(start = Spacing.xs))
             }
         }
-        // #149 — the three editable cells (type / status / final price, #97 Q4; basePrice
-        // read-only). A cell click selects the row too (the detail pane follows the edit).
-        DashboardEditableCell(
-            session = session,
-            field = DashboardEditField.TYPE,
-            canEdit = canEdit,
-            edit = edit,
-            onSessionClick = onSessionSelect,
-            onEditStart = onEditStart,
-            onEditDraftChange = onEditDraftChange,
-            onEditCommit = onEditCommit,
-            onEditDiscard = onEditDiscard,
-            onEditReload = onEditReload,
-            modifier = Modifier.weight(1f),
-        )
+        // Session type is a creation-time snapshot; status and final price remain editable.
+        Box(modifier = Modifier.weight(1f)) {
+            SessionTypeBadge(session)
+        }
         DashboardEditableCell(
             session = session,
             field = DashboardEditField.STATUS,
@@ -309,10 +298,6 @@ private fun CellDisplay(
                 ),
     ) {
         when (field) {
-            DashboardEditField.TYPE -> {
-                SessionTypeBadge(session)
-            }
-
             DashboardEditField.STATUS -> {
                 SessionStatusBadge(session)
             }
@@ -344,16 +329,6 @@ private fun EditControl(
     onDiscard: () -> Unit,
 ) {
     when (edit.field) {
-        DashboardEditField.TYPE -> {
-            SelectEditor(
-                values = SessionType.entries.map { it.name },
-                edit = edit,
-                onDraftChange = onDraftChange,
-                onCommit = onCommit,
-                onDiscard = onDiscard,
-            )
-        }
-
         DashboardEditField.STATUS -> {
             SelectEditor(
                 values = SessionStatus.entries.map { it.name },

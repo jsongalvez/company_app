@@ -36,7 +36,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Session inline-edit PATCH authz (#149): the type + final-price endpoints gate on
+ * Session inline-edit PATCH authz (#149): the status + final-price endpoints gate on
  * BRANCH-scoped EDIT_BRANCH_DATA like the existing status PATCH (strict context — never
  * the GLOBAL-or-branch relaxation, the #131 leak class). Exact-path-gate discipline: each
  * before-filter must fire on its own literal path.
@@ -120,19 +120,6 @@ class SessionEditAuthzTest : BasePostgresTest() {
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
     @Test
-    fun `granted user patches session type`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            val response = client.patch("/api/sessions/$sessionId/type", body, asUser(editorUser))
-
-            assertEquals(200, response.code)
-            val responseBody = response.body?.string().orEmpty()
-            assertTrue(responseBody.contains("\"sessionType\":\"SECOND_SESSION\""))
-            assertTrue(responseBody.contains("\"version\":2"))
-        }
-    }
-
-    @Test
     fun `granted user patches final price`() {
         JavalinTest.test(createApp()) { _, client ->
             val body = mapOf("finalPrice" to "2750.00", "version" to 1)
@@ -146,42 +133,10 @@ class SessionEditAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `type patch forbidden without grant`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            assertEquals(403, client.patch("/api/sessions/$sessionId/type", body, asUser(noGrantUser)).code)
-        }
-    }
-
-    @Test
     fun `final price patch forbidden without grant`() {
         JavalinTest.test(createApp()) { _, client ->
             val body = mapOf("finalPrice" to "2750.00", "version" to 1)
             assertEquals(403, client.patch("/api/sessions/$sessionId/final-price", body, asUser(noGrantUser)).code)
-        }
-    }
-
-    @Test
-    fun `type patch forbidden for a grant at another branch`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            assertEquals(403, client.patch("/api/sessions/$sessionId/type", body, asUser(wrongBranchUser)).code)
-        }
-    }
-
-    @Test
-    fun `type patch missing session gets 404`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            assertEquals(404, client.patch("/api/sessions/${UUID.randomUUID()}/type", body, asUser(editorUser)).code)
-        }
-    }
-
-    @Test
-    fun `type patch bad enum value gets 400`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "BOGUS", "version" to 1)
-            assertEquals(400, client.patch("/api/sessions/$sessionId/type", body, asUser(editorUser)).code)
         }
     }
 
@@ -193,21 +148,13 @@ class SessionEditAuthzTest : BasePostgresTest() {
         }
     }
 
-    @Test
-    fun `type patch stale version gets 409`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 99)
-            assertEquals(409, client.patch("/api/sessions/$sessionId/type", body, asUser(editorUser)).code)
-        }
-    }
-
     // #128 lesson — the X-Test-User harness can't exercise the real auth filter; 401 needs
     // the real-JWT harness (the #147/ReportsReadScopeAuthzTest precedent).
     @Test
     fun `unauthenticated request gets 401`() {
         JavalinTest.test(createAppWithJwt()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            assertEquals(401, client.patch("/api/sessions/$sessionId/type", body).code)
+            val body = mapOf("status" to "COMPLETED", "version" to 1)
+            assertEquals(401, client.patch("/api/sessions/$sessionId/status", body).code)
         }
     }
 

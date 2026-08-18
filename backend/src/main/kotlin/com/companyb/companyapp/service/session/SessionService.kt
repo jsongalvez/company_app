@@ -191,50 +191,6 @@ object SessionService {
     }
 
     @Suppress("ReturnCount", "ThrowsCount")
-    fun updateType(
-        callerId: UUID,
-        sessionId: UUID,
-        newType: SessionType,
-        expectedVersion: Int,
-        reason: String? = null,
-    ): Session {
-        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-
-        if (session.version != expectedVersion) {
-            throw ConflictException("Session version mismatch")
-        }
-
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
-
-        val updated =
-            SessionRepository.updateType(
-                sessionId = sessionId,
-                newType = newType,
-                expectedVersion = expectedVersion,
-                changedBy = callerId,
-            ) { updatedSession ->
-                AuditLogRepository.recordUpdate(
-                    tableName = SessionTable.tableName,
-                    recordId = sessionId,
-                    before = session,
-                    after = updatedSession,
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    isFlagged = isRemitted,
-                    reason = reason,
-                    auditFields = SessionTable::auditFields,
-                )
-            }
-
-        logger.info {
-            "[UPDATE-SESSION-TYPE] Session $sessionId type changed" +
-                " from ${session.sessionType} to ${newType.name}"
-        }
-
-        return updated
-    }
-
-    @Suppress("ReturnCount", "ThrowsCount")
     fun updateFinalPrice(
         callerId: UUID,
         sessionId: UUID,

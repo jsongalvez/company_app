@@ -20,7 +20,6 @@ import com.companyb.companyapp.dto.UnvoidSessionRequest
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
-import com.companyb.companyapp.dto.UpdateSessionTypeRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
@@ -146,13 +145,6 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = ApiRoutes.SESSION_TYPE_PATH,
-    methods = [HttpMethod.PATCH],
-    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
-    operationId = "session_type",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-)
-@OpenApi(
     path = ApiRoutes.SESSION_UNVOID_PATH,
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
@@ -200,15 +192,6 @@ object SessionRoutes {
         }
 
         config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
-            val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
-                context,
-                sessionId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
-        }
-
-        config.routes.before(ApiRoutes.SESSION_TYPE_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
@@ -282,7 +265,6 @@ object SessionRoutes {
         config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
         config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
         config.routes.patch(ApiRoutes.SESSION_STATUS_PATH, ::handleUpdateStatus)
-        config.routes.patch(ApiRoutes.SESSION_TYPE_PATH, ::handleUpdateType)
         config.routes.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, ::handleUpdateFinalPrice)
         config.routes.post(ApiRoutes.SESSION_VOID_PATH, ::handleVoidSession)
         config.routes.post(ApiRoutes.SESSION_UNVOID_PATH, ::handleUnvoidSession)
@@ -372,19 +354,6 @@ object SessionRoutes {
         val newStatus = request.status
 
         val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
-
-        context.status(HttpStatus.OK)
-        context.json(updated.toResponse())
-    }
-
-    private fun handleUpdateType(context: Context) {
-        val callerId = context.callerUuid()
-        val sessionId = context.pathParamAsUuid("sessionId")
-        val request = context.bodyAsClass<UpdateSessionTypeRequest>()
-
-        val newType = request.sessionType
-
-        val updated = SessionService.updateType(callerId, sessionId, newType, request.version, request.reason)
 
         context.status(HttpStatus.OK)
         context.json(updated.toResponse())

@@ -42,11 +42,11 @@ class DashboardEditStateTest {
 
     @Test
     fun begin_edit_captures_draft_and_baseline_version() {
-        val state = beginEdit(row(version = 3), DashboardEditField.TYPE)
+        val state = beginEdit(row(version = 3), DashboardEditField.STATUS)
 
         assertEquals("s1", state.sessionId)
-        assertEquals(DashboardEditField.TYPE, state.field)
-        assertEquals("REGULAR", state.draft)
+        assertEquals(DashboardEditField.STATUS, state.field)
+        assertEquals("COMPLETED", state.draft)
         assertEquals(3, state.baselineVersion)
         assertFalse(state.inFlight)
         assertNull(state.error)
@@ -88,7 +88,7 @@ class DashboardEditStateTest {
     @Test
     fun as_in_flight_clears_prior_error_and_conflict() {
         val state =
-            beginEdit(row(), DashboardEditField.TYPE)
+            beginEdit(row(), DashboardEditField.STATUS)
                 .asConflict("conflict")
                 .asInFlight()
 
@@ -100,7 +100,7 @@ class DashboardEditStateTest {
     @Test
     fun conflict_keeps_draft_and_marks_the_conflict() {
         val state =
-            beginEdit(row(), DashboardEditField.TYPE)
+            beginEdit(row(), DashboardEditField.STATUS)
                 .withDraft("SECOND_SESSION")
                 .asInFlight()
                 .asConflict("someone else")
@@ -114,7 +114,7 @@ class DashboardEditStateTest {
     @Test
     fun draft_edit_during_conflict_preserves_error_and_conflict() {
         val state =
-            beginEdit(row(), DashboardEditField.TYPE)
+            beginEdit(row(), DashboardEditField.STATUS)
                 .withDraft("SECOND_SESSION")
                 .asInFlight()
                 .asConflict("someone else")
@@ -130,7 +130,7 @@ class DashboardEditStateTest {
     @Test
     fun draft_edit_without_conflict_clears_error() {
         val state =
-            beginEdit(row(), DashboardEditField.TYPE)
+            beginEdit(row(), DashboardEditField.STATUS)
                 .withDraft("SECOND_SESSION")
                 .asInFlight()
                 .asFailed("network down")

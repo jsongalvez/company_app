@@ -9,7 +9,6 @@ import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
-import com.companyb.companyapp.dto.UpdateSessionTypeRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
@@ -408,17 +407,6 @@ class SessionDashboardViewModel(
 
     private fun editRequest(state: DashboardEditState): EditRequest =
         when (state.field) {
-            DashboardEditField.TYPE -> {
-                EditRequest(
-                    ApiRoutes.sessionType(state.sessionId),
-                    UpdateSessionTypeRequest(
-                        com.companyb.companyapp.domain.SessionType
-                            .valueOf(state.draft),
-                        state.baselineVersion,
-                    ),
-                )
-            }
-
             DashboardEditField.STATUS -> {
                 EditRequest(
                     ApiRoutes.sessionStatus(state.sessionId),

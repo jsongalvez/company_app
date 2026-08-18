@@ -344,39 +344,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `update type succeeds and increments version`() {
-        createSession(callerId, sessionId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
-        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
-
-        val updated = SessionService.updateType(callerId, sessionId, SessionType.SECOND_SESSION, 1)
-
-        assertEquals("SECOND_SESSION", updated.sessionType)
-        assertEquals(2, updated.version)
-        assertEquals(2L, auditEntryCount(SessionTable.tableName, sessionId))
-    }
-
-    @Test
-    fun `update type with wrong version throws 409`() {
-        createSession(callerId, sessionId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
-        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
-
-        assertFailsWith<ConflictException> {
-            SessionService.updateType(callerId, sessionId, SessionType.SECOND_SESSION, 99)
-        }
-    }
-
-    @Test
-    fun `update type for non-existent session throws 404`() {
-        assertFailsWith<NotFoundException> {
-            SessionService.updateType(callerId, UUID.randomUUID(), SessionType.SECOND_SESSION, 1)
-        }
-    }
-
-    @Test
     fun `update final price succeeds and increments version`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
@@ -435,18 +402,6 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         assertFailsWith<ConflictException> {
             SessionRepository.updateStatus(sessionId, SessionStatus.PENDING, SessionStatus.COMPLETED, 99, callerId)
-        }
-    }
-
-    @Test
-    fun `repo update type with stale version throws 409`() {
-        createSession(callerId, sessionId)
-        trackOwned(SessionTable, SessionTable.id, sessionId)
-        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
-        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
-
-        assertFailsWith<ConflictException> {
-            SessionRepository.updateType(sessionId, SessionType.SECOND_SESSION, 99, callerId)
         }
     }
 

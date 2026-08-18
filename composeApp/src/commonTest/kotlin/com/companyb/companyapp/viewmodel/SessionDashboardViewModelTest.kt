@@ -60,7 +60,7 @@ private const val EMPTY_DASHBOARD_JSON =
     """{"sessions":[],"commission":{"amount":"0.0000","productSalesCount":0}}"""
 
 // #149 — PATCH responses for the inline-edit tests (SessionResponse shapes).
-private const val PATCH_TYPE_JSON =
+private const val PATCH_STATUS_RESPONSE_JSON =
     """{"id":"s1","clientId":"c1","branchDayId":"bd1","requestedPractitionerId":null,
         "sessionType":"SECOND_SESSION","isWalkIn":false,"sessionStatus":"COMPLETED",
         "basePrice":"2500.00","finalPrice":"2500.00","remarks":null,"otherConcerns":null,
@@ -594,44 +594,6 @@ class SessionDashboardViewModelTest {
     }
 
     @Test
-    fun commit_type_success_replaces_row_and_exits_edit() =
-        runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
-            var patchHits = 0
-            val vm =
-                SessionDashboardViewModel(
-                    mockApiClient(
-                        editDashboardHandler(
-                            patchResponse = { path ->
-                                patchHits++
-                                assertEquals("/api/sessions/s1/type", path)
-                                HttpStatusCode.OK to PATCH_TYPE_JSON
-                            },
-                        ),
-                    ),
-                )
-            try {
-                runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
-                vm.updateDraft("SECOND_SESSION")
-                vm.commitEdit()
-                runCurrent()
-
-                assertEquals(1, patchHits)
-                assertNull(vm.editState.value, "success exits edit mode")
-                val row =
-                    vm.lastData.value!!
-                        .sessions
-                        .single()
-                assertEquals("SECOND_SESSION", row.sessionType.name)
-                assertEquals(2, row.version)
-                assertEquals("Test Client", row.clientName, "dashboard-only fields survive the merge")
-            } finally {
-                vm.pause()
-            }
-        }
-
-    @Test
     fun commit_final_price_success_recomputes_gross() =
         runTest(testScheduler) {
             SessionState.setCapabilities(editRow())
@@ -667,63 +629,20 @@ class SessionDashboardViewModelTest {
                         editDashboardHandler(
                             patchResponse = {
                                 patchHits++
-                                HttpStatusCode.OK to PATCH_TYPE_JSON
+                                HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON
                             },
                         ),
                     ),
                 )
             try {
                 runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
+                vm.startEdit("s1", DashboardEditField.STATUS)
                 runCurrent()
                 vm.commitEdit()
                 runCurrent()
 
                 assertEquals(0, patchHits, "an unchanged draft must not dispatch")
                 assertNull(vm.editState.value)
-            } finally {
-                vm.pause()
-            }
-        }
-
-    @Test
-    fun stale_poll_after_commit_does_not_regress_row() =
-        runTest(testScheduler) {
-            SessionState.setCapabilities(editRow())
-            val vm =
-                SessionDashboardViewModel(
-                    mockApiClient(
-                        editDashboardHandler(
-                            patchResponse = { HttpStatusCode.OK to PATCH_TYPE_JSON },
-                            getJson = { DASHBOARD_JSON },
-                        ),
-                    ),
-                )
-            try {
-                runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
-                vm.updateDraft("SECOND_SESSION")
-                vm.commitEdit()
-                runCurrent()
-                assertEquals(
-                    "SECOND_SESSION",
-                    vm.lastData.value!!
-                        .sessions
-                        .single()
-                        .sessionType.name,
-                )
-
-                // The next poll returns the pre-commit state (v1) — the monotonic merge
-                // must keep the committed v2 row (stale-poll-after-commit class).
-                advanceTimeBy(30_000.milliseconds)
-                runCurrent()
-
-                val row =
-                    vm.lastData.value!!
-                        .sessions
-                        .single()
-                assertEquals("SECOND_SESSION", row.sessionType.name)
-                assertEquals(2, row.version)
             } finally {
                 vm.pause()
             }
@@ -737,21 +656,21 @@ class SessionDashboardViewModelTest {
                 SessionDashboardViewModel(
                     mockApiClient(
                         editDashboardHandler(
-                            patchResponse = { HttpStatusCode.OK to PATCH_TYPE_JSON },
+                            patchResponse = { HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON },
                         ),
                     ),
                 )
             try {
                 runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
-                vm.updateDraft("SECOND_SESSION")
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
 
                 advanceTimeBy(30_000.milliseconds)
                 runCurrent()
 
                 val state = vm.editState.value
                 assertNotNull(state, "a poll must not close an open editor")
-                assertEquals("SECOND_SESSION", state.draft, "the draft owns the cell (Q4)")
+                assertEquals("PENDING", state.draft, "the draft owns the cell (Q4)")
                 assertEquals(1, state.baselineVersion, "the version snapshot survives polls too")
             } finally {
                 vm.pause()
@@ -777,8 +696,8 @@ class SessionDashboardViewModelTest {
             try {
                 runCurrent()
                 assertTrue(vm.canEdit.value)
-                vm.startEdit("s1", DashboardEditField.TYPE)
-                vm.updateDraft("SECOND_SESSION")
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
                 vm.commitEdit()
                 runCurrent()
 
@@ -856,8 +775,8 @@ class SessionDashboardViewModelTest {
                 )
             try {
                 runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
-                vm.updateDraft("SECOND_SESSION")
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
                 vm.commitEdit()
                 runCurrent()
 
@@ -870,7 +789,7 @@ class SessionDashboardViewModelTest {
                 assertEquals(4, patchHits, "initial attempt + 3 retries")
                 val state = vm.editState.value
                 assertNotNull(state, "Model A: stay in edit mode")
-                assertEquals("SECOND_SESSION", state.draft)
+                assertEquals("PENDING", state.draft)
                 assertNotNull(state.error)
                 assertFalse(state.inFlight)
             } finally {
@@ -922,15 +841,15 @@ class SessionDashboardViewModelTest {
                         editDashboardHandler(
                             patchResponse = {
                                 patchHits++
-                                HttpStatusCode.OK to PATCH_TYPE_JSON
+                                HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON
                             },
                         ),
                     ),
                 )
             try {
                 runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
-                vm.updateDraft("SECOND_SESSION")
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                vm.updateDraft("PENDING")
                 // The synchronous inFlight pre-set must hold from the caller's frame
                 // (the #135 double-tap pattern — the second commit sees inFlight).
                 vm.commitEdit()
@@ -1057,7 +976,7 @@ class SessionDashboardViewModelTest {
 
                 // A cell switch must not silently drop an attempted draft (the #142
                 // field-switch draft-drop class) — the failed editor stays until discarded.
-                vm.startEdit("s1", DashboardEditField.TYPE)
+                vm.startEdit("s1", DashboardEditField.STATUS)
                 assertEquals(DashboardEditField.STATUS, vm.editState.value!!.field)
                 assertEquals("PENDING", vm.editState.value!!.draft)
             } finally {
@@ -1138,7 +1057,7 @@ class SessionDashboardViewModelTest {
                 advanceTimeBy(30_000.milliseconds)
                 runCurrent()
 
-                vm.startEdit("s1", DashboardEditField.TYPE)
+                vm.startEdit("s1", DashboardEditField.STATUS)
                 assertNull(vm.editState.value, "the parked machine must not wedge new edits")
 
                 // The real unlock: a NEW row's cell opens a fresh machine.
@@ -1169,14 +1088,14 @@ class SessionDashboardViewModelTest {
                         editDashboardHandler(
                             patchResponse = {
                                 patchHits++
-                                HttpStatusCode.OK to PATCH_TYPE_JSON
+                                HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON
                             },
                         ),
                     ),
                 )
             try {
                 runCurrent()
-                vm.startEdit("s1", DashboardEditField.TYPE)
+                vm.startEdit("s1", DashboardEditField.STATUS)
                 vm.updateDraft("SECOND_SESSION")
                 vm.discardEdit()
                 runCurrent()

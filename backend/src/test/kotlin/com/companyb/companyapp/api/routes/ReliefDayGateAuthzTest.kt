@@ -410,26 +410,6 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         }
     }
 
-    // --- Session mutations (ForSession variant) ---
-
-    @Test
-    fun `relief user patches a session on the granted day`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            val response = client.patch("/api/sessions/$sessionOnGrantedDay/type", body, asUser(reliefUser))
-            assertEquals(200, response.code)
-        }
-    }
-
-    @Test
-    fun `relief user session patch on a non-granted day is forbidden`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("sessionType" to "SECOND_SESSION", "version" to 1)
-            val response = client.patch("/api/sessions/$sessionOnOtherDay/type", body, asUser(reliefUser))
-            assertEquals(403, response.code, response.body?.string().orEmpty())
-        }
-    }
-
     // --- Session create (the getToday-resolution path) ---
 
     @Test

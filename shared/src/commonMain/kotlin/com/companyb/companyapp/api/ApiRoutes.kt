@@ -45,8 +45,6 @@ object ApiRoutes {
 
     fun sessionStatus(id: String) = "${session(id)}/status"
 
-    fun sessionType(id: String) = "${session(id)}/type"
-
     fun sessionFinalPrice(id: String) = "${session(id)}/final-price"
 
     fun sessionVoid(id: String) = "${session(id)}/void"
@@ -194,7 +192,6 @@ object ApiRoutes {
     const val BRANCHES_EXPORT_MEDICAL_MISSION = "$BRANCHES_EXPORT/medical-mission"
     const val SESSION_PATH = "$SESSIONS/{sessionId}"
     const val SESSION_STATUS_PATH = "$SESSION_PATH/status"
-    const val SESSION_TYPE_PATH = "$SESSION_PATH/type"
     const val SESSION_FINAL_PRICE_PATH = "$SESSION_PATH/final-price"
     const val SESSION_VOID_PATH = "$SESSION_PATH/void"
     const val SESSION_UNVOID_PATH = "$SESSION_PATH/unvoid"

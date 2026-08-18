@@ -163,37 +163,6 @@ object SessionRepository {
         }
 
     @Suppress("UNUSED_PARAMETER")
-    fun updateType(
-        sessionId: UUID,
-        newType: SessionType,
-        expectedVersion: Int,
-        changedBy: UUID,
-        auditFn: (Session) -> Unit = {},
-    ): Session =
-        transaction {
-            // Count-0 misfire guard (the #149 lesson): 0 affected rows = a concurrent commit
-            // won the version — the caller must 409, never read back the other writer's row.
-            val updatedCount =
-                SessionTable.update({
-                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-                }) {
-                    it[SessionTable.sessionType] = newType
-                    it[SessionTable.version] = expectedVersion + 1
-                }
-            if (updatedCount != 1) {
-                throw VersionMismatchException(SessionTable.tableName, sessionId)
-            }
-
-            val session =
-                findSessionByIdInTransaction(sessionId)
-                    ?: error("Session $sessionId not found after type update")
-
-            auditFn(session)
-
-            session
-        }
-
-    @Suppress("UNUSED_PARAMETER")
     fun updateFinalPrice(
         sessionId: UUID,
         newFinalPrice: BigDecimal,
