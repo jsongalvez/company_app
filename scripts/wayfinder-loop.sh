@@ -159,8 +159,37 @@ newest_unprocessed() {
   return 1
 }
 
-pending_forms() { api get "/api/session/$1/form" 2>/dev/null | jq -r '.data[] | select(.metadata.kind == "question") | .id' 2>/dev/null || true; }
-pending_perms() { api get "/api/session/$1/permission" 2>/dev/null | jq -r '.data[] | .id' 2>/dev/null || true; }
+session_tree() {
+  local active child parent ids="$1" changed=1
+  active="$(api get /api/session/active 2>/dev/null | jq -r '.data | keys[]' 2>/dev/null || true)"
+  while [ "$changed" -eq 1 ]; do
+    changed=0
+    for child in $active; do
+      case ",$ids," in *",$child,"*) continue ;; esac
+      parent="$(api get "/api/session/$child" 2>/dev/null | jq -r '.data.parentID // ""' 2>/dev/null || true)"
+      case ",$ids," in
+        *",$parent,"*) ids="$ids $child"; changed=1 ;;
+      esac
+    done
+  done
+  printf '%s\n' $ids
+}
+pending_forms() {
+  local session
+  while read -r session; do
+    [ -n "$session" ] || continue
+    api get "/api/session/$session/form" 2>/dev/null |
+      jq -r '.data[] | select(.metadata.kind == "question") | .id' 2>/dev/null || true
+  done < <(session_tree "$1")
+}
+pending_perms() {
+  local session
+  while read -r session; do
+    [ -n "$session" ] || continue
+    api get "/api/session/$session/permission" 2>/dev/null |
+      jq -r '.data[] | .id' 2>/dev/null || true
+  done < <(session_tree "$1")
+}
 # active is an OBJECT keyed by session id ({sid: {type: ...}}), not an array of {id:...}
 # objects — has($s) is the membership test (the old any(.id == $s) never matched, so a
 # live session read as dead).
