@@ -41,7 +41,7 @@ export const metrics = {
   errorRate: new Rate("errors"),
 };
 
-export const thresholds = {
+const fullThresholds = {
   auth_latency: ["p(95)<500"],
   branches_latency: ["p(95)<500"],
   branch_latency: ["p(95)<500"],
@@ -64,4 +64,19 @@ export const thresholds = {
   authz_latency: ["p(95)<1000"],
   remittance_race_latency: ["p(95)<3000"],
   errors: ["rate<0.05"],
+};
+
+const baselineThresholds = {
+  branches_latency: fullThresholds.branches_latency,
+  clients_search_latency: fullThresholds.clients_search_latency,
+  // Baseline covers product listing under a broader early-load budget.
+  product_latency: ["p(95)<1000"],
+  my_branches_latency: fullThresholds.my_branches_latency,
+  dashboard_latency: fullThresholds.dashboard_latency,
+  errors: fullThresholds.errors,
+};
+
+export const thresholdProfiles = {
+  baseline: baselineThresholds,
+  full: fullThresholds,
 };

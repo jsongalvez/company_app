@@ -1,19 +1,12 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { BASE_URL, authHeaders, metrics, uuid } from "./helpers.js";
+import { BASE_URL, authHeaders, metrics, thresholdProfiles, uuid } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
 
 export const options = {
-  thresholds: {
-    branches_latency: ["p(95)<500"],
-    clients_search_latency: ["p(95)<1000"],
-    product_latency: ["p(95)<1000"],
-    my_branches_latency: ["p(95)<200"],
-    dashboard_latency: ["p(95)<200"],
-    errors: ["rate<0.05"],
-  },
+  thresholds: thresholdProfiles.baseline,
   stages: [
     { duration: "10s", target: 5 },
     { duration: "20s", target: 5 },

@@ -1,11 +1,11 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { BASE_URL, uuid, authHeaders, metrics, thresholds } from "./helpers.js";
+import { BASE_URL, uuid, authHeaders, metrics, thresholdProfiles } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
 
-export const options = { thresholds, stages: [
+export const options = { thresholds: thresholdProfiles.full, stages: [
   { duration: "15s", target: 5 },
   { duration: "30s", target: 5 },
   { duration: "15s", target: 0 },
