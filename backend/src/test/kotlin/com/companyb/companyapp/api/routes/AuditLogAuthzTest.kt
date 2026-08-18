@@ -21,8 +21,8 @@ import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
 import io.javalin.Javalin
-import io.javalin.testtools.JavalinTest
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
@@ -30,6 +30,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -41,12 +42,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AuditLogAuthzTest : BasePostgresTest() {
+    private val noneUser = DEFAULT_USER
     private val editorA = UUID.randomUUID()
     private val editorB = UUID.randomUUID()
     private val manageUsersUser = UUID.randomUUID()
     private val manageProductsUser = UUID.randomUUID()
     private val globalViewUser = UUID.randomUUID()
-    private val noneUser = UUID.randomUUID()
     private val branchA = UUID.randomUUID()
     private val branchB = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -202,26 +203,34 @@ class AuditLogAuthzTest : BasePostgresTest() {
     private fun at(hourOffset: Int): OffsetDateTime =
         OffsetDateTime.of(2026, 8, 1, 10 + hourOffset, 0, 0, 0, ZoneOffset.UTC)
 
-    private fun createApp(): Javalin {
-        val config = AppConfig.parse()
-        JwtService.init(config)
-        Password.init(config.authDummyPassword)
-        return Javalin.create { cfg ->
-            cfg.jsonMapper(KotlinxSerializationMapper())
-            cfg.routes.before { ctx ->
-                Database.connect(DatabaseTestHelper.requireTestDataSource())
-                ctx.attribute("userId", ctx.header("X-Test-User") ?: noneUser.toString())
+    companion object {
+        private val DEFAULT_USER = UUID.randomUUID()
+
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        private fun createApp(): Javalin {
+            val config = AppConfig.parse()
+            JwtService.init(config)
+            Password.init(config.authDummyPassword)
+            return Javalin.create { cfg ->
+                cfg.jsonMapper(KotlinxSerializationMapper())
+                cfg.routes.before { ctx ->
+                    Database.connect(DatabaseTestHelper.requireTestDataSource())
+                    ctx.attribute("userId", ctx.header("X-Test-User") ?: DEFAULT_USER.toString())
+                }
+                cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
+                    ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
+                }
+                cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
+                    ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
+                }
+                cfg.routes.exception(ConflictException::class.java) { e, ctx ->
+                    ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
+                }
+                AuditLogRoutes.register(cfg)
             }
-            cfg.routes.exception(ForbiddenException::class.java) { e, ctx ->
-                ctx.status(403).json(mapOf("error" to (e.message ?: "Forbidden")))
-            }
-            cfg.routes.exception(NotFoundException::class.java) { e, ctx ->
-                ctx.status(404).json(mapOf("error" to (e.message ?: "Not Found")))
-            }
-            cfg.routes.exception(ConflictException::class.java) { e, ctx ->
-                ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
-            }
-            AuditLogRoutes.register(cfg)
         }
     }
 
@@ -233,7 +242,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
     ): Pair<Int, AuditLogBrowseResponse> {
         var status = 0
         var body: AuditLogBrowseResponse? = null
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/audit-log/entries$query", asUser(user))
             status = response.code
             body =
@@ -378,21 +387,21 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `browse rejects invalid action`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.get("/api/audit-log/entries?action=NOPE", asUser(editorA)).code)
         }
     }
 
     @Test
     fun `browse rejects invalid date`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.get("/api/audit-log/entries?dateFrom=not-a-date", asUser(editorA)).code)
         }
     }
 
     @Test
     fun `browse rejects inverted date range`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -427,7 +436,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `browse rejects malformed cursor`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client.get("/api/audit-log/entries?cursor=not-a-cursor", asUser(editorA)).code,
@@ -437,7 +446,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `browse rejects limit out of range`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.get("/api/audit-log/entries?limit=0", asUser(editorA)).code)
             assertEquals(400, client.get("/api/audit-log/entries?limit=101", asUser(editorA)).code)
         }
@@ -449,7 +458,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `per-record history scopes to the caller window`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val visible =
                 client.get(
                     "/api/audit-log?tableName=session&recordId=$recordA",
@@ -463,7 +472,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `per-record history for other-branch record returns empty`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val invisible =
                 client
                     .get(
@@ -482,7 +491,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `flagged list scopes to window and carries changedByName`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/audit-log/flagged", asUser(editorB))
             assertEquals(200, response.code)
             val body = response.body?.string().orEmpty()
@@ -496,7 +505,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `flagged list excludes out-of-window and acknowledged rows`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/audit-log/flagged", asUser(editorA))
             assertEquals(200, response.code)
             val body = response.body?.string().orEmpty()
@@ -511,7 +520,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `acknowledge succeeds for a different user in the same window`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.patch("/api/audit-log/$branchBFlaggedId/acknowledge", null, asUser(editorB))
             assertEquals(200, response.code)
             val body = response.body?.string().orEmpty()
@@ -521,14 +530,14 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `self-acknowledge returns 409`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(409, client.patch("/api/audit-log/$selfAckId/acknowledge", null, asUser(editorA)).code)
         }
     }
 
     @Test
     fun `acknowledge outside the window returns 404`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.patch("/api/audit-log/$branchBFlaggedId/acknowledge", null, asUser(manageUsersUser)).code,
@@ -538,7 +547,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `acknowledge already-acknowledged returns 404`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val ackedId =
                 transaction {
                     AuditLogTable
@@ -552,7 +561,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `acknowledge nonexistent entry returns 404`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 404,
                 client.patch("/api/audit-log/${UUID.randomUUID()}/acknowledge", null, asUser(editorA)).code,
@@ -566,7 +575,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `tables endpoint serves the audited-table registry with labels`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val response = client.get("/api/audit-log/tables", asUser(noneUser))
             assertEquals(200, response.code)
             val tables = json.decodeFromString<List<AuditLogTableResponse>>(response.body?.string().orEmpty())
@@ -578,7 +587,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
 
     @Test
     fun `tables endpoint is reachable with zero grants`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(200, client.get("/api/audit-log/tables", asUser(noneUser)).code)
         }
     }
