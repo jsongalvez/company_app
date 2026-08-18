@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -13,6 +14,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
+import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
@@ -27,13 +29,21 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ReliefAccessServicePostgresTest : BasePostgresTest() {
+    private companion object {
+        const val CONCURRENT_OPERATIONS = 2
+        const val CONCURRENT_TIMEOUT_SECONDS = 10L
+    }
+
     private val reliefUserId = UUID.randomUUID()
     private val targetUserId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
@@ -206,6 +216,25 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `grant after deny returns denied request without capability`() {
+        val requestId = UUID.randomUUID()
+        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        ReliefAccessService.denyAccess(requestId, targetUserId)
+
+        val result = ReliefAccessService.grantAccess(requestId, targetUserId)
+
+        assertEquals(ReliefStatus.DENIED, result.requestStatus)
+        assertFalse(
+            CapabilityService.hasCapability(
+                userId = reliefUserId,
+                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.BRANCH_DAY,
+                contextId = branchDayId,
+            ),
+        )
+    }
+
+    @Test
     fun `deny from non-target user fails with 403`() {
         val otherUser = UUID.randomUUID()
         DatabaseTestHelper.insertTestUser(otherUser, "other")
@@ -233,6 +262,41 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `deny on non-existent request fails with 404`() {
         assertFailsWith<NotFoundException> {
             ReliefAccessService.denyAccess(UUID.randomUUID(), targetUserId)
+        }
+    }
+
+    @Test
+    fun `concurrent grant and deny never leave denied request with capability`() {
+        val requestId = UUID.randomUUID()
+        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        val executor = Executors.newFixedThreadPool(CONCURRENT_OPERATIONS)
+
+        try {
+            listOf(
+                executor.submit<Result<ReliefAccess>> {
+                    runCatching { ReliefAccessService.grantAccess(requestId, targetUserId) }
+                },
+                executor.submit<Result<ReliefAccess>> {
+                    runCatching { ReliefAccessService.denyAccess(requestId, targetUserId) }
+                },
+            ).forEach { it.get(CONCURRENT_TIMEOUT_SECONDS, TimeUnit.SECONDS) }
+
+            val finalRequest = ReliefAccessRepository.findById(requestId)
+            assertNotNull(finalRequest)
+            val hasCapability =
+                CapabilityService.hasCapability(
+                    userId = reliefUserId,
+                    capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                    contextType = CapabilityContextType.BRANCH_DAY,
+                    contextId = branchDayId,
+                )
+
+            assertFalse(finalRequest.requestStatus == ReliefStatus.DENIED && hasCapability)
+            if (finalRequest.requestStatus == ReliefStatus.GRANTED) {
+                assertTrue(hasCapability)
+            }
+        } finally {
+            executor.shutdownNow()
         }
     }
 

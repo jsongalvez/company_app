@@ -67,7 +67,9 @@ object ReliefAccessService {
                 ),
             ) { "Grant failed: relief access request not found in transaction" }
 
-        if (result.id == requestId) {
+        if (result.requestStatus == ReliefStatus.DENIED) {
+            logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId was already denied" }
+        } else if (result.id == requestId) {
             logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
         } else {
             logger.info {
@@ -103,26 +105,31 @@ object ReliefAccessService {
 
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
 
-        ReliefAccessRepository.deny(
-            requestId,
-            auditFn = { before, after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = GrantReliefAccessTable.tableName,
-                    recordId = after.id,
-                    before = before,
-                    after = after,
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    isFlagged = isRemitted,
-                    reason = reason,
-                    auditFields = GrantReliefAccessTable::auditFields,
-                )
-            },
-        )
+        val result =
+            ReliefAccessRepository.deny(
+                requestId,
+                auditFn = { before, after ->
+                    AuditLogRepository.recordUpdate(
+                        tableName = GrantReliefAccessTable.tableName,
+                        recordId = after.id,
+                        before = before,
+                        after = after,
+                        changedBy = callerId,
+                        branchId = branchDay.branchId,
+                        isFlagged = isRemitted,
+                        reason = reason,
+                        auditFields = GrantReliefAccessTable::auditFields,
+                    )
+                },
+            )
+
+        if (result.requestStatus == ReliefStatus.GRANTED) {
+            throw ValidationException("Cannot deny a request that has already been granted")
+        }
 
         logger.info { "[RELIEF-ACCESS-DENY] Request $requestId denied by $callerId" }
 
-        return ReliefAccessRepository.findById(requestId)!!
+        return result
     }
 
     @Suppress("ThrowsCount")

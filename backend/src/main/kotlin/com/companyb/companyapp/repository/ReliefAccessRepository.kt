@@ -109,13 +109,6 @@ object ReliefAccessRepository {
         auditFn: (ReliefAccess, ReliefAccess) -> Unit = { _, _ -> },
     ): ReliefAccess? =
         transaction {
-            val before =
-                GrantReliefAccessTable
-                    .selectAll()
-                    .where { GrantReliefAccessTable.id eq params.requestId }
-                    .singleOrNull()
-                    ?.toReliefAccess()
-
             GrantReliefAccessTable
                 .selectAll()
                 .where {
@@ -123,6 +116,17 @@ object ReliefAccessRepository {
                         (GrantReliefAccessTable.branchDayId eq params.branchDayId)
                 }.forUpdate(ForUpdateOption.ForUpdate)
                 .toList()
+
+            val before =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq params.requestId }
+                    .singleOrNull()
+                    ?.toReliefAccess()
+
+            if (before == null || before.requestStatus != ReliefStatus.PENDING) {
+                return@transaction before
+            }
 
             val existingGrant =
                 GrantReliefAccessTable
@@ -139,7 +143,10 @@ object ReliefAccessRepository {
             }
 
             GrantReliefAccessTable
-                .update({ GrantReliefAccessTable.id eq params.requestId }) {
+                .update({
+                    (GrantReliefAccessTable.id eq params.requestId) and
+                        (GrantReliefAccessTable.requestStatus eq ReliefStatus.PENDING)
+                }) {
                     it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
                     it[GrantReliefAccessTable.grantedBy] = params.grantedBy
                     it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
@@ -159,37 +166,45 @@ object ReliefAccessRepository {
                     .single()
                     .toReliefAccess()
 
-            if (before != null) {
-                auditFn(before, after)
-            }
+            auditFn(before, after)
             after
         }
 
     fun deny(
         requestId: UUID,
         auditFn: (ReliefAccess, ReliefAccess) -> Unit = { _, _ -> },
-    ) = transaction {
-        val before =
-            GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq requestId }
-                .single()
-                .toReliefAccess()
+    ): ReliefAccess =
+        transaction {
+            val before =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq requestId }
+                    .forUpdate(ForUpdateOption.ForUpdate)
+                    .single()
+                    .toReliefAccess()
 
-        GrantReliefAccessTable
-            .update({ GrantReliefAccessTable.id eq requestId }) {
-                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+            if (before.requestStatus != ReliefStatus.PENDING) {
+                return@transaction before
             }
 
-        val after =
             GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq requestId }
-                .single()
-                .toReliefAccess()
+                .update({
+                    (GrantReliefAccessTable.id eq requestId) and
+                        (GrantReliefAccessTable.requestStatus eq ReliefStatus.PENDING)
+                }) {
+                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+                }
 
-        auditFn(before, after)
-    }
+            val after =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq requestId }
+                    .single()
+                    .toReliefAccess()
+
+            auditFn(before, after)
+            after
+        }
 
     fun insertRequest(
         id: UUID,

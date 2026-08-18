@@ -938,3 +938,52 @@ was not ticketed under the one-child cadence.
 | 34 | Independent deterministic verification | R34 verified and implemented; R35 falsified; R36 verified |
 | 35 | Adversarial and deletion-test pass | Registration races, retry failure status, and dead model references checked |
 | 36 | Coverage, duplication, materiality, priority | No missing subsystem; one child resolved; R36 deferred |
+
+## Permanent-Map Refresh - Session 244
+
+After registration uniqueness child #211, four bounded read-only lanes rechecked C-01..C-14,
+retained candidates, and current implementation state. The highest-risk actionable finding is a
+relief access state-transition race; it is advanced as the sole next implementation child.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| Relief grant/deny transition race | `ReliefAccessService` pre-reads status; repository updates lack `PENDING` predicates | Repository locking does not prevent unconditional opposite transitions; sequential tests do not cover concurrent grant/deny | implement, P1 |
+| R15 - notification inserted-count truth | Batch insert returns candidate count; concurrent schedulers can conflict; precheck pairs independent session/user sets | Unique constraint preserves rows but reported count and pair filtering remain false | retain, P1/P2 |
+| R36 - delete unused `UserCapability` data class | Exact symbol search finds declaration only; `UserCapabilityTable` remains active | Deleting only data class leaves table, enums, grants, and view unchanged | defer, P2 |
+| k6 concurrency script integrity | Script imports missing `thresholds` and ignores setup failures/fallback IDs | Current helper exports `thresholdProfiles`; script cannot provide reliable concurrency evidence | retain, P1/P2 |
+| R35 - preserve CI retry status capture | Existing workflow captures retry status and exits non-zero | No false-success defect established | defer as workflow fog |
+
+### Relief transition race dossier
+
+`ReliefAccessService.grantAccess` and `denyAccess` read request status before invoking repository
+mutations (`backend/src/main/kotlin/com/companyb/companyapp/service/ReliefAccessService.kt:26-38,88-105`).
+The repository locks rows but its grant and deny updates are unconditional
+(`backend/src/main/kotlin/com/companyb/companyapp/repository/ReliefAccessRepository.kt:119-153,168-191`).
+Concurrent calls can therefore grant after deny, or leave `DENIED` while a capability was inserted.
+The smallest credible slice is repository-owned compare-and-transition from `PENDING`, with
+capability insertion and successful grant transition in one transaction, plus concurrent and
+repeated-attempt tests. Preserve existing capability checks, audit callbacks, and response states.
+
+Competing representation is a service mutex or application-wide lock. The deletion test rejects
+that shape: it adds process-local state and cannot protect multiple backend instances, while the
+database transaction already owns the authoritative row. Repository predicates concentrate the
+state invariant at the persistence seam.
+
+### Audit-of-audit
+
+- C-01..C-14 remain complete across Compose/platform bridges, backend/auth/persistence, shared
+  contracts, schema, tests/tooling, CI, and docs.
+- No Compose candidate survived: platform divergence is intentional and existing state modules
+  already own repeated lifecycle logic.
+- Relief transition race is distinct from R15 batch-count truth, R36 dead model cleanup, and
+  completed relief status wire typing.
+- Priority is relief transition race first, k6 concurrency integrity second, R15 third, R36 fourth.
+
+| Pass | Work | Result |
+|---|---|---|
+| 37 | Four bounded coverage lanes | C-01..C-14 complete; relief race, R15, R36, and k6 candidates reviewed |
+| 38 | Independent deterministic verification | Relief predicates absent; R15 count/pair defect and R36 dead declaration confirmed |
+| 39 | Adversarial and deletion-test pass | Grant/deny race survives; database ownership beats process lock; no candidate overlap |
+| 40 | Coverage, duplication, materiality, priority | Relief race is sole next P1 child; lower candidates retained/deferred |
