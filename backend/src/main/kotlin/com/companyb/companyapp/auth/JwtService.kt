@@ -14,13 +14,18 @@ import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 
 object JwtService {
+    private data class Runtime(
+        val issuer: String,
+        val audience: String,
+        val algorithm: Algorithm,
+        val verifier: com.auth0.jwt.JWTVerifier,
+    )
+
     private val logger = KotlinLogging.logger {}
     private const val MIN_SECRET_LENGTH = 32
 
-    private var issuer: String = ""
-    private var audience: String = ""
-    private var algorithm: Algorithm? = null
-    private var verifier: com.auth0.jwt.JWTVerifier? = null
+    @Volatile
+    private var runtime: Runtime? = null
 
     fun init(config: AppConfig) {
         val secret = config.jwtSecret
@@ -28,34 +33,34 @@ object JwtService {
             "JWT_SECRET must be at least $MIN_SECRET_LENGTH characters"
         }
 
-        issuer = config.jwtIssuer
-        audience = config.jwtAudience
+        val issuer = config.jwtIssuer
+        val audience = config.jwtAudience
         val algo = Algorithm.HMAC256(secret)
-        algorithm = algo
-        verifier =
+        val verifier =
             JWT
                 .require(algo)
                 .withIssuer(issuer)
                 .withAudience(audience)
                 .acceptLeeway(60.seconds.inWholeSeconds)
                 .build()
+        runtime = Runtime(issuer, audience, algo, verifier)
     }
 
     fun generateToken(userId: String): String {
         logger.info { "[GENERATE-TOKEN] Generating token for ${userId.maskUUID()}" }
-        val algo = algorithm ?: error("JwtService.init() must be called before generateToken()")
+        val configured = runtime ?: error("JwtService.init() must be called before generateToken()")
         val now = Instant.now()
         val expiresAt = now.plus(1, ChronoUnit.DAYS)
         logger.info { "[GENERATE-TOKEN] Token expires at $expiresAt" }
         val token =
             JWT
                 .create()
-                .withIssuer(issuer)
-                .withAudience(audience)
+                .withIssuer(configured.issuer)
+                .withAudience(configured.audience)
                 .withSubject(userId)
                 .withExpiresAt(Date.from(expiresAt))
                 .withIssuedAt(Date.from(now))
-                .sign(algo)
+                .sign(configured.algorithm)
         logger.info { "[GENERATE-TOKEN] Successfully generated token" }
         return token
     }
@@ -63,8 +68,8 @@ object JwtService {
     @Suppress("ReturnCount")
     fun verifyToken(token: String): String? =
         try {
-            val v = verifier ?: error("JwtService.init() must be called before verifyToken()")
-            val decoded = v.verify(token)
+            val configured = runtime ?: error("JwtService.init() must be called before verifyToken()")
+            val decoded = configured.verifier.verify(token)
             val subj =
                 decoded.subject ?: return null.also {
                     logger.warn { "[VERIFY-TOKEN] Token has no subject" }
