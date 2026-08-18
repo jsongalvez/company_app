@@ -1,5 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.RegistrationConflictException
+import com.companyb.companyapp.exception.RegistrationConflictField
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -14,7 +16,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -29,6 +31,13 @@ data class UserBranchAssignmentSummary(
     val branchId: UUID,
     val branchName: String,
     val slot: Short,
+)
+
+data class UserCreateParams(
+    val username: String,
+    val passwordHash: String,
+    val email: String,
+    val displayName: String,
 )
 
 object UserRepository {
@@ -60,20 +69,44 @@ object UserRepository {
         }
 
     fun createUser(
-        username: String,
-        passwordHash: String,
-        email: String,
-        displayName: String,
+        params: UserCreateParams,
         auditFn: (UUID) -> Unit = {},
     ): UUID =
         transaction {
             val insert =
-                AppUserTable.insert {
-                    it[AppUserTable.username] = username
-                    it[AppUserTable.passwordHash] = passwordHash
-                    it[AppUserTable.email] = email
-                    it[AppUserTable.displayName] = displayName
+                AppUserTable.insertIgnore {
+                    it[AppUserTable.username] = params.username
+                    it[AppUserTable.passwordHash] = params.passwordHash
+                    it[AppUserTable.email] = params.email
+                    it[AppUserTable.displayName] = params.displayName
+                    it[AppUserTable.status] = UserStatus.ACTIVE
+                    it[AppUserTable.createdAt] = CurrentTimestampWithTimeZone
                 }
+            if (insert.insertedCount == 0) {
+                val conflict =
+                    when {
+                        AppUserTable
+                            .select(AppUserTable.id)
+                            .where { AppUserTable.username eq params.username }
+                            .empty()
+                            .not() -> {
+                            RegistrationConflictField.USERNAME
+                        }
+
+                        AppUserTable
+                            .select(AppUserTable.id)
+                            .where { AppUserTable.email eq params.email }
+                            .empty()
+                            .not() -> {
+                            RegistrationConflictField.EMAIL
+                        }
+
+                        else -> {
+                            error("Registration insert was ignored without a username or email conflict")
+                        }
+                    }
+                throw RegistrationConflictException(conflict)
+            }
             val id = insert[AppUserTable.id]
             auditFn(id)
             id

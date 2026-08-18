@@ -5,6 +5,7 @@ import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.CapabilityRepository
+import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
@@ -59,10 +60,12 @@ object DevSeeder {
             val passwordHash = Password.create(password)
             val userId =
                 UserRepository.createUser(
-                    username,
-                    passwordHash,
-                    "$username$DEV_USER_EMAIL_DOMAIN",
-                    "Dev $username",
+                    UserCreateParams(
+                        username = username,
+                        passwordHash = passwordHash,
+                        email = "$username$DEV_USER_EMAIL_DOMAIN",
+                        displayName = "Dev $username",
+                    ),
                 )
 
             val ownerRoleId =
