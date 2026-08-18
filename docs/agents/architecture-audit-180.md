@@ -1115,3 +1115,58 @@ were migrated. ADR-0021's two-slice fetch timing and null-context fail-closed be
 | 50 | Independent deterministic verification | Shared Compose enum duplication confirmed; mobile and cleanup behavior verified; route-test and scheduler leads retained |
 | 51 | Adversarial and deletion-test pass | Null fail-closed matching, ADR-0020 platform split, cleanup failure policy, auth setup variance, and migration wire ownership checked |
 | 52 | Coverage, duplication, materiality, priority | #218 selected and resolved; lower candidates retained/deferred without extra child |
+
+## Permanent-Map Refresh - Session 251
+
+After implementation child #218, a focused C-01..C-14 audit rechecked the retained mobile,
+scheduler, cleanup, and route-test candidates. Product behavior outside the selected child was
+unchanged during the audit.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| Android/iOS mobile host and session-list duplication | `AppNavHost.android.kt`/`.ios.kt` are byte-identical (365 lines); `SessionList.android.kt`/`.ios.kt` are byte-identical (116 lines) | Common implementation uses only platform-independent APIs; desktop remains distinct under ADR-0020; route, ViewModel, state, and card behavior match | implement, P2; child #219 |
+| Scheduler capability code ownership | Scheduler and test use a private Kotlin string while shared `CapabilityCodes` owns other capability codes; migrations necessarily retain SQL literals | Runtime branch pairing and role-derived provisioning are correct after #207/#215; only Kotlin ownership is duplicated | retain, P1/P2 |
+| Route-test setup helper | 15 suites repeat stable app/JWT/password/database setup, but route registration, exception maps, and auth modes vary | Broad configurable factory would relocate complexity; narrow composable helpers remain plausible test-only maintenance | defer, P2 |
+| Test-database cleanup policy | Check and cleanup scripts repeat discovery predicates | Interfaces intentionally differ (assert versus mutate) and both fail closed after #203 | defer, P2 |
+
+### Mobile host/list dossier
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P2; **confidence:** high.
+- **Evidence:** Android/iOS `AppNavHost` files and `SessionList` files were byte-identical. Common
+  `App.kt`, ViewModels, and `SessionDashboardScreen` already own shared setup/state; desktop host
+  and table remain materially different. ADR-0020's compile-time mobile/desktop split permits a
+  shared mobile implementation behind thin target adapters.
+- **Current invalid state:** no runtime defect; duplicated mobile ownership can drift when a future
+  Android change is not mirrored in iOS.
+- **Competing representation:** retain two full actuals, or use a configurable platform registry.
+  The registry is rejected as speculative; common implementation plus thin actual delegates keeps
+  the existing expect/actual seam and concentrates mobile behavior.
+- **Smallest credible scope:** move the two identical bodies into `commonMain` and leave Android,
+  iOS, and desktop actuals as required. Preserve route order, ViewModel scoping, SessionState reads,
+  notification navigation, and `SessionListArgs` behavior.
+- **Risks and validation:** common-source API availability, internal visibility, and lifecycle drift.
+  Structural gates, `:composeApp:ktlintCheck :composeApp:compileKotlinDesktop :composeApp:desktopTest`,
+  and Android compilation passed. iOS compilation remains externally blocked before source
+  compilation by unavailable `kotlin-native-prebuilt:2.3.10` for linux-aarch64.
+- **Dependencies:** ADR-0020 and existing common `SessionList` contract. **Deletion test:** deleting
+  either target body leaves one mobile owner and unchanged desktop behavior.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 rechecked with separate lanes for mobile bridges, scheduler capability
+  ownership, route-test setup, and cleanup scripts.
+- Duplication: mobile extraction is distinct from shared capability enum ownership, scheduler runtime
+  correctness, cleanup-policy interfaces, and test-server lifecycle ownership.
+- Materiality: exact 481-line mobile duplication is actionable maintenance leverage; scheduler and
+  route-test candidates remain retained/deferred without current runtime defects.
+- Priority: #219 is the sole implementation child; scheduler ownership remains next higher-priority
+  candidate after this P2 extraction only if no stronger behavior candidate appears.
+
+| Pass | Work | Result |
+|---|---|---|
+| 53 | Focused C-01..C-14 lanes | Mobile, scheduler, route-test, and cleanup candidates rechecked |
+| 54 | Independent deterministic verification | Byte identity, platform API availability, and ownership variance confirmed |
+| 55 | Adversarial and deletion-test pass | ADR split, lifecycle, auth setup variance, migration literals, and failure policy checked |
+| 56 | Coverage, duplication, materiality, priority | #219 selected as sole implementation child |
