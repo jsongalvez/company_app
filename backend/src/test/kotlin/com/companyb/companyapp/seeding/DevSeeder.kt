@@ -16,12 +16,13 @@ import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -112,7 +113,8 @@ object DevSeeder {
                     it[UserCapabilityTable.sourceId] = DEV_FIXTURE_BRANCH_ID
                 }
             }
-            val effectiveFrom = OffsetDateTime.now(ZoneOffset.UTC)
+            val effectiveFrom: OffsetDateTime =
+                RoleTable.select(CurrentTimestampWithTimeZone).first()[CurrentTimestampWithTimeZone]
             val effectiveUntil = effectiveFrom.plusYears(10)
             for ((sessionType, rate) in listOf(
                 SessionType.REGULAR to "2500.00",
