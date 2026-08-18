@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 test -f "$spec"
 if find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" \
@@ -9,8 +10,9 @@ if find "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" 
     "$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/mapping" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/dto" \
     "$repo_root/shared/src/commonMain/kotlin/com/companyb/companyapp/domain" \
-     "$repo_root/scripts/normalize-openapi-spec.mjs" \
-     "$repo_root/scripts/openapi-route-contract.json" \
+      "$repo_root/scripts/normalize-openapi-spec.mjs" \
+      "$repo_root/scripts/openapi-source-parser.mjs" \
+      "$repo_root/scripts/openapi-route-contract.json" \
      "$repo_root/scripts/verify-openapi-spec.sh" \
     -type f -newer "$spec" -print -quit | grep -q .; then
   echo "Generated OpenAPI artifact is older than source inputs" >&2
@@ -21,73 +23,35 @@ trap 'rm -f "$normalized_spec"' EXIT
 node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$normalized_spec"
 spec="$normalized_spec"
 
-OPENAPI_ROUTE_DIR="$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" node - "$spec" <<'NODE'
-const fs = require("fs");
+OPENAPI_ROUTE_DIR="$repo_root/backend/src/main/kotlin/com/companyb/companyapp/api/routes" node --input-type=module - "$spec" <<'NODE'
+import fs from "node:fs";
+import crypto from "node:crypto";
+import { balancedDelimited, sourceAnnotations as parseSourceAnnotations, withoutComments } from "./scripts/openapi-source-parser.mjs";
 const spec = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 if (spec.openapi !== "3.1.0") throw new Error("OpenAPI version is not 3.1.0");
 
 const routeDir = process.env.OPENAPI_ROUTE_DIR;
 if (!routeDir) throw new Error("OPENAPI_ROUTE_DIR is required");
 const constants = {};
+const sharedRoutes = fs.readFileSync(`${process.cwd()}/shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt`, "utf8");
+for (const match of sharedRoutes.matchAll(/const val (\w+)\s*=\s*"([^"]*)"/g)) constants[match[1]] = match[2];
+function resolveApiRoute(value) {
+  let resolved = value;
+  for (let pass = 0; pass < 10; pass++) {
+    const next = resolved.replace(/\$([A-Z][A-Z0-9_]*)/g, (_, name) => constants[name] || `$${name}`);
+    if (next === resolved) return next;
+    resolved = next;
+  }
+  return resolved;
+}
 const routes = [];
 const annotated = new Map();
 const annotationSources = new Map();
-function withoutComments(source) {
-  let result = '';
-  let index = 0;
-  let quote = null;
-  while (index < source.length) {
-    if (!quote && source.startsWith('//', index)) {
-      const end = source.indexOf('\n', index);
-      const stop = end < 0 ? source.length : end;
-      result += ' '.repeat(stop - index);
-      index = stop;
-      continue;
-    }
-    if (!quote && source.startsWith('/*', index)) {
-      const end = source.indexOf('*/', index + 2);
-      const stop = end < 0 ? source.length : end + 2;
-      result += source.slice(index, stop).replace(/[^\n]/g, ' ');
-      index = stop;
-      continue;
-    }
-    const character = source[index];
-    result += character;
-    if (character === '"' && source[index - 1] !== '\\') quote = quote ? null : '"';
-    index++;
-  }
-  return result;
-}
-function balancedDelimited(source, start, opening, closing) {
-  let depth = 0;
-  let quoted = false;
-  for (let index = start; index < source.length; index++) {
-    if (source[index] === '"' && source[index - 1] !== '\\') quoted = !quoted;
-    if (quoted) continue;
-    if (source[index] === opening) depth++;
-    if (source[index] === closing && --depth === 0) return source.slice(start, index + 1);
-  }
-  throw new Error(`Unclosed delimiter at ${start}`);
-}
 function sourceAnnotations(source, file) {
-  const result = [];
-  const scanSource = withoutComments(source);
-  let cursor = 0;
-  while (true) {
-    const start = scanSource.indexOf('@OpenApi', cursor);
-    if (start < 0) return result;
-    const open = scanSource.indexOf('(', start);
-    const annotation = balancedDelimited(scanSource, open, '(', ')');
-    const body = annotation.slice(1, -1);
-    const path = body.match(/\bpath\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
-    const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || '').matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
-    if (!path || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
-    const owner = scanSource.slice(start).match(/(?:object|class)\s+(\w+)\s*\{/)?.[1];
-    const operationId = body.match(/\boperationId\s*=\s*"([^"]+)"/)?.[1];
-    if (!owner || !operationId) throw new Error(`OpenAPI annotation has no owner or operationId in ${file}`);
-    result.push({ start, end: open + annotation.length, annotation, path, methods, owner, operationId });
-    cursor = open + annotation.length;
-  }
+  return parseSourceAnnotations(source, file, (value) => resolveApiRoute(constants[value] || value)).map((annotation) => ({
+    ...annotation,
+    annotation: annotation.source,
+  }));
 }
 function openApiParams(annotation) {
   const entries = [];
@@ -126,8 +90,8 @@ for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"
       });
     }
   }
-  for (const match of scanSource.matchAll(/routes\.(get|post|patch|delete)\s*\(\s*"([^"]+)"/g)) {
-    const path = match[2].replace(/\{\$([A-Z0-9_]+)\}/g, (_, name) => `{${constants[name] || name.toLowerCase().replace(/_PARAM$/, "")}}`);
+  for (const match of scanSource.matchAll(/routes\.(get|post|patch|delete)\s*\(\s*(?:"([^"]+)"|ApiRoutes\.(\w+))/g)) {
+    const path = resolveApiRoute(match[2] || constants[match[3]] || "").replace(/\{\$([A-Z0-9_]+)\}/g, (_, name) => `{${constants[name] || name.toLowerCase().replace(/_PARAM$/, "")}}`);
     routes.push(`${match[1]} ${path}`);
   }
 }
@@ -188,7 +152,7 @@ for (const [path, methods] of Object.entries(spec.paths || {})) for (const [meth
    if (routeSource.split(routeBinding.registration).length - 1 !== 1) throw new Error(`${method.toUpperCase()} ${path} route registration binding is not unique or stale`);
   if (!routeBinding.key || routeBinding.key !== `${method} ${path}`) throw new Error(`${method.toUpperCase()} ${path} route registration key is not exact`);
   if (!routeBinding.owner || routeBinding.owner !== annotationBinding.owner) throw new Error(`${method.toUpperCase()} ${path} annotation and registration have different owners`);
-   const expectedHash = require("crypto").createHash("sha256").update(routeBinding.selectedHandlerSource).digest("hex");
+    const expectedHash = crypto.createHash("sha256").update(routeBinding.selectedHandlerSource).digest("hex");
    if (routeBinding.selectedHandlerHash !== expectedHash) throw new Error(`${method.toUpperCase()} ${path} selected handler source hash is missing or invalid`);
    if (routeBinding.selectedHandlerStart < 0 || routeBinding.selectedHandlerEnd !== routeBinding.selectedHandlerStart + routeBinding.selectedHandlerSource.length || routeSource.slice(routeBinding.selectedHandlerStart, routeBinding.selectedHandlerEnd) !== routeBinding.selectedHandlerSource) throw new Error(`${method.toUpperCase()} ${path} selected handler source range is stale`);
    if (routeSource.split(routeBinding.selectedHandlerSource).length - 1 !== 1) throw new Error(`${method.toUpperCase()} ${path} selected handler source binding is not unique or stale`);

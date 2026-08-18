@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { balancedDelimited, enclosingOwner, sourceAnnotations, splitTopLevel, withoutComments } from "./openapi-source-parser.mjs";
 
 const [sourcePath, targetPath] = process.argv.slice(2);
 if (!sourcePath || !targetPath) throw new Error("source and target paths required");
@@ -50,52 +51,6 @@ for (const { source } of [...routeSources, ...serviceSources, ...mappingSources]
   }
 }
 
-function withoutComments(source) {
-  let result = "";
-  let index = 0;
-  let quote = null;
-  while (index < source.length) {
-    if (!quote && source.startsWith("//", index)) {
-      const end = source.indexOf("\n", index);
-      const stop = end < 0 ? source.length : end;
-      result += " ".repeat(stop - index);
-      index = stop;
-      continue;
-    }
-    if (!quote && source.startsWith("/*", index)) {
-      const end = source.indexOf("*/", index + 2);
-      const stop = end < 0 ? source.length : end + 2;
-      result += source.slice(index, stop).replace(/[^\n]/g, " ");
-      index = stop;
-      continue;
-    }
-    const character = source[index];
-    result += character;
-    if (character === '"' && source[index - 1] !== "\\") quote = quote ? null : '"';
-    index++;
-  }
-  return result;
-}
-
-function splitTopLevel(value) {
-  const result = [];
-  let start = 0;
-  let depth = 0;
-  let quoted = false;
-  for (let index = 0; index < value.length; index++) {
-    if (value[index] === '"' && value[index - 1] !== "\\") quoted = !quoted;
-    if (quoted) continue;
-    if ("<([{".includes(value[index])) depth++;
-    if (">)]}".includes(value[index])) depth--;
-    if (value[index] === "," && depth === 0) {
-      result.push(value.slice(start, index));
-      start = index + 1;
-    }
-  }
-  result.push(value.slice(start));
-  return result;
-}
-
 function balancedBlock(source, start) {
   const open = source.indexOf("{", start);
   if (open < 0) return source.slice(start);
@@ -109,43 +64,10 @@ function balancedBlock(source, start) {
   }
   return source.slice(start);
 }
-function balancedDelimited(source, start, opening, closing) {
-  const open = source.indexOf(opening, start);
-  if (open < 0) return "";
-  let depth = 0;
-  let quoted = false;
-  for (let index = open; index < source.length; index++) {
-    if (source[index] === '"' && source[index - 1] !== "\\") quoted = !quoted;
-    if (quoted) continue;
-    if (source[index] === opening) depth++;
-    if (source[index] === closing && --depth === 0) return source.slice(open, index + 1);
-  }
-  return source.slice(open);
-}
 
 function annotationMetadata(source, file) {
-  const scanSource = withoutComments(source);
-  const result = [];
-  let cursor = 0;
-  while (true) {
-    const start = scanSource.indexOf("@OpenApi", cursor);
-    if (start < 0) return result;
-    const open = scanSource.indexOf("(", start);
-    if (open < 0) throw new Error(`Unclosed OpenApi annotation in ${file}`);
-    const annotation = balancedDelimited(scanSource, open, "(", ")");
-    if (!annotation.endsWith(")")) throw new Error(`Unclosed OpenApi annotation in ${file}`);
-    const body = annotation.slice(1, -1);
-    const pathMatch = body.match(/\bpath\s*=\s*(?:"((?:[^"\\]|\\.)*)"|ApiRoutes\.(\w+))/);
-    const pathValue = pathMatch ? resolveApiRoute(pathMatch[1] || apiRouteConstants.get(pathMatch[2]) || "") : undefined;
-    const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
-    if (!pathValue || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
-    const owner = enclosingOwner(source, start);
-    if (!owner) throw new Error(`OpenApi annotation is not owned by a route object in ${file}`);
-    const operationId = body.match(/\boperationId\s*=\s*"([^"]+)"/)?.[1];
-    if (!operationId) throw new Error(`OpenApi annotation has no operationId in ${file}`);
-    result.push({ path: pathValue, methods, operationId, owner, file, source: source.slice(start, open + annotation.length) });
-    cursor = open + annotation.length;
-  }
+  return sourceAnnotations(source, file, (value) => resolveApiRoute(apiRouteConstants.get(value) || value))
+    .map((annotation) => ({ ...annotation, file }));
 }
 
 function functionBody(source, handler) {
@@ -183,10 +105,6 @@ function handlerSource(source, handler, routeIndex) {
     }
   }
   return result;
-}
-function enclosingOwner(source, index) {
-  const owners = [...source.slice(0, index).matchAll(/(?:object|class)\s+(\w+)\s*\{/g)];
-  return owners.at(-1)?.[1] || source.slice(index).match(/(?:object|class)\s+(\w+)\s*\{/)?.[1] || null;
 }
 function sourceHash(source) {
   return crypto.createHash("sha256").update(source).digest("hex");
