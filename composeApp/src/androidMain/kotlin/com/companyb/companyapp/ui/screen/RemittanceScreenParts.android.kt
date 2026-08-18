@@ -46,18 +46,18 @@ actual fun RemittanceRowList(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = remittanceTypeLabel(remittance.type),
+                            text = remittanceTypeLabel(remittance.type.name),
                             style = MaterialTheme.typography.titleSmall,
                             modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = remittance.status,
+                            text = remittance.status.name,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Text(
-                        text = remittanceMethodLabel(remittance.method),
+                        text = remittanceMethodLabel(remittance.method.name),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
