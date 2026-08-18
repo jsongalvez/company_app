@@ -419,3 +419,12 @@ remain authoritative.
 - Five independent bounded dossiers were completed before ranking; no candidate was suppressed by a higher-ranked candidate.
 - Structured repeated rubric fallback covered fact integrity, domain coherence, long-term architecture, adversarial falsification, feasibility, and comprehension. Continuous Luna scoring was unavailable in this environment; no unsupported score is claimed.
 - No product code, tests, migrations, or behavior changed during this audit refresh.
+
+## Session 122 operational priority
+
+The full `./gradlew :backend:test` gate took 12m50s on this VPS. Two earlier runs exceeded
+15 minutes and were terminated by the runner without a test failure; the scheduler-focused
+subset completed in 20s. This is now the highest-priority follow-up audit ahead of the remaining
+R14/R13/R16 implementation children: explain test discovery and worker behavior, database setup
+and cleanup cost, serial bottlenecks, and any hidden hangs; then optimize without weakening test
+isolation or coverage. Tracking ticket: `Audit: diagnose slow Gradle backend tests`.

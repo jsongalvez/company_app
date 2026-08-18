@@ -42,7 +42,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
-import com.companyb.companyapp.service.NextAppointmentScheduler
+import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.utils.Helper
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
@@ -50,16 +50,11 @@ import io.javalin.http.UnauthorizedResponse
 import io.javalin.openapi.plugin.OpenApiPlugin
 import io.javalin.openapi.plugin.swagger.SwaggerPlugin
 import org.slf4j.MDC
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
 private const val KB = 1024L
 private const val MAX_REQUEST_SIZE_KB = 64L
-private const val SCHEDULER_PERIOD_HOURS = 24L
 private const val HTTP_BAD_REQUEST = 400
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_NOT_FOUND = 404
@@ -107,6 +102,8 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         DeltaTimeConverter.endRequest()
         MDC.clear()
     }
+    config.events.serverStartFailed { shutdownScheduler() }
+    config.events.serverStopping { shutdownScheduler() }
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
@@ -173,39 +170,17 @@ fun initializeDenyList() {
     logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
 }
 
-fun initializeScheduler() {
-    val scheduler =
-        Executors.newSingleThreadScheduledExecutor { runnable ->
-            Thread(runnable, "notification-scheduler").apply { isDaemon = true }
-        }
-    val manilaZone = ZoneId.of("Asia/Manila")
-    val now = ZonedDateTime.now(manilaZone)
-    val initialDelayMs = NextAppointmentScheduler.nextRunDelayMs(now)
+private val schedulerLifecycle = SchedulerLifecycle()
 
-    logger.info {
-        "[SCHEDULER] Scheduling notification task at 07:00 AM Manila (initial delay: ${initialDelayMs}ms)"
-    }
+fun initializeScheduler() = schedulerLifecycle.start()
 
-    scheduler.scheduleAtFixedRate(
-        @Suppress("TooGenericExceptionCaught")
-        {
-            try {
-                val count = NextAppointmentScheduler.run()
-                logger.info { "[SCHEDULER] Created $count notifications" }
-            } catch (e: Exception) {
-                logger.error(e) { "[SCHEDULER] Notification task failed" }
-            }
-        },
-        initialDelayMs,
-        TimeUnit.HOURS.toMillis(SCHEDULER_PERIOD_HOURS),
-        TimeUnit.MILLISECONDS,
-    )
-}
+fun shutdownScheduler() = schedulerLifecycle.stop()
 
 fun main() {
     main(AppConfig.parse())
 }
 
+@Suppress("TooGenericExceptionCaught")
 fun main(config: AppConfig) {
     RequestElapsedConverter.startRequest()
     DeltaTimeConverter.startRequest()
@@ -217,7 +192,12 @@ fun main(config: AppConfig) {
     DatabaseConfig.initialize(config)
     initializeDenyList()
     initializeScheduler()
-    initializeJavalin(config)
+    try {
+        initializeJavalin(config)
+    } catch (e: Exception) {
+        shutdownScheduler()
+        throw e
+    }
 
     val elapsed = RequestElapsedConverter.currentElapsedMs()
     logger.info { "[INITIALIZATION] Completed in $elapsed ms." }
