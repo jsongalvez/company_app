@@ -32,6 +32,20 @@ One lens per phase, each run as a parallel sub-agent per pass:
 - **Exit**: one full pass with zero HARD findings across all five lenses. The design is then presented to the human for the final confirmation.
 - The falsification record + the locked design + the simple-language presentation become the ticket resolution.
 
+## AFK Candidate Verification
+
+Architecture audits that produce multiple accepted candidates must explore every candidate before ranking implementation order. A higher-ranked candidate never suppresses another candidate's dossier.
+
+GPT-5.6 Luna is the sole verifier for this repository's AFK architecture flow. Use continuous scoring when OpenCode2 exposes scoring-token logprobs. Otherwise use structured repeated rubric scoring and record `structured` mode with reduced confidence. Alternate candidate positions and blind candidate labels to reduce presentation bias. Repeat evaluation and decompose criteria across the five lenses plus feasibility.
+
+Verifier output is advisory. Deterministic repository evidence is authoritative: paths, symbols, requirements, ADR status, schema, grep results, builds, and tests. A candidate cannot reach `verified` while a hard deterministic claim fails.
+
+Each candidate lifecycle is:
+
+`identified → evidenced → explored → falsified → verified → dispositioned → ticketed → implemented → re-audited`
+
+Every transition records its artifact and completion evidence in the audit ledger. `ticketed` is allowed only after all in-scope candidates are `dispositioned`. AFK flow selects implementation order autonomously; human input is reserved for business ambiguity, safety, external authorization, irreversible scope, or a full audit with no justifiable candidate.
+
 ## Where it lives
 
 - This doc is the authority on the decision loop.

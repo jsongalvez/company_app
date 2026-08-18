@@ -327,3 +327,32 @@ also rechecked the current implementation and tests for a fresh finance race.
 | 11 | Focused bounded lanes over deferred leads and fresh finance seam | R13-R16 rechecked; R18 independently evidenced |
 | 12 | Coverage and duplication pass | Existing C-01..C-14 coverage complete; compensation race distinct from notification idempotency |
 | 13 | Materiality and falsification pass | R18 is a concurrent financial-write failure, not style or hypothetical abstraction; deferred leads retained with narrowed scope |
+
+## Candidate Verification Refresh - Session 120
+
+The focused post-R18 audit retained every materially accepted candidate instead of selecting one early. Five non-overlapping lanes produced candidate dossiers; explicit skips and rejected leads remain outside the candidate set.
+
+### Candidate ledger
+
+| Candidate | Evidence | Exploration | Verification | Disposition | Next ticket |
+|---|---|---|---|---|---|
+| R13 - unify production persistence clock | complete | complete | Luna + deterministic evidence pending | implement/defer ordering | not created |
+| R14 - enforce OpenAPI verification in mandatory gates | complete | complete | Luna + deterministic evidence pending | implement/defer ordering | not created |
+| R15 - return actual inserted count from notification batch creation | complete | complete | Luna + deterministic evidence pending | implement/defer ordering | not created |
+| R16 - delete unused `SessionState.isLoggedIn` machinery | complete | complete | Luna + deterministic evidence pending | implement/defer ordering | not created |
+| R19 - own scheduler executor lifecycle | complete | complete | Luna + deterministic evidence pending | implement/defer ordering | not created |
+
+### Verification contract
+
+- GPT-5.6 Luna is sole verifier. Continuous scoring is used when OpenCode2 exposes scoring-token logprobs; structured repeated scoring is the fallback and is marked lower confidence.
+- Every candidate receives position-blinded repeated checks across fact integrity, domain coherence, long-term architecture, adversarial falsification, and feasibility.
+- Deterministic repository evidence is authoritative. Failed paths, symbols, requirements, ADR, schema, grep, build, or test checks block `verified` regardless of Luna score.
+- No implementation child is created until all five candidates have a final disposition. The next implementation ticket is selected by dependency-aware ranking, not by deleting lower-ranked candidates.
+
+### Refresh audit log
+
+| Pass | Work | Result |
+|---|---|---|
+| 14 | Focused lanes over all retained deferred leads and lifecycle seams | R13-R16 reverified; R19 surfaced; no candidate hidden |
+| 15 | Candidate completeness and overlap pass | Five materially distinct candidates retained; explicit skips remain excluded |
+| 16 | Lifecycle protocol pass | Every candidate requires dossier, deterministic checks, Luna verification, falsification, and disposition before ticketing |

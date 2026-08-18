@@ -55,7 +55,7 @@ Do not force an abstraction. Prefer boring local code when it is already clear.
 
 Do not recommend changes solely for stylistic consistency, hypothetical extensibility, minor line-count reduction, or moving existing branching behind a new type.
 
-Return at most two opportunities. If nothing clearly meets the threshold, return `skip`.
+Return at most two opportunities per bounded subsystem. Preserve every materially accepted opportunity in the candidate ledger; do not select one winner and discard the rest. If nothing clearly meets the threshold, return `skip`.
 
 For every recommendation, provide:
 
@@ -67,6 +67,12 @@ For every recommendation, provide:
 6. Regression risks and migration concerns.
 7. Existing and additional validation required.
 8. Confidence: high, medium, or low.
+
+For every accepted candidate, complete this lifecycle before creating implementation tickets:
+
+`identified → evidenced → explored → falsified → verified → dispositioned → ticketed → implemented → re-audited`
+
+GPT-5.6 Luna is the sole AFK verifier. Use continuous scoring when OpenCode2 exposes scoring-token logprobs; otherwise use structured repeated rubric scoring and record reduced confidence. Alternate candidate positions and blind labels. Deterministic repository evidence is authoritative and blocks verification when it fails. Every candidate must receive a dossier, deterministic fact pass, verifier pass, adversarial pass, and explicit `implement`, `defer`, `reject`, or `duplicate` disposition.
 
 3. Validate and synthesize
 
@@ -100,4 +106,3 @@ The audit is complete only when:
 - duplicates and weak abstractions have been removed;
 - priorities and dependencies are internally consistent;
 - the repository remains unchanged.
-
