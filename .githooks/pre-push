@@ -73,32 +73,26 @@ log pre-push "composeApp compilation passed."
 # ----------------------------------------------------------------
 source_env
 K6_BASELINE_SCRIPT="tests/k6/baseline.js"
-SKIP_K6=false
 
 # Check k6 availability
 if ! command -v k6 &>/dev/null; then
-    log pre-push "WARNING: k6 not found. Skipping load-test baseline."
-    log pre-push "Install k6 from https://k6.io/docs/getting-started/installation/"
-    SKIP_K6=true
+    log pre-push "ERROR: k6 not found. Install k6 from https://k6.io/docs/getting-started/installation/"
+    exit 1
 fi
 
-if [ "$SKIP_K6" = false ] && [ ! -f "$K6_BASELINE_SCRIPT" ]; then
-    log pre-push "WARNING: k6 baseline script not found at $K6_BASELINE_SCRIPT. Skipping load-test."
-    SKIP_K6=true
+if [ ! -f "$K6_BASELINE_SCRIPT" ]; then
+    log pre-push "ERROR: k6 baseline script not found at $K6_BASELINE_SCRIPT."
+    exit 1
 fi
 
-if [ "$SKIP_K6" = false ]; then
-    TEST_USERNAME="${TEST_USERNAME:-}"
-    TEST_PASSWORD="${TEST_PASSWORD:-}"
-    if [ -z "$TEST_USERNAME" ] || [ -z "$TEST_PASSWORD" ]; then
-        log pre-push "WARNING: TEST_USERNAME or TEST_PASSWORD not set. Skipping load-test."
-        log pre-push "Set them in .env or export before pushing."
-        SKIP_K6=true
-    fi
+TEST_USERNAME="${TEST_USERNAME:-}"
+TEST_PASSWORD="${TEST_PASSWORD:-}"
+if [ -z "$TEST_USERNAME" ] || [ -z "$TEST_PASSWORD" ]; then
+    log pre-push "ERROR: TEST_USERNAME and TEST_PASSWORD are required for k6. Set them in .env or export them before pushing."
+    exit 1
 fi
 
-if [ "$SKIP_K6" = false ]; then
-    trap app_cleanup EXIT
+trap app_cleanup EXIT
 
     # Run k6 against the test database (not main DB) to avoid polluting production data.
     # The test DB is already designed for throwaway use and verified clean by the
@@ -142,6 +136,5 @@ if [ "$SKIP_K6" = false ]; then
         exit 1
     fi
     log pre-push "k6 baseline passed."
-fi
 
 log pre-push "Pre-push checks passed."
