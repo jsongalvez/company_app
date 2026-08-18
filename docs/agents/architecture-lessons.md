@@ -31,3 +31,4 @@ Durable lessons from repository architecture audits. Future agents consume this 
 - **Transaction time is part of a module interface.** Mixing JVM and database clocks in rate, attendance, or capability-window paths creates boundary behavior that callers cannot observe or test reliably.
 - **Gate ownership must be executable.** A generated-contract verifier documented as manual evidence is not a quality gate; hook/build/CI invocation must own drift detection.
 - **Conflict-safe batch operations must report database truth.** A precheck followed by `ignore` insertion can preserve uniqueness while returning false creation counts under concurrent schedulers.
+- **Snapshot fields need one-way ownership.** If business requirements define session type as a creation-time snapshot, exposing a later mutation route creates an invalid state; remove the mutation seam instead of adding more authorization around it.

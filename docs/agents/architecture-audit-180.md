@@ -257,3 +257,37 @@ The repository was re-audited after the original recommendations and implementat
 | 5 | Fresh bounded lanes across all existing ownership rows | C-01..C-14 rechecked; no omission |
 | 6 | Independent evidence and deletion-test verification | R12-R16 complete fields; R12 selected as next child; R13-R16 deferred by one-child frontier rule |
 | 7 | Duplication, materiality, schema, and priority falsification | R12 is distinct from completed route work; R13-R16 are not style-only or speculative |
+
+## Permanent-Map Refresh - Session 116
+
+Fresh bounded read-only lanes rechecked C-01..C-14 across Compose/platform bridges, backend
+services/routes/auth, shared contracts/schema, persistence/migrations, tests/tooling/CI, and
+architecture documentation. Independent coverage, duplication, materiality, schema, and
+dependency-priority passes completed.
+
+### Accepted candidate
+
+#### R17 - Enforce immutable session type snapshots
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high; **child:** [Build: enforce immutable session type snapshots](https://github.com/jsongalvez/company_app/issues/193).
+- **Evidence:** `docs/business-requirements.md:172` says session type is never manually changed; `backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt:282-286` registers `PATCH /api/sessions/{sessionId}/type`; `backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt:193-235` persists arbitrary type changes; `shared/src/commonMain/kotlin/com/companyb/companyapp/dto/SessionDto.kt:29` owns the mutation request; `composeApp/src/commonMain/kotlin/com/companyb/companyapp/viewmodel/SessionDashboardViewModel.kt:409-419` sends it. Existing tests at `backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt:353-375` and `backend/src/test/kotlin/com/companyb/companyapp/api/routes/SessionEditAuthzTest.kt:125-209` assert the contradictory behavior.
+- **Current complexity/invalid states:** a creation-time snapshot can be rewritten after client history and pricing decisions were applied, so stored session type no longer expresses the algorithm result. The route, DTO, service method, UI editor, and tests form an unnecessary mutation seam.
+- **Simpler representation:** delete the type mutation route, request DTO, service/repository update path, and Compose type editor; retain creation-time computation and independent status/final-price edits.
+- **Smallest scope/interfaces:** shared DTO/routes, backend route/service/repository and OpenAPI registration, Compose dashboard edit state, and affected tests. No schema change.
+- **Risks/migration:** existing persisted rows remain unchanged; generated contract and UI field lists must stay consistent. Removing current test expectations is safe because migration cost is zero, but authorization/error tests need replacement with absence/contract assertions.
+- **Validation:** grep zero production references to the type mutation; route/OpenAPI contract verification; session creation/type algorithm tests; status and final-price edit tests; backend/shared/Compose compilation and integration gates.
+- **Dependencies:** none. **Deletion test:** pass; deleting the mutation seam removes contradictory behavior and leaves type computation localized at session creation.
+
+### Deferred and rejected leads
+
+- **Retain R13-R16:** JVM/DB clock authority, mandatory OpenAPI verification, notification inserted-count truth, and dead `SessionState.isLoggedIn` remain valid but are lower priority than the domain-contract breach.
+- **Deferred:** scheduler executor lifecycle ownership, compensation insert race, logout completion ownership, duplicate unused route builder, JMH annotation duplication, and shared/backend `DayStatus` unification. Each needs a separate implementation slice; none displaces R17.
+- **Rejected:** claimed missing iOS `actual` implementations were not accepted without current target/source verification; platform navigation duplication was skipped because Android/Desktop behavior differs; route ownership and finite-value findings duplicate completed work.
+
+### Refresh audit log
+
+| Pass | Work | Result |
+|---|---|---|
+| 8 | Bounded subsystem reviews | All C-01..C-14 reviewed; each lane returned findings or explicit skips |
+| 9 | Independent evidence verification | R17 confirmed against business requirements, route/service/DTO/UI call sites, and tests |
+| 10 | Coverage, duplication, materiality, schema, priority | No omission; completed findings retired; R17 selected as sole next child |
