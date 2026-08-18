@@ -30,7 +30,7 @@ WHERE schemaname = 'public'
     WHERE t2.table_schema = 'public' AND t2.table_name = pg_tables.tablename
     AND t2.table_type = 'BASE TABLE'
   );
-" 2>/dev/null || echo "")
+")
 
 if [ -z "$TABLES" ]; then
     log clean-test-db "No user-data tables found. Nothing to truncate."
