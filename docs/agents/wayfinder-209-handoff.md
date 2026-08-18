@@ -41,6 +41,14 @@ Session 106 updated wayfinder runner policy after user-directed grilling. No Map
 - `origin/ralph/company-app-full-build` contains `0bfb811`.
 - Worktree is expected clean after this handoff commit.
 
+## Recommended skills
+
+- `/wayfinder` — load and follow Map #180 frontier, claim, resolution, and handoff rules.
+- `/implement` — execute the next AFK build ticket per its module instructions.
+- `/code-review` — review implementation changes on Standards and Spec axes before resolution.
+- `/diagnosing-bugs` — use when local gates or runtime behavior fail; repair root cause before stopping.
+- `/writing-for-agents` — required before editing handoffs or other agent-facing documentation.
+
 ## How to drive the next session
 
 1. Load Map #180 and this handoff; choose the first live unblocked child before work.
