@@ -8,10 +8,10 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.statements.BatchInsertBlockingExecutable
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
@@ -23,28 +23,21 @@ object NotificationRepository {
         if (params.isEmpty()) return 0
 
         return transaction {
-            val existing =
-                NotificationTable
-                    .selectAll()
-                    .where {
-                        (NotificationTable.sessionId inList params.map { it.sessionId }) and
-                            (NotificationTable.userId inList params.map { it.userId })
-                    }.map { it[NotificationTable.sessionId] to it[NotificationTable.userId] }
-                    .toSet()
-            val pending = params.filterNot { it.sessionId to it.userId in existing }
-            if (pending.isEmpty()) return@transaction 0
-
-            NotificationTable.batchInsert(
-                data = pending,
-                ignore = true,
-                shouldReturnGeneratedValues = false,
-            ) { params ->
-                this[NotificationTable.sessionId] = params.sessionId
-                this[NotificationTable.userId] = params.userId
-                this[NotificationTable.branchId] = params.branchId
-                this[NotificationTable.message] = params.message
+            val statement =
+                BatchInsertStatement(
+                    table = NotificationTable,
+                    ignore = true,
+                    shouldReturnGeneratedValues = false,
+                )
+            params.forEach { params ->
+                statement.addBatch()
+                statement[NotificationTable.sessionId] = params.sessionId
+                statement[NotificationTable.userId] = params.userId
+                statement[NotificationTable.branchId] = params.branchId
+                statement[NotificationTable.message] = params.message
+                statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
             }
-            pending.size
+            BatchInsertBlockingExecutable(statement).execute(this) ?: 0
         }.also {
             logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
         }

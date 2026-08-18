@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -10,6 +11,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
@@ -155,6 +157,32 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
                     .count()
             }
         assertEquals(1, count.toInt())
+    }
+
+    @Test
+    fun `notification batch count matches rows inserted when input repeats a pair`() {
+        val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
+        val params =
+            NotificationCreateParams(
+                sessionId = sessionId,
+                userId = coordinatorId,
+                branchId = branchId,
+                message = "Upcoming appointment",
+            )
+
+        val count = NotificationRepository.insertBatch(listOf(params, params))
+
+        assertEquals(1, count)
+        assertEquals(
+            1,
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.sessionId eq sessionId }
+                    .count()
+                    .toInt()
+            },
+        )
     }
 
     @Test
