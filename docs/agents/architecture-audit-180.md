@@ -1319,3 +1319,17 @@ invoke the audit callback. The source branch remains derived from its immutable 
   redesign or generic source abstraction is justified.
 - Priority pass: R39 remains next retained P1 tooling candidate; R15 and historical role-assignment
   workflow remain fog without deployment or business evidence.
+
+## Session 255 Decision Fog
+
+R39 was rechecked against current hook and agent contracts. `.githooks/pre-push:46-72`
+still skips missing `k6`, a missing baseline script, or missing `TEST_USERNAME`/
+`TEST_PASSWORD`, while `AGENTS.md` and `backend/AGENTS.md` describe k6 baseline as a
+mandatory pre-push gate. The k6 command itself already fails closed, cleans disposable
+test database, and reports non-zero threshold failures.
+
+Implementation boundary is not safe to ticket yet: converting implicit skips to hard
+failures is clear, but an explicit local opt-out requires human-approved name,
+authorization scope, and CI policy. Issue [Decision: define pre-push k6 opt-out policy]
+(https://github.com/jsongalvez/company_app/issues/223) records verified facts and
+smallest decision. No production or test code changed.
