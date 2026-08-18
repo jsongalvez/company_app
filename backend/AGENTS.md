@@ -29,8 +29,10 @@ The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
 4. **Shared module compilation:** `./gradlew :shared:compileKotlinJvm`
 5. **Postgres connectivity:** verifies Postgres is reachable before commit is allowed.
 
-A pre-push hook (`.githooks/pre-push`) additionally runs composeApp multi-target
-compilation and the k6 load-test baseline. **JMH no longer runs on push** — it lives
+A pre-push hook (`.githooks/pre-push`) classifies the complete outgoing tree. Approved
+documentation-only pushes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`,
+`README*.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates;
+mixed or gate-sensitive pushes run all gates. **JMH no longer runs on push** — it lives
 in CI (`.github/workflows/jmh.yml`, runs on backend-touching pushes + merge to
 master): a single failing baseline comparison re-runs once and warns; the check
 fails only when the regression reproduces across two runs. CI-runner scores differ

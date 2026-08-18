@@ -9,6 +9,32 @@ source "$ROOT_DIR/scripts/lib/start-app.sh"
 
 log pre-push "$@"
 
+# Classify complete outgoing tree before starting expensive or stateful gates.
+EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+PUSH_FILES=""
+while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
+    [ -n "${LOCAL_SHA:-}" ] || continue
+    if [ "$REMOTE_SHA" = "0000000000000000000000000000000000000000" ]; then
+        BASE_SHA="$EMPTY_TREE"
+    else
+        BASE_SHA="$REMOTE_SHA"
+    fi
+    if [ "$LOCAL_SHA" = "0000000000000000000000000000000000000000" ]; then
+        TARGET_SHA="$EMPTY_TREE"
+    else
+        TARGET_SHA="$LOCAL_SHA"
+    fi
+    PUSH_FILES+="$(git diff --name-only "$BASE_SHA" "$TARGET_SHA")"$'\n'
+done
+
+PUSH_CLASSIFICATION="$(printf '%s' "$PUSH_FILES" | bash scripts/classify-push-files.sh)"
+log pre-push "Outgoing push classification: $PUSH_CLASSIFICATION"
+if [ "$PUSH_CLASSIFICATION" = "docs-only" ]; then
+    log pre-push "Documentation-only push; skipping code, contract, Compose, startup, and k6 gates."
+    log pre-push "Pre-push checks passed."
+    exit 0
+fi
+
 # ----------------------------------------------------------------
 # 1. Test-data cleanliness check
 # ----------------------------------------------------------------

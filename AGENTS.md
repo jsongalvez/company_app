@@ -120,7 +120,7 @@ bash scripts/check-baselines.sh
 After `bash scripts/setup-hooks.sh`:
 
 - **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, test-data cleanliness check, `:shared:compileKotlinJvm`, and verifies Postgres is reachable. Commits are blocked if any step fails.
-- **pre-push** runs test-data cleanliness check, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline. JMH no longer runs on push — it lives in CI (`.github/workflows/jmh.yml`, backend-touching pushes + merge to master; re-runs once on a suspected regression, fails only on a confirmed two-run regression). Takes ~3 min — always run `git push` with a sufficient timeout (600000 ms).
+- **pre-push** classifies the complete outgoing tree. Pushes containing only approved documentation files (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`, `README*.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates; mixed or gate-sensitive pushes run all gates. JMH no longer runs on push — it lives in CI (`.github/workflows/jmh.yml`, backend-touching pushes + merge to master; re-runs once on a suspected regression, fails only on a confirmed two-run regression). Takes ~3 min — always run `git push` with a sufficient timeout (600000 ms).
 
 ## Configuration details
 
