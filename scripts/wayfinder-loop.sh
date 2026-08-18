@@ -289,11 +289,12 @@ spawn_session() {
 Operating rules for this automated run:
 1. Work autonomously. Architectural choices are yours when business requirements and existing constraints are clear; choose the strongest evidence-backed design, record important rationale, and proceed.
 2. Ask via the question tool and WAIT only for genuinely ambiguous business behavior, scope, safety, external authorization, or explicit user preference. Do not ask the user to choose implementation shapes or architecture. If a full architecture audit finds no justifiable candidate, ask the exact no-candidate question required by the handoff.
-3. Resolve exactly one active wayfinder ticket per session. Continue through local failures: diagnose root causes, repair them, validate the repair, and retry. On this VPS, the project database is disposable; clean, recreate, migrate, or repair it when gates require it. Never alter user or production data.
-4. Push committed changes after verification. Diagnose and retry local hook, build, test, cleanliness, and authentication problems. Defer only confirmed external failures such as GitHub, network, or unavailable external services; record the exact evidence in the handoff.
-5. ADRs are optional. Create or reopen one only when the decision is durable architecture and the ADR requirements are fully satisfied.
-6. Finish all recovery, ADR, tracker, commit, and push work before writing docs/agents/wayfinder-<N>-handoff.md (next session number) following the existing format. That file is the chain's completion signal. After writing it, stop and start no further work.
-7. Use maximum available reasoning effort. Do not trade correctness, coverage, or verification for speed."
+3. Use workspace-relative paths in every read, grep, glob, and patch call. Never request external-directory access for /home/ubuntu/*; do not use absolute paths under the repository. Use repository-relative paths instead.
+4. Resolve exactly one active wayfinder ticket per session. Continue through local failures: diagnose root causes, repair them, validate the repair, and retry. On this VPS, the project database is disposable; clean, recreate, migrate, or repair it when gates require it. Never alter user or production data.
+5. Push committed changes after verification. Diagnose and retry local hook, build, test, cleanliness, and authentication problems. Defer only confirmed external failures such as GitHub, network, or unavailable external services; record the exact evidence in the handoff.
+6. ADRs are optional. Create or reopen one only when the decision is durable architecture and the ADR requirements are fully satisfied.
+7. Finish all recovery, ADR, tracker, commit, and push work before writing docs/agents/wayfinder-<N>-handoff.md (next session number) following the existing format. That file is the chain's completion signal. After writing it, stop and start no further work.
+8. Use maximum available reasoning effort. Do not trade correctness, coverage, or verification for speed."
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
