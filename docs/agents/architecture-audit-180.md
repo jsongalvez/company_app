@@ -291,3 +291,39 @@ dependency-priority passes completed.
 | 8 | Bounded subsystem reviews | All C-01..C-14 reviewed; each lane returned findings or explicit skips |
 | 9 | Independent evidence verification | R17 confirmed against business requirements, route/service/DTO/UI call sites, and tests |
 | 10 | Coverage, duplication, materiality, schema, priority | No omission; completed findings retired; R17 selected as sole next child |
+
+## Permanent-Map Refresh - Session 118
+
+After implementation child R17, a focused read-only audit rechecked deferred
+backend clock, notification, OpenAPI-gate, Compose-state, and lifecycle leads.
+The existing C-01..C-14 coverage contract remains complete. Independent lanes
+also rechecked the current implementation and tests for a fresh finance race.
+
+### Accepted candidate
+
+#### R18 - Make compensation creation conflict-safe
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high; **child:** [Build: make compensation creation conflict-safe](https://github.com/jsongalvez/company_app/issues/194).
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/CompensationService.kt:39-42` performs the `(user_id, paying_branch_day_id)` existence check before `CompensationRepository.create`. `backend/src/main/kotlin/com/companyb/companyapp/repository/CompensationRepository.kt:47-67` makes its transaction idempotent only by caller-supplied primary key, then inserts. `backend/src/main/resources/db/migration/V1__full_schema.sql:368-379` enforces business-key uniqueness.
+- **Current complexity/invalid states:** concurrent requests with different client UUIDs can both pass the service pre-check; one then receives an unhandled database uniqueness failure instead of domain `ConflictException`. Same-ID retry and business-key conflict semantics are split across separate layers.
+- **Simpler representation:** make business-key conflict handling part of the transaction-owned repository create operation, translating a losing unique-key race to the existing domain conflict while retaining same-ID idempotency. Audit only newly inserted rows.
+- **Smallest scope/interfaces:** `CompensationService`, `CompensationRepository`, relevant exception mapping, and focused compensation conflict/concurrency tests. No generic repository interface or schema change.
+- **Risks/migration:** preserve same-ID retries, remitted-day authorization and reason checks, audit atomicity, and distinction between duplicate primary key and duplicate business key. Database constraint remains the concurrency backstop.
+- **Validation:** existing compensation tests; same-ID retry; existing business-key conflict; concurrent different-ID creation; audit-row count; full backend quality gate and test-data cleanliness.
+- **Dependencies:** existing unique business-key constraint only. **Deletion test:** removing the service pre-check leaves one repository transaction and database constraint owning idempotency/conflict behavior; no caller must coordinate a separate race-prone lookup.
+
+### Deferred and rejected leads
+
+- **Retain R13:** direct JVM time remains in rate-window, session-price selection, attendance insert-ignore, relief grant, invite, and remittance paths. Focused review narrowed strongest first slice to rate-window authority (`SessionBaseRateService` plus `SessionService`); no universal clock abstraction is justified. Manila calendar-date consolidation remains deferred.
+- **Retain R14:** OpenAPI verification remains absent from mandatory build/hooks/CI gates; parser sharing is complete, and a separate gate-wiring ticket remains appropriate after the current child.
+- **Retain R15:** notification batch creation still returns candidate count rather than actual inserted count under concurrent schedulers; existing uniqueness remains correct. No displacement of R18.
+- **Retain R16:** `SessionState.isLoggedIn` has zero Kotlin consumers and its `GlobalScope` machinery remains deletable; production navigation uses `currentUser`. Low-risk deletion remains deferred.
+- **Reject or defer lifecycle leads:** scheduler executor shutdown lacks a current restart/test lifecycle requirement; logout completion has no active production consumer defect; duplicate route builder is unused and mechanical; JMH annotation repetition has no material invalid state; shared/backend `DayStatus` separation is intentional wire/persistence ownership; platform actual claims remain unverified.
+
+### Refresh audit log
+
+| Pass | Work | Result |
+|---|---|---|
+| 11 | Focused bounded lanes over deferred leads and fresh finance seam | R13-R16 rechecked; R18 independently evidenced |
+| 12 | Coverage and duplication pass | Existing C-01..C-14 coverage complete; compensation race distinct from notification idempotency |
+| 13 | Materiality and falsification pass | R18 is a concurrent financial-write failure, not style or hypothetical abstraction; deferred leads retained with narrowed scope |
