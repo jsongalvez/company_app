@@ -286,7 +286,7 @@ spawn_session() {
 
 Rules:
 1. Work autonomously; choose implementation and architecture when requirements are clear.
-2. Use question only for unresolved business, scope, safety, authorization, or explicit preference. Follow handoff no-candidate procedure when applicable.
+2. Never use question. Record unresolved business, scope, safety, authorization, or preference as a labeled tracker issue; continue safe independent work and stop only when no safe continuation exists.
 3. Use workspace-relative paths for read, grep, glob, and patch. Claim and complete one active ticket.
 4. Diagnose and retry local failures; test DB is disposable, production data is not. Verify, resolve tracker work, commit, and push. Defer only evidenced external failures.
 5. Create or update ADR only for durable architecture decisions.
