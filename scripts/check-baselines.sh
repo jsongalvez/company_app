@@ -9,7 +9,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
 
 JMH_LOG="${1:-/tmp/company-app-jmh.log}"
-BASELINE="$ROOT_DIR/backend/jmh-baselines.md"
+BASELINE="${BASELINE:-$ROOT_DIR/backend/jmh-baselines.md}"
 
 if [ ! -f "$JMH_LOG" ]; then
     log baselines "ERROR: JMH log file not found: $JMH_LOG"
@@ -27,16 +27,33 @@ log baselines "Baseline: $BASELINE"
 log baselines "Results:  $JMH_LOG"
 
 FAILURES=0
+PARSED_RESULTS="$(mktemp)"
+trap 'rm -f "$PARSED_RESULTS"' EXIT
 
 # Extract benchmark results from the JMH output (format: benchmark_name thrpt 5 SCORE ± ERROR Units)
 # Example line: "SessionTypeBenchmark.computeMedicalMission   thrpt    5  3655579314.012 ± 126351230.212  ops/s"
 parse_jmh() {
-    # Parse the JMH results table from the log
-    awk '/^Benchmark[[:space:]]+Mode/{found=1; next} found && /^[[:alnum:]_]+\.[[:alnum:]_]+[[:space:]]+thrpt/{print $1, $4}' "$JMH_LOG" | \
+    # Parse the JMH results table from the log. A missing table or row is a
+    # failed gate, not an empty benchmark run.
+    if ! grep -qE '^Benchmark[[:space:]]+Mode' "$JMH_LOG"; then
+        log baselines "ERROR: JMH results table not found in $JMH_LOG"
+        return 1
+    fi
+
+    awk '/^Benchmark[[:space:]]+Mode/{found=1; next} found && $2 == "thrpt" && $1 !~ /^[[:space:]]*$/{print $1, $4}' "$JMH_LOG" |
         while read -r name score; do
             score="${score//,/}"
-            echo "$name $score"
-        done
+            if [[ ! "$score" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+                log baselines "ERROR: malformed JMH score for $name: $score"
+                exit 1
+            fi
+            printf '%s %s\n' "$name" "$score"
+        done > "$PARSED_RESULTS"
+
+    if [ ! -s "$PARSED_RESULTS" ]; then
+        log baselines "ERROR: no JMH benchmark results found in $JMH_LOG"
+        return 1
+    fi
 }
 
 # Extract baseline scores from the markdown table
@@ -52,6 +69,22 @@ declare -A BASELINES
 while IFS=' ' read -r name score; do
     BASELINES["$name"]="$score"
 done < <(parse_baseline)
+
+if ! parse_jmh; then
+    exit 1
+fi
+
+declare -A RESULTS
+while IFS=' ' read -r name current_score; do
+    RESULTS["$name"]="$current_score"
+done < "$PARSED_RESULTS"
+
+for name in "${!BASELINES[@]}"; do
+    if [ -z "${RESULTS[$name]:-}" ]; then
+        log baselines "ERROR: baseline benchmark missing from JMH output: $name"
+        ((FAILURES++)) || true
+    fi
+done
 
 # Compare each JMH result against baseline
 while IFS=' ' read -r name current_score; do
@@ -74,10 +107,13 @@ while IFS=' ' read -r name current_score; do
     # Extend this array when adding similarly noisy benchmarks.
     NOISY_BENCHMARKS=("BranchDayBenchmark.*")
     for pattern in "${NOISY_BENCHMARKS[@]}"; do
-        if [[ "$name" == $pattern ]]; then
-            THRESHOLD=40
-            break
-        fi
+        # shellcheck disable=SC2254 # pattern intentionally contains a glob
+        case "$name" in
+            $pattern)
+                THRESHOLD=40
+                break
+                ;;
+        esac
     done
     if awk "BEGIN {exit !($diff_pct > $THRESHOLD)}" >/dev/null 2>&1; then
         sign="!"
@@ -85,7 +121,7 @@ while IFS=' ' read -r name current_score; do
     fi
 
     printf "  %-50s %12s  (%s%% of baseline) %s\n" "$name" "$current_score" "$pct" "$sign"
-done < <(parse_jmh)
+done < "$PARSED_RESULTS"
 
 echo ""
 if [ "$FAILURES" -gt 0 ]; then

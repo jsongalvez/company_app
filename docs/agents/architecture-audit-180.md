@@ -791,3 +791,32 @@ No product source, tests, migrations, or behavior were changed during this audit
 | 26 | Independent deterministic verification | R31-R34 verified; R28 retired; deferred/rejected leads retained |
 | 27 | Adversarial and deletion-test pass | Capability scope, malformed JMH output, unknown enum values, and registration races falsified |
 | 28 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R31 selected as sole implementation child |
+
+## Permanent-Map Refresh - Session 241
+
+After implementation child #207, four independent read-only lanes re-audited C-01..C-14 and
+retained R32-R34. R28 remains retired. R32 is selected as the sole implementation child; R33
+and R34 remain evidenced, independent P1 candidates for later sessions. A new workflow retry
+lead (R35) was recorded as deferred fog because it is separate orchestration scope.
+
+### Audit checkpoint
+
+- R32: `scripts/check-baselines.sh` accepted empty, truncated, and format-changed output as
+  success. The parser also rejected fully qualified benchmark names and its noisy benchmark
+  wildcard required explicit verification. Implemented fail-closed table/row checks, numeric
+  score validation, required baseline coverage, and focused fixtures.
+- R33: shared relief-access status remains an untyped `String`; backend and database values are
+  finite. Retain for a later shared-contract child.
+- R34: registration prechecks still race database username/email uniqueness. Retain for a later
+  backend child.
+- R35: CI retry status capture may terminate before recording failed comparator status under
+  shell `-e`; deferred as separate workflow-orchestration candidate.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 complete, including platform bridges, generated contracts, schema,
+  benchmarks, hooks, CI, shared DTOs, and architecture docs.
+- Duplication: R33 extends completed finite-wire typing; R32 is distinct from R35 and R15.
+- Falsification: valid complete JMH output still compares; new benchmark rows remain allowed;
+  missing baseline rows, malformed scores, and empty/truncated output fail.
+- Priority: R32 first, then R33 and R34. No other implementation child opened.
