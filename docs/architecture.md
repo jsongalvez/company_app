@@ -280,7 +280,7 @@ Called at the top of every mutating service method — not in routes, not in rep
 
 ### 9.3 Capability Codes
 
-All capability codes are inserted as seed data in `V2__seed_capabilities.sql`. They are constants — not dynamic. The application references them by their string code, defined in `shared/domain/`.
+All capability codes are inserted as seed data in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`. They are constants — not dynamic. The application references them by their string code, defined in `shared/domain/`.
 
 | Code | Scope | Who holds it |
 |------|-------|--------------|
@@ -350,9 +350,9 @@ Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs
 - Never edit a committed migration file — always add a new version
 - Destructive changes (DROP, RENAME) get their own migration with a comment explaining why
 
-Current migration files:
-- `V1__full_schema.sql` — all tables, constraints, indexes, views, triggers
-- `V2__seed_roles_capabilities.sql` — roles, capabilities, role_capability assignments
+The migration directory is authoritative. Inspect all versioned files in
+`backend/src/main/resources/db/migration/` when reasoning about the current
+schema; do not rely on a cached migration list here.
 
 ---
 
@@ -378,7 +378,7 @@ Edits to REMITTED records require a `reason` in the request body. The service la
 
 - Audit entries are written in the **service layer only** — never in routes, never in repositories
 - Every INSERT, UPDATE, and soft-DELETE to financial and operational tables gets an audit entry
-- Written inside the same DB transaction as the mutation (via callback pattern, see ADR 0013)
+- Written inside the same DB transaction as the mutation (via callback pattern; see ADR 0013 and its entity-based amendments in ADR 0018 and ADR 0019)
 - The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String>` field maps
 - Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
 

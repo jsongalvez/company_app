@@ -64,7 +64,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Architecture, tech stack, layering, deep module map | `docs/architecture.md` |
 | Business rules and domain terminology (detailed) | `docs/business-requirements.md` |
 | Engine pseudocode (commission, delegate, remittance) | `docs/engines.md` |
-| Architecture decisions | `docs/adr/` (numbered 0001-0015) |
+| Architecture decisions | `docs/adr/` (authoritative directory; inspect each relevant ADR's status, supersedes, and amends fields) |
 | Feature specs | `docs/specs/` |
 | Backend conventions (Exposed, routes, auth, testing, Javalin) | `backend/AGENTS.md` |
 | Frontend conventions (logging, ViewModels, design tokens) | `composeApp/AGENTS.md` |
