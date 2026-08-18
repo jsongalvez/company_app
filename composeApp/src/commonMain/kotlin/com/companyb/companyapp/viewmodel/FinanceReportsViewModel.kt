@@ -693,7 +693,7 @@ class FinanceReportsViewModel(
                 generation,
                 _editUsers,
                 "branch-day users",
-                "/api/branch-days/$branchDayId/users",
+                ApiRoutes.branchDayUsers(branchDayId),
                 params = emptyList(),
             )
         }
@@ -1184,17 +1184,23 @@ class FinanceReportsViewModel(
                 val month =
                     com.companyb.companyapp.ui.screen
                         .parseYearMonthInput(_monthInput.value) ?: defaultMonth
-                "/api/branches/$branchId/export/monthly?year=${month.year}&month=${month.month.ordinal + 1}&format=$format"
+                ApiRoutes.branchExportWithQuery(
+                    ApiRoutes.branchExportMonthly(branchId),
+                    "year=${month.year}&month=${month.month.ordinal + 1}&format=$format",
+                )
             }
 
             ReportMode.ALL_TIME -> {
-                "/api/branches/$branchId/export/all-time?format=$format"
+                ApiRoutes.branchExportWithQuery(ApiRoutes.branchExportAllTime(branchId), "format=$format")
             }
 
             ReportMode.DATE_RANGE -> {
                 val range = _appliedRange.value
                 if (range != null) {
-                    "/api/branches/$branchId/export/range?from=${range.first}&to=${range.second}&format=$format"
+                    ApiRoutes.branchExportWithQuery(
+                        ApiRoutes.branchExportRange(branchId),
+                        "from=${range.first}&to=${range.second}&format=$format",
+                    )
                 } else {
                     ""
                 }

@@ -410,7 +410,7 @@ class SessionDashboardViewModel(
         when (state.field) {
             DashboardEditField.TYPE -> {
                 EditRequest(
-                    "/api/sessions/${state.sessionId}/type",
+                    ApiRoutes.sessionType(state.sessionId),
                     UpdateSessionTypeRequest(
                         com.companyb.companyapp.domain.SessionType
                             .valueOf(state.draft),
@@ -421,7 +421,7 @@ class SessionDashboardViewModel(
 
             DashboardEditField.STATUS -> {
                 EditRequest(
-                    "/api/sessions/${state.sessionId}/status",
+                    ApiRoutes.sessionStatus(state.sessionId),
                     UpdateSessionStatusRequest(
                         com.companyb.companyapp.domain.SessionStatus
                             .valueOf(state.draft),

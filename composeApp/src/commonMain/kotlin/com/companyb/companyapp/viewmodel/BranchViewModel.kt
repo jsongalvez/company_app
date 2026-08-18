@@ -108,7 +108,7 @@ class BranchViewModel(
             endpoint = "DELETE /api/branches/$branchId/assignments/$userId",
             block = {
                 apiClient.httpClient.delete(
-                    "/api/branches/$branchId/assignments/$userId",
+                    ApiRoutes.branchAssignment(branchId, userId),
                 )
             },
             transform = {

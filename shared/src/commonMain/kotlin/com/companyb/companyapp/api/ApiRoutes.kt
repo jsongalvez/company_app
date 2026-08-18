@@ -73,10 +73,15 @@ object ApiRoutes {
 
     fun branchAssignments(id: String) = "$BRANCHES/$id/assignments"
 
+    fun branchAssignment(
+        branchId: String,
+        userId: String,
+    ) = "${branchAssignments(branchId)}/$userId"
+
     fun branchAssignmentSlot(
         branchId: String,
         userId: String,
-    ) = "${branchAssignments(branchId)}/$userId/slot"
+    ) = "${branchAssignment(branchId, userId)}/slot"
 
     fun branchSlotsSwap(id: String) = "$BRANCHES/$id/slots/swap"
 
