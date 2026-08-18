@@ -11,12 +11,14 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -80,6 +82,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         allTestUsers.forEach { userId ->
             trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
             trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
+            trackOwned(UserRoleTable, UserRoleTable.userId, userId)
             trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
             trackOwned(NotificationTable, NotificationTable.userId, userId)
         }
@@ -111,6 +114,26 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
                     .map { it[NotificationTable.userId] }
             }
         assertTrue(notifications.contains(coordinatorId))
+    }
+
+    @Test
+    fun `scheduler derives notification capability for assigned coordinator role`() {
+        insertCoordinatorRole(coordinatorId)
+        insertUserBranchAssignment(coordinatorId, branchId)
+
+        val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
+
+        val count = NextAppointmentScheduler.run(fixedClock)
+        assertEquals(1, count)
+
+        val notifications =
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.sessionId eq sessionId }
+                    .map { it[NotificationTable.userId] }
+            }
+        assertEquals(listOf(coordinatorId), notifications)
     }
 
     @Test
@@ -346,5 +369,18 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
                 assignedBy = callerId,
             ),
         )
+    }
+
+    private fun insertCoordinatorRole(userId: UUID) {
+        val coordinatorRoleId =
+            transaction {
+                RoleTable.selectAll().where { RoleTable.name eq "COORDINATOR" }.single()[RoleTable.id]
+            }
+        transaction {
+            UserRoleTable.insertIgnore {
+                it[UserRoleTable.userId] = userId
+                it[UserRoleTable.roleId] = coordinatorRoleId
+            }
+        }
     }
 }

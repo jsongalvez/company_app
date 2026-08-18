@@ -673,3 +673,121 @@ and behavior remained unchanged.
 | 22 | Independent deterministic verification | R22 verified; R23/R24 deferred; R25 rejected; R26 deferred |
 | 23 | Adversarial and deletion-test pass | DB discovery outage, torn state, lifecycle ownership, route-interface, and DTO counterexamples checked |
 | 24 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R22 selected as sole next implementation child |
+
+## Permanent-Map Refresh - Session 240
+
+After implementation child #206, the frontier was empty again. Four bounded read-only lanes
+rechecked Compose/platform bridges, backend modules, shared/schema contracts, and tests/tooling/docs.
+No product source, tests, migrations, or behavior were changed during this audit.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Exploration | Falsification / verification | Disposition |
+|---|---|---|---|---|
+| R28 - complete iOS Compose bridge | stale | complete | all required iOS actuals and Swift host symbol now exist | retire |
+| R31 - provision scheduler notification capability | complete | complete | role-derived view excludes this branch-scoped capability; production grants absent | implement, P0 |
+| R32 - fail closed on malformed JMH baseline output | complete | complete | empty/truncated parser output reaches success path with zero failures | implement, P1 |
+| R33 - type relief-access status in shared DTO | complete | complete | finite persistence/wire enum has no competing shared type; extends completed R3 | implement, P1 |
+| R34 - make registration uniqueness race explicit | complete | complete | DB uniqueness backstop exists, but concurrent loser can escape repository as 500 | implement, P1 |
+
+### R31 - Provision scheduler notification capability
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** V5 seeds `RECEIVE_NEXT_APPOINTMENT_ALERTS` into `role_capability` for COORDINATOR
+  (`backend/src/main/resources/db/migration/V5__add_next_appointment_alerts_capability.sql:8-16`).
+  The role-derived `active_user_capabilities` view only derives the explicit GLOBAL capability
+  allowlist in V16 (`backend/src/main/resources/db/migration/V16__role_derived_global_capabilities.sql:78-104`),
+  and excludes this branch-scoped code. The scheduler queries that view for this code with
+  `context_type = BRANCH` (`backend/src/main/kotlin/com/companyb/companyapp/service/NextAppointmentScheduler.kt:116-139`).
+  Repository search found no production insert for this capability; current scheduler tests manually
+  insert direct grants (`NextAppointmentSchedulerPostgresTest.kt:316-327`).
+- **Current invalid state:** Coordinator role membership alone produces no active capability row,
+  so the scheduler finds no recipients and next-appointment notifications are silently absent.
+- **Simpler representation:** keep recipient selection capability-based and add one authoritative
+  production path for the branch-scoped Coordinator grant, or revise the capability view to derive
+  this one branch-scoped role capability from active branch assignments. Prefer the latter only if
+  the view can preserve assignment end dates and the existing capability interface; otherwise add
+  an assignment-owned direct grant transaction.
+- **Smallest credible scope:** migration/view or user-branch assignment provisioning, scheduler
+  integration fixture, and a Coordinator-role-only test. No scheduler query rewrite or new role check.
+- **Risks and validation:** preserve Coordinator-only semantics, assignment end/reassignment behavior,
+  inactive-user revocation, and branch context. Test a role-only Coordinator with active assignment,
+  ended assignment, inactive user, and non-Coordinator role; run backend quality and cleanliness gates.
+- **Dependencies:** none. **Deletion test:** deleting the scheduler capability join would over-notify
+  every active branch-assigned user; the missing grant must instead be fixed at capability ownership.
+
+### R32 - Fail closed on malformed JMH baseline output
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `scripts/check-baselines.sh:33-40` parses zero rows for empty or malformed JMH output;
+  `:56-88` iterates no rows, and `:90-97` reports `OK` when `FAILURES` remains zero.
+- **Current invalid state:** a successful JMH task with truncated or changed output can bypass the
+  regression gate without checking any baseline benchmark.
+- **Simpler representation:** require at least one parsed result and require every baseline benchmark
+  to appear before comparison; preserve explicit support for intentionally new benchmarks.
+- **Smallest credible scope:** shell comparator and fixture tests for empty, truncated, missing,
+  complete, and regressed output. No benchmark or threshold changes.
+- **Risks and validation:** avoid rejecting legitimate new benchmark output; validate parser format,
+  baseline names, exit codes, and CI invocation.
+- **Dependencies:** none. **Deletion test:** restoring empty-output success reproduces the false pass.
+
+### R33 - Type relief-access status in shared DTO
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `shared/src/commonMain/kotlin/com/companyb/companyapp/dto/AttendanceDto.kt:57-64`
+  exposes `requestStatus: String`; backend persistence and route output use finite `ReliefStatus`
+  values (`backend/src/main/kotlin/com/companyb/companyapp/repository/model/ReliefStatus.kt:3`;
+  `backend/src/main/kotlin/com/companyb/companyapp/api/routes/ReliefAccessRoutes.kt:57,81,115`),
+  backed by the database enum in V1.
+- **Current invalid state:** arbitrary status strings can cross the shared wire contract.
+- **Simpler representation:** add serializable shared `ReliefStatus`, type the DTO field, and map
+  persistence status at the backend boundary. Do not reuse distinct relief-invite statuses.
+- **Smallest credible scope:** shared domain/DTO, route response mapping, fixtures, malformed-value
+  tests, and shared/backend/Compose compilation.
+- **Risks and validation:** explicit unknown-value policy and preserved uppercase wire values.
+- **Dependencies:** completed R3 provides the enum contract pattern. **Deletion test:** leaving String
+  preserves an invalid wire state; the typed field removes it without a new module seam.
+
+### R34 - Make registration uniqueness race explicit
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/AuthService.kt:55-76`
+  performs username/email prechecks before `UserRepository.createUser`; V1 enforces unique username
+  and email (`backend/src/main/resources/db/migration/V1__full_schema.sql:31-38`). Concurrent
+  registrations can both pass prechecks and let one unique violation escape as an unclassified error.
+- **Current invalid state:** database-enforced uniqueness and HTTP/domain collision classification
+  are separated by a race-prone check-then-insert sequence.
+- **Simpler representation:** make the repository insert atomic and translate the losing unique
+  violation into the existing username/email result without removing database constraints.
+- **Smallest credible scope:** user repository/service exception mapping and concurrent registration
+  tests for each unique field. No schema change.
+- **Risks and validation:** preserve password validation ordering, distinguish username from email,
+  and ensure failed inserts create no partial record.
+- **Dependencies:** none. **Deletion test:** removing prechecks while retaining atomic uniqueness
+  keeps correctness and concentrates collision ownership in the write transaction.
+
+### Retired and deferred leads
+
+- R28 is retired: current iOS actuals and Swift host match the common expect declarations.
+- R23/R24 remain deferred lifecycle decisions; R15 remains deferred pending deployment topology or
+  overlapping scheduler invocation requirements; R26 remains deferred; R25/R30 remain rejected as
+  mechanical route-interface cleanup.
+
+### Audit-of-audit
+
+- Coverage pass: C-01..C-14 all rechecked, including iOS source sets, generated host, migrations,
+  capability view, JMH comparator, hooks, CI, and shared wire DTOs.
+- Duplication/ownership pass: R33 extends completed R3 rather than creating a second enum strategy;
+  R31 is distinct from R15 because it repairs recipient capability ownership, not insertion counts.
+- Materiality pass: retained only production notification absence, mandatory-gate false success,
+  invalid finite wire state, and concurrent registration error classification.
+- Schema pass: verified V5/V16 capability mismatch and V1 uniqueness; no new schema integrity issue.
+- Priority pass: R31 first (production behavior absent), then R32, R33, R34. Only R31 is ticketed
+  this session to preserve one active wayfinder ticket.
+
+| Pass | Work | Result |
+|---|---|---|
+| 25 | Fresh bounded repository audit | C-01..C-14 complete; four fresh candidates and one stale lead recorded |
+| 26 | Independent deterministic verification | R31-R34 verified; R28 retired; deferred/rejected leads retained |
+| 27 | Adversarial and deletion-test pass | Capability scope, malformed JMH output, unknown enum values, and registration races falsified |
+| 28 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R31 selected as sole implementation child |
