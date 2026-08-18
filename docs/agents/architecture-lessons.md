@@ -27,3 +27,7 @@ Durable lessons from repository architecture audits. Future agents consume this 
 - R5 reopens when multi-instance scheduler volume or deployment concurrency becomes material.
 - R7 reopens after representative query plans prove the two single-column trigram indexes redundant.
 - A third transport-pin consumer reopens shared fixture design; existing marker is preserved in Map #89 fog.
+- **Route ownership audits must scan callers after migration.** A shared route catalog can be structurally broad while a few production literals remain; grep every client path family after each route-contract child.
+- **Transaction time is part of a module interface.** Mixing JVM and database clocks in rate, attendance, or capability-window paths creates boundary behavior that callers cannot observe or test reliably.
+- **Gate ownership must be executable.** A generated-contract verifier documented as manual evidence is not a quality gate; hook/build/CI invocation must own drift detection.
+- **Conflict-safe batch operations must report database truth.** A precheck followed by `ignore` insertion can preserve uniqueness while returning false creation counts under concurrent schedulers.

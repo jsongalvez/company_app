@@ -193,3 +193,67 @@ Implementation recommendations require separate child tasks of audit task #180. 
 ## Related Audit
 
 `.scratch/code-review/issues/cr-036-quality-gate-effectiveness-audit.md` records the existing quality-gate effectiveness audit: 3/11 effective, 5/11 false-confidence, 3/11 manual-only. Its findings were not duplicated here except R9, which is a concrete code-count/drift simplification.
+
+## Permanent-Map Refresh - Session 114
+
+The repository was re-audited after the original recommendations and implementation children were completed. Four non-overlapping read-only lanes covered Compose/platform bridges, backend modules, shared/schema contracts, and tests/tooling/docs. Existing C-01..C-14 boundaries remain complete; no new subsystem omission, schema ownership conflict, or duplicate recommendation was found.
+
+### Fresh candidates
+
+#### R12 - Finish shared route ownership in Compose
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high; **child:** [Build: finish shared route ownership in Compose](https://github.com/jsongalvez/company_app/issues/192).
+- **Evidence:** `FinanceReportsViewModel.kt:696` hard-codes branch-day users; `:1187-1197` constructs monthly, all-time, and range export URLs; `SessionDashboardViewModel.kt:413-435` constructs session type/status paths; `BranchViewModel.kt:108-112` constructs assignment deletion. Existing builders cover the first three families, and one smallest assignment builder can cover the fourth.
+- **Current complexity:** shared `ApiRoutes` is a false-complete contract owner while production callers retain drift-prone literals.
+- **Simpler representation:** migrate callers to existing builders and add only the missing assignment builder.
+- **Scope/interface:** four Compose ViewModel call sites, shared route tests, and affected compilation; no generated client or metadata registry.
+- **Risk/validation:** preserve byte-equivalent URLs and query encoding; grep literals, route byte tests, shared/Compose compilation and common tests.
+- **Dependency/deletion test:** none; deleting duplicated literals leaves callers on shared builders.
+
+#### R13 - Make production persistence time use one clock authority
+
+- **Verdict:** recommend; **disposition:** defer; **priority:** P1; **confidence:** high.
+- **Evidence:** `SessionBaseRateService.kt:45-56` uses JVM `OffsetDateTime.now`; `SessionService.kt:134-139`, `AttendanceRepository.kt:66-72`, and `ReliefAccessRepository.kt:65-74` use JVM time in rate, attendance, and capability-window paths. Backend guidance requires DB `CurrentTimestampWithTimeZone` for transaction writes.
+- **Current complexity:** JVM/DB clock skew can shift effective rates, relief authorization windows, and clock-in eligibility.
+- **Simpler representation:** use DB timestamp expressions inside transactions, or an explicit injected clock for pure time decisions.
+- **Scope/interface:** affected time-owning services/repositories plus boundary tests; no broad time abstraction without a second adapter.
+- **Risk/validation:** preserve transaction ordering and test clock skew, rate boundaries, relief windows, and commission eligibility.
+- **Dependency/deletion test:** none; production persistence paths lose direct JVM clock reads without changing domain interfaces.
+
+#### R14 - Enforce OpenAPI verification in mandatory gates
+
+- **Verdict:** recommend; **disposition:** defer; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/build.gradle.kts:59-66` normalizes OpenAPI only; `.githooks/pre-commit:49-50` and `.githooks/pre-push:23-108` do not invoke `scripts/verify-openapi-spec.sh`; only manual gate documentation records verification.
+- **Current complexity:** generated contract verification is a documentation-only seam, so route/DTO drift can pass required gates.
+- **Simpler representation:** invoke verifier after normalization in the existing gate and include its inputs in CI path coverage.
+- **Scope/interface:** hook/build/CI wiring and one drift fixture; no parser changes.
+- **Risk/validation:** avoid requiring generated output before normalization; mutate an annotation/route and assert the mandatory gate fails.
+- **Dependency/deletion test:** parser sharing from R10 is complete; deleting manual-only verification leaves enforced contract validation.
+
+#### R15 - Return actual inserted count from notification batch creation
+
+- **Verdict:** recommend; **disposition:** defer; **priority:** P1; **confidence:** high.
+- **Evidence:** `NotificationRepository.kt:25-47` prefilters candidates, uses `batchInsert(ignore = true)`, then returns `pending.size`; concurrent schedulers can conflict on the unique key while reporting rows they did not insert.
+- **Current complexity:** scheduler observability diverges from database state under concurrency.
+- **Simpler representation:** remove precheck/filtering and return the insert operation's actual inserted count while retaining the unique constraint.
+- **Scope/interface:** `NotificationRepository.insertBatch`, scheduler result/log tests, and concurrent/repeated-run tests.
+- **Risk/validation:** preserve one row per `(session_id,user_id)` and exact counts under empty, repeated, concurrent, and partial-failure cases.
+- **Dependency/deletion test:** existing unique notification constraint; deleting the precheck concentrates idempotency in one database-backed operation.
+
+#### R16 - Delete unused `SessionState.isLoggedIn` machinery
+
+- **Verdict:** recommend; **disposition:** defer; **priority:** P1; **confidence:** high.
+- **Evidence:** `composeApp/src/commonMain/kotlin/com/companyb/companyapp/state/SessionState.kt:44-47` defines `isLoggedIn` with `GlobalScope`, `SharingStarted`, `map`, and `stateIn`; repository search finds no consumer.
+- **Current complexity:** dead public state exposes an unnecessary lifecycle seam and coroutine scope.
+- **Simpler representation:** delete property and unused imports.
+- **Scope/interface:** one common state file; compile and common tests.
+- **Risk/validation:** low; verify zero symbol consumers and Compose compilation.
+- **Dependency/deletion test:** no callers require migration; supporting machinery disappears with the dead property.
+
+### Refresh audit log
+
+| Pass | Work | Result |
+|---|---|---|
+| 5 | Fresh bounded lanes across all existing ownership rows | C-01..C-14 rechecked; no omission |
+| 6 | Independent evidence and deletion-test verification | R12-R16 complete fields; R12 selected as next child; R13-R16 deferred by one-child frontier rule |
+| 7 | Duplication, materiality, schema, and priority falsification | R12 is distinct from completed route work; R13-R16 are not style-only or speculative |
