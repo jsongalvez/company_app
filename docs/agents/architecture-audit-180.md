@@ -1075,3 +1075,43 @@ migrations, and behavior were unchanged during the audit.
 | 46 | Independent deterministic verification | Shared enum duplication and direct conversion confirmed; cleanup fallback and mobile state defects falsified |
 | 47 | Adversarial and deletion-test pass | Enum drift, PostgreSQL binding, script outage, platform lifecycle, and ADR overlap checked |
 | 48 | Coverage, duplication, materiality, schema, priority | #217 selected as sole P1 child; lower candidates retained/deferred |
+
+## Permanent-Map Refresh - Session 250
+
+After implementation child #217, the frontier was empty again. Four bounded read-only lanes
+rechecked C-01..C-14, with additional test-infrastructure review. Product behavior outside the
+selected child remained unchanged.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| Compose capability context ownership | `SessionState.kt` duplicated all five shared capability context values and compared `contextType.name` to strings; production consumers imported the duplicate object | Shared `CapabilityContextType` already owns identical values; enum comparisons preserve null fail-closed matching and all Compose tests/builds pass | implemented, P1/P2; child #218 |
+| Android/iOS mobile host duplication | `AppNavHost.android.kt` and `.ios.kt` are byte-identical; `SessionList.android.kt` and `.ios.kt` are byte-identical | ADR-0020 requires compile-time mobile/desktop split, but permits shared mobile implementations; extraction is valid P2 maintenance, not current domain defect | defer, P2 |
+| Test-database cleanup policy | `check-test-cleanliness.sh` and `clean-test-db.sh` duplicate seed/discovery policy | Both scripts have distinct assert/mutate interfaces and fail closed after #203; full helper extraction would couple consumers without current behavior defect | defer, P2 |
+| Route-test setup helper | 13 route suites repeat app middleware and exception setup | Candidate is plausible medium-confidence test-only deepening, but requires preserving suite-specific auth/handler differences; no child under one-ticket cadence | retain, P2 |
+| Scheduler capability code ownership | Scheduler hardcodes `RECEIVE_NEXT_APPOINTMENT_ALERTS` while shared capability codes own other values | Migration must retain SQL literal; narrow shared constant is independent of #218 and remains a later P1/P2 candidate | retain, P1/P2 |
+
+### Child #218 implementation checkpoint
+
+`CapabilityContext` was removed from Compose `SessionState`. Matcher functions now accept and
+compare shared `CapabilityContextType`; Finance and Session Dashboard callers and matcher fixtures
+were migrated. ADR-0021's two-slice fetch timing and null-context fail-closed behavior are unchanged.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 rechecked across Compose/platform bridges, shared contracts, backend/auth/persistence,
+  schema, tests/tooling, and docs.
+- Duplication: mobile host/list duplication is separate from capability contract ownership; cleanup
+  scripts retain distinct interfaces; route-test setup is separate from production lifecycle.
+- Materiality: shared Compose enum ownership removes an active cross-module invalid-state seam;
+  mobile and cleanup candidates remain lower-risk maintenance; scheduler code ownership remains retained.
+- Platform validation: Android and desktop compilation passed. iOS compile was attempted but Gradle
+  could not resolve external `kotlin-native-prebuilt:2.3.10` for linux-aarch64 before source compilation.
+
+| Pass | Work | Result |
+|---|---|---|
+| 49 | Four bounded coverage lanes plus test-infrastructure lane | C-01..C-14 complete; five candidate classes reviewed |
+| 50 | Independent deterministic verification | Shared Compose enum duplication confirmed; mobile and cleanup behavior verified; route-test and scheduler leads retained |
+| 51 | Adversarial and deletion-test pass | Null fail-closed matching, ADR-0020 platform split, cleanup failure policy, auth setup variance, and migration wire ownership checked |
+| 52 | Coverage, duplication, materiality, priority | #218 selected and resolved; lower candidates retained/deferred without extra child |

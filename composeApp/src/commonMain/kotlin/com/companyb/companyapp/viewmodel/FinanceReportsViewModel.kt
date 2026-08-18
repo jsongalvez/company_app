@@ -3,6 +3,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -19,7 +20,6 @@ import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateCompensationRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasBranchOrDayCapability
 import com.companyb.companyapp.state.hasCapability
@@ -581,7 +581,7 @@ class FinanceReportsViewModel(
     fun hasAssignCapability(): Boolean =
         SessionState.capabilities.value.hasCapability(
             CapabilityCodes.ASSIGN_COMPENSATION,
-            CapabilityContext.BRANCH,
+            CapabilityContextType.BRANCH,
             _selectedBranchId.value,
         )
 
@@ -606,8 +606,8 @@ class FinanceReportsViewModel(
         // ASSIGN_COMPENSATION + EDIT_PAST_DAY legs stay BRANCH-only (not relief-eligible,
         // per the #157 surface).
         return hasEditBranchDataCapability() ||
-            caps.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId) ||
-            caps.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, branchId)
+            caps.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContextType.BRANCH, branchId) ||
+            caps.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContextType.BRANCH, branchId)
     }
 
     fun setEditMode(on: Boolean) {

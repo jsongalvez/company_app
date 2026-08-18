@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.AllowanceResponse
 import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.BranchResponse
@@ -51,7 +52,6 @@ import com.companyb.companyapp.dto.DailySalesSummaryResponse
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.MonthlyRemittanceSummaryResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasBranchOrDayCapability
 import com.companyb.companyapp.state.hasCapability
@@ -193,7 +193,11 @@ fun FinanceReportsScreen(
                 day != null &&
                     selectedBranch != null &&
                     derivedDayState(LocalDate.parse(day.date), today) == DerivedDayState.PAST &&
-                    !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, selectedBranch)
+                    !capabilities.hasCapability(
+                        CapabilityCodes.EDIT_PAST_DAY,
+                        CapabilityContextType.BRANCH,
+                        selectedBranch,
+                    )
             // #158 — hybrid holders (day grant + VIEW at a picker-listed branch): the relief
             // day lives at a branch the #98 window never lists, so the picker can't reach it —
             // the chip switches the surface to the day-scoped entry. Pass-2 HARD — entering
@@ -391,7 +395,7 @@ private fun ReliefDaySection(
                     derivedDayState(LocalDate.parse(selectedDay.date), today) == DerivedDayState.PAST &&
                         !capabilities.hasCapability(
                             CapabilityCodes.EDIT_PAST_DAY,
-                            CapabilityContext.BRANCH,
+                            CapabilityContextType.BRANCH,
                             SessionState.selectedBranchId.value,
                         )
                 TextButton(
@@ -1086,7 +1090,12 @@ private fun DayEditor(
     // #156 — per-element gates are branch-scoped triples (matching the backend
     // `requireBranchCapability` gates; #101 D1 matrix). #158 — the expense leg ORs the
     // BRANCH_DAY relief grant for this day.
-    val canAssign = capabilities.hasCapability(CapabilityCodes.ASSIGN_COMPENSATION, CapabilityContext.BRANCH, branchId)
+    val canAssign =
+        capabilities.hasCapability(
+            CapabilityCodes.ASSIGN_COMPENSATION,
+            CapabilityContextType.BRANCH,
+            branchId,
+        )
     // #101 D1 matrix — expenses = EDIT_BRANCH_DATA (per-element guard; the #158 day leg).
     val canEditExpenses =
         capabilities.hasBranchOrDayCapability(
@@ -1098,7 +1107,7 @@ private fun DayEditor(
     // (the backend 403 stays authoritative).
     val pastDayReadOnly =
         state == DerivedDayState.PAST &&
-            !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContext.BRANCH, branchId)
+            !capabilities.hasCapability(CapabilityCodes.EDIT_PAST_DAY, CapabilityContextType.BRANCH, branchId)
     val expenses by viewModel.editExpenses.collectAsState()
     val compensations by viewModel.editCompensations.collectAsState()
     val allowances by viewModel.editAllowances.collectAsState()

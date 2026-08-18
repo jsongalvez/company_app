@@ -1,5 +1,6 @@
 package com.companyb.companyapp.state
 
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,19 +91,6 @@ object SessionState {
 }
 
 /**
- * #156 — capability context types as returned by `GET /api/me/capabilities`
- * (the backend `capability_context_type` enum; shared with the backend only as
- * raw strings in `UserCapabilityResponse`).
- */
-object CapabilityContext {
-    const val GLOBAL = "GLOBAL"
-    const val BRANCH = "BRANCH"
-    const val BRANCH_DAY = "BRANCH_DAY"
-    const val MEDICAL_MISSION = "MEDICAL_MISSION"
-    const val PROVINCIAL_TOUR = "PROVINCIAL_TOUR"
-}
-
-/**
  * #156 — the #92 locked per-element check: true iff [code] is held at exactly
  * [contextType]/[contextId]. The caller resolves the scope — BRANCH rows against
  * the selected branch (dashboard `canEdit` against [SessionState.selectedBranchId];
@@ -113,11 +101,11 @@ object CapabilityContext {
  */
 fun List<UserCapabilityResponse>.hasCapability(
     code: String,
-    contextType: String,
+    contextType: CapabilityContextType,
     contextId: String?,
 ): Boolean =
     contextId != null &&
-        any { it.capabilityCode == code && it.contextType.name == contextType && it.contextId == contextId }
+        any { it.capabilityCode == code && it.contextType == contextType && it.contextId == contextId }
 
 /**
  * #156 — the #92 Q3 "some branch" route-gate semantics: true iff [code] is held at
@@ -132,15 +120,15 @@ fun List<UserCapabilityResponse>.hasCapabilityAnyContext(code: String): Boolean 
  */
 fun List<UserCapabilityResponse>.hasCapabilityAtContextType(
     code: String,
-    contextType: String,
-): Boolean = any { it.capabilityCode == code && it.contextType.name == contextType }
+    contextType: CapabilityContextType,
+): Boolean = any { it.capabilityCode == code && it.contextType == contextType }
 
 /**
  * #158 — the relief day-grant shape shared by the drawer, both NavHost gates and the
  * Finance screen: the caller holds [code] at BRANCH_DAY context (any day).
  */
 fun List<UserCapabilityResponse>.hasDayGrant(code: String): Boolean =
-    hasCapabilityAtContextType(code, CapabilityContext.BRANCH_DAY)
+    hasCapabilityAtContextType(code, CapabilityContextType.BRANCH_DAY)
 
 /**
  * #158/P5 — the day-scoped gate shape shared by the Finance VM and DayEditor (the
@@ -155,5 +143,5 @@ fun List<UserCapabilityResponse>.hasBranchOrDayCapability(
     branchId: String?,
     dayId: String?,
 ): Boolean =
-    hasCapability(code, CapabilityContext.BRANCH, branchId) ||
-        (dayId != null && hasCapability(code, CapabilityContext.BRANCH_DAY, dayId))
+    hasCapability(code, CapabilityContextType.BRANCH, branchId) ||
+        (dayId != null && hasCapability(code, CapabilityContextType.BRANCH_DAY, dayId))

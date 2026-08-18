@@ -4,13 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.CapabilityContext
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.ui.screen.DashboardEditField
@@ -97,7 +97,7 @@ class SessionDashboardViewModel(
         MutableStateFlow(
             SessionState.capabilities.value.hasCapability(
                 CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContext.BRANCH,
+                CapabilityContextType.BRANCH,
                 SessionState.selectedBranchId.value,
             ),
         )

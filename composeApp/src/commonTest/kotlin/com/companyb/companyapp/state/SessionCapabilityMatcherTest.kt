@@ -16,59 +16,66 @@ import kotlin.test.assertTrue
 class SessionCapabilityMatcherTest {
     private fun row(
         code: String,
-        contextType: String,
+        contextType: CapabilityContextType,
         contextId: String = "00000000-0000-0000-0000-000000000000",
     ) = UserCapabilityResponse(
         capabilityCode = code,
-        contextType = CapabilityContextType.valueOf(contextType),
+        contextType = contextType,
         contextId = contextId,
         sourceType = CapabilitySourceType.MANUAL_OVERRIDE,
     )
 
     private val rows =
         listOf(
-            row("MANAGE_USERS", "GLOBAL"),
-            row("ASSIGN_DELEGATE", "GLOBAL"),
-            row("SUBMIT_REMITTANCE", "BRANCH", "b1"),
-            row("EDIT_BRANCH_DATA", "BRANCH", "b1"),
-            row("EDIT_PAST_DAY", "BRANCH", "b2"),
-            row("EDIT_BRANCH_DATA", "BRANCH_DAY", "d1"),
-            row("VOID_SESSION", "MEDICAL_MISSION", "m1"),
-            row("VIEW_BRANCH_DATA", "PROVINCIAL_TOUR", "t1"),
+            row("MANAGE_USERS", CapabilityContextType.GLOBAL),
+            row("ASSIGN_DELEGATE", CapabilityContextType.GLOBAL),
+            row("SUBMIT_REMITTANCE", CapabilityContextType.BRANCH, "b1"),
+            row("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH, "b1"),
+            row("EDIT_PAST_DAY", CapabilityContextType.BRANCH, "b2"),
+            row("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY, "d1"),
+            row("VOID_SESSION", CapabilityContextType.MEDICAL_MISSION, "m1"),
+            row("VIEW_BRANCH_DATA", CapabilityContextType.PROVINCIAL_TOUR, "t1"),
         )
 
     // ─────────────────────────── triple check ───────────────────────────
 
     @Test
     fun triple_check_matches_exact_code_contextType_contextId() {
-        assertTrue(rows.hasCapability("SUBMIT_REMITTANCE", "BRANCH", "b1"))
-        assertTrue(rows.hasCapability("MANAGE_USERS", "GLOBAL", "00000000-0000-0000-0000-000000000000"))
-        assertTrue(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH_DAY", "d1"))
+        assertTrue(rows.hasCapability("SUBMIT_REMITTANCE", CapabilityContextType.BRANCH, "b1"))
+        assertTrue(
+            rows.hasCapability("MANAGE_USERS", CapabilityContextType.GLOBAL, "00000000-0000-0000-0000-000000000000"),
+        )
+        assertTrue(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY, "d1"))
     }
 
     @Test
     fun triple_check_rejects_wrong_contextId() {
-        assertFalse(rows.hasCapability("SUBMIT_REMITTANCE", "BRANCH", "b2"))
-        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH", "b2"), "b1 row must not resolve for b2")
+        assertFalse(rows.hasCapability("SUBMIT_REMITTANCE", CapabilityContextType.BRANCH, "b2"))
+        assertFalse(
+            rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH, "b2"),
+            "b1 row must not resolve for b2",
+        )
     }
 
     @Test
     fun triple_check_rejects_wrong_contextType() {
-        assertFalse(rows.hasCapability("MANAGE_USERS", "BRANCH", "00000000-0000-0000-0000-000000000000"))
-        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH_DAY", "b1"))
+        assertFalse(
+            rows.hasCapability("MANAGE_USERS", CapabilityContextType.BRANCH, "00000000-0000-0000-0000-000000000000"),
+        )
+        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY, "b1"))
     }
 
     @Test
     fun triple_check_rejects_wrong_code() {
-        assertFalse(rows.hasCapability("VOID_SESSION", "BRANCH", "b1"))
+        assertFalse(rows.hasCapability("VOID_SESSION", CapabilityContextType.BRANCH, "b1"))
     }
 
     @Test
     fun triple_check_null_contextId_fails_closed() {
         // Pre-clock-in (selectedBranchId null) and pre-day-selection (no branchDayId):
         // the null never matches, regardless of what rows are stored.
-        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH", null))
-        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH_DAY", null))
+        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH, null))
+        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY, null))
     }
 
     @Test
@@ -76,7 +83,7 @@ class SessionCapabilityMatcherTest {
         assertFalse(
             emptyList<UserCapabilityResponse>().hasCapability(
                 "MANAGE_USERS",
-                "GLOBAL",
+                CapabilityContextType.GLOBAL,
                 "00000000-0000-0000-0000-000000000000",
             ),
         )
@@ -85,11 +92,11 @@ class SessionCapabilityMatcherTest {
     @Test
     fun branch_scoped_resolution_shape_selected_branch() {
         // The Finance/dashboard call shape: resolve BRANCH rows against selectedBranchId.
-        assertTrue(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH", "b1"))
-        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH", "b2"))
+        assertTrue(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH, "b1"))
+        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH, "b2"))
         // BRANCH_DAY relief grant resolves only against the day row's branchDayId (#157-adjacent shape).
-        assertTrue(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH_DAY", "d1"))
-        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", "BRANCH_DAY", "d2"))
+        assertTrue(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY, "d1"))
+        assertFalse(rows.hasCapability("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY, "d2"))
     }
 
     // ─────────────────────────── any-context ───────────────────────────
@@ -112,17 +119,22 @@ class SessionCapabilityMatcherTest {
 
     @Test
     fun atContextType_matches_any_contextId_of_that_type() {
-        assertTrue(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH_DAY"))
-        assertTrue(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH"))
-        assertTrue(rows.hasCapabilityAtContextType("MANAGE_USERS", "GLOBAL"))
+        assertTrue(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH_DAY))
+        assertTrue(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", CapabilityContextType.BRANCH))
+        assertTrue(rows.hasCapabilityAtContextType("MANAGE_USERS", CapabilityContextType.GLOBAL))
     }
 
     @Test
     fun atContextType_rejects_other_types_and_absent_codes() {
-        assertFalse(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", "MEDICAL_MISSION"))
-        assertFalse(rows.hasCapabilityAtContextType("ASSIGN_COMPENSATION", "BRANCH"))
-        assertFalse(rows.hasCapabilityAtContextType("MANAGE_USERS", "BRANCH"))
-        assertFalse(emptyList<UserCapabilityResponse>().hasCapabilityAtContextType("EDIT_BRANCH_DATA", "BRANCH_DAY"))
+        assertFalse(rows.hasCapabilityAtContextType("EDIT_BRANCH_DATA", CapabilityContextType.MEDICAL_MISSION))
+        assertFalse(rows.hasCapabilityAtContextType("ASSIGN_COMPENSATION", CapabilityContextType.BRANCH))
+        assertFalse(rows.hasCapabilityAtContextType("MANAGE_USERS", CapabilityContextType.BRANCH))
+        assertFalse(
+            emptyList<UserCapabilityResponse>().hasCapabilityAtContextType(
+                "EDIT_BRANCH_DATA",
+                CapabilityContextType.BRANCH_DAY,
+            ),
+        )
     }
 
     @Test
