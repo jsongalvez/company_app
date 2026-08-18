@@ -500,3 +500,176 @@ behavior remain unchanged.
 | 18 | Independent deterministic verification | R20-R22 verified; R23-R24 verified but deferred; R25-R26 narrowed/rejected or deferred |
 | 19 | Adversarial and deletion-test pass | Cross-parent UUID, foreign day, DB outage, torn state, lifecycle ownership, and route-template counterexamples checked |
 | 20 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R20/R21 selected as one implementation slice, R22 next |
+
+## Permanent-Map Refresh - Session 234
+
+After implementation children #201 and #202, the frontier was empty again. A fresh full
+read-only audit rechecked C-01..C-14 across Compose and platform bridges, shared contracts,
+backend modules and schema, and tests/tooling/documentation. Product code, tests, migrations,
+and behavior remained unchanged.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Exploration | Falsification / verification | Disposition |
+|---|---|---|---|---|
+| R22 - fail closed on test-database discovery failure | complete | complete | verified; discovery failure still becomes empty output and exit 0 | implement, P1 |
+| R23 - pair selected branch and clock state flows | complete | complete | real torn-state risk, but broad lifecycle migration and ADR-0021 interaction remain | defer |
+| R24 - remove BranchSelect child ViewModel ownership | complete | complete | lifecycle split remains, but parent route ownership decision is prerequisite | defer |
+| R25 - remove duplicate route template constants | complete | complete | templates and client builders are different interfaces; only aliases are mechanical | reject |
+| R26 - unify attendance response DTOs | complete | complete | identical current shapes do not prove shared ownership; future divergence remains plausible | defer |
+
+### R22 - Fail closed on test-database discovery failure
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `scripts/check-test-cleanliness.sh:23-35` appends `|| echo ""` to the
+  discovery `docker exec psql` command. `:37-41` then treats empty output as an
+  uninitialized database and exits 0. The script is called by mandatory pre-commit and
+  pre-push hooks, so an unavailable container, database, or authentication path can report
+  successful cleanliness without inspecting any tables.
+- **Current invalid state:** “test database is clean” and “test database could not be
+  inspected” share one successful result. `scripts/clean-test-db.sh:21-37` repeats the same
+  discovery fallback on the pre-push cleanup path, so this candidate owns both scripts and
+  one failure-policy test matrix.
+- **Simpler representation:** let the discovery command fail under `set -euo pipefail`;
+  retain the intentional empty-schema success path after a successful query. Keep count-query
+  failures fail-closed as they already do.
+- **Smallest credible scope:** `scripts/check-test-cleanliness.sh`,
+  `scripts/clean-test-db.sh`, focused shell tests or command mocks, and hook validation. No
+  product code, schema, Docker configuration, or generic gate abstraction.
+- **Risks and migration:** Docker/database outages will correctly block commits and pushes;
+  hardcoded container naming is a separate operational concern. Preserve successful empty
+  schema handling and leaked-row failures.
+- **Existing/additional validation:** existing live cleanliness invocation; `bash -n`;
+  mocked discovery failure, successful empty discovery, leaked row, and count-query failure;
+  pre-commit/pre-push cleanliness invocation.
+- **Dependencies:** none. **Deletion test:** restoring the fallback makes the mocked
+  discovery-failure test pass incorrectly; removing it concentrates the clean-versus-unread
+  distinction in one command result.
+
+### R27 - Preserve branch-day before state in remittance submission audit
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceRepository.kt:337-359`
+  updates all covered days to `REMITTED` at `:338`, then reads each row at `:346-351` and
+  labels that post-update row `before` at `:352`. Both values passed to `SubmitAuditContext`
+  are therefore `REMITTED`, even when the mutation was `OPEN` or lazily `PAST` to
+  `REMITTED`. The undo implementation at `:435-476` already captures rows before mutation.
+- **Current invalid state:** the immutable Audit Log loses the actual branch-day status
+  transition, so financial history cannot explain what submission changed.
+- **Simpler representation:** capture covered `BranchDay` rows before calling
+  `updateBranchDayStatuses`, then update and read after rows to form true before/after pairs.
+- **Smallest credible scope:** `RemittanceRepository.submit` and focused submission-audit
+  tests. No schema or public HTTP change.
+- **Risks and validation:** preserve SERIALIZABLE transaction and audit callback atomicity;
+  submit remittances covering OPEN and lazy-PAST days, assert old status is prior state and
+  new status is `REMITTED`, and confirm remittance audit remains unchanged.
+- **Dependencies:** none beyond current audit callback ownership. **Deletion test:** moving
+  the pre-update read back below `updateBranchDayStatuses` reproduces the false old state.
+
+### R28 - Complete iOS Compose expect/actual bridge
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** common `expect` declarations include `ClientResultList` and
+  `ClientDetailLayout` (`composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/ClientScreenParts.kt:12-25`),
+  `RemittanceRowList` (`RemittanceScreenParts.kt:10`), `UserSlotOrderList`
+  (`UserManagementScreen.kt:332`), `AppNavHost` (`navigation/AppNavHost.kt:10`), and
+  `saveDownload` (`util/SaveDownload.kt:11`). `composeApp/src/iosMain` has actuals only for
+  token storage, HTTP engine, logging, and app config (`grep '^actual ' .../iosMain`); it has
+  none for those UI/navigation/download expects. `iosApp/iosApp/ContentView.swift:5-8`
+  calls `MainViewControllerKt.MainViewController()`, while
+  `composeApp/src/iosMain/kotlin/com/companyb/companyapp/MainViewController.kt:5` declares
+  `mainViewController()`.
+- **Current invalid state:** repository declares iOS as a Compose target and ADR-0020 lists
+  iOS support, but the target has unresolved platform seams and a host symbol mismatch. iOS
+  support cannot be treated as an implemented platform.
+- **Simpler representation:** provide iOS actuals for every common expect at the smallest
+  divergent subtree, implement user-visible download/share behavior, and make Swift call the
+  generated controller symbol that Kotlin actually exports. Do not copy Android/Desktop
+  behavior wholesale without checking iOS APIs.
+- **Smallest credible scope:** all missing iOS actuals, `MainViewController.kt`/Swift host,
+  iOS-specific UI and download adapters, and iOS compile/smoke validation. This is one
+  platform-support child because partial actuals cannot produce a usable iOS target.
+- **Risks and validation:** platform layout and UIKit/Swift export naming can diverge; compile
+  `iosArm64` and `iosSimulatorArm64`, inspect generated framework symbol, and exercise host
+  launch and route transitions. Existing common ViewModel tests remain applicable.
+- **Dependencies:** none. **Deletion test:** removing any required actual or the iOS target
+  exposes the missing seam; the current source already fails that compile-time contract.
+
+### R29 - Make full k6 workflow use valid fixtures and count failures
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `tests/k6/full-suite.js:193-210` sends random `branchDayId` values for
+  restock and movement; `:213-223` sends random branch-day and client IDs for product sales;
+  `:225-266` sends random branch-day/user IDs for compensation, expense, and allowance.
+  `tests/k6/helpers.js:41` owns the error rate, but many full-suite requests do not add their
+  failures to it and do not assert intended success status.
+- **Current invalid state:** full load tests present as successful business workflows while
+  most dependent writes exercise expected foreign-key/day-state failures; the global error
+  threshold can pass without counting those failures. Latency measurements then describe
+  invalid requests, not usable operational paths.
+- **Simpler representation:** create one valid branch-day/client fixture per VU, carry those
+  IDs through dependent calls, centralize response checks and error accounting, and preserve
+  endpoint-specific latency metrics.
+- **Smallest credible scope:** `tests/k6/full-suite.js`, shared k6 helpers, fixture cleanup
+  assumptions, and focused k6 validation. No product endpoint changes.
+- **Risks and validation:** setup changes load profile and increases test data; preserve test
+  database isolation and cleanup. Assert intended 2xx responses, count every failed request,
+  run full suite against `company_app_test`, and verify cleanup.
+- **Dependencies:** test fixture API shape and dev seeder behavior. **Deletion test:** restore
+  random IDs and the success assertions/error accounting checks must fail.
+
+### R30 - Finish remaining Compose shared route ownership
+
+- **Verdict:** skip; **disposition:** reject as duplicate/low-materiality mechanical cleanup.
+- **Evidence:** the shared catalog owns route families in
+  `shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt:38-179`, while
+  remaining Compose suffix concatenations are limited to call sites such as
+  `FinanceReportsViewModel.kt:93` and exact path construction in other ViewModels.
+- **Reason rejected:** prior route-ownership children completed the contract migration; the
+  remaining literals are narrow aliases or suffixes, not a new invalid domain state or
+  meaningful ownership defect. Backend registration templates satisfy a different Javalin
+  registration interface. Keep exact aliases as future mechanical cleanup only.
+
+### Updated audit-of-audit
+
+- Coverage pass: C-01..C-14 all rechecked; iOS target source sets, generated framework host,
+  k6 workflow dependencies, remittance audit callbacks, migrations, and mandatory hooks were
+  included.
+- Duplication/ownership pass: R22 includes both cleanliness discovery scripts; R30 is not
+  promoted over completed route ownership work. R27 is distinct from remittance child-link
+  ownership because it repairs audit truth, not authorization or idempotency.
+- Materiality pass: retained R22, R27, R28, and R29; deferred R23/R24/R26 and rejected R25/R30.
+- Dependency/priority pass: R22 is first because it hardens mandatory local gates; R27 follows
+  as a financial audit-integrity defect; R28 is a high-risk platform slice; R29 follows as
+  test-infrastructure correctness. Create native blockers in that order.
+
+### Deferred and rejected leads
+
+- R23 remains deferred: pairing selected-branch and clock-state values requires a focused
+  Compose lifecycle decision and must not redesign ADR-0021's capability timing.
+- R24 remains deferred: removing the child ViewModel seam requires deciding ownership of the
+  parent route-created state first; no speculative helper module is justified.
+- R25 remains rejected as a broad candidate: Javalin route templates and client route builders
+  satisfy different interfaces. Exact aliases can remain future mechanical cleanup.
+- R26 remains deferred: operation-specific attendance DTO interfaces preserve locality and may
+  diverge without material current cost.
+
+### Audit-of-audit
+
+- Coverage pass: C-01..C-14 all rechecked; platform hosts, generated-contract ownership,
+  migrations, hooks, and test infrastructure included.
+- Duplication/ownership pass: R22 kept separate from cleanup-script discovery and from generic
+  gate design; R23/R24 remain lifecycle decisions, not mechanical cleanup.
+- Materiality pass: only the mandatory false-success gate remained actionable. State, lifecycle,
+  route-alias, and DTO leads were deferred or rejected with explicit reasons.
+- Schema pass: no new schema candidate; remittance parent ownership is implemented and tests
+  cover the parent-scoped seams.
+- Dependency/priority pass: R22 is the sole next child. No parallel implementation child is
+  opened.
+
+| Pass | Work | Result |
+|---|---|---|
+| 21 | Fresh bounded repository audit | C-01..C-14 complete; five leads recorded |
+| 22 | Independent deterministic verification | R22 verified; R23/R24 deferred; R25 rejected; R26 deferred |
+| 23 | Adversarial and deletion-test pass | DB discovery outage, torn state, lifecycle ownership, route-interface, and DTO counterexamples checked |
+| 24 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R22 selected as sole next implementation child |
