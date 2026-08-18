@@ -98,14 +98,14 @@ https://ntfy.sh/wf-<your-topic>
 
 (The real topic lives in `.wayfinder-loop.env` — gitignored; never commit it. If a topic URL ever lands in git, treat it as exposed and rotate: `ntfy` topics are read/publish-by-URL.)
 
-Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_WAIT_SECS` (session wait slice, default 180), `WAYFINDER_STALL_SLICES` (stall slices before resume, default 3), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
+Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` (doc poll interval, default 15), `WAYFINDER_TICK_SECS` (session poll interval, default 5), `WAYFINDER_STALL_SECS` (stall threshold, default 540), `WAYFINDER_DRY_RUN` (log transitions without spawning), `WAYFINDER_ALLOW_DIRTY` (skip the clean-worktree gate).
 
 ### Resilience
 
 - **Stalled session**: if a session stops producing messages for ~9 minutes, the daemon asks it to continue where it left off (same session, same context) — up to 2 attempts. No work is touched or reverted.
 - **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./scripts/wayfinder-loop.sh --retry`.
 - **opencode2 API outage**: daemon keeps retrying and notifies once if the service is unreachable (`opencode2 service status` to check).
-- **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon pauses, notifies, and resumes automatically when the worktree is clean. In-place session resumes bypass this gate — they continue their own uncommitted work.
+- **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon auto-checkpoints completed-session work when possible; the active agent owns local recovery and must leave the handoff committed before completion. In-place session resumes bypass this gate — they continue their own uncommitted work.
 - **Crash-safe state**: `.wayfinder-loop.state` records the active session id + retry counters; any restart resumes supervision in place.
 
 ### Runtime files

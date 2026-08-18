@@ -34,12 +34,13 @@ Session 105 resolved design child #181, the sole claimed ticket. Map #180 remain
 
 ## Commit and remote
 
-- Handoff documentation commit is pending in this session.
-- Push required after commit; record exact blocker if remote rejects it.
+- Commit `2eb627e` (`docs: record strict wire enum decision`) contains this handoff.
+- Initial push was blocked by test-data cleanliness; policy follow-up cleaned the disposable test database.
 
 ## Critical blockers
 
-- None for resolved design decision.
+- Initial push found rows in `app_user(1)`, `branch_day_assignment(1)`, `user_capability(9)`, `branch_day(1)`, `user_role(1)`, `attendance(1)`, `audit_log(2)`, and `branch(1)`; the disposable test database was cleaned and verified empty.
+- This VPS has no production or user data for this project; next session may clean or recreate the disposable project test database, then push commit `2eb627e` plus any handoff update.
 - #191 implementation must preserve uppercase wire values and intentionally leave open text and sentinel query filters such as `ALL` unchanged.
 
 ## How to drive the next session
