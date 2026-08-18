@@ -1283,3 +1283,39 @@ surfaced actionable findings that supersede the table above:
 The initial no-candidate conclusion was corrected before remote push. The full audit's final
 priority is R37 first, R38 second, R39 third. R15 and historical role-assignment workflow
 remain fog without new deployment or business evidence.
+
+## Permanent-Map Refresh - Session 254
+
+Implementation child #222 resolved R38, the remittance source-ownership defect. The focused
+backend change validates each SESSION or PRODUCT_SALE line source against the remittance branch
+before `RemittanceLineRepository.addLine` can insert a line, increment remittance version, or
+invoke the audit callback. The source branch remains derived from its immutable Branch Day.
+
+### R38 implementation checkpoint
+
+- `RemittanceService.addLine` now resolves the referenced session or product sale and its Branch
+  Day, rejecting a missing or foreign source with `NotFoundException`.
+- Same-branch sources, draft idempotency, duplicate-source conflicts, version checks, submission,
+  and audit callbacks remain owned by existing modules.
+- Regression coverage rejects both foreign SESSION and PRODUCT_SALE sources and proves remittance
+  version, line collection, and audit rows remain unchanged.
+- No schema or migration change was needed; existing source and Branch Day foreign keys remain
+  authoritative.
+
+### Validation
+
+- Focused `RemittanceLineServicePostgresTest`: PASS, 30 tests.
+- `:backend:detekt :backend:ktlintCheck :backend:test`: PASS, 8m15s.
+- Test-database cleanliness check: PASS.
+- `git diff --check`: PASS.
+
+### Audit-of-audit
+
+- Ownership pass: source branch validation is separate from remittance parent-child line identity
+  and from day-breakdown branch validation.
+- Adversarial pass: both source types reject before line insertion, version mutation, and audit;
+  same-branch paths retain existing tests.
+- Materiality pass: R38 removes a concrete financial cross-branch contamination path; no schema
+  redesign or generic source abstraction is justified.
+- Priority pass: R39 remains next retained P1 tooling candidate; R15 and historical role-assignment
+  workflow remain fog without deployment or business evidence.

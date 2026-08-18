@@ -5,6 +5,8 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
+import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.Remittance
@@ -241,6 +243,8 @@ object RemittanceService {
             throw ValidationException("Can only add lines to DRAFT remittances")
         }
 
+        requireSourceBelongsToBranch(type, sessionId, productSaleId, remittance.branchId)
+
         val line =
             RemittanceLineRepository.addLine(
                 AddLineParams(
@@ -265,6 +269,34 @@ object RemittanceService {
 
         logger.info { "[ADD-REMITTANCE-LINE] Line ${line.id} added to remittance $remittanceId" }
         return line
+    }
+
+    @Suppress("ThrowsCount")
+    private fun requireSourceBelongsToBranch(
+        type: RemittanceLineType,
+        sessionId: UUID?,
+        productSaleId: UUID?,
+        branchId: UUID,
+    ) {
+        val sourceBranchDayId =
+            when (type) {
+                RemittanceLineType.SESSION -> {
+                    val sourceId = sessionId ?: throw ValidationException("sessionId is required for SESSION line type")
+                    SessionRepository.findById(sourceId)?.branchDayId
+                        ?: throw NotFoundException("Session not found")
+                }
+
+                RemittanceLineType.PRODUCT_SALE -> {
+                    val sourceId =
+                        productSaleId
+                            ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
+                    ProductSaleRepository.findById(sourceId)?.branchDayId
+                        ?: throw NotFoundException("Product sale not found")
+                }
+            }
+        if (BranchDayService.requireBranchDayExists(sourceBranchDayId).branchId != branchId) {
+            throw NotFoundException("Source does not belong to remittance branch")
+        }
     }
 
     @Suppress("ThrowsCount", "ReturnCount")

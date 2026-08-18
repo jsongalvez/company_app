@@ -39,6 +39,7 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -149,6 +150,75 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         assertNotNull(line)
         assertEquals(RemittanceLineType.PRODUCT_SALE, line.type)
         assertEquals(productSaleId, line.productSaleId)
+    }
+
+    @Test
+    @Suppress("LongMethod")
+    fun `add line rejects session and product sale from another branch`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+
+        val foreignBranchId = UUID.randomUUID()
+        val foreignClientId = UUID.randomUUID()
+        val foreignBranchDayId = UUID.randomUUID()
+        val foreignSessionId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Remittance Source")
+        trackOwned(BranchTable, BranchTable.id, foreignBranchId)
+        DatabaseTestHelper.insertTestClient(foreignClientId)
+        trackOwned(ClientTable, ClientTable.id, foreignClientId)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        createProductSale()
+        transaction {
+            BranchDayTable.insert {
+                it[BranchDayTable.id] = foreignBranchDayId
+                it[BranchDayTable.branchId] = foreignBranchId
+                it[BranchDayTable.date] = LocalDate.of(2026, 7, 10)
+            }
+            SessionTable.insert {
+                it[SessionTable.id] = foreignSessionId
+                it[SessionTable.clientId] = foreignClientId
+                it[SessionTable.branchDayId] = foreignBranchDayId
+                it[SessionTable.sessionType] = SessionType.REGULAR
+                it[SessionTable.sessionStatus] = SessionStatus.COMPLETED
+                it[SessionTable.isWalkIn] = false
+                it[SessionTable.basePrice] = BigDecimal("2500.00")
+                it[SessionTable.finalPrice] = BigDecimal("2500.00")
+            }
+            ProductSaleTable.update({ ProductSaleTable.id eq productSaleId }) {
+                it[ProductSaleTable.branchDayId] = foreignBranchDayId
+            }
+        }
+        trackOwned(BranchDayTable, BranchDayTable.id, foreignBranchDayId)
+        trackOwned(SessionTable, SessionTable.id, foreignSessionId)
+
+        assertFailsWith<NotFoundException> {
+            RemittanceService.addLine(
+                callerId,
+                remittance.id,
+                UUID.randomUUID(),
+                RemittanceLineType.SESSION,
+                foreignSessionId,
+                null,
+                BigDecimal("1500.00"),
+            )
+        }
+        assertFailsWith<NotFoundException> {
+            RemittanceService.addLine(
+                callerId,
+                remittance.id,
+                UUID.randomUUID(),
+                RemittanceLineType.PRODUCT_SALE,
+                null,
+                productSaleId,
+                BigDecimal("500.00"),
+            )
+        }
+
+        assertEquals(remittance.version, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertTrue(RemittanceService.getRemittance(remittance.id).lines.isEmpty())
+        assertEquals(0, remittanceLineAuditCount())
     }
 
     @Test
