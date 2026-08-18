@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.repository.NotificationRepository
@@ -33,7 +34,6 @@ import java.util.UUID
 object NextAppointmentScheduler {
     private val logger = KotlinLogging.logger {}
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
-    private const val RECEIVE_NEXT_APPOINTMENT_ALERTS = "RECEIVE_NEXT_APPOINTMENT_ALERTS"
     private const val RUN_HOUR = 7
     private const val RUN_MINUTE = 0
     private const val DAYS_AHEAD = 2L
@@ -132,7 +132,7 @@ object NextAppointmentScheduler {
                         (UserBranchAssignmentTable.endedAt.isNull()) and
                         (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
                         (ActiveUserCapabilitiesView.contextId eq UserBranchAssignmentTable.branchId) and
-                        (CapabilityTable.code eq RECEIVE_NEXT_APPOINTMENT_ALERTS)
+                        (CapabilityTable.code eq CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS)
                 }.withDistinct()
                 .map { row ->
                     row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]

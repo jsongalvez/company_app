@@ -1170,3 +1170,57 @@ unchanged during the audit.
 | 54 | Independent deterministic verification | Byte identity, platform API availability, and ownership variance confirmed |
 | 55 | Adversarial and deletion-test pass | ADR split, lifecycle, auth setup variance, migration literals, and failure policy checked |
 | 56 | Coverage, duplication, materiality, priority | #219 selected as sole implementation child |
+
+## Permanent-Map Refresh - Session 252
+
+After implementation child #219, a focused C-01..C-14 audit rechecked retained scheduler
+capability-code ownership, route-test setup, and test-database cleanup candidates. Product
+behavior outside the selected child was unchanged during the audit.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| Scheduler capability code ownership | `NextAppointmentScheduler.kt:36,135` owns a private runtime string while shared `CapabilityCodes` owns every other runtime capability; V5/V21 migrations necessarily retain SQL literals | Branch pairing, role-derived provisioning, inactive-user filtering, and multi-branch authorization are covered by #207/#215; only Kotlin ownership remains duplicated | implement, P1/P2; new child |
+| Route-test setup helper | 15 suites repeat stable database/JWT setup, but route registration, exception maps, and auth modes vary | A configurable factory would relocate suite-specific complexity; no narrow helper with a second concrete adapter earns a seam | defer, P2 |
+| Test-database cleanup policy | `check-test-cleanliness.sh` and `clean-test-db.sh` repeat discovery predicates | Check and mutation have distinct interfaces; both fail closed after #203 and no fresh failure or drift exists | defer, P2 |
+
+### Scheduler capability ownership dossier
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1/P2; **confidence:** high.
+- **Evidence:** `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt:3-13`
+  owns all current runtime capability codes except `RECEIVE_NEXT_APPOINTMENT_ALERTS`,
+  which is privately declared in `NextAppointmentScheduler.kt:36` and repeated in its test at
+  `NextAppointmentSchedulerPostgresTest.kt:386`. Migrations retain SQL literals because they
+  are database-owned text, not Kotlin consumers.
+- **Current invalid state:** shared capability-code ownership is false-complete; the scheduler
+  can drift from shared consumers when the code changes.
+- **Competing representation:** keep the private scheduler constant, or add a generic capability
+  registry. The former preserves the drift seam; the latter adds speculative structure. A shared
+  constant is the smallest representation.
+- **Smallest credible scope:** add one shared constant and migrate the scheduler and focused test;
+  leave migration SQL unchanged. No route, view, grant, or scheduler behavior changes.
+- **Risks and validation:** preserve exact uppercase wire/database value and scheduler recipient
+  selection. Verify repository search, shared/backend compilation, focused scheduler tests, and
+  backend quality gates.
+- **Dependencies:** existing shared capability ownership and completed scheduler provisioning.
+  **Deletion test:** deleting the private constant leaves all Kotlin callers on the shared owner;
+  no adapter or registry is introduced.
+
+### Audit-of-audit
+
+- **Coverage:** C-01..C-14 rechecked with independent lanes for scheduler ownership, route-test
+  setup, cleanup policy, and remaining platform/shared/backend/tooling areas.
+- **Duplication:** the Kotlin capability constant is distinct from required migration SQL and
+  completed shared enum ownership; route-test and cleanup candidates remain separate.
+- **Materiality:** scheduler ownership is a concrete cross-module drift seam; route-test and
+  cleanup extraction remain maintenance work without a current invalid state.
+- **Schema:** no migration or database representation change is justified.
+- **Priority:** scheduler ownership is the sole implementation child; no second child opened.
+
+| Pass | Work | Result |
+|---|---|---|
+| 57 | Focused C-01..C-14 lanes | Scheduler, route-test, cleanup, and all ownership rows rechecked |
+| 58 | Independent deterministic verification | One duplicated runtime capability owner confirmed; migration literals correctly retained |
+| 59 | Adversarial and deletion-test pass | Shared constant, registry, test-helper, and cleanup alternatives falsified or narrowed |
+| 60 | Coverage, duplication, materiality, schema, priority | Scheduler ownership selected as sole implementation child |
