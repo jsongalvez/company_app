@@ -2,13 +2,9 @@ package com.companyb.companyapp.state
 
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 
 object SessionState {
     private val _currentUser = MutableStateFlow<MeResponse?>(null)
@@ -40,11 +36,6 @@ object SessionState {
     // (launch-validation 401 stays silent). App.kt sets it; LoginScreen consumes + clears.
     private val _expiredNotice = MutableStateFlow(false)
     val expiredNotice: StateFlow<Boolean> = _expiredNotice.asStateFlow()
-
-    val isLoggedIn: StateFlow<Boolean> =
-        currentUser
-            .map { it != null }
-            .stateIn(GlobalScope, SharingStarted.Eagerly, false)
 
     fun setUser(user: MeResponse) {
         _currentUser.value = user
