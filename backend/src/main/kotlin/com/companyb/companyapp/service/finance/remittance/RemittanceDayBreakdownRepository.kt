@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
@@ -33,17 +34,34 @@ internal object RemittanceDayBreakdownRepository {
                 return@transaction existing.toRemittanceDayBreakdown()
             }
 
-            RemittanceDayBreakdownTable.insertIgnore {
-                it[RemittanceDayBreakdownTable.id] = id
-                it[RemittanceDayBreakdownTable.remittanceId] = remittanceId
-                it[RemittanceDayBreakdownTable.branchDayId] = branchDayId
+            val inserted =
+                RemittanceDayBreakdownTable.insertIgnore {
+                    it[RemittanceDayBreakdownTable.id] = id
+                    it[RemittanceDayBreakdownTable.remittanceId] = remittanceId
+                    it[RemittanceDayBreakdownTable.branchDayId] = branchDayId
+                }
+
+            if (inserted.insertedCount == 0) {
+                val existingByParent =
+                    RemittanceDayBreakdownTable
+                        .selectAll()
+                        .where {
+                            (RemittanceDayBreakdownTable.id eq id) and
+                                (RemittanceDayBreakdownTable.remittanceId eq remittanceId)
+                        }.singleOrNull()
+                if (existingByParent != null) {
+                    return@transaction existingByParent.toRemittanceDayBreakdown()
+                }
+                throw ConflictException("Day breakdown ID already belongs to another remittance")
             }
 
             val created =
                 RemittanceDayBreakdownTable
                     .selectAll()
-                    .where { RemittanceDayBreakdownTable.id eq id }
-                    .single()
+                    .where {
+                        (RemittanceDayBreakdownTable.id eq id) and
+                            (RemittanceDayBreakdownTable.remittanceId eq remittanceId)
+                    }.single()
                     .toRemittanceDayBreakdown()
 
             auditFn(created)

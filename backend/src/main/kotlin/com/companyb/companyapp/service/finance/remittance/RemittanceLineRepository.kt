@@ -36,6 +36,7 @@ data class AddLineParams(
 private val logger = KotlinLogging.logger {}
 
 internal object RemittanceLineRepository {
+    @Suppress("LongMethod")
     fun addLine(
         params: AddLineParams,
         auditFn: (RemittanceLine) -> Unit = {},
@@ -44,8 +45,10 @@ internal object RemittanceLineRepository {
             val existing =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq params.id }
-                    .singleOrNull()
+                    .where {
+                        (RemittanceLineTable.id eq params.id) and
+                            (RemittanceLineTable.remittanceId eq params.remittanceId)
+                    }.singleOrNull()
             if (existing != null) {
                 return@transaction existing.toRemittanceLine()
             }
@@ -68,6 +71,7 @@ internal object RemittanceLineRepository {
                         .selectAll()
                         .where {
                             (RemittanceLineTable.id eq params.id) and
+                                (RemittanceLineTable.remittanceId eq params.remittanceId) and
                                 entityRefCondition(params)
                         }.singleOrNull()
                 if (racedRetry != null) {
@@ -90,8 +94,10 @@ internal object RemittanceLineRepository {
             val created =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq params.id }
-                    .single()
+                    .where {
+                        (RemittanceLineTable.id eq params.id) and
+                            (RemittanceLineTable.remittanceId eq params.remittanceId)
+                    }.single()
                     .toRemittanceLine()
 
             auditFn(created)

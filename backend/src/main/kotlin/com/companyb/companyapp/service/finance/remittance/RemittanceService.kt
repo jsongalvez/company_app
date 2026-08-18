@@ -319,7 +319,7 @@ object RemittanceService {
             throw ValidationException("Can only add day breakdowns to DRAFT remittances")
         }
 
-        BranchDayService.requireBranchDayExists(branchDayId)
+        BranchDayService.requireBranchDayForBranch(branchDayId, remittance.branchId)
 
         val breakdown =
             RemittanceDayBreakdownRepository.addDayBreakdown(
