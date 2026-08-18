@@ -1224,3 +1224,38 @@ behavior outside the selected child was unchanged during the audit.
 | 58 | Independent deterministic verification | One duplicated runtime capability owner confirmed; migration literals correctly retained |
 | 59 | Adversarial and deletion-test pass | Shared constant, registry, test-helper, and cleanup alternatives falsified or narrowed |
 | 60 | Coverage, duplication, materiality, schema, priority | Child #220 selected as sole implementation child |
+
+## Permanent-Map Refresh - Session 253
+
+After implementation child #220, the frontier was empty again. A full C-01..C-14 audit
+rechecked Compose/platform bridges, shared contracts and schema, backend runtime and
+authorization, and tests/tooling/documentation. Product source, tests, migrations, and
+behavior remained unchanged during the audit.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| Scheduler capability-code ownership | Shared `CapabilityCodes` now owns every Kotlin runtime capability code, including scheduler alerts; migrations retain required SQL literals | Repository search finds no private Kotlin scheduler constant or focused-test magic string; scheduler behavior is covered by #207/#215/#220 | implemented |
+| Mobile host/session-list duplication | Android/iOS bodies now share common implementations; desktop remains intentionally separate under ADR-0020 | Target-specific delegates contain no duplicated behavior; no lifecycle or route regression found | implemented |
+| Route-test setup helper | Route suites repeat stable setup but vary registration, exception maps, and auth modes | A configurable factory relocates suite-specific complexity; no second concrete adapter or narrow deep seam is evidenced | defer, P2 |
+| Test-database cleanup policy | Cleanliness and truncation scripts repeat discovery predicates | Assert and mutate interfaces differ; both fail closed after #203 and no fresh failure or drift is evidenced | defer, P2 |
+| R15 notification inserted-count truth | Notification batch now returns database inserted count; deployment/overlap requirement remains unconfirmed | Existing uniqueness and focused tests cover current scheduler behavior; no new concurrency requirement surfaced | retain as fog |
+| Historical role-assignment workflow fog | ADR-0023 records production role assignment as future workflow scope | No new requirement or implementation evidence sharpens the decision; guessing would exceed map scope | retain as fog |
+
+### Audit-of-audit
+
+- Coverage pass: C-01..C-14 all rechecked, including platform hosts, shared wire ownership,
+  PostgreSQL migrations, authorization views, route tests, cleanup scripts, CI/hooks, and ADRs.
+- Duplication pass: scheduler capability ownership and mobile duplication are retired; route-test
+  setup and cleanup predicates remain distinct interfaces rather than one missing module.
+- Materiality pass: no fresh runtime defect, invalid state, concurrency failure, or deletion-test
+  win justifies a new child. Remaining candidates are maintenance or unresolved fog.
+- Schema/priority pass: no migration change is justified; R15 remains dependent on deployment
+  topology or overlapping invocation requirements.
+
+| Pass | Work | Result |
+|---|---|---|
+| 61 | Full bounded C-01..C-14 lanes | All ownership areas rechecked; no omission |
+| 62 | Independent evidence and falsification | Resolved candidates retired; route-test and cleanup seams narrowed; fog retained |
+| 63 | Coverage, duplication, materiality, schema, priority | No justifiable new implementation child |
