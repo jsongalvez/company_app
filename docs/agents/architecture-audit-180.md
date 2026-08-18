@@ -879,3 +879,62 @@ lead (R35) was recorded as deferred fog because it is separate orchestration sco
 - Falsification: valid complete JMH output still compares; new benchmark rows remain allowed;
   missing baseline rows, malformed scores, and empty/truncated output fail.
 - Priority: R32 first, then R33 and R34. No other implementation child opened.
+
+## Permanent-Map Refresh - Session 243
+
+After implementation child #209, four bounded read-only lanes rechecked C-01..C-14 and
+retained candidates. R34 remained the only actionable P1 candidate and was implemented as
+child #211. R35 was falsified as a correctness issue and remains workflow fog. Product
+behavior was changed only through #211; the audit itself remained read-only.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Exploration | Falsification / verification | Disposition |
+|---|---|---|---|---|
+| R34 - make registration uniqueness race explicit | current | current | repository precheck/insert race verified; implementation child #211 resolved it | implemented, P1 |
+| R35 - preserve CI retry status capture | current | current | retry failure exits non-zero and uploads logs; no false-success defect | defer as workflow fog |
+| R36 - delete unused UserCapability data class | current | current | repository-wide Kotlin search finds declaration only; table representation remains used | defer, P2 |
+
+### R34 implementation checkpoint
+
+- `AuthService.register` still owns validation and existing result semantics.
+- `UserRepository.createUser` now owns atomic uniqueness handling through `insertIgnore`,
+  reads the conflicting username/email inside the same transaction, and throws a typed
+  `RegistrationConflictException`.
+- The successful insert path retains audit callback execution inside the transaction. The
+  conflict path throws before callback invocation, so no partial user or audit callback effect
+  can commit.
+- Sequential, concurrent same-username, concurrent same-email, and audit-callback tests pass.
+- The `UserCreateParams` parameter object preserves the repository convention for four or more
+  non-PK creation parameters.
+
+### R35 falsification
+
+The JMH workflow explicitly captures retry comparator status and exits non-zero on retry
+failure. Failed runs retain logs for upload. Missing diagnostic output is not a correctness
+breach, so no implementation ticket is justified.
+
+### R36 dossier
+
+`backend/src/main/kotlin/com/companyb/companyapp/repository/model/UserCapability.kt` declares
+`UserCapability`, but repository-wide search finds no constructor or type consumer. The
+`UserCapabilityTable` and its enums remain active persistence representations. Deleting only
+the dead data class passes the deletion test, but it is lower priority than concurrency and
+was not ticketed under the one-child cadence.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 rechecked across Compose/platform bridges, shared contracts,
+  backend/auth/persistence/schema, tests/tooling, CI, and docs.
+- Duplication: R34 is distinct from R33 wire typing and prior compensation/remittance races;
+  R35 is workflow diagnostics; R36 is dead persistence representation.
+- Materiality: R34 was the only P1 candidate. R35 was rejected as a correctness candidate;
+  R36 was retained as P2 deferred work.
+- Priority: complete R34 first; revisit R36 when no higher-risk candidate is available.
+
+| Pass | Work | Result |
+|---|---|---|
+| 33 | Four bounded coverage lanes | C-01..C-14 complete; R34-R36 reviewed |
+| 34 | Independent deterministic verification | R34 verified and implemented; R35 falsified; R36 verified |
+| 35 | Adversarial and deletion-test pass | Registration races, retry failure status, and dead model references checked |
+| 36 | Coverage, duplication, materiality, priority | No missing subsystem; one child resolved; R36 deferred |
