@@ -2,6 +2,7 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.DenyReliefAccessRequest
 import com.companyb.companyapp.dto.GrantReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessRequest
@@ -54,7 +55,7 @@ object ReliefAccessRoutes {
                     id = result.id.toString(),
                     branchDayId = result.branchDayId.toString(),
                     requestedBy = result.requestedBy.toString(),
-                    requestStatus = result.requestStatus.name,
+                    requestStatus = ReliefAccessStatus.valueOf(result.requestStatus.name),
                     targetUser = result.targetUser.toString(),
                     grantedBy = result.grantedBy?.toString(),
                     grantedAt = result.grantedAt?.toString(),
@@ -78,7 +79,7 @@ object ReliefAccessRoutes {
                     id = result.id.toString(),
                     branchDayId = result.branchDayId.toString(),
                     requestedBy = result.requestedBy.toString(),
-                    requestStatus = result.requestStatus.name,
+                    requestStatus = ReliefAccessStatus.valueOf(result.requestStatus.name),
                     targetUser = result.targetUser.toString(),
                     grantedBy = result.grantedBy?.toString(),
                     grantedAt = result.grantedAt?.toString(),
@@ -112,7 +113,7 @@ object ReliefAccessRoutes {
                     id = result.id.toString(),
                     branchDayId = result.branchDayId.toString(),
                     requestedBy = result.requestedBy.toString(),
-                    requestStatus = result.requestStatus.name,
+                    requestStatus = ReliefAccessStatus.valueOf(result.requestStatus.name),
                     targetUser = result.targetUser.toString(),
                     grantedBy = result.grantedBy?.toString(),
                     grantedAt = result.grantedAt?.toString(),

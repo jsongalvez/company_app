@@ -34,6 +34,9 @@ enum class DayStatus { OPEN, PAST, REMITTED }
 enum class UserStatus { ACTIVE, INACTIVE }
 
 @Serializable
+enum class ReliefAccessStatus { PENDING, GRANTED, DENIED }
+
+@Serializable
 enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
 
 @Serializable

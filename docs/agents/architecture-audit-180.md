@@ -792,6 +792,65 @@ No product source, tests, migrations, or behavior were changed during this audit
 | 27 | Adversarial and deletion-test pass | Capability scope, malformed JMH output, unknown enum values, and registration races falsified |
 | 28 | Coverage, duplication, materiality, schema, priority | No omission or unresolved overlap; R31 selected as sole implementation child |
 
+## Permanent-Map Refresh - Session 242
+
+After implementation child #208, a focused read-only audit rechecked C-01..C-14 and every retained
+candidate. Shared relief-access status remains the first actionable slice; registration uniqueness
+remains an independent backend concurrency slice. No product source, tests, migrations, or behavior
+changed during this audit.
+
+### Coverage and dispositions
+
+| Candidate | Evidence | Exploration | Falsification / verification | Disposition |
+|---|---|---|---|---|
+| R33 - type relief-access status in shared DTO | current | current | finite backend/database values and untyped shared field still verified | implement, P1 |
+| R34 - make registration uniqueness race explicit | current | current | pre-check and unique database constraints still separated; loser can escape as 500 | implement, P1 |
+| R35 - preserve CI retry status capture | current | current | separate workflow orchestration concern; no ticket until its exact retry contract is isolated | defer |
+
+### R33 verification
+
+- `AttendanceDto.ReliefRequestResponse.requestStatus` remains `String` at
+  `shared/src/commonMain/kotlin/com/companyb/companyapp/dto/AttendanceDto.kt:57-64`.
+- `ReliefStatus` remains the finite persistence/domain enum at
+  `backend/src/main/kotlin/com/companyb/companyapp/repository/model/ReliefStatus.kt:3`, with
+  `PENDING`, `GRANTED`, and `DENIED`; the V1 `relief_status` database enum is its backstop.
+- `ReliefAccessRoutes` serializes `.name` at lines 57, 81, and 115, so current uppercase wire
+  values can be preserved exactly by a shared serializable enum. `ReliefInvite` has a distinct
+  status enum and must not be reused.
+- Falsification found no competing shared status type or unknown-value policy that invalidates the
+  completed finite-wire typing pattern. Existing malformed-value behavior must remain explicit at
+  the shared/backend boundary.
+- Deletion test passes: replacing the shared `String` with one shared finite value removes the
+  invalid wire state without adding a new module or adapter seam.
+
+### R34 verification
+
+- `AuthService.register` still prechecks username and email before `UserRepository.createUser`;
+  V1 still owns unique username/email constraints. Concurrent losers therefore remain capable of
+  escaping repository code as an unclassified database error.
+- The candidate is not a duplicate of R33: it owns atomic backend write conflict translation,
+  while R33 owns shared finite wire representation.
+- Deletion test passes: repository-owned atomic conflict handling can remove race-prone caller
+  coordination without changing the database constraints or registration interface.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 rechecked, including shared DTOs, backend route mapping, persistence enums,
+  auth writes, migrations, Compose consumers, tests, hooks, CI, and architecture documentation.
+- Duplication: R33 extends completed finite-wire typing; R34 remains a separate database-backed
+  uniqueness concern; R35 remains workflow fog rather than an implementation child.
+- Materiality: R33 and R34 both remove concrete invalid states; R35 is deferred until retry status
+  ownership is narrowly evidenced.
+- Priority: R33 first because it is a contained cross-module contract correction with no schema or
+  concurrency migration; R34 follows as the higher-risk backend transaction slice.
+
+| Pass | Work | Result |
+|---|---|---|
+| 29 | Focused bounded repository audit | C-01..C-14 complete; R33-R35 rechecked |
+| 30 | Independent deterministic verification | R33/R34 remain verified; R35 remains deferred |
+| 31 | Adversarial and deletion-test pass | Unknown wire values, distinct invite status, and registration races checked |
+| 32 | Coverage, duplication, materiality, priority | R33 selected as sole next implementation child |
+
 ## Permanent-Map Refresh - Session 241
 
 After implementation child #207, four independent read-only lanes re-audited C-01..C-14 and

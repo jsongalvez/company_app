@@ -17,12 +17,16 @@ class WireEnumsSerializationTest {
         assertEquals("\"REMITTED\"", json.encodeToString(DayStatus.REMITTED))
         assertEquals("\"INACTIVE\"", json.encodeToString(UserStatus.INACTIVE))
         assertEquals("\"BRANCH_DAY\"", json.encodeToString(CapabilityContextType.BRANCH_DAY))
+        assertEquals("\"GRANTED\"", json.encodeToString(ReliefAccessStatus.GRANTED))
     }
 
     @Test
     fun unknown_finite_value_fails_decoding() {
         assertFailsWith<IllegalArgumentException> {
             json.decodeFromString<SessionStatus>("\"ARCHIVED\"")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            json.decodeFromString<ReliefAccessStatus>("\"ACCEPTED\"")
         }
     }
 }
