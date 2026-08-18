@@ -79,4 +79,8 @@ const baselineThresholds = {
 export const thresholdProfiles = {
   baseline: baselineThresholds,
   full: fullThresholds,
+  concurrency: {
+    concurrency_latency: fullThresholds.concurrency_latency,
+    errors: ["rate<0.10"],
+  },
 };
