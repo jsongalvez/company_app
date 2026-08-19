@@ -18,6 +18,7 @@ class WireEnumsSerializationTest {
         assertEquals("\"INACTIVE\"", json.encodeToString(UserStatus.INACTIVE))
         assertEquals("\"BRANCH_DAY\"", json.encodeToString(CapabilityContextType.BRANCH_DAY))
         assertEquals("\"GRANTED\"", json.encodeToString(ReliefAccessStatus.GRANTED))
+        assertEquals("\"MISSING\"", json.encodeToString(InventoryMovementReason.MISSING))
     }
 
     @Test
@@ -27,6 +28,9 @@ class WireEnumsSerializationTest {
         }
         assertFailsWith<IllegalArgumentException> {
             json.decodeFromString<ReliefAccessStatus>("\"ACCEPTED\"")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            json.decodeFromString<InventoryMovementReason>("\"DISPOSED\"")
         }
     }
 }

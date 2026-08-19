@@ -28,6 +28,9 @@ enum class ExpenseCategory {
 }
 
 @Serializable
+enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT }
+
+@Serializable
 enum class DayStatus { OPEN, PAST, REMITTED }
 
 @Serializable

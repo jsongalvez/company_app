@@ -4,6 +4,7 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
@@ -11,7 +12,6 @@ import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
-import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.service.inventory.InventoryService
 import com.companyb.companyapp.service.inventory.MovementType
 import io.javalin.config.JavalinConfig
@@ -138,7 +138,7 @@ object BranchInventoryRoutes {
         config.routes.before("/api/branches/{branchId}/inventory/{productId}/movement") { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<InventoryMovementRequest>()
-            val reason = parseMovementReason(request.reason)
+            val reason = validateMovementReason(request.reason)
             val required =
                 if (reason == InventoryMovementReason.ADJUSTMENT) {
                     CapabilityCodes.MANAGE_PRODUCTS
@@ -238,10 +238,7 @@ object BranchInventoryRoutes {
         )
     }
 
-    private fun parseMovementReason(rawReason: String): InventoryMovementReason {
-        val reason =
-            runCatching { InventoryMovementReason.valueOf(rawReason.uppercase()) }
-                .getOrElse { throw BadRequestResponse("Invalid movement reason") }
+    private fun validateMovementReason(reason: InventoryMovementReason): InventoryMovementReason {
         if (reason !in ALLOWED_MOVEMENT_REASONS) {
             throw BadRequestResponse("Invalid movement reason for this endpoint")
         }
@@ -256,7 +253,7 @@ object BranchInventoryRoutes {
         val request = context.bodyAsClass<InventoryMovementRequest>()
         val movementId = uuidOrThrow(request.movementId, "movement id")
         val branchDayId = uuidOrThrow(request.branchDayId, "branch day id")
-        val reason = parseMovementReason(request.reason)
+        val reason = validateMovementReason(request.reason)
 
         if (reason in NEGATIVE_QUANTITY_REASONS && request.quantityChange >= 0) {
             throw BadRequestResponse("$reason movement must have a negative quantity change")
@@ -297,7 +294,7 @@ object BranchInventoryRoutes {
             productId = productId.toString(),
             branchId = branchId.toString(),
             branchDayId = branchDayId.toString(),
-            reason = reason.name,
+            reason = reason,
             quantityChange = quantityChange,
             movedBy = movedBy.toString(),
             movedAt = movedAt.toString(),

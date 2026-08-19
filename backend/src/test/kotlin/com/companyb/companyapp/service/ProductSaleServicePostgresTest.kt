@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -159,6 +160,14 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                     .count()
             }
         assertEquals(1, movementCount)
+        val movementReason =
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where { InventoryMovementTable.productSaleId eq saleId }
+                    .single()[InventoryMovementTable.reason]
+            }
+        assertEquals(InventoryMovementReason.SALE, movementReason)
     }
 
     @Test

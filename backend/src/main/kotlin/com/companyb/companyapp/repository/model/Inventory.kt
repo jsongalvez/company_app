@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.InventoryMovementReason
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -8,8 +9,6 @@ import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
-
-enum class InventoryMovementReason { RESTOCK, SALE, TESTER, SAMPLE, MISSING, ADJUSTMENT }
 
 data class BranchInventory(
     val id: UUID,

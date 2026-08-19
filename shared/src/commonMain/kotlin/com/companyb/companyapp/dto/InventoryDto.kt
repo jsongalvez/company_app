@@ -1,5 +1,6 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.InventoryMovementReason
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -30,7 +31,7 @@ data class BranchInventoryResponse(
 @Serializable
 data class InventoryMovementRequest(
     val movementId: String,
-    val reason: String,
+    val reason: InventoryMovementReason,
     val quantityChange: Int,
     val notes: String? = null,
     val branchDayId: String,
@@ -44,7 +45,7 @@ data class InventoryMovementResponse(
     val productId: String,
     val branchId: String,
     val branchDayId: String,
-    val reason: String,
+    val reason: InventoryMovementReason,
     val quantityChange: Int,
     val movedBy: String,
     val movedAt: String,

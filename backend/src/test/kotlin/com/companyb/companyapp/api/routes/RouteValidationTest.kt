@@ -576,6 +576,21 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
+    fun `POST movement RESTOCK reason is rejected by endpoint restriction`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "movementId" to UUID.randomUUID().toString(),
+                    "reason" to "RESTOCK",
+                    "quantityChange" to 1,
+                    "branchDayId" to testBranchDayId.toString(),
+                    "expectedVersion" to 0,
+                )
+            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/movement", body).code)
+        }
+    }
+
+    @Test
     fun `POST movement MISSING without notes returns 400`() {
         testServer.client.let { client ->
             val body =
