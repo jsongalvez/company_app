@@ -98,6 +98,7 @@ trap app_cleanup EXIT
     # The test DB is already designed for throwaway use and verified clean by the
     # pre-push cleanliness check above.
     K6_DB_NAME="${TEST_DB_NAME:-company_app_test}"
+    export TEST_DB_NAME="$K6_DB_NAME"
     export POSTGRES_DB="$K6_DB_NAME"
     log pre-push "Using test database '$K6_DB_NAME' for k6 baseline."
 

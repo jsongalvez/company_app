@@ -28,6 +28,16 @@ source_env() {
     source .env 2>/dev/null || true
 }
 
+# --- test_db_name ---
+# Returns explicitly selected test DB, or derives one from the application DB.
+test_db_name() {
+    if [ -n "${TEST_DB_NAME:-}" ]; then
+        printf '%s\n' "$TEST_DB_NAME"
+    else
+        printf '%s_test\n' "${POSTGRES_DB:?POSTGRES_DB is required}"
+    fi
+}
+
 # --- port_is_listening PORT ---
 # Returns 0 if PORT is in LISTEN state (checks lsof, then ss).
 port_is_listening() {

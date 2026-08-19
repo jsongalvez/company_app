@@ -10,7 +10,7 @@ source "$ROOT_DIR/scripts/lib/common.sh"
 
 source_env
 
-DB_NAME="${TEST_DB_NAME:-${POSTGRES_DB}_test}"
+DB_NAME="$(test_db_name)"
 DB_USER="${POSTGRES_USER:-company_user}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"

@@ -11,7 +11,7 @@ source "$ROOT_DIR/scripts/lib/common.sh"
 
 source_env
 
-DB_NAME="${TEST_DB_NAME:-${POSTGRES_DB}_test}"
+DB_NAME="$(test_db_name)"
 DB_USER="${POSTGRES_USER:-company_user}"
 
 log clean-test-db "Truncating user-data tables in test DB '$DB_NAME'..."
