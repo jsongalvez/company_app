@@ -38,7 +38,7 @@ Run `gh issue view <number> --comments`.
 Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
 
 - **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `gh issue create --label wayfinder:map`.
-- **Child ticket**: an issue linked to the map as a GitHub sub-issue (`gh api` on the sub-issues endpoint). Where sub-issues aren't enabled, add the child to a task list in the map body and put `Part of #<map>` at the top of the child body. Labels: `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
+- **Child ticket**: create every accepted implementation candidate with `scripts/wayfinder-create-child.sh <map-number> <type> <title> <body-file>`. The command creates the issue, applies `wayfinder:<type>`, links the native GitHub sub-issue, and verifies `parent_issue_url`. Do not use raw `gh issue create` for map children. Where sub-issues aren't enabled, add the child to a task list in the map body and put `Part of #<map>` at the top of the child body. Once claimed, the ticket is assigned to the driving dev.
 - **Blocking**: GitHub's **native issue dependencies** — the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, _not_ the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only — the live gate). Where dependencies aren't available, fall back to a `Blocked by: #<n>, #<n>` line at the top of the child body. A ticket is unblocked when every blocker is closed.
 - **Frontier query**: list the map's open children (`gh issue list --state open`, scoped to the map's sub-issues / task list), drop any with an open blocker (`issue_dependencies_summary.blocked_by > 0`, or an open issue in the `Blocked by` line) or an assignee; first in map order wins.
 - **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
@@ -57,9 +57,9 @@ replace map policy or prescribe a stop after an empty frontier.
 4. Advance each retained candidate through evidence, exploration, falsification,
    verifier packet, verification, and disposition. The packet records mode, model,
    blind position, L1-L5 results, deterministic-gate result, HARD/SOFT triage,
-   confidence, and artifact pointer. Create and wire exactly one child for the
-   next implementation slice only after every in-scope candidate has a complete
-   packet, then stop without resolving that new child.
+   confidence, and artifact pointer. Create one child for every in-scope candidate
+   dispositioned `implement`, using the wrapper and verifying each native parent
+   link. Claim and resolve exactly one frontier child per session.
 5. If audit finds no defensible candidate, record the clean-audit evidence and
    stop. If human input is required, create `needs-info` or `ready-for-human`
    issue with facts, decision, blocker, and smallest safe next action.

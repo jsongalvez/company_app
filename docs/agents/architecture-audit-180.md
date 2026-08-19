@@ -1420,4 +1420,6 @@ no subsystem omission.
 - Duplication and ownership: R41 is distinct from prior remittance ownership fixes; R42 is distinct from resolved compensation and registration races.
 - Materiality: R41 is a cross-branch operational data-integrity defect; R42 is a concurrent user-management failure. R43 is rejected as low-materiality stale rationale.
 - Schema: independent foreign keys and active-assignment partial unique index verified directly in V1.
-- Priority: R41 first, R42 second; exactly one child may be created this session.
+- Priority: R41 first, R42 second. R41 is the only `implement` disposition in
+  this audit, so child #226 is the only child created; future audits create one
+  native child for every candidate dispositioned `implement`, then claim one.
