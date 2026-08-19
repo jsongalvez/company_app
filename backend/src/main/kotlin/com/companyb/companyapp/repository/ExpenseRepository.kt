@@ -1,6 +1,8 @@
 package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Expense
@@ -13,7 +15,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -22,32 +24,45 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class ExpenseCreateResult(
+    val expense: Expense,
+    val created: Boolean,
+)
+
 object ExpenseRepository {
     fun create(
         params: ExpenseCreateParams,
         auditFn: (Expense) -> Unit = {},
-    ): Expense =
+    ): ExpenseCreateResult =
         transaction {
-            val existing = findByIdInTransaction(params.id)
-            if (existing != null) {
-                return@transaction existing
-            }
+            val insertedCount =
+                ExpenseTable
+                    .insertIgnore {
+                        it[ExpenseTable.id] = params.id
+                        it[ExpenseTable.branchDayId] = params.branchDayId
+                        it[ExpenseTable.amount] = params.amount
+                        it[ExpenseTable.category] = params.category
+                        it[ExpenseTable.createdBy] = params.createdBy
+                        if (params.notes != null) it[ExpenseTable.notes] = params.notes
+                    }.insertedCount
 
-            ExpenseTable.insert {
-                it[ExpenseTable.id] = params.id
-                it[ExpenseTable.branchDayId] = params.branchDayId
-                it[ExpenseTable.amount] = params.amount
-                it[ExpenseTable.category] = params.category
-                it[ExpenseTable.createdBy] = params.createdBy
-                if (params.notes != null) it[ExpenseTable.notes] = params.notes
-            }
-
-            val created =
+            val expense =
                 findByIdInTransaction(params.id) ?: error("expense not found after insert for ${params.id}")
+            if (expense.branchDayId != params.branchDayId) {
+                throw NotFoundException("Expense not found for this branch day")
+            }
+            if (expense.createdBy != params.createdBy) {
+                throw ConflictException("Expense id already belongs to another create request")
+            }
 
-            auditFn(created)
-            created
-        }.also { logger.info { "[CREATE-EXPENSE] Expense ${params.id.toString().maskUUID()} created" } }
+            val created = insertedCount > 0
+            if (created) auditFn(expense)
+            ExpenseCreateResult(expense, created)
+        }.also { result ->
+            logger.info {
+                "[CREATE-EXPENSE] Expense ${params.id.toString().maskUUID()} created=${result.created}"
+            }
+        }
 
     fun softDelete(
         expenseId: UUID,

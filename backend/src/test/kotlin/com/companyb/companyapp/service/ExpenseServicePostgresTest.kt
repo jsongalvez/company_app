@@ -26,6 +26,8 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -122,6 +124,124 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             )
 
         assertEquals(first.id, second.id)
+    }
+
+    @Test
+    fun `create rejects same UUID for another branch day`() {
+        val otherBranchId = UUID.randomUUID()
+        val otherSourceId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Expense Branch")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
+        DatabaseTestHelper.grantCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = otherBranchId,
+            sourceId = otherSourceId,
+        )
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val expenseId = UUID.randomUUID()
+
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+
+        assertFailsWith<NotFoundException> {
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = otherBranchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+        }
+    }
+
+    @Test
+    fun `create rejects same UUID for another creator`() {
+        val otherCallerId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestUser(otherCallerId, "expense-other-caller")
+        trackOwned(AppUserTable, AppUserTable.id, otherCallerId)
+        grantEditBranchData(otherCallerId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, otherCallerId)
+        val expenseId = UUID.randomUUID()
+
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = null,
+        )
+
+        assertFailsWith<ConflictException> {
+            ExpenseService.create(
+                callerId = otherCallerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+        }
+    }
+
+    @Test
+    fun `concurrent same UUID retry creates and audits once`() {
+        val expenseId = UUID.randomUUID()
+        val executor = Executors.newFixedThreadPool(2)
+        val results =
+            try {
+                executor
+                    .invokeAll(
+                        listOf(
+                            Callable {
+                                ExpenseService.create(
+                                    callerId = callerId,
+                                    id = expenseId,
+                                    branchDayId = branchDayId,
+                                    amount = BigDecimal("500.00"),
+                                    category = ExpenseCategory.PANTRY,
+                                    notes = null,
+                                )
+                            },
+                            Callable {
+                                ExpenseService.create(
+                                    callerId = callerId,
+                                    id = expenseId,
+                                    branchDayId = branchDayId,
+                                    amount = BigDecimal("500.00"),
+                                    category = ExpenseCategory.PANTRY,
+                                    notes = null,
+                                )
+                            },
+                        ),
+                    ).map { it.get() }
+            } finally {
+                executor.shutdown()
+            }
+
+        assertEquals(listOf(expenseId, expenseId), results.map { it.id })
+        val insertAuditCount =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                            (AuditLogTable.recordId eq expenseId) and
+                            (AuditLogTable.action eq AuditAction.INSERT)
+                    }.count()
+            }
+        assertEquals(1L, insertAuditCount)
     }
 
     @Test

@@ -26,33 +26,29 @@ object ExpenseService {
         notes: String?,
         reason: String? = null,
     ): Expense {
-        val existing = ExpenseRepository.findById(id)
-        if (existing != null) {
-            return existing
-        }
-
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
-        return ExpenseRepository.create(
-            ExpenseCreateParams(
-                id = id,
-                branchDayId = branchDayId,
-                amount = amount,
-                category = category,
-                createdBy = callerId,
-                notes = notes,
-            ),
-        ) { expense ->
-            AuditLogRepository.recordInsert(
-                tableName = ExpenseTable.tableName,
-                recordId = expense.id,
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                fields = ExpenseTable.auditFields(expense),
-                isFlagged = isRemitted,
-                reason = reason,
-            )
-        }
+        return ExpenseRepository
+            .create(
+                ExpenseCreateParams(
+                    id = id,
+                    branchDayId = branchDayId,
+                    amount = amount,
+                    category = category,
+                    createdBy = callerId,
+                    notes = notes,
+                ),
+            ) { expense ->
+                AuditLogRepository.recordInsert(
+                    tableName = ExpenseTable.tableName,
+                    recordId = expense.id,
+                    changedBy = callerId,
+                    branchId = branchDay.branchId,
+                    fields = ExpenseTable.auditFields(expense),
+                    isFlagged = isRemitted,
+                    reason = reason,
+                )
+            }.expense
     }
 
     @Suppress("ThrowsCount", "LongParameterList")
