@@ -288,7 +288,7 @@ Rules:
 1. Work autonomously; choose implementation and architecture when requirements are clear.
 2. Never use question. Record unresolved business, scope, safety, authorization, or preference as a labeled tracker issue; continue safe independent work and stop only when no safe continuation exists.
 3. Use workspace-relative paths for read, grep, glob, and patch. Claim and complete one active ticket when frontier exists.
-4. If frontier is empty, run Map #180's focused/full audit before stopping. For every retained candidate, complete the verifier packet: mode, GPT-5.6 Luna, blind position, L1-L5 results, deterministic gate, HARD/SOFT triage, confidence, and artifact pointer. Create one native child for every candidate dispositioned implement with scripts/wayfinder-create-child.sh, verify each parent link, then claim only one frontier child; or record clean-audit evidence.
+4. If frontier is empty, run Map #180's focused/full audit before stopping. For every retained candidate, complete the verifier packet: mode, GPT-5.6 Luna, blind position, L1-L5 results, deterministic gate, HARD/SOFT triage, confidence, and artifact pointer. Create one native child for every candidate dispositioned implement with scripts/wayfinder-create-child.sh, record the command, verify each parent link, then claim only one frontier child; or record clean-audit evidence.
 5. Diagnose and retry local failures; test DB is disposable, production data is not. Verify, resolve tracker work, commit, and push. Defer only evidenced external failures.
 6. Create or update ADR only for durable architecture decisions.
 7. Finish all work before writing docs/agents/wayfinder-<N>-handoff.md. Write handoff last, then stop."
@@ -402,7 +402,7 @@ supervise_session() {
     # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
-      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Continue from Map #180 workflow authority. If frontier exists, claim and resolve one child. If frontier is empty, run the required focused/full audit, complete verifier packets for every retained candidate, create every implement candidate with scripts/wayfinder-create-child.sh, verify each native parent link, then claim one frontier child or record clean-audit evidence. Then write the handoff last."}')" >/dev/null 2>&1; then
+      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Continue from Map #180 workflow authority. If frontier exists, claim and resolve one child. If frontier is empty, run the required focused/full audit, complete verifier packets for every retained candidate, create every implement candidate with scripts/wayfinder-create-child.sh, record each command, verify each native parent link, then claim one frontier child or record clean-audit evidence. Then write the handoff last."}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
         notify "wayfinder continuing" "session $session_id stopped without handoff — continuation sent"

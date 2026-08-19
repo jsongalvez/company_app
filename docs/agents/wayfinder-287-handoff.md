@@ -9,6 +9,7 @@
 - `UserBranchAssignmentService.create` now returns existing assignment for same-ID retries while preserving sequential different-ID `ValidationException` behavior.
 - Added service and repository race coverage, persisted winner/loser audit assertions, and bounded executor termination.
 - Added R44 dossier/verifier packet to `docs/agents/architecture-audit-180.md`, durable lesson to `docs/agents/architecture-lessons.md`, and gate ledger `docs/gates/227-active-assignment-conflict.md`.
+- Child creation command was not recorded in this handoff; native parent verification passed. Future sessions must record each `scripts/wayfinder-create-child.sh` invocation.
 - R15 remains in `Not yet specified` pending deployment topology or overlapping scheduler invocation requirements.
 
 ## Verification

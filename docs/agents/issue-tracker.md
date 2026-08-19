@@ -58,8 +58,9 @@ replace map policy or prescribe a stop after an empty frontier.
    verifier packet, verification, and disposition. The packet records mode, model,
    blind position, L1-L5 results, deterministic-gate result, HARD/SOFT triage,
    confidence, and artifact pointer. Create one child for every in-scope candidate
-   dispositioned `implement`, using the wrapper and verifying each native parent
-   link. Claim and resolve exactly one frontier child per session.
+   dispositioned `implement`, using the wrapper and recording the command in the
+   audit ledger or handoff. Verify each native parent link. Claim and resolve
+   exactly one frontier child per session.
 5. If audit finds no defensible candidate, record the clean-audit evidence and
    stop. If human input is required, create `needs-info` or `ready-for-human`
    issue with facts, decision, blocker, and smallest safe next action.
