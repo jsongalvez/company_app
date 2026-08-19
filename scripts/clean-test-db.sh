@@ -32,9 +32,9 @@ QUOTED_TABLES=${QUOTED_TABLES%,}
 
 log clean-test-db "Truncating tables: $QUOTED_TABLES"
 
-docker exec company-postgres psql \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
+test_db_psql \
+    "$DB_USER" \
+    "$DB_NAME" \
     -c "TRUNCATE TABLE $QUOTED_TABLES CASCADE;" \
     2>&1 | tail -5
 

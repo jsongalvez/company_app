@@ -36,9 +36,9 @@ for table in "${TABLES_TO_CHECK[@]}"; do
 done
 COUNT_QUERY=${COUNT_QUERY% UNION ALL }
 
-COUNTS=$(docker exec company-postgres psql \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
+COUNTS=$(test_db_psql \
+    "$DB_USER" \
+    "$DB_NAME" \
     -t -A -F '|' -c "$COUNT_QUERY")
 
 LEAKED=""

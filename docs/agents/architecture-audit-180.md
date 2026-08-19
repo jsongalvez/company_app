@@ -2586,3 +2586,102 @@ and concurrent losers do not add audit entries.
   outside R68 scope and is retained for separate audit treatment.
 - No ADR: existing database-uniqueness and repository audit ownership decisions
   apply; no durable architecture decision was introduced.
+
+## Permanent-Map Refresh - Session 312
+
+After implementation child #255, the native Map #180 frontier was empty. Four fresh
+read-only lanes rechecked C-01..C-14 across Compose/platform bridges, backend behavior
+and persistence, shared/schema ownership, and tooling/CI/docs. The audit found four
+independent implementation candidates; R65/#247 remained unresolved business-policy fog.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R72 - use shared test-database transport for CI cleanliness and cleanup | `quality.yml:47-87` uses host PostgreSQL service; both scripts still call `docker exec company-postgres`; `common.sh:41-57` owns host/container-aware transport | Host CI path and local fallback diverge deterministically; no duplicate with discovery-only #243 | implement, P1 |
+| R73 - lifecycle-own Branch Select relief invite ViewModel | Mobile/Desktop Branch Select hosts construct it with `remember`; VM owns `viewModelScope`; notification route already uses `viewModel {}` | Route removal can leave request work alive; existing lifecycle-aware API is sufficient; no behavior abstraction needed | implement, P1 |
+| R74 - persist JWT revocation across restart/reactivation | DenyList is process-lifetime; startup loads only currently INACTIVE users; Reactivate clears `deactivated_at`; JWT verification checks deny list | Deactivate -> reactivate -> restart makes old token valid; CONTEXT explicitly requires old JWT remain dead | implement, P0 |
+| R75 - preserve Expense Branch Day/creator ownership on UUID retries | Expense service returns UUID-only existing row before requested-day/caller checks; repository prechecks then inserts; route authorizes requested day | Foreign-day replay and concurrent duplicate can disclose/fail generically; distinct from completed session/attendance/remittance/allowance fixes | implement, P0 |
+
+### Verifier packets
+
+All packets use structured repeated rubric mode because continuous scoring was unavailable.
+GPT-5.6 Luna is sole verifier; blind positions alternate. Deterministic repository evidence
+is authoritative.
+
+```text
+candidate: R72
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; workflow service transport and script docker calls independently verified
+L2 domain coherence: pass; disposable test database and fail-closed gate ownership preserved
+L3 long-term architecture: pass; existing shared shell seam gains complete caller ownership
+L4 adversarial falsification: pass; host CI and TEST_DB_CONTAINER fallback both covered
+L5 comprehension: pass
+deterministic gate: pass; source and workflow transport mismatch reproduced
+HARD findings: zero
+SOFT findings: zero
+confidence: high
+artifact: Session 312 tooling lane and docs/agents/wayfinder-312-r72-ticket.md
+
+candidate: R73
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+L1 fact integrity: pass; both Branch Select hosts use remember and VM owns viewModelScope
+L2 domain coherence: pass; Branch Select remains clock-in/invite owner and notification instance stays separate
+L3 long-term architecture: pass; existing lifecycle-aware ViewModel seam removes ownerless work
+L4 adversarial falsification: pass; route disposal during candidate/invite requests leaves raw VM alive
+L5 comprehension: pass
+deterministic gate: pass; construction sites and existing viewModel call sites agree
+HARD findings: zero
+SOFT findings: one accepted; lifecycle smoke depends on target runtime, compile proof remains deterministic
+confidence: high
+artifact: Session 312 Compose lane and docs/agents/wayfinder-312-r73-ticket.md
+
+candidate: R74
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; deny-list load, reactivation clearing, and verification order verified
+L2 domain coherence: pass; Reactivate restores capability but old JWT remains dead per CONTEXT
+L3 long-term architecture: pass; persistent revocation boundary belongs to auth/user state, not process cache
+L4 adversarial falsification: pass; deactivate/reactivate/restart and repeated deactivation cases reproduce failure
+L5 comprehension: pass
+deterministic gate: pass; current auth and user lifecycle paths agree with failure
+HARD findings: zero after persisted revocation boundary
+SOFT findings: one accepted; migration and same-second iat boundary require focused integration evidence
+confidence: high
+artifact: Session 312 backend lane and docs/agents/wayfinder-312-r74-ticket.md
+
+candidate: R75
+mode: structured
+model: GPT-5.6 Luna
+position: DELTA
+L1 fact integrity: pass; Expense UUID fast path, route day gate, and repository insert path verified
+L2 domain coherence: pass; Branch Day and creator own expense retry identity
+L3 long-term architecture: pass; repository transaction owns uniqueness and audit outcome without new abstraction
+L4 adversarial falsification: pass; foreign-day replay and concurrent distinct-ID collision paths reproduce
+L5 comprehension: pass
+deterministic gate: pass; source, schema, route, and service evidence agree
+HARD findings: zero after repository-owned ownership classification
+SOFT findings: one accepted; collision HTTP status should follow existing UUID ownership convention, confirmed by L2
+confidence: high
+artifact: Session 312 backend lane and docs/agents/wayfinder-312-r75-ticket.md
+```
+
+### Audit-of-audit - Session 312
+
+- Coverage: C-01..C-14 rechecked by four non-overlapping lanes; no omission.
+- Duplication: R72 is operation transport, distinct from discovery policy #243; R73 is lifecycle ownership; R74 is persisted auth revocation; R75 is Expense ownership, distinct from resolved UUID parent fixes.
+- Materiality: R74/R75 are P0 auth/data-disclosure defects; R72/R73 are P1 correctness and lifecycle defects. R65 remains blocked on explicit business policy.
+- Schema: R74 requires a migration; R72/R73/R75 do not.
+- Priority: R74 and R75 are P0 but independent; R72 is selected first because it blocks CI's core quality workflow and has the smallest safe fix. All four native children are required before claiming one.
+
+### Child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: use shared test-database transport in CI gates" docs/agents/wayfinder-312-r72-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/256`; `scripts/wayfinder-verify-child.sh 180 256` -> `Verified child #256: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: lifecycle-own Branch Select relief invite ViewModel" docs/agents/wayfinder-312-r73-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/257`; `scripts/wayfinder-verify-child.sh 180 257` -> `Verified child #257: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: persist JWT revocation across restart" docs/agents/wayfinder-312-r74-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/258`; `scripts/wayfinder-verify-child.sh 180 258` -> `Verified child #258: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve Expense Branch Day ownership on UUID retries" docs/agents/wayfinder-312-r75-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/259`; `scripts/wayfinder-verify-child.sh 180 259` -> `Verified child #259: parent #180, label wayfinder:task`.

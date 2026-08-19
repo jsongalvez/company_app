@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
 
+# Force the fixture through its mocked Docker transport even when host psql exists.
+export TEST_DB_CONTAINER="${TEST_DB_CONTAINER:-company-postgres}"
+
 docker() {
     if [ "${FAKE_DOCKER_FAIL:-0}" = 1 ]; then
         return 1
