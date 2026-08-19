@@ -49,7 +49,7 @@ One lens per phase, each run as a parallel sub-agent per pass:
 
 Architecture audits that produce multiple accepted candidates must explore every candidate before ranking implementation order. A higher-ranked candidate never suppresses another candidate's dossier.
 
-GPT-5.6 Luna is the sole verifier for this repository's AFK architecture flow. Use continuous scoring when OpenCode2 exposes scoring-token logprobs. Otherwise use structured repeated rubric scoring and record `structured` mode with reduced confidence. Alternate candidate positions and blind candidate labels to reduce presentation bias. Repeat evaluation and decompose criteria across the five lenses plus feasibility.
+GPT-5.6 Luna is the sole verifier for this repository's AFK architecture flow. Use continuous scoring when OpenCode2 exposes scoring-token logprobs. Otherwise use structured repeated rubric scoring and record `structured` mode with reduced confidence. Alternate candidate positions and blind candidate labels to reduce presentation bias. Repeat evaluation across L1 fact integrity, L2 domain coherence, L3 long-term architecture, L4 adversarial falsification, and L5 comprehension. Feasibility is optional additional evidence.
 
 Verifier output is advisory. Deterministic repository evidence is authoritative: paths, symbols, requirements, ADR status, schema, grep results, builds, and tests. A candidate cannot reach `verified` while a hard deterministic claim fails.
 
@@ -58,6 +58,8 @@ Each candidate lifecycle is:
 `identified → evidenced → explored → falsified → verified → dispositioned → ticketed → implemented → re-audited`
 
 Every transition records its artifact and completion evidence in the audit ledger. `ticketed` is allowed only after all in-scope candidates are `dispositioned`. AFK flow selects implementation order autonomously; human input is reserved for business ambiguity, safety, external authorization, irreversible scope, or a full audit with no justifiable candidate.
+
+Verifier packet must record mode, model, blind position, L1 fact integrity, L2 domain coherence, L3 long-term architecture, L4 adversarial falsification, L5 comprehension, deterministic-gate result, HARD/SOFT triage, confidence, and artifact pointer. Feasibility is additional evidence, never a replacement for L5. A candidate cannot reach `verified` or `ticketed` with a missing packet field, failed deterministic evidence, or untriaged HARD finding.
 
 ## Where it lives
 

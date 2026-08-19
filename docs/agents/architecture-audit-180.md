@@ -1364,3 +1364,16 @@ change was inspected from commit `0140bf5`, which is present on the tracked bran
   complete retry can now be evaluated instead of being reduced to five Gradle lines.
 - Priority pass: #224 is closed; #223 remains human decision fog, with R15 and
   historical role-assignment workflow still deferred.
+
+## Verifier packet enforcement - Session 285
+
+The verifier contract is now an explicit gate rather than reference-only prose.
+Every retained candidate must carry a packet recording verifier mode, GPT-5.6 Luna,
+blind position, L1-L5 results, deterministic-gate evidence, HARD/SOFT triage,
+confidence, and an artifact pointer. Feasibility remains optional evidence and
+cannot replace L5 comprehension. Ticket creation is blocked by missing packet
+fields, failed deterministic evidence, or untriaged HARD findings.
+
+The map, issue-tracker workflow, audit method, decision loop, active handoff, and
+unattended loop prompt now carry the same contract. This is a workflow control;
+no product, schema, or runtime behavior changes.

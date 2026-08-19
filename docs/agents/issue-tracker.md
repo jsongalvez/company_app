@@ -55,8 +55,11 @@ replace map policy or prescribe a stop after an empty frontier.
 3. If frontier is empty, run the map's required focused or full audit. Do not
    create a checkpoint-only session.
 4. Advance each retained candidate through evidence, exploration, falsification,
-   verification, and disposition. Create and wire exactly one child for the next
-   implementation slice, then stop without resolving that new child.
+   verifier packet, verification, and disposition. The packet records mode, model,
+   blind position, L1-L5 results, deterministic-gate result, HARD/SOFT triage,
+   confidence, and artifact pointer. Create and wire exactly one child for the
+   next implementation slice only after every in-scope candidate has a complete
+   packet, then stop without resolving that new child.
 5. If audit finds no defensible candidate, record the clean-audit evidence and
    stop. If human input is required, create `needs-info` or `ready-for-human`
    issue with facts, decision, blocker, and smallest safe next action.

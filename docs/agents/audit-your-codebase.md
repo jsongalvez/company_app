@@ -74,6 +74,27 @@ For every accepted candidate, complete this lifecycle before creating implementa
 
 GPT-5.6 Luna is the sole AFK verifier. Use continuous scoring when OpenCode2 exposes scoring-token logprobs; otherwise use structured repeated rubric scoring and record reduced confidence. Alternate candidate positions and blind labels. Deterministic repository evidence is authoritative and blocks verification when it fails. Every candidate must receive a dossier, deterministic fact pass, verifier pass, adversarial pass, and explicit `implement`, `defer`, `reject`, or `duplicate` disposition.
 
+The verifier pass is not complete until the candidate dossier contains this packet:
+
+```text
+candidate: <stable ID>
+mode: continuous | structured
+model: GPT-5.6 Luna
+position: <blind position or label>
+L1 fact integrity: <pass/findings>
+L2 domain coherence: <pass/findings>
+L3 long-term architecture: <pass/findings>
+L4 adversarial falsification: <pass/findings>
+L5 comprehension: <pass/findings>
+deterministic gate: <pass/failing evidence>
+HARD findings: <zero or linked findings>
+SOFT findings: <zero or two-sighted accepted findings with reason>
+confidence: high | reduced
+artifact: <ledger section, issue, or session pointer>
+```
+
+`feasibility` may be recorded as an additional criterion, but it does not replace L5 comprehension. A candidate cannot reach `verified` or be ticketed while any packet field is missing, deterministic evidence fails, or an untriaged HARD finding remains.
+
 3. Validate and synthesize
 
 The coordinator must independently verify every finding against the current repository before accepting it.
