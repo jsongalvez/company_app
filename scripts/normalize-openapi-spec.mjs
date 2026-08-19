@@ -6,7 +6,10 @@ import { balancedDelimited, enclosingOwner, sourceAnnotations, splitTopLevel, wi
 const [sourcePath, targetPath] = process.argv.slice(2);
 if (!sourcePath || !targetPath) throw new Error("source and target paths required");
 const spec = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-const routeContract = JSON.parse(fs.readFileSync(new URL("./openapi-route-contract.json", import.meta.url), "utf8"));
+const routeContractPath = process.env.OPENAPI_TEST_MODE === "1" && process.env.OPENAPI_ROUTE_CONTRACT_PATH
+  ? process.env.OPENAPI_ROUTE_CONTRACT_PATH
+  : new URL("./openapi-route-contract.json", import.meta.url);
+const routeContract = JSON.parse(fs.readFileSync(routeContractPath, "utf8"));
 const routeDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/routes/", import.meta.url);
 const dtoDir = new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/dto/", import.meta.url);
 const apiRoutesSource = fs.readFileSync(new URL("../shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt", import.meta.url), "utf8");

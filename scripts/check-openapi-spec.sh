@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
+unset OPENAPI_ROUTE_CONTRACT_PATH OPENAPI_TEST_MODE UPDATE_OPENAPI_ROUTE_CONTRACT
 
 # Compilation owns generation; its finalized task normalizes the artifact before
 # this verifier reads it. Keeping both steps here makes this the one build gate.
@@ -15,8 +16,9 @@ grep -Fxq "OPENAPI_ROUTE_COVERAGE_OK" <<<"$verification_output"
 grep -Fxq "OPENAPI_SECRET_SCAN_OK" <<<"$verification_output"
 
 # Negative control: a route drift must fail closed, without changing checkout.
-drifted_spec=$(mktemp)
-trap 'rm -f "$drifted_spec"' EXIT
+temp_dir=$(mktemp -d)
+trap 'rm -rf "$temp_dir"' EXIT
+drifted_spec="$temp_dir/drifted.json"
 cp "$spec" "$drifted_spec"
 node --input-type=module - "$drifted_spec" <<'NODE'
 import fs from "node:fs";
@@ -39,3 +41,22 @@ if grep -Eq 'OPENAPI_(ROUTE_COVERAGE|SECRET_SCAN)_OK' <<<"$drift_output"; then
   exit 1
 fi
 echo "OPENAPI_NEGATIVE_DRIFT_OK"
+
+# Negative control: a stale fingerprint must fail before changing checkout.
+stale_contract="$temp_dir/stale-contract.json"
+stale_output="$temp_dir/stale-output.json"
+stale_log="$temp_dir/stale.log"
+cp "$repo_root/scripts/openapi-route-contract.json" "$stale_contract"
+node --input-type=module - "$stale_contract" <<'NODE'
+import fs from "node:fs";
+const file = process.argv[2];
+const contract = JSON.parse(fs.readFileSync(file, "utf8"));
+contract.fingerprint = "stale";
+fs.writeFileSync(file, JSON.stringify(contract));
+NODE
+if OPENAPI_TEST_MODE=1 env -u UPDATE_OPENAPI_ROUTE_CONTRACT OPENAPI_ROUTE_CONTRACT_PATH="$stale_contract" node "$repo_root/scripts/normalize-openapi-spec.mjs" "$spec" "$stale_output" >"$stale_log" 2>&1; then
+  echo "OpenAPI stale fingerprint control unexpectedly passed" >&2
+  exit 1
+fi
+grep -Fq "OpenAPI route contract fingerprint is stale" "$stale_log"
+echo "OPENAPI_STALE_FINGERPRINT_OK"
