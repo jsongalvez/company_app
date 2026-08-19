@@ -157,7 +157,7 @@ object SessionService {
             throw ValidationException("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
         }
 
-        val oldStatus = SessionStatus.valueOf(session.sessionStatus)
+        val oldStatus = session.sessionStatus
 
         val updated =
             SessionRepository.updateStatus(
@@ -182,7 +182,7 @@ object SessionService {
 
         logger.info {
             "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
-                " from ${session.sessionStatus} to ${newStatus.name}"
+                " from ${session.sessionStatus.name} to ${newStatus.name}"
         }
 
         return updated

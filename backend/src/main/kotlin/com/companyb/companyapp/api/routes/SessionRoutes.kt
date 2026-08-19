@@ -4,8 +4,6 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
@@ -508,9 +506,9 @@ object SessionRoutes {
             clientId = clientId.toString(),
             branchDayId = branchDayId.toString(),
             requestedPractitionerId = requestedPractitionerId?.toString(),
-            sessionType = SessionType.valueOf(sessionType),
+            sessionType = sessionType,
             isWalkIn = isWalkIn,
-            sessionStatus = SessionStatus.valueOf(sessionStatus),
+            sessionStatus = sessionStatus,
             basePrice = basePrice.toPlainString(),
             finalPrice = finalPrice.toPlainString(),
             remarks = remarks,

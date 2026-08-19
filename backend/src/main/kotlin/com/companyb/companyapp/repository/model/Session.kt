@@ -18,9 +18,9 @@ data class Session(
     val clientId: UUID,
     val branchDayId: UUID,
     val requestedPractitionerId: UUID?,
-    val sessionType: String,
+    val sessionType: SessionType,
     val isWalkIn: Boolean,
-    val sessionStatus: String,
+    val sessionStatus: SessionStatus,
     val basePrice: BigDecimal,
     val finalPrice: BigDecimal,
     val remarks: String?,
@@ -80,7 +80,7 @@ object SessionTable : Table("session") {
             "id" to entity.id.toString(),
             "clientId" to entity.clientId.toString(),
             "branchDayId" to entity.branchDayId.toString(),
-            "sessionType" to entity.sessionType,
+            "sessionType" to entity.sessionType.name,
             "finalPrice" to entity.finalPrice.toPlainString(),
         )
 }

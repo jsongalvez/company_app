@@ -103,8 +103,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         assertTrue(result.created)
         assertEquals(clientId, result.session.clientId)
-        assertEquals(SessionType.REGULAR.name, result.session.sessionType)
-        assertEquals("PENDING", result.session.sessionStatus)
+        assertEquals(SessionType.REGULAR, result.session.sessionType)
+        assertEquals(SessionStatus.PENDING, result.session.sessionStatus)
         assertFalse(result.session.isWalkIn)
         assertEquals("2500.00", result.session.basePrice.toPlainString())
         assertEquals("2500.00", result.session.finalPrice.toPlainString())
@@ -218,7 +218,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, mmSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, mmSessionId)
 
-        assertEquals(SessionType.MEDICAL_MISSION.name, result.session.sessionType)
+        assertEquals(SessionType.MEDICAL_MISSION, result.session.sessionType)
     }
 
     @Test
@@ -251,7 +251,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, mmSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, mmSessionId)
 
-        assertEquals(SessionType.MEDICAL_MISSION.name, mmResult.session.sessionType)
+        assertEquals(SessionType.MEDICAL_MISSION, mmResult.session.sessionType)
 
         // Complete the MM session in DB to allow creating a clinic session for same client
         transaction {
@@ -266,7 +266,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionVoidTable, SessionVoidTable.sessionId, clinicSessionId)
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, clinicSessionId)
 
-        assertEquals(SessionType.REGULAR.name, clinicResult.session.sessionType)
+        assertEquals(SessionType.REGULAR, clinicResult.session.sessionType)
     }
 
     @Test
@@ -278,7 +278,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val updated = SessionService.updateStatus(callerId, sessionId, SessionStatus.COMPLETED, 1)
 
-        assertEquals("COMPLETED", updated.sessionStatus)
+        assertEquals(SessionStatus.COMPLETED, updated.sessionStatus)
         assertEquals(2, updated.version)
         assertEquals(2L, auditEntryCount(SessionTable.tableName, sessionId))
     }
@@ -315,7 +315,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
 
         val updated = SessionService.updateStatus(otherCaller, sessionId, SessionStatus.COMPLETED, 1)
 
-        assertEquals("COMPLETED", updated.sessionStatus)
+        assertEquals(SessionStatus.COMPLETED, updated.sessionStatus)
         assertEquals(2, updated.version)
     }
 
@@ -584,7 +584,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 "Coordinator correction",
             )
 
-        assertEquals(SessionStatus.COMPLETED.name, updated.sessionStatus)
+        assertEquals(SessionStatus.COMPLETED, updated.sessionStatus)
         val audit = auditEntry(SessionTable.tableName, remittedSessionId)
         assertEquals(true, audit[AuditLogTable.isFlagged])
         assertEquals("Coordinator correction", audit[AuditLogTable.reason])

@@ -1635,3 +1635,19 @@ artifact: Session 288 tooling lane, R46 dossier
 - P1-P4 final review: zero HARD findings and no ESCALATE. Accepted SOFT: direct runs require
   documented disposable-DB cleanup; fixture branch depends on dev seeding.
 - Child #229 is resolved; children #230-#233 remain open, unassigned frontier candidates.
+
+### R47 implementation checkpoint
+
+- Child #230 types `repository.model.Session.sessionType` and `sessionStatus` as shared
+  `SessionType` and `SessionStatus` values.
+- Exposed row mapping now returns enum values directly. Dashboard and session-detail response
+  mapping passes those enums to shared DTOs; status transitions use the typed current status.
+- Audit output and serialized wire values remain uppercase names at their explicit boundaries.
+- Focused `SessionServicePostgresTest` assertions now verify typed values. Gate ledger
+  `docs/gates/230-session-enum-typing.md`: 4/4 PASS.
+- `:backend:compileKotlin` and focused test passed. Full `:backend:test` passed in 13m24s;
+  detekt, ktlint, and shared JVM compilation passed before aggregate test timeout rerun.
+- P1/P2/P4 review: zero HARD findings and no ESCALATE. P3 reported pre-existing terminal-status
+  and audit-field behavior outside this diff; accepted SOFT is missing dedicated HTTP enum
+  serialization coverage, with shared enum serialization already covered.
+- Child #230 is ready to resolve; children #231-#233 remain open frontier candidates.
