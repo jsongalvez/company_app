@@ -7,6 +7,15 @@ source "$ROOT_DIR/scripts/lib/common.sh"
 LOG_TAG=pre-commit
 log pre-commit "$@"
 
+# Classify staged changes before any formatter, database, or build work.
+STAGED_FILES="$(git diff --cached --no-renames --name-only)"
+PRE_COMMIT_CLASSIFICATION="$(printf '%s\n' "$STAGED_FILES" | bash "$ROOT_DIR/scripts/classify-push-files.sh")"
+log pre-commit "Staged change classification: $PRE_COMMIT_CLASSIFICATION"
+if [ "$PRE_COMMIT_CLASSIFICATION" = "docs-only" ]; then
+    log pre-commit "Documentation-only staged change; skipping quality, OpenAPI, database, shared compile, and Postgres gates."
+    exit 0
+fi
+
 # ----------------------------------------------------------------
 # 1. Optimize imports (auto-fix via ktlintFormat, scoped to staged files)
 # ----------------------------------------------------------------

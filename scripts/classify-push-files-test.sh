@@ -23,6 +23,9 @@ run_case docs-only docs-only \
     CONTEXT.md \
     .opencode/skills/example/SKILL.md
 run_case mixed gate-sensitive docs/README.md backend/src/main/kotlin/App.kt
+run_case deleted-source gate-sensitive docs/README.md backend/src/main/kotlin/Removed.kt
+run_case renamed-source gate-sensitive docs/README.md backend/src/main/kotlin/Renamed.kt
+run_case unusual-path gate-sensitive $'docs/agents/line\nname.md'
 run_case build-doc gate-sensitive build.gradle.kts
 run_case script-doc gate-sensitive scripts/README.md
 run_case workflow-doc gate-sensitive .github/workflows/README.md
