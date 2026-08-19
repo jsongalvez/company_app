@@ -18,8 +18,10 @@ if [ "$DB_NAME" = "$APP_DB" ]; then
 fi
 
 drop_fixture() {
-    docker exec company-postgres psql -U "$DB_USER" -d "$DB_NAME" \
-        -c "DROP TABLE IF EXISTS \"$FIXTURE_TABLE\", \"$UNSAFE_TABLE\";" >/dev/null
+    if ! docker exec company-postgres psql -U "$DB_USER" -d "$DB_NAME" \
+        -c "DROP TABLE IF EXISTS \"$FIXTURE_TABLE\", \"$UNSAFE_TABLE\";" >/dev/null; then
+        printf 'failed to drop disposable fixture tables\n' >&2
+    fi
 }
 trap drop_fixture EXIT
 
