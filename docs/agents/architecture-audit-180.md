@@ -2177,3 +2177,98 @@ artifact: Session 295 R58 dossier in this report
 | 81 | Independent deterministic verification | Foreign clock-out, nested lifecycle, and threshold drift confirmed |
 | 82 | Structured Luna verifier packets | R56-R58 L1-L5 packets complete; no untriaged HARD findings |
 | 83 | Adversarial, duplication, materiality, schema, priority | Three implement candidates ranked; one-child frontier rule applies |
+@@
+ | 83 | Adversarial, duplication, materiality, schema, priority | Three implement candidates ranked; one-child frontier rule applies |
+
+## Permanent-Map Refresh - Session 302
+
+After child #239 and the later documentation child #244, the native Map #180 frontier was empty.
+Four fresh bounded read-only lanes rechecked C-01..C-14: Compose/platform bridges, backend
+behavior/persistence, shared contracts/schema, and tests/tooling/docs. No product, schema, test,
+or runtime behavior changed during the audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R63 - shared finite persistence enum ownership | `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/WireEnums.kt:6-37` already owns remittance, expense, day, and user status values; backend redeclares them in `repository/model/Remittance.kt:13-26`, `Expense.kt:12-22`, `BranchDay.kt:17`, and `AppUser.kt:19` | PostgreSQL enum values in `V1__full_schema.sql:8-21` match shared names; direct `valueOf` seams are removable while `customEnumeration` remains backend-owned; existing shared enum pattern is used by capability and audit-action migrations | implement, P1 |
+| R64 - identical mobile UI-part ownership | Android and iOS bodies are byte-identical for six mobile UI-part seams, including `ClientScreenParts`, `AuditLogScreen`, `FinanceDayDetail`, `RemittanceScreenParts`, `UserManagementScreenParts`, and `DashboardEmptyState` | Desktop implementations remain different under ADR-0020; common Compose APIs and existing expect contracts provide a narrow extraction seam; deletion of either platform body leaves one common implementation and thin delegates | implement, P1 |
+
+### R63 - Shared finite persistence enum ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Current complexity:** shared and backend Kotlin types represent the same finite PostgreSQL values;
+  route and mapper `valueOf` conversions create drift and invalid intermediate states.
+- **Simpler representation:** shared `WireEnums` owns Kotlin values; backend keeps only PostgreSQL
+  `customEnumeration` bindings and imports shared types. No migration or wire-value change.
+- **Scope:** five persistence model files, direct consumers, and focused shared/backend tests.
+- **Risks:** compile-time ripple, same-name imports, Exposed generic inference; preserve uppercase
+  values and unknown-value rejection.
+- **Validation:** shared/backend compilation, serialization tests, focused remittance/expense/day/auth
+  tests, duplicate-declaration grep, and full backend quality gate.
+- **Deletion test:** deleting backend enum declarations removes duplicate ownership without adding an
+  adapter; table bindings retain the PostgreSQL seam.
+- **Verifier packet:**
+  `candidate: R63; mode: structured; model: GPT-5.6 Luna; position: ALPHA;`
+  `L1 fact integrity: pass; shared declarations, backend duplicates, consumers, and V1 enum values match;`
+  `L2 domain coherence: pass; shared finite values preserve Capability/Day/Remittance vocabulary;`
+  `L3 long-term architecture: pass; one Kotlin owner reduces cross-module drift while PostgreSQL remains authoritative;`
+  `L4 adversarial falsification: pass; checked unknown values, uppercase wire names, Exposed PGobject binding, and type ripple;`
+  `L5 comprehension: pass; ownership and unchanged wire/schema scope are explicit;`
+  `deterministic gate: pass; source comparison and existing shared-enum precedent;`
+  `HARD findings: zero; SOFT findings: zero; confidence: high;`
+  `artifact: Session 302 R63 dossier and docs/agents/wayfinder-302-shared-enums-ticket.md`.
+
+### R64 - Identical mobile UI-part ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high for
+  duplication, medium for compilation mechanics.
+- **Current complexity:** six Android/iOS implementation pairs duplicate the same Compose body; a
+  future mobile change can update one target and silently drift.
+- **Simpler representation:** move each identical body to `commonMain`, retaining thin platform
+  actual delegates and leaving Desktop implementations separate.
+- **Scope:** the twelve listed platform files plus six common expect seams; no ViewModel, route, state,
+  or Swift-host changes.
+- **Risks:** common-source API availability, `internal` visibility, naming collisions, and preserving
+  intentionally unused parameters.
+- **Validation:** structural duplicate search, Compose lint, common tests, Desktop and Android compile,
+  and iOS compile when Kotlin Native dependency resolution is available.
+- **Deletion test:** removing either platform body leaves the common implementation plus target delegate;
+  no new abstraction or runtime seam is needed.
+- **Verifier packet:**
+  `candidate: R64; mode: structured; model: GPT-5.6 Luna; position: BETA;`
+  `L1 fact integrity: pass; six Android/iOS body pairs and common expect contracts independently compared;`
+  `L2 domain coherence: pass; mobile platform split and Desktop distinction match ADR-0020;`
+  `L3 long-term architecture: pass; common ownership concentrates mobile behavior without changing lifecycle or navigation;`
+  `L4 adversarial falsification: pass; checked target-only drift, expect signatures, unused parameters, and common API risk;`
+  `L5 comprehension: pass; extraction boundary and Desktop exception are clear;`
+  `deterministic gate: pass; byte-identical pairs and existing platform source layout verified;`
+  `HARD findings: zero; SOFT findings: one accepted, iOS compilation depends on external Kotlin Native artifact availability;`
+  `confidence: high; artifact: Session 302 R64 dossier and docs/agents/wayfinder-302-mobile-ui-ticket.md`.
+
+### Audit-of-audit
+
+- **Coverage:** all four lanes covered C-01..C-14; backend and tooling lanes found no new candidate.
+- **Duplication:** R63 is finite-value ownership across shared/backend persistence; R64 is platform
+  implementation duplication. Neither duplicates closed enum, route, lifecycle, or threshold work.
+- **Materiality:** R63 removes invalid cross-module type states; R64 removes six concrete drift seams.
+  Broad Compose lifecycle, R15 scheduler count, nullable remittance creator, and route-template leads
+  remain deferred, stale, or rejected with existing evidence.
+- **Priority:** R63 first because it changes shared/backend contract ownership; R64 second. Both are
+  dispositioned `implement` and require native child creation before claiming one frontier child.
+
+### Child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: make shared finite enums sole persistence owner" docs/agents/wayfinder-302-shared-enums-ticket.md`
+  -> `https://github.com/jsongalvez/company_app/issues/245`; `scripts/wayfinder-verify-child.sh 180 245`
+  -> `Verified child #245: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: share identical mobile UI-part implementations" docs/agents/wayfinder-302-mobile-ui-ticket.md`
+  -> `https://github.com/jsongalvez/company_app/issues/246`; `scripts/wayfinder-verify-child.sh 180 246`
+  -> `Verified child #246: parent #180, label wayfinder:task`.
+
+| Pass | Work | Result |
+|---|---|---|
+| 84 | Four bounded full-audit lanes | C-01..C-14 complete; R63/R64 retained; prior leads rechecked |
+| 85 | Independent deterministic verification | Shared enum values, PostgreSQL schema, byte-identical mobile bodies, expect seams, and ADR-0020 checked |
+| 86 | Structured Luna verifier packets | R63/R64 L1-L5 packets complete; no untriaged HARD findings |
+| 87 | Adversarial, duplication, materiality, schema, priority | Two implement candidates ranked; native children required before claim |

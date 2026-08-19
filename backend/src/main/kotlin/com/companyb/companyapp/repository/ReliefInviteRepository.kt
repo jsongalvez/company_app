@@ -3,6 +3,7 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -11,7 +12,6 @@ import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
-import com.companyb.companyapp.repository.model.UserStatus
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and

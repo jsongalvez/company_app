@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchClockInStatus
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.MeResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
@@ -11,7 +12,6 @@ import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow

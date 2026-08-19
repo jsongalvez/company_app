@@ -2,13 +2,13 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
+import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.dto.CreateExpenseRequest
 import com.companyb.companyapp.dto.DeleteExpenseRequest
 import com.companyb.companyapp.dto.ExpenseResponse
 import com.companyb.companyapp.dto.RestoreExpenseRequest
 import com.companyb.companyapp.dto.UpdateExpenseRequest
 import com.companyb.companyapp.repository.model.Expense
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.service.ExpenseService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse

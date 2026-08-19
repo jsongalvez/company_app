@@ -1,5 +1,8 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -9,21 +12,6 @@ import org.postgresql.util.PGobject
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
-
-enum class RemittanceType {
-    SESSION,
-    PRODUCT,
-}
-
-enum class RemittanceMethod {
-    BANK_TRANSFER,
-    HANDED_TO_ACCOUNTANT,
-}
-
-enum class RemittanceStatus {
-    DRAFT,
-    SUBMITTED,
-}
 
 data class Remittance(
     val id: UUID,

@@ -5,9 +5,12 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
+import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -15,8 +18,6 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.DayStatus
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.NotificationTable
@@ -26,7 +27,6 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.zaxxer.hikari.HikariConfig

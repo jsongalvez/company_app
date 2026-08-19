@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.service.branchday.BranchDayService
 import java.time.LocalDate
 import java.time.ZoneOffset

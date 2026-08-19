@@ -5,11 +5,11 @@ import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.domain.RegisterResult
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import java.time.Instant

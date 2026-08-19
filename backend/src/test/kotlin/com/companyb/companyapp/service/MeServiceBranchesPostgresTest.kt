@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -11,7 +12,6 @@ import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
-import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.attendance.ClockInParams

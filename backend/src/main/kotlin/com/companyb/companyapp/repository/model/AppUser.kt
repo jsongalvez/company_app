@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.UserStatus
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -15,8 +16,6 @@ data class AppUser(
     val displayName: String = "User",
     val deactivatedAt: OffsetDateTime? = null,
 )
-
-enum class UserStatus { ACTIVE, INACTIVE }
 
 object AppUserTable : Table("app_user") {
     private const val USERNAME_LENGTH = 255

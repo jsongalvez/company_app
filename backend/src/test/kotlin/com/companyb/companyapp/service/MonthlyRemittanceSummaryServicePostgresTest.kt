@@ -1,6 +1,9 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
@@ -17,10 +20,7 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceLineType
-import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService

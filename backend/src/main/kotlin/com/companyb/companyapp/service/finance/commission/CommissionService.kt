@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.commission
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
@@ -9,7 +10,6 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.repository.model.CommissionSplit
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService

@@ -4,6 +4,10 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.dto.AddDayBreakdownRequest
 import com.companyb.companyapp.dto.CreateRemittanceDraftRequest
 import com.companyb.companyapp.dto.CreateRemittanceLineRequest
@@ -25,10 +29,6 @@ import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceLine
-import com.companyb.companyapp.repository.model.RemittanceLineType
-import com.companyb.companyapp.repository.model.RemittanceMethod
-import com.companyb.companyapp.repository.model.RemittanceStatus
-import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.service.finance.remittance.RemittanceDetail
 import com.companyb.companyapp.service.finance.remittance.RemittanceDrift
 import com.companyb.companyapp.service.finance.remittance.RemittanceProductSalePickerEntry

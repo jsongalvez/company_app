@@ -1,11 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.service.branchday.BranchDayService

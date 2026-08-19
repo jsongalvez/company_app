@@ -1,5 +1,9 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
@@ -16,11 +20,7 @@ import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceLineType
-import com.companyb.companyapp.repository.model.RemittanceMethod
-import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal

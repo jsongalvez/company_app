@@ -1,8 +1,8 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.DayStatus
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq

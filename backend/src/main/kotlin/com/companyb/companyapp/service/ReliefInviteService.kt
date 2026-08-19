@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -9,7 +10,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
