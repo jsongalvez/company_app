@@ -577,7 +577,7 @@ class AuditLogViewModelTest {
             vm.applyFilters(
                 AuditLogFilters(
                     tableName = "session",
-                    action = AuditAction.UPDATE,
+                    action = AuditAction.UPDATE.name,
                     callerName = "ana",
                     dateFrom = "2026-08-01",
                     dateTo = "2026-08-05",

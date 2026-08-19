@@ -9,6 +9,8 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +24,7 @@ import kotlin.uuid.Uuid
  * status (GET /api/me/branches, #98) + the clock-in flow (Phase 3 of the #94 outline).
  *
  * Clock-in chains the ADR-0021 second trigger: POST /api/attendance/clock-in (via
- * [AttendanceViewModel], the existing attendance surface) success → SessionState.
+ * success → SessionState.
  * setSelectedBranch (branch-scoped capability resolution becomes meaningful — #156:
  * the full row list is stored; the clock-in refetch keeps it fresh) → GET
  * /api/me/capabilities refresh. The screen holds on BranchSelect while EITHER is in flight
@@ -38,12 +40,13 @@ class BranchSelectViewModel(
     private val apiClient: ApiClient,
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "BranchSelectVM")
-    private val attendanceViewModel = AttendanceViewModel(apiClient)
 
     private val _branches = MutableStateFlow<UiState<List<MeBranchResponse>>>(UiState.Idle)
     val branches: StateFlow<UiState<List<MeBranchResponse>>> = _branches.asStateFlow()
 
-    val clockInState: StateFlow<UiState<ClockInResponse>> = attendanceViewModel.clockInState
+    private val _clockInState = MutableStateFlow<UiState<ClockInResponse>>(UiState.Idle)
+    val clockInState: StateFlow<UiState<ClockInResponse>> = _clockInState.asStateFlow()
+    private var clockInFlowActive = false
 
     private val _refreshState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val refreshState: StateFlow<UiState<Unit>> = _refreshState.asStateFlow()
@@ -59,34 +62,50 @@ class BranchSelectViewModel(
     }
 
     fun clockIn(branch: MeBranchResponse): Job {
-        if (attendanceViewModel.clockInState.value is UiState.Loading) return Job()
+        if (clockInFlowActive) return Job().apply { complete() }
+        clockInFlowActive = true
         val request =
             ClockInRequest(
                 attendanceId = Uuid.random().toString(),
                 branchId = branch.branchId,
             )
-        val clockInJob = attendanceViewModel.clockIn(request)
+        _clockInState.value = UiState.Loading
+        val clockInJob =
+            handler.launch(
+                state = _clockInState,
+                operation = "clockIn",
+                endpoint = "POST /api/attendance/clock-in",
+                block = {
+                    apiClient.httpClient.post(ApiRoutes.ATTENDANCE_CLOCK_IN) {
+                        setBody(request)
+                    }
+                },
+                transform = { it.body() },
+            )
         // Chain the second trigger (ADR-0021): only after the clock-in succeeded.
-        viewModelScope.launch {
-            clockInJob.join()
-            val clockInState = attendanceViewModel.clockInState.value
-            if (clockInState is UiState.Success) {
-                SessionState.setSelectedBranch(branch.branchId, branch.branchName)
-                // #147 — persist the clock-state slots (attendance id + branchDayId) at
-                // clock-in: the drawer's clock-out request sources the attendance id here.
-                SessionState.setClockState(clockInState.data.id, clockInState.data.branchDayId)
-                refreshCapabilities()
+        return viewModelScope.launch {
+            try {
+                clockInJob.join()
+                val clockInState = _clockInState.value
+                if (clockInState is UiState.Success) {
+                    SessionState.setSelectedBranch(branch.branchId, branch.branchName)
+                    // #147 — persist the clock-state slots (attendance id + branchDayId) at
+                    // clock-in: the drawer's clock-out request sources the attendance id here.
+                    SessionState.setClockState(clockInState.data.id, clockInState.data.branchDayId)
+                    refreshCapabilities().join()
+                }
+            } finally {
+                clockInFlowActive = false
             }
         }
-        return clockInJob
     }
 
-    fun refreshCapabilities() {
-        if (_refreshState.value is UiState.Loading) return
+    fun refreshCapabilities(): Job {
+        if (_refreshState.value is UiState.Loading) return Job().apply { complete() }
         // Synchronous pre-set: the guard must hold from the caller's frame (a double-tap
         // before any dispatch would otherwise launch two refreshes).
         _refreshState.value = UiState.Loading
-        handler.launch(
+        return handler.launch(
             state = _refreshState,
             operation = "refreshCapabilities",
             endpoint = "GET /api/me/capabilities",
