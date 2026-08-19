@@ -1377,3 +1377,47 @@ fields, failed deterministic evidence, or untriaged HARD findings.
 The map, issue-tracker workflow, audit method, decision loop, active handoff, and
 unattended loop prompt now carry the same contract. This is a workflow control;
 no product, schema, or runtime behavior changes.
+
+## Permanent-Map Refresh - Session 285
+
+The empty frontier triggered a fresh full audit. Four bounded read-only lanes
+rechecked C-01..C-14 across Compose and platform bridges, backend services and
+persistence, shared contracts and schema, and tests/tooling/docs. Independent
+coverage, duplication, materiality, schema, and dependency-priority passes found
+no subsystem omission.
+
+### Retained candidates
+
+#### R41 - Enforce inventory movement branch-day ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/api/routes/BranchInventoryRoutes.kt:252-258,277-288` receives `branchId` from the URL and `branchDayId` from the body. `backend/src/main/kotlin/com/companyb/companyapp/service/inventory/InventoryService.kt:34-45` validates day editability without checking that the day belongs to the branch. `backend/src/main/resources/db/migration/V1__full_schema.sql:337-346` has independent foreign keys.
+- **Current invalid state:** a Branch A inventory movement can reference Branch B's Branch Day, splitting stock ownership from day-state, audit, and reporting ownership.
+- **Simpler representation:** resolve `branchDayId` through `BranchDayService.requireBranchDayForBranch(branchDayId, branchId)` before editability validation and mutation. Keep existing branch-scoped authorization.
+- **Smallest scope:** `InventoryService` and focused service/API tests for tester, sample, missing, and adjustment movements. No schema change required.
+- **Risks and validation:** preserve valid same-branch historical days; reject foreign days before card/version mutation, movement insertion, or audit. Test same-branch success, foreign-branch rejection, missing days, and all movement reasons.
+- **Dependencies:** none. **Deletion test:** removing the branch-scoped resolver permits foreign Branch Days.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position `ALPHA`; L1 fact integrity `pass`; L2 domain coherence `pass with HARD ownership breach`; L3 long-term architecture `pass with HARD aggregate-boundary breach`; L4 adversarial falsification `pass, cross-branch write reproduced`; L5 comprehension `pass with SOFT missing invariant test`; deterministic gate `pass, current paths/schema confirm`; HARD findings `zero after proposed validation`; SOFT findings `one accepted, missing explicit invariant test, non-blocking`; confidence `high`; artifact `Session 285 audit lanes and verifier packet`.
+
+#### R42 - Make active assignment creation conflict-safe
+
+- **Verdict:** recommend; **disposition:** defer; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt:68-71` prechecks the active assignment. `backend/src/main/kotlin/com/companyb/companyapp/repository/UserBranchAssignmentRepository.kt:29-45` uses `insertIgnore` but only reads the caller UUID when inserted. `backend/src/main/resources/db/migration/V1__full_schema.sql:102` enforces the active `(user_id, branch_id)` unique key. The losing concurrent request reaches `UserBranchAssignmentService.kt:93-95`, where its nonexistent UUID becomes a generic error.
+- **Current invalid state:** concurrent assignment requests with different UUIDs can escape deterministic domain conflict handling despite the database business-key constraint.
+- **Simpler representation:** repository-owned business-key conflict handling distinguishes same-ID idempotency from different-ID conflict and audits only newly inserted rows.
+- **Smallest scope:** assignment repository/service and concurrency, retry, duplicate, and audit tests.
+- **Risks and validation:** preserve current sequential duplicate behavior and same-ID retry semantics; verify no orphan or duplicate audit rows.
+- **Dependencies:** R41 is independent; rank after R41. **Deletion test:** removing the service precheck while retaining repository conflict translation preserves deterministic behavior.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position `BETA`; L1 fact integrity `pass`; L2 domain coherence `pass with HARD deterministic-conflict breach`; L3 long-term architecture `pass with HARD ownership split`; L4 adversarial falsification `pass, distinct-UUID race reproduced`; L5 comprehension `pass`; deterministic gate `pass, current paths/schema confirm`; HARD findings `zero after proposed repository ownership`; SOFT findings `one accepted, existing sequential 400 versus conflict convention, deferred pending API compatibility review`; confidence `high`; artifact `Session 285 audit lanes and verifier packet`.
+
+### Rejected lead
+
+- **R43 - stale iOS exclusion rationale:** deterministic evidence confirms `.githooks/pre-push:61-63` names a missing `AppNavHost.ios.kt`, while the actual exists and iOS actuals are present. The exclusion itself remains supported by `docs/specs/0001-frontend-rebuild.md:171`, which keeps iOS screens future scope. The comment should be corrected opportunistically, but this is documentation hygiene, not a retained architecture candidate or child slice.
+
+### Audit-of-audit - Session 285
+
+- Coverage: C-01..C-14 rechecked; no omission.
+- Duplication and ownership: R41 is distinct from prior remittance ownership fixes; R42 is distinct from resolved compensation and registration races.
+- Materiality: R41 is a cross-branch operational data-integrity defect; R42 is a concurrent user-management failure. R43 is rejected as low-materiality stale rationale.
+- Schema: independent foreign keys and active-assignment partial unique index verified directly in V1.
+- Priority: R41 first, R42 second; exactly one child may be created this session.
