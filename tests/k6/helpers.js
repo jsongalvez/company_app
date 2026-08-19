@@ -83,4 +83,9 @@ export const thresholdProfiles = {
     concurrency_latency: fullThresholds.concurrency_latency,
     errors: ["rate<0.10"],
   },
+  remittanceRace: {
+    remittance_race_latency: fullThresholds.remittance_race_latency,
+    errors: fullThresholds.errors,
+    checks: ["rate==1"],
+  },
 };

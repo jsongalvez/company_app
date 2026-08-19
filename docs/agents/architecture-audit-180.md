@@ -1456,3 +1456,182 @@ code, tests, migrations, or runtime behavior changed during this audit.
 | 65 | Independent evidence and falsification | Pre-check/insert/read race and active unique index confirmed |
 | 66 | Adversarial and deletion-test pass | Distinct-ID collision, same-ID retry, audit atomicity, and lock/abstraction alternatives checked |
 | 67 | Coverage, duplication, materiality, schema, priority | R44 verified and selected as sole implementation child |
+
+## Permanent-Map Refresh - Session 288
+
+After implementation child #227 and with no open Map #180 frontier, four fresh bounded lanes
+rechecked C-01..C-14 across Compose/platform bridges, shared/schema contracts, backend behavior,
+and tooling/docs. Product source, tests, migrations, and runtime behavior remained unchanged
+during audit. Deterministic checks confirmed five new implementation candidates. R23, R24, and
+R46 remain deferred because their broad lifecycle/helper choices are not safe to guess.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R45 - make remittance-race k6 fixture fail closed | Setup ignores branch/client/session responses, uses UTC date, and returns random remittance UUID after failed draft creation | Invalid setup can produce measured 404 submissions; valid-fixture contract is independently clear | implement, P1 |
+| R47 - type Session persistence model enum fields | `Session` data class stores finite `sessionType`/`sessionStatus` as String while Exposed columns and consumers already use shared enums | Repository-wide constructors and consumers show no intentional open-string representation; direct enum mapping removes conversions | implement, P1 |
+| R48 - type inventory movement reason across wire/persistence | Inventory DTOs use String, backend owns duplicate finite enum, route reparses with `valueOf`, PostgreSQL enum/checks are finite | No endpoint requires extensible reasons; endpoint-specific allowed-reason checks remain necessary | implement, P1 |
+| R49 - make commission-trigger mutations atomic | Product sale and attendance mutations commit before separate commission recalculation and split replacement transactions | Engine requires one transaction; separated failure path reproduces stale/empty split risk | implement, P1 |
+| R50 - remove automatic Flyway repair from startup | `DatabaseConfig` calls `flyway.repair()` before every migrate | Implicit repair can hide checksum drift; migrate-only startup fails closed and explicit repair remains operator-owned | implement, P1 |
+| R23 - pair selected branch and clock state | Four independent nullable SessionState fields and sequential setters permit torn context | Lifecycle ownership and ADR-0021 refresh semantics remain unresolved; no safe autonomous scope | defer, retained fog |
+| R24 - remove nested AttendanceViewModel ownership | BranchSelect and Drawer own separate AttendanceViewModels with nested scope | Parent route lifecycle decision is prerequisite; narrow removal leaves split clock-out ownership | defer, retained fog |
+| R46 - centralize stable route-test server setup | Fifteen route suites repeat setup but vary registration, auth, and exception maps | A configurable factory risks relocating suite-specific complexity; no narrow deep seam proven | defer, retained P2 |
+
+### Verifier packets
+
+All packets use structured repeated rubric mode because continuous scoring was unavailable. GPT-5.6 Luna is sole verifier; positions are blinded and alternate across candidates. Deterministic repository evidence is authoritative.
+
+```text
+candidate: R45
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; setup response handling, UTC date, and random remittance ID verified
+L2 domain coherence: pass; uses Branch, Session, Remittance, and Manila Day State vocabulary
+L3 long-term architecture: pass; fixture owns valid workflow data without production seam
+L4 adversarial falsification: pass; setup failure and 404 measurement reproduced
+L5 comprehension: pass
+deterministic gate: pass; source inspection and k6 fixture contract checks agree
+HARD findings: zero after fail-closed setup boundary
+SOFT findings: one accepted, setup timing may alter race distribution; validation records exact winner/loser statuses
+confidence: high
+artifact: Session 288 tooling lane, R45 dossier
+
+candidate: R47
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+L1 fact integrity: pass; String data fields and enum columns/conversions verified
+L2 domain coherence: pass; Session type/status are finite shared domain values
+L3 long-term architecture: pass; repository model becomes one typed owner without new adapter
+L4 adversarial falsification: pass; arbitrary-string construction and deferred valueOf failure removed
+L5 comprehension: pass
+deterministic gate: pass; constructors, consumers, Exposed columns, and shared enums inspected
+HARD findings: zero after direct enum mapping
+SOFT findings: one accepted, cross-module type ripple is broad but bounded and compile-detectable
+confidence: high
+artifact: Session 288 shared/schema lane, R47 dossier
+
+candidate: R48
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; DTO String fields, duplicate backend enum, route parsing, and PostgreSQL enum verified
+L2 domain coherence: pass; Inventory Movement Reason is finite and endpoint restrictions remain domain rules
+L3 long-term architecture: pass; shared contract owns wire value and backend persistence binds same enum
+L4 adversarial falsification: pass; malformed and disallowed reasons remain rejected at typed/boundary checks
+L5 comprehension: pass
+deterministic gate: pass; DTO/model/route/migration evidence agrees
+HARD findings: zero after typed wire and persistence ownership
+SOFT findings: one accepted, uppercase/lowercase compatibility requires explicit serialization tests
+confidence: high
+artifact: Session 288 shared/schema lane, R48 dossier
+
+candidate: R49
+mode: structured
+model: GPT-5.6 Luna
+position: DELTA
+L1 fact integrity: pass; source mutations, separate recalculate calls, and split replacement transaction verified
+L2 domain coherence: pass; commission engine and Audit Log transaction ownership remain service-layer rules
+L3 long-term architecture: pass; transaction-aware repository operations deepen existing FinanceModule without generic transaction API
+L4 adversarial falsification: pass; recalculation failure leaves committed source/stale split under current flow
+L5 comprehension: pass
+deterministic gate: pass; ProductSale, Attendance, Commission, repository, and engine paths agree
+HARD findings: zero after atomic trigger design
+SOFT findings: one accepted, concurrent recalculation serialization requires focused database evidence
+confidence: high
+artifact: Session 288 backend lane, R49 dossier
+
+candidate: R50
+mode: structured
+model: GPT-5.6 Luna
+position: EPSILON
+L1 fact integrity: pass; DatabaseConfig invokes repair before migrate on every startup
+L2 domain coherence: pass; Flyway history is authoritative schema state
+L3 long-term architecture: pass; operator repair remains explicit and application startup fails closed
+L4 adversarial falsification: pass; checksum drift can be hidden by implicit repair; migrate-only exposes it
+L5 comprehension: pass
+deterministic gate: pass; startup code and Flyway lifecycle inspected
+HARD findings: zero after removing implicit repair and preserving explicit operator path
+SOFT findings: one accepted, deployment runbook must name explicit repair action
+confidence: high
+artifact: Session 288 backend lane, R50 dossier
+
+candidate: R23
+mode: structured
+model: GPT-5.6 Luna
+position: ZETA
+L1 fact integrity: pass; independent fields/setters and sequential refresh flow verified
+L2 domain coherence: pass; branch/Relief/Capability terms align
+L3 long-term architecture: HARD unresolved lifecycle ownership prerequisite
+L4 adversarial falsification: pass; refresh failure and mismatched context remain possible
+L5 comprehension: pass
+deterministic gate: pass; current state model and ADR-0021 inspected
+HARD findings: one unresolved architecture prerequisite; disposition defer
+SOFT findings: zero
+confidence: high
+artifact: Session 288 Compose lane, R23 dossier
+
+candidate: R24
+mode: structured
+model: GPT-5.6 Luna
+position: ETA
+L1 fact integrity: pass; nested and independently-created AttendanceViewModels verified
+L2 domain coherence: pass; clock-in/out ownership and lifecycle terms align
+L3 long-term architecture: HARD unresolved parent ViewModel lifecycle decision
+L4 adversarial falsification: pass; parent disposal and duplicate state-owner risks remain
+L5 comprehension: pass
+deterministic gate: pass; construction sites and scopes inspected
+HARD findings: one unresolved architecture prerequisite; disposition defer
+SOFT findings: zero
+confidence: high
+artifact: Session 288 Compose lane, R24 dossier
+
+candidate: R46
+mode: structured
+model: GPT-5.6 Luna
+position: THETA
+L1 fact integrity: pass; repeated setup and existing lifecycle helper verified
+L2 domain coherence: pass; test infrastructure remains separate from production modules
+L3 long-term architecture: HARD risk of configurable shallow factory; disposition defer
+L4 adversarial falsification: pass; suite-specific auth/exception differences survive extraction
+L5 comprehension: pass
+deterministic gate: pass; fifteen suites and helper boundaries inspected
+HARD findings: one unresolved seam-depth risk; disposition defer
+SOFT findings: zero
+confidence: reduced
+artifact: Session 288 tooling lane, R46 dossier
+```
+
+### Audit-of-audit - Session 288
+
+- Coverage: C-01..C-14 all rechecked by four non-overlapping lanes; no omission found.
+- Duplication: R47/R48 are distinct finite contract owners; R49 is transaction atomicity; R45 is load-fixture validity; R50 is deployment integrity.
+- Materiality: five implement candidates remove concrete invalid states or false-success evidence; R23/R24/R46 remain deferred for unresolved architecture choices.
+- Schema: no migration changes are required for R47/R48/R49; R50 preserves Flyway history and only changes startup policy.
+- Priority: R49/R50 high-risk backend integrity first, then R47/R48 shared contract typing, then R45 test evidence. All five are ticketed before claiming one frontier child.
+
+| Pass | Work | Result |
+|---|---|---|
+| 68 | Four bounded full-audit lanes | C-01..C-14 complete; five implement candidates and three deferred candidates retained |
+| 69 | Independent deterministic verification | All five implement dossiers pass; no candidate overlaps completed work |
+| 70 | Structured Luna verification | R45/R47/R48/R49/R50 packets complete; deferred R23/R24/R46 packets complete |
+| 71 | Adversarial, materiality, and priority pass | Five native implementation children required; R23/R24/R46 remain fog |
+
+### R45 implementation checkpoint
+
+- Child #229 implemented fail-closed remittance-race setup in `tests/k6/remittance-race-test.js`.
+- Setup now uses seeded `K6 Fixture Branch`, validates login, branch lookup, clock-in, client,
+  session, and remittance responses; checks requested IDs, Manila date, and returned remittance
+  version; and aborts with bounded response-body diagnostics on failure.
+- Race now uses one `http.batch` with identical expected version and requires exactly one `200`
+  winner plus one `409` conflict. Shared `thresholdProfiles.remittanceRace` owns latency, error,
+  and `checks: ["rate==1"]` thresholds.
+- Gate ledger `docs/gates/229-remittance-race-fixture.md`: 5/5 PASS, including verifiable
+  `K6_INSPECT_OK` evidence.
+- Live disposable `company_app_test` run: one winner/one conflict, checks 100%, errors 0%,
+  remittance race p95 554ms; `bash scripts/clean-test-db.sh` PASS afterward.
+- P1-P4 final review: zero HARD findings and no ESCALATE. Accepted SOFT: direct runs require
+  documented disposable-DB cleanup; fixture branch depends on dev seeding.
+- Child #229 is resolved; children #230-#233 remain open, unassigned frontier candidates.
