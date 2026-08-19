@@ -137,16 +137,55 @@ wait_for_session_exit() {
   sleep "$TICK_SECS"
 }
 
-# seen_docs is a comma-separated list of processed handoff basenames
+# seen_docs is a comma-separated list of processed handoff basename@sha256 entries.
+# Hashes matter: historical handoff basenames already exist, and a later session may
+# overwrite one of them. Basename-only tracking misses that successor handoff.
 seen_docs=""
+handoff_fingerprint() {
+  sha256sum "$DOCS_DIR/$1" | awk '{print $1}'
+}
+
+seed_seen_docs() {
+  local d fp entries=""
+  while IFS= read -r d; do
+    [ -n "$d" ] || continue
+    fp="$(handoff_fingerprint "$d")"
+    if [ -n "$entries" ]; then entries="$entries,$d@$fp"; else entries="$d@$fp"; fi
+  done < <(handoff_docs)
+  printf '%s' "$entries"
+}
+
+normalize_seen_docs() {
+  local entry d fp normalized=""
+  [ -n "$seen_docs" ] || return 0
+  IFS=',' read -ra entries <<< "$seen_docs"
+  for entry in "${entries[@]}"; do
+    [ -n "$entry" ] || continue
+    if [[ "$entry" == *@* ]]; then
+      d="${entry%@*}"
+      fp="${entry##*@}"
+    else
+      d="$entry"
+      [ -f "$DOCS_DIR/$d" ] || continue
+      fp="$(handoff_fingerprint "$d")"
+    fi
+    if [ -n "$normalized" ]; then normalized="$normalized,$d@$fp"; else normalized="$d@$fp"; fi
+  done
+  seen_docs="$normalized"
+}
+
 mark_seen() {
-  if [ -n "$seen_docs" ]; then seen_docs="$seen_docs,$1"; else seen_docs="$1"; fi
+  local fp
+  fp="$(handoff_fingerprint "$1")"
+  if [ -n "$seen_docs" ]; then seen_docs="$seen_docs,$1@$fp"; else seen_docs="$1@$fp"; fi
 }
 
 is_new_doc() {
-  # $1 = basename; true if not in seen_docs
+  # $1 = basename; true if absent or changed since last processing.
+  local fp
+  fp="$(handoff_fingerprint "$1")"
   case ",$seen_docs," in
-    *",$1,"*) return 1 ;;
+    *",$1@$fp,"*) return 1 ;;
     *) return 0 ;;
   esac
 }
@@ -402,7 +441,7 @@ supervise_session() {
     # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
-      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Continue from Map #180 workflow authority. If frontier exists, claim and resolve one child. If frontier is empty, run the required focused/full audit, complete verifier packets for every retained candidate, create every implement candidate with scripts/wayfinder-create-child.sh, record each command, verify each native parent link, then claim one frontier child or record clean-audit evidence. Then write the handoff last."}')" >/dev/null 2>&1; then
+      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Do not claim, create, or resolve another ticket in this session. Continue only the currently claimed ticket if it is unfinished. If current work is finished, or no ticket is claimed, write the successor handoff now as your final action. Record completed work, verification, tracker state, and next frontier; then stop."}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
         notify "wayfinder continuing" "session $session_id stopped without handoff — continuation sent"
@@ -473,7 +512,7 @@ session_dead() {
     save_state
     log "resuming stalled session $session_id (attempt $retries/2)"
     notify "wayfinder resuming" "session $session_id stalled — asking it to continue where it left off"
-    if ! api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You were interrupted mid-session. Continue exactly where you left off, per your session instructions. Do not restart or re-read the handoff doc unless required."}')" >/dev/null 2>&1; then
+    if ! api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You were interrupted mid-session. Continue exactly where you left off, per your session instructions. Do not claim, create, or resolve another ticket. Finish only currently claimed ticket; if finished, write successor handoff as final action."}')" >/dev/null 2>&1; then
       log "resume prompt failed for $session_id — falling back to fresh spawn"
       session_dead fresh
     fi
@@ -517,14 +556,16 @@ wait_for_doc() {
 command -v jq >/dev/null 2>&1 || die "jq not found"
 
 load_state
+normalize_seen_docs
 
 if [ "${1:-}" = "--bootstrap" ]; then
   [ $# -ge 2 ] || die "--bootstrap requires <doc> (e.g. wayfinder-162-handoff.md)"
   # Accept either a handoff basename or a path copied from a log/prompt.
   doc="${2##*/}"
   [ -f "$DOCS_DIR/$doc" ] || die "bootstrap doc not found: $DOCS_DIR/$doc"
-  # seed: every existing handoff is seen; the bootstrap doc spawns immediately
-  seen_docs="$(handoff_docs | paste -sd, -)"
+  # Seed every existing handoff by content, not basename. A later session may
+  # overwrite an existing numbered handoff filename.
+  seen_docs="$(seed_seen_docs)"
   last_doc="$doc"
   mark_seen "$doc"
   retries=0
