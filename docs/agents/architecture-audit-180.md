@@ -1800,3 +1800,14 @@ audit.
 - R53 command: `scripts/wayfinder-create-child.sh 180 task "Build: preserve k6 test database through cleanup" docs/agents/wayfinder-292-k6-db-ticket.md`
 - R53 returned `https://github.com/jsongalvez/company_app/issues/236`; verification:
   `scripts/wayfinder-verify-child.sh 180 236` -> `Verified child #236: parent #180, label wayfinder:task`.
+
+### R52 implementation checkpoint
+
+Child #235 was claimed and resolved. `ReliefAccessService.grantAccess` and
+`denyAccess` now perform target-user authorization before terminal-state
+idempotent returns. Regression tests cover unrelated callers against already
+GRANTED and DENIED requests. Commit `1d096da` passed focused tests, full backend
+detekt/ktlint/test/shared JVM tests, OpenAPI, Compose Android/Desktop compile,
+k6 baseline with zero errors, and disposable test-database cleanup.
+
+R53 remains the sole open frontier child and was not claimed in this session.
