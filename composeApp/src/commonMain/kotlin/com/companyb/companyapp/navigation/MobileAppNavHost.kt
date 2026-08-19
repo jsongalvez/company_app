@@ -155,7 +155,7 @@ internal fun MobileAppNavHost(
                     }
                     composable<Route.BranchSelect> {
                         val branchSelectViewModel: BranchSelectViewModel =
-                            remember { BranchSelectViewModel(apiClient) }
+                            viewModel { BranchSelectViewModel(apiClient) }
                         val reliefInviteViewModel: ReliefInviteViewModel =
                             remember { ReliefInviteViewModel(apiClient) }
                         BranchSelectScreen(
