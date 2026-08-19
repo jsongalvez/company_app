@@ -125,7 +125,7 @@ internal object AttendanceRepository {
     fun clockOut(
         attendanceId: UUID,
         auditFn: (Attendance, Attendance) -> Unit = { _, _ -> },
-    ): Attendance =
+    ): Pair<Attendance, Boolean> =
         transaction {
             val before =
                 AttendanceTable
@@ -134,10 +134,11 @@ internal object AttendanceRepository {
                     .single()
                     .toAttendance()
 
-            AttendanceTable
-                .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
-                    it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
-                }
+            val updated =
+                AttendanceTable
+                    .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
+                        it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
+                    }
 
             val after =
                 AttendanceTable
@@ -146,8 +147,10 @@ internal object AttendanceRepository {
                     .single()
                     .toAttendance()
 
-            auditFn(before, after)
-            after
+            if (updated > 0) {
+                auditFn(before, after)
+            }
+            after to (updated > 0)
         }
 
     fun findUsersClockedInAt(

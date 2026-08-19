@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.attendance
 
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -51,6 +52,10 @@ object AttendanceService {
             throw NotFoundException("Attendance record not found")
         }
 
+        if (existing.userId != callerId) {
+            throw ForbiddenException("Only attendance owner can clock out")
+        }
+
         if (existing.clockOut != null) {
             val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
             return AttendanceServiceResult(existing, false, isRelief)
@@ -58,7 +63,7 @@ object AttendanceService {
 
         val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
 
-        val attendance =
+        val (attendance, wasClockedOut) =
             AttendanceRepository.clockOut(attendanceId) { before, after ->
                 AuditLogRepository.recordUpdate(
                     tableName = AttendanceTable.tableName,
@@ -73,7 +78,9 @@ object AttendanceService {
 
         logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
 
-        CommissionService.recalculate(attendance.branchDayId)
+        if (wasClockedOut) {
+            CommissionService.recalculate(attendance.branchDayId)
+        }
 
         val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
         return AttendanceServiceResult(attendance, false, isRelief)

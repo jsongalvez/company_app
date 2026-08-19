@@ -1876,3 +1876,113 @@ separately claimed implementation child was resolved.
 | 77 | Independent deterministic verification | Shared/Compose/backend duplicate action ownership confirmed; existing R49 transaction scope and validation semantics checked |
 | 78 | Structured Luna verifier packet | R55 L1-L5 packet complete; no untriaged HARD/SOFT findings |
 | 79 | Implementation and targeted review | Child #237 resolved; gates 3/3, shared serialization, backend tests, lint/detekt, and Compose Desktop compile passed |
+
+## Permanent-Map Refresh - Session 295
+
+After implementation child #237, the frontier was empty. Four fresh bounded read-only lanes
+rechecked C-01..C-14 across Compose/platform bridges, shared contracts, backend behavior and
+persistence, and tooling/tests/docs. Product, schema, test, and runtime behavior remained unchanged.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R56 - authorize attendance clock-out ownership | `AttendanceRoutes.kt:32-50` and `AttendanceService.kt:36-79` accept caller and attendance ID but do not compare attendance owner to caller | Authenticated caller can close another user's attendance UUID; requirements permit marking presence but not clocking out another user | implement, P1 |
+| R57 - own Branch Select attendance lifecycle | `BranchSelectViewModel.kt:40-81` constructs an `AttendanceViewModel` with its own `viewModelScope`, then chains side effects from that job | Clock-in request can outlive Branch Select owner; moving clock-in into parent scope removes nested owner without changing Drawer clock-out owner | implement, P1 |
+| R58 - centralize authz k6 thresholds | `tests/k6/authz-test.js:10-15` owns thresholds while `helpers.js:79-90` owns named profiles | Threshold ownership drift is concrete and isolated; current values can move unchanged into `thresholdProfiles.authz` | implement, P2 |
+| Registration precheck deletion | `AuthService.register` still validates before repository insertion | Removing prechecks changes validation precedence and password-hashing behavior despite atomic repository conflict handling | reject |
+| Cleanup pipeline status propagation | `clean-test-db.sh:49` and `.githooks/pre-push:124` pipe cleanup through `tail` | Both scripts use `set -o pipefail`; Bash pipeline status preserves cleanup/check failure | reject |
+| R15 notification inserted-count truth | `NotificationRepository.insertBatch` already returns database inserted count | No new multi-instance deployment or overlapping invocation requirement; current defect is resolved | retain fog |
+
+### Verifier packets
+
+All packets use structured repeated rubric mode because continuous scoring was unavailable.
+GPT-5.6 Luna is sole verifier; positions are blind and distinct. Deterministic repository
+evidence is authoritative.
+
+```text
+candidate: R56
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; route/service omit attendance-owner authorization
+L2 domain coherence: pass; clock-out is distinct from marking presence and absence
+L3 long-term architecture: pass; AttendanceService owns mutation authorization
+L4 adversarial falsification: pass; guessed foreign attendance ID changes commission window
+L5 comprehension: pass
+deterministic gate: pass; source and business-requirement paths agree
+HARD findings: zero after self-owner gate
+SOFT findings: one accepted, delegated clock-out policy remains future scope and is not guessed
+confidence: high
+artifact: Session 295 R56 dossier in this report
+
+candidate: R57
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+L1 fact integrity: pass; nested AttendanceViewModel and independent viewModelScope verified
+L2 domain coherence: pass; Branch Select owns clock-in flow while Drawer retains clock-out flow
+L3 long-term architecture: pass; parent scope concentrates lifecycle without new abstraction
+L4 adversarial falsification: pass; navigation during clock-in leaves child work alive and can refresh stale state
+L5 comprehension: pass
+deterministic gate: pass; construction sites, scopes, and chained side effects agree
+HARD findings: zero after parent-owned clock-in scope
+SOFT findings: zero
+confidence: high
+artifact: Session 295 R57 dossier in this report
+
+candidate: R58
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; authz script duplicates helper-owned threshold policy
+L2 domain coherence: pass; k6 helpers are documented threshold source
+L3 long-term architecture: pass; one named profile removes drift without new runtime seam
+L4 adversarial falsification: pass; changing helper policy currently leaves authz script stale
+L5 comprehension: pass
+deterministic gate: pass; current threshold values and profile consumers verified
+HARD findings: zero after shared profile migration
+SOFT findings: zero
+confidence: high
+artifact: Session 295 R58 dossier in this report
+```
+
+### Audit-of-audit
+
+- **Coverage:** C-01..C-14 rechecked by four non-overlapping lanes; no subsystem omission.
+- **Duplication and ownership:** R56 is authorization, R57 is lifecycle ownership, and R58 is
+  tooling policy; none duplicates resolved audit, enum, transaction, or k6 fixture work.
+- **Materiality:** R56 is a cross-user state mutation; R57 is a stale-lifecycle state risk; R58
+  is a concrete mandatory test-policy drift seam. Registration and cleanup leads fail falsification.
+- **Schema and priority:** no migration is needed. Rank R56, R57, R58. R15 remains blocked on
+  deployment topology or overlapping scheduler invocation evidence; Compose broad lifecycle fog remains.
+
+### Child traceability
+
+- R56 command: `scripts/wayfinder-create-child.sh 180 task "Build: authorize attendance clock-out ownership" docs/agents/wayfinder-295-attendance-auth-ticket.md`
+- R56 returned `https://github.com/jsongalvez/company_app/issues/240`; verification:
+  `scripts/wayfinder-verify-child.sh 180 240` -> `Verified child #240: parent #180, label wayfinder:task`.
+- R57 command: `scripts/wayfinder-create-child.sh 180 task "Build: own Branch Select attendance lifecycle" docs/agents/wayfinder-295-branch-select-lifecycle-ticket.md`
+- R57 returned `https://github.com/jsongalvez/company_app/issues/238`; verification:
+  `scripts/wayfinder-verify-child.sh 180 238` -> `Verified child #238: parent #180, label wayfinder:task`.
+- R58 command: `scripts/wayfinder-create-child.sh 180 task "Build: centralize authz k6 thresholds" docs/agents/wayfinder-295-authz-k6-ticket.md`
+- R58 returned `https://github.com/jsongalvez/company_app/issues/239`; verification:
+  `scripts/wayfinder-verify-child.sh 180 239` -> `Verified child #239: parent #180, label wayfinder:task`.
+
+### R56 implementation checkpoint
+
+- `AttendanceService.clockOut` now rejects callers whose identity differs from the attendance owner
+  before terminal idempotent handling.
+- `AttendanceRepository.clockOut` returns the row plus whether the conditional update transitioned
+  it. Only the winner writes an audit entry and recalculates commission; concurrent loser retries
+  return the settled row without duplicate side effects.
+- Focused coverage proves foreign rejection, unchanged state/audit count, and repository audit-once
+  behavior. Child #240 was claimed, resolved, and closed.
+- Full backend quality, shared JVM compile, OpenAPI, cleanliness, and diff gates passed.
+
+| Pass | Work | Result |
+|---|---|---|
+| 80 | Four bounded full-audit lanes | C-01..C-14 complete; R56-R58 retained; prior leads dispositioned |
+| 81 | Independent deterministic verification | Foreign clock-out, nested lifecycle, and threshold drift confirmed |
+| 82 | Structured Luna verifier packets | R56-R58 L1-L5 packets complete; no untriaged HARD findings |
+| 83 | Adversarial, duplication, materiality, schema, priority | Three implement candidates ranked; one-child frontier rule applies |

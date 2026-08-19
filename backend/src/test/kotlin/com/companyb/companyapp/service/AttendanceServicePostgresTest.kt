@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -11,6 +12,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -32,12 +34,15 @@ import kotlin.time.measureTimedValue
 
 class AttendanceServicePostgresTest : BasePostgresTest() {
     private val userId = UUID.randomUUID()
+    private val otherUserId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(userId, "user")
+        DatabaseTestHelper.insertTestUser(otherUserId, "other-user")
         trackOwned(AppUserTable, AppUserTable.id, userId)
+        trackOwned(AppUserTable, AppUserTable.id, otherUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch")
         trackOwned(BranchTable, BranchTable.id, branchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
@@ -164,6 +169,38 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         assertTrue(second.created.not())
         assertEquals(first.clockOut, second.clockOut)
         assertEquals(2L, auditEntryCount(attendanceId))
+    }
+
+    @Test
+    fun `repository clockOut only audits first transition`() {
+        val attendanceId = UUID.randomUUID()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+        var auditCalls = 0
+
+        AttendanceRepository.clockOut(attendanceId) { _, _ -> auditCalls++ }
+        AttendanceRepository.clockOut(attendanceId) { _, _ -> auditCalls++ }
+
+        assertEquals(1, auditCalls)
+    }
+
+    @Test
+    fun `clockOut rejects another user's attendance`() {
+        val attendanceId = UUID.randomUUID()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertFailsWith<ForbiddenException> {
+            AttendanceService.clockOut(attendanceId, otherUserId)
+        }
+
+        assertNull(
+            transaction {
+                AttendanceTable
+                    .selectAll()
+                    .where { AttendanceTable.id eq attendanceId }
+                    .single()[AttendanceTable.clockOut]
+            },
+        )
+        assertEquals(1L, auditEntryCount(attendanceId))
     }
 
     @Test
