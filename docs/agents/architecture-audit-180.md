@@ -2879,3 +2879,27 @@ Branch-scoped `MANAGE_PRODUCTS` capability.
   pass.
 - No ADR needed; existing UUID idempotency, audit atomicity, Branch capability,
   and database-clock decisions remain authoritative.
+
+### R79 implementation evidence
+
+Child #264 is implemented in the current change. `AppConfig.parse` now tolerates a
+missing local `.env` while reading process environment variables, and the quality
+workflow supplies the required `APP_PORT` alongside disposable PostgreSQL and JWT
+configuration. The JMH workflow now propagates Gradle pipeline failures, labels
+upstream benchmark failures explicitly, skips comparison when no benchmark result
+exists, and preserves retry behavior for genuine comparator failures. Workflow
+changes trigger the JMH workflow itself. OpenAPI fingerprint handling was not
+changed because the current route contract and stale-fingerprint negative control
+already pass.
+
+- Gate ledger `docs/gates/264-reliable-ci-gates.md`: 5/5 PASS.
+- Negative-control gate: G1-G3 failed before implementation as expected; G4/G5
+  passed before and after implementation.
+- CI-equivalent compile and full backend detekt/ktlint/test passed with `.env`
+  temporarily absent; shared JVM compile and test-database cleanliness passed.
+- OpenAPI route coverage, secret scan, stale-fingerprint control, and JMH parser
+  fixtures passed; `git diff --check` passed.
+- P1/P2 review found one HARD retry-classification gap and one SOFT workflow-path
+  gap; both were fixed. Final review has zero untriaged HARD findings.
+- No ADR needed; existing configuration, workflow, and performance-gate ownership
+  decisions remain authoritative.
