@@ -149,6 +149,22 @@ class UserServicePostgresTest : BasePostgresTest() {
         )
     }
 
+    @Test
+    fun `persisted revocation survives deny list restart after reactivation`() {
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        val oldToken = JwtService.generateToken(targetUserId.toString())
+
+        UserService.deactivate(callerId, targetUserId)
+        UserService.reactivate(callerId, targetUserId)
+        DenyList.clear()
+        DenyList.loadPersistedRevocations()
+
+        assertNull(JwtService.verifyToken(oldToken), "old token must stay dead after deny-list restart")
+        waitForNextSecond()
+        val freshToken = JwtService.generateToken(targetUserId.toString())
+        assertEquals(targetUserId.toString(), JwtService.verifyToken(freshToken))
+    }
+
     private fun waitForNextSecond() {
         val boundary = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1)
         while (Instant.now().isBefore(boundary)) {

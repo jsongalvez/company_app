@@ -165,8 +165,8 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
 }
 
 fun initializeDenyList() {
-    logger.info { "[INITIALIZE-DENY-LIST] Loading inactive users into deny list" }
-    DenyList.loadInactiveUsers()
+    logger.info { "[INITIALIZE-DENY-LIST] Loading persisted revocations into deny list" }
+    DenyList.loadPersistedRevocations()
     logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
 }
 

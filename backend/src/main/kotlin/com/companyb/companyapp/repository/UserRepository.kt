@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -21,6 +22,7 @@ import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.Instant
 import java.util.UUID
 
 private val logger = KotlinLogging.logger { }
@@ -112,13 +114,15 @@ object UserRepository {
             id
         }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
 
-    fun findInactiveUserIds(): List<UUID> =
+    fun findJwtRevocationBoundaries(): Map<UUID, Instant> =
         transaction {
             AppUserTable
-                .select(AppUserTable.id)
-                .where { AppUserTable.status eq UserStatus.INACTIVE }
-                .map { it[AppUserTable.id] }
-        }.also { logger.info { "[FIND-INACTIVE-USER-IDS] Fetched ${it.size} inactive user(s)" } }
+                .select(AppUserTable.id, AppUserTable.jwtRevokedAt)
+                .where { AppUserTable.jwtRevokedAt.isNotNull() }
+                .associate { row ->
+                    row[AppUserTable.id] to row[AppUserTable.jwtRevokedAt]!!.toInstant()
+                }
+        }.also { logger.info { "[FIND-JWT-REVOCATIONS] Fetched ${it.size} persisted revocation boundary(ies)" } }
 
     /**
      * Sets INACTIVE status and stamps [AppUserTable.deactivatedAt]. Idempotent for
@@ -146,6 +150,7 @@ object UserRepository {
                 AppUserTable.update({ AppUserTable.id eq userId }) {
                     it[status] = UserStatus.INACTIVE
                     it[deactivatedAt] = CurrentTimestampWithTimeZone
+                    it[jwtRevokedAt] = CurrentTimestampWithTimeZone
                 }
 
                 val afterRow =
@@ -261,5 +266,6 @@ object UserRepository {
             status = this[AppUserTable.status],
             displayName = this[AppUserTable.displayName],
             deactivatedAt = this[AppUserTable.deactivatedAt],
+            jwtRevokedAt = this[AppUserTable.jwtRevokedAt],
         )
 }

@@ -336,7 +336,7 @@ The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) h
 
 `active_user_capabilities` joins `app_user` and filters `status = 'ACTIVE'`. Setting a user to `INACTIVE` immediately revokes all capability checks. The session token itself is also rejected via an in-memory deny list keyed by `userId`.
 
-**Deny list:** `ConcurrentHashMap<UUID, Instant>` — evicted after 24h (JWT max expiry). On server restart, repopulates from `app_user WHERE status = 'INACTIVE'`.
+**Deny list:** `ConcurrentHashMap<UUID, Instant>` — evicted after 24h (JWT max expiry). Deactivation persists an independent `jwt_revoked_at` boundary; on server restart, the cache repopulates from all persisted boundaries so Reactivate does not revive old JWTs.
 
 ### 9.7 Relief Access Grant Flow
 

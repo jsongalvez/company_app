@@ -15,6 +15,7 @@ data class AppUser(
     val status: UserStatus = UserStatus.ACTIVE,
     val displayName: String = "User",
     val deactivatedAt: OffsetDateTime? = null,
+    val jwtRevokedAt: OffsetDateTime? = null,
 )
 
 object AppUserTable : Table("app_user") {
@@ -41,6 +42,7 @@ object AppUserTable : Table("app_user") {
     val email = varchar("email", EMAIL_LENGTH).uniqueIndex()
     val displayName = varchar("display_name", DISPLAY_NAME_LENGTH).default("User")
     val deactivatedAt = timestampWithTimeZone("deactivated_at").nullable()
+    val jwtRevokedAt = timestampWithTimeZone("jwt_revoked_at").nullable()
     val createdAt =
         timestampWithTimeZone("created_at")
             .defaultExpression(CurrentTimestampWithTimeZone)
@@ -54,5 +56,6 @@ object AppUserTable : Table("app_user") {
             "status" to entity.status.name,
             "displayName" to entity.displayName,
             "deactivatedAt" to (entity.deactivatedAt?.toString() ?: "null"),
+            "jwtRevokedAt" to (entity.jwtRevokedAt?.toString() ?: "null"),
         )
 }

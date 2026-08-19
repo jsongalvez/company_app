@@ -34,6 +34,16 @@ class DenyListTest {
     }
 
     @Test
+    fun olderBoundaryCannotReplaceNewerRevocation() {
+        val userId = UUID.randomUUID()
+        val newer = base.plusSeconds(10)
+        DenyList.denyAt(userId, newer)
+        DenyList.denyAt(userId, base)
+
+        assertTrue(DenyList.isDeniedAt(userId, newer, newer.plusSeconds(1)))
+    }
+
+    @Test
     fun unknownUserIsNotDenied() {
         assertFalse(DenyList.isDenied(UUID.randomUUID(), Instant.EPOCH))
     }

@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
  * independent of (and ahead of) any database lookup.
  *
  * A user is added here when deactivated (see user deactivation flow) and at
- * startup for every user currently flagged INACTIVE. Revocation is
+ * startup from each user's persisted revocation boundary. Revocation is
  * issuance-time-scoped: a token is denied iff it was issued at or before the
  * deny time, so tokens issued after the deny (fresh logins) verify normally
  * while pre-deny tokens stay dead even after reactivation or re-login.
@@ -29,8 +29,8 @@ import java.util.concurrent.ConcurrentHashMap
  * max expiry plus the 60s `acceptLeeway` JwtService applies to `exp` — because
  * any JWT that could belong to them is guaranteed to have expired by then.
  *
- * The list is per-process: a restart loses entries (startup re-stamps only
- * users currently INACTIVE), so revocation is a process-lifetime guarantee.
+ * The list is a process-local cache; persisted boundaries make revocation survive
+ * restart and Reactivate.
  */
 @Suppress("TooManyFunctions")
 object DenyList {
@@ -55,12 +55,11 @@ object DenyList {
         tokenIssuedAt: Instant,
     ): Boolean = isDeniedAt(userId, tokenIssuedAt, Instant.now())
 
-    /** Populate the deny list from all users currently INACTIVE in the database. */
-    fun loadInactiveUsers() {
-        val now = Instant.now()
-        val ids = UserRepository.findInactiveUserIds()
-        ids.forEach { denied[it] = now }
-        logger.info { "[DENY-LIST] Loaded ${ids.size} inactive user(s) into deny list" }
+    /** Populate the deny list from persisted JWT revocation boundaries. */
+    fun loadPersistedRevocations() {
+        val boundaries = UserRepository.findJwtRevocationBoundaries()
+        boundaries.forEach { (userId, boundary) -> updateBoundary(userId, boundary) }
+        logger.info { "[DENY-LIST] Loaded ${boundaries.size} persisted revocation boundary(ies)" }
     }
 
     /** Remove all entries older than [TOKEN_MAX_AGE]. */
@@ -70,7 +69,7 @@ object DenyList {
         userId: UUID,
         at: Instant,
     ) {
-        denied[userId] = at
+        updateBoundary(userId, at)
         logger.info { "[DENY-LIST] User ${userId.toString().maskUUID()} added to deny list" }
     }
 
@@ -101,4 +100,13 @@ object DenyList {
         deniedAt: Instant,
         now: Instant,
     ): Boolean = Duration.between(deniedAt, now) >= TOKEN_MAX_AGE
+
+    private fun updateBoundary(
+        userId: UUID,
+        boundary: Instant,
+    ) {
+        denied.compute(userId) { _, existing ->
+            if (existing == null || boundary.isAfter(existing)) boundary else existing
+        }
+    }
 }

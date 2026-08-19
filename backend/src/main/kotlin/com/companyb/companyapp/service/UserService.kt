@@ -45,7 +45,11 @@ object UserService {
         if (user == null) {
             throw NotFoundException("User not found")
         }
-        DenyList.deny(targetUserId)
+        DenyList.denyAt(
+            targetUserId,
+            user.jwtRevokedAt?.toInstant()
+                ?: error("Deactivation did not persist JWT revocation"),
+        )
         logger.info { "[DEACTIVATE] Deactivation request processed; user added to deny list" }
     }
 
