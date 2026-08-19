@@ -67,6 +67,9 @@ object UserBranchAssignmentService {
 
         val existing = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
         if (existing != null) {
+            if (existing.id == id) {
+                return CreateResult(existing, created = false)
+            }
             throw ValidationException("User already has an active assignment at this branch")
         }
 

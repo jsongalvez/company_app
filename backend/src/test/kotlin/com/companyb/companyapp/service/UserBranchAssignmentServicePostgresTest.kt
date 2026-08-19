@@ -1,11 +1,14 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
@@ -14,10 +17,14 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -88,6 +95,21 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `same assignment retry returns existing row without extra audit`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val assignmentId = UUID.randomUUID()
+        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
+
+        val retry = UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
+
+        assertTrue(retry.created.not())
+        assertEquals(assignmentId, retry.assignment.id)
+        assertEquals(userAId, retry.assignment.userId)
+        assertEquals(1L, auditEntryCount(assignmentId))
+    }
+
+    @Test
     fun `create with non-existent branch throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
@@ -122,6 +144,84 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             UserBranchAssignmentService.create(callerId, secondId, branchId, userAId, 2)
         }
+    }
+
+    @Test
+    fun `concurrent active assignment creation returns one success and one conflict`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val executor = Executors.newFixedThreadPool(CONCURRENT_ASSIGNMENTS)
+        val ready = CountDownLatch(CONCURRENT_ASSIGNMENTS)
+        val start = CountDownLatch(1)
+        val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { UUID.randomUUID() }
+        val futures =
+            assignmentIds.map { assignmentId ->
+                executor.submit<Result<Boolean>> {
+                    ready.countDown()
+                    start.await()
+                    runCatching {
+                        UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
+                        true
+                    }
+                }
+            }
+        val results =
+            try {
+                ready.await()
+                start.countDown()
+                futures.map { it.get() }
+            } finally {
+                executor.shutdownNow()
+            }
+
+        assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
+        val conflict = results.single { it.isFailure }.exceptionOrNull()
+        assertTrue(conflict is ConflictException || conflict is ValidationException)
+        assertEquals(1, activeAssignmentCount(userAId))
+        val successfulId = assignmentIds[results.indexOfFirst { it.isSuccess }]
+        val losingId = assignmentIds.single { it != successfulId }
+        assertEquals(1L, auditEntryCount(successfulId))
+        assertEquals(0L, auditEntryCount(losingId))
+    }
+
+    @Test
+    fun `repository race classifies active key conflict without audit callback`() {
+        val executor = Executors.newFixedThreadPool(CONCURRENT_ASSIGNMENTS)
+        val ready = CountDownLatch(CONCURRENT_ASSIGNMENTS)
+        val start = CountDownLatch(1)
+        val auditCalls = AtomicInteger(0)
+        val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { UUID.randomUUID() }
+        val futures =
+            assignmentIds.map { assignmentId ->
+                executor.submit<Result<Boolean>> {
+                    ready.countDown()
+                    start.await()
+                    runCatching {
+                        UserBranchAssignmentRepository.create(
+                            UserBranchAssignmentCreateParams(
+                                id = assignmentId,
+                                userId = userBId,
+                                branchId = branchId,
+                                slot = 1,
+                                assignedBy = callerId,
+                            ),
+                            auditFn = { auditCalls.incrementAndGet() },
+                        )
+                    }
+                }
+            }
+        val results =
+            try {
+                ready.await()
+                start.countDown()
+                futures.map { it.get() }
+            } finally {
+                executor.shutdownNow()
+            }
+
+        assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
+        assertTrue(results.single { it.isFailure }.exceptionOrNull() is ConflictException)
+        assertEquals(1, auditCalls.get())
     }
 
     @Test
@@ -434,4 +534,19 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                 newSlot = DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "slot"),
             )
         }
+
+    private fun activeAssignmentCount(userId: UUID): Long =
+        transaction {
+            UserBranchAssignmentTable
+                .selectAll()
+                .where {
+                    (UserBranchAssignmentTable.userId eq userId) and
+                        (UserBranchAssignmentTable.branchId eq branchId) and
+                        UserBranchAssignmentTable.endedAt.isNull()
+                }.count()
+        }
+
+    private companion object {
+        const val CONCURRENT_ASSIGNMENTS = 2
+    }
 }

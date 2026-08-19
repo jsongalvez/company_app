@@ -1423,3 +1423,36 @@ no subsystem omission.
 - Priority: R41 first, R42 second. R41 is the only `implement` disposition in
   this audit, so child #226 is the only child created; future audits create one
   native child for every candidate dispositioned `implement`, then claim one.
+
+## Permanent-Map Refresh - Session 287
+
+After implementation child #226, the frontier was empty. A focused read-only
+audit rechecked retained R42 active-assignment conflict handling against the
+current service, repository, schema, routes, and regression tests. No product
+code, tests, migrations, or runtime behavior changed during this audit.
+
+### R44 - Make active assignment creation conflict-safe
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/UserBranchAssignmentService.kt:68-95` performs a separate active-assignment lookup, then calls the repository and finally reads the caller-supplied UUID. `backend/src/main/kotlin/com/companyb/companyapp/repository/UserBranchAssignmentRepository.kt:24-54` uses `insertIgnore`, checks only `insertedCount`, and returns `false` without classifying the swallowed constraint. `backend/src/main/resources/db/migration/V1__full_schema.sql:102` enforces unique active `(user_id, branch_id)` ownership. Existing coverage at `backend/src/test/kotlin/com/companyb/companyapp/service/UserBranchAssignmentServicePostgresTest.kt:74-124` covers same-ID retries and sequential duplicates, but no distinct-ID concurrent race.
+- **Current invalid state:** two concurrent requests with different assignment UUIDs can both pass the service pre-check. The losing insert is swallowed by the active business-key index, then the service looks up the loser UUID and reaches `error("Assignment not found after create...")`, exposing an unclassified failure rather than deterministic conflict behavior.
+- **Simpler representation:** repository-owned atomic creation distinguishes same-ID idempotency from active business-key collision. Keep the service pre-check to preserve its established sequential `ValidationException` contract, but throw `ConflictException` from the repository when a different UUID loses the active `(userId, branchId)` race. Keep the post-create lookup only for same-ID retries; invoke audit only for a newly inserted row.
+- **Smallest credible scope:** `UserBranchAssignmentService`, `UserBranchAssignmentRepository`, assignment conflict tests, and any focused exception assertion. No schema or HTTP contract change.
+- **Risks and validation:** preserve existing sequential duplicate `ValidationException` behavior unless the route contract intentionally changes; preserve same-ID retry response and audit count; test distinct-ID concurrent creation, same-ID retry, sequential duplicate, and no orphan audit row. Run backend quality, focused tests, and test-data cleanliness.
+- **Dependencies:** existing active-assignment unique index and domain conflict mapping. Independent of R41. **Deletion test:** removing repository collision classification reproduces the race failure; repository-owned classification fixes the swallowed write without adding a lock or abstraction.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position `BETA`; L1 fact integrity `pass`; L2 domain coherence `pass with HARD business-key ownership breach`; L3 long-term architecture `pass with HARD transaction-ownership breach`; L4 adversarial falsification `pass, distinct-ID race follows swallowed active-index conflict`; L5 comprehension `pass`; deterministic gate `pass, current service/repository/schema/test paths and unique index agree`; HARD findings `zero after repository-owned conflict classification`; SOFT findings `zero after same-ID, sequential-duplicate, service-race, repository-race, and audit-row coverage`; confidence `high`; artifact `Session 287 focused audit, this section`.
+
+### Session 287 audit-of-audit
+
+- **Coverage:** R42 was rechecked across service, repository, model, schema, routes, and all assignment tests; Map #180 native child state was queried before audit and had no open frontier.
+- **Duplication and ownership:** R44 is distinct from completed compensation/registration races and from R15 notification counts; it owns one active assignment business key and its insert result.
+- **Materiality:** concurrent user-management writes can escape deterministic HTTP/domain handling; this is a concrete race, not style or speculative abstraction.
+- **Schema:** the active unique index is the authoritative concurrency backstop; no migration change is justified.
+- **Priority:** R44 is the sole candidate dispositioned `implement`; retained lower-priority fog remains R15 pending deployment topology or overlapping scheduler invocation requirements.
+
+| Pass | Work | Result |
+|---|---|---|
+| 64 | Focused retained-candidate review | R42 current paths, schema, callers, and tests rechecked |
+| 65 | Independent evidence and falsification | Pre-check/insert/read race and active unique index confirmed |
+| 66 | Adversarial and deletion-test pass | Distinct-ID collision, same-ID retry, audit atomicity, and lock/abstraction alternatives checked |
+| 67 | Coverage, duplication, materiality, schema, priority | R44 verified and selected as sole implementation child |

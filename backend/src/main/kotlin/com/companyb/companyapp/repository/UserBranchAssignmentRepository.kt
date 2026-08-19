@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.UserBranchAssignment
@@ -45,6 +46,18 @@ object UserBranchAssignmentRepository {
                         .single()
                         .toAssignment()
                 auditFn(assignment)
+            } else {
+                val sameIdExists =
+                    UserBranchAssignmentTable
+                        .selectAll()
+                        .where { UserBranchAssignmentTable.id eq params.id }
+                        .empty()
+                        .not()
+                // Same-ID retries are idempotent. A different row means the active
+                // business key won the race, so expose a deterministic domain error.
+                if (!sameIdExists) {
+                    throw ConflictException("User already has an active assignment at this branch")
+                }
             }
 
             created
