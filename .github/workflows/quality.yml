@@ -1,0 +1,112 @@
+name: quality
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'composeApp/**'
+      - 'shared/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'settings.gradle.kts'
+      - 'scripts/check-test-cleanliness.sh'
+      - 'scripts/lib/**'
+      - 'docker/**'
+      - '.github/workflows/quality.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'composeApp/**'
+      - 'shared/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'settings.gradle.kts'
+      - 'scripts/check-test-cleanliness.sh'
+      - 'scripts/lib/**'
+      - 'docker/**'
+      - '.github/workflows/quality.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: company_app_test
+          POSTGRES_USER: company_user
+          POSTGRES_PASSWORD: company_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U company_user -d company_app_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      POSTGRES_DB: company_app_test
+      POSTGRES_USER: company_user
+      POSTGRES_PASSWORD: company_password
+      TEST_DB_NAME: company_app_test
+      JWT_SECRET: ci-secret-must-be-at-least-64-characters-long-for-tests-0123456789
+      JWT_ISSUER: company-app-ci
+      JWT_AUDIENCE: company-app-ci
+      AUTH_DUMMY_PASSWORD: ci-dummy-password
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run backend quality and shared JVM compilation
+        run: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:compileKotlinJvm -x :backend:publishOpenApiSpec --no-daemon
+
+      - name: Verify test database cleanliness
+        run: bash scripts/check-test-cleanliness.sh
+
+  compose-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Android
+            task: ':composeApp:compileDebugKotlinAndroid'
+          - name: Desktop
+            task: ':composeApp:compileKotlinDesktop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile Compose ${{ matrix.name }} target
+        run: ./gradlew '${{ matrix.task }}' --no-daemon

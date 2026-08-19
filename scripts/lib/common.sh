@@ -41,13 +41,28 @@ test_db_name() {
 # --- test_data_tables USER DATABASE ---
 # Prints newline-delimited non-seed base tables. Discovery failure is fatal to
 # callers because an unreadable database must never look clean.
+test_db_psql() {
+    local db_user="$1"
+    local db_name="$2"
+    shift 2
+    if [ -n "${TEST_DB_CONTAINER:-}" ] || ! command -v psql >/dev/null 2>&1; then
+        docker exec "$TEST_DB_CONTAINER" psql -U "$db_user" -d "$db_name" "$@"
+    else
+        PGPASSWORD="${POSTGRES_PASSWORD:-}" psql \
+            -h "${DB_HOST:-localhost}" \
+            -p "${DB_PORT:-5432}" \
+            -U "$db_user" \
+            -d "$db_name" "$@"
+    fi
+}
+
 test_data_tables() {
     local db_user="$1"
     local db_name="$2"
     local unsafe_tables
-    if ! unsafe_tables=$(docker exec company-postgres psql \
-        -U "$db_user" \
-        -d "$db_name" \
+    if ! unsafe_tables=$(test_db_psql \
+        "$db_user" \
+        "$db_name" \
         -t -A -c "
 SELECT count(*) FROM pg_tables
 WHERE schemaname = 'public'
@@ -63,9 +78,9 @@ WHERE schemaname = 'public'
     fi
 
     local discovered_tables
-    if ! discovered_tables=$(docker exec company-postgres psql \
-        -U "$db_user" \
-        -d "$db_name" \
+    if ! discovered_tables=$(test_db_psql \
+        "$db_user" \
+        "$db_name" \
         -t -A -c "
 SELECT tablename FROM pg_tables
 WHERE schemaname = 'public'
