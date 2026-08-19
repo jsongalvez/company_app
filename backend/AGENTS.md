@@ -485,15 +485,17 @@ bash scripts/clean-test-db.sh
 The pre-push hook (`.githooks/pre-push`) automates this entire workflow: it starts the app on
 the test DB with seeding enabled, runs the k6 baseline, cleans the test DB, and stops the app.
 
-The baseline enforces these thresholds (edit `options.thresholds` in the script to adjust):
+The baseline uses `thresholdProfiles.baseline` from `tests/k6/helpers.js`. Edit the named profile
+there to adjust thresholds; suites consume profiles and do not own threshold values:
 - `branches_latency`: p95 < 500ms
 - `clients_search_latency`: p95 < 1000ms
 - `product_latency`: p95 < 1000ms
 - `errors`: rate < 5%
 
-**Adding a new endpoint to the baseline** — edit `tests/k6/baseline.js`:
+**Adding a new endpoint to the baseline** — edit `tests/k6/baseline.js` and
+`tests/k6/helpers.js`:
 1. Use an existing metric from `helpers.js` or add a new `Trend` to `metrics` in `helpers.js`
-2. Add a threshold in the script's `options.thresholds` (or in `thresholds` in `helpers.js`)
+2. Add the metric threshold to the appropriate named `thresholdProfiles` entry in `helpers.js`
 3. Add the `http.get`/`http.post` call in the `default` function
 4. Run `k6 run` to establish a baseline p95, then tighten the threshold
 
@@ -529,8 +531,9 @@ Threshold violation detected
    `backend/jmh-baselines.md`.
 
 3. **k6 threshold** — Run k6 3 times and take the worst p95. Add a 50% buffer for the
-   new threshold. Update `options.thresholds` in `tests/k6/baseline.js` and the
-   table in `tests/k6/results/baseline-results.md`.
+   new threshold. Update the relevant named `thresholdProfiles` entry in
+   `tests/k6/helpers.js` and record the resulting threshold/history in
+   `tests/k6/results/baseline-results.md`.
 
 4. **Commit message** — Include the tool, the old threshold, the new threshold, and a brief
    justification. Example:
@@ -545,6 +548,7 @@ Threshold violation detected
 
 | File | What it tracks |
 |---|---|
-| `backend/jmh-baselines.md` | JMH scores + measureTimedValue + k6 thresholds (single source of truth) |
+| `backend/jmh-baselines.md` | JMH scores and measureTimedValue thresholds |
+| `tests/k6/helpers.js` | k6 metrics and named threshold profiles (runtime source of truth) |
 | `tests/k6/results/baseline-results.md` | k6 threshold history and run instructions |
 | `tests/k6/results/latest.json` | k6 raw JSON output from last run (gitignored) |
