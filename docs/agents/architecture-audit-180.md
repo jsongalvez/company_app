@@ -2856,3 +2856,26 @@ the gate also retains route-drift coverage and cleans all temporary artifacts.
   test-database cleanliness, pre-commit, and pre-push: PASS.
 - P1-P4 review and targeted re-review: zero HARD and zero SOFT findings.
 - No ADR needed; existing generated-contract ownership remains authoritative.
+
+### R78 implementation evidence
+
+Child #262 is implemented in pushed commit `790e213`. Session-base-rate retries
+now lock the requested Branch before UUID classification and rate replacement.
+Foreign Branch retries return not-found, altered immutable request fields return
+conflict, and mutable `effectiveUntil` is excluded from retry identity. Concurrent
+distinct writes serialize to one active rate. Prior-rate UPDATE and new-rate
+INSERT audit rows are written atomically, and route authorization uses the
+Branch-scoped `MANAGE_PRODUCTS` capability.
+
+- Gate ledger `docs/gates/262-session-base-rate-ownership.md`: 3/3 PASS.
+- Negative-control gate run: G1 failed before implementation; G2/G3 passed.
+- Targeted session-base-rate tests, full backend detekt/ktlint/test, shared JVM
+  compile, OpenAPI contract checks, Compose Android compile, k6 baseline, test-
+  database cleanliness, pre-commit, and pre-push: PASS.
+- P1-P4 review: first pass found retry identity, prior-rate audit, missing Branch
+  mapping, and authorization-scope HARD findings. Fix batch resolved all HARD
+  findings; targeted re-review found no untriaged HARD findings. Route-level
+  coverage remains a non-blocking SOFT because service and full backend gates
+  pass.
+- No ADR needed; existing UUID idempotency, audit atomicity, Branch capability,
+  and database-clock decisions remain authoritative.
