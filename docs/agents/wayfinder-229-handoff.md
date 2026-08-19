@@ -1,4 +1,4 @@
-# Handoff - Map #180, Child #229
+# Handoff - Map #180, Child #230
 
 ## Session outcome
 
@@ -6,28 +6,28 @@
   verifier requirements, lessons, issue-tracker guidance, `/implement`, and `/writing-for-agents`.
 - Fresh full audit completed across C-01..C-14. Verifier packets and native children created for
   R45/R47/R48/R49/R50: #229, #230, #231, #232, #233. Native parent links verified individually.
-- Claimed and resolved [Build: make remittance-race k6 fixture fail closed](https://github.com/jsongalvez/company_app/issues/229).
-- `tests/k6/remittance-race-test.js` now uses seeded `K6 Fixture Branch`, validates every setup
-  response and returned identity/version, uses Asia/Manila date, and aborts on setup failure.
-- Race uses `http.batch` and requires exactly one `200` plus one `409`; shared k6 thresholds now
-  include `checks: ["rate==1"]` so invariant failures fail the run.
+- Claimed and resolved [Build: type Session persistence model enums](https://github.com/jsongalvez/company_app/issues/230).
+- `repository.model.Session` now stores shared `SessionType` and `SessionStatus`; Exposed row
+  mapping, dashboard mapping, session-detail mapping, and status transitions use typed values.
+- Explicit audit and wire boundaries preserve uppercase enum names. No production Session enum
+  reparsing remains.
 
 ## Verification
 
-- Gate ledger `docs/gates/229-remittance-race-fixture.md`: 5/5 PASS.
-- `k6 inspect tests/k6/remittance-race-test.js`: PASS with `K6_INSPECT_OK` evidence.
-- Live disposable `company_app_test` race: checks 100%, errors 0%, one winner/one conflict,
-  race p95 554ms; cleanup and cleanliness check PASS.
-- `git diff --check`: PASS.
-- Final P1-P4 review: zero HARD findings and no ESCALATE. Accepted SOFT: direct runs rely on
-  documented disposable-DB cleanup and dev-seeded fixture branch.
-- Commit `56b212b` is local. Two push attempts were blocked only by pre-push baseline
-  `dashboard_latency` threshold failures (p95 253ms, then 306ms vs 200ms); cleanliness,
-  OpenAPI, Compose compilation, backend build, and app teardown passed both attempts.
+- Gate ledger `docs/gates/230-session-enum-typing.md`: 4/4 PASS.
+- Targeted compile and `SessionServicePostgresTest`: PASS.
+- Full `:backend:test`: PASS in 13m24s. Detekt, ktlint, and shared JVM compilation: PASS.
+- Pre-commit: quality, OpenAPI, cleanliness, shared compile, and Postgres checks PASS.
+- Pre-push: OpenAPI, Compose Android compile, backend build, startup/health, k6 baseline,
+  cleanup, and teardown PASS. Dashboard p95 131ms; baseline errors 0%.
+- Final P1/P2/P4 review: zero HARD findings and no ESCALATE. P3 flagged pre-existing terminal
+  status/audit-field behavior outside this enum-only diff; accepted SOFT is no dedicated HTTP
+  enum serialization test, while shared enum serialization coverage exists.
+- Commit `dae25c5` pushed to `origin/ralph/company-app-full-build`.
 
 ## Next session
 
 1. Load this handoff, Map #180, `/wayfinder`, and applicable Context Pointers.
-2. Query native Map #180 children. Children #230-#233 are open, unassigned, and unblocked;
+2. Query native Map #180 children. Children #231-#233 are open, unassigned, and unblocked;
    claim exactly one frontier child.
 3. Resolve claimed child end-to-end, then update Map #180 and write successor handoff last.
