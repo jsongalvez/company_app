@@ -38,6 +38,60 @@ test_db_name() {
     fi
 }
 
+# --- test_data_tables USER DATABASE ---
+# Prints newline-delimited non-seed base tables. Discovery failure is fatal to
+# callers because an unreadable database must never look clean.
+test_data_tables() {
+    local db_user="$1"
+    local db_name="$2"
+    local unsafe_tables
+    if ! unsafe_tables=$(docker exec company-postgres psql \
+        -U "$db_user" \
+        -d "$db_name" \
+        -t -A -c "
+SELECT count(*) FROM pg_tables
+WHERE schemaname = 'public'
+  AND tablename NOT IN ('role', 'capability', 'role_capability', 'flyway_schema_history')
+  AND (tablename ~ E'[\\r\\n|]' OR tablename <> btrim(tablename));
+"); then
+        return 1
+    fi
+    unsafe_tables=${unsafe_tables//[[:space:]]/}
+    if [ "$unsafe_tables" != 0 ]; then
+        printf 'unsafe test table identifier discovered\n' >&2
+        return 1
+    fi
+
+    local discovered_tables
+    if ! discovered_tables=$(docker exec company-postgres psql \
+        -U "$db_user" \
+        -d "$db_name" \
+        -t -A -c "
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public'
+  AND tablename NOT IN ('role', 'capability', 'role_capability', 'flyway_schema_history')
+  AND EXISTS (
+    SELECT 1 FROM information_schema.tables t2
+    WHERE t2.table_schema = 'public'
+      AND t2.table_name = pg_tables.tablename
+      AND t2.table_type = 'BASE TABLE'
+  )
+ORDER BY tablename;
+"); then
+        return 1
+    fi
+    if [ -n "$discovered_tables" ]; then
+        printf '%s\n' "$discovered_tables"
+    fi
+}
+
+# --- quote_sql_identifier IDENTIFIER ---
+quote_sql_identifier() {
+    local identifier="$1"
+    identifier=${identifier//\"/\"\"}
+    printf '"%s"' "$identifier"
+}
+
 # --- port_is_listening PORT ---
 # Returns 0 if PORT is in LISTEN state (checks lsof, then ss).
 port_is_listening() {
