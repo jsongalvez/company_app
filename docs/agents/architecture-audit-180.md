@@ -2272,3 +2272,99 @@ or runtime behavior changed during the audit.
 | 85 | Independent deterministic verification | Shared enum values, PostgreSQL schema, byte-identical mobile bodies, expect seams, and ADR-0020 checked |
 | 86 | Structured Luna verifier packets | R63/R64 L1-L5 packets complete; no untriaged HARD findings |
 | 87 | Adversarial, duplication, materiality, schema, priority | Two implement candidates ranked; native children required before claim |
+
+## Permanent-Map Refresh - Session 304
+
+After implementation child #246, the native Map #180 frontier was empty. A fresh full
+read-only audit used four bounded lanes across Compose/platform bridges, backend behavior
+and persistence, shared contracts/schema, and tooling/tests/docs. A fifth spot audit
+rechecked prior enum, route, timestamp, idempotency, and platform leads. Product source,
+tests, migrations, and runtime behavior remained unchanged during audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| D1 - preserve pre-commit formatter failure status | `.githooks/pre-commit:37-41` pipes staged ktlint through `tail -3 || true`; formatter failures are discarded before re-staging | `set -o pipefail` cannot overcome the explicit `|| true`; mocked non-zero formatter is a deterministic false-success path | implement, P1 |
+| D2 - correct k6 threshold ownership documentation | `backend/AGENTS.md:488-498,531-533,544-549` names `baseline.js` and `backend/jmh-baselines.md` as threshold owners; `tests/k6/helpers.js:79-95` owns profiles and `baseline.js:8-10` consumes them | Current consumers confirm helper ownership; stale guidance can cause edits that do not affect runtime thresholds | implement, P2 |
+| C-01 - pair branch and clock state flows | `SessionState.kt:21-34`, `BranchSelectViewModel.kt:91-95` expose sequential independent writes | Torn state is real, but migration crosses ADR-0021 timing and unresolved BranchSelect/Drawer lifecycle ownership | defer, retained fog |
+| C-02 - merge attendance ViewModels | separate clock-in and clock-out owners in mobile/desktop hosts and Drawer | Deletion test fails: each ViewModel owns a distinct operation; no safe shared lifecycle is established | reject |
+
+### D1 - Pre-commit formatter status
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Current invalid state:** a broken or failing staged-file formatter can report success, allowing
+  the required commit quality gate to continue with unformatted files.
+- **Simpler representation:** remove only `|| true`; retain bounded output and existing fallback
+  behavior. Scope is `.githooks/pre-commit` plus a shell fixture proving formatter failure blocks.
+- **Risks and validation:** legitimate formatter failures will block commits as intended. Run
+  `bash -n`, success/failure mocked formatter cases, and the normal pre-commit gate.
+- **Deletion test:** restoring `|| true` makes the failure fixture pass incorrectly.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=DELTA; L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass, preserves existing fail-closed gate intent; L4 adversarial falsification=pass, mocked non-zero formatter reproduces false success; L5 comprehension=pass; deterministic gate=pass, source line and shell semantics independently verified; HARD findings=zero; SOFT findings=zero; confidence=high; artifact=Session 304 D1 dossier, current .githooks/pre-commit:37-41.`
+
+### D2 - K6 threshold ownership documentation
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P2; **confidence:** high.
+- **Current invalid state:** agent-facing instructions direct threshold edits to files that no
+  longer own runtime profiles, allowing silent configuration drift.
+- **Simpler representation:** point threshold profile edits to `tests/k6/helpers.js`; keep
+  `baseline-results.md` as history and distinguish JMH baselines from k6 profiles. Scope is
+  `backend/AGENTS.md` only.
+- **Risks and validation:** documentation-only; inspect every k6 consumer and grep stale owner
+  claims after correction. No ADR needed because this restores existing documented ownership.
+- **Deletion test:** removing stale ownership claims leaves one executable profile owner and no
+  behavior change.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=DELTA; L1 fact integrity=pass; L2 domain coherence=pass, k6 helper ownership matches current gate conventions; L3 long-term architecture=pass, future agents reach one executable source; L4 adversarial falsification=pass, editing documented `baseline.js` thresholds leaves helper-driven runtime values unchanged; L5 comprehension=pass; deterministic gate=pass, current helper exports and baseline import verified; HARD findings=zero; SOFT findings=zero; confidence=high; artifact=Session 304 D2 dossier, backend/AGENTS.md:488-549 and tests/k6/helpers.js:79-95.`
+
+### Deferred and rejected leads
+
+- C-01 remains fog pending a deliberate lifecycle/state ownership decision at the ADR-0021
+  capability-refresh seam. No implementation child is created for it.
+- C-02 is rejected: clock-in and clock-out ViewModels have distinct ownership and deletion tests
+  fail; no duplicate state or behavior was evidenced.
+- R15 notification count, R23/R24 Compose lifecycle, nullable remittance creator, and residual
+  route suffixes remain deferred, stale, or rejected under prior sessions. The spot audit found
+  no new candidate.
+
+### Audit-of-audit
+
+- **Coverage:** C-01..C-14 rechecked by independent Compose, backend, shared/schema, tooling,
+  and spot lanes; no subsystem omission.
+- **Duplication:** D1 is gate status propagation, not prior JMH comparator or cleanup discovery;
+  D2 is documentation ownership drift, not completed threshold centralization.
+- **Materiality:** D1 is a mandatory-gate false-success defect; D2 is agent-facing source-of-truth
+  drift. Both pass deletion tests and have bounded scopes.
+- **Schema/dependencies:** no migration, database, or ADR change is required. D1 and D2 are
+  independent; both require native child creation before claiming one frontier child.
+- **Priority:** D1 first, D2 second.
+
+| Pass | Work | Result |
+|---|---|---|
+| 88 | Five bounded full-audit lanes | C-01..C-14 complete; D1/D2 retained; prior leads rechecked |
+| 89 | Independent deterministic verification | Formatter status suppression and stale k6 ownership claims reproduced |
+| 90 | Structured Luna verifier packets | D1/D2 L1-L5 packets complete; no untriaged HARD/SOFT findings |
+| 91 | Adversarial, duplication, materiality, schema, priority | D1/D2 ranked; native children required before claim |
+
+### R65 - Draft remittance uniqueness policy fog
+
+Backend lane verified a concrete contradiction but not safe implementation scope:
+`V1__full_schema.sql:437-453` applies status-blind uniqueness to
+`(branch_id, type, submitted_date)`, while draft creation supplies today's date
+(`RemittanceService.kt:90-102`) and business requirements permit overlapping
+drafts (`docs/business-requirements.md:343-345`). A distinct-UUID collision can
+fall through `insertIgnore` and generic missing-row handling in
+`RemittanceRepository.kt:262-274`.
+
+- **Disposition:** `needs-info`, not guessed. The exact policy is whether same-
+  branch, same-type, same-date DRAFT remittances may coexist.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=BETA; L1 fact integrity=pass; L2 domain coherence=pass with one HARD policy ambiguity; L3 long-term architecture=pass, database/repository remain ownership seam; L4 adversarial falsification=pass, distinct-UUID collision reproduces generic failure; L5 comprehension=pass; deterministic gate=pass, schema/service/repository/requirements inspected; HARD findings=one unresolved business-policy decision; SOFT findings=none; confidence=medium-high; artifact=Session 304 R65 dossier and issue #247.`
+- **Tracker:** [Decision: define draft remittance uniqueness policy](https://github.com/jsongalvez/company_app/issues/247).
+
+### Child traceability
+
+- D1 command: `scripts/wayfinder-create-child.sh 180 task "Build: preserve pre-commit formatter failures" docs/agents/wayfinder-304-d1-ticket.md`
+  -> `https://github.com/jsongalvez/company_app/issues/248`; verification:
+  `scripts/wayfinder-verify-child.sh 180 248` -> `Verified child #248: parent #180, label wayfinder:task`.
+- D2 command: `scripts/wayfinder-create-child.sh 180 task "Docs: correct k6 threshold ownership" docs/agents/wayfinder-304-d2-ticket.md`
+  -> `https://github.com/jsongalvez/company_app/issues/249`; verification:
+  `scripts/wayfinder-verify-child.sh 180 249` -> `Verified child #249: parent #180, label wayfinder:task`.

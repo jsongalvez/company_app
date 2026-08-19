@@ -36,7 +36,7 @@ else
 
     if [ -n "$KTLINT_CMD" ]; then
         log pre-commit "Formatting staged Kotlin file(s) with $KTLINT_CMD..."
-        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3 || true
+        echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3
         log pre-commit "Re-staging formatted files..."
         echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
         log pre-commit "Import optimization complete."
