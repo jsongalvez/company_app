@@ -157,7 +157,7 @@ internal fun MobileAppNavHost(
                         val branchSelectViewModel: BranchSelectViewModel =
                             viewModel { BranchSelectViewModel(apiClient) }
                         val reliefInviteViewModel: ReliefInviteViewModel =
-                            remember { ReliefInviteViewModel(apiClient) }
+                            viewModel { ReliefInviteViewModel(apiClient) }
                         BranchSelectScreen(
                             viewModel = branchSelectViewModel,
                             reliefInviteViewModel = reliefInviteViewModel,
