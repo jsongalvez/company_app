@@ -194,6 +194,32 @@ Implementation recommendations require separate child tasks of audit task #180. 
 
 `.scratch/code-review/issues/cr-036-quality-gate-effectiveness-audit.md` records the existing quality-gate effectiveness audit: 3/11 effective, 5/11 false-confidence, 3/11 manual-only. Its findings were not duplicated here except R9, which is a concrete code-count/drift simplification.
 
+## Focused Empty-Frontier Audit - Session 297
+
+After implementation child #239, the native Map #180 frontier is empty. A focused read-only
+audit rechecked the remaining Compose lifecycle fog, deferred notification-count condition, and
+the k6 threshold ownership just implemented.
+
+- **R24 / Branch Select lifecycle:** #238 removed nested `AttendanceViewModel` ownership and
+  preserved standalone Drawer ownership. The remaining `remember`-owned parent lifecycle choice
+  is a broader Compose lifecycle decision, not a safe mechanical follow-up; no new candidate was
+  ticketed.
+- **R23 / paired selected-branch state:** remains deferred because migration would cross the
+  ADR-0021 capability-refresh seam without a newly evidenced ownership boundary.
+- **R15 / notification inserted-count truth:** remains fog pending deployment topology or an
+  overlapping scheduler invocation requirement, as previously recorded.
+- **Authz k6 thresholds:** all workflow consumers now use named helper profiles; deterministic
+  `k6 inspect` confirms `authz-test.js` resolves the shared authz profile. No residual duplicate
+  threshold definition remains.
+
+### Clean-audit evidence
+
+- Native child query: zero open `wayfinder:task` children; no open frontier.
+- Open task query: zero Map #180 implementation tasks.
+- Coverage: remaining R23/R24/R15 leads rechecked; no material new seam, invalid state, or
+  actionable concurrency defect found.
+- Disposition: clean audit; no child created and no ticket claimed.
+
 ## Permanent-Map Refresh - Session 114
 
 The repository was re-audited after the original recommendations and implementation children were completed. Four non-overlapping read-only lanes covered Compose/platform bridges, backend modules, shared/schema contracts, and tests/tooling/docs. Existing C-01..C-14 boundaries remain complete; no new subsystem omission, schema ownership conflict, or duplicate recommendation was found.
