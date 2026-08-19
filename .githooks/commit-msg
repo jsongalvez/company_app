@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+MESSAGE_FILE="${1:?commit message file is required}"
+
+# Git creates MERGE_HEAD while preparing a merge commit.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    exit 0
+fi
+
+if grep -Eq '(^|[^[:alnum:]_])ref #[0-9]+([^0-9]|$)' "$MESSAGE_FILE"; then
+    exit 0
+fi
+
+echo "ERROR: commit message must include issue reference 'ref #<number>'." >&2
+exit 1

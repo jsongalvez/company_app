@@ -115,6 +115,11 @@ bash scripts/check-baselines.sh
 ./gradlew :backend:jmh
 ```
 
+Future non-merge commits must include `ref #<number>` somewhere in the commit
+message. The local `commit-msg` hook enforces this without network access, accepts
+closed issue numbers, permits multiple references, and exempts Git merge commits.
+Run `bash scripts/setup-hooks.sh` after cloning to install `.githooks`.
+
 ## Git hooks (CRITICAL)
 
 After `bash scripts/setup-hooks.sh`:

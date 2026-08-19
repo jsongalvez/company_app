@@ -11,6 +11,13 @@ Issues and PRDs for this repo live as GitHub issues. Use the `gh` CLI for all op
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
 
+### Commit references
+
+Future non-merge commits must include `ref #<number>` somewhere in the commit
+message. The local `.githooks/commit-msg` hook checks this offline, so references
+may target closed issues and multiple issue references are allowed. Git-generated
+merge commits are exempt. Install enforcement with `bash scripts/setup-hooks.sh`.
+
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone.
 
 ## Pull requests as a triage surface
