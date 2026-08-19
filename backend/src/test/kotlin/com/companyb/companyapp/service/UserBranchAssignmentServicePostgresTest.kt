@@ -24,6 +24,7 @@ import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -172,6 +173,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                 futures.map { it.get() }
             } finally {
                 executor.shutdownNow()
+                assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
             }
 
         assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
@@ -217,6 +219,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                 futures.map { it.get() }
             } finally {
                 executor.shutdownNow()
+                assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
             }
 
         assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
@@ -548,5 +551,6 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
 
     private companion object {
         const val CONCURRENT_ASSIGNMENTS = 2
+        const val EXECUTOR_TERMINATION_SECONDS = 5L
     }
 }
