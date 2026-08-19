@@ -2841,3 +2841,18 @@ inventory movement.
   snapshot comparison is accepted because product ID/quantity define request
   identity and persisted price/name are immutable snapshot values.
 - No ADR needed; existing idempotency, audit callback, and DB-clock decisions apply.
+
+### R77 implementation evidence
+
+Child #261 is implemented in pushed commit `9346ac1`. The committed OpenAPI route
+fingerprint was refreshed from current generated route rows. The normal gate now
+clears test override/update variables and consumes the committed contract. A
+test-only contract path supports an isolated stale-fingerprint negative control;
+the gate also retains route-drift coverage and cleans all temporary artifacts.
+
+- Gate ledger `docs/gates/261-openapi-fingerprint.md`: 3/3 PASS.
+- OpenAPI route coverage, secret scan, stale-fingerprint, and route-drift controls: PASS.
+- Backend detekt/ktlint/test, shared JVM compile, Compose Android compile, k6 baseline,
+  test-database cleanliness, pre-commit, and pre-push: PASS.
+- P1-P4 review and targeted re-review: zero HARD and zero SOFT findings.
+- No ADR needed; existing generated-contract ownership remains authoritative.
