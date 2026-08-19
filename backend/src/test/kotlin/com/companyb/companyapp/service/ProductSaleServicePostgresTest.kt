@@ -30,12 +30,15 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+@Suppress("LargeClass")
 class ProductSaleServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -411,6 +414,146 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
                     }.single()[BranchInventoryTable.currentStock]
             }
         assertEquals(18, stock)
+    }
+
+    @Test
+    fun `sell rejects existing sale id from another creator`() {
+        val saleId = UUID.randomUUID()
+        ProductSaleService.sell(
+            callerId = callerId,
+            id = saleId,
+            branchDayId = branchDayId,
+            sessionId = null,
+            clientId = null,
+            isWalkIn = true,
+            productId = productId,
+            quantity = 1,
+            expectedVersion = 1,
+        )
+
+        val foreignCallerId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestUser(foreignCallerId, "foreign-user")
+        trackOwned(AppUserTable, AppUserTable.id, foreignCallerId)
+
+        assertFailsWith<ConflictException> {
+            ProductSaleService.sell(
+                callerId = foreignCallerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 1,
+                expectedVersion = 1,
+            )
+        }
+        assertEquals(
+            1,
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where {
+                        InventoryMovementTable.productSaleId eq
+                            saleId
+                    }.count()
+            },
+        )
+    }
+
+    @Test
+    fun `sell rejects existing sale id with altered request`() {
+        val saleId = UUID.randomUUID()
+        ProductSaleService.sell(
+            callerId = callerId,
+            id = saleId,
+            branchDayId = branchDayId,
+            sessionId = null,
+            clientId = null,
+            isWalkIn = true,
+            productId = productId,
+            quantity = 1,
+            expectedVersion = 1,
+        )
+
+        assertFailsWith<ConflictException> {
+            ProductSaleService.sell(
+                callerId = callerId,
+                id = saleId,
+                branchDayId = branchDayId,
+                sessionId = null,
+                clientId = null,
+                isWalkIn = true,
+                productId = productId,
+                quantity = 2,
+                expectedVersion = 1,
+            )
+        }
+        assertEquals(
+            1,
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where {
+                        InventoryMovementTable.productSaleId eq
+                            saleId
+                    }.count()
+            },
+        )
+    }
+
+    @Test
+    fun `sell concurrent same UUID creates one sale and movement`() {
+        val saleId = UUID.randomUUID()
+        val executor = Executors.newFixedThreadPool(2)
+        val results =
+            try {
+                executor
+                    .invokeAll(
+                        listOf(
+                            Callable {
+                                ProductSaleService.sell(
+                                    callerId = callerId,
+                                    id = saleId,
+                                    branchDayId = branchDayId,
+                                    sessionId = null,
+                                    clientId = null,
+                                    isWalkIn = true,
+                                    productId = productId,
+                                    quantity = 1,
+                                    expectedVersion = 1,
+                                )
+                            },
+                            Callable {
+                                ProductSaleService.sell(
+                                    callerId = callerId,
+                                    id = saleId,
+                                    branchDayId = branchDayId,
+                                    sessionId = null,
+                                    clientId = null,
+                                    isWalkIn = true,
+                                    productId = productId,
+                                    quantity = 1,
+                                    expectedVersion = 1,
+                                )
+                            },
+                        ),
+                    ).map { it.get() }
+            } finally {
+                executor.shutdown()
+            }
+
+        assertEquals(listOf(saleId, saleId), results.map { it.id })
+        assertEquals(1L, transaction { ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count() })
+        assertEquals(
+            1L,
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where { InventoryMovementTable.productSaleId eq saleId }
+                    .count()
+            },
+        )
     }
 
     @Test

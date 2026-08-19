@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.RetryProductSaleParams
 import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.BranchInventoryTable
@@ -60,6 +61,20 @@ object ProductSaleService {
         expectedVersion: Int,
         reason: String?,
     ): ProductSale {
+        ProductSaleRepository
+            .findExistingForRetry(
+                RetryProductSaleParams(
+                    id = id,
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = clientId,
+                    isWalkIn = isWalkIn,
+                    productId = productId,
+                    quantity = quantity,
+                    handledBy = callerId,
+                ),
+            )?.let { return it }
+
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
         if (BranchRepository.findById(branchDay.branchId) == null) {
@@ -119,8 +134,10 @@ object ProductSaleService {
                 )
             }
 
-        CommissionService.recalculate(branchDayId)
+        if (result.created) {
+            CommissionService.recalculate(branchDayId)
+        }
 
-        return result
+        return result.sale
     }
 }

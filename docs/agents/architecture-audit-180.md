@@ -2701,3 +2701,143 @@ discovery fixture forces its mocked Docker transport when host `psql` is install
   fingerprint after cleanliness and quality work; push used `--no-verify` with evidence
   recorded on child #256.
 - P1-P4 review: zero HARD and no unadjudicated ESCALATE; no ADR needed.
+
+## Full Audit - Session 316
+
+After child #259, native Map #180 frontier was empty. Four fresh read-only lanes
+rechecked C-01..C-14 across Compose/platform ownership, backend behavior and
+persistence, shared/schema contracts, and tooling/docs. A separate synthesis
+lane checked cross-cutting omissions. Existing R73 evidence was stale: current
+mobile and Desktop Branch Select hosts already use lifecycle-aware `viewModel {}`.
+R65 draft-remittance policy remains deferred to issue #247.
+
+### R76 - Preserve product-sale creator ownership on UUID retries
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0;
+  **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/repository/ProductSaleRepository.kt:51-67`
+  returns any existing sale when UUID and requested Branch Day match, without
+  checking `handledBy` or immutable request fields. The service persists caller
+  as `handledBy` at `ProductSaleService.kt:84-97`. Existing tests cover same-caller
+  retry and foreign Branch Day rejection, but not foreign caller or altered
+  payload at `ProductSaleServicePostgresTest.kt:233-277,369-414`.
+- **Invalid state:** a caller with access to same Branch Day and a known sale UUID
+  can receive another caller's sale; altered request input is silently ignored.
+- **Simpler shape:** classify UUID retries at existing repository transaction seam
+  using creator and request ownership checks. Preserve same-owner retries and
+  reject mismatches before inventory, commission, or audit effects.
+- **Scope:** product-sale repository/service and focused Postgres tests. Preserve
+  Branch Day gates, inventory locking, commission recalculation, and audit-once.
+- **Risks/validation:** same-owner retry, foreign creator, altered immutable
+  payload, foreign Branch Day, concurrent same-UUID attempts, and unchanged stock,
+  movement, commission, and audit counts.
+- **Verifier packet:**
+  `candidate: R76; mode: structured; model: GPT-5.6 Luna; blind position: EPSILON;`
+  `L1 fact integrity: pass; L2 domain coherence: pass; L3 long-term architecture: pass;`
+  `L4 adversarial falsification: pass; L5 comprehension: pass;`
+  `deterministic gate: pass; HARD findings: zero untriaged;`
+  `SOFT findings: one accepted, exact immutable-payload comparison requires focused tests;`
+  `confidence: high; artifact: Session 316 backend lane and docs/agents/wayfinder-316-r76-ticket.md.`
+
+### R77 - Reconcile stale OpenAPI route fingerprint
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1;
+  **confidence:** high.
+- **Evidence:** `backend/build.gradle.kts:59-65` finalizes Kotlin compilation
+  with `publishOpenApiSpec`; `scripts/normalize-openapi-spec.mjs:468-474`
+  fails when committed fingerprint differs; `scripts/check-openapi-spec.sh:9-15`
+  and `.github/workflows/openapi.yml:37-38` consume this contract. The latest
+  handoff records the deterministic stale-fingerprint failure at
+  `docs/agents/wayfinder-315-handoff.md:25-28`.
+- **Invalid state:** mandatory local and CI OpenAPI verification is blocked by a
+  stale generated artifact even though backend quality checks pass.
+- **Simpler shape:** refresh the existing fingerprint and add a deterministic
+  stale-versus-matching fixture check; no route redesign or new contract owner.
+- **Scope:** generated fingerprint and existing OpenAPI script tests/workflow.
+- **Risks/validation:** route source changes must fail verification; matching
+  current source must pass; preserve actionable failure output.
+- **Verifier packet:**
+  `candidate: R77; mode: structured; model: GPT-5.6 Luna; blind position: DELTA;`
+  `L1 fact integrity: pass; L2 domain coherence: pass; L3 long-term architecture: pass;`
+  `L4 adversarial falsification: pass; L5 comprehension: pass;`
+  `deterministic gate: pass; HARD findings: zero untriaged;`
+  `SOFT findings: one accepted, guarded operator update procedure needs explicit test;`
+  `confidence: high; artifact: Session 316 tooling lane and docs/agents/wayfinder-316-r77-ticket.md.`
+
+### Session 316 synthesis and audit-of-audit
+
+- Coverage: C-01..C-14 rechecked; Compose R73 is already implemented and shared/schema found no new candidate.
+- Duplication: R76 is distinct from resolved session, attendance, remittance, allowance, and expense UUID ownership fixes. R77 is distinct tooling artifact freshness, not product behavior.
+- Materiality: R76 is P0 data disclosure/false success; R77 is P1 mandatory-gate correctness. No style-only or speculative candidate retained.
+- Schema: neither candidate needs migration.
+- Priority: R76 selected first; R77 remains open frontier. R65/#247 remains deferred pending explicit draft-remittance policy.
+
+### Session 316 child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve product-sale creator ownership on UUID retries" docs/agents/wayfinder-316-r76-ticket.md` -> pending; verify before claim.
+- `scripts/wayfinder-create-child.sh 180 task "Build: reconcile stale OpenAPI route fingerprint" docs/agents/wayfinder-316-r77-ticket.md` -> pending; verify before claim.
+
+### R78 - Preserve session-base-rate ownership on UUID retries
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0;
+  **confidence:** high.
+- **Evidence:** `SessionBaseRateRepository.kt:35-63` closes the current
+  `(branchId, sessionType)` rate before checking whether the supplied UUID
+  already exists, then returns an existing row without validating Branch. The
+  route authorizes `MANAGE_PRODUCTS` but does not repair repository ordering.
+- **Invalid state:** a known foreign UUID can disclose a rate, and a retry can
+  close the active rate without inserting its replacement.
+- **Simpler shape:** perform UUID and Branch ownership classification first;
+  mutate active-rate windows only for a newly inserted rate.
+- **Scope:** session-base-rate repository/service tests. Preserve authorization,
+  no-overlap constraints, audit behavior, and concurrent rate creation semantics.
+- **Verifier packet:**
+  `candidate: R78; mode: structured; model: GPT-5.6 Luna; blind position: EPSILON;`
+  `L1 fact integrity: pass; L2 domain coherence: pass; L3 long-term architecture: pass;`
+  `L4 adversarial falsification: pass; L5 comprehension: pass;`
+  `deterministic gate: pass; HARD findings: zero untriaged;`
+  `SOFT findings: one accepted, exact collision status follows existing UUID convention;`
+  `confidence: high; artifact: Session 316 synthesis and docs/agents/wayfinder-316-r78-ticket.md.`
+
+### Session 316 final candidate synthesis
+
+- Retained implement candidates: R76 product-sale creator ownership, R77 stale OpenAPI fingerprint, and R78 session-base-rate retry ordering.
+- All three have complete structured GPT-5.6 Luna packets with deterministic gates passing and no untriaged HARD verifier findings.
+- Priority: R76 first, R78 second, R77 third. One child per candidate is required; only R76 is claimed this session.
+
+### Session 316 child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve product-sale creator ownership on UUID retries" docs/agents/wayfinder-316-r76-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/260`; verify with `scripts/wayfinder-verify-child.sh 180 260`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: reconcile stale OpenAPI route fingerprint" docs/agents/wayfinder-316-r77-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/261`; verify with `scripts/wayfinder-verify-child.sh 180 261`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve session-base-rate ownership on UUID retries" docs/agents/wayfinder-316-r78-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/262`; verify with `scripts/wayfinder-verify-child.sh 180 262`.
+- Verification: `scripts/wayfinder-verify-child.sh 180 260` -> `Verified child #260: parent #180, label wayfinder:task`.
+- Verification: `scripts/wayfinder-verify-child.sh 180 261` -> `Verified child #261: parent #180, label wayfinder:task`.
+- Verification: `scripts/wayfinder-verify-child.sh 180 262` -> `Verified child #262: parent #180, label wayfinder:task`.
+
+### R76 implementation evidence
+
+Child #260 is claimed and implemented. Product-sale retries now validate Branch
+Day, creator, and immutable request context before returning an existing UUID.
+The service resolves valid retries before mutable day/product/session checks.
+New sales claim UUID uniqueness with `insertIgnore` before inventory locking;
+zero-row inserts reload and classify the committed winner, preventing cross-lock
+UUID races. Only newly created sales recalculate commission and invoke audit;
+sale audit fields now include the complete persisted snapshot. Sequential and
+concurrent retry tests cover foreign creator, altered request, one sale, and one
+inventory movement.
+
+- Gate ledger `docs/gates/260-product-sale-ownership.md`: 2/2 PASS.
+- Negative-control gate run: G1 failed before implementation because regression
+  tests were absent; G2 passed existing static checks.
+- Targeted `ProductSaleServicePostgresTest`: PASS.
+- Full backend detekt/ktlint/test plus shared JVM compile, excluding known stale
+  `:backend:publishOpenApiSpec`: PASS.
+- Test-database cleanliness and `git diff --check`: PASS.
+- P1-P4 review: first pass found HARD gaps in concurrent coverage, retry
+  commission side effects, stale mutable preconditions, and incomplete audit
+  snapshot. Fix batch added atomic insert classification, early retry lookup,
+  created-result commission gating, complete audit fields, and concurrency test.
+  Targeted re-review: zero HARD; remaining one-sighting SOFT about product
+  snapshot comparison is accepted because product ID/quantity define request
+  identity and persisted price/name are immutable snapshot values.
+- No ADR needed; existing idempotency, audit callback, and DB-clock decisions apply.

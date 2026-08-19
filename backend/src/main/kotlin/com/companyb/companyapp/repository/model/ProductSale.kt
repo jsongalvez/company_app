@@ -50,8 +50,16 @@ object ProductSaleTable : Table("product_sale") {
         mapOf(
             "id" to entity.id.toString(),
             "branchDayId" to entity.branchDayId.toString(),
+            "sessionId" to (entity.sessionId?.toString() ?: "null"),
+            "clientId" to (entity.clientId?.toString() ?: "null"),
+            "isWalkIn" to entity.isWalkIn.toString(),
             "productId" to entity.productId.toString(),
+            "productName" to entity.productName,
+            "handledBy" to entity.handledBy.toString(),
             "quantity" to entity.quantity.toString(),
+            "unitPriceAtTime" to entity.unitPriceAtTime.toPlainString(),
             "totalAmountAtTime" to entity.totalAmountAtTime.toPlainString(),
+            "commissionAmountAtTime" to entity.commissionAmountAtTime.toPlainString(),
+            "soldAt" to entity.soldAt.toString(),
         )
 }
