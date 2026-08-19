@@ -85,10 +85,7 @@ object DatabaseTestHelper {
                 .dataSource(ds)
                 .locations("classpath:db/migration")
                 .load()
-                .apply {
-                    repair()
-                    migrate()
-                }
+                .migrate()
             Database.connect(ds)
             testDataSource = ds
             databaseReady = true

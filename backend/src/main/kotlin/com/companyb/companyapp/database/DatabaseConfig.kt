@@ -47,7 +47,6 @@ object DatabaseConfig {
                 .dataSource(dataSource)
                 .locations("classpath:db/migration")
                 .load()
-        flyway.repair()
         flyway.migrate()
         logger.info { "[INITIALIZE-DATABASE] Flyway initialization done" }
 

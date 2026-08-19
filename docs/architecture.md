@@ -349,6 +349,9 @@ Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs
 **Migration rules:**
 - Never edit a committed migration file — always add a new version
 - Destructive changes (DROP, RENAME) get their own migration with a comment explaining why
+- Application startup runs `migrate()` only. Operators must stop the application and run
+  `flyway -url=<jdbc-url> -user=<user> -password=<password> repair` explicitly after reviewing
+  migration history; repair is never an automatic startup action.
 
 The migration directory is authoritative. Inspect all versioned files in
 `backend/src/main/resources/db/migration/` when reasoning about the current
