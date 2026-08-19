@@ -218,6 +218,171 @@ the k6 threshold ownership just implemented.
 - Open task query: zero Map #180 implementation tasks.
 - Coverage: remaining R23/R24/R15 leads rechecked; no material new seam, invalid state, or
   actionable concurrency defect found.
+
+## Full Audit - Session 298
+
+The empty frontier triggered a fresh full read-only audit across C-01..C-14. Four bounded
+lanes reviewed Compose/platform ownership, backend routes/services/persistence/auth, shared
+contracts and tooling, and schema/tests/docs. Independent verification re-read every retained
+finding against current source, requirements, ADRs, tests, and the lesson-class register.
+
+### R59 - Session create idempotency must preserve request ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/session/SessionService.kt:79-83`
+  returns any existing UUID before validating the request's branch/day or caller. The route gate
+  at `backend/src/main/kotlin/com/companyb/companyapp/api/routes/SessionRoutes.kt:181-203` authorizes
+  the requested branch, not the already-existing session. Same-ID retry coverage exists at
+  `backend/src/test/kotlin/com/companyb/companyapp/service/SessionServicePostgresTest.kt:117`.
+- **Invalid state:** a caller with access to branch B who knows a session UUID from branch A can
+  receive the foreign session through an idempotent create request. The UUID-only fallback is too
+  narrow for the request ownership context.
+- **Competing representations:** scope the idempotent lookup to request-owned branch/day and
+  caller policy, or remove the early return and classify duplicate UUID collisions in the
+  repository. The smallest safe shape preserves same-request retries while rejecting mismatched
+  branch/caller context; no new generic interface.
+- **Deletion test:** deleting the UUID-only early return removes the leak but loses idempotency;
+  ownership-scoped lookup concentrates the collision policy without relocating session rules.
+- **Scope:** SessionService/repository, route/service regression tests. Preserve capability gates,
+  client-generated UUID retries, and no mutation/audit on rejected collisions.
+- **Risks/validation:** define and test same-user same-branch retry, foreign branch, foreign caller,
+  wrong day, duplicate UUID race, and audit invariants. Run session tests and backend gates.
+- **Verifier packet:**
+  `candidate: R59; mode: structured; model: GPT-5.6 Luna; position: ALPHA;`
+  `L1 fact integrity: pass (source and test lines independently re-read);`
+  `L2 domain coherence: pass (capability and Branch vocabulary preserved);`
+  `L3 long-term architecture: pass (ownership stays at idempotent write seam);`
+  `L4 adversarial falsification: pass for foreign branch/caller and repeated UUID;`
+  `L5 comprehension: pass (request/context mismatch is explicit);`
+  `deterministic gate: pass (UUID early return and same-ID test reproduced by source inspection);`
+  `HARD findings: zero untriaged; SOFT findings: one, exact retry-owner policy must be encoded in tests;`
+  `confidence: high; artifact: this section, Session 298 audit ledger.`
+
+### R60 - Attendance clock-in idempotency must preserve caller and branch ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/attendance/AttendanceService.kt:105-109`
+  returns any existing attendance UUID before checking `existing.userId == callerId` or requested
+  `branchId`. The clock-in route is JWT-only at `backend/src/main/kotlin/com/companyb/companyapp/api/routes/AttendanceRoutes.kt:57-65`.
+  Same-ID coverage exists at `backend/src/test/kotlin/com/companyb/companyapp/service/AttendanceServicePostgresTest.kt:104-112`,
+  while clock-out explicitly checks ownership at `AttendanceService.kt:50-57`.
+- **Invalid state:** an authenticated caller who knows another attendance UUID can receive foreign
+  attendance and branch-day state through a clock-in retry; requested branch is ignored.
+- **Competing representations:** ownership-scoped idempotent lookup versus removing the shortcut and
+  classifying duplicate UUID collisions in the repository. Keep clock-in open to authenticated users;
+  add no capability gate.
+- **Deletion test:** removing early return breaks legitimate retry semantics; an ownership predicate
+  deepens the existing attendance write seam and preserves idempotency.
+- **Scope:** AttendanceService/repository, attendance regression tests. Preserve same-user retries,
+  one-active-clock-in enforcement, assignment/audit behavior, and commission side effects.
+- **Risks/validation:** foreign caller, wrong branch, same-user retry, repeated attempts, and audit/
+  assignment invariants. Run attendance tests and backend gates.
+- **Verifier packet:**
+  `candidate: R60; mode: structured; model: GPT-5.6 Luna; position: BETA;`
+  `L1 fact integrity: pass (source, route, and tests independently re-read);`
+  `L2 domain coherence: pass (attendance owner and Branch terms match requirements);`
+  `L3 long-term architecture: pass (symmetry with existing clock-out ownership gate);`
+  `L4 adversarial falsification: pass for foreign UUID, wrong branch, and repeated attempt;`
+  `L5 comprehension: pass (caller/branch ownership failure is direct);`
+  `deterministic gate: pass (unconditional UUID return verified);`
+  `HARD findings: zero untriaged; SOFT findings: one, duplicate-collision policy needs explicit tests;`
+  `confidence: high; artifact: this section, Session 298 audit ledger.`
+
+### R61 - Share test-database discovery policy
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P2; **confidence:** medium.
+- **Evidence:** `scripts/check-test-cleanliness.sh:20-35,46-58` and `scripts/clean-test-db.sh:19-33`
+  duplicate seed-table lists and PostgreSQL table discovery predicates, differing only in output
+  delimiter and downstream operation.
+- **Invalid state:** schema or seed-policy changes can update one gate script and leave the other
+  with a divergent table set.
+- **Competing representations:** retain duplication, or add one newline-delimited discovery helper
+  in `scripts/lib/common.sh` while callers retain separate count/truncate operations. The helper
+  must preserve fail-closed discovery and safe identifier handling.
+- **Deletion test:** removing duplicated `SEED_TABLES`, `pg_tables`, and `information_schema`
+  clauses leaves both scripts using one policy; assertion and mutation logic remain local.
+- **Scope:** common shell helper and two scripts; no database abstraction or product behavior.
+- **Risks/validation:** shell word splitting, identifier quoting, empty schema, unavailable DB,
+  seed preservation, and cleanup verification. Run `bash -n`, deterministic fixtures, cleanliness,
+  and disposable DB checks.
+- **Verifier packet:**
+  `candidate: R61; mode: structured; model: GPT-5.6 Luna; position: GAMMA;`
+  `L1 fact integrity: pass (both scripts and shared shell seam re-read);`
+  `L2 domain coherence: pass (test database remains disposable and production data untouched);`
+  `L3 long-term architecture: pass (one discovery policy, local operation interfaces);`
+  `L4 adversarial falsification: pass for empty DB, command failure, quoting, and seed tables;`
+  `L5 comprehension: pass (policy helper versus operation responsibilities are clear);`
+  `deterministic gate: pass (duplicated predicates and delimiters verified by source inspection);`
+  `HARD findings: zero untriaged; SOFT findings: one, shell output contract requires focused tests;`
+  `confidence: reduced; artifact: this section, Session 298 audit ledger.`
+
+### R62 - Capability catalog must include later-seeded capability
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `docs/architecture.md:283-295` says all capability codes are seeded in V2 and
+  lists nine codes, omitting `RECEIVE_NEXT_APPOINTMENT_ALERTS`. The capability is inserted in
+  `backend/src/main/resources/db/migration/V5__add_next_appointment_alerts_capability.sql:8-16`
+  and owned in Kotlin by `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt:13`.
+- **Invalid state:** agents consulting the architecture capability catalog can omit a live
+  branch-scoped authorization path or search the wrong migration for its ownership.
+- **Competing representations:** update the catalog to list the capability and distinguish V2 seed
+  values from later additions, or delete the table and point agents to migrations/shared constants.
+  Listing the live contract is more useful and smaller than removing the domain explanation.
+- **Deletion test:** deleting the stale catalog removes the contradiction but also removes scope/role
+  guidance; correcting the table concentrates the authoritative explanation in architecture docs.
+- **Scope:** architecture documentation only. No ADR: correction applies existing ownership.
+- **Risks/validation:** ensure scope and role assignment match V5/V21 and no capability is omitted.
+  Compare table entries with shared constants and migration capability writes.
+- **Verifier packet:**
+  `candidate: R62; mode: structured; model: GPT-5.6 Luna; position: DELTA;`
+  `L1 fact integrity: pass (architecture, shared constant, and V5 evidence match);`
+  `L2 domain coherence: pass (capability-based authorization and Coordinator vocabulary preserved);`
+  `L3 long-term architecture: pass (docs distinguish authoritative migrations from catalog guidance);`
+  `L4 adversarial falsification: pass (checked V5 insertion and V21 derivation, no duplicate candidate);`
+  `L5 comprehension: pass (catalog correction is plain and localized);`
+  `deterministic gate: pass (grep/source comparison proves omitted live code);`
+  `HARD findings: zero untriaged; SOFT findings: zero;`
+  `confidence: high; artifact: this section, Session 298 audit ledger.`
+
+### Session 298 synthesis and audit-of-audit
+
+- Coverage pass: C-01..C-14 rechecked; Compose lifecycle and ADR-0021 leads remain deferred,
+  shared enum/k6/OpenAPI ownership is complete, and C-09/C-11 produced no non-duplicate candidate.
+- Duplication pass: R59/R60 are separate ownership seams despite shared UUID-idempotency class;
+  R61 is tooling-only; R62 is residual truth-class drift, not stale migration-pointer R4.
+- Materiality pass: R59/R60 are P0 data-disclosure defects; R61 is P2 drift reduction; R62 is
+  P1 agent-facing truth correction. No style-only or speculative abstraction finding retained.
+- Schema/dependency pass: no migration change is required for R59/R60/R61/R62; R59 and R60 can
+  proceed independently, R61 depends only on shell gate fixtures, and R62 is docs-only.
+- Priority: R59 first, then R60, then R62, then R61. All four are dispositioned `implement` and
+  require native child creation before any frontier claim.
+
+### Session 298 child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve session-create idempotency ownership" docs/agents/wayfinder-298-r59.md`
+  -> https://github.com/jsongalvez/company_app/issues/241; `scripts/wayfinder-verify-child.sh 180 241`
+  -> `Verified child #241: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve attendance clock-in idempotency ownership" docs/agents/wayfinder-298-r60.md`
+  -> https://github.com/jsongalvez/company_app/issues/242; `scripts/wayfinder-verify-child.sh 180 242`
+  -> `Verified child #242: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: share test-database discovery policy" docs/agents/wayfinder-298-r61.md`
+  -> https://github.com/jsongalvez/company_app/issues/243; `scripts/wayfinder-verify-child.sh 180 243`
+  -> `Verified child #243: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Docs: correct capability catalog ownership" docs/agents/wayfinder-298-r62.md`
+  -> https://github.com/jsongalvez/company_app/issues/244; `scripts/wayfinder-verify-child.sh 180 244`
+  -> `Verified child #244: parent #180, label wayfinder:task`.
+
+### R59 implementation evidence
+
+Child #241 is the claimed frontier child. Session-create idempotency now validates client,
+Branch Day, and creator ownership both in the service fast path and inside the repository
+transaction. The repository rechecks UUID existence after client-row locking, so concurrent
+same-UUID retries return the original session instead of tripping the active-PENDING guard.
+Foreign Branch, client, caller, and Branch Day retries are covered; audit count remains one.
+
+- Gates: `docs/gates/241-session-idempotency-ownership.md`, 3/3 PASS.
+- Targeted and full `SessionServicePostgresTest`: PASS.
+- Full backend gate `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`: PASS.
 - Disposition: clean audit; no child created and no ticket claimed.
 
 ## Permanent-Map Refresh - Session 114

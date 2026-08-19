@@ -128,6 +128,62 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create session rejects duplicate id from another branch`() {
+        val otherBranchId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(otherBranchId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            createSession(callerId, sessionId, branchId = otherBranchId)
+        }
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `create session rejects duplicate id for another client`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            createSession(callerId, sessionId, clientId = UUID.randomUUID())
+        }
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `create session rejects duplicate id from another caller`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            createSession(UUID.randomUUID(), sessionId)
+        }
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
+    fun `create session rejects duplicate id for another branch day`() {
+        createSession(callerId, sessionId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, sessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
+
+        assertFailsWith<ConflictException> {
+            createSession(callerId, sessionId, gatedBranchDayId = UUID.randomUUID())
+        }
+        assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    @Test
     fun `create session rejects concurrent pending session for same client`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)
@@ -801,6 +857,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         branchId: UUID = this.branchId,
         isWalkIn: Boolean = false,
         finalPrice: BigDecimal = BigDecimal("2500.00"),
+        gatedBranchDayId: UUID? = null,
     ) = SessionService.create(
         callerId = callerId,
         id = id,
@@ -813,6 +870,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         otherConcerns = null,
         bookedAt = null,
         nextAppointmentDate = null,
+        gatedBranchDayId = gatedBranchDayId,
     )
 
     private fun insertAssignment(userId: UUID) {

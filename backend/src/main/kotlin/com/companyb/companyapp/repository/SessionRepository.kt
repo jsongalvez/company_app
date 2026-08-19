@@ -1,11 +1,13 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
+import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
@@ -52,6 +54,7 @@ data class SessionCreateResult(
     val created: Boolean,
 )
 
+@Suppress("TooManyFunctions")
 object SessionRepository {
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
         transaction {
@@ -77,12 +80,51 @@ object SessionRepository {
                 ?.let { it[BranchTable.branchType] }
         }
 
+    fun branchDayBelongsToBranch(
+        branchDayId: UUID,
+        branchId: UUID,
+    ): Boolean =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where {
+                    (BranchDayTable.id eq branchDayId) and
+                        (BranchDayTable.branchId eq branchId)
+                }.empty()
+                .not()
+        }
+
+    fun createdBy(sessionId: UUID): UUID? =
+        transaction {
+            createdByInTransaction(sessionId)
+        }
+
+    private fun createdByInTransaction(sessionId: UUID): UUID? =
+        AuditLogTable
+            .selectAll()
+            .where {
+                (AuditLogTable.auditTableName eq SessionTable.tableName) and
+                    (AuditLogTable.recordId eq sessionId) and
+                    (AuditLogTable.action eq AuditAction.INSERT)
+            }.singleOrNull()
+            ?.get(AuditLogTable.changedBy)
+
     fun create(
         params: SessionCreateParams,
         auditFn: (Session) -> Unit = {},
     ): SessionCreateResult =
         transaction {
+            val existingBeforeLock = findSessionByIdInTransaction(params.id)
+            if (existingBeforeLock != null) {
+                return@transaction idempotentResult(existingBeforeLock, params)
+            }
+
             val clientRow = acquireClientLock(params.clientId)
+            val existingAfterLock = findSessionByIdInTransaction(params.id)
+            if (existingAfterLock != null) {
+                return@transaction idempotentResult(existingAfterLock, params)
+            }
+
             val hasActive = hasActivePendingSessionInTransaction(params.clientId)
             if (hasActive) {
                 throw ConflictException("Client already has an active PENDING session")
@@ -127,6 +169,19 @@ object SessionRepository {
                 "[CREATE-SESSION] Session ${it.session.id} created=${it.created}"
             }
         }
+
+    private fun idempotentResult(
+        existing: Session,
+        params: SessionCreateParams,
+    ): SessionCreateResult {
+        val sameClient = existing.clientId == params.clientId
+        val sameBranchDay = existing.branchDayId == params.branchDayId
+        val sameCaller = createdByInTransaction(existing.id) == params.changedBy
+        if (!sameClient || !sameBranchDay || !sameCaller) {
+            throw ConflictException("Session id already belongs to another create request")
+        }
+        return SessionCreateResult(existing, false)
+    }
 
     @Suppress("LongParameterList", "UNUSED_PARAMETER")
     fun updateStatus(

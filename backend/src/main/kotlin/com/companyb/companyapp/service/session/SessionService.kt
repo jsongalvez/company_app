@@ -51,7 +51,7 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
+    @Suppress("ComplexCondition", "LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -78,6 +78,15 @@ object SessionService {
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {
+            val expectedBranchDayId =
+                gatedBranchDayId ?: BranchDayService.findToday(branchId)?.id
+            val sameClient = existing.clientId == clientId
+            val sameBranch = SessionRepository.branchDayBelongsToBranch(existing.branchDayId, branchId)
+            val sameDay = existing.branchDayId == expectedBranchDayId
+            val sameCaller = SessionRepository.createdBy(id) == callerId
+            if (!sameClient || !sameBranch || !sameDay || !sameCaller) {
+                throw ConflictException("Session id already belongs to another create request")
+            }
             logger.info { "[CREATE-SESSION] Session $id already exists, returning existing (idempotent)" }
             return SessionCreateResult(existing, false)
         }
