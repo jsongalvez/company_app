@@ -46,6 +46,9 @@ fi
 # ----------------------------------------------------------------
 # 2. Quality gate
 # ----------------------------------------------------------------
+log pre-commit "Resetting disposable test database before quality gate..."
+bash scripts/clean-test-db.sh 2>&1 | tail -5
+log pre-commit "Disposable test database reset."
 log pre-commit "Running quality gate (detekt, ktlint, test, shared compile)..."
 ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:compileKotlinJvm --no-daemon 2>&1 | tail -5
 log pre-commit "Quality gate passed."

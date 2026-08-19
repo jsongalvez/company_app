@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
@@ -10,6 +11,7 @@ import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.Product
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.LocalDate
 import java.util.UUID
@@ -31,8 +33,15 @@ object InventoryService {
         branchDayId: UUID,
         reason: String? = null,
     ): InventoryMovement {
+        BranchInventoryRepository.findMovementById(movementId)?.let { existingMovement ->
+            if (existingMovement.branchId != branchId) {
+                throw ConflictException("Movement ID already belongs to another branch")
+            }
+            return existingMovement
+        }
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
         if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
+        BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
 
         val isRemitted =
             StockValidator.validateMovement(

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventory
@@ -47,6 +48,7 @@ data class MovementAuditData(
     val notes: String?,
 )
 
+@Suppress("TooManyFunctions")
 object BranchInventoryRepository {
     fun requireCardForUpdate(
         oldCard: BranchInventory,
@@ -105,6 +107,30 @@ object BranchInventoryRepository {
         auditFn: (MovementAuditData) -> Unit = {},
     ): InventoryMovement =
         transaction {
+            val inserted =
+                InventoryMovementTable.insertIgnore {
+                    it[InventoryMovementTable.id] = params.movementId
+                    it[InventoryMovementTable.productId] = params.productId
+                    it[InventoryMovementTable.branchId] = params.branchId
+                    it[InventoryMovementTable.branchDayId] = params.branchDayId
+                    it[InventoryMovementTable.reason] = params.reason
+                    it[InventoryMovementTable.quantityChange] = params.quantityChange
+                    it[InventoryMovementTable.movedBy] = params.movedBy
+                    it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
+                    if (params.notes != null) {
+                        it[InventoryMovementTable.notes] = params.notes
+                    }
+                }
+            val wasInserted = inserted.insertedCount > 0
+
+            if (!wasInserted) {
+                val existingMovement = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
+                if (existingMovement.branchId != params.branchId) {
+                    throw ConflictException("Movement ID already belongs to another branch")
+                }
+                return@transaction existingMovement
+            }
+
             val oldCard =
                 findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
@@ -116,26 +142,7 @@ object BranchInventoryRepository {
                     params.quantityChange,
                 )
 
-            InventoryMovementTable.insertIgnore {
-                it[InventoryMovementTable.id] = params.movementId
-                it[InventoryMovementTable.productId] = params.productId
-                it[InventoryMovementTable.branchId] = params.branchId
-                it[InventoryMovementTable.branchDayId] = params.branchDayId
-                it[InventoryMovementTable.reason] = params.reason
-                it[InventoryMovementTable.quantityChange] = params.quantityChange
-                it[InventoryMovementTable.movedBy] = params.movedBy
-                it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
-                if (params.notes != null) {
-                    it[InventoryMovementTable.notes] = params.notes
-                }
-            }
-
-            val movementRow =
-                InventoryMovementTable
-                    .selectAll()
-                    .where { InventoryMovementTable.id eq params.movementId }
-                    .single()
-                    .toInventoryMovement()
+            val movementRow = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
 
             auditFn(
                 MovementAuditData(
@@ -154,6 +161,18 @@ object BranchInventoryRepository {
                     "branch=${params.branchId} qty=${params.quantityChange}"
             }
         }
+
+    fun findMovementById(movementId: UUID): InventoryMovement? =
+        transaction {
+            findMovementInTransaction(movementId)
+        }
+
+    private fun findMovementInTransaction(movementId: UUID): InventoryMovement? =
+        InventoryMovementTable
+            .selectAll()
+            .where { InventoryMovementTable.id eq movementId }
+            .singleOrNull()
+            ?.toInventoryMovement()
 
     fun findCardInTransaction(
         branchId: UUID,

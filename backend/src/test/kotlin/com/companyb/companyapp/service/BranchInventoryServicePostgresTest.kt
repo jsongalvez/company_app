@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -191,6 +192,156 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
                 branchDayId = branchDayId,
             )
         }
+    }
+
+    @Test
+    fun `movement with branch day from another branch returns not found`() {
+        val otherBranchId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Inventory Branch $otherBranchId")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
+        InventoryService.ensureCard(branchId, productId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        val movementId = UUID.randomUUID()
+
+        assertFailsWith<NotFoundException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = foreignBranchDayId,
+            )
+        }
+
+        val movementCount =
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where { InventoryMovementTable.id eq movementId }
+                    .count()
+            }
+        assertEquals(0, movementCount)
+        val card =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.single()
+            }
+        assertEquals(0, card[BranchInventoryTable.currentStock])
+        assertEquals(1, card[BranchInventoryTable.version])
+    }
+
+    @Test
+    fun `repeating movement ID does not apply stock change twice`() {
+        InventoryService.ensureCard(branchId, productId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        val movementId = UUID.randomUUID()
+
+        val first =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        val retry =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+
+        assertEquals(first, retry)
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        val card =
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.single()
+            }
+        assertEquals(10, card[BranchInventoryTable.currentStock])
+        assertEquals(2, card[BranchInventoryTable.version])
+    }
+
+    @Test
+    fun `movement ID from another branch does not create target inventory card`() {
+        InventoryService.ensureCard(branchId, productId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        val movementId = UUID.randomUUID()
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = movementId,
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            quantityChange = 10,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+
+        val otherBranchId = UUID.randomUUID()
+        val otherProductId = UUID.randomUUID()
+        val otherCategoryId = UUID.randomUUID()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Collision Branch $otherBranchId")
+        DatabaseTestHelper.insertTestCategory(otherCategoryId)
+        DatabaseTestHelper.insertTestProduct(otherProductId, categoryId = otherCategoryId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, otherCategoryId)
+        trackOwned(ProductTable, ProductTable.id, otherProductId)
+        val otherDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, otherBranchId)
+
+        assertFailsWith<ConflictException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = otherBranchId,
+                productId = otherProductId,
+                movementType = MovementType.Restock,
+                quantityChange = 5,
+                notes = null,
+                branchDayId = otherDayId,
+            )
+        }
+
+        assertEquals(
+            0,
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq otherBranchId) and
+                            (BranchInventoryTable.productId eq otherProductId)
+                    }.count()
+            },
+        )
     }
 
     @Test
