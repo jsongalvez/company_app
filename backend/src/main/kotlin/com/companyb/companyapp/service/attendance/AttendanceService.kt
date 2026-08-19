@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -33,6 +34,15 @@ object AttendanceService {
 
     @Suppress("ThrowsCount")
     fun clockOut(
+        attendanceId: UUID,
+        callerId: UUID,
+    ): AttendanceServiceResult =
+        transaction {
+            clockOutInTransaction(attendanceId, callerId)
+        }
+
+    @Suppress("ThrowsCount")
+    private fun clockOutInTransaction(
         attendanceId: UUID,
         callerId: UUID,
     ): AttendanceServiceResult {
@@ -74,7 +84,23 @@ object AttendanceService {
         attendanceId: UUID,
         branchId: UUID,
         callerId: UUID,
+    ): AttendanceServiceResult =
+        transaction {
+            clockInInTransaction(attendanceId, branchId, callerId)
+        }
+
+    @Suppress("ThrowsCount")
+    private fun clockInInTransaction(
+        attendanceId: UUID,
+        branchId: UUID,
+        callerId: UUID,
     ): AttendanceServiceResult {
+        val existing = AttendanceRepository.findById(attendanceId)
+        if (existing != null) {
+            val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
+            return AttendanceServiceResult(existing, false, isRelief)
+        }
+
         val today = LocalDate.now(manilaZone)
         val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 

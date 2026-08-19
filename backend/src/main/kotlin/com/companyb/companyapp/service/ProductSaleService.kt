@@ -13,6 +13,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object ProductSaleService {
@@ -30,6 +31,34 @@ object ProductSaleService {
         quantity: Int,
         expectedVersion: Int,
         reason: String? = null,
+    ): ProductSale =
+        transaction {
+            sellInTransaction(
+                callerId,
+                id,
+                branchDayId,
+                sessionId,
+                clientId,
+                isWalkIn,
+                productId,
+                quantity,
+                expectedVersion,
+                reason,
+            )
+        }
+
+    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList", "CyclomaticComplexMethod", "LongMethod")
+    private fun sellInTransaction(
+        callerId: UUID,
+        id: UUID,
+        branchDayId: UUID,
+        sessionId: UUID?,
+        clientId: UUID?,
+        isWalkIn: Boolean,
+        productId: UUID,
+        quantity: Int,
+        expectedVersion: Int,
+        reason: String?,
     ): ProductSale {
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 

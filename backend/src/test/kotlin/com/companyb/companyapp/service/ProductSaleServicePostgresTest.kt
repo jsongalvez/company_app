@@ -18,6 +18,7 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -413,6 +414,77 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `sell trigger rolls back all writes when enclosing transaction fails`() {
+        val saleId = UUID.randomUUID()
+
+        assertFailsWith<IllegalStateException> {
+            transaction {
+                ProductSaleService.sell(
+                    callerId = callerId,
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 2,
+                    expectedVersion = 1,
+                )
+                error("injected commission trigger failure")
+            }
+        }
+
+        assertEquals(0, transaction { ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count() })
+        assertEquals(
+            0,
+            transaction {
+                InventoryMovementTable
+                    .selectAll()
+                    .where { InventoryMovementTable.productSaleId eq saleId }
+                    .count()
+            },
+        )
+        assertEquals(0, transaction { AuditLogTable.selectAll().where { AuditLogTable.recordId eq saleId }.count() })
+        assertEquals(
+            20,
+            transaction {
+                BranchInventoryTable
+                    .selectAll()
+                    .where {
+                        (BranchInventoryTable.branchId eq branchId) and
+                            (BranchInventoryTable.productId eq productId)
+                    }.single()[BranchInventoryTable.currentStock]
+            },
+        )
+    }
+
+    @Test
+    fun `sell rolls back when commission replacement fails`() {
+        val saleId = UUID.randomUUID()
+        CommissionService.failAfterReplacementForTests = true
+        try {
+            assertFailsWith<IllegalStateException> {
+                ProductSaleService.sell(
+                    callerId = callerId,
+                    id = saleId,
+                    branchDayId = branchDayId,
+                    sessionId = null,
+                    clientId = null,
+                    isWalkIn = true,
+                    productId = productId,
+                    quantity = 1,
+                    expectedVersion = 1,
+                )
+            }
+        } finally {
+            CommissionService.failAfterReplacementForTests = false
+        }
+
+        assertEquals(0, transaction { ProductSaleTable.selectAll().where { ProductSaleTable.id eq saleId }.count() })
+        assertEquals(20, currentStock())
+    }
+
+    @Test
     fun `sell writes audit log entry`() {
         val saleId = UUID.randomUUID()
 
@@ -479,4 +551,14 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             }
         }
     }
+
+    private fun currentStock(): Int =
+        transaction {
+            BranchInventoryTable
+                .selectAll()
+                .where {
+                    (BranchInventoryTable.branchId eq branchId) and
+                        (BranchInventoryTable.productId eq productId)
+                }.single()[BranchInventoryTable.currentStock]
+        }
 }

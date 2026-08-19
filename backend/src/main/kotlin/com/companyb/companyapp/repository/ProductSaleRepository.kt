@@ -59,6 +59,14 @@ object ProductSaleRepository {
 
             acquireInventoryLock(params.branchId, params.productId)
 
+            val existingAfterLock = findByIdInTransaction(params.id)
+            if (existingAfterLock != null) {
+                if (existingAfterLock.branchDayId != params.branchDayId) {
+                    throw NotFoundException("Product sale not found for this branch day")
+                }
+                return@transaction existingAfterLock
+            }
+
             val beforeCard =
                 BranchInventoryRepository.findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")

@@ -32,6 +32,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -304,6 +305,69 @@ class CommissionServicePostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertTrue(auditCount > 0)
+    }
+
+    @Test
+    fun `manual inclusion trigger rolls back inclusion audit and splits when transaction fails`() {
+        val inclusionId = UUID.randomUUID()
+
+        assertFailsWith<IllegalStateException> {
+            transaction {
+                CommissionService.createManualInclusion(
+                    callerId = callerId,
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                )
+                error("injected commission trigger failure")
+            }
+        }
+
+        assertEquals(
+            0,
+            transaction {
+                CommissionManualInclusionTable
+                    .selectAll()
+                    .where {
+                        CommissionManualInclusionTable.id eq
+                            inclusionId
+                    }.count()
+            },
+        )
+        assertEquals(
+            0,
+            transaction { AuditLogTable.selectAll().where { AuditLogTable.recordId eq inclusionId }.count() },
+        )
+        assertTrue(CommissionService.getByBranchDayId(branchDayId).isEmpty())
+    }
+
+    @Test
+    fun `concurrent repeated recalculation converges without losing splits`() {
+        CommissionService.createManualInclusion(
+            callerId = callerId,
+            id = UUID.randomUUID(),
+            productSaleId = productSaleId,
+            userId = targetUserId,
+            isIncluded = true,
+            reason = null,
+        )
+
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val first = executor.submit<Unit> { CommissionService.recalculate(branchDayId) }
+            val second = executor.submit<Unit> { CommissionService.recalculate(branchDayId) }
+            first.get()
+            second.get()
+        } finally {
+            executor.shutdownNow()
+        }
+
+        val splits = CommissionService.getByBranchDayId(branchDayId)
+        assertEquals(1, splits.size)
+        assertEquals(targetUserId, splits.single().userId)
+        assertEquals(BigDecimal("20.0000"), splits.single().amount)
     }
 
     private fun ensureInventoryCard(

@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -38,6 +39,16 @@ internal object BranchDayRepository {
                 .singleOrNull()
                 ?.toBranchDay()
         }
+
+    fun acquireLock(branchDayId: UUID) {
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where { BranchDayTable.id eq branchDayId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull()
+        }
+    }
 
     /**
      * Find-only branch-day lookup by (branch, date) — never creates. Used by gates that must

@@ -69,13 +69,41 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `clockIn with same id throws Conflict due to active clock-in guard`() {
+    fun `clockIn trigger rolls back attendance assignment and audit when transaction fails`() {
         val attendanceId = UUID.randomUUID()
-        AttendanceService.clockIn(attendanceId, branchId, userId)
 
-        assertFailsWith<ConflictException> {
-            AttendanceService.clockIn(attendanceId, branchId, userId)
+        assertFailsWith<IllegalStateException> {
+            transaction {
+                AttendanceService.clockIn(attendanceId, branchId, userId)
+                error("injected commission trigger failure")
+            }
         }
+
+        assertEquals(
+            0,
+            transaction { AttendanceTable.selectAll().where { AttendanceTable.id eq attendanceId }.count() },
+        )
+        assertEquals(0, auditEntryCount(attendanceId))
+        assertEquals(
+            0,
+            transaction {
+                BranchDayAssignmentTable
+                    .selectAll()
+                    .where { BranchDayAssignmentTable.userId eq userId }
+                    .count()
+            },
+        )
+    }
+
+    @Test
+    fun `clockIn with same id returns existing attendance`() {
+        val attendanceId = UUID.randomUUID()
+        val first = AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        val second = AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertEquals(first.id, second.id)
+        assertTrue(second.created.not())
     }
 
     @Test

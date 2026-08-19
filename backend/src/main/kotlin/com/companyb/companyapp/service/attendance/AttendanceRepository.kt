@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.attendance
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -87,8 +88,9 @@ internal object AttendanceRepository {
                 AttendanceTable
                     .selectAll()
                     .where { AttendanceTable.id eq params.attendanceId }
-                    .single()
-                    .toAttendance()
+                    .singleOrNull()
+                    ?.toAttendance()
+                    ?: throw ConflictException("Attendance already exists for this user and branch day")
 
             if (isNew) {
                 auditFn(attendance)
