@@ -2553,3 +2553,14 @@ Child traceability completed:
 - `scripts/wayfinder-create-child.sh 180 task "Build: preserve remittance draft branch ownership on UUID retries" docs/agents/wayfinder-306-r69-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/253`; `scripts/wayfinder-verify-child.sh 180 253` -> `Verified child #253: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: preserve allowance Branch Day ownership on UUID retries" docs/agents/wayfinder-306-r70-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/254`; `scripts/wayfinder-verify-child.sh 180 254` -> `Verified child #254: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: add CI ownership for core quality gates" docs/agents/wayfinder-306-r71-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/255`; `scripts/wayfinder-verify-child.sh 180 255` -> `Verified child #255: parent #180, label wayfinder:task`.
+
+### R66 implementation evidence
+
+Child #250 was claimed, implemented, closed, committed as `8b6dca2`, and
+pushed. `ReliefAccessStatus` is now the sole Kotlin owner across shared DTO,
+backend persistence, service logic, routes, and tests. PostgreSQL binding and
+wire values are unchanged. Gate ledger is 3/3 PASS; backend detekt, ktlint,
+full tests, shared JVM compilation, Compose Android/Desktop compilation, grep,
+and diff checks pass. The unexcluded backend quality and hook gates remain
+blocked only by the pre-existing stale OpenAPI route fingerprint; the focused
+and full backend checks pass with `-x :backend:publishOpenApiSpec`.
