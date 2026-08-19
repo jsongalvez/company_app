@@ -37,6 +37,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     private val otherUserId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
+    private val otherBranchId = UUID.randomUUID()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(userId, "user")
@@ -44,7 +45,9 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, userId)
         trackOwned(AppUserTable, AppUserTable.id, otherUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch")
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch")
         trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
         trackOwned(AttendanceTable, AttendanceTable.userId, userId)
         trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, userId)
@@ -109,6 +112,32 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
         assertEquals(first.id, second.id)
         assertTrue(second.created.not())
+    }
+
+    @Test
+    fun `clockIn rejects same id from another caller without duplicate side effects`() {
+        val attendanceId = UUID.randomUUID()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertFailsWith<ConflictException> {
+            AttendanceService.clockIn(attendanceId, branchId, otherUserId)
+        }
+
+        assertEquals(1L, auditEntryCount(attendanceId))
+        assertEquals(1L, branchDayAssignmentCount(userId))
+    }
+
+    @Test
+    fun `clockIn rejects same id for another branch without duplicate side effects`() {
+        val attendanceId = UUID.randomUUID()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertFailsWith<ConflictException> {
+            AttendanceService.clockIn(attendanceId, otherBranchId, userId)
+        }
+
+        assertEquals(1L, auditEntryCount(attendanceId))
+        assertEquals(1L, branchDayAssignmentCount(userId))
     }
 
     @Test
@@ -251,5 +280,13 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                     .limit(1)
                     .single()
             DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
+        }
+
+    private fun branchDayAssignmentCount(userId: UUID): Long =
+        transaction {
+            BranchDayAssignmentTable
+                .selectAll()
+                .where { BranchDayAssignmentTable.userId eq userId }
+                .count()
         }
 }

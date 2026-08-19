@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.attendance
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -104,6 +105,13 @@ object AttendanceService {
     ): AttendanceServiceResult {
         val existing = AttendanceRepository.findById(attendanceId)
         if (existing != null) {
+            val sameCaller = existing.userId == callerId && existing.markedBy == callerId
+            val sameBranch =
+                BranchDayService.requireBranchDayExists(existing.branchDayId).branchId == branchId
+            val sameDay = BranchDayService.findToday(branchId)?.id == existing.branchDayId
+            if (!sameCaller || !sameBranch || !sameDay) {
+                throw ConflictException("Attendance id already belongs to another clock-in request")
+            }
             val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
             return AttendanceServiceResult(existing, false, isRelief)
         }
@@ -142,7 +150,9 @@ object AttendanceService {
             "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
         }
 
-        CommissionService.recalculate(branchDay.id)
+        if (wasCreated) {
+            CommissionService.recalculate(branchDay.id)
+        }
 
         return AttendanceServiceResult(attendance, wasCreated, isRelief)
     }

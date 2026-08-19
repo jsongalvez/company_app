@@ -92,6 +92,14 @@ internal object AttendanceRepository {
                     ?.toAttendance()
                     ?: throw ConflictException("Attendance already exists for this user and branch day")
 
+            val ownsExistingAttendance =
+                attendance.branchDayId == params.branchDayId &&
+                    attendance.userId == params.userId &&
+                    attendance.markedBy == params.markedBy
+            if (!isNew && !ownsExistingAttendance) {
+                throw ConflictException("Attendance id already belongs to another clock-in request")
+            }
+
             if (isNew) {
                 auditFn(attendance)
             }
