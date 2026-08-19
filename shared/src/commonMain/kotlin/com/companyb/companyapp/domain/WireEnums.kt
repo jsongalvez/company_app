@@ -37,6 +37,9 @@ enum class DayStatus { OPEN, PAST, REMITTED }
 enum class UserStatus { ACTIVE, INACTIVE }
 
 @Serializable
+enum class AuditAction { INSERT, UPDATE, DELETE }
+
+@Serializable
 enum class ReliefAccessStatus { PENDING, GRANTED, DENIED }
 
 @Serializable

@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.style.TextOverflow
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
@@ -877,9 +878,9 @@ internal fun canAcknowledgeEntry(
 ): Boolean = showAcknowledge && entry.isFlagged && entry.acknowledgedAt == null && entry.changedBy != currentUserId
 
 @Composable
-private fun ActionPill(action: String) {
+private fun ActionPill(action: AuditAction) {
     val (background, content) =
-        when (AuditAction.from(action)) {
+        when (action) {
             AuditAction.INSERT -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
             AuditAction.DELETE -> MaterialTheme.colorScheme.error to MaterialTheme.colorScheme.onError
             else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
@@ -889,7 +890,7 @@ private fun ActionPill(action: String) {
         color = background,
     ) {
         Text(
-            text = action,
+            text = action.name,
             style = MaterialTheme.typography.labelSmall,
             color = content,
             modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
@@ -918,7 +919,7 @@ private fun FlagBadge() {
 @Composable
 private fun ChangedFieldsList(
     fields: List<ChangedField>,
-    action: String,
+    action: AuditAction,
 ) {
     fields.forEach { field ->
         Text(
@@ -926,7 +927,7 @@ private fun ChangedFieldsList(
                 buildString {
                     append(field.field)
                     append(": ")
-                    when (AuditAction.from(action)) {
+                    when (action) {
                         AuditAction.INSERT -> {
                             append(field.new ?: "—")
                         }
@@ -1152,19 +1153,6 @@ private val DATE_PATTERN = Regex("""\d{4}-\d{2}-\d{2}""")
 // #116 precedent: backend enums serialize as name strings; the frontend mirrors the vocabulary
 // in one place so the dropdown, pill colors, and diff rendering share it (D4's "never hardcode
 // labels" targets table labels; the action list is the backend enum contract).
-private enum class AuditAction(
-    val raw: String,
-) {
-    INSERT("INSERT"),
-    UPDATE("UPDATE"),
-    DELETE("DELETE"),
-    ;
-
-    companion object {
-        fun from(raw: String): AuditAction? = entries.firstOrNull { it.raw == raw }
-    }
-}
-
-private val AUDIT_ACTIONS = AuditAction.entries.map { it.raw }
+private val AUDIT_ACTIONS = AuditAction.entries.map { it.name }
 
 private const val EXPANDED_CHEVRON_ROTATION = 90f

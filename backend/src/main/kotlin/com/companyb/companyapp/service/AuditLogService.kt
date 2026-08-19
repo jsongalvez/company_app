@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogBrowseResponse
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
@@ -9,7 +10,6 @@ import com.companyb.companyapp.repository.AuditBrowseCursor
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.AuditLogTableRegistry
 import com.companyb.companyapp.repository.encodeCursor
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.OffsetDateTime
@@ -135,7 +135,7 @@ fun AuditLogEntry.toResponse(): AuditLogEntryResponse =
         id = id.toString(),
         tableName = tableName,
         recordId = recordId.toString(),
-        action = action.name,
+        action = action,
         changedBy = changedBy.toString(),
         changedByName = changedByName,
         branchId = branchId?.toString(),

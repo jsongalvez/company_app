@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.network.mockApiClient
@@ -576,7 +577,7 @@ class AuditLogViewModelTest {
             vm.applyFilters(
                 AuditLogFilters(
                     tableName = "session",
-                    action = "UPDATE",
+                    action = AuditAction.UPDATE,
                     callerName = "ana",
                     dateFrom = "2026-08-01",
                     dateTo = "2026-08-05",
@@ -745,7 +746,7 @@ class AuditLogViewModelTest {
             id = id,
             tableName = "session",
             recordId = "r1",
-            action = "UPDATE",
+            action = AuditAction.UPDATE,
             changedBy = "u1",
             changedByName = "Ana",
             changedAt = "2026-08-05T06:00:00+08:00",

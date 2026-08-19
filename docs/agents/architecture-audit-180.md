@@ -1811,3 +1811,68 @@ detekt/ktlint/test/shared JVM tests, OpenAPI, Compose Android/Desktop compile,
 k6 baseline with zero errors, and disposable test-database cleanup.
 
 R53 remains the sole open frontier child and was not claimed in this session.
+
+## Permanent-Map Refresh - Session 294
+
+After implementation child #236, the frontier was empty. Four bounded read-only lanes
+rechecked C-01..C-14 across Compose/platform bridges, backend behavior/auth, shared/schema
+ownership, and tests/tooling/docs. Product behavior was unchanged during audit until the
+separately claimed implementation child was resolved.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R55 - type Audit Log action across shared wire and persistence ownership | `AuditLogEntryResponse.action` was `String`; Compose redeclared `INSERT`/`UPDATE`/`DELETE`; backend had a duplicate persistence enum | PostgreSQL and backend values are the same finite set; uppercase serialization and unknown-value rejection are safe under existing strict finite-enum policy | implement, P1 |
+| Compose Branch Select ViewModel lifecycle ownership | Mobile and Desktop hosts construct Branch Select and Relief Invite ViewModels with `remember` | Parent route lifecycle and re-entry semantics remain unresolved; narrow `viewModel {}` replacement could change iOS ownership and refresh behavior | defer, retained fog |
+| Registration precheck deletion | `AuthService.register` prechecks username/email while repository already classifies atomic uniqueness conflicts | Removing prechecks changes validation precedence and password-hashing behavior; no business requirement authorizes that change | reject |
+| Commission trigger atomicity | Fresh lane observed recalculate after source writes | Existing R49/#232 implementation already wraps source mutation and recalculation in the same outer transaction; duplicate finding | duplicate, closed R49 |
+
+### R55 - Shared Audit Log action ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `shared/src/commonMain/kotlin/com/companyb/companyapp/dto/AuditLogEntryResponse.kt:6-20`
+  exposed `action` as `String`; `composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/screen/AuditLogScreen.kt:1152-1168`
+  redeclared the finite values; backend `repository/model/AuditAction.kt` duplicated the same PostgreSQL enum.
+- **Current invalid state:** invalid action values could cross the response boundary and backend,
+  shared, and Compose could drift independently.
+- **Simpler representation:** shared serializable `AuditAction` owns wire and PostgreSQL Kotlin
+  values; DTO, Exposed model, routes, service, and Compose consume it directly. PostgreSQL binding
+  remains in `AuditLogTable`; route query parsing remains backend-owned.
+- **Scope:** shared enum/DTO/tests, backend Audit Log model/repository/routes/service/tests, Compose
+  renderer/tests. No schema or wire-name change.
+- **Risks and validation:** preserve uppercase names and invalid-action HTTP 400 behavior; compile
+  shared/backend/Compose, run serialization unknown-value tests, backend tests, grep for duplicate enum.
+- **Deletion test:** deleting backend and Compose enum declarations leaves one shared enum and all
+  consumers compile; no generic adapter is introduced.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position `ALPHA`; L1 fact
+  integrity `pass`; L2 domain coherence `pass`; L3 long-term architecture `pass, shared enum
+  ownership removes duplicate persistence/wire values`; L4 adversarial falsification `pass,
+  uppercase compatibility and unknown `ARCHIVE` rejection verified`; L5 comprehension `pass`;
+  deterministic gate `pass, docs/gates/237-audit-action-wire-contract.md 3/3`; HARD findings
+  `zero`; SOFT findings `zero after removing duplicate backend enum`; confidence `high`; artifact
+  `Session 294 R55 dossier in this report and issue #237`.
+
+### Audit-of-audit - Session 294
+
+- **Coverage:** C-01..C-14 rechecked by four non-overlapping lanes; no subsystem omission.
+- **Duplication:** R55 is distinct from closed R47/R48 because it closes the remaining Audit Log
+  wire/persistence duplicate; commission atomicity is duplicate of R49/#232.
+- **Materiality:** R55 removes an invalid unrestricted wire state and duplicate finite ownership;
+  lifecycle candidate remains fog; registration candidate changes established validation semantics.
+- **Schema:** PostgreSQL `audit_action` already matches the shared enum; no migration required.
+- **Priority:** R55 was the sole implement candidate; native child #237 was created and verified,
+  then claimed and resolved in this session.
+
+### Child traceability
+
+- R55 command: `scripts/wayfinder-create-child.sh 180 task "Build: type audit action in shared wire contract" docs/agents/wayfinder-294-audit-action-ticket.md`
+- R55 returned `https://github.com/jsongalvez/company_app/issues/237`; verification:
+  `scripts/wayfinder-verify-child.sh 180 237` -> `Verified child #237: parent #180, label wayfinder:task`.
+
+| Pass | Work | Result |
+|---|---|---|
+| 76 | Four bounded full-audit lanes | C-01..C-14 complete; R55 retained; lifecycle fog retained; registration rejected; R49 duplicate rejected |
+| 77 | Independent deterministic verification | Shared/Compose/backend duplicate action ownership confirmed; existing R49 transaction scope and validation semantics checked |
+| 78 | Structured Luna verifier packet | R55 L1-L5 packet complete; no untriaged HARD/SOFT findings |
+| 79 | Implementation and targeted review | Child #237 resolved; gates 3/3, shared serialization, backend tests, lint/detekt, and Compose Desktop compile passed |

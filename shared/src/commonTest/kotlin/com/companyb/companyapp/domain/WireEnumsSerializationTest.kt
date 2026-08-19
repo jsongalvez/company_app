@@ -16,6 +16,7 @@ class WireEnumsSerializationTest {
         assertEquals("\"PRODUCT_SALE\"", json.encodeToString(RemittanceLineType.PRODUCT_SALE))
         assertEquals("\"REMITTED\"", json.encodeToString(DayStatus.REMITTED))
         assertEquals("\"INACTIVE\"", json.encodeToString(UserStatus.INACTIVE))
+        assertEquals("\"UPDATE\"", json.encodeToString(AuditAction.UPDATE))
         assertEquals("\"BRANCH_DAY\"", json.encodeToString(CapabilityContextType.BRANCH_DAY))
         assertEquals("\"GRANTED\"", json.encodeToString(ReliefAccessStatus.GRANTED))
         assertEquals("\"MISSING\"", json.encodeToString(InventoryMovementReason.MISSING))
@@ -31,6 +32,9 @@ class WireEnumsSerializationTest {
         }
         assertFailsWith<IllegalArgumentException> {
             json.decodeFromString<InventoryMovementReason>("\"DISPOSED\"")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            json.decodeFromString<AuditAction>("\"ARCHIVE\"")
         }
     }
 }

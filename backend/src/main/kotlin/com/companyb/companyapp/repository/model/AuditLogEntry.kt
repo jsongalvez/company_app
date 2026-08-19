@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.AuditAction
 import java.time.OffsetDateTime
 import java.util.UUID
 

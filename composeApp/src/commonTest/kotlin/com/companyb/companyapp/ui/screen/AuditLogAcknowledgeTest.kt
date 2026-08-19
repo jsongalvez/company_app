@@ -1,5 +1,6 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.dto.AuditLogEntryResponse
 import kotlin.test.Test
 import kotlin.test.assertFalse
@@ -21,7 +22,7 @@ class AuditLogAcknowledgeTest {
             id = id,
             tableName = "session",
             recordId = "r1",
-            action = "UPDATE",
+            action = AuditAction.UPDATE,
             changedBy = changedBy,
             changedByName = "Ana",
             changedAt = "2026-08-05T06:00:00+08:00",
