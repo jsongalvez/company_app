@@ -26,7 +26,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
@@ -126,7 +125,6 @@ object RemittanceService {
             remittanceId = remittanceId,
             expectedVersion = expectedVersion,
             reason = reason,
-            now = OffsetDateTime.now(ZoneOffset.UTC),
         )
 
     @Suppress("ThrowsCount", "LongMethod")
@@ -135,7 +133,7 @@ object RemittanceService {
         remittanceId: UUID,
         expectedVersion: Int,
         reason: String,
-        now: OffsetDateTime,
+        now: OffsetDateTime? = null,
     ): Remittance {
         val remittance =
             RemittanceRepository.undo(

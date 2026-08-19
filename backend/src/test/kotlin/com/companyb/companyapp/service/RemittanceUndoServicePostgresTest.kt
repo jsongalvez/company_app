@@ -26,6 +26,8 @@ import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -149,6 +151,24 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             )
         }
         assertEquals(RemittanceStatus.SUBMITTED, RemittanceService.getRemittance(expiredId).remittance.status)
+    }
+
+    @Test
+    fun `production undo uses database time for expiry`() {
+        val remittanceId = createDraft(RemittanceType.SESSION)
+        addBreakdown(remittanceId)
+        val submittedVersion = submit(remittanceId)
+        val databaseNow =
+            transaction {
+                RemittanceTable
+                    .select(CurrentTimestampWithTimeZone)
+                    .first()[CurrentTimestampWithTimeZone]
+            }
+        backdateSubmittedAt(remittanceId, databaseNow.minusHours(WINDOW_HOURS).plusSeconds(1))
+
+        val undone = RemittanceService.undo(callerId, remittanceId, submittedVersion, "database clock")
+
+        assertEquals(RemittanceStatus.DRAFT, undone.status)
     }
 
     @Test

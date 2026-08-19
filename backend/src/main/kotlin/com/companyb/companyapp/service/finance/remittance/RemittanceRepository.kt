@@ -42,6 +42,7 @@ import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -73,7 +74,7 @@ data class UndoParams(
     val remittanceId: UUID,
     val expectedVersion: Int,
     val reason: String,
-    val now: OffsetDateTime,
+    val now: OffsetDateTime? = null,
 )
 
 data class UpdateHeaderParams(
@@ -385,17 +386,19 @@ internal object RemittanceRepository {
 
     private const val UNDO_WINDOW_HOURS = 48L
 
+    private fun currentDatabaseTime(): OffsetDateTime =
+        RemittanceTable
+            .select(CurrentTimestampWithTimeZone)
+            .first()[CurrentTimestampWithTimeZone]
+
     /**
      * Reverts a SUBMITTED remittance to DRAFT within the 48h undo window (server-enforced).
      * Days unlock (status re-derived from their calendar date), the snapshot row is deleted
      * (V13 trigger carve-out: allowed when the parent remittance is DRAFT), version bumps,
      * submitted_at cleared (a reverted draft has no submission instant).
      *
-     * Window clock: [UndoParams.now] comes from the JVM clock while `submitted_at` is written
-     * with the DB clock (CurrentTimestampWithTimeZone). A boundary comparison against a
-     * 48h window tolerates second-scale skew — the same JVM-clock-for-read-side-boundaries
-     * precedent as BranchDayService.evaluateStatus / checkBranchDayEditable (JVM clock for
-     * day-boundary decisions, DB clock for writes; AGENTS.md "Timestamp consistency").
+     * The production window comparison uses the same DB clock that stamps `submitted_at`.
+     * [UndoParams.now] remains an explicit test seam for deterministic boundary tests.
      *
      * Accepted per #103 D10: monthly aggregate views may shift while the window is open —
      * they are views over live rows and re-compute.
@@ -428,7 +431,8 @@ internal object RemittanceRepository {
                         .singleOrNull()
                         ?.get(RemittanceFinancialSnapshotTable.snapshottedAt)
                     ?: throw ValidationException("No submission timestamp — cannot undo this remittance")
-            if (params.now.isAfter(submissionInstant.plusHours(UNDO_WINDOW_HOURS))) {
+            val comparisonInstant = params.now ?: currentDatabaseTime()
+            if (comparisonInstant.isAfter(submissionInstant.plusHours(UNDO_WINDOW_HOURS))) {
                 throw ValidationException("Undo window of 48 hours has expired")
             }
 

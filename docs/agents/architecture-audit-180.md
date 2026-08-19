@@ -1651,3 +1651,57 @@ artifact: Session 288 tooling lane, R46 dossier
   and audit-field behavior outside this diff; accepted SOFT is missing dedicated HTTP enum
   serialization coverage, with shared enum serialization already covered.
 - Child #230 is ready to resolve; children #231-#233 remain open frontier candidates.
+
+## Permanent-Map Refresh - Session 291
+
+After implementation child #233, the frontier was empty. Four fresh bounded read-only
+lanes rechecked C-01..C-14 across Compose/platform bridges, backend behavior/auth,
+persistence/schema, and tests/tooling/docs. Product source, tests, migrations, and
+runtime behavior remained unchanged during audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R51 - use one clock authority for remittance Undo expiry | `RemittanceService.undo:124-130` supplies JVM `OffsetDateTime.now(UTC)`; `RemittanceRepository.undo:394-432` compares it with `submitted_at` written by `CurrentTimestampWithTimeZone` | Injected skew changes accept/reject result at 48-hour boundary; no existing requirement makes JVM time authoritative for this persisted timestamp | implement, P1 |
+| R24 - remove nested AttendanceViewModel ownership | `BranchSelectViewModel:37-47` and `DrawerContent:81-82` still create separate instances | Parent route lifecycle remains `remember`-based; narrow removal cannot establish correct owner | defer, retained fog |
+| C-08/C-09 persistence/schema leads | V1-V21 tables, views, columns, and Exposed models remain aligned | No orphan migration, unsafe constraint, or material redundant model seam found | skip |
+| k6 PIPESTATUS gate failure | `.githooks/pre-push:112-115` uses `|| true` before reading `PIPESTATUS[0]` | Bash reproduction `false | tee ... || true` returns `PIPESTATUS=1 0`, and the hook assignment reads `1`; suspected false-success path is not reproduced | reject |
+
+### R51 - Remittance Undo clock authority
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `RemittanceService.undo:124-130` passes `OffsetDateTime.now(ZoneOffset.UTC)` into the transaction. `RemittanceRepository.undo:394-432` compares that JVM value with `submitted_at` or snapshot `snapshotted_at`, while submission writes `submitted_at` through `CurrentTimestampWithTimeZone` at `:581`. The repository comment explicitly acknowledges mixed clocks at `:394-398`.
+- **Current invalid state:** JVM and PostgreSQL clock skew can accept an expired Undo or reject a valid Undo at the 48-hour boundary. The Undo window is business authorization, not an incidental display calculation.
+- **Simpler representation:** obtain the comparison instant from PostgreSQL within the existing SERIALIZABLE transaction, keeping persisted submission timestamps and expiry evaluation under one authority. Preserve injected `undoAt` test control through a narrowly scoped transaction-time seam only if required by existing tests; do not introduce a universal clock abstraction.
+- **Smallest credible scope:** `RemittanceService`, `RemittanceRepository`, Undo tests, and any focused database-time helper needed by the existing Exposed interface. No schema or HTTP change.
+- **Risks and validation:** preserve the exact inclusive 48-hour boundary, snapshot fallback, SERIALIZABLE locking, audit atomicity, and deterministic test setup. Add skewed JVM/DB boundary evidence and retain existing within-window, expired, missing-timestamp, and undo-audit tests.
+- **Deletion test:** removing the JVM `now` comparison input leaves the transaction-owned database timestamp as the single authority; no caller must coordinate a second clock.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position `ALPHA`; L1 fact integrity `pass`; L2 domain coherence `pass`; L3 long-term architecture `pass, narrow persistence seam without universal clock`; L4 adversarial falsification `pass, positive and negative skew reproduce boundary divergence`; L5 comprehension `pass`; deterministic gate `pass, source paths, Exposed timestamp expression, and tests agree`; HARD findings `zero after database-time comparison`; SOFT findings `one accepted, test-clock injection must remain explicit, confirmed by L3 and L5, non-blocking`; confidence `high`; artifact `Session 291 R51 dossier in this report`.
+
+### Deferred and rejected leads
+
+- R24 remains deferred until parent route lifecycle ownership is decided; no safe autonomous child scope exists.
+- R15 notification inserted-count truth remains in `Not yet specified` pending deployment topology or overlapping scheduler invocation requirements.
+- The k6 PIPESTATUS report is rejected after deterministic shell falsification; no child is justified.
+
+### Audit-of-audit - Session 291
+
+- **Coverage:** C-01..C-14 all rechecked by four non-overlapping lanes; no subsystem omission found.
+- **Duplication and ownership:** R51 narrows existing R13 clock-authority fog to one business-expiry seam; it does not create a universal clock module. R24 remains a lifecycle decision, not a mechanical Compose extraction.
+- **Materiality:** R51 is a concrete authorization-boundary defect under clock skew; schema and tooling lanes found no additional actionable candidate.
+- **Schema:** V1-V21 migration/model comparison found no mismatch requiring a child.
+- **Priority:** R51 is the sole candidate dispositioned `implement`; create one native child, verify its parent link, then claim that child.
+
+### Child traceability
+
+- Candidate R51 exact command: `scripts/wayfinder-create-child.sh 180 task "Build: make remittance Undo expiry use database time" docs/agents/wayfinder-291-r51-ticket.md`
+- Returned child: [Build: make remittance Undo expiry use database time](https://github.com/jsongalvez/company_app/issues/234)
+- Native verification: `scripts/wayfinder-verify-child.sh 180 234` -> `Verified child #234: parent #180, label wayfinder:task`.
+
+| Pass | Work | Result |
+|---|---|---|
+| 72 | Four bounded full-audit lanes | C-01..C-14 complete; R51 retained; R24 deferred; schema/tooling leads skipped or rejected |
+| 73 | Independent deterministic verification | JVM/DB timestamp mismatch and Undo boundary path confirmed; k6 suspicion falsified |
+| 74 | Structured Luna verifier packet | R51 L1-L5 packet complete; one two-sighted non-blocking SOFT logged |
+| 75 | Adversarial, materiality, and priority pass | R51 sole implement candidate; no overlapping child |
