@@ -2564,3 +2564,25 @@ full tests, shared JVM compilation, Compose Android/Desktop compilation, grep,
 and diff checks pass. The unexcluded backend quality and hook gates remain
 blocked only by the pre-existing stale OpenAPI route fingerprint; the focused
 and full backend checks pass with `-x :backend:publishOpenApiSpec`.
+
+### R68 implementation evidence
+
+Child #252 is resolved. `RemittanceDayBreakdownRepository.addDayBreakdown` now
+lets the database unique constraints own idempotency: it inserts directly with
+`insertIgnore`, then reads the existing row by `(remittance_id, branch_day_id)`
+after a zero-row insert. UUID collisions that do not match that same parent/day
+remain `ConflictException`; same UUID on another Branch Day is covered by a
+regression test. The audit callback runs only for the inserted row, so retries
+and concurrent losers do not add audit entries.
+
+- Gate ledger `docs/gates/252-remittance-day-breakdown-race.md`: 4/4 PASS.
+- Focused `RemittanceLineServicePostgresTest`: PASS.
+- Full backend `detekt`, `ktlintCheck`, and `test` with the known stale
+  `publishOpenApiSpec` task excluded: PASS.
+- Test-database cleanliness: PASS; `git diff --check`: PASS.
+- Standard P1-P4 review: one HARD test-vacuity finding fixed by deleting the
+  precheck; one HARD UUID-collision finding fixed by requiring parent/day match.
+  Final rerun: zero HARD; SOFT: add-vs-submit transaction ordering remains
+  outside R68 scope and is retained for separate audit treatment.
+- No ADR: existing database-uniqueness and repository audit ownership decisions
+  apply; no durable architecture decision was introduced.

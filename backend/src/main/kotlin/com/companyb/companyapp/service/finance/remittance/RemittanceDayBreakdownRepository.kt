@@ -23,17 +23,6 @@ internal object RemittanceDayBreakdownRepository {
         auditFn: (RemittanceDayBreakdown) -> Unit = {},
     ): RemittanceDayBreakdown =
         transaction {
-            val existing =
-                RemittanceDayBreakdownTable
-                    .selectAll()
-                    .where {
-                        RemittanceDayBreakdownTable.remittanceId eq remittanceId and
-                            (RemittanceDayBreakdownTable.branchDayId eq branchDayId)
-                    }.singleOrNull()
-            if (existing != null) {
-                return@transaction existing.toRemittanceDayBreakdown()
-            }
-
             val inserted =
                 RemittanceDayBreakdownTable.insertIgnore {
                     it[RemittanceDayBreakdownTable.id] = id
@@ -42,15 +31,15 @@ internal object RemittanceDayBreakdownRepository {
                 }
 
             if (inserted.insertedCount == 0) {
-                val existingByParent =
+                val existingByParentAndDay =
                     RemittanceDayBreakdownTable
                         .selectAll()
                         .where {
-                            (RemittanceDayBreakdownTable.id eq id) and
-                                (RemittanceDayBreakdownTable.remittanceId eq remittanceId)
+                            (RemittanceDayBreakdownTable.remittanceId eq remittanceId) and
+                                (RemittanceDayBreakdownTable.branchDayId eq branchDayId)
                         }.singleOrNull()
-                if (existingByParent != null) {
-                    return@transaction existingByParent.toRemittanceDayBreakdown()
+                if (existingByParentAndDay != null) {
+                    return@transaction existingByParentAndDay.toRemittanceDayBreakdown()
                 }
                 throw ConflictException("Day breakdown ID already belongs to another remittance")
             }

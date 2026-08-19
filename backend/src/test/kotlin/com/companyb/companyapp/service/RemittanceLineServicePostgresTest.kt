@@ -23,6 +23,7 @@ import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
@@ -48,6 +49,9 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -56,6 +60,11 @@ import kotlin.test.assertTrue
 
 @Suppress("LargeClass")
 class RemittanceLineServicePostgresTest : BasePostgresTest() {
+    private companion object {
+        const val CONCURRENT_BREAKDOWNS = 2
+        const val EXECUTOR_TERMINATION_SECONDS = 10L
+    }
+
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
@@ -695,6 +704,40 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `add day breakdown concurrent distinct IDs return existing`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        val executor = Executors.newFixedThreadPool(CONCURRENT_BREAKDOWNS)
+        val ready = CountDownLatch(CONCURRENT_BREAKDOWNS)
+        val start = CountDownLatch(1)
+        val breakdownIds = (1..CONCURRENT_BREAKDOWNS).map { UUID.randomUUID() }
+        val futures =
+            breakdownIds.map { breakdownId ->
+                executor.submit<RemittanceDayBreakdown> {
+                    ready.countDown()
+                    start.await()
+                    RemittanceService.addDayBreakdown(callerId, remittance.id, breakdownId, branchDayId)
+                }
+            }
+
+        val results =
+            try {
+                assertTrue(ready.await(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+                start.countDown()
+                futures.map { it.get() }
+            } finally {
+                executor.shutdownNow()
+                assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+            }
+
+        assertEquals(1, results.map { it.id }.toSet().size)
+        assertEquals(1, remittanceDayBreakdownAuditCount())
+        assertEquals(1, RemittanceService.getRemittance(remittance.id).dayBreakdowns.size)
+    }
+
+    @Test
     fun `add day breakdown rejects client ID already used by another remittance`() {
         val firstRemittance = createDraftRemittance()
         val secondRemittance = createDraftRemittance(RemittanceType.PRODUCT)
@@ -712,6 +755,25 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             RemittanceService.addDayBreakdown(callerId, secondRemittance.id, breakdownId, branchDayId)
         }
         assertTrue(RemittanceService.getRemittance(secondRemittance.id).dayBreakdowns.isEmpty())
+        assertEquals(1, remittanceDayBreakdownAuditCount())
+    }
+
+    @Test
+    fun `add day breakdown rejects same ID for another Branch Day`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        val otherDayId = BranchDayService.resolveOrCreate(branchId, LocalDate.now().minusDays(1)).id
+        trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
+        val breakdownId = UUID.randomUUID()
+
+        RemittanceService.addDayBreakdown(callerId, remittance.id, breakdownId, branchDayId)
+
+        assertFailsWith<ConflictException> {
+            RemittanceService.addDayBreakdown(callerId, remittance.id, breakdownId, otherDayId)
+        }
+        assertEquals(1, RemittanceService.getRemittance(remittance.id).dayBreakdowns.size)
         assertEquals(1, remittanceDayBreakdownAuditCount())
     }
 
