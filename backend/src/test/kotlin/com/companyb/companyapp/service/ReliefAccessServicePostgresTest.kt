@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -15,7 +16,6 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -78,7 +78,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val result = ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
         assertEquals(requestId, result.id)
-        assertEquals(ReliefStatus.PENDING, result.requestStatus)
+        assertEquals(ReliefAccessStatus.PENDING, result.requestStatus)
         assertEquals(reliefUserId, result.requestedBy)
         assertEquals(targetUserId, result.targetUser)
         assertTrue(requestExists(requestId))
@@ -93,7 +93,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val duplicate = ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
         assertEquals(requestId, duplicate.id)
-        assertEquals(ReliefStatus.PENDING, duplicate.requestStatus)
+        assertEquals(ReliefAccessStatus.PENDING, duplicate.requestStatus)
     }
 
     @Test
@@ -130,7 +130,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val result = ReliefAccessService.grantAccess(requestId, targetUserId)
 
         assertEquals(requestId, result.id)
-        assertEquals(ReliefStatus.GRANTED, result.requestStatus)
+        assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
         assertEquals(targetUserId, result.grantedBy)
         assertNotNull(result.grantedAt)
         assertTrue(
@@ -153,7 +153,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val duplicate = ReliefAccessService.grantAccess(requestId, targetUserId)
 
         assertEquals(requestId, duplicate.id)
-        assertEquals(ReliefStatus.GRANTED, duplicate.requestStatus)
+        assertEquals(ReliefAccessStatus.GRANTED, duplicate.requestStatus)
         assertEquals(targetUserId, duplicate.grantedBy)
     }
 
@@ -202,7 +202,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val result = ReliefAccessService.grantAccess(requestId2, targetUserId)
 
         assertEquals(requestId1, result.id)
-        assertEquals(ReliefStatus.GRANTED, result.requestStatus)
+        assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
     }
 
     @Test
@@ -213,7 +213,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val result = ReliefAccessService.denyAccess(requestId, targetUserId)
 
         assertEquals(requestId, result.id)
-        assertEquals(ReliefStatus.DENIED, result.requestStatus)
+        assertEquals(ReliefAccessStatus.DENIED, result.requestStatus)
         assertEquals(2L, auditReliefEntryCount(requestId))
     }
 
@@ -226,7 +226,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val duplicate = ReliefAccessService.denyAccess(requestId, targetUserId)
 
         assertEquals(requestId, duplicate.id)
-        assertEquals(ReliefStatus.DENIED, duplicate.requestStatus)
+        assertEquals(ReliefAccessStatus.DENIED, duplicate.requestStatus)
     }
 
     @Test
@@ -237,7 +237,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
         val result = ReliefAccessService.grantAccess(requestId, targetUserId)
 
-        assertEquals(ReliefStatus.DENIED, result.requestStatus)
+        assertEquals(ReliefAccessStatus.DENIED, result.requestStatus)
         assertFalse(
             CapabilityService.hasCapability(
                 userId = reliefUserId,
@@ -319,8 +319,8 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                     contextId = branchDayId,
                 )
 
-            assertFalse(finalRequest.requestStatus == ReliefStatus.DENIED && hasCapability)
-            if (finalRequest.requestStatus == ReliefStatus.GRANTED) {
+            assertFalse(finalRequest.requestStatus == ReliefAccessStatus.DENIED && hasCapability)
+            if (finalRequest.requestStatus == ReliefAccessStatus.GRANTED) {
                 assertTrue(hasCapability)
             }
         } finally {
@@ -361,7 +361,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.branchDayId] = remittedDayId
                 it[GrantReliefAccessTable.requestedBy] = reliefUserId
                 it[GrantReliefAccessTable.targetUser] = targetUserId
-                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.PENDING
+                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
@@ -370,7 +370,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
         val result = ReliefAccessService.grantAccess(requestId, targetUserId, "Coordinator correction")
 
-        assertEquals(ReliefStatus.GRANTED, result.requestStatus)
+        assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
         val audit =
             transaction {
                 AuditLogTable
@@ -399,7 +399,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.branchDayId] = remittedBranchDayId
                 it[GrantReliefAccessTable.requestedBy] = reliefUserId
                 it[GrantReliefAccessTable.targetUser] = targetUserId
-                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.PENDING
+                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
@@ -424,7 +424,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.branchDayId] = remittedBranchDayId
                 it[GrantReliefAccessTable.requestedBy] = reliefUserId
                 it[GrantReliefAccessTable.targetUser] = targetUserId
-                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.PENDING
+                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)

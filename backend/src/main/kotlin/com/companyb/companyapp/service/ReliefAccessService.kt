@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -9,7 +10,6 @@ import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.UUID
@@ -31,7 +31,7 @@ object ReliefAccessService {
             throw ForbiddenException("Only the target user can grant this request")
         }
 
-        if (request.requestStatus == ReliefStatus.GRANTED) {
+        if (request.requestStatus == ReliefAccessStatus.GRANTED) {
             return request
         }
 
@@ -67,7 +67,7 @@ object ReliefAccessService {
                 ),
             ) { "Grant failed: relief access request not found in transaction" }
 
-        if (result.requestStatus == ReliefStatus.DENIED) {
+        if (result.requestStatus == ReliefAccessStatus.DENIED) {
             logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId was already denied" }
         } else if (result.id == requestId) {
             logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
@@ -95,11 +95,11 @@ object ReliefAccessService {
             throw ForbiddenException("Only the target user can deny this request")
         }
 
-        if (request.requestStatus == ReliefStatus.DENIED) {
+        if (request.requestStatus == ReliefAccessStatus.DENIED) {
             return request
         }
 
-        if (request.requestStatus == ReliefStatus.GRANTED) {
+        if (request.requestStatus == ReliefAccessStatus.GRANTED) {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
@@ -123,7 +123,7 @@ object ReliefAccessService {
                 },
             )
 
-        if (result.requestStatus == ReliefStatus.GRANTED) {
+        if (result.requestStatus == ReliefAccessStatus.GRANTED) {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 

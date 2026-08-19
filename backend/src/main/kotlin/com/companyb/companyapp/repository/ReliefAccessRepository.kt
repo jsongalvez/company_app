@@ -3,11 +3,11 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -91,7 +91,7 @@ object ReliefAccessRepository {
     fun findByRequestedByAndBranchDayId(
         requestedBy: UUID,
         branchDayId: UUID,
-        status: ReliefStatus,
+        status: ReliefAccessStatus,
     ): ReliefAccess? =
         transaction {
             GrantReliefAccessTable
@@ -124,7 +124,7 @@ object ReliefAccessRepository {
                     .singleOrNull()
                     ?.toReliefAccess()
 
-            if (before == null || before.requestStatus != ReliefStatus.PENDING) {
+            if (before == null || before.requestStatus != ReliefAccessStatus.PENDING) {
                 return@transaction before
             }
 
@@ -134,7 +134,7 @@ object ReliefAccessRepository {
                     .where {
                         (GrantReliefAccessTable.requestedBy eq params.requestedBy) and
                             (GrantReliefAccessTable.branchDayId eq params.branchDayId) and
-                            (GrantReliefAccessTable.requestStatus eq ReliefStatus.GRANTED)
+                            (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.GRANTED)
                     }.singleOrNull()
                     ?.toReliefAccess()
 
@@ -145,9 +145,9 @@ object ReliefAccessRepository {
             GrantReliefAccessTable
                 .update({
                     (GrantReliefAccessTable.id eq params.requestId) and
-                        (GrantReliefAccessTable.requestStatus eq ReliefStatus.PENDING)
+                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
                 }) {
-                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
+                    it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.GRANTED
                     it[GrantReliefAccessTable.grantedBy] = params.grantedBy
                     it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
                 }
@@ -183,16 +183,16 @@ object ReliefAccessRepository {
                     .single()
                     .toReliefAccess()
 
-            if (before.requestStatus != ReliefStatus.PENDING) {
+            if (before.requestStatus != ReliefAccessStatus.PENDING) {
                 return@transaction before
             }
 
             GrantReliefAccessTable
                 .update({
                     (GrantReliefAccessTable.id eq requestId) and
-                        (GrantReliefAccessTable.requestStatus eq ReliefStatus.PENDING)
+                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
                 }) {
-                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+                    it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.DENIED
                 }
 
             val after =

@@ -2368,3 +2368,188 @@ fall through `insertIgnore` and generic missing-row handling in
 - D2 command: `scripts/wayfinder-create-child.sh 180 task "Docs: correct k6 threshold ownership" docs/agents/wayfinder-304-d2-ticket.md`
   -> `https://github.com/jsongalvez/company_app/issues/249`; verification:
   `scripts/wayfinder-verify-child.sh 180 249` -> `Verified child #249: parent #180, label wayfinder:task`.
+
+## Permanent-Map Refresh - Session 306
+
+After implementation child #249, the native Map #180 frontier was empty. Four
+fresh read-only lanes rechecked C-01..C-14 across Compose/platform bridges,
+backend behavior and persistence, shared/schema contracts, and tooling/CI/docs.
+Prior findings were rechecked against current source. Product source, tests,
+migrations, and runtime behavior were not changed during this audit.
+
+### Accepted candidates
+
+#### R66 - Make shared relief-access status the sole Kotlin owner
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1;
+  **confidence:** high.
+- **Evidence:** shared `ReliefAccessStatus` is at
+  `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/WireEnums.kt:42-43`
+  and is already used by `AttendanceDto.kt:58-65`; backend redeclares
+  `repository/model/ReliefStatus.kt:3`, binds it in `ReliefAccess.kt:10-35`,
+  and reparses it in `ReliefAccessRoutes.kt:58,82,116`.
+- **Invalid state:** one finite `relief_status` contract has duplicate Kotlin
+  owners and a runtime `valueOf` conversion seam.
+- **Simpler shape:** use shared `ReliefAccessStatus` in backend model,
+  repository, service, and routes; delete the backend enum. Keep PostgreSQL
+  `customEnumeration` and wire values unchanged.
+- **Scope:** shared/backend imports and tests; no migration.
+- **Risks/validation:** preserve uppercase values, unknown-value rejection,
+  relief grant/deny/concurrency behavior, and distinct invite status; compile
+  shared/backend and run relief tests.
+- **Deletion test:** deleting backend `ReliefStatus.kt` removes the duplicate
+  owner without adding an adapter.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=GAMMA;
+  L1 fact integrity=pass; L2 domain coherence=pass, invite status remains
+  distinct; L3 long-term architecture=pass, shared enum owns cross-module
+  finite contract; L4 adversarial falsification=pass, PG binding, unknown
+  values, and route conversion checked; L5 comprehension=pass; deterministic
+  gate=pass, source grep and V1 enum values agree; HARD findings=zero;
+  SOFT findings=zero; confidence=high; artifact=Session 306 shared/schema lane.`
+
+#### R67 - Make Branch Select ViewModel lifecycle-owned
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1;
+  **confidence:** high.
+- **Evidence:** `MobileAppNavHost.kt:156-160` and
+  `AppNavHost.desktop.kt:124-128` construct `BranchSelectViewModel` with raw
+  `remember`; `BranchSelectViewModel.kt:39-42,64-99` owns `viewModelScope` and
+  launches clock-in and capability-refresh work.
+- **Invalid state:** route removal can leave a raw remembered ViewModel and
+  its work alive beyond the route owner.
+- **Simpler shape:** construct it with lifecycle-aware `viewModel {}` at both
+  route sites; keep flow logic inside the existing ViewModel.
+- **Scope:** two navigation hosts and lifecycle-focused tests; no new module.
+- **Risks/validation:** preserve retry and ADR-0021 two-fetch sequencing;
+  validate route disposal, refresh failure/retry, Android/Desktop compile, and
+  iOS when the external Native artifact is available.
+- **Deletion test:** replacing raw `remember` removes ownerless coroutine
+  lifetime without moving business logic.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=ALPHA;
+  L1 fact integrity=pass; L2 domain coherence=pass, Branch Select remains
+  clock-in owner; L3 long-term architecture=pass, lifecycle follows route;
+  L4 adversarial falsification=pass, disposal can outlive raw VM; L5
+  comprehension=pass; deterministic gate=pass, construction and scope agree;
+  HARD findings=zero; SOFT findings=one, iOS lifecycle smoke depends on
+  unavailable artifact; confidence=high; artifact=Session 306 Compose lane.`
+
+#### R68 - Make remittance day-breakdown idempotency race-safe
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1;
+  **confidence:** high.
+- **Evidence:** `RemittanceDayBreakdownRepository.kt:26-56` prechecks and then
+  `insertIgnore`s the unique `(remittance_id, branch_day_id)` pair from
+  `V1__full_schema.sql:456-461`; a distinct-ID concurrent loser is looked up
+  only by its own ID and throws instead of returning the semantic duplicate.
+- **Invalid state:** concurrent same-parent/day retries do not preserve the
+  established idempotent write contract.
+- **Simpler shape:** after zero inserted rows, read by
+  `(remittanceId, branchDayId)`; retain UUID collision rejection and parent
+  ownership checks.
+- **Scope:** repository/service tests; no schema change.
+- **Risks/validation:** preserve same-ID retries, foreign-branch rejection,
+  version/status gates, and one audit row; add concurrent distinct-ID,
+  same-ID, cross-remittance UUID, and audit-count tests.
+- **Deletion test:** parent/day lookup removes race failure while keeping
+  client-ID collision policy local to the repository.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=EPSILON;
+  L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass,
+  database uniqueness stays repository-owned; L4 adversarial falsification=pass,
+  concurrent distinct-ID loser reproduced; L5 comprehension=pass; deterministic
+  gate=pass, source/schema/test evidence agrees; HARD findings=zero after scoped
+  lookup; SOFT findings=one, disposable Postgres scheduling needs focused test;
+  confidence=high; artifact=Session 306 synthesis R66 dossier.`
+
+#### R69 - Preserve remittance draft branch ownership on UUID retries
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0;
+  **confidence:** high.
+- **Evidence:** `RemittanceRoutes.kt:170-193,289-307` authorizes requested
+  `branchId`, while `RemittanceService.kt:78-113` and
+  `RemittanceRepository.kt:252-277` return an existing remittance by UUID
+  without branch scope.
+- **Invalid state:** a Branch B caller can replay a known Branch A UUID and
+  receive foreign remittance data.
+- **Simpler shape:** scope idempotent lookup by `(remittanceId, branchId)`;
+  same-Branch retry succeeds, cross-Branch collision becomes `ConflictException`.
+- **Scope:** remittance service/repository and API tests; do not alter R65 draft
+  coexistence policy.
+- **Risks/validation:** preserve same-Branch retry, header behavior, audit
+  count, and no mutation on rejected collision.
+- **Deletion test:** restoring UUID-only lookup reproduces disclosure.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=BETA;
+  L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass,
+  repository owns request identity; L4 adversarial falsification=pass, foreign
+  Branch replay reproduced; L5 comprehension=pass; deterministic gate=pass;
+  HARD findings=zero; SOFT findings=one, header mismatch policy needs tests;
+  confidence=high; artifact=Session 306 backend lane C1.`
+
+#### R70 - Preserve allowance Branch Day ownership on UUID retries
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0;
+  **confidence:** high.
+- **Evidence:** `AllowanceRoutes.kt:34-77` gates the requested Branch Day,
+  `AllowanceService.kt:18-50` validates it, but `AllowanceRepository.kt:23-45,63-67`
+  returns any existing allowance by UUID.
+- **Invalid state:** a caller can replay an allowance UUID from another Branch
+  Day and receive amount, user, assigner, and day data.
+- **Simpler shape:** scope lookup by `(allowanceId, branchDayId)` and classify
+  different-day collisions as `ConflictException`.
+- **Scope:** allowance service/repository and focused API/service tests; no schema.
+- **Risks/validation:** preserve same-day retry, remitted-day checks, and zero
+  audit on retries; test foreign-day collisions and unchanged rows.
+- **Deletion test:** UUID-only lookup reproduces cross-Branch disclosure.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=GAMMA;
+  L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass,
+  Branch Day owns allowance scope; L4 adversarial falsification=pass, foreign-day
+  replay reproduced; L5 comprehension=pass; deterministic gate=pass; HARD findings=zero;
+  SOFT findings=one, collision response needs explicit tests; confidence=high;
+  artifact=Session 306 backend lane C2.`
+
+#### R71 - Add CI ownership for core quality gates
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1;
+  **confidence:** medium.
+- **Evidence:** only `.github/workflows/openapi.yml` and `jmh.yml` exist;
+  backend/shared/Compose quality checks are local hook work in
+  `.githooks/pre-commit:58-63` and `.githooks/pre-push:59-69`.
+- **Invalid state:** merges that bypass local hooks lack CI-owned backend,
+  shared, and Compose validation.
+- **Simpler shape:** add one quality workflow reusing existing Gradle checks;
+  keep OpenAPI and JMH workflows specialized.
+- **Scope:** `.github/workflows/quality.yml`, path policy, and gate docs only.
+- **Risks/validation:** CI Postgres/Android setup, runtime, duplicate duration,
+  and branch-protection configuration; validate deliberate Kotlin, Compose, and
+  test failures. Branch protection is external and remains an operational
+  follow-up, not a guessed setting.
+- **Deletion test:** removing local hooks still leaves merge validation owned by
+  CI rather than silently removing required checks.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=DELTA;
+  L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass,
+  CI closes hook-bypass seam; L4 adversarial falsification=pass, current workflows
+  omit core checks; L5 comprehension=pass; deterministic gate=pass by workflow
+  inventory; HARD findings=zero; SOFT findings=one, branch protection/Postgres
+  setup require external configuration; confidence=medium; artifact=Session 306
+  tooling lane T1.`
+
+### Deferred fog and synthesis
+
+- R65 remains `needs-info` issue #247: draft uniqueness policy is unresolved;
+  no schema or conflict behavior is guessed.
+- C-01 paired Branch/clock state remains deferred at ADR-0021; R66-R71 are
+  separate seams, not duplicates. Prior resolved and rejected findings remain
+  retired.
+- Coverage, duplication, materiality, schema, and dependency passes found no
+  additional candidate. R69/R70 are separate parent-ownership disclosures;
+  R68 is a distinct concurrency/idempotency seam; R71 is CI ownership.
+
+### Child traceability
+
+Child traceability completed:
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: make shared relief-access status sole Kotlin owner" docs/agents/wayfinder-306-r66-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/250`; `scripts/wayfinder-verify-child.sh 180 250` -> `Verified child #250: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: make Branch Select ViewModel lifecycle-owned" docs/agents/wayfinder-306-r67-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/251`; `scripts/wayfinder-verify-child.sh 180 251` -> `Verified child #251: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: make remittance day-breakdown idempotency race-safe" docs/agents/wayfinder-306-r68-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/252`; `scripts/wayfinder-verify-child.sh 180 252` -> `Verified child #252: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve remittance draft branch ownership on UUID retries" docs/agents/wayfinder-306-r69-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/253`; `scripts/wayfinder-verify-child.sh 180 253` -> `Verified child #253: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve allowance Branch Day ownership on UUID retries" docs/agents/wayfinder-306-r70-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/254`; `scripts/wayfinder-verify-child.sh 180 254` -> `Verified child #254: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: add CI ownership for core quality gates" docs/agents/wayfinder-306-r71-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/255`; `scripts/wayfinder-verify-child.sh 180 255` -> `Verified child #255: parent #180, label wayfinder:task`.
