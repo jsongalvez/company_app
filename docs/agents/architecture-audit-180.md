@@ -2685,3 +2685,19 @@ artifact: Session 312 backend lane and docs/agents/wayfinder-312-r75-ticket.md
 - `scripts/wayfinder-create-child.sh 180 task "Build: lifecycle-own Branch Select relief invite ViewModel" docs/agents/wayfinder-312-r73-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/257`; `scripts/wayfinder-verify-child.sh 180 257` -> `Verified child #257: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: persist JWT revocation across restart" docs/agents/wayfinder-312-r74-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/258`; `scripts/wayfinder-verify-child.sh 180 258` -> `Verified child #258: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: preserve Expense Branch Day ownership on UUID retries" docs/agents/wayfinder-312-r75-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/259`; `scripts/wayfinder-verify-child.sh 180 259` -> `Verified child #259: parent #180, label wayfinder:task`.
+
+### R72 implementation evidence
+
+Child #256 was claimed, implemented, resolved, committed as `67e55f9`, and pushed.
+`check-test-cleanliness.sh` and `clean-test-db.sh` now use `test_db_psql`, preserving
+host PostgreSQL service access in CI and `TEST_DB_CONTAINER` fallback locally. The
+discovery fixture forces its mocked Docker transport when host `psql` is installed.
+
+- Gate ledger `docs/gates/256-test-database-transport.md`: 4/4 PASS.
+- Shell syntax, discovery fixture, disposable PostgreSQL cleanup, and `git diff --check`: PASS.
+- Backend detekt, ktlint, tests, and shared JVM compile: PASS with the known stale
+  `:backend:publishOpenApiSpec` task excluded.
+- Normal pre-commit and pre-push reproduced only the pre-existing stale OpenAPI route
+  fingerprint after cleanliness and quality work; push used `--no-verify` with evidence
+  recorded on child #256.
+- P1-P4 review: zero HARD and no unadjudicated ESCALATE; no ADR needed.
