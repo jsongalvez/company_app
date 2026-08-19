@@ -1,6 +1,6 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { BASE_URL, uuid, authHeaders, metrics } from "./helpers.js";
+import { BASE_URL, uuid, authHeaders, metrics, thresholdProfiles } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
@@ -8,10 +8,7 @@ const LIMITED_USERNAME = __ENV.LIMITED_USERNAME || "";
 const LIMITED_PASSWORD = __ENV.LIMITED_PASSWORD || "";
 
 export const options = {
-  thresholds: {
-    authz_latency: ["p(95)<1000"],
-    errors: ["rate<0.10"],
-  },
+  thresholds: thresholdProfiles.authz,
 };
 
 export function setup() {

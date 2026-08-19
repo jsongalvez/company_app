@@ -88,4 +88,8 @@ export const thresholdProfiles = {
     errors: fullThresholds.errors,
     checks: ["rate==1"],
   },
+  authz: {
+    authz_latency: fullThresholds.authz_latency,
+    errors: ["rate<0.10"],
+  },
 };
