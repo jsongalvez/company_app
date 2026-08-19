@@ -1,29 +1,25 @@
-# Handoff - Map #180, Child #228
+# Handoff - Map #180, Child #228 Retargeted
 
 ## Session outcome
 
 - Loaded `docs/agents/wayfinder-287-handoff.md`, Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, `CONTEXT.md`, business requirements, architecture, audit guidance, architecture audit/lessons, decision loop, issue tracker, and all module instructions.
 - Inspected `.githooks/pre-push` before tracker work.
-- Queried live Map #180 frontier. Claimed and resolved [Docs: enforce child creation traceability](https://github.com/jsongalvez/company_app/issues/228), the sole open unblocked unassigned child.
-- Updated `docs/agents/issue-tracker.md` and `docs/agents/audit-your-codebase.md` to require exact `scripts/wayfinder-create-child.sh` invocation, returned child URL, and verification output for every implement candidate.
-- Verified child linkage with `bash scripts/wayfinder-verify-child.sh 180 228`: native parent #180 and `wayfinder:task` label passed.
-- Appended resolution pointer to Map #180 and closed #228.
-- No product, schema, runtime, or ADR changes.
+- Queried live Map #180 frontier and consumed stale child-traceability scope for #228.
+- That stale scope was already implemented in commits `18f8ff9` and `4412fa2`; no product, schema, runtime, or ADR changes were made.
+- Map #180 reopened and retargeted #228 to [Build: skip pre-commit gates for docs-only commits](https://github.com/jsongalvez/company_app/issues/228).
+- The corrected issue is open, natively linked to Map #180, labeled `wayfinder:task`, and unassigned.
 
 ## Verification
 
-- `git diff --check`: PASS.
-- Pre-commit: disposable test DB cleanup, backend quality gate, OpenAPI contract, cleanliness, shared compile, and Postgres connectivity: PASS.
-- Pre-push: docs-only classification and approved gate skip: PASS.
-- Commit `18f8ff9` pushed to `origin/ralph/company-app-full-build`.
-
-## Child traceability
-
-- No child was created in this session. Existing child verification command: `bash scripts/wayfinder-verify-child.sh 180 228`.
-- Prior child creation command from handoff evidence remains absent for #227; this session added canonical guidance requiring future recording.
+- `scripts/wayfinder-verify-child.sh 180 228`: PASS before retargeting.
+- Stale documentation commits `18f8ff9` and `4412fa2` are pushed.
+- Pre-commit gate behavior remains unchanged; corrected #228 still needs implementation.
 
 ## Next session
 
 1. Load this handoff, Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, and every applicable Context Pointer.
-2. Query live Map #180 children and frontier. If empty, run the required focused/full audit and complete verifier packets before creating any implement children.
-3. Keep R15 in `Not yet specified` pending deployment topology or overlapping scheduler invocation requirements.
+2. Claim #228 only after confirming it remains open, unblocked, and unassigned.
+3. Read `.githooks/pre-commit`, `.githooks/pre-push`, and `scripts/classify-push-files.sh`.
+4. Implement staged docs-only classification for pre-commit; preserve staged Kotlin formatting and full gates for mixed/gate-sensitive commits.
+5. Add deterministic tests, run targeted checks, resolve #228, and update Map #180.
+6. Keep R15 in `Not yet specified` pending deployment topology or overlapping scheduler invocation requirements.
