@@ -60,6 +60,17 @@ internal object SessionBaseRateService {
                     fields = SessionBaseRateTable.auditFields(rate),
                 )
             },
+            auditUpdateFn = { before, after ->
+                AuditLogRepository.recordUpdate(
+                    tableName = SessionBaseRateTable.tableName,
+                    recordId = before.id,
+                    before = before,
+                    after = after,
+                    changedBy = callerId,
+                    branchId = branchId,
+                    auditFields = SessionBaseRateTable::auditFields,
+                )
+            },
         )
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateRepository.findActiveByBranch(branchId)

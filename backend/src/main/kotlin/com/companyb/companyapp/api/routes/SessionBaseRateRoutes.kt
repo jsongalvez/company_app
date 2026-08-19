@@ -38,8 +38,9 @@ object SessionBaseRateRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/rates") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
+                context.pathParamAsUuid(BRANCH_ID_PARAM),
                 CapabilityCodes.MANAGE_PRODUCTS,
             )
         }

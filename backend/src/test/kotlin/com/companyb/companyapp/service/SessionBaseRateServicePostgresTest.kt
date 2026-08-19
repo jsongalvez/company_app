@@ -1,6 +1,8 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -18,9 +20,13 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -28,6 +34,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     private val callerId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
     private val branchId = UUID.randomUUID()
+    private val otherBranchId = UUID.randomUUID()
     private val rateId = UUID.randomUUID()
     private val rateId2 = UUID.randomUUID()
 
@@ -36,6 +43,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestBranch(branchId, name = "Rate-Clinic-$branchId")
         trackOwned(BranchTable, BranchTable.id, branchId)
+        DatabaseTestHelper.insertTestBranch(otherBranchId, name = "Rate-Clinic-$otherBranchId")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
@@ -159,7 +168,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                 rateId,
                 branchId,
                 SessionType.REGULAR,
-                BigDecimal("3000.00"),
+                BigDecimal("2500.00"),
             )
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
 
@@ -167,6 +176,127 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
         assertFalse(duplicate.created)
         assertEquals("2500.00", duplicate.rate.rate.toPlainString())
         assertEquals(1L, auditEntryCount(rateId))
+    }
+
+    @Test
+    fun `duplicate UUID from another branch is rejected without changing active rate`() {
+        val first =
+            SessionService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        val before = SessionService.findActiveRates(branchId).single()
+
+        assertFailsWith<NotFoundException> {
+            SessionService.setRate(
+                callerId,
+                rateId,
+                otherBranchId,
+                SessionType.REGULAR,
+                BigDecimal("3000.00"),
+            )
+        }
+
+        val after = SessionService.findActiveRates(branchId).single()
+        assertEquals(first.rate.effectiveUntil, after.effectiveUntil)
+        assertEquals(before.rate, after.rate)
+        assertEquals(1L, auditEntryCount(rateId))
+    }
+
+    @Test
+    fun `duplicate UUID with altered request is rejected without changing active rate`() {
+        SessionService.setRate(
+            callerId,
+            rateId,
+            branchId,
+            SessionType.REGULAR,
+            BigDecimal("2500.00"),
+        )
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        val before = SessionService.findActiveRates(branchId).single()
+
+        assertFailsWith<ConflictException> {
+            SessionService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("3000.00"),
+            )
+        }
+
+        val after = SessionService.findActiveRates(branchId).single()
+        assertEquals(before.rate, after.rate)
+        assertEquals(before.effectiveUntil, after.effectiveUntil)
+        assertEquals(1L, auditEntryCount(rateId))
+    }
+
+    @Test
+    fun `same UUID retry remains idempotent after rate replacement`() {
+        val first =
+            SessionService.setRate(
+                callerId,
+                rateId,
+                branchId,
+                SessionType.REGULAR,
+                BigDecimal("2500.00"),
+            )
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId)
+        SessionService.setRate(
+            callerId,
+            rateId2,
+            branchId,
+            SessionType.REGULAR,
+            BigDecimal("3000.00"),
+        )
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, rateId2)
+        assertEquals(2L, auditEntryCount(rateId))
+
+        val retry = SessionService.setRate(callerId, rateId, branchId, SessionType.REGULAR, BigDecimal("2500.00"))
+
+        assertFalse(retry.created)
+        assertEquals(first.rate.id, retry.rate.id)
+        assertEquals(2L, auditEntryCount(rateId))
+    }
+
+    @Test
+    fun `concurrent distinct rates leave one active rate`() {
+        val start = CountDownLatch(1)
+        val results = Collections.synchronizedList(mutableListOf<Throwable?>())
+        val ids = listOf(UUID.randomUUID(), UUID.randomUUID())
+        val threads =
+            ids.map { id ->
+                thread(start = false) {
+                    start.await()
+                    try {
+                        SessionService.setRate(
+                            callerId,
+                            id,
+                            branchId,
+                            SessionType.REGULAR,
+                            BigDecimal("2500.00"),
+                        )
+                        results += null
+                    } catch (error: Throwable) {
+                        results += error
+                    }
+                }
+            }
+        threads.forEach { it.start() }
+        start.countDown()
+
+        // Join is bounded so a database lock regression cannot hang the test suite.
+        threads.forEach { it.join(CONCURRENT_JOIN_MILLIS) }
+
+        ids.forEach { trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, it) }
+        assertEquals(2, results.size)
+        assertEquals(2, results.count { it == null })
+        assertEquals(0, results.count { it is ConflictException })
+        assertEquals(1, SessionService.findActiveRates(branchId).size)
     }
 
     @Test
@@ -193,4 +323,8 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
                         (AuditLogTable.recordId eq rateId)
                 }.count()
         }
+
+    private companion object {
+        const val CONCURRENT_JOIN_MILLIS = 30_000L
+    }
 }
