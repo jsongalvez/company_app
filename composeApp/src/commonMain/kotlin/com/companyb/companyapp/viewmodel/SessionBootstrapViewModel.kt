@@ -60,12 +60,12 @@ class SessionBootstrapViewModel(
                 block = { apiClient.httpClient.get(ApiRoutes.ME) },
                 transform = { response ->
                     val me = response.body<MeResponse>()
-                    SessionState.setUser(me)
                     logInfo("SessionBootstrapVM", "GET /api/me/capabilities (post-login/launch trigger)")
                     val capabilitiesResponse = apiClient.httpClient.get(ApiRoutes.ME_CAPABILITIES)
                     when {
                         capabilitiesResponse.status.isSuccess() -> {
                             val capabilities = capabilitiesResponse.body<List<UserCapabilityResponse>>()
+                            SessionState.setUser(me)
                             SessionState.setCapabilities(capabilities)
                         }
 

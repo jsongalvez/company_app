@@ -13,10 +13,12 @@ import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
@@ -26,6 +28,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * #94-grad — the shared session-bootstrap implementation (launch validation + fresh login):
@@ -174,7 +177,7 @@ class SessionBootstrapViewModelTest {
             // navigate mid-session). NOT UiState.Error: an auth failure must not read as a
             // connection problem (and never renders the network copy on the Login screen).
             assertFalse(vm.validationState.value is UiState.Error)
-            assertIs<MeResponse>(SessionState.currentUser.value)
+            assertNull(SessionState.currentUser.value)
         }
 
     @Test
@@ -191,6 +194,7 @@ class SessionBootstrapViewModelTest {
             advanceUntilIdle()
 
             assertIs<UiState.Error>(vm.validationState.value)
+            assertNull(SessionState.currentUser.value)
         }
 
     @Test
@@ -222,5 +226,27 @@ class SessionBootstrapViewModelTest {
 
             assertEquals(1, meCalls)
             assertIs<UiState.Success<Unit>>(vm.validationState.value)
+        }
+
+    @Test
+    fun cancel_cancels_in_flight_validation_before_global_state_write() =
+        runTest(testScheduler) {
+            var requestStarted = false
+            val handler: MockRequestHandler = {
+                requestStarted = true
+                awaitCancellation()
+            }
+            val vm = SessionBootstrapViewModel(mockApiClient(handler))
+
+            val job = vm.validateSession()
+            runCurrent()
+
+            assertTrue(requestStarted)
+            vm.cancelValidation()
+            advanceUntilIdle()
+
+            assertFalse(job.isActive)
+            assertNull(SessionState.currentUser.value)
+            assertEquals(emptyList<UserCapabilityResponse>(), SessionState.capabilities.value)
         }
 }

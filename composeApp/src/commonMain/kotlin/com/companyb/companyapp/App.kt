@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.navigation.AppNavHost
@@ -45,7 +46,7 @@ fun App() {
     val navController = rememberNavController()
     // #94 — one bootstrap implementation shared by launch validation (here) and fresh login
     // (LoginScreen creates its own instance — same class, independent states).
-    val bootstrapViewModel = remember { SessionBootstrapViewModel(apiClient) }
+    val bootstrapViewModel: SessionBootstrapViewModel = viewModel { SessionBootstrapViewModel(apiClient) }
     val validationState by bootstrapViewModel.validationState.collectAsState()
 
     // #94 Phase 1 — launch validation. A persisted token is cached evidence, not proof:

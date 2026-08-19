@@ -2903,3 +2903,137 @@ already pass.
   gap; both were fixed. Final review has zero untriaged HARD findings.
 - No ADR needed; existing configuration, workflow, and performance-gate ownership
   decisions remain authoritative.
+
+## Permanent-Map Refresh - Session 321
+
+After implementation child #264, the native Map #180 frontier was empty. A fresh full
+read-only audit rechecked C-01..C-14 through five bounded lanes: Compose/platform
+ownership, backend behavior/auth/persistence, shared contracts/schema, tooling/tests/docs,
+and latest CI/idempotency/revocation seams. No product source, tests, migrations, or
+runtime behavior changed during the audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R80 - lifecycle-own session bootstrap ViewModels | `App.kt:48`, mobile host `:144-145`, desktop host `:112-113` use `remember` for a `ViewModel` owning `viewModelScope`; bootstrap writes global `SessionState` in `SessionBootstrapViewModel.kt:61-70` | Host destruction can leave validation in flight and permit late global writes; candidate is distinct from deferred Branch Select attendance lifecycle work | implement, P1 |
+| C12-D1 - correct stale k6 threshold documentation | runtime defines `session_latency` and baseline profile owns `branches`, `clients_search`, `product`, `my_branches`, `dashboard`, and `errors`; docs list nonexistent `sessions_latency` and omit actual entries | repository search finds stale name only in docs; deleting/replacing rows changes no runtime behavior | implement, P2 docs-only |
+| R81 - run JMH gate on pull requests | `.github/workflows/jmh.yml:17-24` has push/dispatch only; quality/OpenAPI workflows include pull requests | PR-only benchmark changes lack JMH status, but branch-protection policy and intentional push-only scope are not evidenced | defer pending CI policy evidence; needs-info |
+| R54 - make `remittance_line.created_by` non-null | migration permits NULL while application model/write path is non-null | no current app/import path creates NULL rows; production-row evidence absent | defer, P2 |
+
+### Verifier packets
+
+```text
+candidate: R80
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; all three remembered ViewModel construction sites and bootstrap writes independently re-read
+L2 domain coherence: pass; SessionState, bootstrap validation, and lifecycle ownership match app flow
+L3 long-term architecture: pass; lifecycle-owned ViewModel is existing Compose pattern and removes an ownerless seam
+L4 adversarial falsification: pass; host disposal during /api/me or capabilities request leaves a late-write path
+L5 comprehension: pass; smallest fix is lifecycle ownership plus cancellation regression coverage
+deterministic gate: pass; source search and host/viewModelScope inspection agree
+HARD findings: zero untriaged after lifecycle ownership fix; candidate defect is HARD
+SOFT findings: zero
+confidence: high
+artifact: Session 321 C-01..C-04 lane and this dossier
+
+candidate: C12-D1
+mode: structured
+model: GPT-5.6 Luna
+position: DELTA
+L1 fact integrity: pass; runtime metric/profile and both stale tables independently compared
+L2 domain coherence: pass; k6 threshold ownership remains in helpers.js profiles
+L3 long-term architecture: pass; docs correction preserves runtime source of truth
+L4 adversarial falsification: pass; sessions_latency is absent from runtime and baseline execution
+L5 comprehension: pass; deletion/rewrite is isolated and no ADR is needed
+deterministic gate: pass; grep and direct source comparison agree
+HARD findings: zero untriaged after documentation correction; candidate is truth-class HARD
+SOFT findings: zero
+confidence: high
+artifact: Session 321 C-11..C-14 lane and this dossier
+
+candidate: R81
+mode: structured
+model: GPT-5.6 Luna
+position: EPSILON
+L1 fact integrity: pass; JMH workflow trigger lacks pull_request while adjacent gates include it
+L2 domain coherence: pass; CI/JMH ownership is correctly identified
+L3 long-term architecture: pass; PR benchmark status would align with other required checks
+L4 adversarial falsification: pass; push-only trigger leaves PR-only benchmark changes untested
+L5 comprehension: pass; add pull_request trigger or document intentional policy
+deterministic gate: pass; workflow source inspection confirms trigger gap
+HARD findings: zero untriaged; severity depends on branch-protection and CI policy evidence
+SOFT findings: one accepted for deferral, policy-dependent scope confirmed by L3/L5
+confidence: reduced
+artifact: Session 321 latest-seams lane and `.github/workflows/jmh.yml:17-24`
+
+candidate: R54
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; nullable migration and non-null model/write path verified
+L2 domain coherence: pass; Flyway schema remains authoritative and no import contract is established
+L3 long-term architecture: pass; hardening is local but migration safety requires row evidence
+L4 adversarial falsification: pass; direct legacy/import NULL remains possible, current app path does not create it
+L5 comprehension: pass; production-row evidence is the smallest next action
+deterministic gate: pass; source/schema/requirements inspection agrees
+HARD findings: zero
+SOFT findings: one accepted, missing invalid-row/import evidence
+confidence: reduced
+artifact: Session 321 shared/schema lane and prior R54 dossier
+```
+
+### Child traceability
+
+- R80 command: `bash scripts/wayfinder-create-child.sh 180 task "Build: lifecycle-own session bootstrap ViewModels" docs/agents/wayfinder-321-bootstrap-lifecycle-ticket.md`
+- R80 returned `https://github.com/jsongalvez/company_app/issues/266`; verification:
+  `bash scripts/wayfinder-verify-child.sh 180 266` -> `Verified child #266: parent #180, label wayfinder:task`.
+- C12-D1 command: `bash scripts/wayfinder-create-child.sh 180 task "Docs: correct stale k6 threshold documentation" docs/agents/wayfinder-321-k6-threshold-docs-ticket.md`
+- C12-D1 returned `https://github.com/jsongalvez/company_app/issues/265`; verification:
+  `bash scripts/wayfinder-verify-child.sh 180 265` -> `Verified child #265: parent #180, label wayfinder:task`.
+- R81 was not ticketed because CI policy and branch-protection intent are unresolved. `needs-info`
+  issue [Decision: run JMH gate on pull requests](https://github.com/jsongalvez/company_app/issues/267)
+  records the facts and smallest safe decision.
+
+### Audit-of-audit - Session 321
+
+- Coverage: C-01..C-14 all rechecked; Compose lifecycle, backend ownership, shared/schema,
+  CI, k6, OpenAPI, JWT revocation, scheduler, and UUID retry seams were included.
+- Duplication: R80 is separate from Branch Select attendance lifecycle fog; C12-D1 is docs
+  truth correction, not the completed k6 threshold ownership implementation; R81 is CI trigger
+  policy, not the completed JMH failure-classification fix.
+- Materiality: R80 is a stale global-state write risk; C12-D1 is a registered truth-class
+  contradiction; R81 is policy-dependent; R54 lacks production evidence.
+- Schema: no new migration candidate was verified; R54 remains deferred.
+- Priority: claim and resolve R80 first; C12-D1 remains the next open child. Do not claim a
+  second child in this session.
+
+| Pass | Work | Result |
+|---|---|---|
+| 80 | Five bounded full-audit lanes | C-01..C-14 complete; R80/C12-D1/R81 retained; R54 deferred |
+| 81 | Independent deterministic verification | R80 and C12-D1 verified; R81 policy dependency confirmed |
+| 82 | Adversarial, materiality, duplication, and schema pass | Two implement children created and verified; no untriaged HARD beyond candidates |
+
+### R80 implementation evidence
+
+Child #266 is implemented. All three production hosts now obtain `SessionBootstrapViewModel`
+through lifecycle-aware `viewModel {}` construction. Bootstrap keeps `/api/me` data local until
+the capabilities request succeeds, so a capabilities failure, cancellation, or host replacement
+cannot leave a partial user in global `SessionState`. The focused test covers cancellation before
+the global write and both capabilities 401/500 paths assert no partial user state.
+
+- Gate ledger `docs/gates/266-session-bootstrap-lifecycle.md`: 3/3 PASS, including Android and
+  Desktop compilation plus Compose tests.
+- Required negative control: G1-G3 failed before implementation; G1/G2 because all hosts used
+  `remember`, G3 because the original gate command named nonexistent `:composeApp:jvmTest`.
+- Review pass 1: P1 found missing cancellation coverage, missing Android gate, and an overbroad
+  audit claim; P4 found partial `SessionState` commit between bootstrap legs. All HARD findings
+  were fixed. P2 was clean. P3 confirmed the partial-state failure before the fix.
+- Targeted review pass 2: P1/P3/P4 report zero HARD findings and no ESCALATE after atomic commit,
+  cancellation test, and Android gate correction. P5 skipped: no new seam or abstraction.
+- Full backend detekt/ktlint/test, shared JVM compile, Android/Desktop Compose compile, Compose
+  tests, gate checker, and `git diff --check`: PASS.
+- No ADR needed; existing lifecycle-aware ViewModel, structured cancellation, and SessionState
+  ownership decisions remain authoritative.

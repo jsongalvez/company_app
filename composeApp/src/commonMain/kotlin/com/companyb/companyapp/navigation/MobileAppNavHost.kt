@@ -142,7 +142,7 @@ internal fun MobileAppNavHost(
                     composable<Route.Login> {
                         LoginScreen(
                             authViewModel = remember { AuthViewModel(apiClient) },
-                            bootstrapViewModel = remember { SessionBootstrapViewModel(apiClient) },
+                            bootstrapViewModel = viewModel { SessionBootstrapViewModel(apiClient) },
                             tokenStore = tokenStore,
                             onLoginSuccess = {
                                 // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
