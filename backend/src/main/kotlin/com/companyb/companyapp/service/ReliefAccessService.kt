@@ -27,12 +27,12 @@ object ReliefAccessService {
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
 
-        if (request.requestStatus == ReliefStatus.GRANTED) {
-            return request
-        }
-
         if (callerId != request.targetUser) {
             throw ForbiddenException("Only the target user can grant this request")
+        }
+
+        if (request.requestStatus == ReliefStatus.GRANTED) {
+            return request
         }
 
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
@@ -91,12 +91,12 @@ object ReliefAccessService {
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
 
-        if (request.requestStatus == ReliefStatus.DENIED) {
-            return request
-        }
-
         if (callerId != request.targetUser) {
             throw ForbiddenException("Only the target user can deny this request")
+        }
+
+        if (request.requestStatus == ReliefStatus.DENIED) {
+            return request
         }
 
         if (request.requestStatus == ReliefStatus.GRANTED) {

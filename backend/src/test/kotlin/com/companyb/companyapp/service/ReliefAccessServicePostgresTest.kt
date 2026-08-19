@@ -171,6 +171,20 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `grant on already granted request rejects non-target user`() {
+        val otherUser = UUID.randomUUID()
+        DatabaseTestHelper.insertTestUser(otherUser, "other-grant-terminal")
+        trackOwned(AppUserTable, AppUserTable.id, otherUser)
+        val requestId = UUID.randomUUID()
+        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        ReliefAccessService.grantAccess(requestId, targetUserId)
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.grantAccess(requestId, otherUser)
+        }
+    }
+
+    @Test
     fun `grant on non-existent request fails with 404`() {
         assertFailsWith<NotFoundException> {
             ReliefAccessService.grantAccess(UUID.randomUUID(), targetUserId)
@@ -241,6 +255,20 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, otherUser)
         val requestId = UUID.randomUUID()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.denyAccess(requestId, otherUser)
+        }
+    }
+
+    @Test
+    fun `deny on already denied request rejects non-target user`() {
+        val otherUser = UUID.randomUUID()
+        DatabaseTestHelper.insertTestUser(otherUser, "other-deny-terminal")
+        trackOwned(AppUserTable, AppUserTable.id, otherUser)
+        val requestId = UUID.randomUUID()
+        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        ReliefAccessService.denyAccess(requestId, targetUserId)
 
         assertFailsWith<ForbiddenException> {
             ReliefAccessService.denyAccess(requestId, otherUser)

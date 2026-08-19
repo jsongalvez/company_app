@@ -1705,3 +1705,98 @@ runtime behavior remained unchanged during audit.
 | 73 | Independent deterministic verification | JVM/DB timestamp mismatch and Undo boundary path confirmed; k6 suspicion falsified |
 | 74 | Structured Luna verifier packet | R51 L1-L5 packet complete; one two-sighted non-blocking SOFT logged |
 | 75 | Adversarial, materiality, and priority pass | R51 sole implement candidate; no overlapping child |
+
+## Permanent-Map Refresh - Session 292
+
+After implementation child #234, the frontier was empty. Four fresh bounded
+read-only lanes rechecked C-01..C-14, with targeted attention to backend
+authorization, Compose lifecycle, shared/schema ownership, and test/tooling gates.
+Product source, tests, migrations, and runtime behavior remained unchanged during
+audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R52 - authorize terminal relief actions before idempotent returns | `ReliefAccessService.kt:30-36` returns already-GRANTED before target check; `:94-100` returns already-DENIED before target check; routes expose full response fields | Fresh non-target terminal-state tests would currently return success; no route-level masking removes the disclosure | implement, P0 |
+| R53 - preserve selected k6 database through cleanup | `.githooks/pre-push:100-101` defaults/export k6 DB; cleanup scripts derive `${POSTGRES_DB}_test` when `TEST_DB_NAME` is absent | Deterministic shell evaluation yields `company_app_test_test` from k6's `company_app_test`; explicit `TEST_DB_NAME` remains correct | implement, P1 |
+| R24 - remove nested AttendanceViewModel ownership | `BranchSelectViewModel.kt:37-47` and `DrawerContent.kt:81-82` create separate instances | Parent route ownership remains `remember`-based; narrow extraction cannot establish lifecycle owner | defer, retained fog |
+| R54 - make remittance_line.created_by non-null in schema | migration permits NULL while Exposed/domain/DTO model non-null | Current insert path always supplies value; no invalid rows or import path established; migration is independent hardening | defer, P2 |
+| R15 - notification inserted-count truth | repository already returns batch executor count | No new deployment/overlap evidence; prior implementation resolved current count defect | retain fog |
+
+### R52 - terminal relief authorization
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/ReliefAccessService.kt:26-36`
+  and `:90-100` perform terminal returns before `callerId != request.targetUser`.
+- **Invalid state:** request UUID knowledge lets an unrelated authenticated caller
+  receive another user's relief request fields through grant/deny actions.
+- **Simpler representation:** perform target authorization immediately after lookup,
+  then retain terminal idempotency for authorized callers.
+- **Scope:** one service method ordering change plus two terminal-state auth tests;
+  no repository, schema, or HTTP contract change.
+- **Risks/validation:** preserve authorized retries and existing GRANTED/DENIED
+  transition responses; run focused service tests and full backend quality gates.
+- **Deletion test:** no new authorization abstraction; moving one existing check
+  removes the disclosure path.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position
+  `BETA`; L1 fact integrity `pass`; L2 domain coherence `pass`; L3 long-term
+  architecture `pass, service owns caller authorization`; L4 adversarial
+  falsification `pass, terminal GRANTED and DENIED disclosure reproduced`; L5
+  comprehension `pass`; deterministic gate `pass, current source and route
+  response fields agree`; HARD findings `zero after ordering fix`; SOFT findings
+  `zero`; confidence `high`; artifact `Session 292 R52 dossier in this report`.
+
+### R53 - k6 database identity through cleanup
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `.githooks/pre-push:100-101,118-124` selects k6 DB and invokes cleanup;
+  `scripts/clean-test-db.sh:14` and `scripts/check-test-cleanliness.sh:13` derive a
+  second suffix when `TEST_DB_NAME` is absent.
+- **Invalid state:** cleanup and cleanliness checks can inspect a different database
+  than k6, leaving test data behind or failing against a nonexistent database.
+- **Simpler representation:** preserve the selected test DB explicitly through the
+  existing `TEST_DB_NAME`/`POSTGRES_DB` environment contract; add shell fixtures for
+  both unset and explicit cases.
+- **Scope:** hook/scripts and deterministic shell tests; no application code.
+- **Risks/validation:** never target production DB; fail closed on unavailable DB;
+  run shell fixtures and pre-push docs/gate classification checks.
+- **Deletion test:** one selected DB name flows through existing scripts; no new
+  database abstraction is needed.
+- **Verifier packet:** mode `structured`; model `GPT-5.6 Luna`; blind position
+  `ALPHA`; L1 fact integrity `pass`; L2 domain coherence `pass`; L3 long-term
+  architecture `pass, preserves existing test DB contract`; L4 adversarial
+  falsification `pass, unset TEST_DB_NAME computes company_app_test_test`; L5
+  comprehension `pass`; deterministic gate `pass, shell expansion reproduced`; HARD
+  findings `zero after explicit propagation`; SOFT findings `one accepted, fixture
+  coverage must include omitted variable, confirmed by L1 and L4`; confidence
+  `high`; artifact `Session 292 R53 dossier in this report`.
+
+### Deferred and retained leads
+
+- R24 remains blocked by unresolved parent route lifecycle ownership; no safe narrow
+  child exists.
+- R54 remains deferred until invalid-row/import evidence or a schema hardening slice
+  makes migration scope concrete.
+- R15 remains fog pending deployment topology or overlapping scheduler invocation
+  requirements.
+
+### Audit-of-audit
+
+- **Coverage:** C-01..C-14 rechecked across four non-overlapping lanes; no omission.
+- **Duplication:** R52 is authorization ordering, distinct from closed relief
+  transition race #212. R53 is environment identity, distinct from closed cleanup
+  fail-closed #203 and docs-only gate #225.
+- **Materiality:** R52 is a direct data-disclosure defect; R53 can violate disposable
+  test DB cleanliness. R24/R54/R15 remain deferred or fog with explicit blockers.
+- **Priority:** create native children for R52 and R53, verify both links, then claim
+  and resolve only the first frontier child this session.
+
+### Child traceability
+
+- R52 command: `scripts/wayfinder-create-child.sh 180 task "Build: authorize terminal relief actions" docs/agents/wayfinder-292-relief-auth-ticket.md`
+- R52 returned `https://github.com/jsongalvez/company_app/issues/235`; verification:
+  `scripts/wayfinder-verify-child.sh 180 235` -> `Verified child #235: parent #180, label wayfinder:task`.
+- R53 command: `scripts/wayfinder-create-child.sh 180 task "Build: preserve k6 test database through cleanup" docs/agents/wayfinder-292-k6-db-ticket.md`
+- R53 returned `https://github.com/jsongalvez/company_app/issues/236`; verification:
+  `scripts/wayfinder-verify-child.sh 180 236` -> `Verified child #236: parent #180, label wayfinder:task`.
