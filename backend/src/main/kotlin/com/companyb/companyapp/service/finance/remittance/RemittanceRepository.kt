@@ -256,22 +256,33 @@ internal object RemittanceRepository {
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
+                if (existing.branchId != params.branchId) {
+                    throw ConflictException("Remittance UUID belongs to another branch")
+                }
                 return@transaction RemittanceCreateResult(existing, created = false)
             }
 
-            RemittanceTable.insertIgnore {
-                it[RemittanceTable.id] = params.id
-                it[RemittanceTable.type] = params.type
-                it[RemittanceTable.branchId] = params.branchId
-                it[RemittanceTable.method] = params.method
-                it[RemittanceTable.dateRangeStart] = params.dateRangeStart
-                it[RemittanceTable.dateRangeEnd] = params.dateRangeEnd
-                it[RemittanceTable.submittedDate] = params.submittedDate
-                it[RemittanceTable.submittedBy] = params.submittedBy
-            }
+            val inserted =
+                RemittanceTable
+                    .insertIgnore {
+                        it[RemittanceTable.id] = params.id
+                        it[RemittanceTable.type] = params.type
+                        it[RemittanceTable.branchId] = params.branchId
+                        it[RemittanceTable.method] = params.method
+                        it[RemittanceTable.dateRangeStart] = params.dateRangeStart
+                        it[RemittanceTable.dateRangeEnd] = params.dateRangeEnd
+                        it[RemittanceTable.submittedDate] = params.submittedDate
+                        it[RemittanceTable.submittedBy] = params.submittedBy
+                    }.insertedCount > 0
 
             val created =
                 findByIdInTransaction(params.id) ?: error("remittance not found after insert for ${params.id}")
+            if (created.branchId != params.branchId) {
+                throw ConflictException("Remittance UUID belongs to another branch")
+            }
+            if (!inserted) {
+                return@transaction RemittanceCreateResult(created, created = false)
+            }
 
             auditFn(created)
             RemittanceCreateResult(created, created = true)
