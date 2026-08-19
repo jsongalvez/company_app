@@ -280,7 +280,13 @@ Called at the top of every mutating service method — not in routes, not in rep
 
 ### 9.3 Capability Codes
 
-All capability codes are inserted as seed data in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`. They are constants — not dynamic. The application references them by their string code, defined in `shared/domain/`.
+Capability codes are fixed contract values, not runtime-created values. V2 seeds the initial
+capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`.
+Later feature migrations may add codes: V5 adds
+`RECEIVE_NEXT_APPOINTMENT_ALERTS`, and V21 derives its active branch grants for Coordinators
+with active branch assignments. The application references codes through
+`shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt`; migration SQL
+keeps its database-owned string literals.
 
 | Code | Scope | Who holds it |
 |------|-------|--------------|
@@ -293,8 +299,13 @@ All capability codes are inserted as seed data in `backend/src/main/resources/db
 | `MANAGE_PRODUCTS` | BRANCH | Owner (home branch only), Coordinator (assigned branches) |
 | `ASSIGN_DELEGATE` | GLOBAL | Owner, Manager |
 | `EDIT_PAST_DAY` | BRANCH | Coordinator only (PAST/REMITTED days) |
+| `RECEIVE_NEXT_APPOINTMENT_ALERTS` | BRANCH | Coordinator with an active assignment to the branch |
 
 **Rule:** Owner does NOT hold `EDIT_PAST_DAY`. The branch state machine enforces Coordinator-only editing on PAST/REMITTED days.
+
+`RECEIVE_NEXT_APPOINTMENT_ALERTS` is inserted and initially role-linked by V5, not V2. V21
+derives its branch-scoped capability from active Coordinator roles and active branch assignments;
+it is not a GLOBAL role-derived capability because role membership alone cannot identify a branch.
 
 ### 9.4 context_type Enum Usage
 
