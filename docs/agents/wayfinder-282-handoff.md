@@ -17,6 +17,8 @@
 ## Next-session instructions
 
 1. Load this handoff, Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, and every applicable Context Pointer.
-2. Inspect `.githooks/pre-push` before other work.
-3. Query Map #180 children and open `wayfinder:task` issues. Do not claim work unless a new open, unblocked, unassigned child exists.
-4. Keep R15 in `Not yet specified` until deployment topology or overlapping scheduler invocation requirements become concrete.
+2. Treat Map #180 as workflow authority; this handoff is state evidence only.
+3. Inspect `.githooks/pre-push` before other work, then query native child state.
+4. Claim and resolve exactly one open, unblocked, unassigned child when frontier exists.
+5. When frontier is empty, run Map #180's focused/full audit cadence. Graduate one fully verified candidate into one child ticket, or record clean-audit evidence and stop.
+6. Keep R15 in `Not yet specified` until deployment topology or overlapping scheduler invocation requirements become concrete. If it becomes sharp, ticket it; if human input is required, use tracker deferral labels, never a question tool.

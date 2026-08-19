@@ -3,8 +3,8 @@
 #
 # Watches docs/agents/ for new wayfinder-*-handoff.md files (the chain's
 # completion signal), spawns a fresh 0-context opencode2 session that reads
-# the newest handoff and drives the next session per its instructions, and
-# notifies the human when the agent parks on a question or the chain breaks.
+# the newest handoff and drives the next session from the canonical map, and
+# notifies the human when the agent parks on a human decision or the chain breaks.
 #
 # Usage:
 #   wayfinder-loop.sh --bootstrap <doc>   first start: seed with <doc>, spawn immediately
@@ -282,15 +282,16 @@ spawn_session() {
   session_id="$sid"
   save_state
   local prompt
-  prompt="Fresh context. Read docs/agents/$doc and follow its map and next-session instructions. Load /wayfinder and every applicable Context Pointer before Map #180 work.
+  prompt="Fresh context. Read docs/agents/$doc, then treat Map #180 as workflow authority; handoff is state evidence only. Load /wayfinder and every applicable Context Pointer before Map #180 work.
 
 Rules:
 1. Work autonomously; choose implementation and architecture when requirements are clear.
 2. Never use question. Record unresolved business, scope, safety, authorization, or preference as a labeled tracker issue; continue safe independent work and stop only when no safe continuation exists.
-3. Use workspace-relative paths for read, grep, glob, and patch. Claim and complete one active ticket.
-4. Diagnose and retry local failures; test DB is disposable, production data is not. Verify, resolve tracker work, commit, and push. Defer only evidenced external failures.
-5. Create or update ADR only for durable architecture decisions.
-6. Finish all work before writing docs/agents/wayfinder-<N>-handoff.md. Write handoff last, then stop."
+3. Use workspace-relative paths for read, grep, glob, and patch. Claim and complete one active ticket when frontier exists.
+4. If frontier is empty, run Map #180's focused/full audit before stopping. Graduate exactly one fully verified candidate into one child ticket, or record clean-audit evidence.
+5. Diagnose and retry local failures; test DB is disposable, production data is not. Verify, resolve tracker work, commit, and push. Defer only evidenced external failures.
+6. Create or update ADR only for durable architecture decisions.
+7. Finish all work before writing docs/agents/wayfinder-<N>-handoff.md. Write handoff last, then stop."
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
@@ -401,7 +402,7 @@ supervise_session() {
     # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
-      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Continue exactly where you left off. Do not stop until you write the next handoff or ask via the question tool and wait."}')" >/dev/null 2>&1; then
+      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Continue from Map #180 workflow authority. If frontier exists, claim and resolve one child. If frontier is empty, run the required focused/full audit and graduate one verified candidate or record clean-audit evidence. Then write the handoff last."}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
         notify "wayfinder continuing" "session $session_id stopped without handoff — continuation sent"

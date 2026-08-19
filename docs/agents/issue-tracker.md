@@ -44,6 +44,27 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 - **Claim**: `gh issue edit <n> --add-assignee @me` — the session's first write.
 - **Resolve**: `gh issue comment <n> --body "<answer>"`, then `gh issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
 
+### Session lifecycle
+
+Map body is workflow authority. Handoffs record evidence and state; they do not
+replace map policy or prescribe a stop after an empty frontier.
+
+1. Load map and handoff, then query native child state.
+2. If an open, unblocked, unassigned child exists, claim exactly one before work
+   and resolve it through verification, tracker resolution, and map update.
+3. If frontier is empty, run the map's required focused or full audit. Do not
+   create a checkpoint-only session.
+4. Advance each retained candidate through evidence, exploration, falsification,
+   verification, and disposition. Create and wire exactly one child for the next
+   implementation slice, then stop without resolving that new child.
+5. If audit finds no defensible candidate, record the clean-audit evidence and
+   stop. If human input is required, create `needs-info` or `ready-for-human`
+   issue with facts, decision, blocker, and smallest safe next action.
+
+The candidate lifecycle is:
+
+`identified -> evidenced -> explored -> falsified -> verified -> dispositioned -> ticketed -> implemented -> re-audited`
+
 ### Human decision deferral
 
 The agent never asks the user a question or invokes the question tool. If a decision
