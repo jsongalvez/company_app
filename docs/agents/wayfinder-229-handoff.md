@@ -21,6 +21,9 @@
 - `git diff --check`: PASS.
 - Final P1-P4 review: zero HARD findings and no ESCALATE. Accepted SOFT: direct runs rely on
   documented disposable-DB cleanup and dev-seeded fixture branch.
+- Commit `56b212b` is local. Two push attempts were blocked only by pre-push baseline
+  `dashboard_latency` threshold failures (p95 253ms, then 306ms vs 200ms); cleanliness,
+  OpenAPI, Compose compilation, backend build, and app teardown passed both attempts.
 
 ## Next session
 
