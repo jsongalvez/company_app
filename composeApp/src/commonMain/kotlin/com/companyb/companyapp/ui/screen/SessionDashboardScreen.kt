@@ -75,6 +75,15 @@ internal expect fun SessionList(
  * cover). The #95 platform-split precedent.
  */
 @Composable
+internal fun MobileDashboardEmptyState(
+    selectedBranchName: String?,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
+) {
+    EmptyStateContent(selectedBranchName, modifier)
+}
+
+@Composable
 internal expect fun DashboardEmptyState(
     selectedBranchName: String?,
     onRefresh: () -> Unit,

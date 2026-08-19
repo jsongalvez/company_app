@@ -989,6 +989,37 @@ private fun FinanceDayCard(
  * [FinanceDayDetailContent].
  */
 @Composable
+internal fun MobileFinanceDayDetail(
+    day: DailySalesSummaryResponse,
+    today: LocalDate,
+    expanded: Boolean,
+    onClose: () -> Unit,
+    onExportDay: (String) -> Unit,
+    downloadStates: Map<String, UiState<FinanceReportsViewModel.DownloadPayload>>,
+    exportErrors: Map<String, String>,
+) {
+    if (expanded) {
+        AlertDialog(
+            onDismissRequest = onClose,
+            title = { Text(day.date) },
+            text = {
+                FinanceDayDetailContent(
+                    day = day,
+                    today = today,
+                    onExportDay = onExportDay,
+                    downloadStates = downloadStates,
+                    exportErrors = exportErrors,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onClose) { Text("Close") }
+            },
+            modifier = Modifier,
+        )
+    }
+}
+
+@Composable
 internal expect fun FinanceDayDetail(
     day: DailySalesSummaryResponse,
     today: LocalDate,

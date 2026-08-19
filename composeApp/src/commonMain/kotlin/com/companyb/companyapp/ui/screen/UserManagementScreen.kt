@@ -329,6 +329,46 @@ fun UserManagementScreen(
  * screen builds the edit target straight from it — no id lookup, no silent no-op).
  */
 @Composable
+fun MobileUserSlotOrderList(
+    branchName: String,
+    rows: List<UserSlotRow>,
+    mutationsDisabled: Boolean,
+    onSwap: (userIdA: String, userIdB: String) -> Unit,
+    onEditSlot: (row: UserSlotRow) -> Unit,
+    errors: List<String>,
+) {
+    UserSlotOrderCard(branchName = branchName, isEmpty = rows.isEmpty(), errors = errors) {
+        rows.forEach { row ->
+            val tappable = !row.isDeactivated && !mutationsDisabled
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = tappable) { onEditSlot(row) }
+                        .alpha(if (row.isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
+                        .padding(vertical = Spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                Text(
+                    "#${row.slot}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(row.displayName, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                if (tappable) {
+                    Text(
+                        "Edit",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 expect fun UserSlotOrderList(
     branchName: String,
     rows: List<UserSlotRow>,

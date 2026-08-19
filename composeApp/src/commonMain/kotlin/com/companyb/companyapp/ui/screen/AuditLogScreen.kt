@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -1046,6 +1048,40 @@ internal data class AuditLogEntryListArgs(
 // the shared [AuditLogEntryRow]. The modifier lets the All-activity tab weight the list so the
 // pinned Load-more affordances below it stay visible (D5; pass-7 HARD — the pre-fix
 // fillMaxSize consumed the weighted column's full height and clipped the button).
+@Composable
+internal fun MobileAuditLogEntryList(
+    args: AuditLogEntryListArgs,
+    modifier: Modifier = Modifier.fillMaxSize(),
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        items(args.entries, key = { it.id }) { entry ->
+            Surface(
+                shape = RoundedCornerShape(CornerRadius.md),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                AuditLogEntryRow(
+                    entry = entry,
+                    tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
+                    expanded = entry.id in args.expandedIds,
+                    onToggleExpanded = { args.onToggleExpanded(entry.id) },
+                    currentUserId = args.currentUserId,
+                    onAcknowledge = { args.onAcknowledge(entry) },
+                    acknowledging = entry.id in args.acknowledgingIds,
+                    ackError = args.ackErrors[entry.id],
+                    onFullHistory = { args.onFullHistory(entry) },
+                    showAcknowledge = args.showAcknowledge,
+                    showFullHistory = args.showFullHistory,
+                    modifier = Modifier.padding(horizontal = Spacing.sm),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 internal expect fun AuditLogEntryList(
     args: AuditLogEntryListArgs,
