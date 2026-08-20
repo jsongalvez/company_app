@@ -3895,3 +3895,19 @@ and the Compose ownership changes still require a broader lifecycle decision.
   implementation verification, not a schema decision.
 - Clean-audit result: not clean; three native children were required, two were created and verified,
   and one was attempted but blocked by GitHub's 100-child limit.
+
+## Session 359 implementation - R103 / child #302
+
+- Claimed only native frontier child #302 after verifying its parent link and unassigned state.
+- `RemittanceLineRepository` now compares immutable request ownership on both the initial UUID
+  lookup and the insert-race fallback. `RemittanceService` performs repository ownership lookup
+  before source validation so altered same-parent requests classify as deterministic conflicts.
+- Added regressions for altered type, amount, source, creator, same-request retry, and concurrent
+  same UUID. Gate `docs/gates/302-remittance-line-ownership.md` is 3/3 PASS.
+- Review profile: standard, P1-P4. Final pass: zero HARD findings. Accepted SOFT: one P2 note
+  about the service pre-read repeating repository lookup; retained because ownership must be
+  classified before source validation and the repository rechecks inside the write transaction.
+- Focused remittance tests, backend ktlint, detekt, and diff checks passed. Full backend tests
+  reproduced 185 unrelated authorization/fixture failures; test DB was cleaned afterward.
+- Pre-push passed OpenAPI, Compose Android, backend build, health, k6 baseline with 0% errors,
+  and cleanup. Commit `871d8d3` pushed; child #302 closed and Map Decisions-so-far updated.
