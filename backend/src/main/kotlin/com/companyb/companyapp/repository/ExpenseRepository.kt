@@ -147,7 +147,8 @@ object ExpenseRepository {
             val updatedCount =
                 ExpenseTable.update({
                     (ExpenseTable.id eq expenseId) and
-                        (ExpenseTable.version eq expectedVersion)
+                        (ExpenseTable.version eq expectedVersion) and
+                        ExpenseTable.deletedAt.isNull()
                 }) {
                     it[ExpenseTable.amount] = amount
                     it[ExpenseTable.category] = category

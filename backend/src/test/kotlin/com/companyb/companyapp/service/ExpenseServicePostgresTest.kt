@@ -8,6 +8,8 @@ import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -420,6 +422,42 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 expectedVersion = 1,
             )
         }
+    }
+
+    @Test
+    fun `update after soft delete race is rejected`() {
+        val expenseId = TestFixtures.uuid()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = "Original",
+            )
+
+        ExpenseService.softDelete(
+            callerId = callerId,
+            expenseId = expenseId,
+            reason = "Incorrect entry",
+        )
+
+        assertFailsWith<VersionMismatchException> {
+            ExpenseRepository.update(
+                expenseId = expenseId,
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.WATER,
+                notes = "Stale update",
+                expectedVersion = created.version,
+            )
+        }
+
+        val after = ExpenseRepository.findById(expenseId)
+        assertNotNull(after)
+        assertEquals(created.version, after.version)
+        assertEquals("Incorrect entry", after.deletedReason)
+        assertEquals(BigDecimal("500.00"), after.amount)
     }
 
     @Test
