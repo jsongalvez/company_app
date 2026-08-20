@@ -35,4 +35,33 @@ PATH="$TMP:$PATH" bash "$TMP/wayfinder-ci.sh" validate-pr 312 https://example.in
 PATH="$TMP:$PATH" bash "$TMP/wayfinder-ci.sh" validate-ci https://example.invalid/pr/1
 printf 'pending\n' > "$TMP/gh"
 if PATH="$TMP:$PATH" bash "$TMP/wayfinder-ci.sh" validate-ci https://example.invalid/pr/1; then exit 1; fi
+
+# No required checks configured: gate falls back to all reported checks.
+cat > "$TMP/gh" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1 $2" = 'pr view' ]; then
+  printf '%s\n' '{"url":"https://example.invalid/pr/1","baseRefName":"master","headRefName":"ralph/wayfinder-312"}'
+elif [ "$*" = 'pr checks --required' ]; then
+  printf 'no required checks reported on the %s branch\n' "'ralph/wayfinder-312'"
+  exit 1
+else
+  printf 'quality pass\njmh pass\n'
+fi
+EOF
+PATH="$TMP:$PATH" bash "$TMP/wayfinder-ci.sh" validate-ci https://example.invalid/pr/1
+
+cat > "$TMP/gh" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1 $2" = 'pr view' ]; then
+  printf '%s\n' '{"url":"https://example.invalid/pr/1","baseRefName":"master","headRefName":"ralph/wayfinder-312"}'
+elif [ "$*" = 'pr checks --required' ]; then
+  printf 'no required checks reported on the %s branch\n' "'ralph/wayfinder-312'"
+  exit 1
+else
+  printf 'quality pass\nk6-baseline fail\n'
+  exit 1
+fi
+EOF
+if PATH="$TMP:$PATH" bash "$TMP/wayfinder-ci.sh" validate-ci https://example.invalid/pr/1; then exit 1; fi
+
 printf 'wayfinder AFK checks: PASS\n'

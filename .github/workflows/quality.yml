@@ -86,7 +86,7 @@ jobs:
           :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
           :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
           :composeApp:detektIosSimulatorArm64Main
-          :shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec
+          :shared:compileKotlinJvm :shared:jvmTest
           -PwarningsAsErrors=true --no-daemon
 
       - name: Verify test database cleanliness

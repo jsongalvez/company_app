@@ -29,16 +29,33 @@ pr_metadata() {
     die "PR does not target master from '$current'"
   printf '%s\n' "$pr"
 }
+effective_checks() {
+  local pr="$1" output
+  if output="$(gh pr checks "$pr" --required 2>&1)"; then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  # Branch protection can be unavailable (e.g. private repo on free plan), leaving zero
+  # required checks. Fall back to every reported check so the gate stays fail-closed.
+  if printf '%s\n' "$output" | grep -qi 'no required checks'; then
+    if output="$(gh pr checks "$pr" 2>&1)"; then
+      printf '%s\n' "$output"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$output"
+  return 1
+}
 ci_green() {
   local pr="$1" output
-  output="$(gh pr checks "$pr" --required 2>&1)" || die "CI checks failed or are pending for $pr: $output"
-  printf '%s\n' "$output" | grep -Eiq '(^|[[:space:]])(pass|passed|success|successful)([[:space:]]|$)' || die "no passing required CI evidence for $pr"
+  output="$(effective_checks "$pr")" || die "CI checks failed or are pending for $pr: $output"
+  printf '%s\n' "$output" | grep -Eiq '(^|[[:space:]])(pass|passed|success|successful)([[:space:]]|$)' || die "no passing CI evidence for $pr"
 }
 wait_ci() {
   local pr="$1" timeout="${2:-1800}" output
   local deadline=$((SECONDS + timeout))
   while [ "$SECONDS" -lt "$deadline" ]; do
-    if output="$(gh pr checks "$pr" --required 2>&1)" &&
+    if output="$(effective_checks "$pr")" &&
       printf '%s\n' "$output" | grep -Eiq '(^|[[:space:]])(pass|passed|success|successful)([[:space:]]|$)'; then
       return 0
     fi
