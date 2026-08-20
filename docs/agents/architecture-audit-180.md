@@ -4016,3 +4016,51 @@ link is unavailable because GitHub rejects additional children after Map #180 re
   open native child and is policy-owned; #304 remains fallback-only under the 100-child limit.
 - **Exit condition:** no safe claimable native frontier exists; implementation is blocked solely by
   external tracker capacity.
+
+## Focused Audit - Session 363
+
+Map #180 remains workflow authority. A fresh native-child query found 99 closed implementation
+children, open policy child #267 (`needs-info`, not implementation), and no open, unblocked,
+unassigned native implementation child. Fallback issue #304 remains open and unassigned; GitHub
+still rejects its native parent link because Map #180 has reached the 100-child limit.
+
+### Retained candidate
+
+#### R104 - Session-concern DELETE authorization
+
+- **Evidence:** current `SessionRoutes.kt:246-253` filters `ApiRoutes.SESSION_CONCERNS_PATH`,
+  while `:290` registers DELETE on `ApiRoutes.SESSION_CONCERN_PATH`; the latter adds `concernId`
+  and therefore does not match the existing before-filter. Current `SessionConcernService.kt:65-85`
+  checks Branch Day editability but adds no independent `EDIT_BRANCH_DATA` check for an OPEN day.
+- **Reproduction:** an authenticated caller without `EDIT_BRANCH_DATA` can reach session-concern
+  DELETE on an OPEN Branch Day. Existing GET/POST and promote filters remain correctly scoped.
+- **Disposition:** `implement`, represented by fallback issue #304. No duplicate child creation or
+  unlinked claim is safe while native Map capacity is exhausted.
+- **Operational impact:** unauthorized concern removal remains reachable until the exact child route
+  filter is added; authorized branch and Branch Day users retain existing behavior after fix.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=ALPHA;`
+  `L1 fact integrity=pass (current route, constant, filter, service, and test search);`
+  `L2 domain coherence=pass (EDIT_BRANCH_DATA and Branch Day semantics preserved);`
+  `L3 long-term architecture=pass (reuse existing child-route capability filter);`
+  `L4 adversarial falsification=pass (OPEN-day unauthorized path and authorized sibling paths checked);`
+  `L5 comprehension=pass; deterministic gate=pass (exact path mismatch reproduced);`
+  `HARD findings=zero; SOFT findings=zero; confidence=high;`
+  `artifact=this section, Session 362 R104 dossier, and issue #304.`
+
+### Deferred and rejected leads
+
+- **R15 notification count:** remains fog; no deployment-topology or overlapping-scheduler evidence.
+- **R23/R24 Compose lifecycle:** remains fog; no safe autonomous ownership decision is evidenced.
+- **#267 JMH pull-request policy:** remains `needs-info`; no policy decision is available.
+- **C-01..C-14:** focused source, schema, route, test, tooling, and tracker review found no other
+  material candidate after duplication and materiality checks.
+
+### Audit-of-audit
+
+- **Coverage:** all C-01..C-14 boundaries and live native child state rechecked.
+- **Duplication:** R104 remains distinct from closed concern GET/POST gates and prior route fixes.
+- **Materiality:** R104 remains P0 authorization; all other leads are fog, policy-blocked, or resolved.
+- **Deterministic tracker evidence:** native implementation frontier is empty; #267 is policy-owned;
+  #304 is fallback-only under the 100-child limit.
+- **Exit condition:** no safe claimable frontier exists; implementation is blocked solely by external
+  tracker capacity.
