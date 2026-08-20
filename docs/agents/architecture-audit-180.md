@@ -3139,6 +3139,21 @@ artifact: Session 325 shared/tooling lane and docs/agents/wayfinder-325-route-ti
 - R85 command: `bash scripts/wayfinder-create-child.sh 180 task "Build: finish shared session final-price route ownership" docs/agents/wayfinder-325-route-ticket.md`
 - R85 returned `https://github.com/jsongalvez/company_app/issues/273`; verification: `bash scripts/wayfinder-verify-child.sh 180 273` -> `Verified child #273: parent #180, label wayfinder:task`.
 
+### R82 implementation evidence
+
+Child #270 is resolved in pushed commit `ae367c4`. Mobile and Desktop Login hosts now
+construct `AuthViewModel` through lifecycle-aware `viewModel { }`; `viewModelScope`
+cancellation therefore follows Login route disposal. No auth logic or route behavior changed.
+
+- `docs/gates/270-auth-vm-lifecycle.md`: 3/3 PASS.
+- Focused AuthViewModel Desktop tests, Desktop and Android compilation, pre-commit, and
+  pre-push gates passed. Pre-push included OpenAPI, startup health, k6 baseline with 0%
+  errors, and disposable test-database cleanup.
+- P1-P4 review exit: zero HARD findings and no ESCALATE. Accepted SOFTs were non-load-bearing:
+  dedicated Auth cancellation coverage is not present because cancellation is owned by
+  `viewModelScope` and existing lifecycle tests cover that mechanism; rapid duplicate login
+  remains pre-existing and outside this delta.
+
 ### C12-D1 implementation evidence
 
 Child #265 is implemented in commit `1738eaf`. The k6 baseline documentation now matches
