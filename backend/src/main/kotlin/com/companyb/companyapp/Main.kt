@@ -102,8 +102,19 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         DeltaTimeConverter.endRequest()
         MDC.clear()
     }
-    config.events.serverStartFailed { shutdownScheduler() }
-    config.events.serverStopping { shutdownScheduler() }
+    config.events.serverStartFailed {
+        shutdownScheduler()
+        DatabaseConfig.close()
+    }
+    config.events.serverStopping {
+        shutdownScheduler()
+    }
+    config.events.serverStopped {
+        DatabaseConfig.close()
+    }
+    config.events.serverStopFailed {
+        DatabaseConfig.close()
+    }
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
         val userId = JwtService.verifyToken(token) ?: throw UnauthorizedResponse()
@@ -189,12 +200,14 @@ fun main(config: AppConfig) {
     Password.init(config.authDummyPassword)
 
     DatabaseConfig.initialize(config)
-    initializeDenyList()
-    initializeScheduler()
-    runCatching { initializeJavalin(config) }
-        .onFailure {
-            shutdownScheduler()
-        }.getOrThrow()
+    runCatching {
+        initializeDenyList()
+        initializeScheduler()
+        initializeJavalin(config)
+    }.onFailure {
+        shutdownScheduler()
+        DatabaseConfig.close()
+    }.getOrThrow()
 
     val elapsed = RequestElapsedConverter.currentElapsedMs()
     logger.info { "[INITIALIZATION] Completed in $elapsed ms." }
