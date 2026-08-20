@@ -81,6 +81,7 @@ candidate: <stable ID>
 mode: continuous | structured
 model: GPT-5.6 Luna
 position: <blind position or label>
+operational impact: <affected actors, workflow change, failure recovery, compatibility/rollout risk, validation>
 L1 fact integrity: <pass/findings>
 L2 domain coherence: <pass/findings>
 L3 long-term architecture: <pass/findings>
@@ -92,6 +93,13 @@ SOFT findings: <zero or two-sighted accepted findings with reason>
 confidence: high | reduced
 artifact: <ledger section, issue, or session pointer>
 ```
+
+Operational impact is supplemental evidence, not a sixth verifier lens or a
+replacement for L1-L5. Trace the affected actor and workflow for every retained
+candidate. Include discoverability, failure recovery, duplicate-work/conflict
+effects, compatibility, rollout, observability, and support burden as relevant.
+For pure internal tooling or schema candidates, record `not applicable` with a
+reason. UX is one operational-impact case, not the governing category.
 
 `feasibility` may be recorded as an additional criterion, but it does not replace L5 comprehension. A candidate cannot reach `verified` or be ticketed while any packet field is missing, deterministic evidence fails, or an untriaged HARD finding remains.
 

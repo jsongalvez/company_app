@@ -59,7 +59,7 @@ Each candidate lifecycle is:
 
 Every transition records its artifact and completion evidence in the audit ledger. `ticketed` is allowed only after all in-scope candidates are `dispositioned`. AFK flow selects implementation order autonomously; human input is reserved for business ambiguity, safety, external authorization, irreversible scope, or a full audit with no justifiable candidate.
 
-Verifier packet must record mode, model, blind position, L1 fact integrity, L2 domain coherence, L3 long-term architecture, L4 adversarial falsification, L5 comprehension, deterministic-gate result, HARD/SOFT triage, confidence, and artifact pointer. Feasibility is additional evidence, never a replacement for L5. A candidate cannot reach `verified` or `ticketed` with a missing packet field, failed deterministic evidence, or untriaged HARD finding.
+Verifier packet must record mode, model, blind position, L1 fact integrity, L2 domain coherence, L3 long-term architecture, L4 adversarial falsification, L5 comprehension, deterministic-gate result, HARD/SOFT triage, confidence, and artifact pointer. Add supplemental **operational impact** evidence for retained candidates: affected actors, workflow change, failure recovery, compatibility/rollout risk, and validation. Record `not applicable` with a reason for pure internal tooling or schema candidates. Operational impact is not a sixth lens and UX is one case within it. Feasibility is additional evidence, never a replacement for L5. A candidate cannot reach `verified` or `ticketed` with a missing packet field, failed deterministic evidence, or untriaged HARD finding.
 
 ## Where it lives
 
