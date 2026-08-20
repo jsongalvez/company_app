@@ -3911,3 +3911,58 @@ and the Compose ownership changes still require a broader lifecycle decision.
   reproduced 185 unrelated authorization/fixture failures; test DB was cleaned afterward.
 - Pre-push passed OpenAPI, Compose Android, backend build, health, k6 baseline with 0% errors,
   and cleanup. Commit `871d8d3` pushed; child #302 closed and Map Decisions-so-far updated.
+
+## Focused Audit - Session 361
+
+The live native Map #180 query was rechecked after child #303: all native implementation
+children are closed except policy issue #267. No open, unblocked, unassigned native
+implementation child is claimable. Fallback issue #304 remains open because GitHub rejected
+its native parent link after Map #180 reached the 100-child limit.
+
+### Retained candidate
+
+#### R104 - Session-concern DELETE authorization
+
+- **Lifecycle:** identified -> evidenced -> explored -> falsified -> verified -> dispositioned ->
+  ticketed; implementation is blocked by tracker capacity, not by code or business ambiguity.
+- **Evidence:** `SessionRoutes.kt` registers the existing `SESSION_CONCERNS_PATH` before-filter,
+  but the DELETE route uses `SESSION_CONCERN_PATH`, the child path with an additional
+  `concernId` segment. Javalin path matching therefore does not apply the four-segment filter to
+  the five-segment DELETE route. `SessionConcernService.removeFromSession` checks day state but
+  does not independently require `EDIT_BRANCH_DATA` on an OPEN Branch Day.
+- **Deterministic gate:** pass. Exact route constants, filter registration, and DELETE
+  registration independently reproduce the authorization gap; no broader service redesign is
+  required.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=ALPHA;`
+  `L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass;`
+  `L4 adversarial falsification=pass, unauthorized OPEN-day DELETE remains reachable;`
+  `L5 comprehension=pass; deterministic gate=pass; HARD findings=zero after applying the existing`
+  `EDIT_BRANCH_DATA` filter; `SOFT findings=zero; confidence=high;`
+  `artifact=this section and docs/agents/wayfinder-304-r65-needs-info.md`.
+- **Disposition:** `implement`, already represented by fallback issue #304. Re-running native
+  child creation is not safe because GitHub's 100-child limit remains an external tracker
+  blocker; no duplicate unlinked implementation issue is created.
+
+### Rejected or deferred leads
+
+- **R15 notification count:** remains fog; current source already returns database insert count,
+  and no deployment-topology or overlapping-scheduler requirement was evidenced.
+- **R23/R24 Compose lifecycle:** remains fog; broader ownership choice is required and no safe
+  mechanical child is evidenced.
+- **#267 JMH pull-request policy:** remains `needs-info`; policy and branch-protection intent
+  are unresolved, so no implementation is guessed or claimed.
+- **C-01..C-14 coverage:** complete; no additional material ownership, authorization,
+  persistence, schema, tooling, or test candidate survived duplication and materiality checks.
+
+### Audit-of-audit
+
+- Coverage pass: all C-01..C-14 boundaries rechecked through current source and native tracker
+  state.
+- Duplication pass: R104 is distinct from closed concern GET/POST gates and prior route-path
+  fixes; no duplicate candidate retained.
+- Materiality pass: R104 is a P0 authorization defect; all other leads are fog, policy-blocked,
+  or already resolved.
+- Deterministic tracker evidence: #304 remains open and unassigned with fallback `Part of #180`
+  text; native creation remains rejected by the 100-child limit.
+- Exit condition: no claimable native frontier exists. Safe implementation is blocked solely by
+  external tracker capacity; stop after recording this audit and successor handoff.
