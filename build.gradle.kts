@@ -27,7 +27,12 @@ subprojects {
     detekt {
         buildUponDefaultConfig = true
         allRules = false
-        config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+        config.setFrom(
+            files(
+                "$rootDir/config/detekt/detekt.yml",
+                "$rootDir/config/detekt/detekt-anti-slop.yml",
+            ),
+        )
     }
 
     dependencies {
