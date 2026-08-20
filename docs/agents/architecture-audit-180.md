@@ -3769,8 +3769,8 @@ reviewed against current source, requirements, ADRs, and tests.
 
 ## Session 359 full audit - empty frontier
 
-The native Map #180 child query had no open, unblocked, unassigned child. Open issue #267 is
-not a Map #180 child and remains policy-owned. A fresh full audit rechecked C-01..C-14 through
+The native Map #180 child query had no open, unblocked, unassigned child. Open Map child #267 is
+assigned and remains policy-owned. A fresh full audit rechecked C-01..C-14 through
 four bounded read-only lanes, followed by independent source verification of every retained
 candidate. Existing R15/R23/R24 fog remains unresolved: no new deployment-topology evidence,
 and the Compose ownership changes still require a broader lifecycle decision.
