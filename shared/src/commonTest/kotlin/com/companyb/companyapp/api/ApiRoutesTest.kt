@@ -13,6 +13,7 @@ class ApiRoutesTest {
             ApiRoutes.branchAssignmentSlot("branch-1", "user-1"),
         )
         assertEquals("/api/sessions/session-1/status", ApiRoutes.sessionStatus("session-1"))
+        assertEquals("/api/sessions/session-1/final-price", ApiRoutes.sessionFinalPrice("session-1"))
         assertEquals(
             "/api/branches/branch-1/export/monthly?year=2026&month=8&format=csv",
             ApiRoutes.branchExportWithQuery(

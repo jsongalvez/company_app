@@ -420,7 +420,7 @@ class SessionDashboardViewModel(
 
             DashboardEditField.FINAL_PRICE -> {
                 EditRequest(
-                    "/api/sessions/${state.sessionId}/final-price",
+                    ApiRoutes.sessionFinalPrice(state.sessionId),
                     UpdateSessionFinalPriceRequest(state.draft.trim(), state.baselineVersion),
                 )
             }
