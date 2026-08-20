@@ -11,6 +11,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -32,11 +33,11 @@ import kotlin.test.assertTrue
 
 /**
  * #94-grad — the shared session-bootstrap implementation (launch validation + fresh login):
- * GET /api/me → SessionState.setUser → GET /api/me/capabilities → setCapabilities with the
- * FULL row list (#156; the pre-clock-in two-slice filter is gone — branch-scoped resolution
- * fails closed until clock-in). A 401 is deliberately NOT UiState.Error (ApiClient's global
- * onUnauthorized clears the token; the splash derives from token presence); network errors
- * ARE Error (the splash keeps the token and offers Retry — #94 Q3b(ii)).
+ * GET /api/me → GET /api/me/capabilities → atomic bootstrap publication with the FULL row list
+ * (#156; the pre-clock-in two-slice filter is gone — branch-scoped resolution fails closed until
+ * clock-in). A 401 is deliberately NOT UiState.Error (ApiClient's global onUnauthorized clears
+ * the token; the splash derives from token presence); network errors ARE Error (the splash keeps
+ * the token and offers Retry — #94 Q3b(ii)).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionBootstrapViewModelTest {
@@ -177,6 +178,7 @@ class SessionBootstrapViewModelTest {
             // navigate mid-session). NOT UiState.Error: an auth failure must not read as a
             // connection problem (and never renders the network copy on the Login screen).
             assertFalse(vm.validationState.value is UiState.Error)
+            assertEquals(UiState.Idle, vm.validationState.value)
             assertNull(SessionState.currentUser.value)
         }
 
@@ -231,17 +233,27 @@ class SessionBootstrapViewModelTest {
     @Test
     fun cancel_cancels_in_flight_validation_before_global_state_write() =
         runTest(testScheduler) {
-            var requestStarted = false
-            val handler: MockRequestHandler = {
-                requestStarted = true
-                awaitCancellation()
+            var meResponded = false
+            val capabilitiesStarted = CompletableDeferred<Unit>()
+            val handler: MockRequestHandler = { request ->
+                if (!meResponded && request.url.encodedPath == "/api/me") {
+                    meResponded = true
+                    respond(
+                        content = ByteReadChannel(meJson),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+                    )
+                } else {
+                    capabilitiesStarted.complete(Unit)
+                    awaitCancellation()
+                }
             }
             val vm = SessionBootstrapViewModel(mockApiClient(handler))
 
             val job = vm.validateSession()
             runCurrent()
 
-            assertTrue(requestStarted)
+            assertTrue(capabilitiesStarted.isCompleted)
             vm.cancelValidation()
             advanceUntilIdle()
 

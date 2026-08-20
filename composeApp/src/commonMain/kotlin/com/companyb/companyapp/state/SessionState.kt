@@ -46,6 +46,15 @@ object SessionState {
         _capabilities.value = caps
     }
 
+    /** Publishes bootstrap data in readiness order: capabilities first, user last. */
+    fun setBootstrapState(
+        user: MeResponse,
+        caps: List<UserCapabilityResponse>,
+    ) {
+        _capabilities.value = caps
+        _currentUser.value = user
+    }
+
     fun setSelectedBranch(
         id: String,
         name: String,

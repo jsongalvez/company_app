@@ -12,6 +12,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,9 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * #94 — the shared session-bootstrap implementation used identically by launch validation
  * (App.kt splash, Phase 1) and fresh login (LoginScreen, Phase 2): GET /api/me →
- * SessionState.setUser → GET /api/me/capabilities → SessionState.setCapabilities (the FULL
- * row list — #156; ADR-0021's fetch timing is unchanged: branch-scoped resolution just
- * fails closed until clock-in sets selectedBranchId via [BranchSelectViewModel]).
+ * GET /api/me/capabilities → publish both values to SessionState (the FULL row list — #156;
+ * ADR-0021's fetch timing is unchanged: branch-scoped resolution just fails closed until
+ * clock-in sets selectedBranchId via [BranchSelectViewModel]).
  *
  * A 401 during validation is deliberately NOT surfaced as UiState.Error: ApiClient's global
  * onUnauthorized flow has already cleared the token (App.kt), which is what transitions the
@@ -65,8 +66,7 @@ class SessionBootstrapViewModel(
                     when {
                         capabilitiesResponse.status.isSuccess() -> {
                             val capabilities = capabilitiesResponse.body<List<UserCapabilityResponse>>()
-                            SessionState.setUser(me)
-                            SessionState.setCapabilities(capabilities)
+                            SessionState.setBootstrapState(me, capabilities)
                         }
 
                         // 401 on the capabilities leg is the same session-401 class as on the me
@@ -74,7 +74,8 @@ class SessionBootstrapViewModel(
                         // launch, notice+navigate mid-session). Silent here too: surfacing
                         // UiState.Error would mislabel an auth failure as a connection problem.
                         capabilitiesResponse.status == HttpStatusCode.Unauthorized -> {
-                            Unit
+                            _validationState.value = UiState.Idle
+                            throw CancellationException("Session invalidated during capabilities validation")
                         }
 
                         // Any other failure is a genuine validation failure — Error (the splash

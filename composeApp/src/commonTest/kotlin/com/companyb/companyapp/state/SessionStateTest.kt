@@ -60,6 +60,16 @@ class SessionStateTest {
         assertEquals("d1", SessionState.branchDayId.value)
     }
 
+    @Test
+    fun bootstrap_state_publishes_capabilities_before_user_readiness() {
+        SessionState.clear()
+
+        SessionState.setBootstrapState(user, rows)
+
+        assertEquals(user, SessionState.currentUser.value)
+        assertEquals(rows, SessionState.capabilities.value)
+    }
+
     // #147 (Q3) — clock-out transition: user stays logged in, branch + caps reset to empty,
     // attendance slots cleared; clear() (logout/401) resets everything.
     @Test

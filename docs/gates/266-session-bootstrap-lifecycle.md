@@ -13,4 +13,4 @@
 - [x] G3: Android and Desktop Compose sources compile with existing common ViewModel tests
   CHECK: ./gradlew :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinDesktop :composeApp:test
   EXPECT: EXIT 0
-  EVIDENCE: Calculating task graph as no cached configuration is available for tasks: :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinDesktop :composeApp:test
+  EVIDENCE: Reusing configuration cache.
