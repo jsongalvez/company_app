@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
@@ -18,9 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.Clock
-
-const val USER_STATUS_ACTIVE = "ACTIVE"
-const val USER_STATUS_INACTIVE = "INACTIVE"
 
 /**
  * One entry in the slot-order list for a branch (#106 D4). Derived from the users list's
@@ -45,7 +43,7 @@ fun slotOrderForBranch(
                 UserSlotRow(
                     userId = user.id,
                     displayName = user.displayName,
-                    isDeactivated = user.status.name == USER_STATUS_INACTIVE,
+                    isDeactivated = user.status == UserStatus.INACTIVE,
                     slot = assignment.slot,
                 )
             }
@@ -184,7 +182,7 @@ class UserViewModel(
             operation = "deactivateUser",
             endpoint = "PATCH /api/users/$userId/deactivate",
             block = { apiClient.httpClient.patch(ApiRoutes.userDeactivate(userId)) },
-            onSuccess = { mutateUser(userId) { it.withStatus(USER_STATUS_INACTIVE) } },
+            onSuccess = { mutateUser(userId) { it.withStatus(UserStatus.INACTIVE) } },
             statusMessage = { "Deactivate failed: ${it.value}" },
         )
     }
@@ -197,7 +195,7 @@ class UserViewModel(
             operation = "reactivateUser",
             endpoint = "PATCH /api/users/$userId/reactivate",
             block = { apiClient.httpClient.patch(ApiRoutes.userReactivate(userId)) },
-            onSuccess = { mutateUser(userId) { it.withStatus(USER_STATUS_ACTIVE) } },
+            onSuccess = { mutateUser(userId) { it.withStatus(UserStatus.ACTIVE) } },
             statusMessage = { "Reactivate failed: ${it.value}" },
         )
     }
@@ -356,17 +354,17 @@ private fun UserSummaryResponse.withSlot(
             },
     )
 
-private fun UserSummaryResponse.withStatus(status: String): UserSummaryResponse =
+private fun UserSummaryResponse.withStatus(status: UserStatus): UserSummaryResponse =
     when (status) {
-        USER_STATUS_INACTIVE -> {
+        UserStatus.INACTIVE -> {
             copy(
-                status = com.companyb.companyapp.domain.UserStatus.INACTIVE,
+                status = UserStatus.INACTIVE,
                 deactivatedAt =
                     deactivatedAt ?: Clock.System.now().toString(),
             )
         }
 
-        else -> {
-            copy(status = com.companyb.companyapp.domain.UserStatus.ACTIVE, deactivatedAt = null)
+        UserStatus.ACTIVE -> {
+            copy(status = UserStatus.ACTIVE, deactivatedAt = null)
         }
     }

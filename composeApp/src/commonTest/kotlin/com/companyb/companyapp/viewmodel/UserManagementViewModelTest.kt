@@ -1,5 +1,6 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
@@ -219,11 +220,11 @@ class UserManagementViewModelTest {
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
-                expected = USER_STATUS_INACTIVE,
+                expected = UserStatus.INACTIVE,
                 actual =
                     state.data
                         .first { it.id == "u1" }
-                        .status.name,
+                        .status,
             )
             assertEquals(expected = listOf("u1", "u2", "u3"), actual = state.data.map { it.id })
         }
@@ -245,11 +246,11 @@ class UserManagementViewModelTest {
             assertEquals(expected = 0, actual = harness.deactivateCount)
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
-                expected = USER_STATUS_ACTIVE,
+                expected = UserStatus.ACTIVE,
                 actual =
                     state.data
                         .first { it.id == "u1" }
-                        .status.name,
+                        .status,
             )
         }
 
@@ -278,15 +279,15 @@ class UserManagementViewModelTest {
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             val deactivated = state.data.first { it.id == "u2" }
-            assertEquals(expected = USER_STATUS_INACTIVE, actual = deactivated.status.name)
+            assertEquals(expected = UserStatus.INACTIVE, actual = deactivated.status)
             assertNotNull(deactivated.deactivatedAt)
             // Untouched rows stay untouched.
             assertEquals(
-                expected = USER_STATUS_ACTIVE,
+                expected = UserStatus.ACTIVE,
                 actual =
                     state.data
                         .first { it.id == "u1" }
-                        .status.name,
+                        .status,
             )
             assertTrue(vm.inFlight.value.isEmpty())
             assertTrue(vm.actionErrors.value.isEmpty())
@@ -306,11 +307,11 @@ class UserManagementViewModelTest {
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
-                expected = USER_STATUS_ACTIVE,
+                expected = UserStatus.ACTIVE,
                 actual =
                     state.data
                         .first { it.id == "u2" }
-                        .status.name,
+                        .status,
             )
             assertEquals(expected = "Deactivate failed: 500", actual = vm.actionErrors.value["deactivate:u2"])
             assertTrue(vm.inFlight.value.isEmpty())
@@ -350,11 +351,11 @@ class UserManagementViewModelTest {
             assertTrue(vm.inFlight.value.isEmpty())
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
-                expected = USER_STATUS_ACTIVE,
+                expected = UserStatus.ACTIVE,
                 actual =
                     state.data
                         .first { it.id == "u2" }
-                        .status.name,
+                        .status,
             )
         }
 
@@ -371,7 +372,7 @@ class UserManagementViewModelTest {
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             val reactivated = state.data.first { it.id == "u3" }
-            assertEquals(expected = USER_STATUS_ACTIVE, actual = reactivated.status.name)
+            assertEquals(expected = UserStatus.ACTIVE, actual = reactivated.status)
             assertNull(reactivated.deactivatedAt)
             assertTrue(vm.inFlight.value.isEmpty())
         }
@@ -391,11 +392,11 @@ class UserManagementViewModelTest {
             assertEquals(expected = "Reactivate failed: 400", actual = vm.actionErrors.value["reactivate:u3"])
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(
-                expected = USER_STATUS_INACTIVE,
+                expected = UserStatus.INACTIVE,
                 actual =
                     state.data
                         .first { it.id == "u3" }
-                        .status.name,
+                        .status,
             )
         }
 
@@ -610,7 +611,7 @@ class UserManagementViewModelTest {
     fun slotOrderForBranch_marks_deactivated_rows() {
         val users =
             listOf(
-                user("u3", "Cal Lim", status = USER_STATUS_INACTIVE, assignments = listOf(assignment("b1", "Main", 1))),
+                user("u3", "Cal Lim", status = UserStatus.INACTIVE, assignments = listOf(assignment("b1", "Main", 1))),
             )
 
         val rows = slotOrderForBranch(users, "b1")
@@ -693,17 +694,15 @@ class UserManagementViewModelTest {
     private fun user(
         id: String,
         displayName: String,
-        status: String = USER_STATUS_ACTIVE,
+        status: UserStatus = UserStatus.ACTIVE,
         assignments: List<UserAssignmentResponse> = emptyList(),
     ): UserSummaryResponse =
         UserSummaryResponse(
             id = id,
             username = id,
             displayName = displayName,
-            status =
-                com.companyb.companyapp.domain.UserStatus
-                    .valueOf(status),
-            deactivatedAt = if (status == USER_STATUS_INACTIVE) "2026-08-01T02:00:00Z" else null,
+            status = status,
+            deactivatedAt = if (status == UserStatus.INACTIVE) "2026-08-01T02:00:00Z" else null,
             assignments = assignments,
         )
 

@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
@@ -50,8 +51,6 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
-import com.companyb.companyapp.viewmodel.USER_STATUS_ACTIVE
-import com.companyb.companyapp.viewmodel.USER_STATUS_INACTIVE
 import com.companyb.companyapp.viewmodel.UiState
 import com.companyb.companyapp.viewmodel.UserSlotRow
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -507,7 +506,7 @@ private fun UserRow(
     onEditSlot: (UserAssignmentResponse) -> Unit,
     errors: List<String>,
 ) {
-    val isDeactivated = user.status.name == USER_STATUS_INACTIVE
+    val isDeactivated = user.status == UserStatus.INACTIVE
     Surface(
         shape = RoundedCornerShape(CornerRadius.md),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -548,7 +547,7 @@ private fun UserRow(
                     }
                 }
                 Spacer(Modifier.width(Spacing.sm))
-                StatusBadge(status = user.status.name)
+                StatusBadge(status = user.status)
             }
 
             if (expanded) {
@@ -626,14 +625,11 @@ private fun UserRow(
 }
 
 @Composable
-private fun StatusBadge(status: String) {
-    // Unknown statuses render raw (backend enum is ACTIVE/INACTIVE today; a future status must
-    // not masquerade as INACTIVE — pass-1 P2 SOFT).
+private fun StatusBadge(status: UserStatus) {
     val label =
         when (status) {
-            USER_STATUS_ACTIVE -> "ACTIVE"
-            USER_STATUS_INACTIVE -> "INACTIVE"
-            else -> status
+            UserStatus.ACTIVE -> "ACTIVE"
+            UserStatus.INACTIVE -> "INACTIVE"
         }
     Surface(
         shape = RoundedCornerShape(CornerRadius.sm),

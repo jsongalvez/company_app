@@ -1,9 +1,8 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import kotlin.math.abs
-
-private const val SESSION_STATUS_COMPLETED = "COMPLETED"
 
 /**
  * Fixed-point money helpers (commonMain has no BigDecimal): backend money strings are
@@ -35,7 +34,7 @@ internal fun centsToMoney(cents: Long): String {
  */
 internal fun grossIncomeCents(sessions: List<DashboardSessionResponse>): Long =
     sessions
-        .filter { it.sessionStatus.name == SESSION_STATUS_COMPLETED && !it.isVoided }
+        .filter { it.sessionStatus == SessionStatus.COMPLETED && !it.isVoided }
         .sumOf { moneyToCents(it.finalPrice) }
 
 internal fun commissionLabel(productSalesCount: Int): String =
