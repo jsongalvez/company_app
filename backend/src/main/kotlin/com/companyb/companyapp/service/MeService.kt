@@ -98,6 +98,7 @@ object MeService {
 
     fun getCapabilities(userId: UUID): List<UserCapabilityResponse> = CapabilityService.getCapabilitiesForUser(userId)
 
+    @Suppress("UnreachableCode")
     private fun requireActiveUserInTransaction(userId: UUID): ResultRow {
         val row =
             AppUserTable

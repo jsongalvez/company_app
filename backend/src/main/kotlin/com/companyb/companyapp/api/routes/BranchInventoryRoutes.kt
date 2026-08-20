@@ -265,10 +265,16 @@ object BranchInventoryRoutes {
         val movementType =
             when (reason) {
                 InventoryMovementReason.TESTER -> MovementType.Tester
+
                 InventoryMovementReason.SAMPLE -> MovementType.Sample
+
                 InventoryMovementReason.MISSING -> MovementType.Missing
+
                 InventoryMovementReason.ADJUSTMENT -> MovementType.Adjustment
-                else -> throw BadRequestResponse("Invalid movement reason for this endpoint")
+
+                InventoryMovementReason.RESTOCK,
+                InventoryMovementReason.SALE,
+                -> throw BadRequestResponse("Invalid movement reason for this endpoint")
             }
 
         val movement =

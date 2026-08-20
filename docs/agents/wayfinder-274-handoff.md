@@ -1,24 +1,34 @@
-# Handoff - Map #180, Empty Frontier Confirmed
+# Handoff - Rollout Parent #274
 
 ## Session outcome
 
-- Loaded this handoff, Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, and all applicable Context Pointers: `CONTEXT.md`, `docs/business-requirements.md`, `docs/architecture.md`, `docs/engines.md`, `docs/agents/audit-your-codebase.md`, `docs/agents/architecture-audit-180.md`, `docs/agents/architecture-lessons.md`, `docs/agents/decision-loop.md`, `docs/agents/issue-tracker.md`, `docs/agents/code-review-loop.md`, `backend/AGENTS.md`, `composeApp/AGENTS.md`, `shared/AGENTS.md`, and relevant scheduler/audit ADRs.
-- Inspected `.githooks/pre-push` before tracker work.
-- REST native sub-issue query reports 33 Map #180 children, all `CLOSED`; open count 0 and open/unblocked/unassigned count 0.
-- Recorded Session 275 checkpoint on Map #180: https://github.com/jsongalvez/company_app/issues/180#issuecomment-5335773428
-- R15 remains in `Not yet specified` pending deployment topology or overlapping scheduler invocation requirements.
-- No ticket was claimable. No product, hook, test, or architecture changes were made.
+- Rolled back broad anti-slop Detekt implementation after review exposed source-set coverage gaps, CI/local parity gaps, broad safety exclusions, and runtime behavior risk.
+- No code, configuration, gate, or test changes remain from that attempt; this handoff is the only current working-tree change.
+- Rewrote #274 as parent rollout ticket. It now requires small ordered child issues, evidence before implementation, negative-control gates, bounded cleanup, and P1-P5 review where applicable.
+- Recorded configuration-fidelity decision on #274: `~/anti-slop-detekt` YAML is canonical baseline. Deviations require exact upstream comparison, compatibility/false-positive evidence, smallest adaptation, and documented disposition.
+- #274 remains open under Map #180 with native parent link intact.
 
 ## Verification
 
-- `git status --short --branch` was clean before this handoff write.
-- Native child query reported `total: 33`, `open: 0`, and `open_unassigned: 0`.
-- `.githooks/pre-push` inspection completed.
-- No build or test was run because no ticket or code change existed.
+- `git status --short`: only `docs/agents/wayfinder-274-handoff.md` modified by this handoff.
+- Removed temporary files created by rolled-back attempt:
+  - `docs/gates/274-anti-slop-detekt.md`
+  - `config/detekt/detekt-test-style.yml`
+  - `backend/src/main/kotlin/com/companyb/companyapp/repository/ExposedIlike.kt`
+- No post-rollback build required; rollback restored repository state.
+- Parent issue: https://github.com/jsongalvez/company_app/issues/274
+- Fidelity decision: https://github.com/jsongalvez/company_app/issues/274#issuecomment-5350959474
+
+## Priority
+
+- #274 marked `ready-for-agent` so next session can create and claim rollout children.
+- Parent is not implementation-ready as a direct coding ticket. First child must inventory current Detekt configuration, plugins, source sets, task graph, findings, and hook/CI commands without changing enforcement.
 
 ## Next-session instructions
 
-1. Load this handoff, Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, and every applicable Context Pointer.
-2. Inspect `.githooks/pre-push` before other work.
-3. Query Map #180 children. Do not claim work unless a new open, unblocked, unassigned child exists.
-4. Keep R15 in `Not yet specified` until deployment topology or overlapping scheduler invocation requirements become concrete.
+1. Load Map #180, #274, this handoff, `docs/agents/issue-tracker.md`, and applicable module guidance.
+2. Verify #274 native parent link and query its open children before claiming work.
+3. Create ordered child issues through `scripts/wayfinder-create-child.sh`; do not implement directly under #274.
+4. Make inventory/evidence child first. Record actual Gradle tasks and findings; never guess iOS or test task names.
+5. Keep upstream YAML close. Every deviation needs evidence and smallest-change rationale.
+6. Add blocking edges between rollout children. Claim exactly one frontier child per session.

@@ -21,8 +21,8 @@ actual fun saveDownload(
         return false
     }
     val resolver =
-        AndroidAppContext.context?.contentResolver ?: run {
-            logError("SaveDownload", "no application context for MediaStore insert")
+        runCatching { AndroidAppContext.context.contentResolver }.getOrElse {
+            logError("SaveDownload", "no application context for MediaStore insert", it)
             return false
         }
     return runCatching {

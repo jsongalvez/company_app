@@ -1,25 +1,32 @@
-# Handoff - Map #180, Empty Frontier Confirmed
+# Handoff - Detekt Ratchet Child #281
 
-## Session outcome
+## Status
 
-- Continued from `docs/agents/wayfinder-279-handoff.md`.
-- Loaded Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, and applicable Context Pointers.
-- Inspected `.githooks/pre-push` before tracker work.
-- Live native sub-issue query reports 33 Map #180 children, all `CLOSED`; open `wayfinder:task` query is empty.
-- No open, unblocked, unassigned ticket exists. No ticket was claimable, claimed, fabricated, or resolved.
-- Recorded Session 281 checkpoint on [Map #180](https://github.com/jsongalvez/company_app/issues/180#issuecomment-5335873695).
-- R15 remains in `Not yet specified` pending deployment topology or overlapping scheduler invocation requirements.
-- No product, hook, test, or architecture changes were made.
+- #281 remains open. Do not close parent #274 from this worktree.
+- Full typed local quality command passes, including backend tests and Compose/shared
+  Detekt tasks with `-PwarningsAsErrors=true`.
+- Targeted expired-relief authorization test and full backend test suite pass after
+  widening fixture expiry margins to absorb JVM/database clock skew.
+- Gate ledger: `docs/gates/281-detekt-ratchet-closeout.md`.
 
-## Verification
+## Blocking review findings
 
-- Worktree was clean before this final handoff write.
-- No build or test was run because no ticket or code change existed.
-- Documentation-only push classification will skip code, Compose, startup, and k6 gates.
+- Anti-slop safety rules have production file exclusions for `ForbiddenMethodCall`,
+  `ForbiddenSuppress`, `TooGenericExceptionCaught`, `SwallowedException`, and
+  `UnreachableCode`. Parent #274 explicitly forbids broad safety exclusions.
+- Full P1-P5 closeout packet, rule-by-rule disposition matrix, and clean review
+  evidence are not recorded. Do not claim completion from passing Gradle gates.
+- File-wide Compose deprecation suppressions need explicit API migration or narrow,
+  reviewed dispositions before closeout.
 
-## Next-session instructions
+## Behavior fixes retained
 
-1. Load this handoff, Map #180, `/wayfinder`, `/codebase-design`, `/writing-for-agents`, and every applicable Context Pointer.
-2. Inspect `.githooks/pre-push` before other work.
-3. Query Map #180 children. Do not claim work unless a new open, unblocked, unassigned child exists.
-4. Keep R15 in `Not yet specified` until deployment topology or overlapping scheduler invocation requirements become concrete.
+- `SchedulerLifecycle` catches task/scheduling `Exception` without swallowing fatal
+  `Error` values; candidate executor still shuts down on scheduling failure.
+- Android download save remains fail-closed when application context is unavailable.
+
+## Next action
+
+Remove or replace safety-rule exclusions with evidence-backed narrow adaptations and
+record P1-P5 dispositions. Re-run full gate ledger, then update #281 and #274 only
+after zero HARD and zero unadjudicated ESCALATE findings.

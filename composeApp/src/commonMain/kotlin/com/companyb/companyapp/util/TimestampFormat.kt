@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.companyb.companyapp.util
 
 import kotlinx.datetime.LocalDateTime
@@ -23,7 +25,7 @@ private val absoluteFormat: DateTimeFormat<LocalDateTime> =
     LocalDateTime.Format {
         monthName(MonthNames.ENGLISH_ABBREVIATED)
         char(' ')
-        dayOfMonth(Padding.NONE)
+        day(Padding.NONE)
     }
 
 internal fun formatRelativeTimestamp(

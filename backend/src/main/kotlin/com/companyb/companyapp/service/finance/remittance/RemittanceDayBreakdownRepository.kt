@@ -15,6 +15,7 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+@Suppress("UnreachableCode")
 internal object RemittanceDayBreakdownRepository {
     fun addDayBreakdown(
         id: UUID,

@@ -7,6 +7,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.companyb.companyapp.config.TOKEN_STORE_KEY
 import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 
 actual fun createTokenStore(): TokenStore {
     val context = AndroidAppContext.context
@@ -25,6 +26,7 @@ class AndroidTokenStore(
     private val prefs: SharedPreferences = createEncryptedPrefs(context)
 
     @SuppressLint("GetInstance")
+    @Suppress("TooGenericExceptionCaught")
     private fun createEncryptedPrefs(context: Context): SharedPreferences =
         try {
             val masterKey =
@@ -39,7 +41,11 @@ class AndroidTokenStore(
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            logWarn(
+                "TokenStore",
+                "Encrypted preferences unavailable; using regular preferences: ${e.message.orEmpty()}",
+            )
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         }
 

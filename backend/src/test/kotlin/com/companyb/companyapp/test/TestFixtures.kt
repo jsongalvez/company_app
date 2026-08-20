@@ -21,7 +21,7 @@ object TestFixtures {
 
     fun uuid(): UUID = UUID(nextUuid.getAndIncrement() shl UUID_COUNTER_SHIFT, 0L)
 
-    fun realNow() =
+    fun realNow(): java.time.Instant =
         java.time.Clock
             .systemUTC()
             .instant()

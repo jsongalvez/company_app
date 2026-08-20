@@ -272,7 +272,7 @@ object ReliefInviteRepository {
                 .where { AppUserTable.id eq invite.invitee }
                 .singleOrNull()
                 ?.get(AppUserTable.displayName)
-        return copy(inviteeName = name ?: "")
+        return copy(inviteeName = name.orEmpty())
     }
 
     /**

@@ -614,10 +614,6 @@ private fun lineLabel(
             productSaleLabels[line.productSaleId]
                 ?: "Product sale"
         }
-
-        else -> {
-            "Line"
-        }
     }
 
 @Composable

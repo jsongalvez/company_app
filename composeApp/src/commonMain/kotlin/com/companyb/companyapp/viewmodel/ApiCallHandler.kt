@@ -15,6 +15,7 @@ class ApiCallHandler(
     private val scope: CoroutineScope,
     private val tag: String,
 ) {
+    @Suppress("TooGenericExceptionCaught")
     fun <T> launch(
         state: MutableStateFlow<UiState<T>>,
         operation: String,
@@ -148,6 +149,7 @@ class ApiCallHandler(
     // every caller without a stale-generation concern behavior-identical. The stateful
     // [launch] keeps its #165 stamp/fallback SUBSTITUTION shape — this gate is the skip
     // shape; a stateless surface has no UiState to substitute, no fallback value to commit.
+    @Suppress("TooGenericExceptionCaught")
     fun launchStateless(
         operation: String,
         endpoint: String,

@@ -59,7 +59,13 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     private val secondSessionRateId = TestFixtures.uuid()
     private val subsequentRateId = TestFixtures.uuid()
 
-    private val allTestUsers
+    private val fixedClock: Clock
+        get() {
+            val now = TestFixtures.today.atTime(7, 0).toInstant(ZoneOffset.UTC)
+            return Clock.fixed(now, manilaZone)
+        }
+
+    private val allTestUsers: List<UUID>
         get() = listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
 
     override fun initTestData() {
@@ -316,12 +322,6 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
             delay,
         )
     }
-
-    private val fixedClock: Clock
-        get() {
-            val now = TestFixtures.today.atTime(7, 0).toInstant(ZoneOffset.UTC)
-            return Clock.fixed(now, manilaZone)
-        }
 
     private fun twoDaysFromNow(): LocalDate = TestFixtures.today.plusDays(2)
 

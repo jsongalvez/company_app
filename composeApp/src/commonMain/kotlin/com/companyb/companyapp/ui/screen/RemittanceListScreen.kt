@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.companyb.companyapp.ui.screen
 
 import androidx.compose.foundation.clickable

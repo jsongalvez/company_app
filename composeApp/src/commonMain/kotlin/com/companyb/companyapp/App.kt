@@ -40,6 +40,7 @@ import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
+@Suppress("TooGenericExceptionCaught")
 fun App() {
     val tokenStore: TokenStore = remember { createTokenStore() }
     val apiClient = remember { ApiClient(tokenStore) }

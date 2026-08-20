@@ -17,7 +17,7 @@ actual fun saveDownload(
     dialog.isVisible = true
     val chosen = dialog.file ?: return false
     return runCatching {
-        val target = File(dialog.directory ?: "", chosen)
+        val target = File(dialog.directory.orEmpty(), chosen)
         target.writeBytes(bytes)
     }.onFailure { e ->
         logError("SaveDownload", "desktop save failed: ${e.message ?: "unknown"}", e)

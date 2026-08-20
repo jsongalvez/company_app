@@ -7,7 +7,7 @@ import kotlin.time.Duration.Companion.seconds
 object RateLimiter {
     private val logger = KotlinLogging.logger {}
 
-    private data class Window(
+    private class Window(
         var count: Int,
         var now: Long,
     )

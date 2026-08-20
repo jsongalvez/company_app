@@ -568,7 +568,11 @@ object DatabaseTestHelper {
         field: String,
     ): String {
         val jsonElement = json.parseToJsonElement(jsonString)
-        return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
+        return jsonElement
+            .jsonObject[field]
+            ?.jsonPrimitive
+            ?.content
+            .orEmpty()
     }
 
     private const val SNAPSHOT_TABLE = "remittance_financial_snapshot"

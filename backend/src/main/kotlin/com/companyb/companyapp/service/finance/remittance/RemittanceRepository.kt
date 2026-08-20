@@ -107,7 +107,7 @@ data class RemittanceProductSalePickerEntry(
     val soldAt: OffsetDateTime,
 )
 
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "UnreachableCode")
 internal object RemittanceRepository {
     fun findById(id: UUID): Remittance? =
         transaction {
@@ -391,7 +391,7 @@ internal object RemittanceRepository {
         }.also { result ->
             logger.info {
                 "[SUBMIT-REMITTANCE] Remittance ${remittanceId.toString().maskUUID()}" +
-                    " submitted=${result != null} gross=${result?.grossIncome}"
+                    " submitted=${result != null} gross=${result?.grossIncome?.toPlainString().orEmpty()}"
             }
         }
 

@@ -9,7 +9,6 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 
-@Suppress("TooGenericExceptionCaught")
 class SchedulerLifecycle(
     private val executorFactory: () -> ScheduledExecutorService = ::createExecutor,
     private val now: () -> ZonedDateTime = { ZonedDateTime.now(MANILA_ZONE) },
@@ -17,21 +16,24 @@ class SchedulerLifecycle(
 ) {
     private var executor: ScheduledExecutorService? = null
 
+    @Suppress("TooGenericExceptionCaught")
+    private fun runTask() {
+        try {
+            task()
+        } catch (e: RuntimeException) {
+            logger.error(e) { "[SCHEDULER] Notification task failed" }
+        }
+    }
+
     @Synchronized
+    @Suppress("TooGenericExceptionCaught")
     fun start() {
         if (executor?.isShutdown == false) return
 
         val candidate = executorFactory()
         try {
             candidate.scheduleAtFixedRate(
-                @Suppress("TooGenericExceptionCaught")
-                {
-                    try {
-                        task()
-                    } catch (e: Exception) {
-                        logger.error(e) { "[SCHEDULER] Notification task failed" }
-                    }
-                },
+                ::runTask,
                 NextAppointmentScheduler.nextRunDelayMs(now()),
                 PERIOD_HOURS,
                 TimeUnit.HOURS,

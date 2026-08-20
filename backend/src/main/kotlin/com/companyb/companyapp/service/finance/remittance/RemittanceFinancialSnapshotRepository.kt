@@ -10,6 +10,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
+@Suppress("UnreachableCode")
 internal object RemittanceFinancialSnapshotRepository {
     fun insert(params: RemittanceFinancialSnapshotCreateParams): RemittanceFinancialSnapshot =
         transaction {

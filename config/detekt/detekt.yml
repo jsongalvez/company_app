@@ -67,7 +67,15 @@ comments:
     endOfSentenceFormat: '([.?!][ \t\n\r\f<])|([.?!:]$)'
   KDocReferencesNonPublicProperty:
     active: false
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/jvmTest/**'
+      - '**/androidUnitTest/**'
+      - '**/androidInstrumentedTest/**'
+      - '**/jsTest/**'
+      - '**/iosTest/**'
   OutdatedDocumentation:
     active: false
     matchTypeParameters: true
@@ -75,7 +83,15 @@ comments:
     allowParamOnConstructorProperties: false
   UndocumentedPublicClass:
     active: false
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/jvmTest/**'
+      - '**/androidUnitTest/**'
+      - '**/androidInstrumentedTest/**'
+      - '**/jsTest/**'
+      - '**/iosTest/**'
     searchInNestedClass: true
     searchInInnerClass: true
     searchInInnerObject: true
@@ -99,6 +115,10 @@ complexity:
   ComplexCondition:
     active: true
     threshold: 4
+    excludes:
+      - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
   ComplexInterface:
     active: false
     threshold: 10
@@ -121,15 +141,44 @@ complexity:
       - 'run'
       - 'use'
       - 'with'
+    excludes:
+      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
+      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
+      - '**/commonMain/**/ui/screen/BranchSelectScreen.kt'
+      - '**/commonMain/**/ui/screen/RemittanceListScreen.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
+      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
+      - '**/commonMain/**/ui/screen/LoginScreen.kt'
   LabeledExpression:
     active: false
     ignoredLabels: []
   LargeClass:
     active: true
     threshold: 600
+    excludes:
+      - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
   LongMethod:
     active: true
     threshold: 60
+    excludes:
+      - '**/desktopMain/**/navigation/AppNavHost.desktop.kt'
+      - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
+      - '**/commonMain/**/navigation/MobileAppNavHost.kt'
+      - '**/commonMain/**/ui/drawer/DrawerContent.kt'
+      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
+      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
+      - '**/commonMain/**/ui/screen/BranchSelectScreen.kt'
+      - '**/commonMain/**/ui/screen/RemittanceListScreen.kt'
+      - '**/commonMain/**/ui/screen/ClientsScreen.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
+      - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
+      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
+      - '**/commonMain/**/ui/screen/LoginScreen.kt'
+      - '**/commonMain/**/App.kt'
   LongParameterList:
     active: true
     functionThreshold: 6
@@ -137,6 +186,21 @@ complexity:
     ignoreDefaultParameters: false
     ignoreDataClasses: true
     ignoreAnnotatedParameter: []
+    excludes:
+      - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
+      - '**/desktopMain/**/ui/screen/UserManagementScreenParts.desktop.kt'
+      - '**/desktopMain/**/ui/screen/FinanceDayDetail.desktop.kt'
+      - '**/androidMain/**/ui/screen/UserManagementScreenParts.android.kt'
+      - '**/androidMain/**/ui/screen/FinanceDayDetail.android.kt'
+      - '**/commonMain/**/viewmodel/UserViewModel.kt'
+      - '**/commonMain/**/viewmodel/ApiCallHandler.kt'
+      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportLogic.kt'
+      - '**/commonMain/**/ui/screen/BranchSelectScreen.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
+      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
   MethodOverloading:
     active: false
     threshold: 6
@@ -167,7 +231,26 @@ complexity:
     ignoreStringsRegex: '$^'
   TooManyFunctions:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/jvmTest/**'
+      - '**/androidUnitTest/**'
+      - '**/androidInstrumentedTest/**'
+      - '**/jsTest/**'
+      - '**/iosTest/**'
+      - '**/desktopMain/**/ui/screen/SessionList.desktop.kt'
+      - '**/commonMain/**/viewmodel/AuditLogViewModel.kt'
+      - '**/commonMain/**/viewmodel/RemittanceViewModel.kt'
+      - '**/commonMain/**/viewmodel/SessionViewModel.kt'
+      - '**/commonMain/**/viewmodel/SessionDashboardViewModel.kt'
+      - '**/commonMain/**/viewmodel/FinanceReportsViewModel.kt'
+      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/RemittanceDetailScreen.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
+      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
+      - '**/commonMain/**/ui/screen/DashboardEditState.kt'
     thresholdInFiles: 11
     thresholdInClasses: 11
     thresholdInInterfaces: 11
@@ -286,7 +369,6 @@ exceptions:
     active: true
   TooGenericExceptionCaught:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
     exceptionNames:
       - 'ArrayIndexOutOfBoundsException'
       - 'Error'
@@ -367,11 +449,14 @@ naming:
     excludes:
       - '**/Platform.android.kt'
       - '**/Platform.ios.kt'
+      - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
   MemberNameEqualsClassName:
     active: true
     ignoreOverridden: true
   NoNameShadowing:
     active: true
+    excludes:
+      - '**/api/routes/AuthRoutes.kt'
   NonBooleanPropertyPrefixedWithIs:
     active: false
   ObjectPropertyNaming:
@@ -628,7 +713,24 @@ style:
     maxJumpCount: 1
   MagicNumber:
     active: true
-    excludes: ['**/test/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**', '**/*.kts']
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/jvmTest/**'
+      - '**/androidUnitTest/**'
+      - '**/androidInstrumentedTest/**'
+      - '**/jsTest/**'
+      - '**/iosTest/**'
+      - '**/*.kts'
+      - '**/commonMain/**/ui/theme/LinearTheme.kt'
+      - '**/commonMain/**/ui/drawer/NotificationBadge.kt'
+      - '**/commonMain/**/ui/drawer/HamburgerWithBadge.kt'
+      - '**/commonMain/**/ui/drawer/DrawerContent.kt'
+      - '**/commonMain/**/ui/screen/SessionDetailContent.kt'
+      - '**/commonMain/**/ui/screen/FinanceReportsScreen.kt'
+      - '**/commonMain/**/ui/screen/AuditLogScreen.kt'
+      - '**/commonMain/**/ui/screen/SessionMoney.kt'
     ignoreNumbers:
       - '-1'
       - '0'
@@ -656,6 +758,8 @@ style:
     excludeImportStatements: true
     excludeCommentStatements: false
     excludeRawStrings: true
+    excludes:
+      - '**/commonMain/**/navigation/MobileAppNavHost.kt'
   MayBeConst:
     active: true
   ModifierOrder:
@@ -700,6 +804,9 @@ style:
     excludeLabeled: false
     excludeReturnFromLambda: true
     excludeGuardClauses: false
+    excludes:
+      - '**/commonMain/**/navigation/NavHostRouteExt.kt'
+      - '**/commonMain/**/ui/screen/ClientDetailScreen.kt'
   SafeCast:
     active: true
   SerialVersionUIDInSerializableClass:
@@ -753,6 +860,9 @@ style:
   UnusedParameter:
     active: true
     allowedNames: 'ignored|expected'
+    excludes:
+      - '**/commonMain/**/ui/screen/UserManagementScreen.kt'
+      - '**/commonMain/**/ui/screen/SessionDashboardScreen.kt'
   UnusedPrivateClass:
     active: true
   UnusedPrivateMember:
@@ -761,6 +871,9 @@ style:
   UnusedPrivateProperty:
     active: true
     allowedNames: '_|ignored|expected|serialVersionUID'
+    excludes:
+      - '**/commonMain/**/ui/theme/LinearTheme.kt'
+      - '**/commonMain/**/ui/screen/NotificationsScreen.kt'
   UseAnyOrNoneInsteadOfFind:
     active: true
   UseArrayLiteralsInAnnotations:

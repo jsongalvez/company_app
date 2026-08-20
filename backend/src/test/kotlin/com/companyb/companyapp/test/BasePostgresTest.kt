@@ -90,6 +90,7 @@ abstract class BasePostgresTest {
         }
     }
 
+    @Suppress("UnreachableCode")
     protected fun cleanTrackedRows() {
         val grouped = tracked.groupBy({ it.table to it.column }) { it.id }
         transaction {

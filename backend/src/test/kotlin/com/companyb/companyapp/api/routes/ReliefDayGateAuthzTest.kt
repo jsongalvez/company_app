@@ -229,7 +229,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             sourceId = sourceId,
         )
         // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Seeded
-        // from the JVM clock against the view's DB now() — the −5h/−3h margins absorb any
+        // from the JVM clock against the view's DB now() — the −12h/−10h margins absorb any
         // realistic same-host clock skew (the grant must stay expired regardless).
         val now = TestFixtures.now
         DatabaseTestHelper.grantCapability(
@@ -238,8 +238,8 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             contextType = CapabilityContextType.BRANCH_DAY,
             contextId = grantedDay,
             sourceId = sourceId,
-            validFrom = now.minusHours(5),
-            validTo = now.minusHours(3),
+            validFrom = now.minusHours(12),
+            validTo = now.minusHours(10),
         )
         // branchUser: ordinary BRANCH grant (the branch leg regression).
         DatabaseTestHelper.grantCapability(

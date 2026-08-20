@@ -43,7 +43,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
 import com.companyb.companyapp.service.SchedulerLifecycle
-import com.companyb.companyapp.utils.Helper
+import com.companyb.companyapp.utils.RandomIdGenerator
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
@@ -91,7 +91,7 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         // logback.xml %X{traceId} %X == %mdc
         RequestElapsedConverter.startRequest()
         DeltaTimeConverter.startRequest()
-        val traceId = Helper().generateRandomId()
+        val traceId = RandomIdGenerator.generate()
         MDC.put("traceId", traceId)
         logger.info { "[REQUEST] starting request" }
     }
@@ -180,7 +180,6 @@ fun main() {
     main(AppConfig.parse())
 }
 
-@Suppress("TooGenericExceptionCaught")
 fun main(config: AppConfig) {
     RequestElapsedConverter.startRequest()
     DeltaTimeConverter.startRequest()
@@ -192,12 +191,10 @@ fun main(config: AppConfig) {
     DatabaseConfig.initialize(config)
     initializeDenyList()
     initializeScheduler()
-    try {
-        initializeJavalin(config)
-    } catch (e: Exception) {
-        shutdownScheduler()
-        throw e
-    }
+    runCatching { initializeJavalin(config) }
+        .onFailure {
+            shutdownScheduler()
+        }.getOrThrow()
 
     val elapsed = RequestElapsedConverter.currentElapsedMs()
     logger.info { "[INITIALIZATION] Completed in $elapsed ms." }

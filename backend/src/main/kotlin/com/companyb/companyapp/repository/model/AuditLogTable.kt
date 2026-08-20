@@ -42,7 +42,7 @@ class JsonBColumnType : ColumnType<String>() {
 
     override fun valueFromDB(value: Any): String =
         when (value) {
-            is PGobject -> value.value ?: ""
+            is PGobject -> value.value.orEmpty()
             is String -> value
             else -> value.toString()
         }

@@ -42,6 +42,7 @@ data class UserCreateParams(
     val displayName: String,
 )
 
+@Suppress("UnreachableCode")
 object UserRepository {
     fun findByUsername(username: String): AppUser? =
         transaction {

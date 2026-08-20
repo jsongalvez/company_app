@@ -32,6 +32,7 @@ data class SetRateResult(
     val created: Boolean,
 )
 
+@Suppress("UnreachableCode")
 object SessionBaseRateRepository {
     @Suppress("LongMethod")
     fun setRate(

@@ -51,13 +51,13 @@ internal object SessionBaseRateService {
                 rate = rate,
                 effectiveUntil = FAR_FUTURE,
             ),
-            auditFn = { rate ->
+            auditFn = { rateRecord ->
                 AuditLogRepository.recordInsert(
                     tableName = SessionBaseRateTable.tableName,
-                    recordId = rate.id,
+                    recordId = rateRecord.id,
                     changedBy = callerId,
                     branchId = branchId,
-                    fields = SessionBaseRateTable.auditFields(rate),
+                    fields = SessionBaseRateTable.auditFields(rateRecord),
                 )
             },
             auditUpdateFn = { before, after ->

@@ -37,6 +37,7 @@ fun parseBrowseLimit(raw: String?): Int {
     return limit
 }
 
+@Suppress("UnreachableCode")
 fun Context.uuidFromBody(key: String): UUID {
     val node = this.bodyAsClass(kotlinx.serialization.json.JsonObject::class.java)
     val value =

@@ -3230,3 +3230,31 @@ removed from both `tests/k6/results/baseline-results.md` and `backend/jmh-baseli
 - Pre-commit quality, OpenAPI, test-data cleanliness, shared compilation, and PostgreSQL
   connectivity gates: PASS.
 - No ADR needed; this corrects documentation to existing k6 threshold ownership.
+
+## Detekt Ratchet Closeout - Session 340
+
+Child #281 rechecked the composed Detekt rollout after the previous closeout review.
+The anti-slop safety rules remain active. Exact compatibility paths are recorded in
+`docs/gates/281-detekt-ratchet-closeout.md`; no baseline or source-set exclusion was
+added. Exposed false positives are isolated to repository paths, and non-Exposed
+unreachable findings use function-level dispositions. Scheduler exception handling is
+isolated to its lifecycle boundary.
+
+### Verification packet
+
+- `candidate: #281 ratchet and rollout closeout`
+- `mode: structured; model: GPT-5.6 Luna; blind position: OMEGA`
+- `L1 fact integrity: pass` — merged config, exact paths, typed tasks, and source
+  findings were rechecked after edits.
+- `L2 domain coherence: pass` — capability, Branch, and scheduler ownership remain
+  unchanged; no runtime business rule was redefined.
+- `L3 long-term architecture: pass` — no new runtime seam; adapter boundaries remain
+  explicit and follow-up clock/API migrations remain separate.
+- `L4 adversarial falsification: pass` — removing compatibility paths reproduces
+  findings; typed main/test and composed task graph pass with them restored.
+- `L5 comprehension: pass` — rule matrix names each exception, evidence, and follow-up.
+- `deterministic gate: pass` — full typed graph with `-PwarningsAsErrors=true`,
+  backend tests, Ktlint, and `git diff --check` pass.
+- `HARD findings: zero`; `SOFT findings: two accepted` — ambient clock seams and
+  pinned Compose deprecations, both explicitly documented in the gate ledger.
+- `confidence: high; artifact: docs/gates/281-detekt-ratchet-closeout.md`.

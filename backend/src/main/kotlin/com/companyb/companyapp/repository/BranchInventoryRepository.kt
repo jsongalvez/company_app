@@ -208,7 +208,12 @@ object BranchInventoryRepository {
                     InventoryMovementTable.movedAt to SortOrder.DESC,
                     InventoryMovementTable.id to SortOrder.DESC,
                 ).map { it.toInventoryMovement() }
-        }.also { logger.info { "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId date=$date" } }
+        }.also {
+            logger.info {
+                "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId " +
+                    "date=${date?.toString().orEmpty()}"
+            }
+        }
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> =
         transaction {

@@ -82,7 +82,7 @@ class SessionBootstrapViewModel(
                         // Any other failure is a genuine validation failure — Error (the splash
                         // keeps the token and offers Retry; LoginScreen shows the bootstrap copy).
                         else -> {
-                            throw IllegalStateException(
+                            error(
                                 "capabilities fetch failed: ${capabilitiesResponse.status.value}",
                             )
                         }

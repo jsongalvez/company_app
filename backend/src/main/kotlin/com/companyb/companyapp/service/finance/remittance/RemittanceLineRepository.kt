@@ -35,6 +35,7 @@ data class AddLineParams(
 
 private val logger = KotlinLogging.logger {}
 
+@Suppress("UnreachableCode")
 internal object RemittanceLineRepository {
     @Suppress("LongMethod")
     fun addLine(

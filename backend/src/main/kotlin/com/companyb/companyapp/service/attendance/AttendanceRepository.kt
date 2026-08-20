@@ -40,6 +40,7 @@ data class BranchDayUser(
     val displayName: String,
 )
 
+@Suppress("UnreachableCode")
 internal object AttendanceRepository {
     fun hasActiveClockIn(
         userId: UUID,

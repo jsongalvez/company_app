@@ -35,12 +35,13 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 private const val BRANCH_A = "branch-a"
 private const val BRANCH_B = "branch-b"
 private const val DAY_ID = "day-1"
 
-private val NOW = kotlinx.datetime.Instant.parse("2026-08-14T09:00:00+08:00")
+private val NOW = Instant.parse("2026-08-14T09:00:00+08:00")
 
 private const val BRANCHES_JSON =
     """[{"id":"branch-a","name":"Branch A","branchType":"CLINIC"},

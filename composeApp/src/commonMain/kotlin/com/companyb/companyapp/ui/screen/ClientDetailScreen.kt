@@ -583,7 +583,7 @@ private fun ClientDetailContent(
                     if (anonymizeState is UiState.Error) {
                         Spacer(Modifier.size(Spacing.xs))
                         Text(
-                            text = (anonymizeState as UiState.Error).message,
+                            text = anonymizeState.message,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                         )
