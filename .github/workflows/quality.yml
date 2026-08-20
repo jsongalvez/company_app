@@ -89,6 +89,9 @@ jobs:
           :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest
           :shared:detektIosArm64Main :shared:detektIosArm64Test
           :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test
+          :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
+          :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
+          :composeApp:detektIosSimulatorArm64Main
           :shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec --no-daemon
 
       - name: Verify test database cleanliness

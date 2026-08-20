@@ -64,6 +64,9 @@ log pre-commit "Running quality gate (detekt, ktlint, test, shared Detekt, share
     :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest \
     :shared:detektIosArm64Main :shared:detektIosArm64Test \
     :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test \
+    :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain \
+    :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main \
+    :composeApp:detektIosSimulatorArm64Main \
     :shared:compileKotlinJvm :shared:jvmTest \
     -PwarningsAsErrors=true --no-daemon
 log pre-commit "Quality gate passed."

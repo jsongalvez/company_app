@@ -1,3 +1,4 @@
+import io.gitlab.arturbosch.detekt.Detekt
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -86,6 +87,10 @@ compose.desktop {
 
 tasks.withType<JavaExec>().configureEach {
     if (name == "run") workingDir = rootProject.projectDir
+}
+
+tasks.withType<Detekt>().configureEach {
+    exclude("**/generated/**")
 }
 
 
