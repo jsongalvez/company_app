@@ -3258,3 +3258,96 @@ isolated to its lifecycle boundary.
 - `HARD findings: zero`; `SOFT findings: two accepted` — ambient clock seams and
   pinned Compose deprecations, both explicitly documented in the gate ledger.
 - `confidence: high; artifact: docs/gates/281-detekt-ratchet-closeout.md`.
+
+## Full Audit - Session 341
+
+After child #281, the native Map #180 frontier was empty. Four bounded read-only lanes
+rechecked C-01..C-14 across Compose/platform lifecycle, backend behavior and auth,
+shared/schema contracts, and tooling/tests/docs. Product code, tests, migrations, and
+runtime behavior were not modified during audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R86 - CI must trigger on cleanup-script changes | `.github/workflows/quality.yml:5-20,21-37` includes `scripts/check-test-cleanliness.sh` and `scripts/lib/**` but omits `scripts/clean-test-db.sh`; `.githooks/pre-push:119-127` makes cleanup mandatory after k6; shell coverage exists in `scripts/test-db-discovery-test.sh` and `scripts/test-db-discovery-disposable-test.sh` | Direct workflow/path inspection confirms a cleanup-only change can skip quality workflow; adding the path changes only trigger coverage and preserves local gate ownership | implement, P1 |
+| R87 - ADR-0006 gate description is stale | `docs/adr/0006-test-database-isolation.md:24-29` says pre-push cleanliness runs before JMH; `.githooks/pre-push:39-46,71-139` runs cleanliness before k6, while `.github/workflows/jmh.yml:3-5` owns JMH in CI | Direct comparison confirms stale agent-facing sequencing; wording correction changes no runtime behavior and does not choose unresolved JMH PR policy | implement, P2 docs-only |
+| R88 - clock-in race needs dedicated proof | `AttendanceService.kt:119-157` uses pre-check plus `insertIgnore`; `AttendanceRepository.kt:64-108` classifies zero insert by UUID; schema partial uniqueness is the concurrency backstop | Current repository has a conflict path, but no concurrent integration test proves Exposed behavior for distinct UUID losers; evidence is insufficient for an implementation candidate | defer pending deterministic concurrent test evidence |
+
+### Verifier packets
+
+```text
+candidate: R86
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; workflow filters, cleanup invocation, and shell test paths independently re-read
+L2 domain coherence: pass; disposable test database and production-data safety rules remain unchanged
+L3 long-term architecture: pass; CI trigger ownership follows existing quality path policy without a new abstraction
+L4 adversarial falsification: pass; cleanup-only changes are the uncovered path, while check-script and library changes already trigger CI
+L5 comprehension: pass; one omitted path and one bounded workflow edit define scope
+deterministic gate: pass; workflow source and cleanup call-site comparison agree
+HARD findings: zero untriaged
+SOFT findings: zero
+confidence: high
+artifact: Session 341 tooling/docs lane and docs/agents/wayfinder-341-cleanup-ci-ticket.md
+
+candidate: R87
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+L1 fact integrity: pass; ADR, pre-push hook, and JMH workflow independently compared
+L2 domain coherence: pass; ADR wording reflects current gate ownership without changing policy
+L3 long-term architecture: pass; removes stale cache while preserving CI as JMH owner
+L4 adversarial falsification: pass; JMH pull-request policy remains untouched and unresolved issue #267 is not re-litigated
+L5 comprehension: pass; documentation-only correction is localized and plain
+deterministic gate: pass; exact stale phrase and current command order verified
+HARD findings: zero untriaged
+SOFT findings: zero
+confidence: high
+artifact: Session 341 tooling/docs lane and docs/agents/wayfinder-341-adr-gate-ticket.md
+
+candidate: R88
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; pre-check, insertIgnore, unique index, and test inventory verified
+L2 domain coherence: pass; one-active-clock-in rule remains authoritative
+L3 long-term architecture: pass; a concurrent integration test is the smallest next seam
+L4 adversarial falsification: findings; distinct UUID race and partial-index conflict behavior are unproven
+L5 comprehension: pass; required proof and blocker are explicit
+deterministic gate: failing for implementation; no concurrent test evidence
+HARD findings: one unverified concurrency behavior; blocks ticketing
+SOFT findings: zero
+confidence: reduced
+artifact: Session 341 backend lane; deferred until deterministic race fixture exists
+```
+
+### Audit-of-audit - Session 341
+
+- Coverage: C-01..C-14 rechecked through all four bounded lanes; Compose lifecycle and
+  shared/schema ownership produced no new material candidate.
+- Duplication: R86 is CI trigger coverage, not duplicate of test-database discovery
+  policy; R87 is stale ADR sequencing, not JMH pull-request policy #267; R88 is deferred
+  concurrency proof, not a verified defect.
+- Materiality: R86 is a gate omission; R87 is agent-facing truth drift; R88 lacks the
+  deterministic evidence required for ticketing.
+- Schema: no migration or production-data change is proposed.
+- Priority: create and verify R86 and R87 children, then claim R86 only.
+
+### Child traceability
+
+- R86 command: `bash scripts/wayfinder-create-child.sh 180 task "Build: trigger CI for test-database cleanup changes" docs/agents/wayfinder-341-cleanup-ci-ticket.md`
+- R87 command: `bash scripts/wayfinder-create-child.sh 180 task "Docs: correct stale test-database gate wording" docs/agents/wayfinder-341-adr-gate-ticket.md`
+- R86 returned `https://github.com/jsongalvez/company_app/issues/284`; verification:
+  `bash scripts/wayfinder-verify-child.sh 180 284` -> `Verified child #284: parent #180, label wayfinder:task`.
+- R87 returned `https://github.com/jsongalvez/company_app/issues/285`; verification:
+  `bash scripts/wayfinder-verify-child.sh 180 285` -> `Verified child #285: parent #180, label wayfinder:task`.
+
+### R86 implementation evidence
+
+Child #284 is resolved. `.github/workflows/quality.yml` now includes
+`scripts/clean-test-db.sh` in both push and pull-request path filters, preserving CI
+coverage when cleanup behavior changes. Shell syntax, discovery fixtures, disposable
+database discovery, and `git diff --check` passed. No ADR was needed because this
+restores existing quality-gate trigger ownership.
