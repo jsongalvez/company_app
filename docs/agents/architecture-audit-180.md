@@ -3351,3 +3351,163 @@ Child #284 is resolved. `.github/workflows/quality.yml` now includes
 coverage when cleanup behavior changes. Shell syntax, discovery fixtures, disposable
 database discovery, and `git diff --check` passed. No ADR was needed because this
 restores existing quality-gate trigger ownership.
+
+## Permanent-Map Refresh - Session 344
+
+The empty frontier triggered a fresh full audit. Four independent read-only lanes
+rechecked C-01..C-14 across Compose/platform bridges, backend behavior and
+authorization, shared/schema ownership, and tooling/gates. A synthesis lane
+rechecked candidate overlap, materiality, and the existing draft-remittance and
+JMH policy blockers. No product, schema, or runtime behavior changed before the
+claimed child implementation.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R89 - keep soft-deleted Expenses immutable under races | Expense update prechecks deletion; repository update omits `deleted_at IS NULL`; soft delete preserves version | Existing restore predicate is a local precedent; stale update interleaving remains reproducible | implement, P1 |
+| R90 - remove credential-bearing HTTP header logging | `ApiClient` enables `LogLevel.HEADERS`; Desktop writes rolling files | No Authorization sanitization exists; authenticated requests traverse the logger | implement, P0 |
+| R91 - keep revoked delegate retries idempotent | delegate `insertIgnore` is followed by unconditional capability insert | assign -> revoke -> same UUID retry can reactivate access | implement, P0 |
+| R92 - restrict delegate assignment to Medical Mission Branches | service/repository accept arbitrary Branch ID while granting `EDIT_BRANCH_DATA` | business requirements and engine scope require `MEDICAL_MISSION` | implement, P1 |
+| R93 - require successful commands for plain-text gate expectations | gate checker matches output without checking nonzero status | failing command with matching output can flip gate; no regression fixture | implement, P1 |
+| R94 - JMH pull-request coverage | push-only workflow and missing baseline behavior verified | policy is already tracked by #267; changing trigger scope needs authorization | needs-info, issue #267 |
+| R95 - nullable remittance-line creator | schema nullable, model/insert path non-null | no invalid-row or import evidence; prior deferred seam remains unmaterialized | defer |
+
+### Verifier packets
+
+All packets use structured repeated rubric mode, GPT-5.6 Luna, with blind positions
+alternated across lanes. Deterministic repository evidence is authoritative.
+
+```text
+candidate: R89
+mode: structured
+model: GPT-5.6 Luna
+position: OMEGA
+L1 fact integrity: pass; service/repository predicates and restore precedent re-read
+L2 domain coherence: pass; soft-deleted financial records remain immutable
+L3 long-term architecture: pass; repository owns optimistic state classification
+L4 adversarial falsification: pass; update-read/delete/update interleaving succeeds
+L5 comprehension: pass
+deterministic gate: pass; current source and test gap agree
+HARD findings: zero after deleted_at predicate
+SOFT findings: zero
+confidence: high
+artifact: Session 344 synthesis and wayfinder-344-expense-delete-race-ticket.md
+
+candidate: R90
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; header logger and Desktop file sink verified
+L2 domain coherence: pass with HARD credential-minimization breach
+L3 long-term architecture: pass; narrow existing client seam
+L4 adversarial falsification: pass; bearer leakage reaches local/captured logs
+L5 comprehension: pass
+deterministic gate: fail before fix; HEADERS enabled without sanitizer
+HARD findings: zero after safe INFO logging
+SOFT findings: zero
+confidence: high
+artifact: Session 344 Compose lane and wayfinder-344-api-header-logging-ticket.md
+
+candidate: R91
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+L1 fact integrity: pass; insertIgnore and unconditional capability insert verified
+L2 domain coherence: pass with HARD revocation/idempotency breach
+L3 long-term architecture: pass; repository owns atomic insert side effects
+L4 adversarial falsification: pass; revoked UUID retry re-grants capability
+L5 comprehension: pass
+deterministic gate: fail before fix; capability insert lacks inserted-count guard
+HARD findings: zero after idempotency guard
+SOFT findings: zero
+confidence: high
+artifact: Session 344 backend lane and wayfinder-344-delegate-retry-ticket.md
+
+candidate: R92
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; service/repository accept arbitrary Branch IDs
+L2 domain coherence: pass with HARD capability-scope breach
+L3 long-term architecture: pass; service owns Branch domain validation
+L4 adversarial falsification: pass; ordinary Branch receives mission-delegate grant
+L5 comprehension: pass
+deterministic gate: fail before fix; no Branch type validation exists
+HARD findings: zero after Medical Mission Branch validation
+SOFT findings: zero
+confidence: high
+artifact: Session 344 backend lane and wayfinder-344-delegate-branch-ticket.md
+
+candidate: R93
+mode: structured
+model: GPT-5.6 Luna
+position: DELTA
+L1 fact integrity: pass; plain EXPECT path ignores command code
+L2 domain coherence: pass with HARD gate-integrity breach
+L3 long-term architecture: pass; checker owns expectation semantics
+L4 adversarial falsification: pass; matching output from failed command can pass
+L5 comprehension: pass
+deterministic gate: fail before regression fixture
+HARD findings: zero after status guard and fixture
+SOFT findings: zero
+confidence: high
+artifact: Session 344 tooling lane and wayfinder-344-gate-check-ticket.md
+
+candidate: R94
+mode: structured
+model: GPT-5.6 Luna
+position: EPSILON
+L1 fact integrity: pass; workflow trigger and baseline skip verified
+L2 domain coherence: pass; policy boundary remains explicit
+L3 long-term architecture: pass; no trigger change guessed
+L4 adversarial falsification: pass; PR path lacks JMH execution
+L5 comprehension: pass
+deterministic gate: pass; workflow source confirms push-only policy
+HARD findings: zero
+SOFT findings: one, authorization required
+confidence: high
+artifact: Session 344 tooling lane and issue #267
+
+candidate: R95
+mode: structured
+model: GPT-5.6 Luna
+position: ZETA
+L1 fact integrity: pass; nullable schema and non-null write path verified
+L2 domain coherence: pass
+L3 long-term architecture: pass
+L4 adversarial falsification: pass; no invalid-row/import path found
+L5 comprehension: pass
+deterministic gate: pass; migration/model/write comparison complete
+HARD findings: zero
+SOFT findings: one deferred schema-hardening seam
+confidence: reduced
+artifact: Session 344 shared/schema lane
+```
+
+### Audit-of-audit - Session 344
+
+- Coverage: C-01..C-14 rechecked; shared/schema lane found no new material candidate.
+- Duplication: delegate retry and Branch-type validation are separate repository and service
+  ownership defects; gate semantics are distinct from prior comparator work.
+- Materiality: R90 is credential exposure; R91 is revocation bypass; R92 is capability scope;
+  R93 is mandatory-gate false success; R89 is stale financial mutation.
+- Policy: #286 draft-remittance uniqueness and #267 JMH pull-request policy remain unresolved;
+  no implementation scope was guessed.
+- Priority: R90 first, then R91, R92, R93, R89. All five implement candidates were ticketed
+  through the child wrapper and every native parent link was verified before claiming R90.
+
+### Child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: remove credential-bearing HTTP header logging" docs/agents/wayfinder-344-api-header-logging-ticket.md` -> #287; `scripts/wayfinder-verify-child.sh 180 287` -> `Verified child #287: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: keep revoked delegate retries idempotent" docs/agents/wayfinder-344-delegate-retry-ticket.md` -> #288; `scripts/wayfinder-verify-child.sh 180 288` -> `Verified child #288: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: restrict delegate assignment to medical mission branches" docs/agents/wayfinder-344-delegate-branch-ticket.md` -> #290; `scripts/wayfinder-verify-child.sh 180 290` -> `Verified child #290: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: make gate text expectations require successful checks" docs/agents/wayfinder-344-gate-check-ticket.md` -> #289; `scripts/wayfinder-verify-child.sh 180 289` -> `Verified child #289: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: keep soft-deleted expenses immutable under races" docs/agents/wayfinder-344-expense-delete-race-ticket.md` -> #291; `scripts/wayfinder-verify-child.sh 180 291` -> `Verified child #291: parent #180, label wayfinder:task`.
+
+### R90 implementation evidence
+
+Child #287 is claimed. `ApiClient` now uses `LogLevel.INFO`, so Ktor request
+headers, including Authorization bearer tokens, are not emitted by the client
+logger. Desktop rolling logs retain lifecycle/status messages. Deterministic grep,
+`git diff --check`, and `:composeApp:desktopTest` passed.

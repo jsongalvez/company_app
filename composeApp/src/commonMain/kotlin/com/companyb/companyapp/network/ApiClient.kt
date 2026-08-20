@@ -57,7 +57,7 @@ class ApiClient(
             }
 
             install(Logging) {
-                level = LogLevel.HEADERS
+                level = LogLevel.INFO
             }
 
             install(Auth) {
