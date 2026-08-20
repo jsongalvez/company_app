@@ -3766,3 +3766,132 @@ reviewed against current source, requirements, ADRs, and tests.
   L4 adversarial falsification=pass; L5 comprehension=pass; deterministic gate=pass;
   HARD findings=zero; SOFT findings=one, unrelated backend test-db failure;
   confidence=high; artifact=`docs/gates/299-auth-route-ownership.md`.
+
+## Session 359 full audit - empty frontier
+
+The native Map #180 child query had no open, unblocked, unassigned child. Open issue #267 is
+not a Map #180 child and remains policy-owned. A fresh full audit rechecked C-01..C-14 through
+four bounded read-only lanes, followed by independent source verification of every retained
+candidate. Existing R15/R23/R24 fog remains unresolved: no new deployment-topology evidence,
+and the Compose ownership changes still require a broader lifecycle decision.
+
+### Retained candidates
+
+#### R103 - Remittance-line UUID retry request ownership
+
+- **Verdict:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/src/main/kotlin/com/companyb/companyapp/service/finance/remittance/RemittanceLineRepository.kt:46-55`
+  returns an existing row for matching line and remittance IDs without comparing type, source,
+  amount, or creator. The concurrent fallback at `:69-81` checks only entity reference after
+  the same narrow key. `RemittanceService.addLine` supplies all request fields.
+- **Invalid state:** an altered same-parent UUID retry silently reports the original line as
+  success, hiding changed source or amount and skipping conflict/audit behavior.
+- **Smallest scope:** repository-owned immutable request comparison plus focused service tests;
+  preserve same-request retries, parent scoping, source uniqueness, version behavior, and audit count.
+- **Operational impact:** Coordinators receive deterministic conflict instead of stale success;
+  recovery is retry with original payload or a new UUID. No schema or rollout migration.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=ALPHA;`
+  `L1 fact integrity=pass (source and call-site fields independently checked);`
+  `L2 domain coherence=pass (UUID idempotency and Remittance vocabulary preserved);`
+  `L3 long-term architecture=pass (ownership stays beside repository uniqueness);`
+  `L4 adversarial falsification=pass (same-parent altered fields and raced insert examined);`
+  `L5 comprehension=pass; deterministic gate=pass (source evidence reproduces narrow fallback);`
+  `HARD findings=zero; SOFT findings=zero; confidence=high;`
+  `artifact=this section and docs/agents/wayfinder-359-remittance-line-ownership-ticket.md.`
+
+#### R104 - Session-concern DELETE authorization
+
+- **Verdict:** implement; **priority:** P0; **confidence:** high.
+- **Evidence:** `SessionRoutes.kt:246-253` registers the capability filter for
+  `ApiRoutes.SESSION_CONCERNS_PATH` (`/api/sessions/{sessionId}/concerns`), while
+  `:259` defines `SESSION_CONCERN_PATH` as the five-segment child DELETE route and
+  `:283-290` registers DELETE on that child. `SessionConcernService.kt:65-85` checks
+  day state but does not independently require `EDIT_BRANCH_DATA` on OPEN days.
+- **Invalid state:** an authenticated caller without the capability can remove session
+  clinical metadata on an OPEN Branch Day because the exact child route has no filter.
+- **Smallest scope:** register the existing session/Branch Day capability filter on the child
+  path and add unauthorized/authorized route regressions; no service or domain redesign.
+- **Operational impact:** unauthorized deletion becomes 403; authorized practitioners and
+  Coordinators retain behavior. Recovery remains audit-guided re-add. No schema change.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=BETA;`
+  `L1 fact integrity=pass (route, path constants, filter, and service independently checked);`
+  `L2 domain coherence=pass (EDIT_BRANCH_DATA and Branch Day rules preserved);`
+  `L3 long-term architecture=pass (reuses existing route gate, no new authorization seam);`
+  `L4 adversarial falsification=pass (OPEN day, child path, and authorized grant cases checked);`
+  `L5 comprehension=pass; deterministic gate=pass (exact path mismatch reproduced);`
+  `HARD findings=zero; SOFT findings=zero; confidence=high;`
+  `artifact=this section and docs/agents/wayfinder-359-session-concern-delete-ticket.md.`
+
+#### R105 - Test teardown foreign-key graph
+
+- **Verdict:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `backend/src/test/kotlin/com/companyb/companyapp/test/BasePostgresTest.kt:128-130`
+  models `InventoryMovementTable` only as depending on `BranchInventoryTable` and
+  `ProductSaleTable`, but schema `V1__full_schema.sql:337-346` references Product, Product
+  Sale, Branch, Branch Day, and App User. The same graph omits Notification's Branch parent
+  (`BasePostgresTest.kt:130`; schema `V1__full_schema.sql:567-574`) and gives
+  MedicalMissionDelegate unrelated Session/Branch Day parents (`:129`; model and schema
+  show App User plus Branch only).
+- **Invalid state:** tracked test rows can be deleted in an order inconsistent with real FKs,
+  causing cleanup FK failures or residue dependent on test registration and topological ties.
+- **Smallest scope:** correct FK graph edges and add schema-backed teardown coverage; production
+  schema and runtime behavior remain unchanged.
+- **Operational impact:** test authors get deterministic cleanup rather than flaky fixture failures;
+  failure recovery is disposable test DB cleanup. Pure internal tooling: rollout compatibility not applicable.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=GAMMA;`
+  `L1 fact integrity=pass (schema and Exposed models independently compared);`
+  `L2 domain coherence=pass (test DB remains disposable and production data untouched);`
+  `L3 long-term architecture=pass (one graph owns teardown order, no abstraction added);`
+  `L4 adversarial falsification=pass (missing parents and unrelated edges checked);`
+  `L5 comprehension=pass; deterministic gate=pass (source graph mismatch reproduced);`
+  `HARD findings=zero; SOFT findings=one, runtime fixture still required before implementation;`
+  `confidence=high; artifact=this section and docs/agents/wayfinder-359-test-teardown-fk-graph-ticket.md.`
+
+#### R106 - CI execution policy for k6 contract changes
+
+- **Verdict:** defer pending human policy; **priority:** P1; **confidence:** reduced.
+- **Evidence:** `.github/workflows/quality.yml:3-40`, `jmh.yml:17-24`, and `openapi.yml:3-20`
+  have no `tests/k6/**` trigger or k6 execution. Local `.githooks/pre-push` remains the only
+  k6 gate owner.
+- **Operational impact:** k6 threshold or fixture changes can merge without observable CI
+  execution, but adding a trigger alone would falsely imply coverage because CI startup,
+  credentials, disposable DB, cleanup, and execution policy are unspecified.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=DELTA;`
+  `L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass;`
+  `L4 adversarial falsification=pass (trigger-only change is false coverage);`
+  `L5 comprehension=pass; deterministic gate=pass (workflow path/source search);`
+  `HARD findings=zero; SOFT findings=one, policy choice is unresolved; confidence=reduced;`
+  `artifact=this section, docs/agents/wayfinder-359-k6-ci-policy.md, and issue #301.`
+- Created `needs-info` issue #301. No implementation child created or claimed for R106.
+
+### Session 359 synthesis and child traceability
+
+- Coverage: C-01..C-14 complete; Compose lifecycle and R15 fog rechecked; schema/model and
+  workflow lanes found no additional retained candidate.
+- Duplication: R103 is distinct from prior parent-scoping work because same-parent immutable
+  payload ownership was not previously checked. R104 is a fresh exact-path authorization gap.
+  R105 is test-infrastructure FK graph drift, not production schema drift. R106 is policy-blocked.
+- Materiality: R104 is P0 authorization; R103/R105 are P1 integrity/reliability. No style-only
+  or speculative abstraction finding retained.
+- Priority: R104, R103, R105. Native Map capacity reached 100 children during creation.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve remittance-line UUID request ownership" docs/agents/wayfinder-359-remittance-line-ownership-ticket.md`
+  -> `https://github.com/jsongalvez/company_app/issues/302`; `scripts/wayfinder-verify-child.sh 180 302`
+  -> `Verified child #302: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: correct test teardown foreign-key graph" docs/agents/wayfinder-359-test-teardown-fk-graph-ticket.md`
+  -> `https://github.com/jsongalvez/company_app/issues/303`; `scripts/wayfinder-verify-child.sh 180 303`
+  -> `Verified child #303: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: enforce session-concern DELETE authorization" docs/agents/wayfinder-359-session-concern-delete-ticket.md`
+  -> created issue #304 but native link failed with GitHub HTTP 422: `Parent cannot have more than 100 sub-issues`.
+  Issue #304 remains open and labeled `wayfinder:task` as a fallback candidate; native parent verification
+  is impossible until Map #180 has capacity. This external tracker limit is recorded, not hidden.
+
+### Session 359 audit-of-audit
+
+- Coverage pass: all C-01..C-14 lanes returned evidence; no subsystem omission.
+- Duplication/ownership pass: R103/R104/R105 have separate owners and deletion tests; R106 is not
+  converted into guessed CI implementation.
+- Materiality pass: three candidates survive; deferred R15/R23/R24 remain fog or decision-dependent.
+- Schema/dependency pass: R103/R104/R105 need no production migration; R105 is blocked only by
+  implementation verification, not a schema decision.
+- Clean-audit result: not clean; three native children were required, two were created and verified,
+  and one was attempted but blocked by GitHub's 100-child limit.

@@ -241,20 +241,24 @@ object RemittanceService {
             throw ValidationException("Can only add lines to DRAFT remittances")
         }
 
+        val params =
+            AddLineParams(
+                id = id,
+                remittanceId = remittanceId,
+                type = type,
+                sessionId = sessionId,
+                productSaleId = productSaleId,
+                amount = amount,
+                createdBy = callerId,
+                expectedVersion = remittance.version,
+            )
+        RemittanceLineRepository.findExistingRequest(params)?.let { return it }
+
         requireSourceBelongsToBranch(type, sessionId, productSaleId, remittance.branchId)
 
         val line =
             RemittanceLineRepository.addLine(
-                AddLineParams(
-                    id = id,
-                    remittanceId = remittanceId,
-                    type = type,
-                    sessionId = sessionId,
-                    productSaleId = productSaleId,
-                    amount = amount,
-                    createdBy = callerId,
-                    expectedVersion = remittance.version,
-                ),
+                params,
             ) { line ->
                 AuditLogRepository.recordInsert(
                     tableName = RemittanceLineTable.tableName,

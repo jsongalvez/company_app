@@ -35,8 +35,23 @@ data class AddLineParams(
 
 private val logger = KotlinLogging.logger {}
 
-@Suppress("UnreachableCode")
+@Suppress("TooManyFunctions", "UnreachableCode")
 internal object RemittanceLineRepository {
+    fun findExistingRequest(params: AddLineParams): RemittanceLine? =
+        transaction {
+            RemittanceLineTable
+                .selectAll()
+                .where {
+                    (RemittanceLineTable.id eq params.id) and
+                        (RemittanceLineTable.remittanceId eq params.remittanceId)
+                }.singleOrNull()
+                ?.let { row ->
+                    val line = row.toRemittanceLine()
+                    assertRequestMatches(line, params)
+                    line
+                }
+        }
+
     @Suppress("LongMethod")
     fun addLine(
         params: AddLineParams,
@@ -51,6 +66,7 @@ internal object RemittanceLineRepository {
                             (RemittanceLineTable.remittanceId eq params.remittanceId)
                     }.singleOrNull()
             if (existing != null) {
+                assertRequestMatches(existing.toRemittanceLine(), params)
                 return@transaction existing.toRemittanceLine()
             }
 
@@ -76,6 +92,7 @@ internal object RemittanceLineRepository {
                                 entityRefCondition(params)
                         }.singleOrNull()
                 if (racedRetry != null) {
+                    assertRequestMatches(racedRetry.toRemittanceLine(), params)
                     return@transaction racedRetry.toRemittanceLine()
                 }
                 throw ConflictException(duplicateMessage(params.type))
@@ -201,6 +218,21 @@ internal object RemittanceLineRepository {
                 }.singleOrNull()
         if (existingLine != null) {
             throw ConflictException(duplicateMessage(params.type))
+        }
+    }
+
+    private fun assertRequestMatches(
+        existing: RemittanceLine,
+        params: AddLineParams,
+    ) {
+        val matches =
+            existing.type == params.type &&
+                existing.sessionId == params.sessionId &&
+                existing.productSaleId == params.productSaleId &&
+                existing.amount.compareTo(params.amount) == 0 &&
+                existing.createdBy == params.createdBy
+        if (!matches) {
+            throw ConflictException("Remittance line UUID already belongs to a different request")
         }
     }
 

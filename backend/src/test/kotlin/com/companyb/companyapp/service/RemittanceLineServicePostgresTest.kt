@@ -63,6 +63,7 @@ import kotlin.test.assertTrue
 class RemittanceLineServicePostgresTest : BasePostgresTest() {
     private companion object {
         const val CONCURRENT_BREAKDOWNS = 2
+        const val CONCURRENT_LINES = 2
         const val EXECUTOR_TERMINATION_SECONDS = 10L
     }
 
@@ -262,13 +263,167 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
                 type = RemittanceLineType.SESSION,
                 sessionId = sessionId,
                 productSaleId = null,
-                amount = BigDecimal("2000.00"),
+                amount = BigDecimal("1500.00"),
             )
 
         assertEquals(first.id, second.id)
         assertEquals(first.amount, second.amount)
         assertEquals(versionAfterFirst, RemittanceService.getRemittance(remittance.id).remittance.version)
         assertEquals(auditCountAfterFirst, remittanceLineAuditCount())
+    }
+
+    @Test
+    fun `add line rejects altered UUID retry payload`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        val secondSessionId = TestFixtures.uuid()
+        completeSession(sessionId)
+        createSession(secondSessionId)
+        trackOwned(SessionTable, SessionTable.id, secondSessionId)
+        val lineId = TestFixtures.uuid()
+
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = lineId,
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+        val versionBefore = RemittanceService.getRemittance(remittance.id).remittance.version
+        val auditCountBefore = remittanceLineAuditCount()
+
+        assertFailsWith<ConflictException> {
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = lineId,
+                type = RemittanceLineType.PRODUCT_SALE,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("1500.00"),
+            )
+        }
+        assertFailsWith<ConflictException> {
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("500.00"),
+            )
+        }
+
+        assertEquals(versionBefore, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertEquals(auditCountBefore, remittanceLineAuditCount())
+    }
+
+    @Test
+    fun `add line rejects altered UUID retry source and creator`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        val secondSessionId = TestFixtures.uuid()
+        completeSession(sessionId)
+        createSession(secondSessionId)
+        trackOwned(SessionTable, SessionTable.id, secondSessionId)
+        val lineId = TestFixtures.uuid()
+
+        RemittanceService.addLine(
+            callerId = callerId,
+            remittanceId = remittance.id,
+            id = lineId,
+            type = RemittanceLineType.SESSION,
+            sessionId = sessionId,
+            productSaleId = null,
+            amount = BigDecimal("1500.00"),
+        )
+        val versionBefore = RemittanceService.getRemittance(remittance.id).remittance.version
+        val auditCountBefore = remittanceLineAuditCount()
+        val otherUser = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(otherUser, "rl")
+        trackOwned(AppUserTable, AppUserTable.id, otherUser)
+
+        assertFailsWith<ConflictException> {
+            RemittanceService.addLine(
+                callerId = callerId,
+                remittanceId = remittance.id,
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = secondSessionId,
+                productSaleId = null,
+                amount = BigDecimal("1500.00"),
+            )
+        }
+
+        assertFailsWith<ConflictException> {
+            RemittanceService.addLine(
+                callerId = otherUser,
+                remittanceId = remittance.id,
+                id = lineId,
+                type = RemittanceLineType.SESSION,
+                sessionId = sessionId,
+                productSaleId = null,
+                amount = BigDecimal("1500.00"),
+            )
+        }
+
+        assertEquals(versionBefore, RemittanceService.getRemittance(remittance.id).remittance.version)
+        assertEquals(auditCountBefore, remittanceLineAuditCount())
+    }
+
+    @Test
+    fun `add line concurrent same UUID returns one line and audit`() {
+        val remittance = createDraftRemittance()
+        trackOwned(RemittanceTable, RemittanceTable.id, remittance.id)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittance.id)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittance.id)
+        createSession()
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        val lineId = TestFixtures.uuid()
+        val executor = Executors.newFixedThreadPool(CONCURRENT_LINES)
+        val ready = CountDownLatch(CONCURRENT_LINES)
+        val start = CountDownLatch(1)
+        val futures =
+            (1..CONCURRENT_LINES).map {
+                executor.submit<UUID> {
+                    ready.countDown()
+                    start.await()
+                    val line =
+                        RemittanceService.addLine(
+                            callerId = callerId,
+                            remittanceId = remittance.id,
+                            id = lineId,
+                            type = RemittanceLineType.SESSION,
+                            sessionId = sessionId,
+                            productSaleId = null,
+                            amount = BigDecimal("1500.00"),
+                        )
+                    line.id
+                }
+            }
+
+        try {
+            assertTrue(ready.await(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+            start.countDown()
+            assertEquals(1, futures.map { it.get() }.toSet().size)
+        } finally {
+            executor.shutdownNow()
+            assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+        }
+
+        assertEquals(1, remittanceLineAuditCount())
+        assertEquals(1, RemittanceService.getRemittance(remittance.id).lines.size)
     }
 
     @Test
