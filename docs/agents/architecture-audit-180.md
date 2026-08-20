@@ -3661,3 +3661,90 @@ artifact: Session 350 audit and wayfinder-350-auth-routes-ticket.md
 - `scripts/wayfinder-create-child.sh 180 task "Build: classify session-practitioner version races" docs/agents/wayfinder-350-session-practitioner-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/295`; `scripts/wayfinder-verify-child.sh 180 295` -> `Verified child #295: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: consume typed Compose statuses" docs/agents/wayfinder-350-compose-status-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/296`; `scripts/wayfinder-verify-child.sh 180 296` -> `Verified child #296: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: finish shared auth route ownership" docs/agents/wayfinder-350-auth-routes-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/294`; `scripts/wayfinder-verify-child.sh 180 294` -> `Verified child #294: parent #180, label wayfinder:task`.
+
+## Full Audit - Session 356
+
+Fresh read-only lanes rechecked C-01..C-14 after child #298 and the live Map #180 frontier
+was empty. Compose, backend, shared/schema, and tooling/docs ownership were independently
+reviewed against current source, requirements, ADRs, and tests.
+
+### Candidate dispositions
+
+#### D3 - Make DrawerViewModel lifecycle-owned
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P1; **confidence:** high.
+- **Evidence:** `composeApp/src/commonMain/kotlin/com/companyb/companyapp/ui/drawer/DrawerContent.kt:76-82`
+  constructs `DrawerViewModel` with raw `remember`; `DrawerViewModel.kt:30,60-84` owns
+  `viewModelScope` and a capability collector.
+- **Invalid state:** removing the drawer can leave its collector and in-flight work alive
+  without lifecycle cleanup.
+- **Simpler shape:** use existing lifecycle-aware `viewModel {}` construction; keep drawer
+  state and capability projection logic unchanged.
+- **Scope:** DrawerContent construction and focused lifecycle/source coverage; no new module,
+  state abstraction, or behavior change.
+- **Operational impact:** drawer capability refresh and logout/clock-out behavior retain current
+  workflow; route disposal now cancels owner-scoped work; compatibility risk is low.
+- **Risks/validation:** verify repeated drawer removal, logout, clock-out, retry, common tests,
+  and Android/Desktop compilation; iOS validation depends on available Native artifacts.
+- **Deletion test:** replacing one raw remembered constructor removes ownerless lifetime without
+  moving business logic.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=ALPHA;`
+  `L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass;`
+  `L4 adversarial falsification=pass; L5 comprehension=pass; deterministic gate=pass;`
+  `HARD findings=zero; SOFT findings=one, iOS lifecycle validation is externally dependent;`
+  `confidence=high; artifact=Session 356 C-01..C-04 lane and wayfinder-356-drawer-lifecycle-ticket.md.`
+
+#### D4 - Finish backend Auth route ownership
+
+- **Verdict:** recommend; **disposition:** implement; **priority:** P2; **confidence:** high.
+- **Evidence:** shared `ApiRoutes.AUTH_LOGIN` and `AUTH_REGISTER` are at
+  `shared/src/commonMain/kotlin/com/companyb/companyapp/api/ApiRoutes.kt:8-9`; backend
+  `AuthRoutes.kt:48,83` still registers equivalent literals.
+- **Invalid state:** the shared contract catalog is not the sole owner of public Auth paths,
+  allowing silent route drift.
+- **Simpler shape:** replace two literals with existing shared constants; preserve public route
+  registration and OpenAPI output.
+- **Scope:** AuthRoutes and focused source/byte-equivalence route coverage; no auth behavior,
+  HTTP contract, or new abstraction.
+- **Operational impact:** no actor workflow or recovery change; exact URLs remain unchanged and
+  future route edits have one executable owner.
+- **Risks/validation:** compile shared/backend, verify exact paths and OpenAPI route contract.
+- **Deletion test:** duplicate backend literals disappear while one shared catalog remains.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=BETA;`
+  `L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass;`
+  `L4 adversarial falsification=pass; L5 comprehension=pass; deterministic gate=pass;`
+  `HARD findings=zero; SOFT findings=zero; confidence=high;`
+  `artifact=Session 356 C-06..C-10 lane and wayfinder-356-auth-routes-ticket.md.`
+
+### Deferred and rejected leads
+
+- Branch Select lifecycle is duplicate of closed child #251; no duplicate child created.
+- C-05 residual no-op enum aliases are mechanical cleanup; shared/backend ownership is coherent.
+- C-08/C-09 persistence and schema are aligned; no migration or model candidate survived.
+- C-11..C-14 tooling, tests, benchmarks, OpenAPI parser, and docs are coherent; prior candidates
+  are implemented or explicitly skipped.
+- R15 notification count and R23/R24 lifecycle fog remain unresolved without new deployment or
+  ownership evidence. #267 remains policy-owned and was not guessed.
+
+### Audit-of-audit
+
+- Coverage: C-01..C-14 complete across four non-overlapping lanes; no omission.
+- Duplication: D3 is Drawer lifecycle ownership; D4 is residual Auth route contract ownership;
+  Branch Select duplicates R67/#251 and all other leads are closed, deferred, or rejected.
+- Materiality: D3 is P1 ownerless coroutine lifecycle; D4 is P2 executable contract drift.
+- Schema/dependencies: no migration or ADR required; D3 and D4 are independent.
+- Priority: D3 first, D4 second. Both implement candidates require native children before claim.
+
+### Audit log
+
+| Pass | Work | Result |
+|---|---|---|
+| 356.1 | Four bounded full-audit lanes | C-01..C-14 complete; D3/D4 retained; prior leads rechecked |
+| 356.2 | Independent deterministic verification | Drawer ownership and Auth route literals reproduced; duplicate/skip checks passed |
+| 356.3 | Structured verifier and adversarial pass | D3/D4 L1-L5 packets complete; no untriaged HARD; one D3 SOFT logged |
+| 356.4 | Coverage, duplication, materiality, schema, priority audit | Two implement candidates ranked; no policy guess |
+
+### Child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: make DrawerViewModel lifecycle-owned" docs/agents/wayfinder-356-drawer-lifecycle-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/300`; `scripts/wayfinder-verify-child.sh 180 300` -> `Verified child #300: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: finish backend Auth route ownership" docs/agents/wayfinder-356-auth-routes-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/299`; `scripts/wayfinder-verify-child.sh 180 299` -> `Verified child #299: parent #180, label wayfinder:task`.

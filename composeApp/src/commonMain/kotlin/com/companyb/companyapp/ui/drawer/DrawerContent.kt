@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.navigation.LocalNavHostController
 import com.companyb.companyapp.navigation.Route
@@ -73,7 +74,7 @@ fun DrawerContent(
     val currentUser by SessionState.currentUser.collectAsState()
     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
     val attendanceId by SessionState.attendanceId.collectAsState()
-    val drawerViewModel = remember { DrawerViewModel() }
+    val drawerViewModel: DrawerViewModel = viewModel { DrawerViewModel() }
     val drawerUiState by drawerViewModel.uiState.collectAsState()
     val unreadCount: Int? by NotificationState.unreadCount.collectAsState()
     val inviteCount: Int? by NotificationState.inviteCount.collectAsState()
