@@ -20,6 +20,8 @@ on:
       - 'backend/**'
       - 'scripts/check-baselines.sh'
       - 'backend/jmh-baselines.md'
+       - '.github/workflows/jmh.yml'
+   pull_request:
   workflow_dispatch:
 
 permissions:

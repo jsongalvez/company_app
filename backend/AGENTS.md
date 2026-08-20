@@ -37,10 +37,10 @@ bash scripts/check-test-cleanliness.sh
 A pre-push hook (`.githooks/pre-push`) classifies the complete outgoing tree. Approved
 documentation-only pushes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`,
 `README*.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates;
-mixed or gate-sensitive pushes run all gates. **JMH no longer runs on push** — it lives
-in CI (`.github/workflows/jmh.yml`, runs on backend-touching pushes + merge to
-master): a single failing baseline comparison re-runs once and warns; the check
-fails only when the regression reproduces across two runs. CI-runner scores differ
+mixed or gate-sensitive pushes run all gates. **JMH no longer runs in local hooks** — it lives
+in CI (`.github/workflows/jmh.yml`, runs on pull requests and backend-touching pushes
+or merges to master): a single failing baseline comparison re-runs once and warns;
+the check fails only when the regression reproduces across two runs. CI-runner scores differ
 from the dev-machine scores in `backend/jmh-baselines.md` — after a runner baseline
 shift, copy the first CI run's scores into the file (see the workflow's comment).
 

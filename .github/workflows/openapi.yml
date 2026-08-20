@@ -12,11 +12,6 @@ on:
       - 'scripts/verify-openapi-spec.sh'
       - '.github/workflows/openapi.yml'
   pull_request:
-    paths:
-      - 'backend/**'
-      - 'shared/**'
-      - 'scripts/**openapi*'
-      - '.github/workflows/openapi.yml'
   workflow_dispatch:
 
 permissions:

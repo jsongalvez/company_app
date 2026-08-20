@@ -11,7 +11,8 @@ Do not push directly to `master` as a substitute for review.
 2. Request review and resolve review comments before merge.
 3. Wait for every applicable CI check to pass. Backend, shared, and Compose
    changes use `quality`; API contract changes use `openapi`. JMH runs on
-   backend-touching pushes and merges to `master`; it is not a local hook gate.
+   pull requests and backend-touching pushes or merges to `master`; it is not a
+   local hook gate.
 4. Merge normally into `master`; do not rewrite history, force-push, squash, or
    drop commits from a long-lived integration branch unless policy is explicitly
    changed first.
