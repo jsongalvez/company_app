@@ -2,6 +2,7 @@
 # Usage: bash scripts/check-baselines.sh [jmh-log-file]
 # Compares the latest JMH output against baseline scores in backend/jmh-baselines.md.
 # Exits with code 1 if any score dropped below threshold (20% default, 40% for BranchDayBenchmark).
+# Exits with code 2 when benchmark output is missing or malformed.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +15,7 @@ BASELINE="${BASELINE:-$ROOT_DIR/backend/jmh-baselines.md}"
 if [ ! -f "$JMH_LOG" ]; then
     log baselines "ERROR: JMH log file not found: $JMH_LOG"
     log baselines "Run JMH first: ./gradlew :backend:jmh 2>&1 | tee /tmp/company-app-jmh.log"
-    exit 1
+    exit 2
 fi
 
 if [ ! -f "$BASELINE" ]; then
@@ -27,6 +28,7 @@ log baselines "Baseline: $BASELINE"
 log baselines "Results:  $JMH_LOG"
 
 FAILURES=0
+INVALID_RESULTS=0
 PARSED_RESULTS="$(mktemp)"
 trap 'rm -f "$PARSED_RESULTS"' EXIT
 
@@ -37,22 +39,27 @@ parse_jmh() {
     # failed gate, not an empty benchmark run.
     if ! grep -qE '^Benchmark[[:space:]]+Mode' "$JMH_LOG"; then
         log baselines "ERROR: JMH results table not found in $JMH_LOG"
-        return 1
+        return 2
     fi
 
-    awk '/^Benchmark[[:space:]]+Mode/{found=1; next} found && $2 == "thrpt" && $1 !~ /^[[:space:]]*$/{print $1, $4}' "$JMH_LOG" |
-        while read -r name score; do
-            score="${score//,/}"
-            if [[ ! "$score" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-                log baselines "ERROR: malformed JMH score for $name: $score"
-                exit 1
-            fi
-            printf '%s %s\n' "$name" "$score"
-        done > "$PARSED_RESULTS"
+    parse_failed=0
+    while read -r name score; do
+        score="${score//,/}"
+        if [[ ! "$score" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            log baselines "ERROR: malformed JMH score for $name: $score"
+            parse_failed=1
+        else
+            printf '%s %s\n' "$name" "$score" >> "$PARSED_RESULTS"
+        fi
+    done < <(awk '/^Benchmark[[:space:]]+Mode/{found=1; next} found && $2 == "thrpt" && $1 !~ /^[[:space:]]*$/{print $1, $4}' "$JMH_LOG")
+
+    if [ "$parse_failed" -ne 0 ]; then
+        return 2
+    fi
 
     if [ ! -s "$PARSED_RESULTS" ]; then
         log baselines "ERROR: no JMH benchmark results found in $JMH_LOG"
-        return 1
+        return 2
     fi
 }
 
@@ -71,7 +78,7 @@ while IFS=' ' read -r name score; do
 done < <(parse_baseline)
 
 if ! parse_jmh; then
-    exit 1
+    exit 2
 fi
 
 declare -A RESULTS
@@ -82,7 +89,7 @@ done < "$PARSED_RESULTS"
 for name in "${!BASELINES[@]}"; do
     if [ -z "${RESULTS[$name]:-}" ]; then
         log baselines "ERROR: baseline benchmark missing from JMH output: $name"
-        ((FAILURES++)) || true
+        INVALID_RESULTS=1
     fi
 done
 
@@ -124,7 +131,10 @@ while IFS=' ' read -r name current_score; do
 done < "$PARSED_RESULTS"
 
 echo ""
-if [ "$FAILURES" -gt 0 ]; then
+if [ "$INVALID_RESULTS" -ne 0 ]; then
+    log baselines "ERROR: incomplete JMH benchmark evidence."
+    exit 2
+elif [ "$FAILURES" -gt 0 ]; then
     log baselines "FAILED: $FAILURES benchmark(s) dropped below threshold."
     log baselines "Investigate with JFR before pushing. If the change is intentional, update backend/jmh-baselines.md."
     exit 1

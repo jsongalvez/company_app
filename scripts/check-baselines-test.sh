@@ -29,12 +29,12 @@ run_case() {
     fi
 }
 
-run_case empty 1
-run_case truncated 1 'Benchmark                      Mode  Cnt  Score   Error  Units'
-run_case missing 1 \
+run_case empty 2
+run_case truncated 2 'Benchmark                      Mode  Cnt  Score   Error  Units'
+run_case missing 2 \
     'Benchmark                      Mode  Cnt  Score   Error  Units' \
     'SessionTypeBenchmark.computeMedicalMission  thrpt  5  100  1  ops/s'
-run_case malformed 1 \
+run_case malformed 2 \
     'Benchmark                      Mode  Cnt  Score   Error  Units' \
     'SessionTypeBenchmark.computeMedicalMission  thrpt  5  n/a  1  ops/s' \
     'SessionTypeBenchmark.computeProvincialFirst  thrpt  5  100  1  ops/s'
@@ -46,5 +46,12 @@ run_case regressed 1 \
     'Benchmark                      Mode  Cnt  Score   Error  Units' \
     'SessionTypeBenchmark.computeMedicalMission  thrpt  5  70  1  ops/s' \
     'SessionTypeBenchmark.computeProvincialFirst  thrpt  5  100  1  ops/s'
+
+missing_log_status=0
+BASELINE="$WORK_DIR/baseline.md" bash "$CHECKER" "$WORK_DIR/does-not-exist.log" >/dev/null 2>&1 || missing_log_status=$?
+if [ "$missing_log_status" -ne 2 ]; then
+    printf 'case missing-log: expected status 2, got %s\n' "$missing_log_status" >&2
+    exit 1
+fi
 
 printf 'check-baselines fixtures: PASS\n'
