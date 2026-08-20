@@ -8,4 +8,4 @@
 - [x] G2: Migration test compiles and passes test-source formatting
   CHECK: ./gradlew :backend:ktlintTestSourceSetCheck :backend:test --tests '*MigrationUpgradePostgresTest'
   EXPECT: EXIT 0
-  EVIDENCE: Calculating task graph as no cached configuration is available for tasks: :backend:ktlintTestSourceSetCheck :backend:test --tests *MigrationUpgradePostgresTest
+  EVIDENCE: Reusing configuration cache.
