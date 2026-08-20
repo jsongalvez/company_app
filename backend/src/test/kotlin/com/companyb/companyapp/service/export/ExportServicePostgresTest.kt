@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service.export
-
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -30,6 +29,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -48,11 +48,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ExportServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val branchDayId = UUID.randomUUID()
-    private val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val branchDayId = TestFixtures.uuid()
+    private val today = TestFixtures.today
 
     override fun initTestData() {
         DatabaseTestHelper.insertUser(
@@ -63,7 +63,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
             displayName = "Export User",
         )
         trackOwned(AppUserTable, AppUserTable.id, callerId)
-        DatabaseTestHelper.insertTestBranch(branchId, "Export Test Branch ${UUID.randomUUID()}", BranchType.CLINIC)
+        DatabaseTestHelper.insertTestBranch(branchId, "Export Test Branch ${TestFixtures.uuid()}", BranchType.CLINIC)
         trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
@@ -94,10 +94,10 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export with session data includes correct totals`() {
-        val testClientId = UUID.randomUUID()
+        val testClientId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestClient(testClientId)
         trackOwned(ClientTable, ClientTable.id, testClientId)
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
             clientId = testClientId,
@@ -123,7 +123,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export returns CSV without capability`() {
-        val otherUserId = UUID.randomUUID()
+        val otherUserId = TestFixtures.uuid()
         DatabaseTestHelper.insertUser(
             id = otherUserId,
             username = "no-cap-${otherUserId.toString().take(8)}",
@@ -140,7 +140,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export throws 404 for non-existent branch`() {
-        val missingBranch = UUID.randomUUID()
+        val missingBranch = TestFixtures.uuid()
         assertFailsWith<NotFoundException> {
             ExportService.exportDaily(missingBranch, today, ExportFormat.CSV)
         }
@@ -148,7 +148,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `range export CSV rolls up the window into one row`() {
-        val day1 = UUID.randomUUID()
+        val day1 = TestFixtures.uuid()
         insertBranchDay(day1, branchId, today.minusDays(1))
         trackOwned(BranchDayTable, BranchDayTable.id, day1)
         seedDayFinancials(
@@ -212,7 +212,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `range export excludes days outside the window and keeps zero-activity days`() {
-        val dayOutside = UUID.randomUUID()
+        val dayOutside = TestFixtures.uuid()
         insertBranchDay(dayOutside, branchId, today.minusDays(5))
         trackOwned(BranchDayTable, BranchDayTable.id, dayOutside)
         seedDayFinancials(
@@ -246,7 +246,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
     @Test
     fun `range export throws 404 for non-existent branch`() {
         assertFailsWith<NotFoundException> {
-            ExportService.exportRange(UUID.randomUUID(), today, today, ExportFormat.CSV)
+            ExportService.exportRange(TestFixtures.uuid(), today, today, ExportFormat.CSV)
         }
     }
 
@@ -305,14 +305,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `provincial export CSV returns branch data`() {
-        val provBranchId = UUID.randomUUID()
+        val provBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(
             provBranchId,
-            "Prov Branch ${UUID.randomUUID()}",
+            "Prov Branch ${TestFixtures.uuid()}",
             BranchType.PROVINCIAL_TOUR,
         )
         trackOwned(BranchTable, BranchTable.id, provBranchId)
-        val provDayId = UUID.randomUUID()
+        val provDayId = TestFixtures.uuid()
         insertBranchDay(provDayId, provBranchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, provDayId)
         val remittanceId =
@@ -337,10 +337,10 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `medical mission export CSV returns branch data`() {
-        val mmBranchId = UUID.randomUUID()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, "MM Branch ${UUID.randomUUID()}", BranchType.MEDICAL_MISSION)
+        val mmBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(mmBranchId, "MM Branch ${TestFixtures.uuid()}", BranchType.MEDICAL_MISSION)
         trackOwned(BranchTable, BranchTable.id, mmBranchId)
-        val mmDayId = UUID.randomUUID()
+        val mmDayId = TestFixtures.uuid()
         insertBranchDay(mmDayId, mmBranchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, mmDayId)
         val remittanceId =
@@ -372,14 +372,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `provincial export with month filter returns filtered data`() {
-        val provBranchId = UUID.randomUUID()
+        val provBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(
             provBranchId,
-            "Prov Month Branch ${UUID.randomUUID()}",
+            "Prov Month Branch ${TestFixtures.uuid()}",
             BranchType.PROVINCIAL_TOUR,
         )
         trackOwned(BranchTable, BranchTable.id, provBranchId)
-        val provDayId = UUID.randomUUID()
+        val provDayId = TestFixtures.uuid()
         insertBranchDay(provDayId, provBranchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, provDayId)
         val remittanceId =
@@ -422,10 +422,10 @@ class ExportServicePostgresTest : BasePostgresTest() {
         dayId: UUID,
         financials: DayFinancials,
     ) {
-        val clientId = UUID.randomUUID()
-        val userId = UUID.randomUUID()
-        val categoryId = UUID.randomUUID()
-        val productId = UUID.randomUUID()
+        val clientId = TestFixtures.uuid()
+        val userId = TestFixtures.uuid()
+        val categoryId = TestFixtures.uuid()
+        val productId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestClient(clientId)
         trackOwned(ClientTable, ClientTable.id, clientId)
         DatabaseTestHelper.insertTestUser(userId, "range-user")
@@ -435,7 +435,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
         trackOwned(ProductTable, ProductTable.id, productId)
         DatabaseTestHelper.insertTestSession(
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             clientId = clientId,
             branchDayId = dayId,
             sessionType = SessionType.REGULAR,
@@ -450,7 +450,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestExpense(dayId, userId, financials.expense)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, dayId)
         DatabaseTestHelper.insertTestProductSale(
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             branchDayId = dayId,
             productId = productId,
             handledBy = userId,
@@ -460,7 +460,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, dayId)
         transaction {
             CommissionSplitTable.insert {
-                it[CommissionSplitTable.id] = UUID.randomUUID()
+                it[CommissionSplitTable.id] = TestFixtures.uuid()
                 it[CommissionSplitTable.branchDayId] = dayId
                 it[CommissionSplitTable.userId] = userId
                 it[CommissionSplitTable.amount] = financials.commission
@@ -495,11 +495,11 @@ class ExportServicePostgresTest : BasePostgresTest() {
         compensation: BigDecimal,
         expenses: BigDecimal,
     ): UUID {
-        val remittanceId = UUID.randomUUID()
-        val compensationUserId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val compensationUserId = TestFixtures.uuid()
         val targetDayId = findOrCreateBranchDay(targetBranchId)
-        val sessionId = UUID.randomUUID()
-        val lineClientId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
+        val lineClientId = TestFixtures.uuid()
 
         transaction {
             DatabaseTestHelper.insertUser(
@@ -560,7 +560,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         if (existing != null) {
             return existing[BranchDayTable.id]
         }
-        val dayId = UUID.randomUUID()
+        val dayId = TestFixtures.uuid()
         transaction {
             BranchDayTable.insertIgnore {
                 it[BranchDayTable.id] = dayId
@@ -596,7 +596,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         sessionId: UUID,
     ) {
         RemittanceLineTable.insert {
-            it[RemittanceLineTable.id] = UUID.randomUUID()
+            it[RemittanceLineTable.id] = TestFixtures.uuid()
             it[RemittanceLineTable.remittanceId] = remittanceId
             it[RemittanceLineTable.type] = RemittanceLineType.SESSION
             it[RemittanceLineTable.amount] = grossIncome
@@ -609,7 +609,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         targetDayId: UUID,
     ) {
         RemittanceDayBreakdownTable.insert {
-            it[RemittanceDayBreakdownTable.id] = UUID.randomUUID()
+            it[RemittanceDayBreakdownTable.id] = TestFixtures.uuid()
             it[RemittanceDayBreakdownTable.remittanceId] = remittanceId
             it[RemittanceDayBreakdownTable.branchDayId] = targetDayId
         }

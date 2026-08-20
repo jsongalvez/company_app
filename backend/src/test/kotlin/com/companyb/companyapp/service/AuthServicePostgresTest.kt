@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -12,6 +11,7 @@ import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -23,7 +23,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class AuthServicePostgresTest : BasePostgresTest() {
-    private val userId = UUID.randomUUID()
+    private val userId = TestFixtures.uuid()
 
     override fun initTestData() {
         DenyList.clear()
@@ -63,7 +63,7 @@ class AuthServicePostgresTest : BasePostgresTest() {
     fun `login after deny issues a fresh token that verifies`() {
         // Stamp the deny 5s in the past: JWT iat is second-precision, so any token
         // minted now has iat strictly after the deny — no clock boundary to cross.
-        DenyList.denyAt(userId, Instant.now().minusSeconds(5))
+        DenyList.denyAt(userId, TestFixtures.realNow().minusSeconds(5))
 
         val result = AuthService.login("logout-test-$userId", "test-password", "203.0.113.${userId.toString().take(8)}")
 

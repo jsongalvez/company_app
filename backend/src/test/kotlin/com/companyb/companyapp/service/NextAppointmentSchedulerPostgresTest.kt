@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
@@ -25,6 +24,7 @@ import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -43,21 +43,21 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val coordinatorId = UUID.randomUUID()
-    private val nonCoordinatorId = UUID.randomUUID()
-    private val unassignedCoordinatorId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val coordinatorId = TestFixtures.uuid()
+    private val nonCoordinatorId = TestFixtures.uuid()
+    private val unassignedCoordinatorId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
 
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
-    private val sourceId = UUID.randomUUID()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
-    private val rateId = UUID.randomUUID()
-    private val secondSessionRateId = UUID.randomUUID()
-    private val subsequentRateId = UUID.randomUUID()
+    private val rateId = TestFixtures.uuid()
+    private val secondSessionRateId = TestFixtures.uuid()
+    private val subsequentRateId = TestFixtures.uuid()
 
     private val allTestUsers
         get() = listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
@@ -319,15 +319,15 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
     private val fixedClock: Clock
         get() {
-            val now = LocalDate.now(manilaZone).atTime(7, 0).toInstant(ZoneOffset.UTC)
+            val now = TestFixtures.today.atTime(7, 0).toInstant(ZoneOffset.UTC)
             return Clock.fixed(now, manilaZone)
         }
 
-    private fun twoDaysFromNow(): LocalDate = LocalDate.now(manilaZone).plusDays(2)
+    private fun twoDaysFromNow(): LocalDate = TestFixtures.today.plusDays(2)
 
     @Suppress("ThrowsCount")
     private fun createCompletedSessionWithAppointment(appointmentDate: LocalDate): UUID {
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
             id = sessionId,
@@ -346,7 +346,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     }
 
     private fun createSession(appointmentDate: LocalDate): UUID {
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
             id = sessionId,
@@ -367,7 +367,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         transaction {
             SessionVoidTable.insertIgnore {
                 it[SessionVoidTable.id] =
-                    UUID.randomUUID()
+                    TestFixtures.uuid()
                 it[SessionVoidTable.sessionId] =
                     sessionId
                 it[SessionVoidTable.voidedBy] =
@@ -404,7 +404,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     ) {
         UserBranchAssignmentRepository.create(
             UserBranchAssignmentCreateParams(
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 userId = userId,
                 branchId = branchId,
                 slot = 1,

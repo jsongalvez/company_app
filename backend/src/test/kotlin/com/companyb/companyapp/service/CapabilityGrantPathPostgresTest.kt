@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
@@ -11,6 +10,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -30,16 +30,16 @@ import kotlin.time.measureTimedValue
  * direct-grant regression, dedup between direct and derived rows.
  */
 class CapabilityGrantPathPostgresTest : BasePostgresTest() {
-    private val ownerUser = UUID.randomUUID()
-    private val superuserUser = UUID.randomUUID()
-    private val accountantUser = UUID.randomUUID()
-    private val coordinatorUser = UUID.randomUUID()
-    private val inactiveOwnerUser = UUID.randomUUID()
-    private val noRoleUser = UUID.randomUUID()
-    private val directUser = UUID.randomUUID()
-    private val dedupUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val ownerUser = TestFixtures.uuid()
+    private val superuserUser = TestFixtures.uuid()
+    private val accountantUser = TestFixtures.uuid()
+    private val coordinatorUser = TestFixtures.uuid()
+    private val inactiveOwnerUser = TestFixtures.uuid()
+    private val noRoleUser = TestFixtures.uuid()
+    private val directUser = TestFixtures.uuid()
+    private val dedupUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         listOf(

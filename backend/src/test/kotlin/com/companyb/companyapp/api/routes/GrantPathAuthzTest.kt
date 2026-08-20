@@ -1,5 +1,4 @@
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -16,6 +15,7 @@ import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -38,10 +38,10 @@ import kotlin.test.assertTrue
  * MANAGE_USERS; GET /api/me/capabilities reports the derived rows.
  */
 class GrantPathAuthzTest : BasePostgresTest() {
-    private val ownerUser = UUID.randomUUID()
-    private val accountantUser = UUID.randomUUID()
-    private val inactiveOwnerUser = UUID.randomUUID()
-    private val noRoleUser = UUID.randomUUID()
+    private val ownerUser = TestFixtures.uuid()
+    private val accountantUser = TestFixtures.uuid()
+    private val inactiveOwnerUser = TestFixtures.uuid()
+    private val noRoleUser = TestFixtures.uuid()
 
     private val json =
         Json {
@@ -87,7 +87,7 @@ class GrantPathAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule

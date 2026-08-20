@@ -1,11 +1,11 @@
 package com.companyb.companyapp.repository
-
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -19,8 +19,8 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class AuditLogRepositoryPostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val recordId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val recordId = TestFixtures.uuid()
     private val tableName = "test_table"
 
     override fun initTestData() {
@@ -122,7 +122,7 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
 
     @Test
     fun `record writes branchId when provided`() {
-        val branchId = UUID.randomUUID()
+        val branchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(branchId)
         trackOwned(BranchTable, BranchTable.id, branchId)
 

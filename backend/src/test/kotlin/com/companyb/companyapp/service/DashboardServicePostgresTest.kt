@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -25,6 +24,7 @@ import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -36,16 +36,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DashboardServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val otherUserId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
-    private val practitionerId = UUID.randomUUID()
-    private val sessionId = UUID.randomUUID()
-    private val categoryId = UUID.randomUUID()
-    private val productId = UUID.randomUUID()
-    private val saleId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val otherUserId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
+    private val practitionerId = TestFixtures.uuid()
+    private val sessionId = TestFixtures.uuid()
+    private val categoryId = TestFixtures.uuid()
+    private val productId = TestFixtures.uuid()
+    private val saleId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -86,7 +86,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday returns enriched sessions with client name`() {
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
             clientId = clientId,
@@ -110,7 +110,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday marks voided sessions and includes practitioner names`() {
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDayId)
         seedVoid(sessionId)
         seedPractitioner(sessionId, practitionerId)
@@ -126,7 +126,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday computes caller commission from sales sold while clocked in`() {
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         DatabaseTestHelper.insertTestProductSale(
             id = saleId,
             branchDayId = branchDayId,
@@ -144,7 +144,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday counts sales by attendance eligibility not by seller`() {
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         DatabaseTestHelper.insertTestProductSale(
             id = saleId,
             branchDayId = branchDayId,
@@ -162,7 +162,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday excludes sales the caller was removed from via manual inclusion`() {
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
         DatabaseTestHelper.insertTestProductSale(
             id = saleId,
             branchDayId = branchDayId,
@@ -173,7 +173,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
         )
         CommissionManualInclusionRepository.upsert(
             CommissionManualInclusionUpsertParams(
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 productSaleId = saleId,
                 userId = callerId,
                 isIncluded = false,
@@ -190,7 +190,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday returns empty day with zero commission`() {
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, callerId)
 
         val data = DashboardService.getToday(callerId, branchId)
 
@@ -208,7 +208,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `getToday throws ForbiddenException when clocked in at another branch`() {
-        AttendanceService.clockIn(UUID.randomUUID(), otherBranchId, callerId)
+        AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, callerId)
 
         assertFailsWith<ForbiddenException> {
             DashboardService.getToday(callerId, branchId)
@@ -218,7 +218,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getToday throws NotFoundException for missing branch`() {
         assertFailsWith<NotFoundException> {
-            DashboardService.getToday(callerId, UUID.randomUUID())
+            DashboardService.getToday(callerId, TestFixtures.uuid())
         }
     }
 
@@ -299,7 +299,7 @@ class DashboardServicePostgresTest : BasePostgresTest() {
     private fun seedVoid(sessionId: UUID) {
         transaction {
             SessionVoidTable.insert {
-                it[SessionVoidTable.id] = UUID.randomUUID()
+                it[SessionVoidTable.id] = TestFixtures.uuid()
                 it[SessionVoidTable.sessionId] = sessionId
                 it[SessionVoidTable.voidedBy] = callerId
                 it[SessionVoidTable.voidReason] = "test void"

@@ -1,5 +1,4 @@
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -19,6 +18,7 @@ import com.companyb.companyapp.service.UserService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -44,10 +44,10 @@ import kotlin.test.assertTrue
  * realistic path today).
  */
 class UserManagementAuthzTest : BasePostgresTest() {
-    private val managerUser = UUID.randomUUID()
-    private val noGrantUser = UUID.randomUUID()
-    private val targetUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val managerUser = TestFixtures.uuid()
+    private val noGrantUser = TestFixtures.uuid()
+    private val targetUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
 
     private val json =
         Json {
@@ -64,7 +64,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestBranch(branchId, "Authz Branch")
         trackOwned(BranchTable, BranchTable.id, branchId)
         val targetUserId = this@UserManagementAuthzTest.targetUser
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestAssignment(
             id = assignmentId,
             userId = targetUserId,
@@ -77,7 +77,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule

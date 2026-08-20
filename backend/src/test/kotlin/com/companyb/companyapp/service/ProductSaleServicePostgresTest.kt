@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -21,6 +20,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -40,17 +40,17 @@ import kotlin.test.assertTrue
 
 @Suppress("LargeClass")
 class ProductSaleServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val categoryId = UUID.randomUUID()
-    private val productId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
-    private val sessionId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val categoryId = TestFixtures.uuid()
+    private val productId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
+    private val sessionId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
-    private val productName = "Sale Product ${UUID.randomUUID().toString().take(8)}"
+    private val productName = "Sale Product ${TestFixtures.uuid().toString().take(8)}"
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "user")
@@ -81,12 +81,12 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         val sale =
             ProductSaleService.sell(
@@ -120,7 +120,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell creates product sale with stock decrement and movement`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         val sale =
             ProductSaleService.sell(
@@ -176,9 +176,9 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rejects session from another branch day`() {
-        val foreignBranchId = UUID.randomUUID()
-        val foreignClientId = UUID.randomUUID()
-        val foreignSessionId = UUID.randomUUID()
+        val foreignBranchId = TestFixtures.uuid()
+        val foreignClientId = TestFixtures.uuid()
+        val foreignSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Sale Branch")
         trackOwned(BranchTable, BranchTable.id, foreignBranchId)
         val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(foreignBranchId)
@@ -187,7 +187,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         trackOwned(ClientTable, ClientTable.id, foreignClientId)
         DatabaseTestHelper.insertTestSession(foreignSessionId, foreignClientId, foreignBranchDayId)
         trackOwned(SessionTable, SessionTable.clientId, foreignClientId)
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
@@ -235,7 +235,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rejects existing sale id from another branch day`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
         val firstSale =
             ProductSaleService.sell(
                 callerId = callerId,
@@ -250,7 +250,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             )
         trackOwned(ProductSaleTable, ProductSaleTable.handledBy, callerId)
 
-        val foreignBranchId = UUID.randomUUID()
+        val foreignBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(foreignBranchId, "Foreign Retry Branch")
         trackOwned(BranchTable, BranchTable.id, foreignBranchId)
         val foreignBranchDayId = DatabaseTestHelper.createBranchDayForToday(foreignBranchId)
@@ -286,7 +286,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         val sale =
             ProductSaleService.sell(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 branchDayId = branchDayId,
                 sessionId = sessionId,
                 clientId = null,
@@ -306,8 +306,8 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
+                branchDayId = TestFixtures.uuid(),
                 sessionId = null,
                 clientId = null,
                 isWalkIn = true,
@@ -323,12 +323,12 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 branchDayId = branchDayId,
                 sessionId = null,
                 clientId = null,
                 isWalkIn = true,
-                productId = UUID.randomUUID(),
+                productId = TestFixtures.uuid(),
                 quantity = 1,
                 expectedVersion = 1,
             )
@@ -340,7 +340,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 branchDayId = branchDayId,
                 sessionId = null,
                 clientId = null,
@@ -357,7 +357,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ConflictException> {
             ProductSaleService.sell(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 branchDayId = branchDayId,
                 sessionId = null,
                 clientId = null,
@@ -371,7 +371,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell idempotent duplicate returns same sale`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         val first =
             ProductSaleService.sell(
@@ -418,7 +418,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rejects existing sale id from another creator`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
             id = saleId,
@@ -431,7 +431,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
             expectedVersion = 1,
         )
 
-        val foreignCallerId = UUID.randomUUID()
+        val foreignCallerId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(foreignCallerId, "foreign-user")
         trackOwned(AppUserTable, AppUserTable.id, foreignCallerId)
 
@@ -463,7 +463,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rejects existing sale id with altered request`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
             id = saleId,
@@ -504,7 +504,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell concurrent same UUID creates one sale and movement`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
         val executor = Executors.newFixedThreadPool(2)
         val results =
             try {
@@ -558,7 +558,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell trigger rolls back all writes when enclosing transaction fails`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         assertFailsWith<IllegalStateException> {
             transaction {
@@ -603,7 +603,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell rolls back when commission replacement fails`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
         CommissionService.failAfterReplacementForTests = true
         try {
             assertFailsWith<IllegalStateException> {
@@ -629,7 +629,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell writes audit log entry`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         ProductSaleService.sell(
             callerId = callerId,
@@ -659,7 +659,7 @@ class ProductSaleServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `sell anonymous walk-in without client and session succeeds`() {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
 
         val sale =
             ProductSaleService.sell(

@@ -1,10 +1,10 @@
 package com.companyb.companyapp.database
-
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.flywaydb.core.Flyway
@@ -26,12 +26,12 @@ class MigrationUpgradePostgresTest {
     fun `V22 backfills revocation boundaries and auth rejects old token after restart`() {
         val config = AppConfig.parse()
         DatabaseTestHelper.ensureDatabase()
-        val schema = "jwt_upgrade_${UUID.randomUUID().toString().replace('-', '_')}"
+        val schema = "jwt_upgrade_${TestFixtures.uuid().toString().replace('-', '_')}"
         val dataSource = createDataSource(config, schema)
         val existingDataSource = DatabaseTestHelper.requireTestDataSource()
-        val tokenUserId = UUID.randomUUID()
-        val oldUserId = UUID.randomUUID()
-        val nullDateUserId = UUID.randomUUID()
+        val tokenUserId = TestFixtures.uuid()
+        val oldUserId = TestFixtures.uuid()
+        val nullDateUserId = TestFixtures.uuid()
 
         try {
             JwtService.init(config)
@@ -46,8 +46,8 @@ class MigrationUpgradePostgresTest {
                 .migrate()
 
             val oldToken = JwtService.generateToken(tokenUserId.toString())
-            val oldBoundary = Instant.now()
-            val futureBoundary = Instant.now().plus(2, ChronoUnit.HOURS)
+            val oldBoundary = TestFixtures.realNow()
+            val futureBoundary = TestFixtures.realNow().plus(2, ChronoUnit.HOURS)
             dataSource.connection.use { connection ->
                 connection
                     .prepareStatement(

@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -35,6 +34,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
 import kotlinx.serialization.json.Json
@@ -55,14 +55,14 @@ import kotlin.test.assertTrue
 class RouteValidationTest : BasePostgresTest() {
     private val json = Json { ignoreUnknownKeys = true }
     private val testUserId = TEST_USER_ID
-    private val testBranchId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private var testBranchDayId: UUID = UUID.randomUUID()
-    private val testCategoryId = UUID.randomUUID()
-    private val testProductId = UUID.randomUUID()
-    private val testClientId = UUID.randomUUID()
-    private val testClientNoSessionsId = UUID.randomUUID()
-    private val testSessionId = UUID.randomUUID()
+    private val testBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private var testBranchDayId: UUID = TestFixtures.uuid()
+    private val testCategoryId = TestFixtures.uuid()
+    private val testProductId = TestFixtures.uuid()
+    private val testClientId = TestFixtures.uuid()
+    private val testClientNoSessionsId = TestFixtures.uuid()
+    private val testSessionId = TestFixtures.uuid()
 
     override fun initTestData() {
         trackOwned(AppUserTable, AppUserTable.id, testUserId)
@@ -122,7 +122,7 @@ class RouteValidationTest : BasePostgresTest() {
         @ClassRule
         val testServer = JavalinTestServerRule(::createApp)
 
-        val TEST_USER_ID = UUID.randomUUID()
+        val TEST_USER_ID = TestFixtures.uuid()
 
         fun createApp(): Javalin {
             val config = AppConfig.parse()
@@ -178,9 +178,9 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "-1.00",
                 )
             assertEquals(400, client.post("/api/allowances", body).code)
@@ -192,9 +192,9 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "not-a-number",
                 )
             assertEquals(400, client.post("/api/allowances", body).code)
@@ -206,9 +206,9 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to "not-a-uuid",
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "100.00",
                 )
             assertEquals(400, client.post("/api/allowances", body).code)
@@ -224,10 +224,10 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "workBranchDayId" to testBranchDayId.toString(),
                     "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "-50.00",
                 )
             assertEquals(400, client.post("/api/compensation", body).code)
@@ -239,10 +239,10 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "workBranchDayId" to testBranchDayId.toString(),
                     "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "abc",
                 )
             assertEquals(400, client.post("/api/compensation", body).code)
@@ -251,7 +251,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `PATCH compensation negative amount returns 400`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         transaction {
             CompensationTable.insert {
                 it[CompensationTable.id] = compId
@@ -284,8 +284,8 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "clientId" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
+                    "clientId" to TestFixtures.uuid().toString(),
                     "branchId" to testBranchId.toString(),
                     "isWalkIn" to false,
                     "finalPrice" to "-100.00",
@@ -299,8 +299,8 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "clientId" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
+                    "clientId" to TestFixtures.uuid().toString(),
                     "branchId" to testBranchId.toString(),
                     "isWalkIn" to false,
                     "finalPrice" to "abc",
@@ -312,7 +312,7 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `POST void session blank voidReason returns 400`() {
         testServer.client.let { client ->
-            val body = mapOf("id" to UUID.randomUUID().toString(), "voidReason" to "  ")
+            val body = mapOf("id" to TestFixtures.uuid().toString(), "voidReason" to "  ")
             assertEquals(400, client.post("/api/sessions/$testSessionId/void", body).code)
         }
     }
@@ -327,7 +327,7 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `POST promote concern blank label returns 400`() {
         testServer.client.let { client ->
-            val body = mapOf("id" to UUID.randomUUID().toString(), "label" to "  ")
+            val body = mapOf("id" to TestFixtures.uuid().toString(), "label" to "  ")
             assertEquals(400, client.post("/api/sessions/$testSessionId/promote-concern", body).code)
         }
     }
@@ -337,12 +337,12 @@ class RouteValidationTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 testBranchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         val remittedClientId = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, remittedClientId)
-        val remittedSessionId = UUID.randomUUID()
+        val remittedSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
         trackOwned(SessionTable, SessionTable.id, remittedSessionId)
 
@@ -360,7 +360,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "  ",
                     "lastName" to "Doe",
                     "gender" to "M",
@@ -375,7 +375,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "John",
                     "lastName" to "  ",
                     "gender" to "M",
@@ -390,7 +390,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "John",
                     "lastName" to "Doe",
                     "gender" to "M",
@@ -406,7 +406,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "John",
                     "lastName" to "Doe",
                     "gender" to "M",
@@ -491,7 +491,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "name" to "  ",
                     "productCategoryId" to testCategoryId.toString(),
                     "unitPrice" to "100.00",
@@ -506,7 +506,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "name" to "Test Product",
                     "productCategoryId" to testCategoryId.toString(),
                     "unitPrice" to "-1.00",
@@ -521,7 +521,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "name" to "Test Product",
                     "productCategoryId" to testCategoryId.toString(),
                     "unitPrice" to "100.00",
@@ -540,7 +540,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 0,
                     "branchDayId" to testBranchDayId.toString(),
                 )
@@ -553,7 +553,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to -1,
                     "branchDayId" to testBranchDayId.toString(),
                 )
@@ -566,7 +566,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "INVALID_REASON",
                     "quantityChange" to -1,
                     "branchDayId" to testBranchDayId.toString(),
@@ -581,7 +581,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "RESTOCK",
                     "quantityChange" to 1,
                     "branchDayId" to testBranchDayId.toString(),
@@ -596,7 +596,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "MISSING",
                     "quantityChange" to -1,
                     "branchDayId" to testBranchDayId.toString(),
@@ -611,7 +611,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "MISSING",
                     "quantityChange" to -1,
                     "notes" to "  ",
@@ -631,7 +631,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "isWalkIn" to true,
                     "productId" to testProductId.toString(),
@@ -647,9 +647,9 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "sessionId" to UUID.randomUUID().toString(),
+                    "sessionId" to TestFixtures.uuid().toString(),
                     "clientId" to testClientId.toString(),
                     "isWalkIn" to false,
                     "productId" to testProductId.toString(),
@@ -665,9 +665,9 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "sessionId" to UUID.randomUUID().toString(),
+                    "sessionId" to TestFixtures.uuid().toString(),
                     "isWalkIn" to true,
                     "productId" to testProductId.toString(),
                     "quantity" to 1,
@@ -682,7 +682,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "clientId" to testClientId.toString(),
                     "isWalkIn" to false,
@@ -699,7 +699,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "isWalkIn" to false,
                     "productId" to testProductId.toString(),
@@ -719,8 +719,8 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "slot" to 0,
                 )
             assertEquals(400, client.post("/api/branches/$testBranchId/assignments", body).code)
@@ -734,7 +734,7 @@ class RouteValidationTest : BasePostgresTest() {
                 400,
                 client
                     .patch(
-                        "/api/branches/$testBranchId/assignments/${UUID.randomUUID()}/slot",
+                        "/api/branches/$testBranchId/assignments/${TestFixtures.uuid()}/slot",
                         mapOf("slot" to 0),
                     ).code,
             )
@@ -750,7 +750,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "type" to "SESSION",
                     "branchId" to testBranchId.toString(),
                     "method" to "BANK_TRANSFER",
@@ -763,7 +763,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST remittance SESSION line without sessionId returns 400`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         transaction {
             RemittanceTable.insert {
                 it[RemittanceTable.id] = remittanceId
@@ -784,7 +784,7 @@ class RouteValidationTest : BasePostgresTest() {
                     .post(
                         "/api/remittances/$remittanceId/lines",
                         mapOf(
-                            "id" to UUID.randomUUID().toString(),
+                            "id" to TestFixtures.uuid().toString(),
                             "type" to "SESSION",
                             "amount" to "100.00",
                         ),
@@ -795,7 +795,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST remittance PRODUCT_SALE line without productSaleId returns 400`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         transaction {
             RemittanceTable.insert {
                 it[RemittanceTable.id] = remittanceId
@@ -816,7 +816,7 @@ class RouteValidationTest : BasePostgresTest() {
                     .post(
                         "/api/remittances/$remittanceId/lines",
                         mapOf(
-                            "id" to UUID.randomUUID().toString(),
+                            "id" to TestFixtures.uuid().toString(),
                             "type" to "PRODUCT_SALE",
                             "amount" to "100.00",
                         ),
@@ -914,14 +914,14 @@ class RouteValidationTest : BasePostgresTest() {
             val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
             assertEquals(1, body.entries.size)
             assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
-            assertEquals(LocalDate.now().toString(), body.entries.single().date)
+            assertEquals(TestFixtures.today.toString(), body.entries.single().date)
             assertNull(body.nextCursor)
         }
     }
 
     @Test
     fun `GET daily-summaries returns 200 empty feed for branch without days`() {
-        val noDaysBranchId = UUID.randomUUID()
+        val noDaysBranchId = TestFixtures.uuid()
         trackOwned(BranchTable, BranchTable.id, noDaysBranchId)
         DatabaseTestHelper.insertTestBranch(noDaysBranchId, "No-Days Branch")
         testServer.client.let { client ->
@@ -978,8 +978,8 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `GET daily-summaries rejects from after to`() {
         testServer.client.let { client ->
-            val tomorrow = LocalDate.now().plusDays(1)
-            val yesterday = LocalDate.now().minusDays(1)
+            val tomorrow = TestFixtures.today.plusDays(1)
+            val yesterday = TestFixtures.today.minusDays(1)
             assertEquals(
                 400,
                 client
@@ -993,7 +993,7 @@ class RouteValidationTest : BasePostgresTest() {
     @Test
     fun `GET daily-summaries window filters the feed`() {
         testServer.client.let { client ->
-            val today = LocalDate.now()
+            val today = TestFixtures.today
             val yesterday = today.minusDays(1)
             val response =
                 client.get(
@@ -1012,7 +1012,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST notifications read-all returns 200 and marks all unread as read`() {
-        val notificationId = UUID.randomUUID()
+        val notificationId = TestFixtures.uuid()
         transaction {
             NotificationTable.insert {
                 it[NotificationTable.id] = notificationId
@@ -1040,7 +1040,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `PATCH notification read still matches param route when read-all literal registered first`() {
-        val notificationId = UUID.randomUUID()
+        val notificationId = TestFixtures.uuid()
         transaction {
             NotificationTable.insert {
                 it[NotificationTable.id] = notificationId
@@ -1065,7 +1065,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "-0.01",
                     "category" to "MISCELLANEOUS",
@@ -1079,7 +1079,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "0.00",
                     "category" to "MISCELLANEOUS",
@@ -1093,7 +1093,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "100.00",
                     "category" to "INVALID",
@@ -1104,7 +1104,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `DELETE expense blank reason returns 400`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         transaction {
             ExpenseTable.insert {
                 it[ExpenseTable.id] = expenseId

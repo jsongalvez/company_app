@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -22,6 +21,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -34,15 +34,15 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BranchInventoryAuthzTest : BasePostgresTest() {
-    private val editOnlyUser = UUID.randomUUID()
-    private val manageOnlyUser = UUID.randomUUID()
-    private val noneUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val categoryId = UUID.randomUUID()
-    private val productId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private var branchDayId: UUID = UUID.randomUUID()
+    private val editOnlyUser = TestFixtures.uuid()
+    private val manageOnlyUser = TestFixtures.uuid()
+    private val noneUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val categoryId = TestFixtures.uuid()
+    private val productId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private var branchDayId: UUID = TestFixtures.uuid()
 
     override fun initTestData() {
         trackOwned(AppUserTable, AppUserTable.id, editOnlyUser)
@@ -84,7 +84,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -115,7 +115,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         quantityChange: Int,
     ): Map<String, Any> =
         mapOf(
-            "movementId" to UUID.randomUUID().toString(),
+            "movementId" to TestFixtures.uuid().toString(),
             "reason" to reason,
             "quantityChange" to quantityChange,
             "branchDayId" to branchDayId.toString(),
@@ -212,7 +212,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -231,7 +231,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -252,7 +252,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -283,7 +283,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -379,7 +379,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -407,7 +407,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -469,7 +469,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val restockBody =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 10,
                     "branchDayId" to branchDayId.toString(),
                 )
@@ -482,7 +482,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                         asUser(manageOnlyUser),
                     ).code,
             )
-            val today = LocalDate.now(BranchDayService.manilaZone)
+            val today = TestFixtures.today
             val response =
                 client
                     .get(

@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AllowanceTable
@@ -11,6 +10,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -30,10 +30,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class AllowanceServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val targetUserId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -56,12 +56,12 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
 
         val allowance =
             AllowanceService.create(
@@ -90,7 +90,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create allowance succeeds`() {
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
 
         val allowance =
             AllowanceService.create(
@@ -113,7 +113,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create idempotent duplicate returns existing`() {
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
 
         val first =
             AllowanceService.create(
@@ -140,11 +140,11 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create rejects UUID collision from another branch day without auditing`() {
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
         val otherDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
@@ -178,11 +178,11 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent UUID collision from another branch day returns one success and one not found`() {
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
         val otherDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
@@ -240,7 +240,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
         val allowance =
             AllowanceService.create(
                 callerId = callerId,
@@ -260,8 +260,8 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             AllowanceService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
+                branchDayId = TestFixtures.uuid(),
                 userId = targetUserId,
                 amount = BigDecimal("500.00"),
             )
@@ -270,8 +270,8 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranchDayId returns allowances for branch day`() {
-        val allowanceId1 = UUID.randomUUID()
-        val allowanceId2 = UUID.randomUUID()
+        val allowanceId1 = TestFixtures.uuid()
+        val allowanceId2 = TestFixtures.uuid()
 
         AllowanceService.create(
             callerId = callerId,
@@ -300,7 +300,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByBranchDayId returns empty list for non-existent branch day`() {
-        val results = AllowanceService.findByBranchDayId(UUID.randomUUID())
+        val results = AllowanceService.findByBranchDayId(TestFixtures.uuid())
         assertEquals(0, results.size)
     }
 
@@ -315,7 +315,7 @@ class AllowanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create writes audit log entry`() {
-        val allowanceId = UUID.randomUUID()
+        val allowanceId = TestFixtures.uuid()
 
         AllowanceService.create(
             callerId = callerId,

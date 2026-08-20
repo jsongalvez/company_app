@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -18,6 +17,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -36,9 +36,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ExpenseServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
 
@@ -58,7 +58,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create expense succeeds with all fields`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         val expense =
             ExpenseService.create(
@@ -83,7 +83,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create expense succeeds without notes`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         val expense =
             ExpenseService.create(
@@ -101,7 +101,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create idempotent duplicate returns existing`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         val first =
             ExpenseService.create(
@@ -128,8 +128,8 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create rejects same UUID for another branch day`() {
-        val otherBranchId = UUID.randomUUID()
-        val otherSourceId = UUID.randomUUID()
+        val otherBranchId = TestFixtures.uuid()
+        val otherSourceId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Expense Branch")
         trackOwned(BranchTable, BranchTable.id, otherBranchId)
         val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
@@ -142,7 +142,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             sourceId = otherSourceId,
         )
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
             callerId = callerId,
@@ -167,12 +167,12 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create rejects same UUID for another creator`() {
-        val otherCallerId = UUID.randomUUID()
+        val otherCallerId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCallerId, "expense-other-caller")
         trackOwned(AppUserTable, AppUserTable.id, otherCallerId)
         grantEditBranchData(otherCallerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, otherCallerId)
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
             callerId = callerId,
@@ -197,7 +197,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent same UUID retry creates and audits once`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         val executor = Executors.newFixedThreadPool(2)
         val results =
             try {
@@ -251,7 +251,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val expense =
             ExpenseService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 branchDayId = branchDayId,
                 amount = BigDecimal("500.00"),
                 category = ExpenseCategory.PANTRY,
@@ -266,8 +266,8 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
-                branchDayId = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
+                branchDayId = TestFixtures.uuid(),
                 amount = BigDecimal("500.00"),
                 category = ExpenseCategory.PANTRY,
                 notes = null,
@@ -277,7 +277,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create writes audit log entry`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         ExpenseService.create(
             callerId = callerId,
@@ -302,7 +302,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update expense succeeds with version bump`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         val created =
             ExpenseService.create(
                 callerId = callerId,
@@ -331,7 +331,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update expense clears notes when null`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         val created =
             ExpenseService.create(
                 callerId = callerId,
@@ -357,7 +357,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update with wrong version returns conflict`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -384,7 +384,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ExpenseService.update(
                 callerId = callerId,
-                expenseId = UUID.randomUUID(),
+                expenseId = TestFixtures.uuid(),
                 amount = BigDecimal("750.00"),
                 category = ExpenseCategory.PANTRY,
                 notes = null,
@@ -395,7 +395,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update soft-deleted expense is rejected`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -424,7 +424,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update writes audit log entry`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         val created =
             ExpenseService.create(
                 callerId = callerId,
@@ -459,7 +459,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `soft delete expense succeeds and records the reason`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -490,7 +490,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ExpenseService.softDelete(
                 callerId = callerId,
-                expenseId = UUID.randomUUID(),
+                expenseId = TestFixtures.uuid(),
                 reason = "Wrong entry",
             )
         }
@@ -498,7 +498,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `soft delete without EDIT_BRANCH_DATA is allowed at service layer`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -522,7 +522,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `soft delete writes audit log entry`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -553,9 +553,9 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list expenses returns all non-deleted expenses for the day`() {
-        val expense1Id = UUID.randomUUID()
-        val expense2Id = UUID.randomUUID()
-        val expense3Id = UUID.randomUUID()
+        val expense1Id = TestFixtures.uuid()
+        val expense2Id = TestFixtures.uuid()
+        val expense3Id = TestFixtures.uuid()
 
         ExpenseService.create(
             callerId = callerId,
@@ -589,8 +589,8 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `list expenses includes soft-deleted expenses with their reason`() {
-        val activeId = UUID.randomUUID()
-        val deletedId = UUID.randomUUID()
+        val activeId = TestFixtures.uuid()
+        val deletedId = TestFixtures.uuid()
 
         ExpenseService.create(
             callerId = callerId,
@@ -628,7 +628,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `restore soft-deleted expense succeeds and clears the deletion fields`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         val created =
             ExpenseService.create(
                 callerId = callerId,
@@ -663,14 +663,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             ExpenseService.restore(
                 callerId = callerId,
-                expenseId = UUID.randomUUID(),
+                expenseId = TestFixtures.uuid(),
             )
         }
     }
 
     @Test
     fun `restore already-live expense is rejected`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -693,13 +693,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -728,13 +728,13 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -763,7 +763,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `restore writes an audit update row`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = callerId,
             id = expenseId,
@@ -799,7 +799,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
     @Test
     fun `list expenses for non-existent branch day returns not found`() {
         assertFailsWith<NotFoundException> {
-            ExpenseService.findByBranchDayId(callerId, UUID.randomUUID())
+            ExpenseService.findByBranchDayId(callerId, TestFixtures.uuid())
         }
     }
 
@@ -808,7 +808,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
@@ -817,7 +817,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             ExpenseService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 branchDayId = remittedDayId,
                 amount = BigDecimal("500.00"),
                 category = ExpenseCategory.PANTRY,
@@ -831,12 +831,12 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         val remittedDayId =
             DatabaseTestHelper.createRemittedBranchDay(
                 branchId,
-                LocalDate.now(BranchDayService.manilaZone).minusDays(3),
+                TestFixtures.today.minusDays(3),
             )
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
 
         val expense =
             ExpenseService.create(

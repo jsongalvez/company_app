@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -12,6 +11,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -31,12 +31,12 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SessionBaseRateServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val rateId = UUID.randomUUID()
-    private val rateId2 = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val rateId = TestFixtures.uuid()
+    private val rateId2 = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "rate-caller")
@@ -72,7 +72,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `set rate without MANAGE_PRODUCTS is allowed at service layer`() {
-        val newRateId = UUID.randomUUID()
+        val newRateId = TestFixtures.uuid()
         val result =
             SessionService.setRate(
                 callerId,
@@ -267,7 +267,7 @@ class SessionBaseRateServicePostgresTest : BasePostgresTest() {
     fun `concurrent distinct rates leave one active rate`() {
         val start = CountDownLatch(1)
         val results = Collections.synchronizedList(mutableListOf<Throwable?>())
-        val ids = listOf(UUID.randomUUID(), UUID.randomUUID())
+        val ids = listOf(TestFixtures.uuid(), TestFixtures.uuid())
         val threads =
             ids.map { id ->
                 thread(start = false) {

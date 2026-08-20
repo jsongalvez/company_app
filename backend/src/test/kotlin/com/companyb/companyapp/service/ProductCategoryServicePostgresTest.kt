@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.ProductCategory
@@ -7,6 +6,7 @@ import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -20,10 +20,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ProductCategoryServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val cat1Id = UUID.randomUUID()
-    private val cat2Id = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val cat1Id = TestFixtures.uuid()
+    private val cat2Id = TestFixtures.uuid()
     private val categoryIds = listOf(cat1Id, cat2Id)
 
     override fun initTestData() {
@@ -104,7 +104,7 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without MANAGE_PRODUCTS is allowed at service layer`() {
-        val newCatId = UUID.randomUUID()
+        val newCatId = TestFixtures.uuid()
         val result = ProductCategoryService.create(callerId, newCatId, "New Category")
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
@@ -120,14 +120,14 @@ class ProductCategoryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
-        val newCatId = UUID.randomUUID()
+        val newCatId = TestFixtures.uuid()
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductCategoryService.create(callerId, newCatId, "Find Category")
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(ProductCategoryTable, ProductCategoryTable.id, newCatId)
 
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 

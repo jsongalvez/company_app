@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
@@ -11,6 +10,7 @@ import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -25,11 +25,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class NotificationServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val otherUserId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val sessionId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val otherUserId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val sessionId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
@@ -55,7 +55,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `listUnread returns only unread notifications for caller`() {
-        val session2Id = UUID.randomUUID()
+        val session2Id = TestFixtures.uuid()
         val client2Id = DatabaseTestHelper.insertTestClient()
         val branchDay2Id = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
@@ -124,7 +124,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `markRead throws 404 for non-existent notification`() {
-        val fakeId = UUID.randomUUID()
+        val fakeId = TestFixtures.uuid()
         assertFailsWith<NotFoundException> {
             NotificationService.markRead(callerId, fakeId)
         }
@@ -207,7 +207,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ): com.companyb.companyapp.repository.model.Notification {
-        val newSessionId = UUID.randomUUID()
+        val newSessionId = TestFixtures.uuid()
         val newClientId = DatabaseTestHelper.insertTestClient()
         val newBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
@@ -230,7 +230,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         userId: UUID,
         branchId: UUID,
     ): com.companyb.companyapp.repository.model.Notification {
-        val id = UUID.randomUUID()
+        val id = TestFixtures.uuid()
         transaction {
             NotificationTable.insert {
                 it[NotificationTable.id] = id

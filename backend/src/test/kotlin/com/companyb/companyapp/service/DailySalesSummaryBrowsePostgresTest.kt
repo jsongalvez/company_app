@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.decodeDailySummaryCursor
@@ -7,6 +6,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -20,8 +20,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
-    private val branchId = UUID.randomUUID()
-    private val today = LocalDate.now(ZoneId.of("Asia/Manila"))
+    private val branchId = TestFixtures.uuid()
+    private val today = TestFixtures.today
 
     override fun initTestData() {
         trackOwned(BranchTable, BranchTable.id, branchId)
@@ -112,7 +112,7 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
     fun `throws 404 when branch does not exist`() {
         assertFailsWith<NotFoundException> {
             DailySalesSummaryService.browseDailySummaries(
-                branchId = UUID.randomUUID(),
+                branchId = TestFixtures.uuid(),
                 cursor = null,
                 limit = 10,
             )
@@ -204,7 +204,7 @@ class DailySalesSummaryBrowsePostgresTest : BasePostgresTest() {
         )
 
     private fun insertBranchDay(date: LocalDate) {
-        val id = UUID.randomUUID()
+        val id = TestFixtures.uuid()
         transaction {
             BranchDayTable.insertIgnore {
                 it[BranchDayTable.id] = id

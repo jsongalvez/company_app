@@ -1,5 +1,4 @@
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -18,6 +17,7 @@ import com.companyb.companyapp.service.NotificationService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -37,11 +37,11 @@ import kotlin.test.assertTrue
  * without VIEW_BRANCH_DATA must still open the pushed session).
  */
 class SessionDetailAuthzTest : BasePostgresTest() {
-    private val bearerUser = UUID.randomUUID()
-    private val otherUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
-    private val sessionId = UUID.randomUUID()
+    private val bearerUser = TestFixtures.uuid()
+    private val otherUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
+    private val sessionId = TestFixtures.uuid()
     private lateinit var branchDayId: UUID
 
     override fun initTestData() {
@@ -66,7 +66,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -135,7 +135,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
     @Test
     fun `missing session gets 404`() {
         testServer.client.let { client ->
-            assertEquals(404, client.get("/api/sessions/${UUID.randomUUID()}", asUser(bearerUser)).code)
+            assertEquals(404, client.get("/api/sessions/${TestFixtures.uuid()}", asUser(bearerUser)).code)
         }
     }
 

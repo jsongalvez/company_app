@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -25,6 +24,7 @@ import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -61,13 +61,13 @@ import kotlin.test.assertTrue
  * 200 with data for a zero-grant user.
  */
 class ReportsReadScopeAuthzTest : BasePostgresTest() {
-    private val viewA = UUID.randomUUID()
-    private val editB = UUID.randomUUID()
-    private val globalViewUser = UUID.randomUUID()
-    private val noneUser = UUID.randomUUID()
-    private val branchA = UUID.randomUUID()
-    private val branchB = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val viewA = TestFixtures.uuid()
+    private val editB = TestFixtures.uuid()
+    private val globalViewUser = TestFixtures.uuid()
+    private val noneUser = TestFixtures.uuid()
+    private val branchA = TestFixtures.uuid()
+    private val branchB = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private val json =
         Json {
@@ -120,7 +120,7 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -237,8 +237,8 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
 
     @Test
     fun `branch-type export returns 200 with data for zero-grant user`() {
-        val provincialBranch = UUID.randomUUID()
-        val missionBranch = UUID.randomUUID()
+        val provincialBranch = TestFixtures.uuid()
+        val missionBranch = TestFixtures.uuid()
         seedSubmittedRemittance(
             branchId = provincialBranch,
             branchName = "Provincial Export Branch",
@@ -323,10 +323,10 @@ class ReportsReadScopeAuthzTest : BasePostgresTest() {
     ) {
         trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestBranch(branchId, branchName, branchType)
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
-        val today = LocalDate.now()
+        val today = TestFixtures.today
         transaction {
             RemittanceTable.insert {
                 it[RemittanceTable.id] = remittanceId

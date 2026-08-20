@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.Gender
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.exception.ConflictException
@@ -14,6 +13,7 @@ import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -29,15 +29,15 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ClientServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val clientAId = UUID.randomUUID()
-    private val clientBId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private var branchDayId: UUID = UUID.randomUUID()
-    private val pendingSessionId = UUID.randomUUID()
-    private val completedSessionId = UUID.randomUUID()
-    private val noShowSessionId = UUID.randomUUID()
-    private val cancelledSessionId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val clientAId = TestFixtures.uuid()
+    private val clientBId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private var branchDayId: UUID = TestFixtures.uuid()
+    private val pendingSessionId = TestFixtures.uuid()
+    private val completedSessionId = TestFixtures.uuid()
+    private val noShowSessionId = TestFixtures.uuid()
+    private val cancelledSessionId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "client-caller")
@@ -106,7 +106,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     @Test
     fun `find by id returns persisted client`() {
         createClient(callerId, clientAId)
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val found = ClientService.findById(clientAId)
 
@@ -116,9 +116,9 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `find by id throws not found for missing client`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         assertFailsWith<NotFoundException> {
-            ClientService.findById(UUID.randomUUID())
+            ClientService.findById(TestFixtures.uuid())
         }
     }
 
@@ -136,7 +136,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search matches by first name`() {
         createClient(callerId, clientAId, firstName = "John")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("John")
 
@@ -148,7 +148,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search matches by last name`() {
         createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("Doe")
 
@@ -160,7 +160,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search matches by phone prefix`() {
         createClient(callerId, clientAId, phoneNumber = "1234567890")
         createClient(callerId, clientBId, phoneNumber = "9876543210")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("1234")
 
@@ -180,7 +180,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     @Test
     fun `search is case-insensitive`() {
         createClient(callerId, clientAId, firstName = "John")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("john")
 
@@ -191,7 +191,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search supports typo tolerance with trigram similarity`() {
         createClient(callerId, clientAId, firstName = "John", lastName = "Doe")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("Jhn")
 
@@ -203,7 +203,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search supports typo tolerance for multi-character typos`() {
         createClient(callerId, clientAId, firstName = "Maria", lastName = "Garcia")
         createClient(callerId, clientBId, firstName = "Alice", lastName = "Smith")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("Mria")
 
@@ -215,7 +215,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
     fun `search ranks exact matches above fuzzy matches`() {
         createClient(callerId, clientAId, firstName = "Jon", lastName = "Smith")
         createClient(callerId, clientBId, firstName = "John", lastName = "Bravo")
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         val results = ClientService.search("John")
 
@@ -226,7 +226,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client succeeds with EDIT_BRANCH_DATA capability`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
 
         val updated =
@@ -282,12 +282,12 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client returns 404 for non-existent client`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         assertFailsWith<NotFoundException> {
             ClientService.update(
                 callerId = callerId,
-                clientId = UUID.randomUUID(),
+                clientId = TestFixtures.uuid(),
                 firstName = "Jane",
                 lastName = null,
                 middleName = null,
@@ -305,7 +305,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client after anonymize returns 404 and keeps PII null`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         ClientService.anonymize(callerId, clientAId)
 
@@ -339,7 +339,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update client writes audit log`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
 
         ClientService.update(
@@ -364,7 +364,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client nullifies PII and retains age and gender`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         val age = 35
         val gender = Gender.F
         createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang", age = age, gender = gender)
@@ -398,16 +398,16 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client returns 404 for non-existent client`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
 
         assertFailsWith<NotFoundException> {
-            ClientService.anonymize(callerId, UUID.randomUUID())
+            ClientService.anonymize(callerId, TestFixtures.uuid())
         }
     }
 
     @Test
     fun `anonymize client is excluded from search results`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId, firstName = "Searchable", lastName = "Client")
 
         ClientService.anonymize(callerId, clientAId)
@@ -418,7 +418,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client still returned by direct findById`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
 
         ClientService.anonymize(callerId, clientAId)
@@ -430,7 +430,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize already anonymized client returns 404`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         ClientService.anonymize(callerId, clientAId)
 
@@ -441,7 +441,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client with pending session throws conflict and keeps PII`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId, firstName = "Alice", lastName = "Wang")
         seedSession(pendingSessionId, clientAId, SessionStatus.PENDING)
 
@@ -458,7 +458,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client with only completed sessions succeeds`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         seedSession(completedSessionId, clientAId, SessionStatus.COMPLETED)
 
@@ -471,7 +471,7 @@ class ClientServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `anonymize client with only cancelled and no-show sessions succeeds`() {
-        DatabaseTestHelper.grantEditBranchData(callerId, UUID.randomUUID())
+        DatabaseTestHelper.grantEditBranchData(callerId, TestFixtures.uuid())
         createClient(callerId, clientAId)
         seedSession(noShowSessionId, clientAId, SessionStatus.NO_SHOW)
         seedSession(cancelledSessionId, clientAId, SessionStatus.CANCELLED)

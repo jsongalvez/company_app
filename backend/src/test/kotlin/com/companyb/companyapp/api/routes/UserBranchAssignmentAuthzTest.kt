@@ -1,5 +1,4 @@
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -20,6 +19,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -45,11 +45,11 @@ import kotlin.test.assertTrue
  * production seed; direct grants are the realistic path today).
  */
 class UserBranchAssignmentAuthzTest : BasePostgresTest() {
-    private val managerUser = UUID.randomUUID()
-    private val noGrantUser = UUID.randomUUID()
-    private val userAId = UUID.randomUUID()
-    private val userBId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val managerUser = TestFixtures.uuid()
+    private val noGrantUser = TestFixtures.uuid()
+    private val userAId = TestFixtures.uuid()
+    private val userBId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
     private lateinit var assignmentAId: UUID
     private lateinit var assignmentBId: UUID
 
@@ -84,7 +84,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -150,7 +150,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
                     .post(
                         "/api/branches/$branchId/assignments",
                         CreateAssignmentRequest(
-                            id = UUID.randomUUID().toString(),
+                            id = TestFixtures.uuid().toString(),
                             userId = userAId.toString(),
                             slot = 3,
                         ),
@@ -162,7 +162,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST assignments by manager creates the assignment`() {
-        val newId = UUID.randomUUID()
+        val newId = TestFixtures.uuid()
         trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.id, newId)
         var status = 0
         testServer.client.let { client ->

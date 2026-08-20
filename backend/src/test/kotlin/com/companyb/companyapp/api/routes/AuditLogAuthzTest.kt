@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -22,6 +21,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
@@ -43,25 +43,25 @@ import kotlin.test.assertTrue
 
 class AuditLogAuthzTest : BasePostgresTest() {
     private val noneUser = DEFAULT_USER
-    private val editorA = UUID.randomUUID()
-    private val editorB = UUID.randomUUID()
-    private val manageUsersUser = UUID.randomUUID()
-    private val manageProductsUser = UUID.randomUUID()
-    private val globalViewUser = UUID.randomUUID()
-    private val branchA = UUID.randomUUID()
-    private val branchB = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val editorA = TestFixtures.uuid()
+    private val editorB = TestFixtures.uuid()
+    private val manageUsersUser = TestFixtures.uuid()
+    private val manageProductsUser = TestFixtures.uuid()
+    private val globalViewUser = TestFixtures.uuid()
+    private val branchA = TestFixtures.uuid()
+    private val branchB = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private val json =
         Json {
             ignoreUnknownKeys = true
         }
 
-    private var branchARowId: UUID = UUID.randomUUID()
-    private var branchBFlaggedId: UUID = UUID.randomUUID()
-    private var selfAckId: UUID = UUID.randomUUID()
-    private val recordA = UUID.randomUUID()
-    private val recordB = UUID.randomUUID()
+    private var branchARowId: UUID = TestFixtures.uuid()
+    private var branchBFlaggedId: UUID = TestFixtures.uuid()
+    private var selfAckId: UUID = TestFixtures.uuid()
+    private val recordA = TestFixtures.uuid()
+    private val recordB = TestFixtures.uuid()
 
     @Suppress("LongMethod")
     override fun initTestData() {
@@ -157,18 +157,18 @@ class AuditLogAuthzTest : BasePostgresTest() {
                 insert("session", recordA, AuditAction.UPDATE, editorA, at(8), branchA)
             insert("session", recordB, AuditAction.UPDATE, editorA, at(7), branchB)
             // Branchless policy rows (NULL branch).
-            insert("client", UUID.randomUUID(), AuditAction.INSERT, editorA, at(6), null)
-            insert("app_user", UUID.randomUUID(), AuditAction.UPDATE, editorA, at(5), null)
-            insert("product", UUID.randomUUID(), AuditAction.INSERT, editorA, at(4), null)
-            insert("product_category", UUID.randomUUID(), AuditAction.INSERT, editorA, at(3), null)
-            insert("concern", UUID.randomUUID(), AuditAction.INSERT, editorA, at(2), null)
+            insert("client", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(6), null)
+            insert("app_user", TestFixtures.uuid(), AuditAction.UPDATE, editorA, at(5), null)
+            insert("product", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(4), null)
+            insert("product_category", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(3), null)
+            insert("concern", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(2), null)
             // Unlisted table with NULL branch — Owner/Accountant (global view) only.
-            insert("mystery_table", UUID.randomUUID(), AuditAction.INSERT, editorA, at(1), null)
+            insert("mystery_table", TestFixtures.uuid(), AuditAction.INSERT, editorA, at(1), null)
             // Flagged rows for acknowledge tests.
             selfAckId =
                 insert(
                     "session",
-                    UUID.randomUUID(),
+                    TestFixtures.uuid(),
                     AuditAction.UPDATE,
                     editorA,
                     at(0),
@@ -178,7 +178,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
             branchBFlaggedId =
                 insert(
                     "session",
-                    UUID.randomUUID(),
+                    TestFixtures.uuid(),
                     AuditAction.UPDATE,
                     editorA,
                     at(-1),
@@ -188,7 +188,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
             // Already-acknowledged flagged row — 404 on re-ack.
             insert(
                 "session",
-                UUID.randomUUID(),
+                TestFixtures.uuid(),
                 AuditAction.UPDATE,
                 editorA,
                 at(-2),
@@ -204,7 +204,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         OffsetDateTime.of(2026, 8, 1, 10 + hourOffset, 0, 0, 0, ZoneOffset.UTC)
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -564,7 +564,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             assertEquals(
                 404,
-                client.patch("/api/audit-log/${UUID.randomUUID()}/acknowledge", null, asUser(editorA)).code,
+                client.patch("/api/audit-log/${TestFixtures.uuid()}/acknowledge", null, asUser(editorA)).code,
             )
         }
     }

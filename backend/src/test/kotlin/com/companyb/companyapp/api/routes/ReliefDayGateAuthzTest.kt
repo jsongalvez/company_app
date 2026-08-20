@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -36,6 +35,7 @@ import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -75,24 +75,24 @@ import kotlin.test.assertTrue
  * capability codes), session void/unvoid (VOID_SESSION).
  */
 class ReliefDayGateAuthzTest : BasePostgresTest() {
-    private val reliefUser = UUID.randomUUID()
-    private val wrongDayUser = UUID.randomUUID()
-    private val expiredUser = UUID.randomUUID()
-    private val branchUser = UUID.randomUUID()
-    private val branchCUser = UUID.randomUUID()
-    private val globalUser = UUID.randomUUID()
-    private val noGrantUser = UUID.randomUUID()
-    private val branchA = UUID.randomUUID()
-    private val branchB = UUID.randomUUID()
-    private val branchC = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
-    private val otherClientId = UUID.randomUUID()
-    private val createClientId = UUID.randomUUID()
-    private val categoryId = UUID.randomUUID()
-    private val productId = UUID.randomUUID()
-    private val sessionOnGrantedDay = UUID.randomUUID()
-    private val sessionOnOtherDay = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val reliefUser = TestFixtures.uuid()
+    private val wrongDayUser = TestFixtures.uuid()
+    private val expiredUser = TestFixtures.uuid()
+    private val branchUser = TestFixtures.uuid()
+    private val branchCUser = TestFixtures.uuid()
+    private val globalUser = TestFixtures.uuid()
+    private val noGrantUser = TestFixtures.uuid()
+    private val branchA = TestFixtures.uuid()
+    private val branchB = TestFixtures.uuid()
+    private val branchC = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
+    private val otherClientId = TestFixtures.uuid()
+    private val createClientId = TestFixtures.uuid()
+    private val categoryId = TestFixtures.uuid()
+    private val productId = TestFixtures.uuid()
+    private val sessionOnGrantedDay = TestFixtures.uuid()
+    private val sessionOnOtherDay = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var grantedDay: UUID
     private lateinit var otherDaySameBranch: UUID
@@ -104,7 +104,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionOnGrantedDay)
         trackOwned(SessionTable, SessionTable.id, sessionOnOtherDay)
 
-        val today = LocalDate.now(ZoneId.of("Asia/Manila"))
+        val today = TestFixtures.today
         grantedDay = BranchDayService.resolveOrCreate(branchA, today).id
         otherDaySameBranch = BranchDayService.resolveOrCreate(branchA, today.plusDays(1)).id
         dayOtherBranch = BranchDayService.resolveOrCreate(branchB, today).id
@@ -189,7 +189,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         InventoryService.ensureCard(branchA, productId)
         InventoryService.recordMovement(
             callerId = reliefUser,
-            movementId = UUID.randomUUID(),
+            movementId = TestFixtures.uuid(),
             branchId = branchA,
             productId = productId,
             movementType = MovementType.Restock,
@@ -200,7 +200,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     }
 
     private fun seedBaseRate(branchId: UUID) {
-        val rateId = UUID.randomUUID()
+        val rateId = TestFixtures.uuid()
         SessionService.setRate(
             callerId = reliefUser,
             id = rateId,
@@ -231,7 +231,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Seeded
         // from the JVM clock against the view's DB now() — the −5h/−3h margins absorb any
         // realistic same-host clock skew (the grant must stay expired regardless).
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
+        val now = TestFixtures.now
         DatabaseTestHelper.grantCapability(
             userId = expiredUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
@@ -269,7 +269,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -313,7 +313,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     private fun expenseBody(branchDayId: UUID): Map<String, String> =
         mapOf(
-            "id" to UUID.randomUUID().toString(),
+            "id" to TestFixtures.uuid().toString(),
             "branchDayId" to branchDayId.toString(),
             "amount" to "100.00",
             "category" to "MISCELLANEOUS",
@@ -400,7 +400,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `relief user patches an expense on the granted day`() {
         testServer.client.let { client ->
-            val expenseId = UUID.randomUUID()
+            val expenseId = TestFixtures.uuid()
             trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
             transaction {
                 ExpenseTable.insert {
@@ -430,7 +430,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `relief user creates a session on the granted day`() {
         testServer.client.let { client ->
-            val sessionId = UUID.randomUUID()
+            val sessionId = TestFixtures.uuid()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
@@ -448,7 +448,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `relief user session create at an ungranted branch is forbidden`() {
         testServer.client.let { client ->
-            val sessionId = UUID.randomUUID()
+            val sessionId = TestFixtures.uuid()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
@@ -468,7 +468,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `relief user creates a product sale on the granted day`() {
         testServer.client.let { client ->
-            val saleId = UUID.randomUUID()
+            val saleId = TestFixtures.uuid()
             trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
             val body =
                 mapOf(
@@ -487,7 +487,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `relief user product sale on a non-granted day is forbidden`() {
         testServer.client.let { client ->
-            val saleId = UUID.randomUUID()
+            val saleId = TestFixtures.uuid()
             trackOwned(ProductSaleTable, ProductSaleTable.id, saleId)
             val body =
                 mapOf(
@@ -524,7 +524,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `session create at a no-day branch falls back to the branch gate without creating a day`() {
         testServer.client.let { client ->
-            val sessionId = UUID.randomUUID()
+            val sessionId = TestFixtures.uuid()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
@@ -550,7 +550,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     @Test
     fun `branch-granted user creates a session at a branch with no day row`() {
         testServer.client.let { client ->
-            val sessionId = UUID.randomUUID()
+            val sessionId = TestFixtures.uuid()
             trackOwned(SessionTable, SessionTable.id, sessionId)
             val body =
                 mapOf(
@@ -573,7 +573,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             assertFailsWith<NotFoundException> {
                 SessionService.create(
                     callerId = reliefUser,
-                    id = UUID.randomUUID(),
+                    id = TestFixtures.uuid(),
                     clientId = createClientId,
                     branchId = branchA,
                     isWalkIn = false,
@@ -601,13 +601,13 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
 
     // ─────────────────────────── read legs (#158) ───────────────────────────
 
-    private val today = LocalDate.now(ZoneId.of("Asia/Manila"))
+    private val today = TestFixtures.today
     private val noDayDate = today.plusDays(10)
 
     // Seed VIEW_BRANCH_DATA holders for the read-leg regressions (the read's branch/global
     // leg is VIEW_BRANCH_DATA — distinct from the write surface's EDIT_BRANCH_DATA).
-    private val viewUser = UUID.randomUUID()
-    private val globalViewUser = UUID.randomUUID()
+    private val viewUser = TestFixtures.uuid()
+    private val globalViewUser = TestFixtures.uuid()
 
     private fun seedReadUsers() {
         DatabaseTestHelper.insertTestUser(viewUser, "view-user")

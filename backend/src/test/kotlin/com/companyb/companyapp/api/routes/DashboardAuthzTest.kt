@@ -1,5 +1,4 @@
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -17,6 +16,7 @@ import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -28,11 +28,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class DashboardAuthzTest : BasePostgresTest() {
-    private val clockedInUser = UUID.randomUUID()
-    private val otherBranchUser = UUID.randomUUID()
-    private val notClockedInUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
+    private val clockedInUser = TestFixtures.uuid()
+    private val otherBranchUser = TestFixtures.uuid()
+    private val notClockedInUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(clockedInUser, "clocked-in")
@@ -58,12 +58,12 @@ class DashboardAuthzTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherBranchUser)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, notClockedInUser)
 
-        AttendanceService.clockIn(UUID.randomUUID(), branchId, clockedInUser)
-        AttendanceService.clockIn(UUID.randomUUID(), otherBranchId, otherBranchUser)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchId, clockedInUser)
+        AttendanceService.clockIn(TestFixtures.uuid(), otherBranchId, otherBranchUser)
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -126,7 +126,7 @@ class DashboardAuthzTest : BasePostgresTest() {
     @Test
     fun `missing branch with clocked in user gets 404`() {
         testServer.client.let { client ->
-            val missingBranch = UUID.randomUUID()
+            val missingBranch = TestFixtures.uuid()
             assertEquals(404, client.get("/api/branches/$missingBranch/dashboard/today", asUser(clockedInUser)).code)
         }
     }

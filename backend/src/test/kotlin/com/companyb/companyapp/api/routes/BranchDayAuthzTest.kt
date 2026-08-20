@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -18,6 +17,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.core.eq
@@ -32,12 +32,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class BranchDayAuthzTest : BasePostgresTest() {
-    private val editOnlyUser = UUID.randomUUID()
-    private val manageOnlyUser = UUID.randomUUID()
-    private val noneUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val editOnlyUser = TestFixtures.uuid()
+    private val manageOnlyUser = TestFixtures.uuid()
+    private val noneUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         trackOwned(AppUserTable, AppUserTable.id, editOnlyUser)
@@ -73,7 +73,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -181,7 +181,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET today returns 404 for missing branch with grant`() {
-        val missingBranchId = UUID.randomUUID()
+        val missingBranchId = TestFixtures.uuid()
         DatabaseTestHelper.grantCapability(
             userId = editOnlyUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,

@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.UserStatus
@@ -18,6 +17,7 @@ import com.companyb.companyapp.service.attendance.ClockInParams
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
@@ -26,12 +26,12 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class MeServiceBranchesPostgresTest : BasePostgresTest() {
-    private val userId = UUID.randomUUID()
-    private val noAssignmentUserId = UUID.randomUUID()
-    private val inactiveUserId = UUID.randomUUID()
-    private val branchA = UUID.randomUUID()
-    private val branchB = UUID.randomUUID()
-    private val reliefBranch = UUID.randomUUID()
+    private val userId = TestFixtures.uuid()
+    private val noAssignmentUserId = TestFixtures.uuid()
+    private val inactiveUserId = TestFixtures.uuid()
+    private val branchA = TestFixtures.uuid()
+    private val branchB = TestFixtures.uuid()
+    private val reliefBranch = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(userId, "me-branches")
@@ -82,7 +82,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
     fun `getBranches marks clocked-in branch HERE and other assigned branches ELSEWHERE`() {
         assignToBranch(branchA)
         assignToBranch(branchB)
-        AttendanceService.clockIn(UUID.randomUUID(), branchA, userId)
+        AttendanceService.clockIn(TestFixtures.uuid(), branchA, userId)
 
         val branches = MeService.getBranches(userId).associateBy { it.branchId }
 
@@ -94,7 +94,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
 
     @Test
     fun `getBranches includes relief clock-in branch with isRelief true`() {
-        AttendanceService.clockIn(UUID.randomUUID(), reliefBranch, userId)
+        AttendanceService.clockIn(TestFixtures.uuid(), reliefBranch, userId)
 
         val branches = MeService.getBranches(userId)
 
@@ -121,7 +121,7 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
     @Test
     fun `getBranches throws NotFoundException for non-existent user`() {
         assertFailsWith<NotFoundException> {
-            MeService.getBranches(UUID.randomUUID())
+            MeService.getBranches(TestFixtures.uuid())
         }
     }
 
@@ -143,15 +143,15 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
     @Test
     fun `getBranches ignores active clock-in from a previous day`() {
         assignToBranch(branchA)
-        val yesterday = LocalDate.now(BranchDayService.manilaZone).minusDays(1)
+        val yesterday = TestFixtures.today.minusDays(1)
         val staleBranchDay = BranchDayService.resolveOrCreate(branchB, yesterday)
         AttendanceRepository.clockIn(
             ClockInParams(
-                attendanceId = UUID.randomUUID(),
+                attendanceId = TestFixtures.uuid(),
                 branchDayId = staleBranchDay.id,
                 userId = userId,
                 markedBy = userId,
-                branchDayAssignmentId = UUID.randomUUID(),
+                branchDayAssignmentId = TestFixtures.uuid(),
                 isRelief = true,
                 branchId = branchB,
             ),

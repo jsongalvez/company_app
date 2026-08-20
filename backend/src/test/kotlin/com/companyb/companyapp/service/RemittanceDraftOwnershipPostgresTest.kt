@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
@@ -15,6 +14,7 @@ import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -34,15 +34,15 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
         const val CONCURRENT_ATTEMPTS = 2
     }
 
-    private val callerId = UUID.randomUUID()
-    private val firstBranchId = UUID.randomUUID()
-    private val secondBranchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val firstBranchId = TestFixtures.uuid()
+    private val secondBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-owner")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
         listOf(firstBranchId to "First", secondBranchId to "Second").forEach { (id, name) ->
-            DatabaseTestHelper.insertTestBranch(id, "Remittance $name Branch ${UUID.randomUUID()}")
+            DatabaseTestHelper.insertTestBranch(id, "Remittance $name Branch ${TestFixtures.uuid()}")
             trackOwned(BranchTable, BranchTable.id, id)
             trackOwned(BranchDayTable, BranchDayTable.branchId, id)
         }
@@ -51,7 +51,7 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft UUID collision across branches returns conflict`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         val rangeStart = LocalDate.of(2026, 7, 1)
         val rangeEnd = LocalDate.of(2026, 7, 15)
 
@@ -96,7 +96,7 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
 
     @Test
     fun `concurrent draft UUID collision across branches returns one conflict`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         val rangeStart = LocalDate.of(2026, 7, 1)
         val rangeEnd = LocalDate.of(2026, 7, 15)
         val ready = CountDownLatch(CONCURRENT_ATTEMPTS)

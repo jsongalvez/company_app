@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -23,6 +22,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -43,14 +43,14 @@ import kotlin.test.assertTrue
  * before-filter must fire on its own literal path.
  */
 class SessionEditAuthzTest : BasePostgresTest() {
-    private val editorUser = UUID.randomUUID()
-    private val noGrantUser = UUID.randomUUID()
-    private val wrongBranchUser = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
-    private val sessionId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val editorUser = TestFixtures.uuid()
+    private val noGrantUser = TestFixtures.uuid()
+    private val wrongBranchUser = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
+    private val sessionId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(editorUser, "session-editor")
@@ -76,7 +76,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
         trackOwned(AuditLogTable, AuditLogTable.changedBy, wrongBranchUser)
 
         val branchDay =
-            BranchDayService.resolveOrCreate(branchId, LocalDate.now(ZoneId.of("Asia/Manila")))
+            BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
         DatabaseTestHelper.insertTestSession(sessionId, clientId, branchDay.id)
 
         DatabaseTestHelper.grantCapability(
@@ -96,7 +96,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule

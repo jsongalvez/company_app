@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -33,6 +32,7 @@ import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -46,12 +46,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class RemittanceAuthzTest : BasePostgresTest() {
-    private val submitUser = UUID.randomUUID()
-    private val noneUser = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val submitUser = TestFixtures.uuid()
+    private val noneUser = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
 
     private val rangeStart = LocalDate.of(2026, 7, 1)
     private val rangeEnd = LocalDate.of(2026, 7, 15)
@@ -91,7 +91,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestClient(clientId)
         trackOwned(ClientTable, ClientTable.id, clientId)
 
-        sessionId = UUID.randomUUID()
+        sessionId = TestFixtures.uuid()
         val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
@@ -101,11 +101,11 @@ class RemittanceAuthzTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId)
         trackOwned(BranchDayTable, BranchDayTable.id, dayId)
 
-        val catId = UUID.randomUUID()
-        val prodId = UUID.randomUUID()
+        val catId = TestFixtures.uuid()
+        val prodId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestCategory(catId, "Cat $catId")
         DatabaseTestHelper.insertTestProduct(prodId, "Product $prodId", catId)
-        productSaleId = UUID.randomUUID()
+        productSaleId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestProductSale(
             id = productSaleId,
             branchDayId = dayId,
@@ -116,7 +116,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         trackOwned(ProductTable, ProductTable.id, prodId)
         trackOwned(ProductSaleTable, ProductSaleTable.id, productSaleId)
 
-        draftRemittanceId = UUID.randomUUID()
+        draftRemittanceId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = submitUser,
             id = draftRemittanceId,
@@ -126,12 +126,12 @@ class RemittanceAuthzTest : BasePostgresTest() {
             dateRangeStart = rangeStart,
             dateRangeEnd = rangeEnd,
         )
-        breakdownId = UUID.randomUUID()
+        breakdownId = TestFixtures.uuid()
         RemittanceService.addDayBreakdown(submitUser, draftRemittanceId, breakdownId, dayId)
         RemittanceService.addLine(
             callerId = submitUser,
             remittanceId = draftRemittanceId,
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             type = RemittanceLineType.SESSION,
             sessionId = sessionId,
             productSaleId = null,
@@ -142,7 +142,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, draftRemittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, draftRemittanceId)
 
-        otherBranchDraftId = UUID.randomUUID()
+        otherBranchDraftId = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = submitUser,
             id = otherBranchDraftId,
@@ -152,7 +152,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
             dateRangeStart = rangeStart,
             dateRangeEnd = rangeEnd,
         )
-        otherBranchBreakdownId = UUID.randomUUID()
+        otherBranchBreakdownId = TestFixtures.uuid()
         val otherDayId = DatabaseTestHelper.createBranchDayForDate(otherBranchId, branchDayDate)
         RemittanceService.addDayBreakdown(submitUser, otherBranchDraftId, otherBranchBreakdownId, otherDayId)
         trackOwned(RemittanceTable, RemittanceTable.id, otherBranchDraftId)
@@ -161,10 +161,10 @@ class RemittanceAuthzTest : BasePostgresTest() {
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, otherBranchDraftId)
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayId)
 
-        submittedRemittanceId = UUID.randomUUID()
-        val subLineId = UUID.randomUUID()
-        submittedBreakdownId = UUID.randomUUID()
-        val secondSessionId = UUID.randomUUID()
+        submittedRemittanceId = TestFixtures.uuid()
+        val subLineId = TestFixtures.uuid()
+        submittedBreakdownId = TestFixtures.uuid()
+        val secondSessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = secondSessionId,
             clientId = clientId,
@@ -209,7 +209,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -299,7 +299,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET list returns 404 for missing branch with grant`() {
-        val missingBranchId = UUID.randomUUID()
+        val missingBranchId = TestFixtures.uuid()
         DatabaseTestHelper.grantCapability(
             userId = submitUser,
             capabilityCode = CapabilityCodes.SUBMIT_REMITTANCE,
@@ -620,7 +620,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "type" to "SESSION",
                     "sessionId" to sessionId.toString(),
                     "amount" to "50.00",
@@ -637,7 +637,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "type" to "SESSION",
                     "sessionId" to sessionId.toString(),
                     "amount" to "50.00",
@@ -651,7 +651,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST line still allowed for granted user`() {
-        val freshSessionId = UUID.randomUUID()
+        val freshSessionId = TestFixtures.uuid()
         val freshDayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
         DatabaseTestHelper.insertTestSession(
             id = freshSessionId,
@@ -664,7 +664,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "type" to "SESSION",
                     "sessionId" to freshSessionId.toString(),
                     "amount" to "50.00",
@@ -678,8 +678,8 @@ class RemittanceAuthzTest : BasePostgresTest() {
 
     @Test
     fun `DELETE line forbidden for no-capability user`() {
-        val lineId = UUID.randomUUID()
-        val freshSessionId = UUID.randomUUID()
+        val lineId = TestFixtures.uuid()
+        val freshSessionId = TestFixtures.uuid()
         val freshDayId = DatabaseTestHelper.createBranchDayForDate(branchId, branchDayDate)
         DatabaseTestHelper.insertTestSession(
             id = freshSessionId,
@@ -719,7 +719,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to dayId.toString(),
                 )
             assertEquals(

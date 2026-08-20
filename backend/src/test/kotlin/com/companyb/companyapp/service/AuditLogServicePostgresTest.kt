@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
@@ -12,6 +11,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -25,10 +25,10 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class AuditLogServicePostgresTest : BasePostgresTest() {
-    private val editorId = UUID.randomUUID()
-    private val acknowledgerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val recordId = UUID.randomUUID()
+    private val editorId = TestFixtures.uuid()
+    private val acknowledgerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val recordId = TestFixtures.uuid()
     private val tableName = "test_table"
 
     override fun initTestData() {
@@ -64,14 +64,14 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByTableAndRecord returns empty list for no matches`() {
-        val entries = AuditLogService.findByTableAndRecord(acknowledgerId, "non_existent", UUID.randomUUID())
+        val entries = AuditLogService.findByTableAndRecord(acknowledgerId, "non_existent", TestFixtures.uuid())
         assertTrue(entries.isEmpty())
     }
 
     @Test
     fun `findByTableAndRecord without any capability returns empty not error`() {
         insertAuditEntry(recordId, tableName, AuditAction.INSERT, false)
-        val noGrantUser = UUID.randomUUID()
+        val noGrantUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant")
         trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
 
@@ -82,8 +82,8 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByTableAndRecord returns multiple entries ordered by changed_at desc`() {
-        val entryId1 = UUID.randomUUID()
-        val entryId2 = UUID.randomUUID()
+        val entryId1 = TestFixtures.uuid()
+        val entryId2 = TestFixtures.uuid()
         insertAuditEntryWithId(entryId1, recordId, tableName, AuditAction.INSERT, false)
         insertAuditEntryWithId(entryId2, recordId, tableName, AuditAction.UPDATE, false)
 
@@ -94,8 +94,8 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findFlagged returns only unacknowledged flagged entries`() {
-        insertAuditEntry(UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
-        insertAuditEntry(UUID.randomUUID(), "t2", AuditAction.UPDATE, false)
+        insertAuditEntry(TestFixtures.uuid(), "t1", AuditAction.UPDATE, true)
+        insertAuditEntry(TestFixtures.uuid(), "t2", AuditAction.UPDATE, false)
 
         val entries = AuditLogService.findFlagged(acknowledgerId)
 
@@ -105,8 +105,8 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findFlagged excludes acknowledged flagged entries`() {
-        val entryId = UUID.randomUUID()
-        insertAuditEntryWithId(entryId, UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
+        val entryId = TestFixtures.uuid()
+        insertAuditEntryWithId(entryId, TestFixtures.uuid(), "t1", AuditAction.UPDATE, true)
         acknowledgeEntryDirectly(entryId)
 
         val entries = AuditLogService.findFlagged(acknowledgerId)
@@ -115,8 +115,8 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findFlagged without any capability returns empty not error`() {
-        insertAuditEntry(UUID.randomUUID(), "t1", AuditAction.UPDATE, true)
-        val noGrantUser = UUID.randomUUID()
+        insertAuditEntry(TestFixtures.uuid(), "t1", AuditAction.UPDATE, true)
+        val noGrantUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant-2")
         trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
 
@@ -125,7 +125,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `acknowledge marks entry as acknowledged`() {
-        val entryId = UUID.randomUUID()
+        val entryId = TestFixtures.uuid()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
 
         val entry = AuditLogService.acknowledge(acknowledgerId, entryId)
@@ -136,9 +136,9 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `acknowledge outside the window returns not found`() {
-        val entryId = UUID.randomUUID()
+        val entryId = TestFixtures.uuid()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
-        val noGrantUser = UUID.randomUUID()
+        val noGrantUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(noGrantUser, "audit-no-grant-ack")
         trackOwned(AppUserTable, AppUserTable.id, noGrantUser)
 
@@ -151,7 +151,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `self-acknowledge throws conflict`() {
-        val entryId = UUID.randomUUID()
+        val entryId = TestFixtures.uuid()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
 
         assertFailsWith<ConflictException> {
@@ -162,13 +162,13 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
     @Test
     fun `acknowledge on non-existent entry returns not found`() {
         assertFailsWith<NotFoundException> {
-            AuditLogService.acknowledge(acknowledgerId, UUID.randomUUID())
+            AuditLogService.acknowledge(acknowledgerId, TestFixtures.uuid())
         }
     }
 
     @Test
     fun `acknowledge on already acknowledged entry returns not found`() {
-        val entryId = UUID.randomUUID()
+        val entryId = TestFixtures.uuid()
         insertAuditEntryWithId(entryId, recordId, tableName, AuditAction.UPDATE, true)
         acknowledgeEntryDirectly(entryId)
 
@@ -179,7 +179,7 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByTableAndRecord hides other-branch rows from the caller window`() {
-        val branchId = UUID.randomUUID()
+        val branchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(branchId, "Service Test Branch $branchId")
         trackOwned(BranchTable, BranchTable.id, branchId)
         val recId = recordId
@@ -201,14 +201,14 @@ class AuditLogServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findByTableAndRecord hides branch rows when a window is set`() {
-        val branchA = UUID.randomUUID()
-        val branchB = UUID.randomUUID()
+        val branchA = TestFixtures.uuid()
+        val branchB = TestFixtures.uuid()
         listOf(branchA to "Svc Branch A", branchB to "Svc Branch B").forEach { (id, name) ->
             DatabaseTestHelper.insertTestBranch(id, "$name $id")
             trackOwned(BranchTable, BranchTable.id, id)
         }
         // Branch-scoped editor without the global view grant: window = branchA only.
-        val windowedUser = UUID.randomUUID()
+        val windowedUser = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(windowedUser, "audit-windowed")
         trackOwned(AppUserTable, AppUserTable.id, windowedUser)
         DatabaseTestHelper.grantCapability(

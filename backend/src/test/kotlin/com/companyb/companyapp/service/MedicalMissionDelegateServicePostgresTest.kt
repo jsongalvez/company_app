@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
@@ -11,6 +10,7 @@ import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -29,10 +29,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val targetUserId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
     private val branchName = "Mission-${branchId.toString().take(8)}"
 
     override fun initTestData() {
@@ -62,7 +62,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `successful assign creates delegate and user_capability`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
 
         val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
@@ -79,7 +79,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `duplicate delegate id returns existing row (idempotent)`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
 
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
@@ -94,8 +94,8 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `assign without ASSIGN_DELEGATE is allowed at service layer`() {
-        val delegateId = UUID.randomUUID()
-        val noCapCaller = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
+        val noCapCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertUser(
             id = noCapCaller,
             username = "no-cap-$noCapCaller",
@@ -117,7 +117,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `successful revoke sets ended_at and expires user_capability`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
@@ -133,18 +133,18 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     @Test
     fun `revoke on non-existent delegate fails with 404`() {
         assertFailsWith<NotFoundException> {
-            MedicalMissionDelegateService.revokeDelegate(UUID.randomUUID(), callerId)
+            MedicalMissionDelegateService.revokeDelegate(TestFixtures.uuid(), callerId)
         }
     }
 
     @Test
     fun `revoke without ASSIGN_DELEGATE is allowed at service layer`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
 
-        val noCapCaller = UUID.randomUUID()
+        val noCapCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertUser(
             id = noCapCaller,
             username = "no-cap-$noCapCaller",
@@ -164,7 +164,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `assign writes audit log entry`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
@@ -183,7 +183,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `revoke writes audit log entry`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)

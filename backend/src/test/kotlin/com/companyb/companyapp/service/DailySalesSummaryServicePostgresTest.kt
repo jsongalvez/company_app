@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
@@ -20,6 +19,7 @@ import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -35,10 +35,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val branchDayId = UUID.randomUUID()
-    private val today = LocalDate.now(ZoneId.of("Asia/Manila"))
+    private val callerId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val branchDayId = TestFixtures.uuid()
+    private val today = TestFixtures.today
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "summary-user")
@@ -79,7 +79,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         val client1Id = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, client1Id)
         DatabaseTestHelper.insertTestSession(
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             clientId = client1Id,
             branchDayId = branchDayId,
             sessionType = SessionType.REGULAR,
@@ -90,7 +90,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         val client2Id = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, client2Id)
         DatabaseTestHelper.insertTestSession(
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             clientId = client2Id,
             branchDayId = branchDayId,
             sessionType = SessionType.SUBSEQUENT,
@@ -111,7 +111,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         val testClientId = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestSession(
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             clientId = testClientId,
             branchDayId = branchDayId,
             sessionType = SessionType.REGULAR,
@@ -129,7 +129,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `excludes voided sessions from gross income`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         val testClientId = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestSession(
@@ -152,7 +152,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `includes completed sessions that were unvoided`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         val testClientId = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestSession(
@@ -176,8 +176,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct total compensation`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val user1 = UUID.randomUUID()
-        val user2 = UUID.randomUUID()
+        val user1 = TestFixtures.uuid()
+        val user2 = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(user1, "summary-user")
         trackOwned(AppUserTable, AppUserTable.id, user1)
         DatabaseTestHelper.insertTestUser(user2, "summary-user")
@@ -194,7 +194,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct total expenses excluding deleted`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
         trackOwned(AppUserTable, AppUserTable.id, userId)
         DatabaseTestHelper.insertTestExpense(branchDayId, userId, BigDecimal("200.00"), deleted = false)
@@ -209,7 +209,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct product sales total`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
         trackOwned(AppUserTable, AppUserTable.id, userId)
         insertProductSale(branchDayId, userId, BigDecimal("300.00"))
@@ -223,7 +223,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `returns correct commission total`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
         trackOwned(AppUserTable, AppUserTable.id, userId)
         insertCommissionSplit(branchDayId, userId, BigDecimal("150.0000"))
@@ -237,13 +237,13 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `calculates net income correctly`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(userId, "summary-user")
         trackOwned(AppUserTable, AppUserTable.id, userId)
         val netIncomeTestClientId = DatabaseTestHelper.insertTestClient()
         trackOwned(ClientTable, ClientTable.id, netIncomeTestClientId)
         DatabaseTestHelper.insertTestSession(
-            id = UUID.randomUUID(),
+            id = TestFixtures.uuid(),
             clientId = netIncomeTestClientId,
             branchDayId = branchDayId,
             sessionType = SessionType.REGULAR,
@@ -278,7 +278,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     fun `throws 404 when branch does not exist`() {
         grantViewBranchData(callerId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val fakeBranchId = UUID.randomUUID()
+        val fakeBranchId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
             DailySalesSummaryService.getDailySummary(fakeBranchId, today)
@@ -314,7 +314,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
             SessionVoidTable.update({
                 SessionVoidTable.sessionId eq sessionId
             }) {
-                it[SessionVoidTable.unvoidedAt] = OffsetDateTime.now()
+                it[SessionVoidTable.unvoidedAt] = TestFixtures.now
                 it[SessionVoidTable.unvoidedBy] = callerId
                 it[SessionVoidTable.unvoidedReason] = "Test unvoid"
             }
@@ -326,8 +326,8 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
         userId: UUID,
         totalAmount: BigDecimal,
     ) {
-        val productCategoryId = UUID.randomUUID()
-        val productId = UUID.randomUUID()
+        val productCategoryId = TestFixtures.uuid()
+        val productId = TestFixtures.uuid()
         transaction {
             ProductCategoryTable.insert {
                 it[ProductCategoryTable.id] = productCategoryId
@@ -363,7 +363,7 @@ class DailySalesSummaryServicePostgresTest : BasePostgresTest() {
     ) {
         transaction {
             CommissionSplitTable.insert {
-                it[CommissionSplitTable.id] = UUID.randomUUID()
+                it[CommissionSplitTable.id] = TestFixtures.uuid()
                 it[CommissionSplitTable.branchDayId] = branchDayId
                 it[CommissionSplitTable.userId] = userId
                 it[CommissionSplitTable.amount] = amount

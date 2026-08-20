@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.domain.UserStatus
@@ -12,6 +11,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -30,9 +30,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UserServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val targetUserId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     override fun initTestData() {
         DenyList.clear()
@@ -166,10 +166,7 @@ class UserServicePostgresTest : BasePostgresTest() {
     }
 
     private fun waitForNextSecond() {
-        val boundary = Instant.now().truncatedTo(ChronoUnit.SECONDS).plusSeconds(1)
-        while (Instant.now().isBefore(boundary)) {
-            Thread.sleep(10)
-        }
+        TestFixtures.waitForNextSecond()
     }
 
     @Test
@@ -182,13 +179,13 @@ class UserServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `reactivate of missing user throws not found`() {
-        assertFailsWith<NotFoundException> { UserService.reactivate(callerId, UUID.randomUUID()) }
+        assertFailsWith<NotFoundException> { UserService.reactivate(callerId, TestFixtures.uuid()) }
     }
 
     @Test
     fun `list returns users with active assignments only, ordered by displayName then username`() {
-        val branchA = UUID.randomUUID()
-        val branchB = UUID.randomUUID()
+        val branchA = TestFixtures.uuid()
+        val branchB = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(branchA, "Branch A")
         DatabaseTestHelper.insertTestBranch(branchB, "Branch B")
         trackOwned(BranchTable, BranchTable.id, branchA)

@@ -1,5 +1,5 @@
 package com.companyb.companyapp.auth
-
+import com.companyb.companyapp.test.TestFixtures
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -21,21 +21,21 @@ class DenyListTest {
 
     @Test
     fun deniedUserIsBlocked() {
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DenyList.deny(userId)
         assertTrue(DenyList.isDenied(userId, Instant.EPOCH))
     }
 
     @Test
     fun tokenIssuedAfterDenyIsAllowed() {
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DenyList.denyAt(userId, base)
         assertFalse(DenyList.isDeniedAt(userId, base.plusSeconds(1), base.plusSeconds(3600)))
     }
 
     @Test
     fun olderBoundaryCannotReplaceNewerRevocation() {
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         val newer = base.plusSeconds(10)
         DenyList.denyAt(userId, newer)
         DenyList.denyAt(userId, base)
@@ -45,12 +45,12 @@ class DenyListTest {
 
     @Test
     fun unknownUserIsNotDenied() {
-        assertFalse(DenyList.isDenied(UUID.randomUUID(), Instant.EPOCH))
+        assertFalse(DenyList.isDenied(TestFixtures.uuid(), Instant.EPOCH))
     }
 
     @Test
     fun entryIsKeptJustBeforeEviction() {
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DenyList.denyAt(userId, base)
         val almostExpired = base.plus(Duration.ofHours(24)).plusSeconds(59)
         assertTrue(DenyList.isDeniedAt(userId, base, almostExpired))
@@ -60,7 +60,7 @@ class DenyListTest {
 
     @Test
     fun entryIsEvictedAfterTokenMaxAgePlusLeeway() {
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DenyList.denyAt(userId, base)
         // An entry must outlive the last pre-deny token: 24h JWT max age + the 60s
         // acceptLeeway JwtService applies to exp validation.
@@ -72,8 +72,8 @@ class DenyListTest {
 
     @Test
     fun evictExpiredRemovesOnlyStaleEntries() {
-        val fresh = UUID.randomUUID()
-        val stale = UUID.randomUUID()
+        val fresh = TestFixtures.uuid()
+        val stale = TestFixtures.uuid()
         DenyList.denyAt(fresh, base.plus(Duration.ofHours(23)))
         DenyList.denyAt(stale, base)
         val now = base.plus(Duration.ofHours(24)).plusSeconds(61)

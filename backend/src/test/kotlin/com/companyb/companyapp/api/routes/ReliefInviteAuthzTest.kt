@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
@@ -27,6 +26,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
 import io.javalin.testtools.Request
@@ -60,24 +60,24 @@ import kotlin.test.assertTrue
  * or active grant per (invitee, day) — 409; multiple invitees may hold invites for the same day.
  */
 class ReliefInviteAuthzTest : BasePostgresTest() {
-    private val inviter = UUID.randomUUID()
-    private val otherInviter = UUID.randomUUID()
-    private val nonAssigned = UUID.randomUUID()
-    private val invitee = UUID.randomUUID()
-    private val otherInvitee = UUID.randomUUID()
-    private val inactiveUser = UUID.randomUUID()
-    private val aliceUser = UUID.randomUUID()
-    private val bobUser = UUID.randomUUID()
-    private val branchA = UUID.randomUUID()
-    private val branchB = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val inviter = TestFixtures.uuid()
+    private val otherInviter = TestFixtures.uuid()
+    private val nonAssigned = TestFixtures.uuid()
+    private val invitee = TestFixtures.uuid()
+    private val otherInvitee = TestFixtures.uuid()
+    private val inactiveUser = TestFixtures.uuid()
+    private val aliceUser = TestFixtures.uuid()
+    private val bobUser = TestFixtures.uuid()
+    private val branchA = TestFixtures.uuid()
+    private val branchB = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var tomorrow: LocalDate
     private lateinit var yesterday: LocalDate
     private lateinit var tomorrowDayId: UUID
 
     override fun initTestData() {
-        val today = LocalDate.now(ZoneId.of("Asia/Manila"))
+        val today = TestFixtures.today
         tomorrow = today.plusDays(1)
         yesterday = today.minusDays(1)
 
@@ -138,7 +138,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -498,7 +498,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             // A past-day invite can only exist via a direct row (create 403s on past days).
             val pastDayId = BranchDayService.resolveOrCreate(branchA, yesterday).id
             trackOwned(BranchDayTable, BranchDayTable.branchId, branchA)
-            val inviteId = UUID.randomUUID()
+            val inviteId = TestFixtures.uuid()
             trackOwned(ReliefInviteTable, ReliefInviteTable.invitee, invitee)
             // Locals only — inside `insert {}` the receiver is the table, so unqualified
             // class fields would resolve to columns (the #118/#152 insert-lambda trap).

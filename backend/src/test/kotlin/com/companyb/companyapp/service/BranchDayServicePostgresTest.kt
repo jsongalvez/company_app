@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -7,6 +6,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -17,7 +17,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class BranchDayServicePostgresTest : BasePostgresTest() {
-    private val branchId = UUID.randomUUID()
+    private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch Day Branch")
@@ -33,7 +33,7 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
 
         assertEquals(existingId, branchDay.id)
         assertEquals(DayStatus.OPEN, branchDay.status)
-        assertEquals(LocalDate.now(BranchDayService.manilaZone), branchDay.date)
+        assertEquals(TestFixtures.today, branchDay.date)
     }
 
     @Test
@@ -43,7 +43,7 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
 
         assertEquals(first.id, second.id)
         assertEquals(DayStatus.OPEN, second.status)
-        assertEquals(LocalDate.now(BranchDayService.manilaZone), second.date)
+        assertEquals(TestFixtures.today, second.date)
     }
 
     @Test
@@ -63,7 +63,7 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
     @Test
     fun `getToday throws NotFound for missing branch`() {
         assertFailsWith<NotFoundException> {
-            BranchDayService.getToday(UUID.randomUUID())
+            BranchDayService.getToday(TestFixtures.uuid())
         }
     }
 }

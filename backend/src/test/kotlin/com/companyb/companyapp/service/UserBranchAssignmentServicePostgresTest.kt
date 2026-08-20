@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -13,6 +12,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -34,12 +34,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val nonManagerId = UUID.randomUUID()
-    private val userAId = UUID.randomUUID()
-    private val userBId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val nonManagerId = TestFixtures.uuid()
+    private val userAId = TestFixtures.uuid()
+    private val userBId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
@@ -63,7 +63,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `create persists assignment and writes audit row`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         val slot: Short = 3
 
         val result = UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, slot)
@@ -83,7 +83,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `duplicate assignment id returns existing row without extra audit`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         val duplicate = UserBranchAssignmentService.create(callerId, assignmentId, branchId, userBId, 5)
@@ -99,7 +99,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `same assignment retry returns existing row without extra audit`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         val retry = UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
@@ -114,8 +114,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `create with non-existent branch throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
-        val unknownBranchId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
+        val unknownBranchId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.create(callerId, assignmentId, unknownBranchId, userAId, 1)
@@ -126,8 +126,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `create with non-existent user throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
-        val unknownUserId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
+        val unknownUserId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.create(callerId, assignmentId, branchId, unknownUserId, 1)
@@ -138,10 +138,10 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `create when user already has active assignment at branch throws BadRequest`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val firstId = UUID.randomUUID()
+        val firstId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, firstId, branchId, userAId, 1)
 
-        val secondId = UUID.randomUUID()
+        val secondId = TestFixtures.uuid()
         assertFailsWith<ValidationException> {
             UserBranchAssignmentService.create(callerId, secondId, branchId, userAId, 2)
         }
@@ -154,7 +154,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val executor = Executors.newFixedThreadPool(CONCURRENT_ASSIGNMENTS)
         val ready = CountDownLatch(CONCURRENT_ASSIGNMENTS)
         val start = CountDownLatch(1)
-        val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { UUID.randomUUID() }
+        val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { TestFixtures.uuid() }
         val futures =
             assignmentIds.map { assignmentId ->
                 executor.submit<Result<Boolean>> {
@@ -192,7 +192,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val ready = CountDownLatch(CONCURRENT_ASSIGNMENTS)
         val start = CountDownLatch(1)
         val auditCalls = AtomicInteger(0)
-        val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { UUID.randomUUID() }
+        val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { TestFixtures.uuid() }
         val futures =
             assignmentIds.map { assignmentId ->
                 executor.submit<Result<Boolean>> {
@@ -229,7 +229,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without MANAGE_USERS is forbidden at service layer`() {
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
 
         assertFailsWith<ForbiddenException> {
             UserBranchAssignmentService.create(nonManagerId, assignmentId, branchId, userAId, 1)
@@ -240,7 +240,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `remove sets endedAt and writes audit row`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         UserBranchAssignmentService.remove(callerId, branchId, userAId)
@@ -255,7 +255,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `remove without MANAGE_USERS is forbidden at service layer`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         assertFailsWith<ForbiddenException> {
@@ -269,7 +269,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `remove with non-existent branch throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val unknownBranchId = UUID.randomUUID()
+        val unknownBranchId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
             UserBranchAssignmentService.remove(callerId, unknownBranchId, userAId)
@@ -290,7 +290,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `updateSlot by manager updates slot and writes audit`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         UserBranchAssignmentService.updateSlot(callerId, branchId, userAId, 5)
@@ -306,7 +306,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `updateSlot self-update allowed without MANAGE_USERS`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, nonManagerId, 2)
 
         UserBranchAssignmentService.updateSlot(nonManagerId, branchId, nonManagerId, 7)
@@ -328,7 +328,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `updateSlot by non-manager for other user throws Forbidden`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, assignmentId, branchId, userAId, 1)
 
         assertFailsWith<ForbiddenException> {
@@ -342,8 +342,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `swapSlots swaps slots and writes audit`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val idA = UUID.randomUUID()
-        val idB = UUID.randomUUID()
+        val idA = TestFixtures.uuid()
+        val idB = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 2)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 8)
 
@@ -358,8 +358,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `swapSlots without MANAGE_USERS is forbidden at service layer`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val idA = UUID.randomUUID()
-        val idB = UUID.randomUUID()
+        val idA = TestFixtures.uuid()
+        val idB = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
 
@@ -375,8 +375,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `swapSlots self-service by participant is allowed without MANAGE_USERS`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val idA = UUID.randomUUID()
-        val idB = UUID.randomUUID()
+        val idA = TestFixtures.uuid()
+        val idB = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
 
@@ -390,7 +390,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `swapSlots with the same user on both sides throws validation without audit rows`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val idA = UUID.randomUUID()
+        val idA = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
 
         assertFailsWith<ValidationException> {
@@ -405,7 +405,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `swapSlots with missing assignment A throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val idB = UUID.randomUUID()
+        val idB = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 1)
 
         assertFailsWith<NotFoundException> {
@@ -417,7 +417,7 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `swapSlots with missing assignment B throws NotFound`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        val idA = UUID.randomUUID()
+        val idA = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idA, branchId, userAId, 1)
 
         assertFailsWith<NotFoundException> {
@@ -429,8 +429,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `findActiveByBranch returns active assignments sorted by slot`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userBId, 5)
-        UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userBId, 5)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
 
         val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
@@ -445,8 +445,8 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     fun `findActiveByBranch excludes ended assignments`() {
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
-        UserBranchAssignmentService.create(callerId, UUID.randomUUID(), branchId, userAId, 1)
-        val idB = UUID.randomUUID()
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
+        val idB = TestFixtures.uuid()
         UserBranchAssignmentService.create(callerId, idB, branchId, userBId, 2)
         UserBranchAssignmentService.remove(callerId, branchId, userBId)
 

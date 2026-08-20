@@ -1,7 +1,6 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
@@ -25,6 +24,7 @@ import com.companyb.companyapp.service.ExpenseService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.testtools.Request
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -37,14 +37,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class FinanceReadBackAuthzTest : BasePostgresTest() {
-    private val assignUser = UUID.randomUUID()
-    private val editOnlyUser = UUID.randomUUID()
-    private val noneUser = UUID.randomUUID()
-    private val targetUser1 = UUID.randomUUID()
-    private val targetUser2 = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
+    private val assignUser = TestFixtures.uuid()
+    private val editOnlyUser = TestFixtures.uuid()
+    private val noneUser = TestFixtures.uuid()
+    private val targetUser1 = TestFixtures.uuid()
+    private val targetUser2 = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
     private lateinit var otherBranchDayId: UUID
@@ -105,7 +105,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
         trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
         trackOwned(AttendanceTable, AttendanceTable.branchDayId, otherBranchDayId)
 
-        expenseId = UUID.randomUUID()
+        expenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = expenseId,
@@ -120,7 +120,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
     }
 
     companion object {
-        private val DEFAULT_USER = UUID.randomUUID()
+        private val DEFAULT_USER = TestFixtures.uuid()
 
         @JvmField
         @ClassRule
@@ -191,10 +191,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET compensations returns only rows for requested branch day`() {
-        val yesterday =
-            java.time.LocalDate
-                .now()
-                .minusDays(1)
+        val yesterday = TestFixtures.today.minusDays(1)
         val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayBranchDayId)
         testServer.client.let { client ->
@@ -241,7 +238,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET compensations returns 404 for missing branch day with grant`() {
-        val missingBranchId = UUID.randomUUID()
+        val missingBranchId = TestFixtures.uuid()
         grantAssignOnBranch(assignUser, missingBranchId)
         testServer.client.let { client ->
             assertEquals(
@@ -272,10 +269,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET branch-day users returns only users of requested day`() {
-        val yesterday =
-            java.time.LocalDate
-                .now()
-                .minusDays(1)
+        val yesterday = TestFixtures.today.minusDays(1)
         val otherDayBranchDayId = DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
         trackOwned(BranchDayTable, BranchDayTable.id, otherDayBranchDayId)
         DatabaseTestHelper.insertTestAttendance(otherDayBranchDayId, targetUser1)
@@ -325,7 +319,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET branch-day users returns 404 for missing branch day with grant`() {
-        val missingBranchId = UUID.randomUUID()
+        val missingBranchId = TestFixtures.uuid()
         grantAssignOnBranch(assignUser, missingBranchId)
         testServer.client.let { client ->
             assertEquals(
@@ -399,7 +393,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `PATCH expense forbidden on other branch`() {
-        val otherExpenseId = UUID.randomUUID()
+        val otherExpenseId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = otherExpenseId,
@@ -482,7 +476,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore soft-deleted expense succeeds and clears deletion fields`() {
-        val deletedId = UUID.randomUUID()
+        val deletedId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = deletedId,
@@ -517,7 +511,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore forbidden for ASSIGN_COMPENSATION-only user`() {
-        val deletedId = UUID.randomUUID()
+        val deletedId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = deletedId,
@@ -548,7 +542,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore forbidden for no-capability user`() {
-        val deletedId = UUID.randomUUID()
+        val deletedId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = deletedId,
@@ -579,7 +573,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore forbidden on other branch`() {
-        val otherDeletedId = UUID.randomUUID()
+        val otherDeletedId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = otherDeletedId,
@@ -615,7 +609,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                 404,
                 client
                     .post(
-                        "/api/expenses/${UUID.randomUUID()}/restore",
+                        "/api/expenses/${TestFixtures.uuid()}/restore",
                         emptyMap<String, String>(),
                         asUser(editOnlyUser),
                     ).code,
@@ -640,7 +634,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `POST restore returns 400 on second restore - double-restore race window`() {
-        val deletedId = UUID.randomUUID()
+        val deletedId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = deletedId,
@@ -676,7 +670,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
 
     @Test
     fun `GET expenses includes soft-deleted rows with reason`() {
-        val deletedId = UUID.randomUUID()
+        val deletedId = TestFixtures.uuid()
         ExpenseService.create(
             callerId = editOnlyUser,
             id = deletedId,

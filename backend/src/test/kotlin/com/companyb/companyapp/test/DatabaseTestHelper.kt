@@ -1,5 +1,6 @@
-package com.companyb.companyapp.test
+@file:Suppress("ForbiddenClassName")
 
+package com.companyb.companyapp.test
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -29,6 +30,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.test.TestFixtures
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.serialization.json.Json
@@ -282,7 +284,7 @@ object DatabaseTestHelper {
      */
     @Suppress("LongParameterList")
     fun insertTestAssignment(
-        id: UUID = UUID.randomUUID(),
+        id: UUID = TestFixtures.uuid(),
         userId: UUID,
         branchId: UUID,
         slot: Short,
@@ -302,8 +304,7 @@ object DatabaseTestHelper {
         return id
     }
 
-    fun createBranchDayForToday(branchId: UUID): UUID =
-        createBranchDayForDate(branchId, LocalDate.now(BranchDayService.manilaZone))
+    fun createBranchDayForToday(branchId: UUID): UUID = createBranchDayForDate(branchId, TestFixtures.today)
 
     fun createBranchDayForDate(
         branchId: UUID,
@@ -379,7 +380,7 @@ object DatabaseTestHelper {
         }
     }
 
-    fun insertTestClient(id: UUID = UUID.randomUUID()): UUID {
+    fun insertTestClient(id: UUID = TestFixtures.uuid()): UUID {
         transaction {
             ClientTable.insertIgnore {
                 it[ClientTable.id] = id
@@ -399,7 +400,7 @@ object DatabaseTestHelper {
      * to the column, not the test's field).
      */
     fun insertTestNotification(
-        id: UUID = UUID.randomUUID(),
+        id: UUID = TestFixtures.uuid(),
         sessionId: UUID,
         userId: UUID,
         branchId: UUID,
@@ -506,7 +507,7 @@ object DatabaseTestHelper {
     ) {
         transaction {
             CompensationTable.insert {
-                it[CompensationTable.id] = UUID.randomUUID()
+                it[CompensationTable.id] = TestFixtures.uuid()
                 it[CompensationTable.workBranchDayId] = branchDayId
                 it[CompensationTable.payingBranchDayId] = branchDayId
                 it[CompensationTable.userId] = userId
@@ -525,7 +526,7 @@ object DatabaseTestHelper {
     ) {
         transaction {
             ExpenseTable.insert {
-                it[ExpenseTable.id] = UUID.randomUUID()
+                it[ExpenseTable.id] = TestFixtures.uuid()
                 it[ExpenseTable.branchDayId] = branchDayId
                 it[ExpenseTable.amount] = amount
                 it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
@@ -545,11 +546,11 @@ object DatabaseTestHelper {
     ) {
         transaction {
             AttendanceTable.insertIgnore {
-                it[AttendanceTable.id] = UUID.randomUUID()
+                it[AttendanceTable.id] = TestFixtures.uuid()
                 it[AttendanceTable.branchDayId] = branchDayId
                 it[AttendanceTable.userId] = userId
                 it[AttendanceTable.markedBy] = userId
-                it[AttendanceTable.clockIn] = OffsetDateTime.now(ZoneOffset.UTC)
+                it[AttendanceTable.clockIn] = TestFixtures.now
             }
         }
     }

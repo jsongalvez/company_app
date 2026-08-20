@@ -27,6 +27,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -39,16 +40,16 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
-    private val currentMonth = YearMonth.now(BranchDayService.manilaZone)
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val currentMonth = TestFixtures.currentMonth
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "summary-caller")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
-        DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${UUID.randomUUID()}")
+        DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
         trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestClient(clientId)
         trackOwned(ClientTable, ClientTable.id, clientId)
@@ -84,9 +85,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns correct summary for a single SESSION remittance`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createSubmittedSessionRemittance(remittanceId, lineId, breakdownId, BigDecimal("1000.00"))
 
@@ -108,9 +109,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns correct summary with compensation and expenses`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
         val branchDayId = resolveBranchDay(currentMonth.atDay(10))
 
         createDraftRemittance(remittanceId, currentMonth.atDay(1), currentMonth.atEndOfMonth())
@@ -119,7 +120,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestCompensation(branchDayId, callerId, BigDecimal("300.00"), assignedBy = callerId)
         DatabaseTestHelper.insertTestExpense(branchDayId, callerId, BigDecimal("150.00"))
 
-        val sId = UUID.randomUUID()
+        val sId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = sId,
             clientId = clientId,
@@ -158,9 +159,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns correct summary for a PRODUCT remittance`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createSubmittedProductRemittance(remittanceId, lineId, breakdownId)
 
@@ -179,10 +180,10 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `aggregates multiple remittances in same month`() {
-        val rem1Id = UUID.randomUUID()
-        val rem2Id = UUID.randomUUID()
-        createSubmittedSessionRemittance(rem1Id, UUID.randomUUID(), UUID.randomUUID(), BigDecimal("500.00"))
-        createSubmittedProductRemittance(rem2Id, UUID.randomUUID(), UUID.randomUUID())
+        val rem1Id = TestFixtures.uuid()
+        val rem2Id = TestFixtures.uuid()
+        createSubmittedSessionRemittance(rem1Id, TestFixtures.uuid(), TestFixtures.uuid(), BigDecimal("500.00"))
+        createSubmittedProductRemittance(rem2Id, TestFixtures.uuid(), TestFixtures.uuid())
 
         trackOwned(RemittanceTable, RemittanceTable.id, rem1Id)
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem1Id)
@@ -214,15 +215,15 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `throws 404 for non-existent branch`() {
         assertFailsWith<NotFoundException> {
-            getCurrentMonthSummary(UUID.randomUUID())
+            getCurrentMonthSummary(TestFixtures.uuid())
         }
     }
 
     @Test
     fun `returns zero snapshot values for PRODUCT remittance with only counts`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createSubmittedProductRemittance(remittanceId, lineId, breakdownId)
 
@@ -252,7 +253,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
-        val sId = UUID.randomUUID()
+        val sId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = sId,
             clientId = clientId,
@@ -335,9 +336,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     }
 
     private fun createProductSale(branchDayId: UUID): UUID {
-        val psId = UUID.randomUUID()
-        val productCategoryId = UUID.randomUUID()
-        val productId = UUID.randomUUID()
+        val psId = TestFixtures.uuid()
+        val productCategoryId = TestFixtures.uuid()
+        val productId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestCategory(productCategoryId, "Test Cat $psId")
         DatabaseTestHelper.insertTestProduct(productId, "Test Prod $psId", productCategoryId)
         DatabaseTestHelper.insertTestProductSale(

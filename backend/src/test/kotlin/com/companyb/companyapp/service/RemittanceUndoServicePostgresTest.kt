@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
@@ -23,6 +22,7 @@ import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSna
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -43,9 +43,9 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RemittanceUndoServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
 
     private val dayDate = LocalDate.of(2026, 7, 10)
 
@@ -53,7 +53,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-undo-caller")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Undo Branch ${UUID.randomUUID()}")
+        DatabaseTestHelper.insertTestBranch(branchId, "Undo Branch ${TestFixtures.uuid()}")
         trackOwned(BranchTable, BranchTable.id, branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
@@ -78,7 +78,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         assertNull(undone.submittedAt)
         assertSnapshot(remittanceId, exists = false)
         val expectedStatus =
-            BranchDayService.evaluateStatus(DayStatus.OPEN, dayDate, LocalDate.now(BranchDayService.manilaZone))
+            BranchDayService.evaluateStatus(DayStatus.OPEN, dayDate, TestFixtures.today)
         assertEquals(expectedStatus, dbDayStatus(dayId))
     }
 
@@ -177,7 +177,13 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         addBreakdown(remittanceId)
         val submittedVersion = submit(remittanceId)
 
-        backdateSubmittedAt(remittanceId, OffsetDateTime.now(ZoneOffset.UTC).minusHours(WINDOW_HOURS + 1))
+        backdateSubmittedAt(
+            remittanceId,
+            TestFixtures
+                .realNow()
+                .atOffset(ZoneOffset.UTC)
+                .minusHours(WINDOW_HOURS + 1),
+        )
 
         assertFailsWith<ValidationException> {
             RemittanceService.undo(callerId, remittanceId, submittedVersion, "too late")
@@ -236,7 +242,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     @Test
     fun `undo missing remittance throws not found`() {
         assertFailsWith<NotFoundException> {
-            RemittanceService.undo(callerId, UUID.randomUUID(), 1, "nope")
+            RemittanceService.undo(callerId, TestFixtures.uuid(), 1, "nope")
         }
     }
 
@@ -364,7 +370,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             RemittanceService.updateHeader(
                 callerId = callerId,
-                remittanceId = UUID.randomUUID(),
+                remittanceId = TestFixtures.uuid(),
                 type = RemittanceType.PRODUCT,
                 method = RemittanceMethod.BANK_TRANSFER,
                 dateRangeStart = LocalDate.of(2026, 7, 1),
@@ -379,7 +385,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     private fun createDraft(type: RemittanceType): UUID {
-        val id = UUID.randomUUID()
+        val id = TestFixtures.uuid()
         RemittanceService.createDraft(
             callerId = callerId,
             id = id,
@@ -399,7 +405,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     private fun addBreakdown(remittanceId: UUID): UUID {
         val dayId = DatabaseTestHelper.createBranchDayForDate(branchId, dayDate)
         trackOwned(BranchDayTable, BranchDayTable.id, dayId)
-        RemittanceService.addDayBreakdown(callerId, remittanceId, UUID.randomUUID(), dayId)
+        RemittanceService.addDayBreakdown(callerId, remittanceId, TestFixtures.uuid(), dayId)
         return dayId
     }
 
