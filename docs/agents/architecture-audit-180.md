@@ -190,6 +190,69 @@ Repository inventory at review: 167 backend production Kotlin files, 64 backend 
 
 Implementation recommendations require separate child tasks of audit task #180. Task #180 is itself a child of Map #89, preserving one main issue for audit follow-ups. Human-choice fog remains for R3's unknown enum strategy and R5's deployment-volume priority; this AFK audit does not guess. The resolution comment links created tasks and their dependencies.
 
+## Session 326 safety-policy verification
+
+Child #276 rechecked the canonical anti-slop overlay against actual Detekt task
+registration and source-set results. This is a policy verification, not a
+complexity/style cleanup.
+
+### Rule matrix
+
+| Upstream safety rule group | Rules | Evidence and disposition |
+|---|---|---|
+| Coroutines | `GlobalCoroutineUsage`, `InjectDispatcher`, `RedundantSuspendModifier`, `SleepInsteadOfDelay`, `SuspendFunSwallowedCancellation`, `SuspendFunWithCoroutineScopeReceiver`, `SuspendFunWithFlowReturnType` | Active in canonical overlay. Typed Detekt tasks provide the required source-set boundary where sources exist; retain for production and tests. |
+| Empty blocks | `EmptyCatchBlock` | Active with empty allowed-name regex. Retain; no test exclusion. |
+| Exceptions | `NotImplementedDeclaration`, `ObjectExtendsThrowable`, `SwallowedException`, `TooGenericExceptionCaught` | Active with empty swallowed/generic exception allowlists. Backend and Compose Android findings prove execution; retain named boundary review for later cleanup. |
+| Potential bugs | `CastNullableToNonNullableType`, `CastToNullableType`, `Deprecation`, `DontDowncastCollectionTypes`, `ElseCaseInsteadOfExhaustiveWhen`, `ExitOutsideMain`, `NullCheckOnMutableProperty`, `NullableToStringCall`, `PropertyUsedBeforeDeclaration`, `UnconditionalJumpStatementInLoop`, `UnnecessaryNotNullCheck` | Active in type-resolution configuration. Backend typed main/test and platform typed tasks are the supported coverage boundary; KMP tasks reporting `NO-SOURCE` are not claimed as coverage. |
+| Determinism and placeholders | `ForbiddenComment`, `ForbiddenImport`, `ForbiddenMethodCall`, `ForbiddenSuppress` | Active without broad source-set exclusions. Test findings for `UUID.randomUUID` and `LocalDate.now` prove test enforcement. Keep real boundary exceptions explicit and local. |
+| Unused/dead code | `UnusedImports`, `UnusedParameter`, `UnusedPrivateClass`, `UnusedPrivateMember`, `UnusedPrivateProperty`, `VarCouldBeVal`, `WildcardImport` | Active in canonical overlay and existing findings are retained for later bounded cleanup. Do not mix their cleanup into safety policy validation. |
+
+### Task and compatibility evidence
+
+- `:backend:detektMain` and `:backend:detektTest` execute typed analysis and
+  currently fail with existing findings (489 and 1,483 weighted issues).
+- `:shared:detekt` and `:composeApp:detekt` are aggregate `NO-SOURCE` tasks;
+  they are not enforcement evidence.
+- Typed shared JVM/iOS/Android tasks and several Compose iOS-test and Android
+  unit-test tasks are `NO-SOURCE`; Compose Desktop main/test, Android main, and
+  iOS main execute where sources exist. Exact task inventory is in child #275.
+- `/home/ubuntu/anti-slop-detekt` and
+  `config/detekt/detekt-anti-slop.yml` are byte-equivalent. No rule, threshold,
+  source-set exclusion, baseline, or regex approximation was changed.
+- Type-resolution rules are used only through registered typed Gradle tasks;
+  unsupported anti-slop concepts such as `Any` widening and cast-comment
+  requirements remain outside this configuration-only policy and are not
+  approximated.
+
+### Verification packet
+
+- `mode: structured; model: GPT-5.6 Luna; blind position: ALPHA`.
+- `L1 fact integrity: pass` — upstream file, merged Gradle configuration, task
+  list, and typed task output independently checked.
+- `L2 domain coherence: pass` — safety enforcement preserves production/test
+  boundaries and does not alter runtime business behavior.
+- `L3 long-term architecture: pass` — task registration owns coverage; no
+  duplicate policy, generic adapter, or unsupported regex seam added.
+- `L4 adversarial falsification: pass` — aggregate `NO-SOURCE`, missing source
+  sets, test findings, type-resolution tasks, and existing failure counts were
+  checked; no false coverage claim survives.
+- `L5 comprehension: pass` — each enabled upstream safety group has explicit
+  evidence, disposition, and later cleanup boundary.
+- `deterministic gate: pass` — `cmp -s` proves canonical overlay equality;
+  `:backend:detektMain --dry-run` proves typed task registration; aggregate and
+  typed failure outputs reproduce current findings.
+- `HARD findings: zero`; `SOFT findings: one` — existing findings remain for
+  ordered rollout children and are not silently baselined.
+- `confidence: high`; `artifact: this section and
+  docs/agents/wayfinder-275-detekt-inventory.md`.
+
+### Disposition
+
+No configuration edit is warranted in this child. The smallest safe change is
+zero policy drift: retain the upstream overlay exactly, preserve safety rules
+on tests, and defer findings plus task-gate wiring to ordered children #277-
+#281. Complexity/style cleanup remains separate.
+
 ## Related Audit
 
 `.scratch/code-review/issues/cr-036-quality-gate-effectiveness-audit.md` records the existing quality-gate effectiveness audit: 3/11 effective, 5/11 false-confidence, 3/11 manual-only. Its findings were not duplicated here except R9, which is a concrete code-count/drift simplification.
