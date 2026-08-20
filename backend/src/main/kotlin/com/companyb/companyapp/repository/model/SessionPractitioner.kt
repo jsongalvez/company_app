@@ -26,6 +26,7 @@ object SessionPractitionerTable : Table("session_practitioner") {
             "id" to entity.id.toString(),
             "sessionId" to entity.sessionId.toString(),
             "practitionerId" to entity.practitionerId.toString(),
+            "remarks" to (entity.remarks ?: "null"),
             "slotAtTime" to entity.slotAtTime.toString(),
         )
 }

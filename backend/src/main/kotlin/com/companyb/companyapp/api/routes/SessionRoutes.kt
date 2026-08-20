@@ -234,6 +234,15 @@ object SessionRoutes {
             )
         }
 
+        config.routes.before("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+                context,
+                sessionId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
         config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(

@@ -6,6 +6,7 @@ import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -846,6 +847,20 @@ class SessionServicePostgresTest : BasePostgresTest() {
                 sessionId = practitionerSessionId,
                 practitionerId = TestFixtures.uuid(),
             )
+        }
+    }
+
+    @Test
+    fun `stale practitioner mutation version update throws typed conflict`() {
+        createSession(callerId, practitionerSessionId)
+        trackOwned(SessionTable, SessionTable.id, practitionerSessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, practitionerSessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, practitionerSessionId)
+
+        assertFailsWith<VersionMismatchException> {
+            transaction {
+                SessionPractitionerRepository.incrementSessionVersion(practitionerSessionId, 0)
+            }
         }
     }
 

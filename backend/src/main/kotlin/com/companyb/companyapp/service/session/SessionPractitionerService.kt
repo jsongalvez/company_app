@@ -73,19 +73,17 @@ internal object SessionPractitionerService {
         reason: String? = null,
     ): SessionPractitioner {
         val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
-        val oldPractitioner = requirePractitionerInSession(sessionId, practitionerId)
-
         val updated =
             SessionPractitionerRepository.updateRemarks(
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = remarks,
-                auditFn = { p ->
+                auditFn = { before, after ->
                     AuditLogRepository.recordUpdate(
                         tableName = SessionPractitionerTable.tableName,
-                        recordId = p.id,
-                        before = oldPractitioner,
-                        after = p,
+                        recordId = after.id,
+                        before = before,
+                        after = after,
                         changedBy = callerId,
                         branchId = branchDay.branchId,
                         isFlagged = isRemitted,
@@ -113,22 +111,24 @@ internal object SessionPractitionerService {
         val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
         requirePractitionerInSession(sessionId, practitionerId)
 
-        SessionPractitionerRepository.remove(
-            sessionId = sessionId,
-            practitionerId = practitionerId,
-            auditFn = { p ->
-                AuditLogRepository.recordDelete(
-                    tableName = SessionPractitionerTable.tableName,
-                    recordId = p.id,
-                    before = p,
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    isFlagged = isRemitted,
-                    reason = reason,
-                    auditFields = SessionPractitionerTable::auditFields,
-                )
-            },
-        )
+        val removed =
+            SessionPractitionerRepository.remove(
+                sessionId = sessionId,
+                practitionerId = practitionerId,
+                auditFn = { p ->
+                    AuditLogRepository.recordDelete(
+                        tableName = SessionPractitionerTable.tableName,
+                        recordId = p.id,
+                        before = p,
+                        changedBy = callerId,
+                        branchId = branchDay.branchId,
+                        isFlagged = isRemitted,
+                        reason = reason,
+                        auditFields = SessionPractitionerTable::auditFields,
+                    )
+                },
+            )
+        if (!removed) throw NotFoundException("Practitioner not found in session")
 
         logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
     }
