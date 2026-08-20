@@ -131,6 +131,21 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `retrying revoked delegate id returns ended row without regranting capability`() {
+        val delegateId = TestFixtures.uuid()
+        MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
+        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+        MedicalMissionDelegateService.revokeDelegate(delegateId, callerId)
+
+        val retry = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
+
+        assertNotNull(retry.endedAt)
+        assertEquals(0L, activeCapabilityCount(delegateId))
+        assertEquals(2L, delegateAuditCount(delegateId))
+    }
+
+    @Test
     fun `revoke on non-existent delegate fails with 404`() {
         assertFailsWith<NotFoundException> {
             MedicalMissionDelegateService.revokeDelegate(TestFixtures.uuid(), callerId)
@@ -257,5 +272,26 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                         (UserCapabilityTable.validTo.isNotNull())
                 }.empty()
                 .not()
+        }
+
+    private fun activeCapabilityCount(delegateId: UUID): Long =
+        transaction {
+            UserCapabilityTable
+                .selectAll()
+                .where {
+                    (UserCapabilityTable.sourceId eq delegateId) and
+                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE) and
+                        UserCapabilityTable.validTo.isNull()
+                }.count()
+        }
+
+    private fun delegateAuditCount(delegateId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq "medical_mission_delegate") and
+                        (AuditLogTable.recordId eq delegateId)
+                }.count()
         }
 }
