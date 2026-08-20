@@ -109,7 +109,7 @@ actual fun AppNavHost(
             NavHost(navController = navController, startDestination = startDestination) {
                 composable<Route.Login> {
                     LoginScreen(
-                        authViewModel = remember { AuthViewModel(apiClient) },
+                        authViewModel = viewModel { AuthViewModel(apiClient) },
                         bootstrapViewModel = viewModel { SessionBootstrapViewModel(apiClient) },
                         tokenStore = tokenStore,
                         onLoginSuccess = {

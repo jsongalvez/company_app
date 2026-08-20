@@ -3041,6 +3041,104 @@ cancellation between the two legs and both capabilities 401/500 paths.
 - No ADR needed; existing lifecycle-aware ViewModel, structured cancellation, and SessionState
   ownership decisions remain authoritative.
 
+## Full Audit - Session 325
+
+After implementation child #269, the native `wayfinder:task` frontier was empty. Four
+independent read-only lanes rechecked C-01..C-14. Product source, tests, migrations, and
+runtime behavior remained unchanged during audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R82 - lifecycle-own AuthViewModel | Mobile and Desktop hosts use `remember` for a ViewModel with `viewModelScope`; existing lifecycle-owned host pattern is available | Route disposal can leave login/register work alive and late state can outlive host; no competing owner is present | implement, P1 |
+| R83 - migration-upgrade coverage for JWT revocation | V22 backfills `jwt_revoked_at`; DatabaseTestHelper migrates only current schema and has no V21-to-V22 fixture | Backfill and restart behavior remain untested across upgrade boundary; candidate is distinct from runtime revocation implementation | implement, P2 |
+| R84 - authoritative schema scope in audit docs | C-09 and schema pass still mention V19 while V20-V22 exist | Directory inspection confirms stale cache; replacing enumeration with authoritative-path language changes no runtime behavior | implement, P2 |
+| R85 - residual shared final-price route literal | SessionDashboardViewModel emits route literal despite ApiRoutes builder | Grep finds one production Compose caller; builder output is byte-equivalent and test coverage is missing | implement, P2 |
+
+### Verifier packets
+
+```text
+candidate: R82
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+L1 fact integrity: pass; host construction and viewModelScope use re-read
+L2 domain coherence: pass; lifecycle ownership preserves existing SessionState/auth flow
+L3 long-term architecture: pass; uses existing lifecycle-aware ViewModel seam
+L4 adversarial falsification: pass; host disposal during auth request leaves late-work path
+L5 comprehension: pass; two host replacements plus focused coverage are clear
+deterministic gate: pass; grep and host/source inspection agree
+HARD findings: zero untriaged after lifecycle ownership replacement
+SOFT findings: one accepted, iOS artifact availability limits compile evidence; confirmed by L1/L4
+confidence: high
+artifact: Session 325 Compose lane and docs/agents/wayfinder-325-auth-vm-ticket.md
+
+candidate: R83
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+L1 fact integrity: pass; V22 backfill and current-schema test setup verified
+L2 domain coherence: pass; migration directory remains schema authority and revocation semantics stay intact
+L3 long-term architecture: pass; disposable upgrade fixture protects future migration changes
+L4 adversarial falsification: pass; varied inactive rows and restart path expose backfill regressions
+L5 comprehension: pass; fixture boundary and expected auth behavior are explicit
+deterministic gate: pass; migration/source/test-helper inspection agrees
+HARD findings: zero
+SOFT findings: one accepted, migration harness scope is larger than current runtime tests; confirmed by L3/L5
+confidence: reduced
+artifact: Session 325 schema/test lane and docs/agents/wayfinder-325-migration-upgrade-ticket.md
+
+candidate: R84
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+L1 fact integrity: pass; V20-V22 exist and audit references V19
+L2 domain coherence: pass; authoritative migration-directory rule matches architecture guidance
+L3 long-term architecture: pass; removes stale cache rather than extending it
+L4 adversarial falsification: pass; future migration additions remain covered by directory rule
+L5 comprehension: pass; documentation-only correction is bounded
+deterministic gate: pass; grep and directory listing agree
+HARD findings: zero
+SOFT findings: zero
+confidence: high
+artifact: Session 325 schema/docs lane and docs/agents/wayfinder-325-audit-scope-ticket.md
+
+candidate: R85
+mode: structured
+model: GPT-5.6 Luna
+position: DELTA
+L1 fact integrity: pass; literal and shared builder call sites verified
+L2 domain coherence: pass; shared route ownership rule applies to this caller
+L3 long-term architecture: pass; removes one contract drift seam without new abstraction
+L4 adversarial falsification: pass; exact path assertion protects byte-equivalent output
+L5 comprehension: pass; one caller and one builder test define scope
+deterministic gate: pass; grep, route source, and test inventory agree
+HARD findings: zero
+SOFT findings: zero
+confidence: high
+artifact: Session 325 shared/tooling lane and docs/agents/wayfinder-325-route-ticket.md
+```
+
+### Audit-of-audit - Session 325
+
+- Coverage: C-01..C-14 rechecked through Compose, backend, shared, schema, tests, tooling, and docs lanes.
+- Duplication: R85 is residual route ownership drift, not a duplicate of completed route migrations; R83 is upgrade evidence, not runtime JWT revocation.
+- Materiality: R82 is lifecycle correctness; R83 protects security migration behavior; R84 is a registered truth-class documentation defect; R85 removes contract drift.
+- Schema: V20-V22 are present; no migration content change is proposed.
+- Priority: create and verify all four children, then claim R82 only.
+
+### Child traceability
+
+- R82 command: `bash scripts/wayfinder-create-child.sh 180 task "Build: lifecycle-own AuthViewModel instances" docs/agents/wayfinder-325-auth-vm-ticket.md`
+- R82 returned `https://github.com/jsongalvez/company_app/issues/270`; verification: `bash scripts/wayfinder-verify-child.sh 180 270` -> `Verified child #270: parent #180, label wayfinder:task`.
+- R83 command: `bash scripts/wayfinder-create-child.sh 180 task "Build: cover JWT revocation migration upgrades" docs/agents/wayfinder-325-migration-upgrade-ticket.md`
+- R83 returned `https://github.com/jsongalvez/company_app/issues/271`; verification: `bash scripts/wayfinder-verify-child.sh 180 271` -> `Verified child #271: parent #180, label wayfinder:task`.
+- R84 command: `bash scripts/wayfinder-create-child.sh 180 task "Docs: make audit schema scope authoritative" docs/agents/wayfinder-325-audit-scope-ticket.md`
+- R84 returned `https://github.com/jsongalvez/company-app/issues/272`; verification: `bash scripts/wayfinder-verify-child.sh 180 272` -> `Verified child #272: parent #180, label wayfinder:task`.
+- R85 command: `bash scripts/wayfinder-create-child.sh 180 task "Build: finish shared session final-price route ownership" docs/agents/wayfinder-325-route-ticket.md`
+- R85 returned `https://github.com/jsongalvez/company_app/issues/273`; verification: `bash scripts/wayfinder-verify-child.sh 180 273` -> `Verified child #273: parent #180, label wayfinder:task`.
+
 ### C12-D1 implementation evidence
 
 Child #265 is implemented in commit `1738eaf`. The k6 baseline documentation now matches

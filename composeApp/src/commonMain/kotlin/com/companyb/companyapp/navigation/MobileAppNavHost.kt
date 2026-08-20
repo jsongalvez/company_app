@@ -141,7 +141,7 @@ internal fun MobileAppNavHost(
                 ) {
                     composable<Route.Login> {
                         LoginScreen(
-                            authViewModel = remember { AuthViewModel(apiClient) },
+                            authViewModel = viewModel { AuthViewModel(apiClient) },
                             bootstrapViewModel = viewModel { SessionBootstrapViewModel(apiClient) },
                             tokenStore = tokenStore,
                             onLoginSuccess = {
