@@ -1,59 +1,52 @@
-# Handoff - Map #180, Session 292
+# Handoff - Map #180 Draft Remittance Overlap, Session 292
+
+## Authority
+
+- Map #180 remained workflow authority; `docs/agents/wayfinder-291-handoff.md` was state evidence only.
+- Loaded `/wayfinder`, `CONTEXT.md`, architecture, business requirements, engines, decision loop, gates, issue tracker, all module instructions, and applicable Context Pointers.
+- Native parent link reverified: `bash scripts/wayfinder-verify-child.sh 180 292` -> `Verified child #292: parent #180, label wayfinder:task`.
 
 ## Session outcome
 
-- Loaded `docs/agents/wayfinder-291-handoff.md`, Map #180 as workflow authority,
-  `/wayfinder`, `/writing-for-agents`, `CONTEXT.md`, business requirements,
-  architecture, engines, audit guidance, decision-loop guidance, issue tracker,
-  architecture lessons, all applicable Context Pointers, and module instructions.
-- Map #180 frontier was empty, so ran fresh focused audit across C-01..C-14 with
-  four bounded read-only lanes.
-- Audit report and verifier packets are in
-  `docs/agents/architecture-audit-180.md` Session 292.
-- R52 terminal relief authorization was dispositioned implement. Structured
-  verifier packet: GPT-5.6 Luna, blind position BETA, L1-L5 pass, deterministic
-  gate pass, zero HARD/SOFT, high confidence.
-- R53 k6 test-database identity was dispositioned implement. Structured verifier
-  packet: GPT-5.6 Luna, blind position ALPHA, L1-L5 pass, deterministic gate pass,
-  zero HARD, one accepted two-sighted non-blocking SOFT, high confidence.
-- R24 remains deferred behind parent Compose lifecycle ownership. R54 remains
-  deferred pending invalid-row/import evidence. R15 remains fog pending deployment
-  topology or overlapping scheduler invocation requirements.
+- Claimed and completed exactly one frontier child: [Build: allow overlapping draft remittances](https://github.com/jsongalvez/company_app/issues/292).
+- Added V23 migration removing status-blind remittance uniqueness and adding submitted-only `(branch_id, type, submitted_date)` uniqueness. Existing submitted-only date-range exclusion remains authoritative.
+- Draft creation preserves same-UUID idempotency and cross-Branch UUID conflicts. Distinct UUID drafts with same Branch/type/date now coexist.
+- Draft header updates no longer reject another DRAFT with same policy tuple. Submitted overlap SQL violations map to `ConflictException`; unrelated SQL failures propagate.
+- Added repository/database and API regression coverage; updated stale service/API expectations.
+- No ADR needed: migration implements approved policy and preserves existing remittance architecture.
 
-## Child traceability
+## Verifier packet
 
-- R52 command: `scripts/wayfinder-create-child.sh 180 task "Build: authorize terminal relief actions" docs/agents/wayfinder-292-relief-auth-ticket.md`
-- R52 returned child #235. `scripts/wayfinder-verify-child.sh 180 235` ->
-  `Verified child #235: parent #180, label wayfinder:task`.
-- R53 command: `scripts/wayfinder-create-child.sh 180 task "Build: preserve k6 test database through cleanup" docs/agents/wayfinder-292-k6-db-ticket.md`
-- R53 returned child #236. `scripts/wayfinder-verify-child.sh 180 236` ->
-  `Verified child #236: parent #180, label wayfinder:task`.
-- Claimed and resolved only #235. #236 remains open, unassigned, and natively
-  linked as next frontier child.
+- mode: structured
+- model: GPT-5.6 Luna
+- blind position: ALPHA
+- L1 fact integrity: pass
+- L2 domain coherence: pass
+- L3 long-term architecture: pass
+- L4 adversarial falsification: pass
+- L5 comprehension: pass
+- deterministic gate: pass; policy, schema, migration, tests, and full gates verified
+- HARD findings: zero after fix batch and P1-P4 rerun
+- SOFT findings: accepted two-sighting disposition for no migration-upgrade fixture and no timing assertion; forward migration and full quality validation passed. Raw submitted-row test isolates submitted-date uniqueness; existing exclusion constraint remains unchanged for date-range overlap.
+- confidence: high
+- artifact: `docs/gates/292-overlapping-draft-remittances.md`, issue #292 resolution, Map #180 Decisions-so-far pointer
 
-## Implementation
+## Delivery and verification
 
-- Commit `1d096da` pushed to `origin/ralph/company-app-full-build`.
-- `ReliefAccessService.grantAccess` and `denyAccess` now authorize target caller
-  before terminal `GRANTED`/`DENIED` idempotent returns.
-- Added regression tests for unrelated callers against already-terminal requests.
-- Follow-up audit record committed as `2405c1e` and pushed.
+- Gate ledger `docs/gates/292-overlapping-draft-remittances.md`: 2/2 PASS, including focused ownership test execution.
+- Full backend detekt, ktlint, tests, and shared JVM compilation: PASS.
+- Pre-commit quality gate: PASS, including typed shared/Compose Detekt paths, compiler warnings, OpenAPI contract, cleanliness, and Postgres connectivity.
+- Pre-push gate: PASS, including OpenAPI, Compose Android/Desktop compilation, startup/health, k6 baseline with 0% errors, and disposable DB cleanup.
+- Commit `f6cde3f` pushed to `origin/ralph/company-app-full-build`.
+- Child #292 closed and resolution recorded. Map #180 Decisions-so-far pointer appended and artifact path verified.
 
-## Verification
+## Frontier
 
-- Focused `ReliefAccessServicePostgresTest`: PASS.
-- Full `:backend:detekt :backend:ktlintCheck :backend:test
-  :shared:compileKotlinJvm :shared:jvmTest`: PASS after retry; initial 120s and
-  300s local timeouts were retried with 900s and completed in 7m54s.
-- Pre-commit: formatting, quality, OpenAPI, cleanliness, shared compilation, and
-  Postgres connectivity: PASS.
-- Pre-push: OpenAPI, Compose Android/Desktop compilation, backend startup/health,
-  k6 baseline with 0% errors, and disposable test-database cleanup: PASS.
-- Final `bash scripts/clean-test-db.sh`: PASS.
-- Worktree clean before handoff write.
+- Map #180 has no open unassigned frontier child. Child #267 remains open but assigned to `jsongalvez`; next session must query live child state before acting.
+- If no unassigned frontier exists, follow Map #180's required focused/full audit workflow rather than creating checkpoint-only work.
 
-## Next session
+## Worktree
 
-- Query Map #180 native children first.
-- Claim and resolve only child #236: `Build: preserve k6 test database through cleanup`.
-- Do not claim another child in same session. Write successor handoff last.
+- Worktree clean after implementation push.
+
+**Status:** Child #292 implemented, verified, resolved, committed, pushed, and handed off.
