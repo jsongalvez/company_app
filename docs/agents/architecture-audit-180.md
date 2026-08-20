@@ -3748,3 +3748,21 @@ reviewed against current source, requirements, ADRs, and tests.
 
 - `scripts/wayfinder-create-child.sh 180 task "Build: make DrawerViewModel lifecycle-owned" docs/agents/wayfinder-356-drawer-lifecycle-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/300`; `scripts/wayfinder-verify-child.sh 180 300` -> `Verified child #300: parent #180, label wayfinder:task`.
 - `scripts/wayfinder-create-child.sh 180 task "Build: finish backend Auth route ownership" docs/agents/wayfinder-356-auth-routes-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/299`; `scripts/wayfinder-verify-child.sh 180 299` -> `Verified child #299: parent #180, label wayfinder:task`.
+
+## Session 357 implementation - Auth route ownership
+
+- Child #299 claimed after live native frontier verification: open, unblocked, unassigned,
+  parent #180 verified.
+- Replaced `AuthRoutes` login/register route literals and OpenAPI annotation paths with
+  `ApiRoutes.AUTH_LOGIN` and `ApiRoutes.AUTH_REGISTER`. URLs and public registration behavior
+  remain byte-equivalent.
+- Gate `docs/gates/299-auth-route-ownership.md`: 3/3 PASS. Shared/backend compilation,
+  backend ktlint, and detekt passed. Backend tests were retried after disposable test DB cleanup;
+  185 broad pre-existing authorization/fixture failures reproduced. Test DB was cleaned afterward.
+- No ADR required: existing shared route ownership decision was completed without a new durable
+  architecture decision.
+- Resolution packet: mode=structured; model=GPT-5.6 Luna; blind position=BETA;
+  L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass;
+  L4 adversarial falsification=pass; L5 comprehension=pass; deterministic gate=pass;
+  HARD findings=zero; SOFT findings=one, unrelated backend test-db failure;
+  confidence=high; artifact=`docs/gates/299-auth-route-ownership.md`.

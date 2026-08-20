@@ -21,7 +21,7 @@ import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
 @OpenApi(
-    path = "/auth/login",
+    path = ApiRoutes.AUTH_LOGIN,
     methods = [HttpMethod.POST],
     operationId = "auth_login",
     security = [],
@@ -29,7 +29,7 @@ import java.util.UUID
     responses = [OpenApiResponse(status = "200"), OpenApiResponse(status = "401"), OpenApiResponse(status = "429")],
 )
 @OpenApi(
-    path = "/auth/register",
+    path = ApiRoutes.AUTH_REGISTER,
     methods = [HttpMethod.POST],
     operationId = "auth_register",
     security = [],
@@ -45,7 +45,7 @@ import java.util.UUID
 )
 object AuthRoutes {
     fun login(context: JavalinConfig) {
-        context.routes.post("/auth/login") { context ->
+        context.routes.post(ApiRoutes.AUTH_LOGIN) { context ->
             val loginRequest = context.bodyAsClass<LoginRequest>()
             val loginResult: LoginResult =
                 AuthService.login(
@@ -80,7 +80,7 @@ object AuthRoutes {
     }
 
     fun register(context: JavalinConfig) {
-        context.routes.post("/auth/register") { context ->
+        context.routes.post(ApiRoutes.AUTH_REGISTER) { context ->
             val registerRequest = context.bodyAsClass<RegisterRequest>()
             val registerResult: RegisterResult =
                 AuthService.register(
