@@ -14,6 +14,13 @@
 - Updated `CONTRIBUTING.md` and `backend/AGENTS.md`.
 - Resolution comments: https://github.com/jsongalvez/company_app/issues/309#issuecomment-5361777620
 
+## Continuation session outcome
+
+- Verified and claimed [Adopt PR-based integration and slim local gates](https://github.com/jsongalvez/company_app/issues/305).
+- Confirmed rollout children #306, #307, #308, and #309 are resolved and their acceptance evidence satisfies #305.
+- Resolved and closed #305: PR CI owns complete integration gates; local hooks retain fast changed-file safety checks; workflow policy is documented.
+- Updated Map #310 Decisions so far and released continuation frontier.
+
 ## Verification
 
 - YAML parse for all three workflows: PASS.
@@ -24,8 +31,8 @@
 
 ## Next frontier
 
-- Parent [Adopt PR-based integration and slim local gates](https://github.com/jsongalvez/company_app/issues/305) remains open and assigned.
-- Map #310 next frontier requires parent resolution or explicit release.
-- Do not select #304, #301, or #311 until #305 is resolved or explicitly released.
+- Parent [Adopt PR-based integration and slim local gates](https://github.com/jsongalvez/company_app/issues/305) is resolved and closed.
+- Map #310 frontier is now [Build: enforce session-concern DELETE authorization](https://github.com/jsongalvez/company_app/issues/304), [Build: execute k6 contract suites in CI](https://github.com/jsongalvez/company_app/issues/301), and [Build: recalibrate JMH CI baselines](https://github.com/jsongalvez/company_app/issues/311), subject to native blocker and assignee checks.
+- Do not claim another child in this session.
 
-**Status:** #309 resolved and closed; successor handoff ready.
+**Status:** #305 resolved and closed; successor handoff ready.
