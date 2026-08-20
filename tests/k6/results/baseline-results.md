@@ -34,7 +34,7 @@ endpoint. Do NOT update if a threshold failed due to an unintentional regression
 |---|---|
 | `branches_latency` | p95 < 500ms |
 | `clients_search_latency` | p95 < 1000ms |
-| `sessions_latency` | p95 < 1000ms |
+| `product_latency` | p95 < 1000ms |
 | `my_branches_latency` | p95 < 200ms |
 | `dashboard_latency` | p95 < 200ms |
 | `errors` | rate < 5% |
