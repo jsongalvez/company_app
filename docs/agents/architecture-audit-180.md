@@ -23,7 +23,7 @@ Every row below has a stable ID, an ownership boundary, implementation files, in
 | C-06 | Backend route and HTTP mapping layer | `backend/src/main/kotlin/**/api/**`, `Main.kt` | route objects, filters, mappers; route authorization tests | duplicate of R2; explicit skips |
 | C-07 | Backend business modules | `backend/src/main/kotlin/**/service/**` | session, attendance, inventory, finance, branch-day, auth services; service Postgres tests | recommend R5/R6; explicit skips |
 | C-08 | Backend persistence and Exposed models | `backend/src/main/kotlin/**/repository/**` | repositories and model tables; repository/service Postgres tests | recommend R7; skips recorded |
-| C-09 | Flyway schema and migrations | `backend/src/main/resources/db/migration/**` | V1-V19 schema, indexes, views, constraints | recommend R7; documentation finding R4 |
+| C-09 | Flyway schema and migrations | `backend/src/main/resources/db/migration/**` | authoritative migration directory, indexes, views, constraints | recommend R7; documentation finding R4 |
 | C-10 | Authentication and startup lifecycle | `auth/**`, `database/**`, `config/**`, `Main.kt` | `JwtService`, `DenyList`, `DatabaseConfig`; auth tests | recommend R6 |
 | C-11 | Backend and Compose test infrastructure | `backend/src/test/**`, `composeApp/src/commonTest/**`, `desktopTest/**` | Postgres helpers, MockEngine, ViewModel tests | explicit skip; existing CR-036 report linked below |
 | C-12 | Benchmarks and load tests | `backend/src/jmh/**`, `tests/k6/**` | JMH benchmarks, k6 helpers and suites | recommend R9 |
@@ -70,7 +70,7 @@ Repository inventory at review: 167 backend production Kotlin files, 64 backend 
 ### R4 - Repair stale architecture and ADR pointers
 
 - **Verdict:** recommend; **disposition:** implement; **priority:** P0; **confidence:** high.
-- **Evidence:** `docs/architecture.md:283` names nonexistent `V2__seed_capabilities.sql`; `:347-355` lists only V1/V2 although migrations reach V19. Root `AGENTS.md:60` says ADRs are 0001-0015 although repository has ADRs through 0023. `docs/adr/0019-repository-owns-before-state-capture.md:5,15-19` amends ADR-0013, but architecture audit guidance at `docs/architecture.md:379-383` does not point to ADR-0018/0019.
+- **Evidence:** `docs/architecture.md:283` names nonexistent `V2__seed_capabilities.sql`; `:347-355` lists selected migration versions instead of the authoritative migration directory. Root `AGENTS.md:60` says ADRs are 0001-0015 although repository has ADRs through 0023. `docs/adr/0019-repository-owns-before-state-capture.md:5,15-19` amends ADR-0013, but architecture audit guidance at `docs/architecture.md:379-383` does not point to ADR-0018/0019.
 - **Current complexity/invalid state:** agents can search wrong schema files or apply superseded audit ownership rules.
 - **Simpler representation:** make migration directory and all `docs/adr/*.md` authoritative; state that agents inspect status/supersedes/amends; correct filename and add audit ADR pointers.
 - **Smallest scope/interfaces:** `AGENTS.md`, `docs/architecture.md`; no migration content changes.
@@ -174,7 +174,7 @@ Repository inventory at review: 167 backend production Kotlin files, 64 backend 
 - **Coverage pass:** re-counted source/test/platform/schema/script/CI/docs roots and added explicit rows C-01 through C-14; the late dead-ViewModel review added R11. Generated output excluded as derived.
 - **Duplication/ownership pass:** merged route-literal findings into R2, merged stale docs findings into R4, and rejected Exposed uniqueness metadata as unproven.
 - **Materiality pass:** kept only deletion, invalid-state, atomicity, drift, or measurable query-cost findings. Removed style-only and speculative abstraction leads.
-- **Schema pass:** checked V1 indexes, uniqueness, views, constraints, V1-V19 migration presence, and Exposed mappings. R7 remains gated on `EXPLAIN`.
+- **Schema pass:** checked the authoritative migration directory, indexes, uniqueness, views, constraints, and Exposed mappings. R7 remains gated on `EXPLAIN`.
 - **Dependency/priority pass:** P0 dead seam/docs first; P1 contract changes next; P2 behavior/performance/tooling after compatibility or plan evidence.
 
 ## Audit Log
@@ -3053,7 +3053,7 @@ runtime behavior remained unchanged during audit.
 |---|---|---|---|
 | R82 - lifecycle-own AuthViewModel | Mobile and Desktop hosts use `remember` for a ViewModel with `viewModelScope`; existing lifecycle-owned host pattern is available | Route disposal can leave login/register work alive and late state can outlive host; no competing owner is present | implement, P1 |
 | R83 - migration-upgrade coverage for JWT revocation | V22 backfills `jwt_revoked_at`; DatabaseTestHelper migrates only current schema and has no V21-to-V22 fixture | Backfill and restart behavior remain untested across upgrade boundary; candidate is distinct from runtime revocation implementation | implement, P2 |
-| R84 - authoritative schema scope in audit docs | C-09 and schema pass still mention V19 while V20-V22 exist | Directory inspection confirms stale cache; replacing enumeration with authoritative-path language changes no runtime behavior | implement, P2 |
+| R84 - authoritative schema scope in audit docs | C-09 and schema pass still name a historical migration boundary | Directory inspection confirms stale cache; replacing enumeration with authoritative-path language changes no runtime behavior | implement, P2 |
 | R85 - residual shared final-price route literal | SessionDashboardViewModel emits route literal despite ApiRoutes builder | Grep finds one production Compose caller; builder output is byte-equivalent and test coverage is missing | implement, P2 |
 
 ### Verifier packets
@@ -3093,7 +3093,7 @@ candidate: R84
 mode: structured
 model: GPT-5.6 Luna
 position: GAMMA
-L1 fact integrity: pass; V20-V22 exist and audit references V19
+L1 fact integrity: pass; audit inventory and schema pass use a historical migration boundary
 L2 domain coherence: pass; authoritative migration-directory rule matches architecture guidance
 L3 long-term architecture: pass; removes stale cache rather than extending it
 L4 adversarial falsification: pass; future migration additions remain covered by directory rule
@@ -3125,7 +3125,7 @@ artifact: Session 325 shared/tooling lane and docs/agents/wayfinder-325-route-ti
 - Coverage: C-01..C-14 rechecked through Compose, backend, shared, schema, tests, tooling, and docs lanes.
 - Duplication: R85 is residual route ownership drift, not a duplicate of completed route migrations; R83 is upgrade evidence, not runtime JWT revocation.
 - Materiality: R82 is lifecycle correctness; R83 protects security migration behavior; R84 is a registered truth-class documentation defect; R85 removes contract drift.
-- Schema: V20-V22 are present; no migration content change is proposed.
+- Schema: the authoritative migration directory was inspected; no migration content change is proposed.
 - Priority: create and verify all four children, then claim R82 only.
 
 ### Child traceability
