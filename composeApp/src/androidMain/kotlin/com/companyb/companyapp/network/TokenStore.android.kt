@@ -6,8 +6,8 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.companyb.companyapp.config.TOKEN_STORE_KEY
+import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
-import com.companyb.companyapp.util.logWarn
 
 actual fun createTokenStore(): TokenStore {
     val context = AndroidAppContext.context
@@ -23,11 +23,14 @@ private const val PREFS_NAME = "companyapp_auth"
 class AndroidTokenStore(
     context: Context,
 ) : TokenStore {
-    private val prefs: SharedPreferences = createEncryptedPrefs(context)
+    private val prefs: SharedPreferences? = createEncryptedPrefs(context)
+
+    @Volatile
+    private var sessionToken: String? = null
 
     @SuppressLint("GetInstance")
     @Suppress("TooGenericExceptionCaught")
-    private fun createEncryptedPrefs(context: Context): SharedPreferences =
+    private fun createEncryptedPrefs(context: Context): SharedPreferences? =
         try {
             val masterKey =
                 MasterKey
@@ -42,26 +45,28 @@ class AndroidTokenStore(
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
         } catch (e: Exception) {
-            logWarn(
+            logError(
                 "TokenStore",
-                "Encrypted preferences unavailable; using regular preferences: ${e.message.orEmpty()}",
+                "Encrypted preferences unavailable; token will not persist: ${e.message.orEmpty()}",
+                e,
             )
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            null
         }
 
     override fun saveToken(token: String) {
         logInfo("TokenStore", "saveToken: length=${token.length}")
-        prefs.edit().putString(TOKEN_STORE_KEY, token).apply()
+        prefs?.edit()?.putString(TOKEN_STORE_KEY, token)?.apply() ?: run { sessionToken = token }
     }
 
     override fun getToken(): String? {
-        val token = prefs.getString(TOKEN_STORE_KEY, null)
+        val token = prefs?.getString(TOKEN_STORE_KEY, null) ?: sessionToken
         logInfo("TokenStore", "getToken: found=${token != null}")
         return token
     }
 
     override fun clearToken() {
         logInfo("TokenStore", "clearToken")
-        prefs.edit().remove(TOKEN_STORE_KEY).apply()
+        prefs?.edit()?.remove(TOKEN_STORE_KEY)?.apply()
+        sessionToken = null
     }
 }

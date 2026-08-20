@@ -3511,3 +3511,153 @@ Child #287 is claimed. `ApiClient` now uses `LogLevel.INFO`, so Ktor request
 headers, including Authorization bearer tokens, are not emitted by the client
 logger. Desktop rolling logs retain lifecycle/status messages. Deterministic grep,
 `git diff --check`, and `:composeApp:desktopTest` passed.
+
+## Permanent-Map Refresh - Session 350
+
+The empty frontier triggered a fresh full audit. Four bounded read-only lanes
+rechecked C-01..C-14 across Compose/shared contracts, backend/schema, platform
+lifecycle/auth startup, and tests/tooling/docs. Deterministic source inspection
+was independently repeated for every retained candidate. No product code was
+changed during audit.
+
+### Candidate dispositions
+
+| Candidate | Evidence | Falsification / verification | Disposition |
+|---|---|---|---|
+| R96 - fail closed on Android token encryption failure | `composeApp/src/androidMain/kotlin/com/companyb/companyapp/network/TokenStore.android.kt:30-50` catches all encryption setup failures and returns ordinary `SharedPreferences`; JWT is written at `:52-55` | Forced Keystore/encrypted-store failure would expose bearer token in plaintext preferences; no safe business requirement permits downgrade | implement, P0 |
+| R97 - own backend Hikari shutdown | `DatabaseConfig.kt:19-35` owns lazy `HikariDataSource`; `Main.kt:105-106,194-197` stops scheduler only | Server stop and startup failure leave datasource lifecycle unclosed; no existing close owner or test proves same-JVM cleanup | implement, P1 |
+| R98 - preserve inventory movement UUID request ownership | `InventoryService.kt:36-40` returns existing movement after Branch-only check; `BranchInventoryRepository.kt:110-131` classifies UUID collision by Branch only | Same-Branch foreign caller or altered Product/Day/creator/payload can receive false success; current test covers only same-owner retry | implement, P0 |
+| R99 - classify session-practitioner version races | `SessionPractitionerRepository.kt:80-91,128-141,181-198` reads version then checks update count with `check`; service invokes child writes through this path | Concurrent loser rolls back but generic `IllegalStateException` has no domain handler, producing 500; no concurrent mutation test exists | implement, P1 |
+| R100 - consume typed Compose statuses | `SessionMoney.kt:6,38` and `UserViewModel.kt:23,48` convert typed enums to strings; `UserManagementScreen.kt:510,551,635-636` repeats string state/rendering | Shared DTOs already expose `SessionStatus` and `UserStatus`; `.name` and local constants preserve drift without behavior benefit | implement, P2 |
+| R101 - finish shared auth route ownership | `AuthViewModel.kt:41,60` hard-codes auth request paths while `ApiRoutes.kt:8-9` owns constants | Request bytes are identical, but route migration can leave caller literals behind; exact path tests can prove no behavior change | implement, P2 |
+
+### Verifier packets
+
+All packets use structured repeated rubric mode, GPT-5.6 Luna, with blind
+positions alternated across lanes. Deterministic repository evidence is
+authoritative. Operational impact is supplemental and applies to each retained
+candidate as recorded below.
+
+```text
+candidate: R96
+mode: structured
+model: GPT-5.6 Luna
+position: ALPHA
+operational impact: Android users may need re-authentication after Keystore failure; no workflow change after successful encrypted storage; recovery is explicit login; compatibility risk is limited to existing plaintext fallback data and must be handled without silent reuse; validation forces encryption failure and proves no plaintext write.
+L1 fact integrity: pass; fallback and token write paths re-read
+L2 domain coherence: pass with HARD bearer-token confidentiality breach
+L3 long-term architecture: pass; platform adapter owns storage policy and fails closed
+L4 adversarial falsification: pass; Keystore failure, restart, and existing fallback preference paths considered
+L5 comprehension: pass
+deterministic gate: pass; source confirms downgrade and ticket specifies negative-control test
+HARD findings: zero after fail-closed design
+SOFT findings: zero
+confidence: high
+artifact: Session 350 audit and wayfinder-350-android-token-ticket.md
+
+candidate: R97
+mode: structured
+model: GPT-5.6 Luna
+position: BETA
+operational impact: Backend stop/restart and startup failure release DB pool resources; request handling remains unchanged; recovery is datasource reinitialization; compatibility risk is same-process Exposed restart ordering; validation covers stop, failed startup, restart, and pool-thread absence.
+L1 fact integrity: pass; datasource creation and scheduler-only hooks verified
+L2 domain coherence: pass; lifecycle ownership belongs beside DatabaseConfig and startup hooks
+L3 long-term architecture: pass; one owner closes one pool without generic lifecycle abstraction
+L4 adversarial falsification: pass; stop during startup and repeated close/restart considered
+L5 comprehension: pass
+deterministic gate: pass; no close path exists and lifecycle ticket is bounded
+HARD findings: zero
+SOFT findings: zero
+confidence: high
+artifact: Session 350 audit and wayfinder-350-database-shutdown-ticket.md
+
+candidate: R98
+mode: structured
+model: GPT-5.6 Luna
+position: GAMMA
+operational impact: Inventory retry callers receive deterministic conflict instead of foreign movement data or false success; stock/audit side effects remain one-time; recovery is corrected request or same-owner retry; compatibility risk is only clients changing immutable retry payloads, validated by focused and concurrent Postgres tests.
+L1 fact integrity: pass; service Branch-only check and repository UUID fallback verified
+L2 domain coherence: pass with HARD idempotency ownership/data-disclosure breach
+L3 long-term architecture: pass; repository transaction owns UUID and business-key classification
+L4 adversarial falsification: pass; same Branch foreign caller, altered payload, concurrent same UUID, and cross-Branch cases considered
+L5 comprehension: pass
+deterministic gate: pass; existing same-owner test and missing ownership cases independently confirmed
+HARD findings: zero after request-identity conflict design
+SOFT findings: zero
+confidence: high
+artifact: Session 350 audit and wayfinder-350-inventory-uuid-ticket.md
+
+candidate: R99
+mode: structured
+model: GPT-5.6 Luna
+position: DELTA
+operational impact: Concurrent practitioner edits receive conflict semantics instead of 500; committed child/audit state remains atomic; recovery is reload/retry; compatibility risk is defining remove-versus-update winner, validated through concurrent repository/service tests.
+L1 fact integrity: pass; read-then-conditional increment and generic check verified
+L2 domain coherence: pass; optimistic locking requires domain conflict mapping
+L3 long-term architecture: pass; repository remains ownership seam without new adapter
+L4 adversarial falsification: pass; concurrent remarks, remove/update, duplicate add, rollback and audit paths considered
+L5 comprehension: pass
+deterministic gate: pass; source and absent concurrent coverage agree
+HARD findings: zero after deterministic conflict mapping
+SOFT findings: one, exact winner semantics for concurrent remove/update must be fixed by tests within ticket
+confidence: high
+artifact: Session 350 audit and wayfinder-350-session-practitioner-ticket.md
+
+candidate: R100
+mode: structured
+model: GPT-5.6 Luna
+position: EPSILON
+operational impact: No user workflow change; typed comparisons reduce future status drift; failure recovery unchanged; compatibility and rollout risk are none because DTO enum types and serialized names remain unchanged; validation is compile plus focused status tests.
+L1 fact integrity: pass; DTOs are typed while Compose string conversions remain
+L2 domain coherence: pass; shared finite domain values are canonical
+L3 long-term architecture: pass; removes local conversion seams without abstraction
+L4 adversarial falsification: pass; unknown enum decoding remains shared serializer behavior
+L5 comprehension: pass
+deterministic gate: pass; grep identifies concrete residual conversions
+HARD findings: zero
+SOFT findings: zero
+confidence: high
+artifact: Session 350 audit and wayfinder-350-compose-status-ticket.md
+
+candidate: R101
+mode: structured
+model: GPT-5.6 Luna
+position: ZETA
+operational impact: No user workflow change; auth requests retain exact paths; recovery unchanged; compatibility risk is low and checked by exact request assertions; validation compiles shared/Compose and greps duplicate literals.
+L1 fact integrity: pass; constants and duplicate request literals verified
+L2 domain coherence: pass; shared route ownership requirement applies
+L3 long-term architecture: pass; one existing route catalog, no new seam
+L4 adversarial falsification: pass; base URL composition and protected `/api` logout distinction considered
+L5 comprehension: pass
+deterministic gate: pass; byte-equivalent constants confirmed
+HARD findings: zero
+SOFT findings: zero
+confidence: high
+artifact: Session 350 audit and wayfinder-350-auth-routes-ticket.md
+```
+
+### Audit-of-audit - Session 350
+
+- Coverage: C-01..C-14 rechecked across four bounded lanes; tooling/docs found no fresh candidate.
+- Duplication: R96 is Android storage failure policy, distinct from HTTP log redaction and persisted JWT revocation; R98 is inventory UUID ownership, distinct from resolved Branch Day and product-sale/expense/allowance ownership; R99 is practitioner optimistic conflict mapping.
+- Materiality: R96/R98 are P0 security/data-integrity defects; R97/R99 are P1 lifecycle/concurrency defects; R100/R101 are bounded P2 contract cleanup.
+- Policy: #267 remains assigned and policy-owned; R15 and draft-remittance policy remain fog/closed decisions. No unresolved business decision is guessed.
+- Priority: R96 first, then R98, R99, R97, R100, R101. All six implement candidates require native children before claiming one.
+
+### Audit log
+
+| Pass | Work | Result |
+|---|---|---|
+| 350.1 | Four bounded full-audit lanes | C-01..C-14 complete; six fresh candidates retained; tooling/docs skipped |
+| 350.2 | Independent deterministic verification | R96-R101 facts and duplicate checks re-read against current source |
+| 350.3 | Structured verifier and adversarial pass | L1-L5 packets complete; no untriaged HARD; one ticket-local SOFT on R99 |
+| 350.4 | Coverage, duplication, materiality, schema, priority audit | Six candidates dispositioned implement; no omitted lane or policy guess |
+
+### Child traceability
+
+- `scripts/wayfinder-create-child.sh 180 task "Build: fail closed on Android token encryption failure" docs/agents/wayfinder-350-android-token-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/297`; `scripts/wayfinder-verify-child.sh 180 297` -> `Verified child #297: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: own backend Hikari shutdown" docs/agents/wayfinder-350-database-shutdown-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/293`; `scripts/wayfinder-verify-child.sh 180 293` -> `Verified child #293: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: preserve inventory movement UUID request ownership" docs/agents/wayfinder-350-inventory-uuid-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/298`; `scripts/wayfinder-verify-child.sh 180 298` -> `Verified child #298: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: classify session-practitioner version races" docs/agents/wayfinder-350-session-practitioner-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/295`; `scripts/wayfinder-verify-child.sh 180 295` -> `Verified child #295: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: consume typed Compose statuses" docs/agents/wayfinder-350-compose-status-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/296`; `scripts/wayfinder-verify-child.sh 180 296` -> `Verified child #296: parent #180, label wayfinder:task`.
+- `scripts/wayfinder-create-child.sh 180 task "Build: finish shared auth route ownership" docs/agents/wayfinder-350-auth-routes-ticket.md` -> `https://github.com/jsongalvez/company_app/issues/294`; `scripts/wayfinder-verify-child.sh 180 294` -> `Verified child #294: parent #180, label wayfinder:task`.
