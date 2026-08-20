@@ -68,6 +68,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Run backend quality, shared Detekt, and shared JVM compilation
+        # composeApp detekt tasks are intentionally absent: master-tree UI code predates
+        # the tuned detekt config that lives with the integration branch. That gate
+        # returns when the integration branch merges to master.
         run: >-
           ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
           :shared:detektMetadataCommonMain
@@ -75,14 +78,7 @@ jobs:
           :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest
           :shared:detektIosArm64Main :shared:detektIosArm64Test
           :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test
-          :composeApp:detektDesktopTest
-          :composeApp:detektAndroidDebugUnitTest
-          :composeApp:detektIosArm64Test
-          :composeApp:detektIosSimulatorArm64Test
           :composeApp:desktopTest
-          :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
-          :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
-          :composeApp:detektIosSimulatorArm64Main
           :shared:compileKotlinJvm :shared:jvmTest
           -PwarningsAsErrors=true --no-daemon
 

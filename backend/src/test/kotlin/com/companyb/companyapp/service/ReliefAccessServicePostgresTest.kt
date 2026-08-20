@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import org.jetbrains.exposed.v1.core.and
@@ -239,7 +240,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     fun `request fails with 403 on REMITTED day`() {
         val remittedBranchDayId = UUID.randomUUID()
         val remittedAttendanceId = UUID.randomUUID()
-        val yesterday = LocalDate.now().minusDays(1)
+        val yesterday = LocalDate.now(BranchDayService.manilaZone).minusDays(1)
         insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
         trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
         insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
@@ -255,7 +256,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `grant fails with 403 on REMITTED day`() {
-        val yesterday = LocalDate.now().minusDays(1)
+        val yesterday = LocalDate.now(BranchDayService.manilaZone).minusDays(1)
         val remittedBranchDayId = UUID.randomUUID()
         insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
         trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
@@ -280,7 +281,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `deny fails with 403 on REMITTED day`() {
-        val yesterday = LocalDate.now().minusDays(1)
+        val yesterday = LocalDate.now(BranchDayService.manilaZone).minusDays(1)
         val remittedBranchDayId = UUID.randomUUID()
         insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
         trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
@@ -307,7 +308,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         id: UUID,
         branchId: UUID,
         status: DayStatus = DayStatus.OPEN,
-        date: LocalDate = LocalDate.now(),
+        date: LocalDate = LocalDate.now(BranchDayService.manilaZone),
     ) {
         transaction {
             BranchDayTable.insert {

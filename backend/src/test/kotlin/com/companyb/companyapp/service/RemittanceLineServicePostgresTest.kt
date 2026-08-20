@@ -744,7 +744,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     private fun ensureBranchDay() {
-        val day = BranchDayService.resolveOrCreate(branchId, LocalDate.now())
+        val day = BranchDayService.resolveOrCreate(branchId, LocalDate.now(BranchDayService.manilaZone))
         branchDayId = day.id
     }
 
