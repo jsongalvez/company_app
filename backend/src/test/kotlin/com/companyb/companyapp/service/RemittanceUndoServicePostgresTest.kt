@@ -4,7 +4,6 @@ import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
-import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
@@ -346,23 +345,21 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `update header to a type already used for the submitted date throws conflict`() {
+    fun `update header to a type already used for the submitted date is allowed for drafts`() {
         val firstId = createDraft(RemittanceType.SESSION)
         addBreakdown(firstId)
         val secondId = createDraft(RemittanceType.PRODUCT)
 
-        assertFailsWith<ConflictException> {
-            RemittanceService.updateHeader(
-                callerId = callerId,
-                remittanceId = secondId,
-                type = RemittanceType.SESSION,
-                method = RemittanceMethod.BANK_TRANSFER,
-                dateRangeStart = LocalDate.of(2026, 7, 1),
-                dateRangeEnd = LocalDate.of(2026, 7, 15),
-                expectedVersion = 1,
-            )
-        }
-        assertEquals(RemittanceType.PRODUCT, RemittanceService.getRemittance(secondId).remittance.type)
+        RemittanceService.updateHeader(
+            callerId = callerId,
+            remittanceId = secondId,
+            type = RemittanceType.SESSION,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = LocalDate.of(2026, 7, 1),
+            dateRangeEnd = LocalDate.of(2026, 7, 15),
+            expectedVersion = 1,
+        )
+        assertEquals(RemittanceType.SESSION, RemittanceService.getRemittance(secondId).remittance.type)
     }
 
     @Test

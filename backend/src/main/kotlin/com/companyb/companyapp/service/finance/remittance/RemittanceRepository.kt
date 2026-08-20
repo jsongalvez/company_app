@@ -39,6 +39,7 @@ import org.jetbrains.exposed.v1.core.leftJoin
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
+import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -301,6 +302,10 @@ internal object RemittanceRepository {
             ?.toRemittance()
 
     private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
+    private const val UNIQUE_VIOLATION_SQL_STATE = "23505"
+    private const val EXCLUSION_VIOLATION_SQL_STATE = "23P01"
+    private const val SUBMITTED_DATE_INDEX_NAME = "idx_remittance_submitted_date"
+    private const val REMITTANCE_OVERLAP_CONSTRAINT_NAME = "no_remittance_overlap"
 
     @Suppress("ReturnCount", "ComplexMethod", "LongMethod")
     fun submit(
@@ -309,90 +314,104 @@ internal object RemittanceRepository {
         callerId: UUID,
         auditFn: (SubmitAuditContext) -> Unit = {},
     ): RemittanceSubmissionResult? =
-        transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
-            val remittanceRow =
-                RemittanceTable
-                    .selectAll()
-                    .where { RemittanceTable.id eq remittanceId }
-                    .forUpdate(ForUpdateOption.ForUpdate)
-                    .singleOrNull() ?: return@transaction null
-
-            if (remittanceRow[RemittanceTable.version] != expectedVersion) {
-                throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
-            }
-            if (remittanceRow[RemittanceTable.status] != RemittanceStatus.DRAFT) {
-                throw ValidationException("Can only submit DRAFT remittances")
-            }
-
-            val remittanceBefore = remittanceRow.toRemittance()
-            val remittanceType = remittanceRow[RemittanceTable.type]
-
-            val breakdownIds =
-                RemittanceDayBreakdownTable
-                    .selectAll()
-                    .where { RemittanceDayBreakdownTable.remittanceId eq remittanceId }
-                    .map { it[RemittanceDayBreakdownTable.branchDayId] }
-
-            val grossIncome = calculateGrossIncome(remittanceId)
-            val totalCompensation = calculateCompensationSum(breakdownIds)
-            val totalExpenses = calculateExpenseSum(breakdownIds)
-            val netIncome = netOf(grossIncome, totalCompensation, totalExpenses)
-
-            val branchDayBeforeRows =
-                breakdownIds.map { bdId ->
-                    BranchDayTable
+        try {
+            transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                val remittanceRow =
+                    RemittanceTable
                         .selectAll()
-                        .where { BranchDayTable.id eq bdId }
-                        .single()
-                        .toBranchDay()
+                        .where { RemittanceTable.id eq remittanceId }
+                        .forUpdate(ForUpdateOption.ForUpdate)
+                        .singleOrNull() ?: return@transaction null
+
+                if (remittanceRow[RemittanceTable.version] != expectedVersion) {
+                    throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
+                }
+                if (remittanceRow[RemittanceTable.status] != RemittanceStatus.DRAFT) {
+                    throw ValidationException("Can only submit DRAFT remittances")
                 }
 
-            writeFinancialSnapshot(
-                remittanceType,
-                remittanceId,
-                grossIncome,
-                totalCompensation,
-                totalExpenses,
-                netIncome,
-            )
-            updateRemittanceToSubmitted(remittanceId, expectedVersion, callerId)
-            updateBranchDayStatuses(breakdownIds)
+                val remittanceBefore = remittanceRow.toRemittance()
+                val remittanceType = remittanceRow[RemittanceTable.type]
 
-            val remittanceAfter =
-                findByIdInTransaction(remittanceId)
-                    ?: error("remittance not found after submit for $remittanceId")
+                val breakdownIds =
+                    RemittanceDayBreakdownTable
+                        .selectAll()
+                        .where { RemittanceDayBreakdownTable.remittanceId eq remittanceId }
+                        .map { it[RemittanceDayBreakdownTable.branchDayId] }
 
-            val branchDayPairs =
-                branchDayBeforeRows.map { before ->
-                    val after =
+                val grossIncome = calculateGrossIncome(remittanceId)
+                val totalCompensation = calculateCompensationSum(breakdownIds)
+                val totalExpenses = calculateExpenseSum(breakdownIds)
+                val netIncome = netOf(grossIncome, totalCompensation, totalExpenses)
+
+                val branchDayBeforeRows =
+                    breakdownIds.map { bdId ->
                         BranchDayTable
                             .selectAll()
-                            .where { BranchDayTable.id eq before.id }
+                            .where { BranchDayTable.id eq bdId }
                             .single()
                             .toBranchDay()
-                    before to after
+                    }
+
+                writeFinancialSnapshot(
+                    remittanceType,
+                    remittanceId,
+                    grossIncome,
+                    totalCompensation,
+                    totalExpenses,
+                    netIncome,
+                )
+                updateRemittanceToSubmitted(remittanceId, expectedVersion, callerId)
+                updateBranchDayStatuses(breakdownIds)
+
+                val remittanceAfter =
+                    findByIdInTransaction(remittanceId)
+                        ?: error("remittance not found after submit for $remittanceId")
+
+                val branchDayPairs =
+                    branchDayBeforeRows.map { before ->
+                        val after =
+                            BranchDayTable
+                                .selectAll()
+                                .where { BranchDayTable.id eq before.id }
+                                .single()
+                                .toBranchDay()
+                        before to after
+                    }
+
+                auditFn(
+                    SubmitAuditContext(
+                        remittanceBefore = remittanceBefore,
+                        remittanceAfter = remittanceAfter,
+                        branchDayPairs = branchDayPairs,
+                    ),
+                )
+
+                RemittanceSubmissionResult(
+                    remittance = remittanceAfter,
+                    grossIncome = grossIncome,
+                    totalCompensation = totalCompensation,
+                    totalExpenses = totalExpenses,
+                    netIncome = netIncome,
+                )
+            }.also { result ->
+                logger.info {
+                    "[SUBMIT-REMITTANCE] Remittance ${remittanceId.toString().maskUUID()}" +
+                        " submitted=${result != null} gross=${result?.grossIncome?.toPlainString().orEmpty()}"
                 }
-
-            auditFn(
-                SubmitAuditContext(
-                    remittanceBefore = remittanceBefore,
-                    remittanceAfter = remittanceAfter,
-                    branchDayPairs = branchDayPairs,
-                ),
-            )
-
-            RemittanceSubmissionResult(
-                remittance = remittanceAfter,
-                grossIncome = grossIncome,
-                totalCompensation = totalCompensation,
-                totalExpenses = totalExpenses,
-                netIncome = netIncome,
-            )
-        }.also { result ->
-            logger.info {
-                "[SUBMIT-REMITTANCE] Remittance ${remittanceId.toString().maskUUID()}" +
-                    " submitted=${result != null} gross=${result?.grossIncome?.toPlainString().orEmpty()}"
             }
+        } catch (error: ExposedSQLException) {
+            val databaseMessage = error.message.orEmpty()
+            val isRemittanceOverlap =
+                databaseMessage.contains(SUBMITTED_DATE_INDEX_NAME) ||
+                    databaseMessage.contains(REMITTANCE_OVERLAP_CONSTRAINT_NAME)
+            if (
+                isRemittanceOverlap &&
+                (error.sqlState == UNIQUE_VIOLATION_SQL_STATE || error.sqlState == EXCLUSION_VIOLATION_SQL_STATE)
+            ) {
+                throw ConflictException("Remittance overlaps an already submitted remittance")
+            }
+            throw error
         }
 
     private const val UNDO_WINDOW_HOURS = 48L
@@ -531,23 +550,6 @@ internal object RemittanceRepository {
             }
             if (existing[RemittanceTable.version] != params.expectedVersion) {
                 throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
-            }
-
-            val tupleOccupied =
-                RemittanceTable
-                    .selectAll()
-                    .where {
-                        (RemittanceTable.branchId eq existing[RemittanceTable.branchId]) and
-                            (RemittanceTable.type eq params.type) and
-                            (RemittanceTable.submittedDate eq existing[RemittanceTable.submittedDate]) and
-                            (RemittanceTable.id neq params.remittanceId)
-                    }.empty()
-                    .not()
-            if (tupleOccupied) {
-                throw ConflictException(
-                    "A remittance of type ${params.type.name} already exists " +
-                        "for ${existing[RemittanceTable.submittedDate]}",
-                )
             }
 
             val updated =

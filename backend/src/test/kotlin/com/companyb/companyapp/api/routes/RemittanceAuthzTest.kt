@@ -874,7 +874,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
     }
 
     @Test
-    fun `PATCH header to a type already used for the submitted date returns 409`() {
+    fun `PATCH header to a type already used for the submitted date is allowed for drafts`() {
         testServer.client.let { client ->
             val body =
                 mapOf(
@@ -884,10 +884,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     "dateRangeEnd" to rangeEnd.toString(),
                     "expectedVersion" to 2,
                 )
-            assertEquals(
-                409,
-                client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code,
-            )
+            assertEquals(200, client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser)).code)
         }
     }
 

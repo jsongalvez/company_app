@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -18,6 +19,7 @@ import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
@@ -153,5 +155,67 @@ class RemittanceDraftOwnershipPostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+    }
+
+    @Test
+    fun `drafts with same branch type and date can coexist`() {
+        val firstId = TestFixtures.uuid()
+        val secondId = TestFixtures.uuid()
+        val rangeStart = LocalDate.of(2026, 8, 1)
+        val rangeEnd = LocalDate.of(2026, 8, 15)
+
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = firstId,
+            type = RemittanceType.SESSION,
+            branchId = firstBranchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = rangeStart,
+            dateRangeEnd = rangeEnd,
+        )
+        RemittanceService.createDraft(
+            callerId = callerId,
+            id = secondId,
+            type = RemittanceType.SESSION,
+            branchId = firstBranchId,
+            method = RemittanceMethod.BANK_TRANSFER,
+            dateRangeStart = rangeStart,
+            dateRangeEnd = rangeEnd,
+        )
+
+        assertEquals(
+            2L,
+            transaction {
+                RemittanceTable.selectAll().where { RemittanceTable.branchId eq firstBranchId }.count()
+            },
+        )
+        trackOwned(RemittanceTable, RemittanceTable.id, firstId)
+        trackOwned(RemittanceTable, RemittanceTable.id, secondId)
+    }
+
+    @Test
+    fun `submitted remittance overlap remains rejected`() {
+        val firstId = TestFixtures.uuid()
+        val secondId = TestFixtures.uuid()
+        val submittedDate = LocalDate.of(2026, 8, 20)
+        val insertRemittance = { id: UUID ->
+            RemittanceTable.insert {
+                it[RemittanceTable.id] = id
+                it[RemittanceTable.type] = RemittanceType.SESSION
+                it[RemittanceTable.status] = RemittanceStatus.SUBMITTED
+                it[RemittanceTable.branchId] = firstBranchId
+                it[RemittanceTable.method] = RemittanceMethod.BANK_TRANSFER
+                it[RemittanceTable.submittedDate] = submittedDate
+                it[RemittanceTable.submittedBy] = callerId
+                it[RemittanceTable.dateRangeStart] = LocalDate.of(2026, 8, 1)
+                it[RemittanceTable.dateRangeEnd] = LocalDate.of(2026, 8, 5)
+            }
+        }
+
+        transaction { insertRemittance(firstId) }
+        trackOwned(RemittanceTable, RemittanceTable.id, firstId)
+        assertFailsWith<org.jetbrains.exposed.v1.exceptions.ExposedSQLException> {
+            transaction { insertRemittance(secondId) }
+        }
     }
 }
