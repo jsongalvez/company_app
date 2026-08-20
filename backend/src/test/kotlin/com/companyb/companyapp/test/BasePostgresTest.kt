@@ -125,9 +125,10 @@ abstract class BasePostgresTest {
                 ConcernTable to setOf(AppUserTable),
                 ExpenseTable to setOf(BranchDayTable, AppUserTable),
                 GrantReliefAccessTable to setOf(AppUserTable),
-                InventoryMovementTable to setOf(BranchInventoryTable, ProductSaleTable),
-                MedicalMissionDelegateTable to setOf(SessionTable, BranchDayTable, AppUserTable),
-                NotificationTable to setOf(SessionTable, AppUserTable),
+                InventoryMovementTable to
+                    setOf(ProductTable, ProductSaleTable, BranchTable, BranchDayTable, AppUserTable),
+                MedicalMissionDelegateTable to setOf(AppUserTable, BranchTable),
+                NotificationTable to setOf(SessionTable, AppUserTable, BranchTable),
                 RemittanceDayBreakdownTable to setOf(RemittanceTable, BranchDayTable),
                 RemittanceFinancialSnapshotTable to setOf(RemittanceTable),
                 RemittanceLineTable to setOf(RemittanceTable, SessionTable, ProductTable),

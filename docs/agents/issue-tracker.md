@@ -85,5 +85,21 @@ needs human input, create a separate issue instead. Label it `needs-info` when f
 requirements are missing, or `ready-for-human` when facts are complete and only an
 explicit preference or approval is needed. Include verified facts, the exact decision,
 why execution is blocked, and the smallest safe next action. Leave it unassigned unless
-the tracker requires an owner. Continue unrelated AFK work; if none exists, write the
-handoff and stop.
+ the tracker requires an owner. Continue unrelated AFK work; if none exists, write the
+ handoff and stop.
+
+### Decision handoff lifecycle
+
+Human decision issues stay open after the human answers so another agent can consume the answer.
+The human-resolution transition is:
+
+1. Add the decision as a comment with the chosen policy and constraints.
+2. Remove `needs-info` or `ready-for-human`.
+3. Add `ready-for-agent`.
+4. Remove any stale human or previous-agent assignee.
+5. Leave the issue open for the next agent to claim.
+
+The next agent claims the issue, implements or records the decision, updates the Map or parent
+pointer, then closes the issue. Decision-only issues close only after their decision pointer is
+recorded. An open assigned issue with a human-resolution comment is stale state: reconcile it
+before frontier selection instead of dropping it permanently.
