@@ -1,55 +1,37 @@
-# Handoff - Map #180, Session 291
+# Handoff - Map #180 Expense Delete Race, Session 349
+
+## Authority
+
+- Map #180 remained workflow authority; `docs/agents/wayfinder-290-handoff.md` was state evidence only.
+- Loaded `/wayfinder`, `CONTEXT.md`, architecture, business requirements, engines, decision loop, gates, issue tracker, all module instructions, and applicable Context Pointers.
+- Verified native links before claim:
+  - `scripts/wayfinder-verify-child.sh 180 291` -> `Verified child #291: parent #180, label wayfinder:task`
+  - `scripts/wayfinder-verify-child.sh 180 292` -> `Verified child #292: parent #180, label wayfinder:task`
 
 ## Session outcome
 
-- Loaded `docs/agents/wayfinder-290-handoff.md`, Map #180 as workflow authority, `/wayfinder`,
-  `/codebase-design`, `/writing-for-agents`, `CONTEXT.md`, business requirements, architecture,
-  engines, audit guidance, decision-loop guidance, issue tracker, architecture lessons, all
-  applicable Context Pointers, and module instructions.
-- Queried Map #180 native children. Frontier was empty, so completed the required full audit before
-  creating work.
-- Fresh four-lane C-01..C-14 audit found one implement candidate: R51, remittance Undo expiry
-  comparing JVM time with PostgreSQL-stamped submission time. R24 remains deferred behind parent
-  Compose lifecycle ownership; persistence/schema lane was clean; suspected k6 PIPESTATUS failure
-  was falsified with deterministic Bash evidence. Full dossier and verifier packet are in
-  `docs/agents/architecture-audit-180.md` Session 291.
-- R51 packet: structured mode, GPT-5.6 Luna, blind position ALPHA, L1-L5 pass, deterministic gate
-  pass, zero HARD after database-time comparison, one accepted non-blocking SOFT requiring an
-  explicit test-clock seam, confidence high, artifact pointer in the Session 291 report.
-- Created native child with:
-  `scripts/wayfinder-create-child.sh 180 task "Build: make remittance Undo expiry use database time" docs/agents/wayfinder-291-r51-ticket.md`
-  Returned `https://github.com/jsongalvez/company_app/issues/234`; verified with
-  `scripts/wayfinder-verify-child.sh 180 234` -> `Verified child #234: parent #180, label wayfinder:task`.
-- Claimed and resolved child #234. Map #180 Decisions so far now links its named context pointer.
+- Claimed and completed exactly one frontier child: [Build: keep soft-deleted expenses immutable under races](https://github.com/jsongalvez/company_app/issues/291).
+- `ExpenseRepository.update` now requires `deleted_at IS NULL` in its atomic `(id, version)` predicate. A stale update losing to soft delete returns established `VersionMismatchException`; deleted financial data remains unchanged.
+- Added PostgreSQL regression coverage for stale update after soft delete, including amount, deletion reason, and version invariants.
+- No ADR needed: change reinforces existing repository-owned optimistic locking and soft-delete rules.
 
-## Implementation
+## Delivery and verification
 
-- Commit `9a15208` pushed to `origin/ralph/company-app-full-build`.
-- Production `RemittanceService.undo` no longer supplies JVM time.
-- `RemittanceRepository.undo` reads PostgreSQL `CurrentTimestampWithTimeZone` inside existing
-  SERIALIZABLE transaction when no explicit test instant is supplied.
-- `UndoParams.now` remains nullable as explicit deterministic test seam. Inclusive 48-hour boundary,
-  snapshot fallback, locking, mutation, and audit atomicity remain unchanged.
-- Added production-path database-time coverage in `RemittanceUndoServicePostgresTest`.
-- Gate ledger: `docs/gates/234-remittance-undo-db-time.md`, 3/3 PASS. Pre-code negative control
-  recorded G1 red; initial full-gate timeout and one Exposed `single()` regression were diagnosed
-  and fixed, then retried successfully.
+- Gate ledger `docs/gates/291-expense-delete-race.md`: 2/2 PASS. Pre-code negative control failed both gates as required.
+- Focused ExpenseServicePostgresTest: PASS.
+- Full backend detekt, ktlint, tests, and shared JVM compilation: PASS.
+- Pre-commit quality gate, OpenAPI contract, test-data cleanliness, Compose Android/Desktop compilation, startup/health, k6 baseline with 0% errors, and disposable DB cleanup: PASS.
+- P1-P4 review: zero HARD findings. One SOFT recorded: regression is deterministic post-delete coverage rather than scheduler-level interleaving; atomic SQL predicate is the race fix.
+- Commit `0d1b96f` pushed to `origin/ralph/company-app-full-build`.
+- Child #291 closed and resolution recorded. Map #180 Decisions-so-far pointer appended.
 
-## Verification
+## Frontier
 
-- Focused Undo/Authz tests: PASS.
-- `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:compileKotlinJvm :shared:jvmTest`: PASS.
-- Pre-commit: formatting, backend quality, OpenAPI, cleanliness, shared compilation, and Postgres
-  connectivity: PASS.
-- Pre-push: OpenAPI, Compose Android/Desktop compilation, backend startup/health, k6 baseline with
-  0% errors, and final test-database cleanup: PASS.
-- Final `bash scripts/clean-test-db.sh`: PASS.
-- Implementation review: zero HARD findings; one accepted non-blocking SOFT on narrow grep-gate
-  proof, covered by deterministic source and test evidence.
+- Open, unblocked, unassigned child: #292, [Build: allow overlapping draft remittances](https://github.com/jsongalvez/company_app/issues/292).
+- Next session claims #292 after native parent-link verification.
 
-## Next session
+## Worktree
 
-- Query Map #180 native children first. Child #234 is CLOSED and verified.
-- If frontier is empty, run another focused/full audit per Map #180. Keep R15 in `Not yet specified`
-  until deployment topology or overlapping scheduler invocation requirements become concrete.
-- Handoff is final artifact for Session 291; stop here.
+- Worktree clean after implementation push.
+
+**Status:** Child #291 implemented, verified, resolved, committed, and pushed; successor frontier recorded.
