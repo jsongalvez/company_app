@@ -58,8 +58,13 @@ fi
 log pre-commit "Resetting disposable test database before quality gate..."
 bash scripts/clean-test-db.sh 2>&1 | tail -5
 log pre-commit "Disposable test database reset."
-log pre-commit "Running quality gate (detekt, ktlint, test, shared compile, compiler warnings)..."
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:compileKotlinJvm \
+log pre-commit "Running quality gate (detekt, ktlint, test, shared Detekt, shared compile, compiler warnings)..."
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test \
+    :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest \
+    :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest \
+    :shared:detektIosArm64Main :shared:detektIosArm64Test \
+    :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test \
+    :shared:compileKotlinJvm :shared:jvmTest \
     -PwarningsAsErrors=true --no-daemon
 log pre-commit "Quality gate passed."
 
@@ -83,8 +88,8 @@ log pre-commit "Test-data cleanliness check passed."
 # ----------------------------------------------------------------
 # 5. Shared module compilation check
 # ----------------------------------------------------------------
-# shared has no test source set yet — compile only. Add :shared:jvmTest when tests exist.
-log pre-commit "Shared module compilation included in quality gate."
+# commonTest has no registered Detekt task; :shared:jvmTest remains covered by G4.
+log pre-commit "Shared module Detekt and compilation included in quality gate."
 
 # ----------------------------------------------------------------
 # 6. Ensure Postgres is reachable

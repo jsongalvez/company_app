@@ -81,8 +81,15 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Run backend quality and shared JVM compilation
-        run: ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:compileKotlinJvm -x :backend:publishOpenApiSpec --no-daemon
+      - name: Run backend quality, shared Detekt, and shared JVM compilation
+        run: >-
+          ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
+          :shared:detektMetadataCommonMain
+          :shared:detektJvmMain :shared:detektJvmTest
+          :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest
+          :shared:detektIosArm64Main :shared:detektIosArm64Test
+          :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test
+          :shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec --no-daemon
 
       - name: Verify test database cleanliness
         run: bash scripts/check-test-cleanliness.sh
