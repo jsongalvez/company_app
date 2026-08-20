@@ -321,7 +321,7 @@ spawn_session() {
   session_id="$sid"
   save_state
   local prompt
-  prompt="Read docs/agents/$doc first. Let the handoff drive this session: follow its authority, required reads, next action, verification, blockers, and stopping condition. Use the live tracker to verify mutable state. Finish all work, write the successor handoff last, then stop."
+  prompt="/wayfinder docs/agents/$doc"
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
