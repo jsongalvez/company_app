@@ -37,9 +37,9 @@ function matchExpect(expect, stdout, stderr, code) {
   const exit = /^EXIT (\d+)$/.exec(expect);
   if (exit) return code === Number(exit[1]);
   const matches = /^MATCHES (.+)$/s.exec(expect);
-  if (matches) return testRegex(matches[1], stdout, stderr);
+  if (matches) return code === 0 && testRegex(matches[1], stdout, stderr);
   const combined = `${stdout}\n${stderr}`;
-  return combined.includes(expect);
+  return code === 0 && combined.includes(expect);
 }
 
 function parse(lines) {

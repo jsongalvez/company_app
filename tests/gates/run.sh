@@ -244,5 +244,38 @@ assert "emptyre: exit 1" "$c17" "1"
 assert "emptyre: G1 unflipped" "$(grep -c '^\s*- \[ \] G1' "$WORK/emptyre.md")" "1"
 assert "emptyre: G2 flipped" "$(grep -c '^\s*- \[x\] G2' "$WORK/emptyre.md")" "1"
 
+# --- fixture 18: text match cannot hide a failed command ------------------------
+cat > "$WORK/matching-fail.md" <<'EOF'
+- [ ] G1: matching output from failed check
+  CHECK: printf expected; exit 7
+  EXPECT: expected
+  EVIDENCE: pending
+EOF
+node "$CHECKER" "$WORK/matching-fail.md" > "$WORK/out18" 2>&1; c18=$?
+assert "matching-fail: exit 1" "$c18" "1"
+assert "matching-fail: box not flipped" "$(grep -c '^\s*- \[x\]' "$WORK/matching-fail.md")" "0"
+
+# --- fixture 19: explicit EXIT N still accepts the requested failure ----------
+cat > "$WORK/expected-fail.md" <<'EOF'
+- [ ] G1: explicit failure expectation
+  CHECK: printf expected; exit 7
+  EXPECT: EXIT 7
+  EVIDENCE: pending
+EOF
+node "$CHECKER" "$WORK/expected-fail.md" > /dev/null 2>&1; c19=$?
+assert "expected-fail: explicit exit accepted" "$c19" "0"
+assert "expected-fail: box flipped" "$(grep -c '^\s*- \[x\] G1' "$WORK/expected-fail.md")" "1"
+
+# --- fixture 20: regex match cannot hide a failed command ----------------------
+cat > "$WORK/matching-regex-fail.md" <<'EOF'
+- [ ] G1: matching regex from failed check
+  CHECK: printf expected-42; exit 7
+  EXPECT: MATCHES ^expected-\d+$
+  EVIDENCE: pending
+EOF
+node "$CHECKER" "$WORK/matching-regex-fail.md" > /dev/null 2>&1; c20=$?
+assert "matching-regex-fail: exit 1" "$c20" "1"
+assert "matching-regex-fail: box not flipped" "$(grep -c '^\s*- \[x\]' "$WORK/matching-regex-fail.md")" "0"
+
 if [ "$fails" -gt 0 ]; then echo "$fails assertion(s) failed"; exit 1; fi
 echo "all green — checker harness ($WORK)"
