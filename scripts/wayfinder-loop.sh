@@ -61,7 +61,10 @@ handoff_docs() {
     sort -t- -k2,2n
 }
 
-worktree_dirty() { git -C "$REPO" status --porcelain 2>/dev/null; }
+worktree_dirty() {
+  git -C "$REPO" status --porcelain 2>/dev/null |
+    grep -Ev '^[ MARC?]{2} \.wayfinder-loop\.(env|log|state|tmux\.log)$' || true
+}
 
 handoff_committed() {
   git -C "$REPO" cat-file -e "HEAD:docs/agents/$1" 2>/dev/null
@@ -77,7 +80,8 @@ checkpoint_handoff() {
   # completed session, so checkpoint code and handoff together instead of
   # pausing for manual cleanup.
   if [ -n "$(worktree_dirty)" ]; then
-    git -C "$REPO" add --all
+    git -C "$REPO" add --all -- \
+      ':!.wayfinder-loop.env' ':!.wayfinder-loop.log' ':!.wayfinder-loop.state' ':!.wayfinder-loop.tmux.log'
     if git -C "$REPO" commit --no-verify -m "docs(wayfinder): checkpoint $doc" >/dev/null 2>&1; then
       log "auto-committed completed session worktree for $doc"
       return 0
