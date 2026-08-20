@@ -53,6 +53,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RouteValidationTest : BasePostgresTest() {
+    private val json = Json { ignoreUnknownKeys = true }
     private val testUserId = TEST_USER_ID
     private val testBranchId = UUID.randomUUID()
     private val sourceId = UUID.randomUUID()
@@ -910,9 +911,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$testBranchId/daily-summaries")
             assertEquals(200, response.code)
-            val body =
-                Json { ignoreUnknownKeys = true }
-                    .decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
             assertEquals(1, body.entries.size)
             assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
             assertEquals(LocalDate.now().toString(), body.entries.single().date)
@@ -928,9 +927,7 @@ class RouteValidationTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$noDaysBranchId/daily-summaries")
             assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")
-            val body =
-                Json { ignoreUnknownKeys = true }
-                    .decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
             assertTrue(body.entries.isEmpty())
             assertNull(body.nextCursor)
         }
@@ -1003,9 +1000,7 @@ class RouteValidationTest : BasePostgresTest() {
                     "/api/branches/$testBranchId/daily-summaries?from=$yesterday&to=$today",
                 )
             assertEquals(200, response.code)
-            val body =
-                Json { ignoreUnknownKeys = true }
-                    .decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
             assertEquals(1, body.entries.size, "the window admits only the seeded day")
             assertEquals(today.toString(), body.entries.single().date)
         }

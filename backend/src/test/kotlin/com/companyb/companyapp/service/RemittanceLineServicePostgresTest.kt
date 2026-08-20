@@ -578,7 +578,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
             amount = BigDecimal("1500.00"),
         )
 
-        val afterAdd = RemittanceService.getRemittance(remittance.id).remittance!!
+        val afterAdd = requireNotNull(RemittanceService.getRemittance(remittance.id).remittance)
 
         val deleted = RemittanceService.removeLine(callerId, remittance.id, lineId)
         assertNotNull(deleted)

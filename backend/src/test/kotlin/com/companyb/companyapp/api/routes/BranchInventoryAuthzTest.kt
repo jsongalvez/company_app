@@ -424,7 +424,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
                 client
                     .get("/api/branches/$branchId/inventory/movements", asUser(editOnlyUser))
                     .body
-                    ?.string()
+                    .string()
                     .orEmpty()
             assertTrue(body.contains("RESTOCK"))
             assertTrue(body.contains("quantityChange"))
@@ -492,7 +492,7 @@ class BranchInventoryAuthzTest : BasePostgresTest() {
             assertEquals(200, response.code)
             assertTrue(
                 response.body
-                    ?.string()
+                    .string()
                     .orEmpty()
                     .contains("RESTOCK"),
             )

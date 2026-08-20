@@ -108,7 +108,7 @@ class SessionDetailAuthzTest : BasePostgresTest() {
             val response = client.get("/api/sessions/$sessionId", asUser(bearerUser))
 
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"id\":\"$sessionId\""))
             assertTrue(body.contains("\"clientName\":\"Test Client\""))
             assertTrue(body.contains("\"isVoided\":false"))

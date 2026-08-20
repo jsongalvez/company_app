@@ -257,7 +257,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"netIncome\":\"500.00\""))
         }
     }
@@ -271,7 +271,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"status\":\"SUBMITTED\""))
             assertTrue(!body.contains("\"id\":\"$draftRemittanceId\""))
         }
@@ -335,7 +335,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"netIncome\":\"500.00\""))
             assertTrue(body.contains("\"id\":\"$draftRemittanceId\""))
         }
@@ -364,7 +364,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"clientName\":\"Test Client\""))
             assertTrue(body.contains("\"finalPrice\":\"2500.00\""))
         }
@@ -393,7 +393,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"productName\":"))
             assertTrue(body.contains("\"totalAmountAtTime\":\"100.00\""))
         }
@@ -422,7 +422,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"status\":\"REMITTED\""))
         }
     }
@@ -497,7 +497,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"id\":\"$breakdownId\""))
         }
     }
@@ -560,7 +560,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"snapshot\":{\"remittanceId\":\"$submittedRemittanceId\""))
             assertTrue(body.contains("\"netIncome\":\"500.00\""))
         }
@@ -575,7 +575,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"frozen\":"))
             assertTrue(body.contains("\"currentNet\":\"500.00\""))
         }
@@ -759,7 +759,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                     asUser(submitUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"status\":\"DRAFT\""))
         }
     }
@@ -867,7 +867,7 @@ class RemittanceAuthzTest : BasePostgresTest() {
                 )
             val response = client.patch("/api/remittances/$draftRemittanceId", body, asUser(submitUser))
             assertEquals(200, response.code)
-            val responseBody = response.body?.string().orEmpty()
+            val responseBody = response.body.string().orEmpty()
             assertTrue(responseBody.contains("\"method\":\"HANDED_TO_ACCOUNTANT\""))
             assertTrue(responseBody.contains("\"version\":3"))
         }

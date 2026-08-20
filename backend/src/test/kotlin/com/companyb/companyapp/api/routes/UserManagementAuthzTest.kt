@@ -129,7 +129,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
             assertEquals(200, response.code)
             users =
                 json.decodeFromString<List<UserSummaryResponse>>(
-                    response.body!!.string(),
+                    response.body.string(),
                 )
         }
         assertEquals(3, users.size)
@@ -175,7 +175,7 @@ class UserManagementAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.patch("/api/users/$managerUser/deactivate", null, asUser(managerUser))
             status = response.code
-            body = response.body?.string().orEmpty()
+            body = response.body.string().orEmpty()
         }
         assertEquals(400, status)
         assertTrue(body.contains("Cannot deactivate yourself"), "body must carry the self-guard message: $body")

@@ -137,8 +137,8 @@ class GrantPathAuthzTest : BasePostgresTest() {
             val response = client.get("/api/me/capabilities", asUser(user))
             body =
                 response.body
-                    ?.string()
-                    ?.takeIf { it.isNotBlank() }
+                    .string()
+                    .takeIf { it.isNotBlank() }
                     ?.let { json.decodeFromString<List<UserCapabilityResponse>>(it) }
                     ?: emptyList()
         }

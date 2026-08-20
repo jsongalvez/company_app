@@ -85,7 +85,7 @@ object ExpenseRepository {
             auditFn(after)
             after
         }.also { result ->
-            logger.info { "[SOFT-DELETE-EXPENSE] Expense ${expenseId.toString().maskUUID()} deleted=${result != null}" }
+            logger.info { "[SOFT-DELETE-EXPENSE] Expense ${expenseId.toString().maskUUID()} deleted=true" }
         }
 
     /**

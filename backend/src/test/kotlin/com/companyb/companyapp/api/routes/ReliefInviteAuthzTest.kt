@@ -199,8 +199,8 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            assertEquals(201, response.code, response.body?.string().orEmpty())
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
+            assertEquals(201, response.code, body)
             assertTrue(body.contains("\"status\":\"PENDING\""), body)
             assertTrue(body.contains(tomorrow.toString()), body)
             assertTrue(body.contains("Branch A"), body)
@@ -217,7 +217,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, noDayDate),
                     asUser(inviter),
                 )
-            assertEquals(201, response.code, response.body?.string().orEmpty())
+            assertEquals(201, response.code, response.body.string().orEmpty())
             val dayCount =
                 transaction {
                     BranchDayTable
@@ -277,7 +277,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, yesterday),
                     asUser(inviter),
                 )
-            assertEquals(403, response.code, response.body?.string().orEmpty())
+            assertEquals(403, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -297,7 +297,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            assertEquals(409, second.code, second.body?.string().orEmpty())
+            assertEquals(409, second.code, second.body.string().orEmpty())
         }
     }
 
@@ -337,7 +337,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(otherInvitee, tomorrow),
                     asUser(inviter),
                 )
-            assertEquals(201, second.code, second.body?.string().orEmpty())
+            assertEquals(201, second.code, second.body.string().orEmpty())
         }
     }
 
@@ -351,7 +351,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(inviter),
                 )
             assertEquals(201, created.code)
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             val declined =
                 client.post(
                     "/api/relief-invites/$inviteId/decline",
@@ -366,7 +366,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            assertEquals(201, again.code, again.body?.string().orEmpty())
+            assertEquals(201, again.code, again.body.string().orEmpty())
         }
     }
 
@@ -384,7 +384,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
             val response = client.get("/api/branches/$branchA/relief-invites", asUser(inviter))
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains(invitee.toString()), body)
             assertTrue(!body.contains(otherInvitee.toString()), "other inviter's invites must not appear")
         }
@@ -408,7 +408,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
 
             val response = client.get("/api/relief-invites", asUser(invitee))
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains(invitee.toString()), body)
             assertTrue(!body.contains(otherInvitee.toString()), body)
             assertTrue(body.contains("Branch A"), body)
@@ -425,13 +425,13 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow.plusDays(3)),
                     asUser(inviter),
                 )
-            val firstId = DatabaseTestHelper.extractJsonField(first.body!!.string(), "id")
+            val firstId = DatabaseTestHelper.extractJsonField(first.body.string(), "id")
             client.post("/api/relief-invites/$firstId/decline", emptyMap<String, String>(), asUser(invitee))
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
 
             val response = client.get("/api/relief-invites", asUser(invitee))
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains(tomorrow.toString()), "the pending invite must be served: $body")
             assertTrue(!body.contains(tomorrow.plusDays(3).toString()), "resolved rows must leave the list: $body")
         }
@@ -450,7 +450,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(inviter),
                 )
             assertEquals(201, created.code)
-            inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
 
             val accepted =
                 client.post(
@@ -458,8 +458,9 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     emptyMap<String, String>(),
                     asUser(invitee),
                 )
-            assertEquals(200, accepted.code, accepted.body?.string().orEmpty())
-            assertTrue(accepted.body!!.string().contains("\"status\":\"ACCEPTED\""))
+            val body = accepted.body.string()
+            assertEquals(200, accepted.code, body)
+            assertTrue(body.contains("\"status\":\"ACCEPTED\""))
         }
         val granted =
             CapabilityRepository.hasCapabilityForBranchDay(
@@ -480,7 +481,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             val response =
                 client.post(
                     "/api/relief-invites/$inviteId/accept",
@@ -517,7 +518,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     emptyMap<String, String>(),
                     asUser(invitee),
                 )
-            assertEquals(400, response.code, response.body?.string().orEmpty())
+            assertEquals(400, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -530,7 +531,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             val first = client.post("/api/relief-invites/$inviteId/accept", emptyMap<String, String>(), asUser(invitee))
             assertEquals(200, first.code)
             val second =
@@ -554,7 +555,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             val declined =
                 client.post(
                     "/api/relief-invites/$inviteId/decline",
@@ -562,7 +563,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(invitee),
                 )
             assertEquals(200, declined.code)
-            assertTrue(declined.body!!.string().contains("\"status\":\"DECLINED\""))
+            assertTrue(declined.body.string().contains("\"status\":\"DECLINED\""))
             val again =
                 client.post(
                     "/api/branches/$branchA/relief-invites",
@@ -582,7 +583,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             val retracted =
                 client.post(
                     "/api/relief-invites/$inviteId/retract",
@@ -590,7 +591,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(inviter),
                 )
             assertEquals(200, retracted.code)
-            assertTrue(retracted.body!!.string().contains("\"status\":\"RETRACTED\""))
+            assertTrue(retracted.body.string().contains("\"status\":\"RETRACTED\""))
         }
     }
 
@@ -603,7 +604,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             val response =
                 client.post(
                     "/api/relief-invites/$inviteId/retract",
@@ -623,7 +624,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     createBody(invitee, tomorrow),
                     asUser(inviter),
                 )
-            val inviteId = DatabaseTestHelper.extractJsonField(created.body!!.string(), "id")
+            val inviteId = DatabaseTestHelper.extractJsonField(created.body.string(), "id")
             client.post("/api/relief-invites/$inviteId/accept", emptyMap<String, String>(), asUser(invitee))
             val response =
                 client.post(
@@ -650,8 +651,8 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
             client.post("/api/branches/$branchA/relief-invites", createBody(invitee, tomorrow), asUser(inviter))
 
             val response = client.get("/api/branches/$branchA/relief-candidates?date=$tomorrow", asUser(inviter))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
+            assertEquals(200, response.code, body)
             assertTrue(!body.contains(inviter.toString()), "self must be excluded: $body")
             assertTrue(!body.contains(invitee.toString()), "live invitee must be excluded: $body")
             assertTrue(!body.contains(otherInvitee.toString()), "granted user must be excluded: $body")
@@ -664,8 +665,8 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
     fun `candidates filter by username or display name prefix`() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/relief-candidates?q=ali&date=$tomorrow", asUser(inviter))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
+            assertEquals(200, response.code, body)
             assertTrue(body.contains(aliceUser.toString()), body)
             assertTrue(!body.contains(bobUser.toString()), body)
         }
@@ -681,7 +682,7 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
                     asUser(inviter),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains(aliceUser.toString()), body)
             assertTrue(!body.contains(inviter.toString()), body)
             val dayCount =

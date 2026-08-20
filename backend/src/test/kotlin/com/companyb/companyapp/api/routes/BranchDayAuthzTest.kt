@@ -123,7 +123,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
                 client
                     .get("/api/branches/$branchId/today", asUser(editOnlyUser))
                     .body
-                    ?.string()
+                    .string()
                     .orEmpty()
             assertTrue(body.contains("branchDayId"))
             assertTrue(body.contains("OPEN"))
@@ -143,7 +143,7 @@ class BranchDayAuthzTest : BasePostgresTest() {
                 client
                     .get("/api/branches/$branchId/today", asUser(editOnlyUser))
                     .body
-                    ?.string()
+                    .string()
                     .orEmpty()
             assertTrue(body.contains("REMITTED"))
         }

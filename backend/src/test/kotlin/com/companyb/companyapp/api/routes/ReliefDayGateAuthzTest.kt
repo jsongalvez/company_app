@@ -418,7 +418,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             assertEquals(200, response.code)
             assertTrue(
                 response.body
-                    ?.string()
+                    .string()
                     .orEmpty()
                     .contains("\"amount\":\"150.00\""),
             )
@@ -441,7 +441,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "finalPrice" to "2500.00",
                 )
             val response = client.post("/api/sessions", body, asUser(reliefUser))
-            assertEquals(201, response.code, response.body?.string().orEmpty())
+            assertEquals(201, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -480,7 +480,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "expectedVersion" to cardVersion(),
                 )
             val response = client.post("/api/product-sales", body, asUser(reliefUser))
-            assertEquals(201, response.code, response.body?.string().orEmpty())
+            assertEquals(201, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -561,7 +561,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
                     "finalPrice" to "2500.00",
                 )
             val response = client.post("/api/sessions", body, asUser(branchCUser))
-            assertEquals(201, response.code, response.body?.string().orEmpty())
+            assertEquals(201, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -636,7 +636,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user reads the single-day summary on the granted day`() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(reliefUser))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
+            assertEquals(200, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -685,7 +685,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `BRANCH VIEW_BRANCH_DATA holder still reads the single-day summary`() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(viewUser))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
+            assertEquals(200, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -693,7 +693,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `GLOBAL VIEW_BRANCH_DATA holder still reads the single-day summary`() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/daily-summary?date=$today", asUser(globalViewUser))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
+            assertEquals(200, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -711,7 +711,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `relief user reads today day-status on the granted day`() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/today", asUser(reliefUser))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
+            assertEquals(200, response.code, response.body.string().orEmpty())
         }
     }
 
@@ -727,7 +727,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
     fun `BRANCH EDIT_BRANCH_DATA holder still reads today day-status`() {
         testServer.client.let { client ->
             val response = client.get("/api/branches/$branchA/today", asUser(branchUser))
-            assertEquals(200, response.code, response.body?.string().orEmpty())
+            assertEquals(200, response.code, response.body.string().orEmpty())
         }
     }
 

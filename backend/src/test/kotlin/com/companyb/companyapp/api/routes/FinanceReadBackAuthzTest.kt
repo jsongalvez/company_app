@@ -183,7 +183,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(assignUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"userName\":\"Test target-1\""))
             assertTrue(body.contains("\"userName\":\"Test target-2\""))
         }
@@ -204,7 +204,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(assignUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.startsWith("[]"))
         }
     }
@@ -264,7 +264,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(assignUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"displayName\":\"Test target-1\""))
             assertTrue(body.contains("\"displayName\":\"Test target-2\""))
         }
@@ -287,7 +287,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(assignUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"displayName\":\"Test target-1\""))
             assertTrue(!body.contains("\"displayName\":\"Test target-2\""))
         }
@@ -356,7 +356,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(editOnlyUser),
                 )
             assertEquals(200, response.code)
-            val responseBody = response.body?.string().orEmpty()
+            val responseBody = response.body.string().orEmpty()
             assertTrue(responseBody.contains("\"version\":2"))
             assertTrue(responseBody.contains("\"amount\":\"750.00\""))
             assertTrue(responseBody.contains("\"category\":\"WATER\""))
@@ -506,7 +506,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(editOnlyUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"deletedAt\":null"))
             // The backend mapper encodes defaults only when non-null — a null defaulted field
             // is omitted from the JSON entirely (assert the field's absence, not `:null`).
@@ -699,7 +699,7 @@ class FinanceReadBackAuthzTest : BasePostgresTest() {
                     asUser(editOnlyUser),
                 )
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains("\"deletedReason\":\"Incorrect entry\""))
         }
     }

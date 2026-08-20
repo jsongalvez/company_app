@@ -141,7 +141,7 @@ class SessionEditAuthzTest : BasePostgresTest() {
             val response = client.patch("/api/sessions/$sessionId/final-price", body, asUser(editorUser))
 
             assertEquals(200, response.code)
-            val responseBody = response.body?.string().orEmpty()
+            val responseBody = response.body.string().orEmpty()
             assertTrue(responseBody.contains("\"finalPrice\":\"2750.00\""))
             assertTrue(responseBody.contains("\"version\":2"))
         }

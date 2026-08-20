@@ -196,7 +196,7 @@ class UserBranchAssignmentAuthzTest : BasePostgresTest() {
             status = response.code
             assignments =
                 json.decodeFromString<List<AssignmentResponse>>(
-                    response.body!!.string(),
+                    response.body.string(),
                 )
         }
         assertEquals(200, status)

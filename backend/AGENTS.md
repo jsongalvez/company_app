@@ -24,7 +24,7 @@ Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`,
 The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
 
 1. **Formatting:** ktlint scoped to staged `.kt`/`.kts` files via `ktlint --format` CLI (falls back to project-wide `./gradlew ktlintFormat` if CLI not on PATH)
-2. **Static analysis & tests:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
+2. **Static analysis & tests:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test -PwarningsAsErrors=true`
 3. **Test-data cleanliness:** verifies all test tables are empty after the test suite
 4. **Shared module compilation:** `./gradlew :shared:compileKotlinJvm`
 5. **Postgres connectivity:** verifies Postgres is reachable before commit is allowed.
@@ -41,7 +41,10 @@ shift, copy the first CI run's scores into the file (see the workflow's comment)
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
-To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
+To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test -PwarningsAsErrors=true`
+
+The pre-commit quality path passes `-PwarningsAsErrors=true`, making Kotlin and Java compiler
+warnings fail the local gate. Warnings must be fixed, not suppressed or baselined.
 
 Postgres test database is shared by all backend test processes. Clean it with
 `bash scripts/clean-test-db.sh` before rerunning contaminated tests, then run the

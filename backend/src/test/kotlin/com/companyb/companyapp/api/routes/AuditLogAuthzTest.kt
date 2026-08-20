@@ -247,8 +247,8 @@ class AuditLogAuthzTest : BasePostgresTest() {
             status = response.code
             body =
                 response.body
-                    ?.string()
-                    ?.takeIf { it.isNotBlank() }
+                    .string()
+                    .takeIf { it.isNotBlank() }
                     ?.let { json.decodeFromString<AuditLogBrowseResponse>(it) }
         }
         return status to (body ?: AuditLogBrowseResponse(emptyList()))
@@ -465,7 +465,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
                     asUser(editorA),
                 )
             assertEquals(200, visible.code)
-            val visibleBody = visible.body?.string().orEmpty()
+            val visibleBody = visible.body.string().orEmpty()
             assertTrue(visibleBody.contains(branchARowId.toString()))
         }
     }
@@ -480,7 +480,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
                         asUser(editorB),
                     )
             assertEquals(200, invisible.code)
-            val body = invisible.body?.string().orEmpty()
+            val body = invisible.body.string().orEmpty()
             assertTrue(!body.contains(branchARowId.toString()))
         }
     }
@@ -494,7 +494,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.get("/api/audit-log/flagged", asUser(editorB))
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains(branchBFlaggedId.toString()))
             assertTrue(body.contains("Test editor-a"))
             val entries = json.decodeFromString<List<AuditLogEntryResponse>>(body)
@@ -508,7 +508,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.get("/api/audit-log/flagged", asUser(editorA))
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(!body.contains(branchBFlaggedId.toString()))
             assertEquals(1, json.decodeFromString<List<AuditLogEntryResponse>>(body).size)
         }
@@ -523,7 +523,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.patch("/api/audit-log/$branchBFlaggedId/acknowledge", null, asUser(editorB))
             assertEquals(200, response.code)
-            val body = response.body?.string().orEmpty()
+            val body = response.body.string().orEmpty()
             assertTrue(body.contains(editorB.toString()))
         }
     }
@@ -578,7 +578,7 @@ class AuditLogAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.get("/api/audit-log/tables", asUser(noneUser))
             assertEquals(200, response.code)
-            val tables = json.decodeFromString<List<AuditLogTableResponse>>(response.body?.string().orEmpty())
+            val tables = json.decodeFromString<List<AuditLogTableResponse>>(response.body.string().orEmpty())
             assertTrue(tables.size >= 20)
             val clientEntry = tables.first { it.tableName == "client" }
             assertEquals("Client", clientEntry.label)
