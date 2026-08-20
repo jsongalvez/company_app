@@ -25,7 +25,7 @@ runs without any detection mechanism.
    tables (`pg_tables` minus role, capability, role_capability, flyway_schema_history) and fails
    if any row count > 0. Wired into:
    - `pre-commit` hook (step 3, runs after quality gate tests complete)
-   - `pre-push` hook (step 1, runs before JMH benchmarks)
+   - `pre-push` hook (step 1, runs before the k6 baseline; JMH runs in CI)
 
 ## Consequences
 
