@@ -1,8 +1,11 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.MedicalMissionDelegateRepository
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
@@ -20,6 +23,11 @@ object MedicalMissionDelegateService {
         branchId: UUID,
         callerId: UUID,
     ): MedicalMissionDelegate {
+        val branch = BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
+        if (branch.branchType != BranchType.MEDICAL_MISSION) {
+            throw ValidationException("Medical mission delegate requires a medical mission Branch")
+        }
+
         val capabilityId =
             checkNotNull(
                 CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),

@@ -3,6 +3,7 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -75,6 +76,23 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertNull(result.endedAt)
         assertTrue(delegateExists(delegateId))
         assertTrue(capabilityExistsForDelegate(delegateId, targetUserId, branchId))
+    }
+
+    @Test
+    fun `assign rejects non-medical-mission branch`() {
+        val clinicBranchId = TestFixtures.uuid()
+        insertBranch(clinicBranchId, BranchType.CLINIC)
+        trackOwned(BranchTable, BranchTable.id, clinicBranchId)
+
+        assertFailsWith<ValidationException> {
+            MedicalMissionDelegateService.assignDelegate(
+                TestFixtures.uuid(),
+                targetUserId,
+                clinicBranchId,
+                callerId,
+            )
+        }
+        assertEquals(0L, delegateCount(clinicBranchId))
     }
 
     @Test
@@ -216,15 +234,26 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertEquals(2L, auditCount)
     }
 
-    private fun insertBranch() {
+    private fun insertBranch(
+        id: UUID = branchId,
+        type: BranchType = BranchType.MEDICAL_MISSION,
+    ) {
         transaction {
             BranchTable.insert {
-                it[BranchTable.id] = branchId
+                it[BranchTable.id] = id
                 it[BranchTable.name] = branchName
-                it[BranchTable.branchType] = BranchType.MEDICAL_MISSION
+                it[BranchTable.branchType] = type
             }
         }
     }
+
+    private fun delegateCount(branchId: UUID): Long =
+        transaction {
+            MedicalMissionDelegateTable
+                .selectAll()
+                .where { MedicalMissionDelegateTable.branchId eq branchId }
+                .count()
+        }
 
     private fun delegateExists(delegateId: UUID): Boolean =
         transaction {
