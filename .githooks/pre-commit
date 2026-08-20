@@ -64,6 +64,11 @@ log pre-commit "Running quality gate (detekt, ktlint, test, shared Detekt, share
     :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest \
     :shared:detektIosArm64Main :shared:detektIosArm64Test \
     :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test \
+    :composeApp:detektDesktopTest \
+    :composeApp:detektAndroidDebugUnitTest \
+    :composeApp:detektIosArm64Test \
+    :composeApp:detektIosSimulatorArm64Test \
+    :composeApp:desktopTest \
     :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain \
     :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main \
     :composeApp:detektIosSimulatorArm64Main \
@@ -91,7 +96,7 @@ log pre-commit "Test-data cleanliness check passed."
 # ----------------------------------------------------------------
 # 5. Shared module compilation check
 # ----------------------------------------------------------------
-# commonTest has no registered Detekt task; :shared:jvmTest remains covered by G4.
+# commonTest has no registered Detekt task; shared and Compose test execution covers its sources.
 log pre-commit "Shared module Detekt and compilation included in quality gate."
 
 # ----------------------------------------------------------------

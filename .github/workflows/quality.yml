@@ -12,6 +12,8 @@ on:
       - '*.gradle.kts'
       - 'gradle.properties'
       - 'settings.gradle.kts'
+      - 'config/detekt/**'
+      - '.githooks/**'
       - 'scripts/check-test-cleanliness.sh'
       - 'scripts/lib/**'
       - 'docker/**'
@@ -27,6 +29,8 @@ on:
       - '*.gradle.kts'
       - 'gradle.properties'
       - 'settings.gradle.kts'
+      - 'config/detekt/**'
+      - '.githooks/**'
       - 'scripts/check-test-cleanliness.sh'
       - 'scripts/lib/**'
       - 'docker/**'
@@ -89,6 +93,11 @@ jobs:
           :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest
           :shared:detektIosArm64Main :shared:detektIosArm64Test
           :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test
+          :composeApp:detektDesktopTest
+          :composeApp:detektAndroidDebugUnitTest
+          :composeApp:detektIosArm64Test
+          :composeApp:detektIosSimulatorArm64Test
+          :composeApp:desktopTest
           :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
           :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
           :composeApp:detektIosSimulatorArm64Main

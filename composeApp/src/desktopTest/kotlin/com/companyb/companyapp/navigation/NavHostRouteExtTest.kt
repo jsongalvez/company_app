@@ -2,7 +2,6 @@ package com.companyb.companyapp.navigation
 
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.serializer
-import kotlin.reflect.KClass
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
