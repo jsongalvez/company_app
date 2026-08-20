@@ -61,7 +61,7 @@ class SessionStateTest {
     }
 
     @Test
-    fun bootstrap_state_publishes_capabilities_before_user_readiness() {
+    fun bootstrap_state_publishes_values_in_readiness_order() {
         SessionState.clear()
 
         SessionState.setBootstrapState(user, rows)

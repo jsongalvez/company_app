@@ -46,7 +46,7 @@ object SessionState {
         _capabilities.value = caps
     }
 
-    /** Publishes bootstrap data in readiness order: capabilities first, user last. */
+    /** Publishes bootstrap data in readiness order: capabilities first, user last as readiness marker. */
     fun setBootstrapState(
         user: MeResponse,
         caps: List<UserCapabilityResponse>,

@@ -3020,9 +3020,10 @@ artifact: Session 321 shared/schema lane and prior R54 dossier
 
 Child #266 is implemented. All three production hosts now obtain `SessionBootstrapViewModel`
 through lifecycle-aware `viewModel {}` construction. Bootstrap keeps `/api/me` data local until
-the capabilities request succeeds, so a capabilities failure, cancellation, or host replacement
-cannot leave a partial user in global `SessionState`. The focused test covers cancellation before
-the global write and both capabilities 401/500 paths assert no partial user state.
+the capabilities request succeeds, publishes capabilities before the user readiness marker, and
+clears stale session state on capabilities-401. A capabilities failure, cancellation, or host
+replacement therefore cannot leave a partial user in global `SessionState`. Focused tests cover
+cancellation between the two legs and both capabilities 401/500 paths.
 
 - Gate ledger `docs/gates/266-session-bootstrap-lifecycle.md`: 3/3 PASS, including Android and
   Desktop compilation plus Compose tests.
@@ -3031,8 +3032,10 @@ the global write and both capabilities 401/500 paths assert no partial user stat
 - Review pass 1: P1 found missing cancellation coverage, missing Android gate, and an overbroad
   audit claim; P4 found partial `SessionState` commit between bootstrap legs. All HARD findings
   were fixed. P2 was clean. P3 confirmed the partial-state failure before the fix.
-- Targeted review pass 2: P1/P3/P4 report zero HARD findings and no ESCALATE after atomic commit,
-  cancellation test, and Android gate correction. P5 skipped: no new seam or abstraction.
+- Targeted review pass 2: P1/P3/P4 initially found scope wording, stale-state ordering, and
+  auth-401 sequencing gaps. Follow-up fixed those gaps by amending child scope, readiness-order
+  publication, immediate stale-state clearing, and two-leg cancellation coverage. Final targeted
+  review reports zero untriaged HARD findings and no ESCALATE. P5 skipped: no new abstraction.
 - Full backend detekt/ktlint/test, shared JVM compile, Android/Desktop Compose compile, Compose
   tests, gate checker, and `git diff --check`: PASS.
 - No ADR needed; existing lifecycle-aware ViewModel, structured cancellation, and SessionState

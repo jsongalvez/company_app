@@ -74,6 +74,7 @@ class SessionBootstrapViewModel(
                         // launch, notice+navigate mid-session). Silent here too: surfacing
                         // UiState.Error would mislabel an auth failure as a connection problem.
                         capabilitiesResponse.status == HttpStatusCode.Unauthorized -> {
+                            SessionState.clear()
                             _validationState.value = UiState.Idle
                             throw CancellationException("Session invalidated during capabilities validation")
                         }

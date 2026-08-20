@@ -15,9 +15,12 @@ leave bootstrap requests running and write stale user/capability state into `Ses
   ViewModel construction at all three hosts.
 - Preserve independent launch-validation and Login bootstrap state and existing explicit
   `cancelValidation()` behavior.
-- Add lifecycle/cancellation regression coverage at the narrowest existing test seam.
-- Do not change `SessionState`, bootstrap HTTP behavior, navigation, or the deferred Branch Select
-  attendance lifecycle decision.
+- Publish bootstrap session data through one existing-state owner seam: keep responses local until
+  both requests succeed, publish capabilities before user readiness, and clear stale state on an
+  authentication response.
+- Add lifecycle/cancellation regression coverage at the narrowest existing test seam; production
+  host disposal is verified through existing lifecycle-aware `viewModel {}` construction.
+- Do not change navigation or the deferred Branch Select attendance lifecycle decision.
 
 ## Validation
 

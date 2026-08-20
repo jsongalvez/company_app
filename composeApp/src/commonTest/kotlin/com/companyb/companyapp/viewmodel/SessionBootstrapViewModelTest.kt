@@ -170,6 +170,15 @@ class SessionBootstrapViewModelTest {
                     ),
                 )
 
+            SessionState.setUser(
+                MeResponse(
+                    id = "stale",
+                    username = "stale",
+                    status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
+                    createdAt = "2026-08-10T00:00:00+08:00",
+                ),
+            )
+
             vm.validateSession()
             advanceUntilIdle()
 

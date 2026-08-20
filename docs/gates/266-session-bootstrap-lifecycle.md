@@ -11,6 +11,6 @@
   EVIDENCE: exit 0
 
 - [x] G3: Android and Desktop Compose sources compile with existing common ViewModel tests
-  CHECK: ./gradlew :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinDesktop :composeApp:test
-  EXPECT: EXIT 0
-  EVIDENCE: Reusing configuration cache.
+  CHECK: ./gradlew :composeApp:compileDebugKotlinAndroid :composeApp:compileKotlinDesktop :composeApp:test >/dev/null && echo BUILD SUCCESSFUL
+  EXPECT: MATCHES BUILD SUCCESSFUL
+  EVIDENCE: BUILD SUCCESSFUL
