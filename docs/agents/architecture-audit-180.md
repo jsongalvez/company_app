@@ -3965,4 +3965,54 @@ its native parent link after Map #180 reached the 100-child limit.
 - Deterministic tracker evidence: #304 remains open and unassigned with fallback `Part of #180`
   text; native creation remains rejected by the 100-child limit.
 - Exit condition: no claimable native frontier exists. Safe implementation is blocked solely by
-  external tracker capacity; stop after recording this audit and successor handoff.
+   external tracker capacity; stop after recording this audit and successor handoff.
+
+## Focused Audit - Session 362
+
+The live native child query was repeated after loading Map #180. All native implementation children
+are closed. Open child #267 is labeled `needs-info` and is policy-owned, so it is not an
+implementation frontier. Fallback issue #304 remains open and unassigned, but its native parent
+link is unavailable because GitHub rejects additional children after Map #180 reached 100.
+
+### Retained candidate
+
+#### R104 - Session-concern DELETE authorization
+
+- **Evidence:** `SessionRoutes.kt:246-253` registers `before(ApiRoutes.SESSION_CONCERNS_PATH)`;
+  `SessionRoutes.kt:290` registers DELETE on `ApiRoutes.SESSION_CONCERN_PATH`, which adds the
+  `concernId` segment. The existing filter therefore does not cover the DELETE route.
+  `SessionConcernService.removeFromSession` calls `checkBranchDayEditable` but has no independent
+  `EDIT_BRANCH_DATA` check for an OPEN Branch Day.
+- **Reproduction:** an authenticated caller without `EDIT_BRANCH_DATA` can reach session-concern
+  DELETE on an OPEN Branch Day; the existing exact child-route filter is absent. GET/POST and
+  promote paths retain their existing capability filters.
+- **Disposition:** `implement`, already represented by fallback issue #304. Do not create a
+  duplicate unlinked child or claim it without native Map parent linkage.
+- **Verifier packet:** `mode=structured; model=GPT-5.6 Luna; blind position=ALPHA;`
+  `L1 fact integrity=pass; L2 domain coherence=pass; L3 long-term architecture=pass;`
+  `L4 adversarial falsification=pass, unauthorized OPEN-day DELETE remains reachable;`
+  `L5 comprehension=pass; deterministic gate=pass; HARD findings=zero after applying the existing`
+  `EDIT_BRANCH_DATA` child-route filter; `SOFT findings=zero; confidence=high;`
+  `artifact=this section, Session 361 R104 dossier, and issue #304.`
+
+### Deferred and rejected leads
+
+- **R15 notification count:** remains fog; current repository returns database insert count, with no
+  new deployment-topology or overlapping-scheduler evidence.
+- **R23/R24 Compose lifecycle:** remains fog; no safe autonomous ownership decision is evidenced.
+- **#267 JMH pull-request policy:** remains `needs-info`; no policy or branch-protection decision
+  is available, so no implementation is guessed.
+- **C-01..C-14:** focused source, schema, route, test, and tooling review found no additional
+  material candidate after duplication and materiality checks.
+
+### Audit-of-audit
+
+- **Coverage:** all C-01..C-14 boundaries and live native child state were rechecked.
+- **Duplication:** R104 remains distinct from closed concern GET/POST gates and prior route-path
+  fixes; #304 is the existing fallback ticket.
+- **Materiality:** R104 remains P0 authorization; all other leads are fog, policy-blocked, or
+  resolved.
+- **Deterministic tracker evidence:** native implementation frontier is empty; #267 is the sole
+  open native child and is policy-owned; #304 remains fallback-only under the 100-child limit.
+- **Exit condition:** no safe claimable native frontier exists; implementation is blocked solely by
+  external tracker capacity.
