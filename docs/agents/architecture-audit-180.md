@@ -3040,3 +3040,17 @@ cancellation between the two legs and both capabilities 401/500 paths.
   tests, gate checker, and `git diff --check`: PASS.
 - No ADR needed; existing lifecycle-aware ViewModel, structured cancellation, and SessionState
   ownership decisions remain authoritative.
+
+### C12-D1 implementation evidence
+
+Child #265 is implemented in commit `1738eaf`. The k6 baseline documentation now matches
+`thresholdProfiles.baseline`: `branches_latency` p95 < 500ms, `clients_search_latency` p95 <
+1000ms, `product_latency` p95 < 1000ms, `my_branches_latency` p95 < 200ms,
+`dashboard_latency` p95 < 200ms, and `errors` rate < 5%. The stale `sessions_latency` entry was
+removed from both `tests/k6/results/baseline-results.md` and `backend/jmh-baselines.md`.
+
+- Deterministic documentation/source checks, `bash -n .githooks/pre-push`, and `git diff --check`:
+  PASS.
+- Pre-commit quality, OpenAPI, test-data cleanliness, shared compilation, and PostgreSQL
+  connectivity gates: PASS.
+- No ADR needed; this corrects documentation to existing k6 threshold ownership.
