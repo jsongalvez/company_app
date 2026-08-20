@@ -125,8 +125,8 @@ object BranchInventoryRepository {
 
             if (!wasInserted) {
                 val existingMovement = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
-                if (existingMovement.branchId != params.branchId) {
-                    throw ConflictException("Movement ID already belongs to another branch")
+                if (!sameMovementRequest(existingMovement, params)) {
+                    throw ConflictException("Movement ID already belongs to another request")
                 }
                 return@transaction existingMovement
             }
@@ -173,6 +173,19 @@ object BranchInventoryRepository {
             .where { InventoryMovementTable.id eq movementId }
             .singleOrNull()
             ?.toInventoryMovement()
+
+    @Suppress("ComplexCondition")
+    private fun sameMovementRequest(
+        existing: InventoryMovement,
+        params: RecordMovementParams,
+    ): Boolean =
+        existing.branchId == params.branchId &&
+            existing.productId == params.productId &&
+            existing.branchDayId == params.branchDayId &&
+            existing.reason == params.reason &&
+            existing.quantityChange == params.quantityChange &&
+            existing.notes == params.notes &&
+            existing.movedBy == params.movedBy
 
     fun findCardInTransaction(
         branchId: UUID,

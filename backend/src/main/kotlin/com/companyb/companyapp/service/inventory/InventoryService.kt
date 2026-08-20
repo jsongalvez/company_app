@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -34,9 +35,16 @@ object InventoryService {
         reason: String? = null,
     ): InventoryMovement {
         BranchInventoryRepository.findMovementById(movementId)?.let { existingMovement ->
-            if (existingMovement.branchId != branchId) {
-                throw ConflictException("Movement ID already belongs to another branch")
-            }
+            ensureRequestOwnership(
+                existingMovement,
+                branchId,
+                productId,
+                movementType.toInventoryMovementReason(),
+                quantityChange,
+                notes,
+                branchDayId,
+                callerId,
+            )
             return existingMovement
         }
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
@@ -129,6 +137,30 @@ object InventoryService {
     }
 
     private fun resolveThreshold(product: Product): Int = product.reorderPoint ?: LOW_STOCK_DEFAULT_THRESHOLD
+
+    @Suppress("ComplexCondition", "LongParameterList")
+    private fun ensureRequestOwnership(
+        existingMovement: InventoryMovement,
+        branchId: UUID,
+        productId: UUID,
+        movementReason: InventoryMovementReason,
+        quantityChange: Int,
+        notes: String?,
+        branchDayId: UUID,
+        callerId: UUID,
+    ) {
+        if (
+            existingMovement.branchId != branchId ||
+            existingMovement.productId != productId ||
+            existingMovement.reason != movementReason ||
+            existingMovement.quantityChange != quantityChange ||
+            existingMovement.notes != notes ||
+            existingMovement.branchDayId != branchDayId ||
+            existingMovement.movedBy != callerId
+        ) {
+            throw ConflictException("Movement ID already belongs to another request")
+        }
+    }
 
     @Suppress("ThrowsCount")
     fun ensureCard(

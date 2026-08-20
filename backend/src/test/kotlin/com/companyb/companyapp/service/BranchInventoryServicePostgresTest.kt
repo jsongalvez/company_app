@@ -287,6 +287,93 @@ class BranchInventoryServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `inventory movement UUID retry preserves original request`() {
+        InventoryService.ensureCard(branchId, productId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val movementId = TestFixtures.uuid()
+
+        val first =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = "initial stock",
+                branchDayId = branchDayId,
+            )
+        val retry =
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 10,
+                notes = "initial stock",
+                branchDayId = branchDayId,
+            )
+
+        assertEquals(first, retry)
+        assertEquals(1, transaction { InventoryMovementTable.selectAll().count() })
+        assertEquals(
+            1,
+            transaction { AuditLogTable.selectAll().where { AuditLogTable.recordId eq movementId }.count() },
+        )
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+    }
+
+    @Test
+    fun `inventory movement UUID retry rejects altered request ownership`() {
+        InventoryService.ensureCard(branchId, productId)
+        trackOwned(BranchInventoryTable, BranchInventoryTable.branchId, branchId)
+        val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val movementId = TestFixtures.uuid()
+        InventoryService.recordMovement(
+            callerId = callerId,
+            movementId = movementId,
+            branchId = branchId,
+            productId = productId,
+            movementType = MovementType.Restock,
+            quantityChange = 10,
+            notes = null,
+            branchDayId = branchDayId,
+        )
+        trackOwned(InventoryMovementTable, InventoryMovementTable.movedBy, callerId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+
+        assertFailsWith<ConflictException> {
+            InventoryService.recordMovement(
+                callerId = callerId,
+                movementId = movementId,
+                branchId = branchId,
+                productId = productId,
+                movementType = MovementType.Restock,
+                quantityChange = 11,
+                notes = null,
+                branchDayId = branchDayId,
+            )
+        }
+        assertEquals(
+            10,
+            InventoryService
+                .getStock(branchId)
+                .single()
+                .inventory
+                .currentStock,
+        )
+    }
+
+    @Test
     fun `movement ID from another branch does not create target inventory card`() {
         InventoryService.ensureCard(branchId, productId)
         val branchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
