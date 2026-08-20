@@ -12,7 +12,7 @@ STAGED_FILES="$(git diff --cached --no-renames --name-only)"
 PRE_COMMIT_CLASSIFICATION="$(printf '%s\n' "$STAGED_FILES" | bash "$ROOT_DIR/scripts/classify-push-files.sh")"
 log pre-commit "Staged change classification: $PRE_COMMIT_CLASSIFICATION"
 if [ "$PRE_COMMIT_CLASSIFICATION" = "docs-only" ]; then
-    log pre-commit "Documentation-only staged change; skipping quality, OpenAPI, database, shared compile, and Postgres gates."
+    log pre-commit "Documentation-only staged change; skipping local code gates."
     exit 0
 fi
 
@@ -53,82 +53,34 @@ else
 fi
 
 # ----------------------------------------------------------------
-# 2. Quality gate
+# 2. Fast staged validation
 # ----------------------------------------------------------------
-log pre-commit "Resetting disposable test database before quality gate..."
-bash scripts/clean-test-db.sh 2>&1 | tail -5
-log pre-commit "Disposable test database reset."
-log pre-commit "Running quality gate (detekt, ktlint, test, shared Detekt, shared compile, compiler warnings)..."
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test \
-    :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest \
-    :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest \
-    :shared:detektIosArm64Main :shared:detektIosArm64Test \
-    :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test \
-    :composeApp:detektDesktopTest \
-    :composeApp:detektAndroidDebugUnitTest \
-    :composeApp:detektIosArm64Test \
-    :composeApp:detektIosSimulatorArm64Test \
-    :composeApp:desktopTest \
-    :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain \
-    :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main \
-    :composeApp:detektIosSimulatorArm64Main \
-    :shared:compileKotlinJvm :shared:jvmTest \
-    -PwarningsAsErrors=true --no-daemon
-log pre-commit "Quality gate passed."
+GRADLE_TASKS=()
+SHELL_FILES=()
+while IFS= read -r file; do
+    case "$file" in
+        backend/src/main/**/*.kt|backend/src/test/**/*.kt|backend/src/**/*.java|backend/build.gradle.kts)
+            GRADLE_TASKS+=(":backend:compileKotlin" ":backend:compileTestKotlin" ":backend:detekt" ":backend:ktlintCheck") ;;
+        shared/**/*.kt|shared/build.gradle.kts)
+            GRADLE_TASKS+=(":shared:compileKotlinJvm" ":shared:detektJvmMain" ":shared:detektJvmTest") ;;
+        composeApp/**/*.kt|composeApp/build.gradle.kts)
+            GRADLE_TASKS+=(":composeApp:compileKotlinDesktop" ":composeApp:detektDesktopMain" ":composeApp:detektDesktopTest") ;;
+        build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/**/*.kts)
+            GRADLE_TASKS+=(":backend:compileKotlin" ":backend:compileTestKotlin" ":backend:detekt" ":backend:ktlintCheck" ":shared:compileKotlinJvm" ":shared:detektJvmMain" ":shared:detektJvmTest" ":composeApp:compileKotlinDesktop" ":composeApp:detektDesktopMain" ":composeApp:detektDesktopTest") ;;
+        *.sh|scripts/**/*.sh|.githooks/*)
+            SHELL_FILES+=("$file") ;;
+    esac
+done <<< "$STAGED_FILES"
 
-# ----------------------------------------------------------------
-# 3. OpenAPI contract gate
-# ----------------------------------------------------------------
-log pre-commit "Checking generated OpenAPI contract..."
-bash scripts/check-openapi-spec.sh 2>&1 | tail -10
-log pre-commit "OpenAPI contract gate passed."
-
-# ----------------------------------------------------------------
-# 4. Test-data cleanliness check
-# ----------------------------------------------------------------
-log pre-commit "Checking for test-data leaks..."
-if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
-    log pre-commit "ERROR: Test-data leak detected. All test tables must be empty after the test suite."
-    exit 1
+if [ "${#SHELL_FILES[@]}" -gt 0 ]; then
+    log pre-commit "Checking staged shell syntax..."
+    bash -n "${SHELL_FILES[@]}"
 fi
-log pre-commit "Test-data cleanliness check passed."
 
-# ----------------------------------------------------------------
-# 5. Shared module compilation check
-# ----------------------------------------------------------------
-# commonTest has no registered Detekt task; shared and Compose test execution covers its sources.
-log pre-commit "Shared module Detekt and compilation included in quality gate."
-
-# ----------------------------------------------------------------
-# 6. Ensure Postgres is reachable
-# ----------------------------------------------------------------
-source_env
-DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5432}"
-POSTGRES_USER="${POSTGRES_USER:-company_user}"
-POSTGRES_DB="${POSTGRES_DB:-company_app}"
-
-log pre-commit "Checking Postgres connectivity at $DB_HOST:$DB_PORT..."
-if command -v pg_isready &>/dev/null; then
-    if ! pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" &>/dev/null; then
-        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
-        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
-        exit 1
-    fi
-elif command -v psql &>/dev/null; then
-    if ! PGPASSWORD="${POSTGRES_PASSWORD:-}" psql -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT 1" &>/dev/null; then
-        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
-        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
-        exit 1
-    fi
-else
-    # Fallback: try connecting via /dev/tcp (bash builtin)
-    if ! timeout 3 bash -c "echo > /dev/tcp/$DB_HOST/$DB_PORT" 2>/dev/null; then
-        log pre-commit "ERROR: Postgres is not reachable at $DB_HOST:$DB_PORT."
-        log pre-commit "Start it with: docker compose -f docker/docker-compose.yml up -d"
-        exit 1
-    fi
+if [ "${#GRADLE_TASKS[@]}" -gt 0 ]; then
+    mapfile -t GRADLE_TASKS < <(printf '%s\n' "${GRADLE_TASKS[@]}" | sort -u)
+    log pre-commit "Running staged-module compile and static checks: ${GRADLE_TASKS[*]}"
+    ./gradlew "${GRADLE_TASKS[@]}" -PwarningsAsErrors=true --no-daemon
 fi
-log pre-commit "Postgres is reachable."
 
-log pre-commit "All checks passed — commit allowed."
+log pre-commit "Fast local checks passed; full tests, contracts, integration, and database cleanliness run in CI."

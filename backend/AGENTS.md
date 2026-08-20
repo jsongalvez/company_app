@@ -19,15 +19,20 @@ The authoritative schema is `backend/src/main/resources/db/migration/V1__full_sc
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
 
-## Quality gate (run before every commit)
+## Quality gate
 
-The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
+The pre-commit hook (`.githooks/pre-commit`) is intentionally fast: it formats staged
+Kotlin, checks staged shell syntax, and runs compile/static checks for changed modules.
+It does not access Postgres or run full tests, OpenAPI verification, Compose target
+matrices, or test-data cleanliness. Those integration checks run in CI on the pull
+request and merge path.
 
-1. **Formatting:** ktlint scoped to staged `.kt`/`.kts` files via `ktlint --format` CLI (falls back to project-wide `./gradlew ktlintFormat` if CLI not on PATH)
-2. **Static analysis & tests:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest :shared:detektIosArm64Main :shared:detektIosArm64Test :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test :shared:jvmTest -PwarningsAsErrors=true`
-3. **Test-data cleanliness:** verifies all test tables are empty after the test suite
-4. **Shared module compilation:** `./gradlew :shared:compileKotlinJvm`
-5. **Postgres connectivity:** verifies Postgres is reachable before commit is allowed.
+For the complete local quality gate, run:
+
+```bash
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest :shared:detektIosArm64Main :shared:detektIosArm64Test :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test :composeApp:detektDesktopTest :composeApp:detektAndroidDebugUnitTest :composeApp:detektIosArm64Test :composeApp:detektIosSimulatorArm64Test :composeApp:desktopTest :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main :composeApp:detektIosSimulatorArm64Main :shared:compileKotlinJvm :shared:jvmTest -PwarningsAsErrors=true
+bash scripts/check-test-cleanliness.sh
+```
 
 A pre-push hook (`.githooks/pre-push`) classifies the complete outgoing tree. Approved
 documentation-only pushes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`,
@@ -41,7 +46,8 @@ shift, copy the first CI run's scores into the file (see the workflow's comment)
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
-To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest :shared:detektIosArm64Main :shared:detektIosArm64Test :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test :shared:jvmTest -PwarningsAsErrors=true`
+The pre-commit hook's changed-module checks can be run manually by staging the files;
+CI remains authoritative for full validation.
 
 The pre-commit quality path passes `-PwarningsAsErrors=true`, making Kotlin and Java compiler
 warnings fail the local gate. Warnings must be fixed, not suppressed or baselined.

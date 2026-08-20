@@ -18,6 +18,11 @@ Do not push directly to `master` as a substitute for review.
 
 ## Gate Classification
 
+Pre-commit provides fast local feedback: staged Kotlin formatting, changed-module
+compile/static checks, and staged shell syntax checks. It does not require Postgres or
+run full tests. CI owns complete test, contract, integration, target-matrix, and
+test-data cleanliness checks.
+
 Docs-only changes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`,
 `CONTEXT.md`, `README*.md`, `CONTRIBUTING.md`, and `CHANGELOG.md`) skip local
 pre-push code, contract, Compose, startup, and k6 gates. They still use the
