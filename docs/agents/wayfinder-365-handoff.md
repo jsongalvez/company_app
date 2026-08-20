@@ -7,26 +7,28 @@
 
 ## Session outcome
 
-- Claimed and resolved [Document branch, PR, and merge policy](https://github.com/jsongalvez/company_app/issues/306).
-- Added `README.md` Contribution Workflow documentation covering short-lived `ralph/<feature-name>` branches, PRs targeting `master`, review, applicable CI checks, normal merge expectations, docs-only pushes, gate-sensitive pushes, and emergency/AFK handling.
+- Claimed [Adopt PR-based integration and slim local gates](https://github.com/jsongalvez/company_app/issues/305), as directed by Map #310.
+- Verified parent policy is not yet complete; implementation remains owned by its open rollout children.
+- Recorded verified gate ownership and blocker evidence in [#305](https://github.com/jsongalvez/company_app/issues/305#issuecomment-5361625973).
 - No production code or workflow behavior changed.
-- Map #310 Decisions so far now links #306.
 
 ## Evidence
 
-- `git diff --check -- README.md`: passed.
-- Current applicable CI ownership verified in `.github/workflows/quality.yml`, `.github/workflows/openapi.yml`, and `.github/workflows/jmh.yml`.
-- Current docs-only and gate-sensitive pre-push behavior verified in `.githooks/pre-push` and `AGENTS.md`.
+- `.github/workflows/quality.yml` has PR coverage for backend/shared/Compose quality and cleanliness.
+- `.github/workflows/openapi.yml` has PR coverage.
+- `.github/workflows/jmh.yml` remains push-only plus manual dispatch; no k6 workflow exists.
+- `.githooks/pre-commit` still runs broad quality work; `.githooks/pre-push` still runs cleanliness, OpenAPI, Compose compilation, and k6.
+- `git status --short --branch`: no worktree changes beyond branch state (`ahead 2`).
 
 ## Next frontier
 
-- Parent [Adopt PR-based integration and slim local gates](https://github.com/jsongalvez/company_app/issues/305) remains open.
+- Parent [Adopt PR-based integration and slim local gates](https://github.com/jsongalvez/company_app/issues/305) remains open and assigned from this session.
 - Next available rollout children are [Slim pre-commit to fast local feedback](https://github.com/jsongalvez/company_app/issues/308) and [Make CI own complete PR integration gates](https://github.com/jsongalvez/company_app/issues/309).
 - Do not select #304, #301, or #311 until #305 is resolved or explicitly released.
-- Claim exactly one next frontier child before work; suggested next ticket is #308, subject to current native dependency and assignee query.
+- Next session must claim exactly one child after current native dependency and assignee query; suggested next ticket is #308.
 
 ## Verification
 
-- No Gradle, database, or application gate run; documentation-only change.
+- No Gradle, database, or application gate run; session produced tracker evidence only.
 
-**Status:** Branch, PR, and merge policy documented; rollout gate work pending.
+**Status:** Parent policy verified incomplete; rollout gate work pending in #308/#309.

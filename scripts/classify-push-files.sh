@@ -14,6 +14,7 @@ while IFS= read -r file; do
     if [[ "$file" =~ (^|/)AGENTS\.md$ ||
         "$file" = CONTEXT.md ||
         "$file" =~ ^README[^/]*\.md$ ||
+        "$file" = CONTRIBUTING.md ||
         "$file" = CHANGELOG.md ||
         "$file" =~ ^docs/.+\.md$ ||
         "$file" =~ ^\.opencode/.+\.md$ ]]; then
