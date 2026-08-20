@@ -173,7 +173,8 @@ jobs:
             exit "$status"
           }
           trap cleanup EXIT
-          for attempt in $(seq 1 60); do
+          # Cold CI Gradle builds can take longer than a minute before the app listens.
+          for attempt in $(seq 1 150); do
             if curl --fail --silent "http://localhost:${APP_PORT}/health" >/dev/null; then
               break
             fi
@@ -183,5 +184,8 @@ jobs:
             fi
             sleep 2
           done
-          curl --fail --silent "http://localhost:${APP_PORT}/health" >/dev/null
+          curl --fail --silent "http://localhost:${APP_PORT}/health" >/dev/null || {
+            tail -50 /tmp/company-app-k6.log
+            exit 1
+          }
           k6 run tests/k6/baseline.js --quiet
