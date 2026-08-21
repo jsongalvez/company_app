@@ -27,13 +27,11 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
 object SessionService {
     private val logger = KotlinLogging.logger {}
-    private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
     @Suppress("ReturnCount", "ThrowsCount")
     fun computeSessionType(
@@ -91,7 +89,7 @@ object SessionService {
             return SessionCreateResult(existing, false)
         }
 
-        val today = LocalDate.now(manilaZone)
+        val today = BranchDayService.currentOperationalDate()
         val branchDay =
             gatedBranchDayId?.let { BranchDayService.requireBranchDayForBranch(it, branchId) }
                 ?: BranchDayService.resolveOrCreate(branchId, today)

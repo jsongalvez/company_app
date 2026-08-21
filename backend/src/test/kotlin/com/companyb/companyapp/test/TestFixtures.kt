@@ -1,9 +1,9 @@
 package com.companyb.companyapp.test
 
+import com.companyb.companyapp.service.branchday.BranchDayService
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.YearMonth
-import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -12,9 +12,10 @@ import java.util.concurrent.locks.LockSupport
 
 object TestFixtures {
     private const val UUID_COUNTER_SHIFT = 32
-    private val manilaZone = ZoneId.of("Asia/Manila")
     private val nextUuid = AtomicLong(1)
-    val today: LocalDate = LocalDate.now(manilaZone)
+
+    /** The current operational date (04:00 Asia/Manila rollover) — must match BranchDayService. */
+    val today: LocalDate = BranchDayService.currentOperationalDate()
     val now: OffsetDateTime = today.atTime(12, 0).atOffset(ZoneOffset.UTC)
     val currentMonth: YearMonth = YearMonth.from(today)
 

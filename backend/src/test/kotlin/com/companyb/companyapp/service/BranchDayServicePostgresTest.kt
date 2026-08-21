@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
@@ -64,6 +65,28 @@ class BranchDayServicePostgresTest : BasePostgresTest() {
     fun `getToday throws NotFound for missing branch`() {
         assertFailsWith<NotFoundException> {
             BranchDayService.getToday(TestFixtures.uuid())
+        }
+    }
+
+    @Test
+    fun `historical day gates evaluate through the central operational-date policy`() {
+        val yesterday = TestFixtures.today.minusDays(1)
+        val yesterdayId =
+            DatabaseTestHelper.createBranchDayForDate(branchId, yesterday)
+
+        // Persisted status is still OPEN; the effective evaluation must treat it as PAST.
+        transaction {
+            BranchDayTable.update({ BranchDayTable.id eq yesterdayId }) {
+                it[BranchDayTable.status] = DayStatus.OPEN
+            }
+        }
+
+        assertEquals(DayStatus.PAST, BranchDayService.getEffectiveStatus(yesterdayId))
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.checkBranchDayReadable(TestFixtures.uuid(), yesterdayId)
+        }
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.checkBranchDayEditable(TestFixtures.uuid(), yesterdayId)
         }
     }
 }

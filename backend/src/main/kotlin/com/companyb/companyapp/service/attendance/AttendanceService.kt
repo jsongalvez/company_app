@@ -9,15 +9,11 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.time.LocalDate
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.util.UUID
 
 object AttendanceService {
     private val logger = KotlinLogging.logger {}
-
-    private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
 
     fun findUsersClockedInAt(
         branchDayId: UUID,
@@ -116,7 +112,7 @@ object AttendanceService {
             return AttendanceServiceResult(existing, false, isRelief)
         }
 
-        val today = LocalDate.now(manilaZone)
+        val today = BranchDayService.currentOperationalDate()
         val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
         ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)

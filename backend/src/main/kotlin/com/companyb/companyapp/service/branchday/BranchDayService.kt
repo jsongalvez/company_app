@@ -10,6 +10,7 @@ import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
@@ -21,8 +22,10 @@ import java.util.UUID
  * Shared day-state service. Every operational/financial write must call [checkBranchDayEditable]
  * before mutating, and create the owning day via [resolveOrCreate].
  *
- * Day state is lazily evaluated against the current Asia/Manila calendar date: a day that is
- * still OPEN but whose calendar date is already in the past is treated as PAST.
+ * Day state is lazily evaluated against the current operational date: a day that is still OPEN
+ * but whose date precedes [currentOperationalDate] is treated as PAST. The operational day rolls
+ * over at [DAY_BOUNDARY_HOUR] 04:00 Asia/Manila, not at calendar midnight — this service is the
+ * sole authority for that boundary; consumers must never derive it independently.
  */
 @Suppress("TooManyFunctions")
 object BranchDayService {
@@ -32,6 +35,21 @@ object BranchDayService {
     private const val ONE_DAY = 1L
 
     val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
+
+    /**
+     * Pure operational-date policy: the business day whose 04:00 Asia/Manila rollover contains
+     * [at]. Between Manila midnight and 04:00 the answer is still the previous calendar date —
+     * e.g. 2026-06-27T02:00 Manila is operational date 2026-06-26. This is the single source of
+     * truth for "which day is it"; callers pass an exact instant, never a pre-derived LocalDate.
+     */
+    fun currentOperationalDate(at: Instant): LocalDate {
+        val manilaNow = at.atZone(manilaZone)
+        val beforeCutoff = manilaNow.toLocalTime() < LocalTime.of(DAY_BOUNDARY_HOUR, 0)
+        return if (beforeCutoff) manilaNow.toLocalDate().minusDays(ONE_DAY) else manilaNow.toLocalDate()
+    }
+
+    /** Convenience overload resolving [currentOperationalDate] at the current instant. */
+    fun currentOperationalDate(): LocalDate = currentOperationalDate(Instant.now())
 
     fun resolveOrCreate(
         branchId: UUID,
@@ -48,7 +66,7 @@ object BranchDayService {
      */
     fun getToday(branchId: UUID): BranchDay {
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-        val today = LocalDate.now(manilaZone)
+        val today = currentOperationalDate()
         return resolveOrCreate(branchId, today)
     }
 
@@ -78,7 +96,7 @@ object BranchDayService {
      * references an existing day row).
      */
     fun findToday(branchId: UUID): BranchDay? {
-        val today = LocalDate.now(manilaZone)
+        val today = currentOperationalDate()
         return BranchDayRepository.findByBranchAndDate(branchId, today)
     }
 
@@ -93,12 +111,12 @@ object BranchDayService {
 
     /**
      * Returns the effective status of a branch day, applying lazy evaluation:
-     * an OPEN day whose calendar date is in the past is treated as PAST.
+     * an OPEN day whose date precedes the current operational date is treated as PAST.
      * Returns null if the branch day does not exist.
      */
     fun getEffectiveStatus(branchDayId: UUID): DayStatus? {
         val branchDay = BranchDayRepository.findById(branchDayId) ?: return null
-        val today = LocalDate.now(manilaZone)
+        val today = currentOperationalDate()
         return evaluateStatus(branchDay.status, branchDay.date, today)
     }
 
@@ -117,7 +135,7 @@ object BranchDayService {
         reason: String? = null,
     ): Pair<BranchDay, Boolean> {
         val branchDay = requireBranchDayExists(branchDayId)
-        val today = LocalDate.now(manilaZone)
+        val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val isRemitted = effectiveStatus == DayStatus.REMITTED
         val hasEditPastDay = hasEditPastDayCapability(callerId, branchDay.branchId)
@@ -143,7 +161,7 @@ object BranchDayService {
         branchDayId: UUID,
     ): BranchDay {
         val branchDay = requireBranchDayExists(branchDayId)
-        val today = LocalDate.now(manilaZone)
+        val today = currentOperationalDate()
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         assertReadableState(effectiveStatus, hasEditPastDayCapability(callerId, branchDay.branchId))
         logger.info { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
@@ -162,8 +180,8 @@ object BranchDayService {
         )
 
     /**
-     * Pure day-state resolution: an OPEN day whose calendar date precedes [today] is treated as
-     * PAST. REMITTED and explicitly-PAST days are returned unchanged.
+     * Pure day-state resolution: an OPEN day whose date precedes [today] (the current
+     * operational date) is treated as PAST. REMITTED and explicitly-PAST days are returned unchanged.
      */
     fun evaluateStatus(
         status: DayStatus,

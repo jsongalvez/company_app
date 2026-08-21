@@ -4,8 +4,11 @@ import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.service.branchday.BranchDayService
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -19,6 +22,84 @@ class BranchDayServiceTest {
     fun `open day in the past is treated as PAST`() {
         val result = BranchDayService.evaluateStatus(DayStatus.OPEN, today.minusDays(1), today)
         assertEquals(DayStatus.PAST, result)
+    }
+
+    // ---- currentOperationalDate (04:00 Asia/Manila rollover) ----
+
+    private fun manilaInstant(
+        date: LocalDate,
+        time: LocalTime,
+    ): Instant = ZonedDateTime.of(date, time, BranchDayService.manilaZone).toInstant()
+
+    @Test
+    fun `nanosecond before cutoff belongs to previous operational date`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(3, 59, 59, 999_999_999))
+        assertEquals(LocalDate.of(2026, 6, 26), BranchDayService.currentOperationalDate(at))
+    }
+
+    @Test
+    fun `nanosecond at cutoff rolls to next operational date`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(4, 0, 0, 0))
+        assertEquals(LocalDate.of(2026, 6, 27), BranchDayService.currentOperationalDate(at))
+    }
+
+    @Test
+    fun `one second before 4am belongs to previous operational date`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(3, 59, 59))
+        assertEquals(LocalDate.of(2026, 6, 26), BranchDayService.currentOperationalDate(at))
+    }
+
+    @Test
+    fun `exactly 4am rolls to next operational date`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(4, 0, 0))
+        assertEquals(LocalDate.of(2026, 6, 27), BranchDayService.currentOperationalDate(at))
+    }
+
+    @Test
+    fun `one second after 4am is next operational date`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(4, 0, 1))
+        assertEquals(LocalDate.of(2026, 6, 27), BranchDayService.currentOperationalDate(at))
+    }
+
+    @Test
+    fun `calendar midnight does not roll the operational date`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.MIDNIGHT)
+        assertEquals(LocalDate.of(2026, 6, 26), BranchDayService.currentOperationalDate(at))
+    }
+
+    @Test
+    fun `midnight to 4am window keeps prior calendar date current`() {
+        val at = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(2, 30))
+        val opDate = BranchDayService.currentOperationalDate(at)
+        // The day dated 06-26 is still the current OPEN day at 02:30 on calendar 06-27.
+        assertEquals(DayStatus.OPEN, BranchDayService.evaluateStatus(DayStatus.OPEN, opDate, opDate))
+        assertEquals(
+            DayStatus.PAST,
+            BranchDayService.evaluateStatus(DayStatus.OPEN, LocalDate.of(2026, 6, 25), opDate),
+        )
+    }
+
+    @Test
+    fun `remitted stays remitted regardless of cutoff`() {
+        val remittedDay = LocalDate.of(2026, 6, 20)
+        val beforeCutoff = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(3, 59, 59))
+        val afterCutoff = manilaInstant(LocalDate.of(2026, 6, 27), LocalTime.of(4, 0, 1))
+        assertEquals(
+            DayStatus.REMITTED,
+            BranchDayService.evaluateStatus(
+                DayStatus.REMITTED,
+                remittedDay,
+                BranchDayService.currentOperationalDate(beforeCutoff),
+            ),
+        )
+        assertEquals(
+            DayStatus.REMITTED,
+            BranchDayService.evaluateStatus(
+                DayStatus.REMITTED,
+                remittedDay,
+                BranchDayService.currentOperationalDate(afterCutoff),
+            ),
+        )
     }
 
     @Test

@@ -423,7 +423,7 @@ internal object RemittanceRepository {
 
     /**
      * Reverts a SUBMITTED remittance to DRAFT within the 48h undo window (server-enforced).
-     * Days unlock (status re-derived from their calendar date), the snapshot row is deleted
+     * Days unlock (status re-derived from their operational date), the snapshot row is deleted
      * (V13 trigger carve-out: allowed when the parent remittance is DRAFT), version bumps,
      * submitted_at cleared (a reverted draft has no submission instant).
      *
@@ -496,7 +496,7 @@ internal object RemittanceRepository {
 
             val snapshotBefore = RemittanceFinancialSnapshotRepository.deleteByRemittanceId(params.remittanceId)
 
-            val today = LocalDate.now(BranchDayService.manilaZone)
+            val today = BranchDayService.currentOperationalDate()
             val branchDayPairs =
                 breakdownDayRows.map { beforeRow ->
                     val afterStatus =
@@ -586,7 +586,7 @@ internal object RemittanceRepository {
         expectedVersion: Int,
         callerId: UUID,
     ) {
-        val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
+        val today = BranchDayService.currentOperationalDate()
         val updated =
             RemittanceTable.update({
                 (RemittanceTable.id eq remittanceId) and

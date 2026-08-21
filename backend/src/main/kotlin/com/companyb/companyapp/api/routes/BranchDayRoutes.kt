@@ -14,7 +14,6 @@ import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
-import java.time.LocalDate
 import java.util.UUID
 
 @OpenApi(
@@ -79,7 +78,7 @@ object BranchDayRoutes {
             BranchDayService.evaluateStatus(
                 branchDay.status,
                 branchDay.date,
-                LocalDate.now(BranchDayService.manilaZone),
+                BranchDayService.currentOperationalDate(),
             )
         context.json(
             BranchDayTodayResponse(

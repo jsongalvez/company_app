@@ -87,7 +87,7 @@ object RemittanceService {
         BranchRepository.findById(branchId)
             ?: throw NotFoundException("Branch not found")
 
-        val today = LocalDate.now(BranchDayService.manilaZone)
+        val today = BranchDayService.currentOperationalDate()
         val result =
             RemittanceRepository.createDraft(
                 CreateDraftParams(
@@ -475,7 +475,7 @@ object RemittanceService {
     ): List<BranchDay> {
         BranchRepository.findById(branchId)
             ?: throw NotFoundException("Branch not found")
-        val today = LocalDate.now(BranchDayService.manilaZone)
+        val today = BranchDayService.currentOperationalDate()
         return RemittanceRepository
             .findBranchDaysInRange(branchId, from, to)
             .map { day -> day.copy(status = BranchDayService.evaluateStatus(day.status, day.date, today)) }

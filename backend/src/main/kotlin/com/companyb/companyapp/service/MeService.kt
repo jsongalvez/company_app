@@ -23,7 +23,6 @@ import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
@@ -46,7 +45,7 @@ object MeService {
         }.also { logger.info { "[GET-ME] Fetched user $userId" } }
 
     fun getBranches(userId: UUID): List<MeBranchResponse> {
-        val today = LocalDate.now(BranchDayService.manilaZone)
+        val today = BranchDayService.currentOperationalDate()
         return transaction {
             requireActiveUserInTransaction(userId)
             val assignedBranchIds =

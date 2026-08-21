@@ -13,6 +13,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -171,6 +172,19 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         val result = AttendanceService.clockIn(attendanceId, branchId, userId)
 
         assertTrue(result.isRelief.not())
+    }
+
+    @Test
+    fun `clockIn resolves the operational day through the central Branch Day authority`() {
+        val expectedDate = BranchDayService.currentOperationalDate()
+        val attendanceId = TestFixtures.uuid()
+
+        val result = AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        val expectedBranchDay = BranchDayService.findByBranchAndDate(branchId, expectedDate)
+        assertNotNull(expectedBranchDay)
+        assertEquals(expectedBranchDay.id, result.branchDayId)
+        assertEquals(TestFixtures.today, expectedDate)
     }
 
     @Test
