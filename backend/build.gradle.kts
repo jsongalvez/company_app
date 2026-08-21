@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm")
+    kotlin("kapt")
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.jmh)
     application
@@ -10,6 +11,9 @@ dependencies {
 
     // Javalin
     implementation(libs.javalin)
+    implementation(libs.javalin.openapi.plugin)
+    implementation(libs.javalin.swagger.plugin)
+    kapt(libs.javalin.openapi.processor)
 
     // Database
     implementation(libs.postgresql)
@@ -50,6 +54,15 @@ dependencies {
     // JMH
     jmh(libs.jmh.core)
     jmhAnnotationProcessor(libs.jmh.annprocess)
+}
+
+tasks.register<Exec>("publishOpenApiSpec") {
+    val generated = layout.buildDirectory.file("tmp/kapt3/classes/main/openapi-plugin/openapi-default.json")
+    commandLine("node", "../scripts/normalize-openapi-spec.mjs", generated.get().asFile, generated.get().asFile)
+}
+
+tasks.named("compileKotlin") {
+    finalizedBy("publishOpenApiSpec")
 }
 
 application {

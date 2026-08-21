@@ -8,6 +8,7 @@ data class CreateAllowanceRequest(
     val branchDayId: String,
     val userId: String,
     val amount: String,
+    val reason: String? = null,
 )
 
 @Serializable

@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.companyb.companyapp.config.TOKEN_STORE_KEY
+import com.companyb.companyapp.util.logError
 import com.companyb.companyapp.util.logInfo
 
 actual fun createTokenStore(): TokenStore {
@@ -22,10 +23,14 @@ private const val PREFS_NAME = "companyapp_auth"
 class AndroidTokenStore(
     context: Context,
 ) : TokenStore {
-    private val prefs: SharedPreferences = createEncryptedPrefs(context)
+    private val prefs: SharedPreferences? = createEncryptedPrefs(context)
+
+    @Volatile
+    private var sessionToken: String? = null
 
     @SuppressLint("GetInstance")
-    private fun createEncryptedPrefs(context: Context): SharedPreferences =
+    @Suppress("TooGenericExceptionCaught")
+    private fun createEncryptedPrefs(context: Context): SharedPreferences? =
         try {
             val masterKey =
                 MasterKey
@@ -39,23 +44,29 @@ class AndroidTokenStore(
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
             )
-        } catch (_: Exception) {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        } catch (e: Exception) {
+            logError(
+                "TokenStore",
+                "Encrypted preferences unavailable; token will not persist: ${e.message.orEmpty()}",
+                e,
+            )
+            null
         }
 
     override fun saveToken(token: String) {
         logInfo("TokenStore", "saveToken: length=${token.length}")
-        prefs.edit().putString(TOKEN_STORE_KEY, token).apply()
+        prefs?.edit()?.putString(TOKEN_STORE_KEY, token)?.apply() ?: run { sessionToken = token }
     }
 
     override fun getToken(): String? {
-        val token = prefs.getString(TOKEN_STORE_KEY, null)
+        val token = prefs?.getString(TOKEN_STORE_KEY, null) ?: sessionToken
         logInfo("TokenStore", "getToken: found=${token != null}")
         return token
     }
 
     override fun clearToken() {
         logInfo("TokenStore", "clearToken")
-        prefs.edit().remove(TOKEN_STORE_KEY).apply()
+        prefs?.edit()?.remove(TOKEN_STORE_KEY)?.apply()
+        sessionToken = null
     }
 }

@@ -5,12 +5,14 @@ import com.companyb.companyapp.api.routes.AllowanceRoutes
 import com.companyb.companyapp.api.routes.AttendanceRoutes
 import com.companyb.companyapp.api.routes.AuditLogRoutes
 import com.companyb.companyapp.api.routes.AuthRoutes
+import com.companyb.companyapp.api.routes.BranchDayRoutes
 import com.companyb.companyapp.api.routes.BranchInventoryRoutes
 import com.companyb.companyapp.api.routes.BranchRoutes
 import com.companyb.companyapp.api.routes.ClientRoutes
 import com.companyb.companyapp.api.routes.CommissionRoutes
 import com.companyb.companyapp.api.routes.CompensationRoutes
 import com.companyb.companyapp.api.routes.DailySalesSummaryRoutes
+import com.companyb.companyapp.api.routes.DashboardRoutes
 import com.companyb.companyapp.api.routes.ExpenseRoutes
 import com.companyb.companyapp.api.routes.ExportRoutes
 import com.companyb.companyapp.api.routes.HealthRoutes
@@ -22,6 +24,7 @@ import com.companyb.companyapp.api.routes.ProductCategoryRoutes
 import com.companyb.companyapp.api.routes.ProductRoutes
 import com.companyb.companyapp.api.routes.ProductSaleRoutes
 import com.companyb.companyapp.api.routes.ReliefAccessRoutes
+import com.companyb.companyapp.api.routes.ReliefInviteRoutes
 import com.companyb.companyapp.api.routes.RemittanceRoutes
 import com.companyb.companyapp.api.routes.SessionBaseRateRoutes
 import com.companyb.companyapp.api.routes.SessionRoutes
@@ -39,22 +42,19 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
-import com.companyb.companyapp.service.NextAppointmentScheduler
-import com.companyb.companyapp.utils.Helper
+import com.companyb.companyapp.service.SchedulerLifecycle
+import com.companyb.companyapp.utils.RandomIdGenerator
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.javalin.Javalin
 import io.javalin.http.UnauthorizedResponse
+import io.javalin.openapi.plugin.OpenApiPlugin
+import io.javalin.openapi.plugin.swagger.SwaggerPlugin
 import org.slf4j.MDC
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
 
 private const val KB = 1024L
 private const val MAX_REQUEST_SIZE_KB = 64L
-private const val SCHEDULER_PERIOD_HOURS = 24L
 private const val HTTP_BAD_REQUEST = 400
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_NOT_FOUND = 404
@@ -70,14 +70,28 @@ fun initializeJavalin(config: AppConfig) {
     logger.info { "[INITIALIZE-JAVALIN] Application started" }
 }
 
+@Suppress("LongMethod")
 private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     config.jsonMapper(KotlinxSerializationMapper())
+    config.registerPlugin(
+        OpenApiPlugin { openapi ->
+            openapi.withDefinitionConfiguration { _, builder ->
+                builder.info { info ->
+                    info.title("CompanyApp Backend API")
+                    info.version("1.0.0")
+                }
+                builder.withBearerAuth("BearerAuth")
+                builder.withGlobalSecurity("BearerAuth")
+            }
+        },
+    )
+    config.registerPlugin(SwaggerPlugin())
     config.http.maxRequestSize = MAX_REQUEST_SIZE_KB * KB
     config.routes.before {
         // logback.xml %X{traceId} %X == %mdc
         RequestElapsedConverter.startRequest()
         DeltaTimeConverter.startRequest()
-        val traceId = Helper().generateRandomId()
+        val traceId = RandomIdGenerator.generate()
         MDC.put("traceId", traceId)
         logger.info { "[REQUEST] starting request" }
     }
@@ -87,6 +101,19 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
         RequestElapsedConverter.endRequest()
         DeltaTimeConverter.endRequest()
         MDC.clear()
+    }
+    config.events.serverStartFailed {
+        shutdownScheduler()
+        DatabaseConfig.close()
+    }
+    config.events.serverStopping {
+        shutdownScheduler()
+    }
+    config.events.serverStopped {
+        DatabaseConfig.close()
+    }
+    config.events.serverStopFailed {
+        DatabaseConfig.close()
     }
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
         val token = context.header("Authorization")?.removePrefix("Bearer ") ?: throw UnauthorizedResponse()
@@ -100,14 +127,16 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     AuthRoutes.logout(config)
     MeRoutes.getMe(config)
     MeRoutes.getCapabilities(config)
+    MeRoutes.getBranches(config)
     AttendanceRoutes.clockIn(config)
     AttendanceRoutes.clockOut(config)
     BranchRoutes.register(config)
     UserBranchAssignmentRoutes.register(config)
-    UserRoutes.deactivate(config)
+    UserRoutes.register(config)
     ReliefAccessRoutes.requestReliefAccess(config)
     ReliefAccessRoutes.grantReliefAccess(config)
     ReliefAccessRoutes.denyReliefAccess(config)
+    ReliefInviteRoutes.register(config)
     MedicalMissionDelegateRoutes.assignDelegate(config)
     MedicalMissionDelegateRoutes.revokeDelegate(config)
     ClientRoutes.register(config)
@@ -116,6 +145,8 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     ProductCategoryRoutes.register(config)
     ProductRoutes.register(config)
     BranchInventoryRoutes.register(config)
+    BranchDayRoutes.register(config)
+    DashboardRoutes.register(config)
     ProductSaleRoutes.register(config)
     CompensationRoutes.register(config)
     CommissionRoutes.register(config)
@@ -145,39 +176,16 @@ private fun registerExceptionHandlers(config: io.javalin.config.JavalinConfig) {
 }
 
 fun initializeDenyList() {
-    logger.info { "[INITIALIZE-DENY-LIST] Loading inactive users into deny list" }
-    DenyList.loadInactiveUsers()
+    logger.info { "[INITIALIZE-DENY-LIST] Loading persisted revocations into deny list" }
+    DenyList.loadPersistedRevocations()
     logger.info { "[INITIALIZE-DENY-LIST] Deny list initialized" }
 }
 
-fun initializeScheduler() {
-    val scheduler =
-        Executors.newSingleThreadScheduledExecutor { runnable ->
-            Thread(runnable, "notification-scheduler").apply { isDaemon = true }
-        }
-    val manilaZone = ZoneId.of("Asia/Manila")
-    val now = ZonedDateTime.now(manilaZone)
-    val initialDelayMs = NextAppointmentScheduler.nextRunDelayMs(now)
+private val schedulerLifecycle = SchedulerLifecycle()
 
-    logger.info {
-        "[SCHEDULER] Scheduling notification task at 07:00 AM Manila (initial delay: ${initialDelayMs}ms)"
-    }
+fun initializeScheduler() = schedulerLifecycle.start()
 
-    scheduler.scheduleAtFixedRate(
-        @Suppress("TooGenericExceptionCaught")
-        {
-            try {
-                val count = NextAppointmentScheduler.run()
-                logger.info { "[SCHEDULER] Created $count notifications" }
-            } catch (e: Exception) {
-                logger.error(e) { "[SCHEDULER] Notification task failed" }
-            }
-        },
-        initialDelayMs,
-        TimeUnit.HOURS.toMillis(SCHEDULER_PERIOD_HOURS),
-        TimeUnit.MILLISECONDS,
-    )
-}
+fun shutdownScheduler() = schedulerLifecycle.stop()
 
 fun main() {
     main(AppConfig.parse())
@@ -192,9 +200,14 @@ fun main(config: AppConfig) {
     Password.init(config.authDummyPassword)
 
     DatabaseConfig.initialize(config)
-    initializeDenyList()
-    initializeScheduler()
-    initializeJavalin(config)
+    runCatching {
+        initializeDenyList()
+        initializeScheduler()
+        initializeJavalin(config)
+    }.onFailure {
+        shutdownScheduler()
+        DatabaseConfig.close()
+    }.getOrThrow()
 
     val elapsed = RequestElapsedConverter.currentElapsedMs()
     logger.info { "[INITIALIZATION] Completed in $elapsed ms." }

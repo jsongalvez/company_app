@@ -1,6 +1,6 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -13,9 +13,11 @@ import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -23,6 +25,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -34,15 +37,15 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ConcernServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
-    private val sessionId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val rateId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val systemConcernId = UUID.randomUUID()
-    private val promotedSessionId = UUID.randomUUID()
-    private val promotedClientId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
+    private val sessionId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val rateId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val systemConcernId = TestFixtures.uuid()
+    private val promotedSessionId = TestFixtures.uuid()
+    private val promotedClientId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "concern-caller")
@@ -82,7 +85,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `listAll without EDIT_BRANCH_DATA is allowed at service layer`() {
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
@@ -98,15 +101,48 @@ class ConcernServicePostgresTest : BasePostgresTest() {
         val concerns = SessionService.getSessionConcerns(callerId, sessionId)
         assertEquals(1, concerns.size)
         assertEquals(systemConcernId, concerns[0].id)
-
         val auditCount =
             transaction {
                 AuditLogTable
                     .selectAll()
-                    .where { AuditLogTable.auditTableName eq SessionConcernTable.tableName }
-                    .count()
+                    .where {
+                        (AuditLogTable.auditTableName eq SessionConcernTable.tableName) and
+                            (AuditLogTable.recordId eq sessionId)
+                    }.count()
             }
         assertEquals(1L, auditCount)
+    }
+
+    @Test
+    fun `add concern on REMITTED day with reason succeeds and flags audit entry`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedSessionId = TestFixtures.uuid()
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        SessionService.addSessionConcern(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
+        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, remittedSessionId)
+
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq SessionConcernTable.tableName) and
+                            (AuditLogTable.recordId eq remittedSessionId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
     }
 
     @Test
@@ -120,7 +156,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `add concern without EDIT_BRANCH_DATA is allowed at service layer`() {
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
@@ -135,14 +171,14 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `add concern throws 404 for non-existent session`() {
         assertFailsWith<NotFoundException> {
-            SessionService.addSessionConcern(callerId, UUID.randomUUID(), systemConcernId)
+            SessionService.addSessionConcern(callerId, TestFixtures.uuid(), systemConcernId)
         }
     }
 
     @Test
     fun `add concern throws 404 for non-existent concern`() {
         assertFailsWith<NotFoundException> {
-            SessionService.addSessionConcern(callerId, sessionId, UUID.randomUUID())
+            SessionService.addSessionConcern(callerId, sessionId, TestFixtures.uuid())
         }
     }
 
@@ -170,7 +206,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `remove concern without EDIT_BRANCH_DATA is allowed at service layer`() {
         SessionService.addSessionConcern(callerId, sessionId, systemConcernId)
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
@@ -184,7 +220,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     @Test
     fun `remove concern throws 404 for non-existent concern`() {
         assertFailsWith<NotFoundException> {
-            SessionService.removeSessionConcern(callerId, sessionId, UUID.randomUUID())
+            SessionService.removeSessionConcern(callerId, sessionId, TestFixtures.uuid())
         }
     }
 
@@ -192,7 +228,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     fun `promote concern creates concern, links to session, and nullifies otherConcerns`() {
         SessionService.addSessionConcern(callerId, promotedSessionId, systemConcernId)
 
-        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Back Pain")
+        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, TestFixtures.uuid(), "Back Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
@@ -208,7 +244,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promoted concern is discoverable in all concerns list`() {
-        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Neck Pain")
+        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, TestFixtures.uuid(), "Neck Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val allConcerns = ConcernService.listAll()
@@ -217,8 +253,55 @@ class ConcernServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `getForSession on REMITTED day with EDIT_PAST_DAY returns concerns without requiring a reason`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedSessionId = TestFixtures.uuid()
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+
+        SessionService.addSessionConcern(callerId, remittedSessionId, systemConcernId, "Coordinator correction")
+        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, remittedSessionId)
+
+        val concerns = SessionService.getSessionConcerns(callerId, remittedSessionId)
+
+        assertEquals(1, concerns.size)
+        assertEquals(systemConcernId, concerns[0].id)
+    }
+
+    @Test
+    fun `getForSession on REMITTED day without EDIT_PAST_DAY is forbidden`() {
+        val otherCaller = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(otherCaller, "concern-remitted-no-caps")
+        trackOwned(AppUserTable, AppUserTable.id, otherCaller)
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedSessionId = TestFixtures.uuid()
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+
+        assertFailsWith<ForbiddenException> {
+            SessionService.getSessionConcerns(otherCaller, remittedSessionId)
+        }
+    }
+
+    @Test
     fun `getForSession without EDIT_BRANCH_DATA is allowed at service layer`() {
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
@@ -229,12 +312,18 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promote concern without EDIT_BRANCH_DATA is allowed at service layer`() {
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "concern-other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherCaller)
 
-        val promoted = SessionService.promoteConcern(otherCaller, promotedSessionId, UUID.randomUUID(), "Shoulder Pain")
+        val promoted =
+            SessionService.promoteConcern(
+                otherCaller,
+                promotedSessionId,
+                TestFixtures.uuid(),
+                "Shoulder Pain",
+            )
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         assertNotNull(promoted)
@@ -244,7 +333,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promote concern writes audit log`() {
-        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, UUID.randomUUID(), "Elbow Pain")
+        val promoted = SessionService.promoteConcern(callerId, promotedSessionId, TestFixtures.uuid(), "Elbow Pain")
         trackOwned(ConcernTable, ConcernTable.id, promoted.id)
 
         val auditCount =
@@ -261,7 +350,7 @@ class ConcernServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `promote concern with duplicate UUID returns existing concern idempotently`() {
-        val concernId = UUID.randomUUID()
+        val concernId = TestFixtures.uuid()
         val first = SessionService.promoteConcern(callerId, promotedSessionId, concernId, "Headache")
         trackOwned(ConcernTable, ConcernTable.id, first.id)
 
@@ -308,8 +397,8 @@ class ConcernServicePostgresTest : BasePostgresTest() {
                 it[SessionBaseRateTable.branchId] = branchId
                 it[SessionBaseRateTable.sessionType] = sessionType
                 it[SessionBaseRateTable.rate] = BigDecimal("2500.00")
-                it[SessionBaseRateTable.effectiveFrom] = OffsetDateTime.now(ZoneOffset.UTC).minusDays(1)
-                it[SessionBaseRateTable.effectiveUntil] = OffsetDateTime.now(ZoneOffset.UTC).plusDays(365)
+                it[SessionBaseRateTable.effectiveFrom] = TestFixtures.now.minusDays(1)
+                it[SessionBaseRateTable.effectiveUntil] = TestFixtures.now.plusDays(365)
             }
         }
     }

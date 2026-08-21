@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
+import com.companyb.companyapp.repository.RetryProductSaleParams
 import com.companyb.companyapp.repository.SellProductParams
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.BranchInventoryTable
@@ -13,6 +14,7 @@ import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object ProductSaleService {
@@ -29,8 +31,51 @@ object ProductSaleService {
         productId: UUID,
         quantity: Int,
         expectedVersion: Int,
+        reason: String? = null,
+    ): ProductSale =
+        transaction {
+            sellInTransaction(
+                callerId,
+                id,
+                branchDayId,
+                sessionId,
+                clientId,
+                isWalkIn,
+                productId,
+                quantity,
+                expectedVersion,
+                reason,
+            )
+        }
+
+    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList", "CyclomaticComplexMethod", "LongMethod")
+    private fun sellInTransaction(
+        callerId: UUID,
+        id: UUID,
+        branchDayId: UUID,
+        sessionId: UUID?,
+        clientId: UUID?,
+        isWalkIn: Boolean,
+        productId: UUID,
+        quantity: Int,
+        expectedVersion: Int,
+        reason: String?,
     ): ProductSale {
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        ProductSaleRepository
+            .findExistingForRetry(
+                RetryProductSaleParams(
+                    id = id,
+                    branchDayId = branchDayId,
+                    sessionId = sessionId,
+                    clientId = clientId,
+                    isWalkIn = isWalkIn,
+                    productId = productId,
+                    quantity = quantity,
+                    handledBy = callerId,
+                ),
+            )?.let { return it }
+
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
         if (BranchRepository.findById(branchDay.branchId) == null) {
             throw NotFoundException("Branch not found")
@@ -44,8 +89,11 @@ object ProductSaleService {
             throw ValidationException("Product is not active")
         }
 
-        if (sessionId != null && SessionRepository.findById(sessionId) == null) {
-            throw NotFoundException("Session not found")
+        if (sessionId != null) {
+            val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
+            if (session.branchDayId != branchDayId) {
+                throw NotFoundException("Session not found for this branch day")
+            }
         }
 
         val result =
@@ -68,8 +116,10 @@ object ProductSaleService {
                     tableName = ProductSaleTable.tableName,
                     recordId = sale.id,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     fields = ProductSaleTable.auditFields(sale),
                     isFlagged = isRemitted,
+                    reason = reason,
                 )
                 AuditLogRepository.recordUpdate(
                     tableName = BranchInventoryTable.tableName,
@@ -77,13 +127,17 @@ object ProductSaleService {
                     before = beforeCard,
                     after = afterCard,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
+                    reason = reason,
                     auditFields = BranchInventoryTable::auditFields,
                 )
             }
 
-        CommissionService.recalculate(branchDayId)
+        if (result.created) {
+            CommissionService.recalculate(branchDayId)
+        }
 
-        return result
+        return result.sale
     }
 }

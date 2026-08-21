@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
@@ -18,7 +19,6 @@ import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionPractitioner
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
@@ -28,7 +28,6 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
@@ -52,7 +51,7 @@ object SessionService {
         return SessionType.SUBSEQUENT
     }
 
-    @Suppress("LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
+    @Suppress("ComplexCondition", "LongParameterList", "ReturnCount", "ThrowsCount", "LongMethod")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -65,6 +64,13 @@ object SessionService {
         otherConcerns: String?,
         bookedAt: OffsetDateTime?,
         nextAppointmentDate: LocalDate?,
+        // #157: the branch day the route gate resolved (find-only). When provided, the create
+        // writes to THIS day instead of re-resolving today — the gate and the write share one
+        // resolution so a request straddling the Manila midnight boundary can't be gated
+        // against the granted day while landing on the next (the mixed-resolution-base class).
+        // Must belong to [branchId] — a foreign or missing day fails closed with 404
+        // (parent-child convention).
+        gatedBranchDayId: UUID? = null,
     ): SessionCreateResult {
         val branchType =
             SessionRepository.getBranchType(branchId)
@@ -72,12 +78,23 @@ object SessionService {
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {
+            val expectedBranchDayId =
+                gatedBranchDayId ?: BranchDayService.findToday(branchId)?.id
+            val sameClient = existing.clientId == clientId
+            val sameBranch = SessionRepository.branchDayBelongsToBranch(existing.branchDayId, branchId)
+            val sameDay = existing.branchDayId == expectedBranchDayId
+            val sameCaller = SessionRepository.createdBy(id) == callerId
+            if (!sameClient || !sameBranch || !sameDay || !sameCaller) {
+                throw ConflictException("Session id already belongs to another create request")
+            }
             logger.info { "[CREATE-SESSION] Session $id already exists, returning existing (idempotent)" }
             return SessionCreateResult(existing, false)
         }
 
         val today = LocalDate.now(manilaZone)
-        val branchDay = BranchDayService.resolveOrCreate(branchId, today)
+        val branchDay =
+            gatedBranchDayId?.let { BranchDayService.requireBranchDayForBranch(it, branchId) }
+                ?: BranchDayService.resolveOrCreate(branchId, today)
 
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)
@@ -106,6 +123,7 @@ object SessionService {
                     tableName = SessionTable.tableName,
                     recordId = session.id,
                     changedBy = callerId,
+                    branchId = branchId,
                     fields = SessionTable.auditFields(session),
                 )
             }
@@ -121,8 +139,7 @@ object SessionService {
         branchId: UUID,
         sessionType: SessionType,
     ): BigDecimal {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-        val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId, now)
+        val activeRates = SessionBaseRateRepository.findActiveByBranch(branchId)
         return activeRates
             .firstOrNull { it.sessionType == sessionType }
             ?.rate
@@ -135,6 +152,7 @@ object SessionService {
         sessionId: UUID,
         newStatus: SessionStatus,
         expectedVersion: Int,
+        reason: String? = null,
     ): Session {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
 
@@ -142,13 +160,13 @@ object SessionService {
             throw ConflictException("Session version mismatch")
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
 
         if (session.isWalkIn && newStatus in setOf(SessionStatus.NO_SHOW, SessionStatus.CANCELLED)) {
             throw ValidationException("Walk-in sessions cannot transition to NO_SHOW or CANCELLED")
         }
 
-        val oldStatus = SessionStatus.valueOf(session.sessionStatus)
+        val oldStatus = session.sessionStatus
 
         val updated =
             SessionRepository.updateStatus(
@@ -164,14 +182,60 @@ object SessionService {
                     before = session,
                     after = updatedSession,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
+                    reason = reason,
                     auditFields = SessionTable::auditFields,
                 )
             }
 
         logger.info {
             "[UPDATE-SESSION-STATUS] Session $sessionId status changed" +
-                " from ${session.sessionStatus} to ${newStatus.name}"
+                " from ${session.sessionStatus.name} to ${newStatus.name}"
+        }
+
+        return updated
+    }
+
+    @Suppress("ReturnCount", "ThrowsCount")
+    fun updateFinalPrice(
+        callerId: UUID,
+        sessionId: UUID,
+        newFinalPrice: BigDecimal,
+        expectedVersion: Int,
+        reason: String? = null,
+    ): Session {
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
+
+        if (session.version != expectedVersion) {
+            throw ConflictException("Session version mismatch")
+        }
+
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+
+        val updated =
+            SessionRepository.updateFinalPrice(
+                sessionId = sessionId,
+                newFinalPrice = newFinalPrice,
+                expectedVersion = expectedVersion,
+                changedBy = callerId,
+            ) { updatedSession ->
+                AuditLogRepository.recordUpdate(
+                    tableName = SessionTable.tableName,
+                    recordId = sessionId,
+                    before = session,
+                    after = updatedSession,
+                    changedBy = callerId,
+                    branchId = branchDay.branchId,
+                    isFlagged = isRemitted,
+                    reason = reason,
+                    auditFields = SessionTable::auditFields,
+                )
+            }
+
+        logger.info {
+            "[UPDATE-SESSION-FINAL-PRICE] Session $sessionId final price changed" +
+                " from ${session.finalPrice.toPlainString()} to ${newFinalPrice.toPlainString()}"
         }
 
         return updated
@@ -194,7 +258,7 @@ object SessionService {
             }
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, voidReason)
 
         val result =
             SessionVoidRepository.void(
@@ -207,8 +271,10 @@ object SessionService {
                     tableName = SessionVoidTable.tableName,
                     recordId = voidRecord.id,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     fields = SessionVoidTable.auditFields(voidRecord),
                     isFlagged = isRemitted,
+                    reason = voidReason,
                 )
             }
 
@@ -234,7 +300,12 @@ object SessionService {
             return sessionVoid
         }
 
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
+        val (branchDay, isRemitted) =
+            BranchDayService.checkBranchDayEditable(
+                callerId,
+                session.branchDayId,
+                unvoidedReason,
+            )
 
         val updated =
             SessionVoidRepository.unvoid(
@@ -248,7 +319,9 @@ object SessionService {
                     before = sessionVoid,
                     after = unvoided,
                     changedBy = callerId,
+                    branchId = branchDay.branchId,
                     isFlagged = isRemitted,
+                    reason = unvoidedReason,
                     auditFields = SessionVoidTable::auditFields,
                 )
             } ?: throw NotFoundException("Session void record not found after unvoid")
@@ -260,12 +333,14 @@ object SessionService {
 
     // --- Practitioner pass-throughs ---
 
+    @Suppress("LongParameterList")
     fun addPractitioner(
         callerId: UUID,
         id: UUID,
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        reason: String? = null,
     ): AddPractitionerResult =
         SessionPractitionerService.addPractitioner(
             callerId = callerId,
@@ -273,6 +348,7 @@ object SessionService {
             sessionId = sessionId,
             practitionerId = practitionerId,
             remarks = remarks,
+            reason = reason,
         )
 
     fun updatePractitionerRemarks(
@@ -280,22 +356,26 @@ object SessionService {
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        reason: String? = null,
     ): SessionPractitioner =
         SessionPractitionerService.updatePractitionerRemarks(
             callerId = callerId,
             sessionId = sessionId,
             practitionerId = practitionerId,
             remarks = remarks,
+            reason = reason,
         )
 
     fun removePractitioner(
         callerId: UUID,
         sessionId: UUID,
         practitionerId: UUID,
+        reason: String? = null,
     ) = SessionPractitionerService.removePractitioner(
         callerId = callerId,
         sessionId = sessionId,
         practitionerId = practitionerId,
+        reason = reason,
     )
 
     // --- Base rate pass-throughs ---
@@ -328,18 +408,21 @@ object SessionService {
         callerId: UUID,
         sessionId: UUID,
         concernId: UUID,
-    ) = SessionConcernService.addToSession(callerId, sessionId, concernId)
+        reason: String? = null,
+    ) = SessionConcernService.addToSession(callerId, sessionId, concernId, reason)
 
     fun removeSessionConcern(
         callerId: UUID,
         sessionId: UUID,
         concernId: UUID,
-    ) = SessionConcernService.removeFromSession(callerId, sessionId, concernId)
+        reason: String? = null,
+    ) = SessionConcernService.removeFromSession(callerId, sessionId, concernId, reason)
 
     fun promoteConcern(
         callerId: UUID,
         sessionId: UUID,
         concernId: UUID,
         label: String,
-    ): Concern = SessionConcernService.promoteConcern(callerId, sessionId, concernId, label)
+        reason: String? = null,
+    ): Concern = SessionConcernService.promoteConcern(callerId, sessionId, concernId, label, reason)
 }

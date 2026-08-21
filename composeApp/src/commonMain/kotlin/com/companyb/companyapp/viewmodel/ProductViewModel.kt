@@ -1,7 +1,7 @@
 package com.companyb.companyapp.viewmodel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CreateProductCategoryRequest
 import com.companyb.companyapp.dto.CreateProductRequest
 import com.companyb.companyapp.dto.ProductCategoryResponse
@@ -45,7 +45,7 @@ class ProductViewModel(
             state = _products,
             operation = "loadProducts",
             endpoint = "GET /api/products",
-            block = { apiClient.httpClient.get("/api/products") },
+            block = { apiClient.httpClient.get(ApiRoutes.PRODUCTS) },
             transform = { it.body() },
         )
     }
@@ -55,7 +55,7 @@ class ProductViewModel(
             state = _productDetail,
             operation = "loadProduct",
             endpoint = "GET /api/products/$productId",
-            block = { apiClient.httpClient.get("/api/products/$productId") },
+            block = { apiClient.httpClient.get(ApiRoutes.product(productId)) },
             transform = { it.body() },
         )
     }
@@ -66,7 +66,7 @@ class ProductViewModel(
             operation = "createProduct",
             endpoint = "POST /api/products",
             block = {
-                apiClient.httpClient.post("/api/products") {
+                apiClient.httpClient.post(ApiRoutes.PRODUCTS) {
                     setBody(request)
                 }
             },
@@ -83,7 +83,7 @@ class ProductViewModel(
             operation = "updateProduct",
             endpoint = "PATCH /api/products/$productId",
             block = {
-                apiClient.httpClient.patch("/api/products/$productId") {
+                apiClient.httpClient.patch(ApiRoutes.product(productId)) {
                     setBody(request)
                 }
             },
@@ -96,7 +96,7 @@ class ProductViewModel(
             state = _categories,
             operation = "loadCategories",
             endpoint = "GET /api/product-categories",
-            block = { apiClient.httpClient.get("/api/product-categories") },
+            block = { apiClient.httpClient.get(ApiRoutes.PRODUCT_CATEGORIES) },
             transform = { it.body() },
         )
     }
@@ -107,7 +107,7 @@ class ProductViewModel(
             operation = "createCategory",
             endpoint = "POST /api/product-categories",
             block = {
-                apiClient.httpClient.post("/api/product-categories") {
+                apiClient.httpClient.post(ApiRoutes.PRODUCT_CATEGORIES) {
                     setBody(request)
                 }
             },

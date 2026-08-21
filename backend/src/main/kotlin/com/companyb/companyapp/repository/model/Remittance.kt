@@ -1,5 +1,8 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -10,21 +13,6 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
-enum class RemittanceType {
-    SESSION,
-    PRODUCT,
-}
-
-enum class RemittanceMethod {
-    BANK_TRANSFER,
-    HANDED_TO_ACCOUNTANT,
-}
-
-enum class RemittanceStatus {
-    DRAFT,
-    SUBMITTED,
-}
-
 data class Remittance(
     val id: UUID,
     val type: RemittanceType,
@@ -32,6 +20,7 @@ data class Remittance(
     val branchId: UUID,
     val method: RemittanceMethod,
     val submittedDate: LocalDate,
+    val submittedAt: OffsetDateTime?,
     val submittedBy: UUID,
     val dateRangeStart: LocalDate,
     val dateRangeEnd: LocalDate,
@@ -79,6 +68,7 @@ object RemittanceTable : Table("remittance") {
             },
         )
     val submittedDate = date("submitted_date")
+    val submittedAt = timestampWithTimeZone("submitted_at").nullable()
     val submittedBy = javaUUID("submitted_by")
     val dateRangeStart = date("date_range_start")
     val dateRangeEnd = date("date_range_end")

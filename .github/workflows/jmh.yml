@@ -16,10 +16,13 @@ name: jmh
 
 on:
   push:
+    branches:
+      - master
     paths:
       - 'backend/**'
       - 'scripts/check-baselines.sh'
       - 'backend/jmh-baselines.md'
+      - '.github/workflows/jmh.yml'
   workflow_dispatch:
 
 permissions:
@@ -62,15 +65,42 @@ jobs:
           }
           if run_compare /tmp/company-app-jmh.log /tmp/check1.txt; then
             exit 0
+          else
+            first_status=$?
+          fi
+          if [ "$first_status" -ne 1 ]; then
+            echo "::error title=JMH::Benchmark evidence invalid; regression not evaluated."
+            exit 1
           fi
           echo "::warning title=JMH::Possible regression — re-running to confirm"
-          ./gradlew :backend:jmh --no-daemon > /tmp/company-app-jmh-retry.log 2>&1 || {
-            tail -50 /tmp/company-app-jmh-retry.log
-            exit 1
+          run_jmh() {
+            local log=$1
+            set +e
+            set -o pipefail
+            ./gradlew :backend:jmh --no-daemon --rerun-tasks 2>&1 | tee "$log"
+            local status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "::error title=JMH::Upstream benchmark task failed on retry (Gradle exit $status); regression not evaluated."
+            fi
+            return "$status"
           }
+          if run_jmh /tmp/company-app-jmh-retry.log; then
+            :
+          else
+            retry_status=$?
+            echo "::error title=JMH::Benchmark execution failed on retry (Gradle exit $retry_status); regression not evaluated."
+            exit 1
+          fi
           if run_compare /tmp/company-app-jmh-retry.log /tmp/check2.txt; then
             echo "Regression did not reproduce on retry — noise, passing."
             exit 0
+          else
+            retry_compare_status=$?
+          fi
+          if [ "$retry_compare_status" -ne 1 ]; then
+            echo "::error title=JMH::Benchmark evidence invalid on retry; regression not evaluated."
+            exit 1
           fi
           echo "::error title=JMH::Regression confirmed across two runs. Investigate with JFR, or update backend/jmh-baselines.md if intentional."
           exit 1

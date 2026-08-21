@@ -1,15 +1,19 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceLineType
 import com.companyb.companyapp.repository.model.RemittanceTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -31,7 +35,24 @@ data class AddLineParams(
 
 private val logger = KotlinLogging.logger {}
 
+@Suppress("TooManyFunctions", "UnreachableCode")
 internal object RemittanceLineRepository {
+    fun findExistingRequest(params: AddLineParams): RemittanceLine? =
+        transaction {
+            RemittanceLineTable
+                .selectAll()
+                .where {
+                    (RemittanceLineTable.id eq params.id) and
+                        (RemittanceLineTable.remittanceId eq params.remittanceId)
+                }.singleOrNull()
+                ?.let { row ->
+                    val line = row.toRemittanceLine()
+                    assertRequestMatches(line, params)
+                    line
+                }
+        }
+
+    @Suppress("LongMethod")
     fun addLine(
         params: AddLineParams,
         auditFn: (RemittanceLine) -> Unit = {},
@@ -40,20 +61,41 @@ internal object RemittanceLineRepository {
             val existing =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq params.id }
-                    .singleOrNull()
+                    .where {
+                        (RemittanceLineTable.id eq params.id) and
+                            (RemittanceLineTable.remittanceId eq params.remittanceId)
+                    }.singleOrNull()
             if (existing != null) {
+                assertRequestMatches(existing.toRemittanceLine(), params)
                 return@transaction existing.toRemittanceLine()
             }
 
-            RemittanceLineTable.insertIgnore {
-                it[RemittanceLineTable.id] = params.id
-                it[RemittanceLineTable.remittanceId] = params.remittanceId
-                it[RemittanceLineTable.type] = params.type
-                it[RemittanceLineTable.sessionId] = params.sessionId
-                it[RemittanceLineTable.productSaleId] = params.productSaleId
-                it[RemittanceLineTable.amount] = params.amount
-                it[RemittanceLineTable.createdBy] = params.createdBy
+            assertNotAlreadyIncluded(params)
+
+            val inserted =
+                RemittanceLineTable.insertIgnore {
+                    it[RemittanceLineTable.id] = params.id
+                    it[RemittanceLineTable.remittanceId] = params.remittanceId
+                    it[RemittanceLineTable.type] = params.type
+                    it[RemittanceLineTable.sessionId] = params.sessionId
+                    it[RemittanceLineTable.productSaleId] = params.productSaleId
+                    it[RemittanceLineTable.amount] = params.amount
+                    it[RemittanceLineTable.createdBy] = params.createdBy
+                }
+            if (inserted.insertedCount == 0) {
+                val racedRetry =
+                    RemittanceLineTable
+                        .selectAll()
+                        .where {
+                            (RemittanceLineTable.id eq params.id) and
+                                (RemittanceLineTable.remittanceId eq params.remittanceId) and
+                                entityRefCondition(params)
+                        }.singleOrNull()
+                if (racedRetry != null) {
+                    assertRequestMatches(racedRetry.toRemittanceLine(), params)
+                    return@transaction racedRetry.toRemittanceLine()
+                }
+                throw ConflictException(duplicateMessage(params.type))
             }
 
             val versionUpdated =
@@ -70,8 +112,10 @@ internal object RemittanceLineRepository {
             val created =
                 RemittanceLineTable
                     .selectAll()
-                    .where { RemittanceLineTable.id eq params.id }
-                    .single()
+                    .where {
+                        (RemittanceLineTable.id eq params.id) and
+                            (RemittanceLineTable.remittanceId eq params.remittanceId)
+                    }.single()
                     .toRemittanceLine()
 
             auditFn(created)
@@ -161,6 +205,61 @@ internal object RemittanceLineRepository {
                         RemittanceLineTable.deletedAt.isNull()
                 }.map { it[RemittanceLineTable.amount] }
                 .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
+        }
+
+    private fun assertNotAlreadyIncluded(params: AddLineParams) {
+        val existingLine =
+            RemittanceLineTable
+                .selectAll()
+                .where {
+                    entityRefCondition(params) and
+                        RemittanceLineTable.deletedAt.isNull() and
+                        (RemittanceLineTable.id neq params.id)
+                }.singleOrNull()
+        if (existingLine != null) {
+            throw ConflictException(duplicateMessage(params.type))
+        }
+    }
+
+    private fun assertRequestMatches(
+        existing: RemittanceLine,
+        params: AddLineParams,
+    ) {
+        val matches =
+            existing.type == params.type &&
+                existing.sessionId == params.sessionId &&
+                existing.productSaleId == params.productSaleId &&
+                existing.amount.compareTo(params.amount) == 0 &&
+                existing.createdBy == params.createdBy
+        if (!matches) {
+            throw ConflictException("Remittance line UUID already belongs to a different request")
+        }
+    }
+
+    private fun entityRefCondition(params: AddLineParams): Op<Boolean> =
+        when (params.type) {
+            RemittanceLineType.SESSION -> {
+                val sessionId =
+                    params.sessionId
+                        ?: throw ValidationException("sessionId is required for SESSION line type")
+                RemittanceLineTable.sessionId eq sessionId
+            }
+
+            RemittanceLineType.PRODUCT_SALE -> {
+                val productSaleId =
+                    params.productSaleId
+                        ?: throw ValidationException("productSaleId is required for PRODUCT_SALE line type")
+                RemittanceLineTable.productSaleId eq productSaleId
+            }
+        }
+
+    private fun duplicateMessage(type: RemittanceLineType): String =
+        entityLabel(type) + " already included in a remittance line"
+
+    private fun entityLabel(type: RemittanceLineType): String =
+        when (type) {
+            RemittanceLineType.SESSION -> "Session"
+            RemittanceLineType.PRODUCT_SALE -> "Product sale"
         }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittanceLine(): RemittanceLine =

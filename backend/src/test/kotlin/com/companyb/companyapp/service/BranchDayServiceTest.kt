@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.service.branchday.BranchDayService
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -69,6 +69,42 @@ class BranchDayServiceTest {
     @Test
     fun `remitted day write with capability and reason is allowed`() {
         BranchDayService.assertEditableState(DayStatus.REMITTED, hasEditPastDay = true, reason = "late correction")
+    }
+
+    // ---- assertReadableState ----
+
+    @Test
+    fun `open day is always readable without capability`() {
+        BranchDayService.assertReadableState(DayStatus.OPEN, hasEditPastDay = false)
+    }
+
+    @Test
+    fun `open day read with capability is allowed`() {
+        BranchDayService.assertReadableState(DayStatus.OPEN, hasEditPastDay = true)
+    }
+
+    @Test
+    fun `past day read without EDIT_PAST_DAY is forbidden`() {
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = false)
+        }
+    }
+
+    @Test
+    fun `past day read with EDIT_PAST_DAY is allowed`() {
+        BranchDayService.assertReadableState(DayStatus.PAST, hasEditPastDay = true)
+    }
+
+    @Test
+    fun `remitted day read with EDIT_PAST_DAY is allowed without reason`() {
+        BranchDayService.assertReadableState(DayStatus.REMITTED, hasEditPastDay = true)
+    }
+
+    @Test
+    fun `remitted day read without EDIT_PAST_DAY is forbidden`() {
+        assertFailsWith<ForbiddenException> {
+            BranchDayService.assertReadableState(DayStatus.REMITTED, hasEditPastDay = false)
+        }
     }
 
     // ---- expirationUtc ----

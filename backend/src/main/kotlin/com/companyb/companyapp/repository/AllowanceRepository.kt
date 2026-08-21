@@ -1,13 +1,14 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceCreateParams
 import com.companyb.companyapp.repository.model.AllowanceTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -26,23 +27,29 @@ object AllowanceRepository {
         auditFn: (Allowance) -> Unit = {},
     ): AllowanceCreateResult =
         transaction {
-            val existing = findByIdInTransaction(params.id)
-            if (existing != null) {
+            val insertedCount =
+                AllowanceTable
+                    .insertIgnore {
+                        it[AllowanceTable.id] = params.id
+                        it[AllowanceTable.branchDayId] = params.branchDayId
+                        it[AllowanceTable.userId] = params.userId
+                        it[AllowanceTable.amount] = params.amount
+                        it[AllowanceTable.assignedBy] = params.assignedBy
+                        it[AllowanceTable.assignedAt] = CurrentTimestampWithTimeZone
+                    }.insertedCount
+
+            val existing =
+                findByIdInTransaction(params.id)
+                    ?: error("allowance not found after insert for ${params.id}")
+            if (existing.branchDayId != params.branchDayId) {
+                throw NotFoundException("Allowance not found for this branch day")
+            }
+            if (insertedCount == 0) {
                 return@transaction AllowanceCreateResult(existing, created = false)
             }
 
-            AllowanceTable.insert {
-                it[AllowanceTable.id] = params.id
-                it[AllowanceTable.branchDayId] = params.branchDayId
-                it[AllowanceTable.userId] = params.userId
-                it[AllowanceTable.amount] = params.amount
-                it[AllowanceTable.assignedBy] = params.assignedBy
-            }
-
-            val created = findByIdInTransaction(params.id) ?: error("allowance not found after insert for ${params.id}")
-
-            auditFn(created)
-            AllowanceCreateResult(created, created = true)
+            auditFn(existing)
+            AllowanceCreateResult(existing, created = true)
         }.also { result ->
             logger.info {
                 "[CREATE-ALLOWANCE] Allowance ${result.allowance.id.toString().maskUUID()}" +

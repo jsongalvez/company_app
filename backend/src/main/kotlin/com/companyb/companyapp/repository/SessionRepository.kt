@@ -1,16 +1,20 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
+import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -50,6 +54,7 @@ data class SessionCreateResult(
     val created: Boolean,
 )
 
+@Suppress("TooManyFunctions")
 object SessionRepository {
     fun countPriorNonMedicalMissionSessions(clientId: UUID): Long =
         transaction {
@@ -75,15 +80,57 @@ object SessionRepository {
                 ?.let { it[BranchTable.branchType] }
         }
 
+    fun branchDayBelongsToBranch(
+        branchDayId: UUID,
+        branchId: UUID,
+    ): Boolean =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where {
+                    (BranchDayTable.id eq branchDayId) and
+                        (BranchDayTable.branchId eq branchId)
+                }.empty()
+                .not()
+        }
+
+    fun createdBy(sessionId: UUID): UUID? =
+        transaction {
+            createdByInTransaction(sessionId)
+        }
+
+    private fun createdByInTransaction(sessionId: UUID): UUID? =
+        AuditLogTable
+            .selectAll()
+            .where {
+                (AuditLogTable.auditTableName eq SessionTable.tableName) and
+                    (AuditLogTable.recordId eq sessionId) and
+                    (AuditLogTable.action eq AuditAction.INSERT)
+            }.singleOrNull()
+            ?.get(AuditLogTable.changedBy)
+
     fun create(
         params: SessionCreateParams,
         auditFn: (Session) -> Unit = {},
     ): SessionCreateResult =
         transaction {
-            acquireClientLock(params.clientId)
+            val existingBeforeLock = findSessionByIdInTransaction(params.id)
+            if (existingBeforeLock != null) {
+                return@transaction idempotentResult(existingBeforeLock, params)
+            }
+
+            val clientRow = acquireClientLock(params.clientId)
+            val existingAfterLock = findSessionByIdInTransaction(params.id)
+            if (existingAfterLock != null) {
+                return@transaction idempotentResult(existingAfterLock, params)
+            }
+
             val hasActive = hasActivePendingSessionInTransaction(params.clientId)
             if (hasActive) {
                 throw ConflictException("Client already has an active PENDING session")
+            }
+            if (clientRow != null && clientRow[ClientTable.deletedAt] != null) {
+                throw ConflictException("Cannot create a session for an anonymized client")
             }
 
             val insertedCount =
@@ -123,6 +170,19 @@ object SessionRepository {
             }
         }
 
+    private fun idempotentResult(
+        existing: Session,
+        params: SessionCreateParams,
+    ): SessionCreateResult {
+        val sameClient = existing.clientId == params.clientId
+        val sameBranchDay = existing.branchDayId == params.branchDayId
+        val sameCaller = createdByInTransaction(existing.id) == params.changedBy
+        if (!sameClient || !sameBranchDay || !sameCaller) {
+            throw ConflictException("Session id already belongs to another create request")
+        }
+        return SessionCreateResult(existing, false)
+    }
+
     @Suppress("LongParameterList", "UNUSED_PARAMETER")
     fun updateStatus(
         sessionId: UUID,
@@ -133,16 +193,55 @@ object SessionRepository {
         auditFn: (Session) -> Unit = {},
     ): Session =
         transaction {
-            SessionTable.update({
-                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-            }) {
-                it[SessionTable.sessionStatus] = newStatus
-                it[SessionTable.version] = expectedVersion + 1
+            // The affected-row count is load-bearing (the #149 count-0 misfire lesson): a
+            // concurrent commit between the service's version pre-check and this conditional
+            // UPDATE matches 0 rows — the service must not read back the OTHER writer's row
+            // and serve it as its own success (a silent lost update, ADR-0022).
+            val updatedCount =
+                SessionTable.update({
+                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+                }) {
+                    it[SessionTable.sessionStatus] = newStatus
+                    it[SessionTable.version] = expectedVersion + 1
+                }
+            if (updatedCount != 1) {
+                throw VersionMismatchException(SessionTable.tableName, sessionId)
             }
 
             val session =
                 findSessionByIdInTransaction(sessionId)
                     ?: error("Session $sessionId not found after status update")
+
+            auditFn(session)
+
+            session
+        }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun updateFinalPrice(
+        sessionId: UUID,
+        newFinalPrice: BigDecimal,
+        expectedVersion: Int,
+        changedBy: UUID,
+        auditFn: (Session) -> Unit = {},
+    ): Session =
+        transaction {
+            // Count-0 misfire guard (the #149 lesson): 0 affected rows = a concurrent commit
+            // won the version — the caller must 409, never read back the other writer's row.
+            val updatedCount =
+                SessionTable.update({
+                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+                }) {
+                    it[SessionTable.finalPrice] = newFinalPrice
+                    it[SessionTable.version] = expectedVersion + 1
+                }
+            if (updatedCount != 1) {
+                throw VersionMismatchException(SessionTable.tableName, sessionId)
+            }
+
+            val session =
+                findSessionByIdInTransaction(sessionId)
+                    ?: error("Session $sessionId not found after final price update")
 
             auditFn(session)
 
@@ -174,24 +273,25 @@ object SessionRepository {
 
             updated
         }
-
-    private fun acquireClientLock(clientId: UUID) {
-        // Row-level lock on client to serialize concurrent session creation (CR-018 C2).
-        ClientTable
-            .selectAll()
-            .where { ClientTable.id eq clientId }
-            .forUpdate(ForUpdateOption.ForUpdate)
-    }
-
-    private fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
-        SessionTable
-            .selectAll()
-            .where {
-                (SessionTable.clientId eq clientId) and
-                    (SessionTable.sessionStatus eq SessionStatus.PENDING)
-            }.empty()
-            .not()
 }
+
+fun acquireClientLock(clientId: UUID): ResultRow? {
+    // Row-level lock on client to serialize concurrent client mutation (CR-018 C2).
+    return ClientTable
+        .selectAll()
+        .where { ClientTable.id eq clientId }
+        .forUpdate(ForUpdateOption.ForUpdate)
+        .singleOrNull()
+}
+
+fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
+    SessionTable
+        .selectAll()
+        .where {
+            (SessionTable.clientId eq clientId) and
+                (SessionTable.sessionStatus eq SessionStatus.PENDING)
+        }.empty()
+        .not()
 
 fun findSessionByIdInTransaction(id: UUID): Session? =
     SessionTable
@@ -206,9 +306,9 @@ fun org.jetbrains.exposed.v1.core.ResultRow.toSession(): Session =
         clientId = this[SessionTable.clientId],
         branchDayId = this[SessionTable.branchDayId],
         requestedPractitionerId = this[SessionTable.requestedPractitionerId],
-        sessionType = this.get<com.companyb.companyapp.domain.SessionType>(SessionTable.sessionType).name,
+        sessionType = this[SessionTable.sessionType],
         isWalkIn = this[SessionTable.isWalkIn],
-        sessionStatus = this.get<SessionStatus>(SessionTable.sessionStatus).name,
+        sessionStatus = this[SessionTable.sessionStatus],
         basePrice = this[SessionTable.basePrice],
         finalPrice = this[SessionTable.finalPrice],
         remarks = this[SessionTable.remarks],

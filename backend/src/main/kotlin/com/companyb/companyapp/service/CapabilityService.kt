@@ -1,9 +1,9 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.repository.CapabilityRepository
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import java.util.UUID
 
 /**
@@ -41,4 +41,37 @@ object CapabilityService {
 
     fun getCapabilitiesForUser(userId: UUID): List<UserCapabilityResponse> =
         CapabilityRepository.findCapabilitiesForUser(userId)
+
+    /** Distinct branch ids where [userId] holds any active grant (audit read window). */
+    fun findBranchWindow(userId: UUID): List<UUID> = CapabilityRepository.findBranchWindow(userId)
+
+    /**
+     * Day-scoped gate (#157): true when [userId] holds [capabilityCode] at [branchId]
+     * (BRANCH) or at [branchDayId] (BRANCH_DAY — a relief grant for that day).
+     * GLOBAL grants do NOT satisfy this check (the #131 strictness).
+     */
+    fun hasCapabilityForBranchDay(
+        userId: UUID,
+        capabilityCode: String,
+        branchId: UUID,
+        branchDayId: UUID,
+    ): Boolean = CapabilityRepository.hasCapabilityForBranchDay(userId, capabilityCode, branchId, branchDayId)
+
+    fun requireCapabilityForBranchDay(
+        userId: UUID,
+        capabilityCode: String,
+        branchId: UUID,
+        branchDayId: UUID,
+        message: String = "$capabilityCode capability required for this branch or day",
+    ) {
+        if (!hasCapabilityForBranchDay(userId, capabilityCode, branchId, branchDayId)) {
+            throw ForbiddenException(message)
+        }
+    }
+
+    /** True when [userId] holds [capabilityCode] at any context (audit branchless policy). */
+    fun hasCapabilityAnyContext(
+        userId: UUID,
+        capabilityCode: String,
+    ): Boolean = CapabilityRepository.hasCapabilityAnyContext(userId, capabilityCode)
 }

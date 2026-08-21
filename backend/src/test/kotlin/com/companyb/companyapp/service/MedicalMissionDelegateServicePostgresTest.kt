@@ -1,16 +1,17 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.BranchType
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -29,10 +30,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val targetUserId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
     private val branchName = "Mission-${branchId.toString().take(8)}"
 
     override fun initTestData() {
@@ -62,7 +63,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `successful assign creates delegate and user_capability`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
 
         val result = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
@@ -78,8 +79,25 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `assign rejects non-medical-mission branch`() {
+        val clinicBranchId = TestFixtures.uuid()
+        insertBranch(clinicBranchId, BranchType.CLINIC)
+        trackOwned(BranchTable, BranchTable.id, clinicBranchId)
+
+        assertFailsWith<ValidationException> {
+            MedicalMissionDelegateService.assignDelegate(
+                TestFixtures.uuid(),
+                targetUserId,
+                clinicBranchId,
+                callerId,
+            )
+        }
+        assertEquals(0L, delegateCount(clinicBranchId))
+    }
+
+    @Test
     fun `duplicate delegate id returns existing row (idempotent)`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
 
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
@@ -94,8 +112,8 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `assign without ASSIGN_DELEGATE is allowed at service layer`() {
-        val delegateId = UUID.randomUUID()
-        val noCapCaller = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
+        val noCapCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertUser(
             id = noCapCaller,
             username = "no-cap-$noCapCaller",
@@ -117,7 +135,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `successful revoke sets ended_at and expires user_capability`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
@@ -131,20 +149,35 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `retrying revoked delegate id returns ended row without regranting capability`() {
+        val delegateId = TestFixtures.uuid()
+        MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
+        trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+        MedicalMissionDelegateService.revokeDelegate(delegateId, callerId)
+
+        val retry = MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
+
+        assertNotNull(retry.endedAt)
+        assertEquals(0L, activeCapabilityCount(delegateId))
+        assertEquals(2L, delegateAuditCount(delegateId))
+    }
+
+    @Test
     fun `revoke on non-existent delegate fails with 404`() {
         assertFailsWith<NotFoundException> {
-            MedicalMissionDelegateService.revokeDelegate(UUID.randomUUID(), callerId)
+            MedicalMissionDelegateService.revokeDelegate(TestFixtures.uuid(), callerId)
         }
     }
 
     @Test
     fun `revoke without ASSIGN_DELEGATE is allowed at service layer`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
 
-        val noCapCaller = UUID.randomUUID()
+        val noCapCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertUser(
             id = noCapCaller,
             username = "no-cap-$noCapCaller",
@@ -164,7 +197,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `assign writes audit log entry`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
@@ -183,7 +216,7 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `revoke writes audit log entry`() {
-        val delegateId = UUID.randomUUID()
+        val delegateId = TestFixtures.uuid()
         MedicalMissionDelegateService.assignDelegate(delegateId, targetUserId, branchId, callerId)
         trackOwned(MedicalMissionDelegateTable, MedicalMissionDelegateTable.id, delegateId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
@@ -201,15 +234,26 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
         assertEquals(2L, auditCount)
     }
 
-    private fun insertBranch() {
+    private fun insertBranch(
+        id: UUID = branchId,
+        type: BranchType = BranchType.MEDICAL_MISSION,
+    ) {
         transaction {
             BranchTable.insert {
-                it[BranchTable.id] = branchId
+                it[BranchTable.id] = id
                 it[BranchTable.name] = branchName
-                it[BranchTable.branchType] = BranchType.MEDICAL_MISSION
+                it[BranchTable.branchType] = type
             }
         }
     }
+
+    private fun delegateCount(branchId: UUID): Long =
+        transaction {
+            MedicalMissionDelegateTable
+                .selectAll()
+                .where { MedicalMissionDelegateTable.branchId eq branchId }
+                .count()
+        }
 
     private fun delegateExists(delegateId: UUID): Boolean =
         transaction {
@@ -257,5 +301,26 @@ class MedicalMissionDelegateServicePostgresTest : BasePostgresTest() {
                         (UserCapabilityTable.validTo.isNotNull())
                 }.empty()
                 .not()
+        }
+
+    private fun activeCapabilityCount(delegateId: UUID): Long =
+        transaction {
+            UserCapabilityTable
+                .selectAll()
+                .where {
+                    (UserCapabilityTable.sourceId eq delegateId) and
+                        (UserCapabilityTable.sourceType eq CapabilitySourceType.MEDICAL_MISSION_DELEGATE) and
+                        UserCapabilityTable.validTo.isNull()
+                }.count()
+        }
+
+    private fun delegateAuditCount(delegateId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq "medical_mission_delegate") and
+                        (AuditLogTable.recordId eq delegateId)
+                }.count()
         }
 }

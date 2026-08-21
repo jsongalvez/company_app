@@ -1,12 +1,15 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientCreateResult
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.ClientUpdateParams
+import com.companyb.companyapp.repository.acquireClientLock
+import com.companyb.companyapp.repository.hasActivePendingSessionInTransaction
 import com.companyb.companyapp.repository.model.Client
 import com.companyb.companyapp.repository.model.ClientTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -107,13 +110,24 @@ object ClientService {
         return updated ?: throw NotFoundException("Client not found")
     }
 
+    @Suppress("ThrowsCount")
     fun anonymize(
         callerId: UUID,
         clientId: UUID,
     ) {
         val old = ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
         val updated =
-            ClientRepository.anonymize(clientId) { client ->
+            ClientRepository.anonymize(
+                clientId = clientId,
+                guardFn = {
+                    acquireClientLock(clientId)
+                    if (hasActivePendingSessionInTransaction(clientId)) {
+                        throw ConflictException(
+                            "Client has an active PENDING session; complete or cancel it before anonymizing",
+                        )
+                    }
+                },
+            ) { client ->
                 AuditLogRepository.recordUpdate(
                     tableName = ClientTable.tableName,
                     recordId = clientId,

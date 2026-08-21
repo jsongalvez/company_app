@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.AuditAction
 import org.jetbrains.exposed.v1.core.ColumnType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -24,6 +25,7 @@ object AuditLogTable : Table("audit_log") {
             },
         )
     val changedBy = javaUUID("changed_by").references(AppUserTable.id)
+    val branchId = javaUUID("branch_id").references(BranchTable.id).nullable()
     val changedAt = timestampWithTimeZone("changed_at").defaultExpression(CurrentTimestampWithTimeZone)
     val oldValue = registerColumn("old_value", JsonBColumnType()).nullable()
     val newValue = registerColumn("new_value", JsonBColumnType()).nullable()
@@ -40,7 +42,7 @@ class JsonBColumnType : ColumnType<String>() {
 
     override fun valueFromDB(value: Any): String =
         when (value) {
-            is PGobject -> value.value ?: ""
+            is PGobject -> value.value.orEmpty()
             is String -> value
             else -> value.toString()
         }

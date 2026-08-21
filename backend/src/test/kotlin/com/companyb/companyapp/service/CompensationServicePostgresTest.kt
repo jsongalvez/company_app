@@ -1,24 +1,29 @@
 package com.companyb.companyapp.service
-
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -27,10 +32,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CompensationServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val targetUserId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
 
     private lateinit var workBranchDayId: UUID
     private lateinit var payingBranchDayId: UUID
@@ -54,8 +59,46 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `create compensation on REMITTED paying day with reason succeeds and flags audit entry`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                branchId,
+                TestFixtures.today.minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val compId = TestFixtures.uuid()
+
+        val comp =
+            CompensationService.create(
+                callerId = callerId,
+                id = compId,
+                workBranchDayId = remittedDayId,
+                payingBranchDayId = remittedDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = "Daily compensation",
+                reason = "Coordinator correction",
+            )
+
+        assertNotNull(comp)
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq CompensationTable.tableName) and
+                            (AuditLogTable.recordId eq compId)
+                    }.single()
+            }
+        assertEquals(true, audit[AuditLogTable.isFlagged])
+        assertEquals("Coordinator correction", audit[AuditLogTable.reason])
+    }
+
+    @Test
     fun `create compensation succeeds with all fields`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
 
         val comp =
             CompensationService.create(
@@ -80,7 +123,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create compensation without note succeeds`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
 
         val comp =
             CompensationService.create(
@@ -99,7 +142,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create idempotent duplicate returns existing`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
 
         val first =
             CompensationService.create(
@@ -128,7 +171,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create rejects duplicate user and paying day`() {
-        val firstId = UUID.randomUUID()
+        val firstId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
             id = firstId,
@@ -139,7 +182,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
             note = null,
         )
 
-        val secondId = UUID.randomUUID()
+        val secondId = TestFixtures.uuid()
         assertFailsWith<ConflictException> {
             CompensationService.create(
                 callerId = callerId,
@@ -154,10 +197,50 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `concurrent creates with different ids return one conflict`() {
+        val start = CountDownLatch(1)
+        val results = Collections.synchronizedList(mutableListOf<Throwable?>())
+        val threads =
+            listOf(
+                TestFixtures.uuid(),
+                TestFixtures.uuid(),
+            ).map { id ->
+                thread(start = false) {
+                    start.await()
+                    try {
+                        CompensationService.create(
+                            callerId = callerId,
+                            id = id,
+                            workBranchDayId = workBranchDayId,
+                            payingBranchDayId = payingBranchDayId,
+                            userId = targetUserId,
+                            amount = BigDecimal("1500.00"),
+                            note = null,
+                        )
+                        results += null
+                    } catch (error: Throwable) {
+                        results += error
+                    }
+                }
+            }
+
+        threads.forEach { it.start() }
+        start.countDown()
+        threads.forEach {
+            it.join(30_000)
+            if (it.isAlive) it.interrupt()
+        }
+
+        assertEquals(2, results.size)
+        assertEquals(1, results.count { it == null })
+        assertEquals(1, results.count { it is ConflictException })
+    }
+
+    @Test
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         val comp =
             CompensationService.create(
                 callerId = callerId,
@@ -178,8 +261,8 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
-                workBranchDayId = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
+                workBranchDayId = TestFixtures.uuid(),
                 payingBranchDayId = payingBranchDayId,
                 userId = targetUserId,
                 amount = BigDecimal("1500.00"),
@@ -193,9 +276,9 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.create(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 workBranchDayId = workBranchDayId,
-                payingBranchDayId = UUID.randomUUID(),
+                payingBranchDayId = TestFixtures.uuid(),
                 userId = targetUserId,
                 amount = BigDecimal("1500.00"),
                 note = null,
@@ -205,7 +288,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update compensation succeeds`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         val created =
             CompensationService.create(
                 callerId = callerId,
@@ -233,7 +316,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update with wrong version returns conflict`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
             id = compId,
@@ -260,7 +343,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CompensationService.update(
                 callerId = callerId,
-                compensationId = UUID.randomUUID(),
+                compensationId = TestFixtures.uuid(),
                 amount = BigDecimal("2000.00"),
                 note = null,
                 expectedVersion = 1,
@@ -270,7 +353,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update without ASSIGN_COMPENSATION is allowed at service layer`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         CompensationService.create(
             callerId = callerId,
             id = compId,
@@ -296,8 +379,94 @@ class CompensationServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `list compensations for paying branch day returns rows with user names`() {
+        val secondUser = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(secondUser, "comp-second")
+        trackOwned(AppUserTable, AppUserTable.id, secondUser)
+        trackOwned(CompensationTable, CompensationTable.userId, secondUser)
+
+        CompensationService.create(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = null,
+        )
+        CompensationService.create(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = secondUser,
+            amount = BigDecimal("1200.00"),
+            note = null,
+        )
+
+        val rows = CompensationService.findByPayingBranchDayId(payingBranchDayId)
+
+        assertEquals(2, rows.size)
+        assertTrue(rows.any { it.compensation.userId == targetUserId && it.userName == "Test comp-target" })
+        assertTrue(rows.any { it.compensation.userId == secondUser && it.userName == "Test comp-second" })
+    }
+
+    @Test
+    fun `list compensations excludes other paying days`() {
+        val otherBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
+
+        CompensationService.create(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            workBranchDayId = workBranchDayId,
+            payingBranchDayId = payingBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("1500.00"),
+            note = null,
+        )
+        CompensationService.create(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            workBranchDayId = otherBranchDayId,
+            payingBranchDayId = otherBranchDayId,
+            userId = targetUserId,
+            amount = BigDecimal("800.00"),
+            note = null,
+        )
+
+        val rows = CompensationService.findByPayingBranchDayId(payingBranchDayId)
+
+        assertEquals(1, rows.size)
+        assertEquals(0, BigDecimal("1500.00").compareTo(rows[0].compensation.amount))
+    }
+
+    @Test
+    fun `list compensations returns empty for day with no rows`() {
+        val emptyBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(emptyBranchId, "Empty Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, emptyBranchId)
+        val emptyBranchDayId = DatabaseTestHelper.createBranchDayForToday(emptyBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, emptyBranchDayId)
+
+        val rows = CompensationService.findByPayingBranchDayId(emptyBranchDayId)
+
+        assertTrue(rows.isEmpty())
+    }
+
+    @Test
+    fun `list compensations for non-existent branch day returns not found`() {
+        assertFailsWith<NotFoundException> {
+            CompensationService.findByPayingBranchDayId(TestFixtures.uuid())
+        }
+    }
+
+    @Test
     fun `create writes audit log entry`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
 
         CompensationService.create(
             callerId = callerId,
@@ -323,7 +492,7 @@ class CompensationServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `update writes audit log entry`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         val created =
             CompensationService.create(
                 callerId = callerId,

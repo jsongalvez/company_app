@@ -1,5 +1,7 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
 import com.companyb.companyapp.repository.model.SessionTable
@@ -54,8 +56,9 @@ object SessionPractitionerRepository {
                     .where {
                         (SessionPractitionerTable.sessionId eq sessionId) and
                             (SessionPractitionerTable.practitionerId eq practitionerId)
-                    }.single()
-                    .toSessionPractitioner()
+                    }.singleOrNull()
+                    ?.toSessionPractitioner()
+                    ?: throw ConflictException("Session practitioner request ID already exists")
 
             if (created) {
                 auditFn(practitioner)
@@ -75,9 +78,20 @@ object SessionPractitionerRepository {
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
-        auditFn: (SessionPractitioner) -> Unit = {},
+        auditFn: (SessionPractitioner, SessionPractitioner) -> Unit = { _, _ -> },
     ): SessionPractitioner? =
         transaction {
+            val before =
+                SessionPractitionerTable
+                    .selectAll()
+                    .where {
+                        (SessionPractitionerTable.sessionId eq sessionId) and
+                            (SessionPractitionerTable.practitionerId eq practitionerId)
+                    }.singleOrNull()
+                    ?.toSessionPractitioner()
+
+            if (before == null) return@transaction null
+
             val updated =
                 SessionPractitionerTable.update({
                     (SessionPractitionerTable.sessionId eq sessionId) and
@@ -86,7 +100,7 @@ object SessionPractitionerRepository {
                     it[SessionPractitionerTable.remarks] = remarks
                 }
 
-            if (updated > 0) {
+            if (updated == 1) {
                 val sessionVersion = readSessionVersion(sessionId)
                 incrementSessionVersion(sessionId, sessionVersion)
 
@@ -99,14 +113,14 @@ object SessionPractitionerRepository {
                         }.single()
                         .toSessionPractitioner()
 
-                auditFn(practitioner)
+                auditFn(before, practitioner)
                 logger.info {
                     "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
                         "practitioner $practitionerId in session $sessionId"
                 }
                 practitioner
             } else {
-                null
+                throw VersionMismatchException(SessionPractitionerTable.tableName, before.id)
             }
         }
 
@@ -139,6 +153,8 @@ object SessionPractitionerRepository {
                     auditFn(existing)
                 }
                 logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
+            } else if (existing != null) {
+                throw VersionMismatchException(SessionPractitionerTable.tableName, existing.id)
             }
 
             deleted > 0
@@ -178,7 +194,7 @@ object SessionPractitionerRepository {
             slotAtTime = this[SessionPractitionerTable.slotAtTime],
         )
 
-    private fun incrementSessionVersion(
+    internal fun incrementSessionVersion(
         sessionId: UUID,
         expectedVersion: Int,
     ) {
@@ -188,7 +204,9 @@ object SessionPractitionerRepository {
             }) {
                 it[SessionTable.version] = expectedVersion + 1
             }
-        check(updated > 0) { "Session version changed concurrently" }
+        if (updated != 1) {
+            throw VersionMismatchException(SessionTable.tableName, sessionId)
+        }
     }
 
     private fun readSessionVersion(sessionId: UUID): Int =

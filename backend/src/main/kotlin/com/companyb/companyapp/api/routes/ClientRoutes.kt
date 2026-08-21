@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -14,13 +14,50 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = ApiRoutes.CLIENTS,
+    methods = [HttpMethod.GET],
+    operationId = "clients_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.CLIENTS,
+    methods = [HttpMethod.POST],
+    operationId = "clients_post",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients/{clientId}",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
+    operationId = "client_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients/{clientId}",
+    methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
+    operationId = "client_patch",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/clients/{clientId}/anonymize",
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "clientId", type = UUID::class, required = true)],
+    operationId = "client_anonymize",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ClientRoutes {
     private const val CLIENT_ID_PARAM = "clientId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/clients") { context ->
+        config.routes.before(ApiRoutes.CLIENTS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -28,11 +65,11 @@ object ClientRoutes {
             )
         }
 
-        config.routes.post("/api/clients", ::handleCreate)
-        config.routes.get("/api/clients", ::handleSearch)
-        config.routes.get("/api/clients/{$CLIENT_ID_PARAM}", ::handleGetById)
-        config.routes.patch("/api/clients/{$CLIENT_ID_PARAM}", ::handleUpdate)
-        config.routes.post("/api/clients/{$CLIENT_ID_PARAM}/anonymize", ::handleAnonymize)
+        config.routes.post(ApiRoutes.CLIENTS, ::handleCreate)
+        config.routes.get(ApiRoutes.CLIENTS, ::handleSearch)
+        config.routes.get(ApiRoutes.CLIENT_PATH, ::handleGetById)
+        config.routes.patch(ApiRoutes.CLIENT_PATH, ::handleUpdate)
+        config.routes.post(ApiRoutes.CLIENT_ANONYMIZE_PATH, ::handleAnonymize)
     }
 
     @Suppress("ThrowsCount")

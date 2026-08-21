@@ -1,5 +1,5 @@
 package com.companyb.companyapp.auth
-
+import com.companyb.companyapp.test.TestFixtures
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -21,46 +21,67 @@ class DenyListTest {
 
     @Test
     fun deniedUserIsBlocked() {
-        val userId = UUID.randomUUID()
+        val userId = TestFixtures.uuid()
         DenyList.deny(userId)
-        assertTrue(DenyList.isDenied(userId))
+        assertTrue(DenyList.isDenied(userId, Instant.EPOCH))
+    }
+
+    @Test
+    fun tokenIssuedAfterDenyIsAllowed() {
+        val userId = TestFixtures.uuid()
+        DenyList.denyAt(userId, base)
+        assertFalse(DenyList.isDeniedAt(userId, base.plusSeconds(1), base.plusSeconds(3600)))
+    }
+
+    @Test
+    fun olderBoundaryCannotReplaceNewerRevocation() {
+        val userId = TestFixtures.uuid()
+        val newer = base.plusSeconds(10)
+        DenyList.denyAt(userId, newer)
+        DenyList.denyAt(userId, base)
+
+        assertTrue(DenyList.isDeniedAt(userId, newer, newer.plusSeconds(1)))
     }
 
     @Test
     fun unknownUserIsNotDenied() {
-        assertFalse(DenyList.isDenied(UUID.randomUUID()))
+        assertFalse(DenyList.isDenied(TestFixtures.uuid(), Instant.EPOCH))
     }
 
     @Test
-    fun entryIsKeptJustBefore24Hours() {
-        val userId = UUID.randomUUID()
+    fun entryIsKeptJustBeforeEviction() {
+        val userId = TestFixtures.uuid()
         DenyList.denyAt(userId, base)
-        val almostExpired = base.plus(Duration.ofHours(24)).minusSeconds(1)
-        assertTrue(DenyList.isDeniedAt(userId, almostExpired))
+        val almostExpired = base.plus(Duration.ofHours(24)).plusSeconds(59)
+        assertTrue(DenyList.isDeniedAt(userId, base, almostExpired))
+        // A token issued after the deny is allowed even while the entry lives.
+        assertFalse(DenyList.isDeniedAt(userId, base.plusSeconds(1), almostExpired))
     }
 
     @Test
-    fun entryIsEvictedAfter24Hours() {
-        val userId = UUID.randomUUID()
+    fun entryIsEvictedAfterTokenMaxAgePlusLeeway() {
+        val userId = TestFixtures.uuid()
         DenyList.denyAt(userId, base)
-        val expired = base.plus(Duration.ofHours(24))
-        assertFalse(DenyList.isDeniedAt(userId, expired))
+        // An entry must outlive the last pre-deny token: 24h JWT max age + the 60s
+        // acceptLeeway JwtService applies to exp validation.
+        val expired = base.plus(Duration.ofHours(24)).plusSeconds(60)
+        assertFalse(DenyList.isDeniedAt(userId, base, expired))
         // Lazy eviction removes the stale entry on read.
         assertEquals(0, DenyList.size())
     }
 
     @Test
     fun evictExpiredRemovesOnlyStaleEntries() {
-        val fresh = UUID.randomUUID()
-        val stale = UUID.randomUUID()
+        val fresh = TestFixtures.uuid()
+        val stale = TestFixtures.uuid()
         DenyList.denyAt(fresh, base.plus(Duration.ofHours(23)))
         DenyList.denyAt(stale, base)
-        val now = base.plus(Duration.ofHours(24))
+        val now = base.plus(Duration.ofHours(24)).plusSeconds(61)
 
         DenyList.evictExpiredAt(now)
 
         assertEquals(1, DenyList.size())
-        assertTrue(DenyList.isDeniedAt(fresh, now))
-        assertFalse(DenyList.isDeniedAt(stale, now))
+        assertTrue(DenyList.isDeniedAt(fresh, base, now))
+        assertFalse(DenyList.isDeniedAt(stale, base, now))
     }
 }

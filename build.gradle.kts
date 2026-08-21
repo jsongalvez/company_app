@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.compile.JavaCompile
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
+
 plugins {
     // this is necessary to avoid the plugins to be loaded multiple times
     // in each subproject's classloader
@@ -24,10 +27,28 @@ subprojects {
     detekt {
         buildUponDefaultConfig = true
         allRules = false
-        config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+        config.setFrom(
+            files(
+                "$rootDir/config/detekt/detekt.yml",
+                "$rootDir/config/detekt/detekt-anti-slop.yml",
+            ),
+        )
     }
 
     dependencies {
         add("detektPlugins", "io.gitlab.arturbosch.detekt:detekt-formatting:${rootProject.libs.versions.detekt.get()}")
+    }
+
+    val warningsAsErrors = providers.gradleProperty("warningsAsErrors").map(String::toBoolean).orElse(false)
+
+    tasks.withType<KotlinCompilationTask<*>>().configureEach {
+        compilerOptions.allWarningsAsErrors.set(warningsAsErrors)
+    }
+
+    tasks.withType<JavaCompile>().configureEach {
+        options.isWarnings = true
+        if (warningsAsErrors.get()) {
+            options.compilerArgs.add("-Werror")
+        }
     }
 }

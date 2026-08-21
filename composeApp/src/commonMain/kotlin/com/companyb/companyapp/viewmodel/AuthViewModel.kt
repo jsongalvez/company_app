@@ -1,7 +1,7 @@
 package com.companyb.companyapp.viewmodel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.dto.RegisterRequest
@@ -35,10 +35,10 @@ class AuthViewModel(
         handler.launch(
             state = _loginState,
             operation = "login",
-            endpoint = "POST /auth/login",
+            endpoint = "POST ${ApiRoutes.AUTH_LOGIN}",
             entryMessage = "login attempt for username=$username",
             block = {
-                apiClient.httpClient.post("/auth/login") {
+                apiClient.httpClient.post(ApiRoutes.AUTH_LOGIN) {
                     setBody(LoginRequest(username, password))
                 }
             },
@@ -50,19 +50,18 @@ class AuthViewModel(
         password: String,
         email: String,
         displayName: String,
-    ) {
+    ): Job =
         handler.launchUnit(
             state = _registerState,
             operation = "register",
-            endpoint = "POST /auth/register",
+            endpoint = "POST ${ApiRoutes.AUTH_REGISTER}",
             entryMessage = "register attempt for username=$username",
             block = {
-                apiClient.httpClient.post("/auth/register") {
+                apiClient.httpClient.post(ApiRoutes.AUTH_REGISTER) {
                     setBody(RegisterRequest(username, password, email, displayName))
                 }
             },
         )
-    }
 
     fun logout() {
         _loginState.value = UiState.Idle
@@ -71,7 +70,7 @@ class AuthViewModel(
             operation = "logout",
             endpoint = "POST /api/auth/logout",
             entryMessage = "logout attempt start",
-            block = { apiClient.httpClient.post("/api/auth/logout") },
+            block = { apiClient.httpClient.post(ApiRoutes.AUTH_LOGOUT) },
         )
     }
 }

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
@@ -17,9 +18,9 @@ data class Session(
     val clientId: UUID,
     val branchDayId: UUID,
     val requestedPractitionerId: UUID?,
-    val sessionType: String,
+    val sessionType: SessionType,
     val isWalkIn: Boolean,
-    val sessionStatus: String,
+    val sessionStatus: SessionStatus,
     val basePrice: BigDecimal,
     val finalPrice: BigDecimal,
     val remarks: String?,
@@ -29,13 +30,6 @@ data class Session(
     val createdAt: OffsetDateTime,
     val version: Int,
 )
-
-enum class SessionStatus {
-    PENDING,
-    COMPLETED,
-    NO_SHOW,
-    CANCELLED,
-}
 
 private const val PRECISION = 10
 private const val SCALE = 2
@@ -86,7 +80,7 @@ object SessionTable : Table("session") {
             "id" to entity.id.toString(),
             "clientId" to entity.clientId.toString(),
             "branchDayId" to entity.branchDayId.toString(),
-            "sessionType" to entity.sessionType,
+            "sessionType" to entity.sessionType.name,
             "finalPrice" to entity.finalPrice.toPlainString(),
         )
 }

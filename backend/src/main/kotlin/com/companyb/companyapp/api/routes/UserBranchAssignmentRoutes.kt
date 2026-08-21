@@ -1,9 +1,7 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
 import com.companyb.companyapp.dto.SwapSlotsRequest
@@ -15,31 +13,69 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/branches/{branchId}/assignments",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_assignments_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/assignments",
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_assignments_post",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/assignments/{userId}",
+    methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "branchId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "userId", type = UUID::class, required = true),
+    ],
+    operationId = "branch_assignment_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/assignments/{userId}/slot",
+    methods = [HttpMethod.PATCH],
+    pathParams = [
+        OpenApiParam(
+            name = "branchId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "userId", type = UUID::class, required = true),
+    ],
+    operationId = "branch_assignment_slot",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/slots/swap",
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_slots_swap",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object UserBranchAssignmentRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val USER_ID_PARAM = "userId"
 
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{branchId}/assignments") { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-            )
-        }
-        config.routes.before("/api/branches/{branchId}/slots") { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.MANAGE_USERS,
-            )
-        }
-
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/assignments", ::handleCreateAssignment)
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/assignments", ::handleGetAssignments)
-        config.routes.delete("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}", ::handleRemoveAssignment)
-        config.routes.patch("/api/branches/{$BRANCH_ID_PARAM}/assignments/{$USER_ID_PARAM}/slot", ::handleUpdateSlot)
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/slots/swap", ::handleSwapSlots)
+        config.routes.post(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleCreateAssignment)
+        config.routes.get(ApiRoutes.BRANCH_ASSIGNMENTS_PATH, ::handleGetAssignments)
+        config.routes.delete(ApiRoutes.BRANCH_ASSIGNMENT_USER_PATH, ::handleRemoveAssignment)
+        config.routes.patch(ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH, ::handleUpdateSlot)
+        config.routes.post(ApiRoutes.BRANCH_SLOTS_SWAP_PATH, ::handleSwapSlots)
     }
 
     private fun handleCreateAssignment(context: Context) {
@@ -68,7 +104,7 @@ object UserBranchAssignmentRoutes {
         val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
         context.json(
-            UserBranchAssignmentService.findActiveByBranch(branchId).map { it.toResponse() },
+            UserBranchAssignmentService.findActiveByBranch(callerId, branchId).map { it.toResponse() },
         )
     }
 

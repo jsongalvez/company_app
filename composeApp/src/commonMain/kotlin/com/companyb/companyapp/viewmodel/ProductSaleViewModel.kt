@@ -1,7 +1,7 @@
 package com.companyb.companyapp.viewmodel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.CreateProductSaleRequest
 import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.network.ApiClient
@@ -26,7 +26,7 @@ class ProductSaleViewModel(
             operation = "sell",
             endpoint = "POST /api/product-sales",
             block = {
-                apiClient.httpClient.post("/api/product-sales") {
+                apiClient.httpClient.post(ApiRoutes.PRODUCT_SALES) {
                     setBody(request)
                 }
             },

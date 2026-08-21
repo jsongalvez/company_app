@@ -1,0 +1,193 @@
+name: quality
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'composeApp/**'
+      - 'shared/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'settings.gradle.kts'
+      - 'config/detekt/**'
+      - '.githooks/**'
+      - 'scripts/check-test-cleanliness.sh'
+      - 'scripts/clean-test-db.sh'
+      - 'scripts/lib/**'
+      - 'docker/**'
+      - '.github/workflows/quality.yml'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: company_app_test
+          POSTGRES_USER: company_user
+          POSTGRES_PASSWORD: company_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U company_user -d company_app_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      APP_PORT: 8080
+      API_BASE_URL: http://localhost:8080
+      DB_HOST: localhost
+      DB_PORT: 5432
+      POSTGRES_DB: company_app_test
+      POSTGRES_USER: company_user
+      POSTGRES_PASSWORD: company_password
+      TEST_DB_NAME: company_app_test
+      JWT_SECRET: ci-secret-must-be-at-least-64-characters-long-for-tests-0123456789
+      JWT_ISSUER: company-app-ci
+      JWT_AUDIENCE: company-app-ci
+      AUTH_DUMMY_PASSWORD: ci-dummy-password
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run backend quality, shared Detekt, and shared JVM compilation
+        run: >-
+          ./gradlew :backend:detekt :backend:ktlintCheck :backend:test
+          :shared:detektMetadataCommonMain
+          :shared:detektJvmMain :shared:detektJvmTest
+          :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest
+          :shared:detektIosArm64Main :shared:detektIosArm64Test
+          :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test
+          :composeApp:detektDesktopTest
+          :composeApp:detektAndroidDebugUnitTest
+          :composeApp:detektIosArm64Test
+          :composeApp:detektIosSimulatorArm64Test
+          :composeApp:desktopTest
+          :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain
+          :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main
+          :composeApp:detektIosSimulatorArm64Main
+          :shared:compileKotlinJvm :shared:jvmTest -x :backend:publishOpenApiSpec
+          -PwarningsAsErrors=true --no-daemon
+
+      - name: Verify test database cleanliness
+        run: bash scripts/check-test-cleanliness.sh
+
+  compose-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Android
+            task: ':composeApp:compileDebugKotlinAndroid'
+          - name: Desktop
+            task: ':composeApp:compileKotlinDesktop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile Compose ${{ matrix.name }} target
+        run: ./gradlew '${{ matrix.task }}' --no-daemon
+
+  k6-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: company_app_test
+          POSTGRES_USER: company_user
+          POSTGRES_PASSWORD: company_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U company_user -d company_app_test"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      APP_PORT: 8080
+      API_BASE_URL: http://localhost:8080
+      DB_HOST: localhost
+      DB_PORT: 5432
+      POSTGRES_DB: company_app_test
+      POSTGRES_USER: company_user
+      POSTGRES_PASSWORD: company_password
+      TEST_DB_NAME: company_app_test
+      TEST_USERNAME: owner
+      TEST_PASSWORD: pass
+      JWT_SECRET: ci-secret-must-be-at-least-64-characters-long-for-tests-0123456789
+      JWT_ISSUER: company-app-ci
+      JWT_AUDIENCE: company-app-ci
+      AUTH_DUMMY_PASSWORD: ci-dummy-password
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 baseline against disposable test database
+        run: |
+          set -euo pipefail
+          ./gradlew :backend:run --no-daemon > /tmp/company-app-k6.log 2>&1 &
+          app_pid=$!
+          cleanup() {
+            status=$?
+            kill "$app_pid" 2>/dev/null || true
+            wait "$app_pid" 2>/dev/null || true
+            bash scripts/clean-test-db.sh || status=1
+            exit "$status"
+          }
+          trap cleanup EXIT
+          # Cold CI Gradle builds can take longer than a minute before the app listens.
+          for attempt in $(seq 1 300); do
+            if curl --fail --silent "http://localhost:${APP_PORT}/health" >/dev/null; then
+              break
+            fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              tail -50 /tmp/company-app-k6.log
+              exit 1
+            fi
+            sleep 2
+          done
+          curl --fail --silent "http://localhost:${APP_PORT}/health" >/dev/null || {
+            tail -50 /tmp/company-app-k6.log
+            exit 1
+          }
+          k6 run tests/k6/baseline.js --quiet

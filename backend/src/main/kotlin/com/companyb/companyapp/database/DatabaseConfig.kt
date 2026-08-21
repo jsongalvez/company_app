@@ -14,9 +14,17 @@ object DatabaseConfig {
     private const val MIN_IDLE = 3
     private const val CONNECTION_TIMEOUT_MS = 30_000L
 
+    private val lock = Any()
     private var appConfig: AppConfig? = null
+    private var dataSourceInstance: HikariDataSource? = null
 
-    val dataSource: HikariDataSource by lazy {
+    val dataSource: HikariDataSource
+        get() =
+            synchronized(lock) {
+                dataSourceInstance ?: createDataSource().also { dataSourceInstance = it }
+            }
+
+    private fun createDataSource(): HikariDataSource {
         val cfg = appConfig ?: error("DatabaseConfig.initialize() must be called before accessing dataSource")
         val config =
             HikariConfig().apply {
@@ -31,28 +39,52 @@ object DatabaseConfig {
                 minimumIdle = MIN_IDLE
                 connectionTimeout = CONNECTION_TIMEOUT_MS
             }
-        HikariDataSource(config)
+        return HikariDataSource(config)
     }
 
+    @Suppress("TooGenericExceptionCaught")
     fun initialize(config: AppConfig) {
+        synchronized(lock) {
+            configure(config)
+        }
+        try {
+            logger.info { "[INITIALIZE-DATABASE] Starting HikariCP connection" }
+            dataSource
+            logger.info { "[INITIALIZE-DATABASE] HikariCP connection enabled" }
+
+            logger.info { "[INITIALIZE-DATABASE] Starting Flyway initialization" }
+            val flyway =
+                Flyway
+                    .configure()
+                    .dataSource(dataSource)
+                    .locations("classpath:db/migration")
+                    .load()
+            flyway.migrate()
+            logger.info { "[INITIALIZE-DATABASE] Flyway initialization done" }
+
+            logger.info { "[INITIALIZE-DATABASE] Starting Exposed connection" }
+            Database.connect(dataSource)
+            logger.info { "[INITIALIZE-DATABASE] Exposed connection enabled" }
+        } catch (failure: Throwable) {
+            close()
+            throw failure
+        }
+    }
+
+    internal fun prepareForTest(config: AppConfig) {
+        synchronized(lock) {
+            configure(config)
+        }
+    }
+
+    private fun configure(config: AppConfig) {
         appConfig = config
-        logger.info { "[INITIALIZE-DATABASE] Starting HikariCP connection" }
-        dataSource
-        logger.info { "[INITIALIZE-DATABASE] HikariCP connection enabled" }
+    }
 
-        logger.info { "[INITIALIZE-DATABASE] Starting Flyway initialization" }
-        val flyway =
-            Flyway
-                .configure()
-                .dataSource(dataSource)
-                .locations("classpath:db/migration")
-                .load()
-        flyway.repair()
-        flyway.migrate()
-        logger.info { "[INITIALIZE-DATABASE] Flyway initialization done" }
-
-        logger.info { "[INITIALIZE-DATABASE] Starting Exposed connection" }
-        Database.connect(dataSource)
-        logger.info { "[INITIALIZE-DATABASE] Exposed connection enabled" }
+    fun close() {
+        synchronized(lock) {
+            dataSourceInstance?.close()
+            dataSourceInstance = null
+        }
     }
 }

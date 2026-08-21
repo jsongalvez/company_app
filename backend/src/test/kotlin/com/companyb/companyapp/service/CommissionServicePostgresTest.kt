@@ -1,6 +1,6 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
@@ -10,7 +10,6 @@ import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
@@ -23,6 +22,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -32,6 +32,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -41,13 +42,13 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
 class CommissionServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val targetUserId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val categoryId = UUID.randomUUID()
-    private val productId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val targetUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val categoryId = TestFixtures.uuid()
+    private val productId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
     private lateinit var productSaleId: UUID
@@ -87,7 +88,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create inclusion succeeds with all fields`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         val inclusion =
             CommissionService.createManualInclusion(
@@ -111,7 +112,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create inclusion without reason succeeds`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         val inclusion =
             CommissionService.createManualInclusion(
@@ -129,7 +130,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create exclusion succeeds`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         val inclusion =
             CommissionService.createManualInclusion(
@@ -147,7 +148,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `upsert updates existing inclusion`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         CommissionService.createManualInclusion(
             callerId = callerId,
@@ -161,7 +162,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         val updated =
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 productSaleId = productSaleId,
                 userId = targetUserId,
                 isIncluded = false,
@@ -185,7 +186,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     fun `create without ASSIGN_COMPENSATION is allowed at service layer`() {
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
         val inclusion =
             CommissionService.createManualInclusion(
                 callerId = callerId,
@@ -206,8 +207,8 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<NotFoundException> {
             CommissionService.createManualInclusion(
                 callerId = callerId,
-                id = UUID.randomUUID(),
-                productSaleId = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
+                productSaleId = TestFixtures.uuid(),
                 userId = targetUserId,
                 isIncluded = true,
                 reason = null,
@@ -217,7 +218,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create triggers commission recalculation and creates split`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         val (_, duration) =
             measureTimedValue {
@@ -243,7 +244,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `get splits returns correct data`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         CommissionService.createManualInclusion(
             callerId = callerId,
@@ -277,13 +278,13 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     @Test
     fun `get splits with non-existent branch day returns not found`() {
         assertFailsWith<NotFoundException> {
-            CommissionService.getByBranchDayId(UUID.randomUUID())
+            CommissionService.getByBranchDayId(TestFixtures.uuid())
         }
     }
 
     @Test
     fun `create writes audit log entry`() {
-        val inclusionId = UUID.randomUUID()
+        val inclusionId = TestFixtures.uuid()
 
         CommissionService.createManualInclusion(
             callerId = callerId,
@@ -306,6 +307,69 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         assertTrue(auditCount > 0)
     }
 
+    @Test
+    fun `manual inclusion trigger rolls back inclusion audit and splits when transaction fails`() {
+        val inclusionId = TestFixtures.uuid()
+
+        assertFailsWith<IllegalStateException> {
+            transaction {
+                CommissionService.createManualInclusion(
+                    callerId = callerId,
+                    id = inclusionId,
+                    productSaleId = productSaleId,
+                    userId = targetUserId,
+                    isIncluded = true,
+                    reason = null,
+                )
+                error("injected commission trigger failure")
+            }
+        }
+
+        assertEquals(
+            0,
+            transaction {
+                CommissionManualInclusionTable
+                    .selectAll()
+                    .where {
+                        CommissionManualInclusionTable.id eq
+                            inclusionId
+                    }.count()
+            },
+        )
+        assertEquals(
+            0,
+            transaction { AuditLogTable.selectAll().where { AuditLogTable.recordId eq inclusionId }.count() },
+        )
+        assertTrue(CommissionService.getByBranchDayId(branchDayId).isEmpty())
+    }
+
+    @Test
+    fun `concurrent repeated recalculation converges without losing splits`() {
+        CommissionService.createManualInclusion(
+            callerId = callerId,
+            id = TestFixtures.uuid(),
+            productSaleId = productSaleId,
+            userId = targetUserId,
+            isIncluded = true,
+            reason = null,
+        )
+
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val first = executor.submit<Unit> { CommissionService.recalculate(branchDayId) }
+            val second = executor.submit<Unit> { CommissionService.recalculate(branchDayId) }
+            first.get()
+            second.get()
+        } finally {
+            executor.shutdownNow()
+        }
+
+        val splits = CommissionService.getByBranchDayId(branchDayId)
+        assertEquals(1, splits.size)
+        assertEquals(targetUserId, splits.single().userId)
+        assertEquals(BigDecimal("20.0000"), splits.single().amount)
+    }
+
     private fun ensureInventoryCard(
         branchId: UUID,
         productId: UUID,
@@ -322,7 +386,7 @@ class CommissionServicePostgresTest : BasePostgresTest() {
     }
 
     private fun createProductSale(branchDayId: UUID): UUID {
-        val saleId = UUID.randomUUID()
+        val saleId = TestFixtures.uuid()
         ProductSaleService.sell(
             callerId = callerId,
             id = saleId,
@@ -342,15 +406,15 @@ class CommissionServicePostgresTest : BasePostgresTest() {
         branchDayId: UUID,
     ) {
         transaction {
-            val attendanceId = UUID.randomUUID()
+            val attendanceId = TestFixtures.uuid()
             AttendanceTable.insertIgnore {
                 it[AttendanceTable.id] = attendanceId
                 it[AttendanceTable.branchDayId] = branchDayId
                 it[AttendanceTable.userId] = userId
                 it[AttendanceTable.markedBy] = callerId
-                it[AttendanceTable.clockIn] = OffsetDateTime.now().minusMinutes(30)
+                it[AttendanceTable.clockIn] = TestFixtures.now.minusMinutes(30)
             }
-            val assignmentId = UUID.randomUUID()
+            val assignmentId = TestFixtures.uuid()
             BranchDayAssignmentTable.insertIgnore {
                 it[BranchDayAssignmentTable.id] = assignmentId
                 it[BranchDayAssignmentTable.branchDayId] = branchDayId

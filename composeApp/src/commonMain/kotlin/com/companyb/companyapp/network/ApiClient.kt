@@ -30,7 +30,10 @@ class ApiClient(
     baseUrl: String = platformDefaultBaseUrl,
     engine: HttpClientEngine = httpClientEngine(),
 ) {
-    val onUnauthorized: MutableSharedFlow<Unit> = MutableSharedFlow(extraBufferCapacity = 1)
+    // #94 Q3 — carries the 401'd request path so the App handler can discriminate credential
+    // 401s (POST /auth/login, /auth/register → inline form error, no global reaction) from
+    // session 401s (clear token → Login, "session expired" mid-session, silent at launch).
+    val onUnauthorized: MutableSharedFlow<String> = MutableSharedFlow(extraBufferCapacity = 1)
 
     val httpClient: HttpClient =
         HttpClient(engine) {
@@ -41,7 +44,7 @@ class ApiClient(
         private fun HttpClientConfig<*>.configure(
             tokenStore: TokenStore,
             baseUrl: String,
-            onUnauthorized: MutableSharedFlow<Unit>,
+            onUnauthorized: MutableSharedFlow<String>,
         ) {
             install(ContentNegotiation) {
                 json(
@@ -54,7 +57,7 @@ class ApiClient(
             }
 
             install(Logging) {
-                level = LogLevel.HEADERS
+                level = LogLevel.INFO
             }
 
             install(Auth) {
@@ -87,8 +90,9 @@ class ApiClient(
             HttpResponseValidator {
                 validateResponse { response ->
                     if (response.status == HttpStatusCode.Unauthorized) {
-                        logInfo("ApiClient", "401 detected (HTTP 401)")
-                        onUnauthorized.tryEmit(Unit)
+                        val path = response.call.request.url.encodedPath
+                        logInfo("ApiClient", "401 detected (HTTP 401) on $path")
+                        onUnauthorized.tryEmit(path)
                     }
                 }
             }

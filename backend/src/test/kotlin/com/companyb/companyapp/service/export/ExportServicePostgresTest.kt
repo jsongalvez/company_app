@@ -1,31 +1,35 @@
 package com.companyb.companyapp.service.export
-
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.ProductCategoryTable
+import com.companyb.companyapp.repository.model.ProductSaleTable
+import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceLineType
-import com.companyb.companyapp.repository.model.RemittanceMethod
-import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RemittanceType
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -40,14 +44,15 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ExportServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val branchDayId = UUID.randomUUID()
-    private val today = LocalDate.now(java.time.ZoneId.of("Asia/Manila"))
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val branchDayId = TestFixtures.uuid()
+    private val today = TestFixtures.today
 
     override fun initTestData() {
         DatabaseTestHelper.insertUser(
@@ -58,7 +63,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
             displayName = "Export User",
         )
         trackOwned(AppUserTable, AppUserTable.id, callerId)
-        DatabaseTestHelper.insertTestBranch(branchId, "Export Test Branch ${UUID.randomUUID()}", BranchType.CLINIC)
+        DatabaseTestHelper.insertTestBranch(branchId, "Export Test Branch ${TestFixtures.uuid()}", BranchType.CLINIC)
         trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
@@ -89,10 +94,10 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export with session data includes correct totals`() {
-        val testClientId = UUID.randomUUID()
+        val testClientId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestClient(testClientId)
         trackOwned(ClientTable, ClientTable.id, testClientId)
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = sessionId,
             clientId = testClientId,
@@ -118,7 +123,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export returns CSV without capability`() {
-        val otherUserId = UUID.randomUUID()
+        val otherUserId = TestFixtures.uuid()
         DatabaseTestHelper.insertUser(
             id = otherUserId,
             username = "no-cap-${otherUserId.toString().take(8)}",
@@ -135,9 +140,113 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `daily export throws 404 for non-existent branch`() {
-        val missingBranch = UUID.randomUUID()
+        val missingBranch = TestFixtures.uuid()
         assertFailsWith<NotFoundException> {
             ExportService.exportDaily(missingBranch, today, ExportFormat.CSV)
+        }
+    }
+
+    @Test
+    fun `range export CSV rolls up the window into one row`() {
+        val day1 = TestFixtures.uuid()
+        insertBranchDay(day1, branchId, today.minusDays(1))
+        trackOwned(BranchDayTable, BranchDayTable.id, day1)
+        seedDayFinancials(
+            day1,
+            DayFinancials(
+                gross = BigDecimal("2500.00"),
+                comp = BigDecimal("500.00"),
+                expense = BigDecimal("200.00"),
+                productSales = BigDecimal("300.00"),
+                commission = BigDecimal("150.0000"),
+            ),
+        )
+        seedDayFinancials(
+            branchDayId,
+            DayFinancials(
+                gross = BigDecimal("1500.00"),
+                comp = BigDecimal("300.00"),
+                expense = BigDecimal("100.00"),
+                productSales = BigDecimal("100.00"),
+                commission = BigDecimal("50.0000"),
+            ),
+        )
+
+        val result = ExportService.exportRange(branchId, today.minusDays(1), today, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertTrue(csv.contains("Gross Income"), "expected header row but got: $csv")
+        assertEquals(1, csv.lines().count { it.isNotBlank() } - 1, "expected header + one rollup row but got: $csv")
+        assertEquals(
+            "4000.00,800.00,300.00,2900.00,400.00,200.0000",
+            csv.lines().first { it.isNotBlank() && !it.startsWith("Gross Income") },
+            "unexpected rollup row in: $csv",
+        )
+        assertTrue(csv.contains("4000.00"), "expected gross sum 4000.00 but got: $csv")
+        assertTrue(csv.contains("800.00"), "expected compensation sum 800.00 but got: $csv")
+        assertTrue(csv.contains("300.00"), "expected expense sum 300.00 but got: $csv")
+        assertTrue(csv.contains("2900.00"), "expected net sum 2900.00 but got: $csv")
+        assertTrue(csv.contains("400.00"), "expected product sales sum 400.00 but got: $csv")
+        assertTrue(csv.contains("200.0000"), "expected commission sum 200.0000 but got: $csv")
+        assertEquals("text/csv", result.contentType)
+        assertTrue(result.fileName.endsWith(".csv"))
+    }
+
+    @Test
+    fun `range export PDF returns valid PDF bytes`() {
+        seedDayFinancials(
+            branchDayId,
+            DayFinancials(
+                gross = BigDecimal("1500.00"),
+                comp = BigDecimal("300.00"),
+                expense = BigDecimal("100.00"),
+                productSales = BigDecimal.ZERO,
+                commission = BigDecimal.ZERO,
+            ),
+        )
+        val result = ExportService.exportRange(branchId, today, today, ExportFormat.PDF)
+        val pdfStart = byteArrayOf(0x25, 0x50, 0x44, 0x46)
+        assertContentEquals(pdfStart, result.bytes.take(4).toByteArray())
+        assertEquals("application/pdf", result.contentType)
+        assertTrue(result.fileName.endsWith(".pdf"))
+    }
+
+    @Test
+    fun `range export excludes days outside the window and keeps zero-activity days`() {
+        val dayOutside = TestFixtures.uuid()
+        insertBranchDay(dayOutside, branchId, today.minusDays(5))
+        trackOwned(BranchDayTable, BranchDayTable.id, dayOutside)
+        seedDayFinancials(
+            dayOutside,
+            DayFinancials(
+                gross = BigDecimal("9999.00"),
+                comp = BigDecimal("100.00"),
+                expense = BigDecimal("100.00"),
+                productSales = BigDecimal("100.00"),
+                commission = BigDecimal("100.0000"),
+            ),
+        )
+
+        val result = ExportService.exportRange(branchId, today, today, ExportFormat.CSV)
+        val csv = String(result.bytes, Charsets.UTF_8)
+        assertFalse(csv.contains("9999.00"), "day outside the window must be excluded but got: $csv")
+        assertEquals(
+            "0.00,0.00,0.00,0.00,0.00,0.0000",
+            csv.lines().first { it.isNotBlank() && !it.startsWith("Gross Income") },
+            "zero-activity day in the window must yield its zero rollup row: $csv",
+        )
+    }
+
+    @Test
+    fun `range export throws 404 when no data in range`() {
+        assertFailsWith<NotFoundException> {
+            ExportService.exportRange(branchId, today.plusDays(10), today.plusDays(20), ExportFormat.CSV)
+        }
+    }
+
+    @Test
+    fun `range export throws 404 for non-existent branch`() {
+        assertFailsWith<NotFoundException> {
+            ExportService.exportRange(TestFixtures.uuid(), today, today, ExportFormat.CSV)
         }
     }
 
@@ -196,14 +305,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `provincial export CSV returns branch data`() {
-        val provBranchId = UUID.randomUUID()
+        val provBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(
             provBranchId,
-            "Prov Branch ${UUID.randomUUID()}",
+            "Prov Branch ${TestFixtures.uuid()}",
             BranchType.PROVINCIAL_TOUR,
         )
         trackOwned(BranchTable, BranchTable.id, provBranchId)
-        val provDayId = UUID.randomUUID()
+        val provDayId = TestFixtures.uuid()
         insertBranchDay(provDayId, provBranchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, provDayId)
         val remittanceId =
@@ -228,10 +337,10 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `medical mission export CSV returns branch data`() {
-        val mmBranchId = UUID.randomUUID()
-        DatabaseTestHelper.insertTestBranch(mmBranchId, "MM Branch ${UUID.randomUUID()}", BranchType.MEDICAL_MISSION)
+        val mmBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(mmBranchId, "MM Branch ${TestFixtures.uuid()}", BranchType.MEDICAL_MISSION)
         trackOwned(BranchTable, BranchTable.id, mmBranchId)
-        val mmDayId = UUID.randomUUID()
+        val mmDayId = TestFixtures.uuid()
         insertBranchDay(mmDayId, mmBranchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, mmDayId)
         val remittanceId =
@@ -263,14 +372,14 @@ class ExportServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `provincial export with month filter returns filtered data`() {
-        val provBranchId = UUID.randomUUID()
+        val provBranchId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestBranch(
             provBranchId,
-            "Prov Month Branch ${UUID.randomUUID()}",
+            "Prov Month Branch ${TestFixtures.uuid()}",
             BranchType.PROVINCIAL_TOUR,
         )
         trackOwned(BranchTable, BranchTable.id, provBranchId)
-        val provDayId = UUID.randomUUID()
+        val provDayId = TestFixtures.uuid()
         insertBranchDay(provDayId, provBranchId, today)
         trackOwned(BranchDayTable, BranchDayTable.id, provDayId)
         val remittanceId =
@@ -301,6 +410,65 @@ class ExportServicePostgresTest : BasePostgresTest() {
         )
     }
 
+    private data class DayFinancials(
+        val gross: BigDecimal,
+        val comp: BigDecimal,
+        val expense: BigDecimal,
+        val productSales: BigDecimal,
+        val commission: BigDecimal,
+    )
+
+    private fun seedDayFinancials(
+        dayId: UUID,
+        financials: DayFinancials,
+    ) {
+        val clientId = TestFixtures.uuid()
+        val userId = TestFixtures.uuid()
+        val categoryId = TestFixtures.uuid()
+        val productId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestClient(clientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+        DatabaseTestHelper.insertTestUser(userId, "range-user")
+        trackOwned(AppUserTable, AppUserTable.id, userId)
+        DatabaseTestHelper.insertTestCategory(categoryId)
+        trackOwned(ProductCategoryTable, ProductCategoryTable.id, categoryId)
+        DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
+        trackOwned(ProductTable, ProductTable.id, productId)
+        DatabaseTestHelper.insertTestSession(
+            id = TestFixtures.uuid(),
+            clientId = clientId,
+            branchDayId = dayId,
+            sessionType = SessionType.REGULAR,
+            sessionStatus = SessionStatus.COMPLETED,
+            basePrice = financials.gross,
+            finalPrice = financials.gross,
+        )
+        trackOwned(SessionTable, SessionTable.branchDayId, dayId)
+        DatabaseTestHelper.insertTestCompensation(dayId, userId, financials.comp, assignedBy = callerId)
+        trackOwned(CompensationTable, CompensationTable.workBranchDayId, dayId)
+        trackOwned(CompensationTable, CompensationTable.payingBranchDayId, dayId)
+        DatabaseTestHelper.insertTestExpense(dayId, userId, financials.expense)
+        trackOwned(ExpenseTable, ExpenseTable.branchDayId, dayId)
+        DatabaseTestHelper.insertTestProductSale(
+            id = TestFixtures.uuid(),
+            branchDayId = dayId,
+            productId = productId,
+            handledBy = userId,
+            unitPrice = financials.productSales,
+            totalAmount = financials.productSales,
+        )
+        trackOwned(ProductSaleTable, ProductSaleTable.branchDayId, dayId)
+        transaction {
+            CommissionSplitTable.insert {
+                it[CommissionSplitTable.id] = TestFixtures.uuid()
+                it[CommissionSplitTable.branchDayId] = dayId
+                it[CommissionSplitTable.userId] = userId
+                it[CommissionSplitTable.amount] = financials.commission
+            }
+        }
+        trackOwned(CommissionSplitTable, CommissionSplitTable.branchDayId, dayId)
+    }
+
     private fun insertBranchDay(
         id: UUID,
         branchId: UUID,
@@ -327,11 +495,11 @@ class ExportServicePostgresTest : BasePostgresTest() {
         compensation: BigDecimal,
         expenses: BigDecimal,
     ): UUID {
-        val remittanceId = UUID.randomUUID()
-        val compensationUserId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val compensationUserId = TestFixtures.uuid()
         val targetDayId = findOrCreateBranchDay(targetBranchId)
-        val sessionId = UUID.randomUUID()
-        val lineClientId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
+        val lineClientId = TestFixtures.uuid()
 
         transaction {
             DatabaseTestHelper.insertUser(
@@ -392,7 +560,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         if (existing != null) {
             return existing[BranchDayTable.id]
         }
-        val dayId = UUID.randomUUID()
+        val dayId = TestFixtures.uuid()
         transaction {
             BranchDayTable.insertIgnore {
                 it[BranchDayTable.id] = dayId
@@ -428,7 +596,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         sessionId: UUID,
     ) {
         RemittanceLineTable.insert {
-            it[RemittanceLineTable.id] = UUID.randomUUID()
+            it[RemittanceLineTable.id] = TestFixtures.uuid()
             it[RemittanceLineTable.remittanceId] = remittanceId
             it[RemittanceLineTable.type] = RemittanceLineType.SESSION
             it[RemittanceLineTable.amount] = grossIncome
@@ -441,7 +609,7 @@ class ExportServicePostgresTest : BasePostgresTest() {
         targetDayId: UUID,
     ) {
         RemittanceDayBreakdownTable.insert {
-            it[RemittanceDayBreakdownTable.id] = UUID.randomUUID()
+            it[RemittanceDayBreakdownTable.id] = TestFixtures.uuid()
             it[RemittanceDayBreakdownTable.remittanceId] = remittanceId
             it[RemittanceDayBreakdownTable.branchDayId] = targetDayId
         }

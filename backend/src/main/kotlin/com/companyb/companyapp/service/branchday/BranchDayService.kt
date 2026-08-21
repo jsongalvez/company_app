@@ -1,12 +1,13 @@
 package com.companyb.companyapp.service.branchday
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.model.BranchDay
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.service.CapabilityService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.LocalDate
@@ -23,6 +24,7 @@ import java.util.UUID
  * Day state is lazily evaluated against the current Asia/Manila calendar date: a day that is
  * still OPEN but whose calendar date is already in the past is treated as PAST.
  */
+@Suppress("TooManyFunctions")
 object BranchDayService {
     private val logger = KotlinLogging.logger {}
 
@@ -37,11 +39,57 @@ object BranchDayService {
     ): BranchDay = BranchDayRepository.resolveOrCreate(branchId, date)
 
     /**
+     * Resolves the branch day for today (Asia/Manila), creating it idempotently if missing.
+     * Consumers (inventory mutations, finance/expenses) need today's [BranchDay.id] before the
+     * first write of the day — a 404 on a missing day would deadlock them — so this is a
+     * resolve-or-create, not a find-only read.
+     *
+     * @throws NotFoundException if the branch does not exist.
+     */
+    fun getToday(branchId: UUID): BranchDay {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        val today = LocalDate.now(manilaZone)
+        return resolveOrCreate(branchId, today)
+    }
+
+    /**
      * Finds a branch day by ID or throws [NotFoundException].
      */
     fun requireBranchDayExists(branchDayId: UUID): BranchDay =
         BranchDayRepository.findById(branchDayId)
             ?: throw NotFoundException("Branch day not found")
+
+    /**
+     * Branch-scoped variant of [requireBranchDayExists] (the parent-child convention): the
+     * day must belong to [branchId], else 404 — a foreign day is indistinguishable from a
+     * missing one. Used by the #157 session-create gated-day guard.
+     */
+    fun requireBranchDayForBranch(
+        branchDayId: UUID,
+        branchId: UUID,
+    ): BranchDay =
+        BranchDayRepository.findByIdForBranch(branchDayId, branchId)
+            ?: throw NotFoundException("Branch day not found for this branch")
+
+    /**
+     * Finds today's (Asia/Manila) branch day for [branchId] without creating it — the
+     * find-only mirror of [getToday]. Gates use this when a day-scoped check must not
+     * mutate: a missing day means no BRANCH_DAY grant can exist for it (a grant always
+     * references an existing day row).
+     */
+    fun findToday(branchId: UUID): BranchDay? {
+        val today = LocalDate.now(manilaZone)
+        return BranchDayRepository.findByBranchAndDate(branchId, today)
+    }
+
+    /**
+     * Find-only branch-day lookup by explicit date — never creates. The #158 read-side
+     * day gates use this to resolve the day a single-day summary read refers to.
+     */
+    fun findByBranchAndDate(
+        branchId: UUID,
+        date: LocalDate,
+    ): BranchDay? = BranchDayRepository.findByBranchAndDate(branchId, date)
 
     /**
      * Returns the effective status of a branch day, applying lazy evaluation:
@@ -72,13 +120,7 @@ object BranchDayService {
         val today = LocalDate.now(manilaZone)
         val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
         val isRemitted = effectiveStatus == DayStatus.REMITTED
-        val hasEditPastDay =
-            CapabilityService.hasCapability(
-                userId = callerId,
-                capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
-                contextType = CapabilityContextType.BRANCH,
-                contextId = branchDay.branchId,
-            )
+        val hasEditPastDay = hasEditPastDayCapability(callerId, branchDay.branchId)
         assertEditableState(effectiveStatus, hasEditPastDay, reason)
         logger.info {
             "[CHECK-BRANCH-DAY-EDITABLE] branch_day=$branchDayId" +
@@ -86,6 +128,38 @@ object BranchDayService {
         }
         return branchDay to isRemitted
     }
+
+    /**
+     * Read-path variant of [checkBranchDayEditable]: asserts the caller may view data on a
+     * non-OPEN day. Reads on PAST/REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]
+     * (mirroring the write gate) but never a reason — a read mutates nothing.
+     *
+     * @return the resolved [BranchDay].
+     * @throws NotFoundException if the branch day does not exist.
+     * @throws ForbiddenException if the day is PAST/REMITTED and the user lacks EDIT_PAST_DAY.
+     */
+    fun checkBranchDayReadable(
+        callerId: UUID,
+        branchDayId: UUID,
+    ): BranchDay {
+        val branchDay = requireBranchDayExists(branchDayId)
+        val today = LocalDate.now(manilaZone)
+        val effectiveStatus = evaluateStatus(branchDay.status, branchDay.date, today)
+        assertReadableState(effectiveStatus, hasEditPastDayCapability(callerId, branchDay.branchId))
+        logger.info { "[CHECK-BRANCH-DAY-READABLE] branch_day=$branchDayId effectiveStatus=$effectiveStatus allowed" }
+        return branchDay
+    }
+
+    private fun hasEditPastDayCapability(
+        callerId: UUID,
+        branchId: UUID,
+    ): Boolean =
+        CapabilityService.hasCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+        )
 
     /**
      * Pure day-state resolution: an OPEN day whose calendar date precedes [today] is treated as
@@ -120,6 +194,21 @@ object BranchDayService {
         if (effectiveStatus == DayStatus.REMITTED && reason.isNullOrBlank()) {
             throw ValidationException("A reason is required to write on a REMITTED day")
         }
+    }
+
+    /**
+     * Pure authorization for a read against an already-resolved [effectiveStatus].
+     * Reads on PAST/REMITTED days require [CapabilityCodes.EDIT_PAST_DAY]; no reason is ever
+     * required — a read mutates nothing.
+     */
+    fun assertReadableState(
+        effectiveStatus: DayStatus,
+        hasEditPastDay: Boolean,
+    ) {
+        if (effectiveStatus == DayStatus.OPEN || hasEditPastDay) {
+            return
+        }
+        throw ForbiddenException("EDIT_PAST_DAY capability required to read on a $effectiveStatus day")
     }
 
     /**

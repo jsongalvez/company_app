@@ -1,5 +1,6 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -40,6 +41,17 @@ data class ReliefAccessRequest(
     val requestId: String,
     val branchDayId: String,
     val targetUserId: String,
+    val reason: String? = null,
+)
+
+@Serializable
+data class GrantReliefAccessRequest(
+    val reason: String? = null,
+)
+
+@Serializable
+data class DenyReliefAccessRequest(
+    val reason: String? = null,
 )
 
 @Serializable
@@ -47,7 +59,7 @@ data class ReliefAccessResponse(
     val id: String,
     val branchDayId: String,
     val requestedBy: String,
-    val requestStatus: String,
+    val requestStatus: ReliefAccessStatus,
     val targetUser: String,
     val grantedBy: String? = null,
     val grantedAt: String? = null,

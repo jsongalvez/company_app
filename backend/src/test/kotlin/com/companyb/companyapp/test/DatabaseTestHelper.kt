@@ -1,30 +1,36 @@
-package com.companyb.companyapp.test
+@file:Suppress("ForbiddenClassName")
 
+package com.companyb.companyapp.test
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
+import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CapabilitySourceType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantPriorities
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.service.CapabilityService
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.test.TestFixtures
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.serialization.json.Json
@@ -40,8 +46,11 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 object DatabaseTestHelper {
@@ -78,10 +87,7 @@ object DatabaseTestHelper {
                 .dataSource(ds)
                 .locations("classpath:db/migration")
                 .load()
-                .apply {
-                    repair()
-                    migrate()
-                }
+                .migrate()
             Database.connect(ds)
             testDataSource = ds
             databaseReady = true
@@ -219,6 +225,8 @@ object DatabaseTestHelper {
         contextId: UUID,
         sourceId: UUID,
         priority: Int = GrantPriorities.DIRECT_GRANT.toInt(),
+        validFrom: OffsetDateTime? = null,
+        validTo: OffsetDateTime? = null,
     ) {
         val capId =
             CapabilityRepository.findIdByCode(capabilityCode)
@@ -232,6 +240,8 @@ object DatabaseTestHelper {
                 it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
                 it[UserCapabilityTable.sourceId] = sourceId
                 it[UserCapabilityTable.priority] = priority.toShort()
+                if (validFrom != null) it[UserCapabilityTable.validFrom] = validFrom
+                if (validTo != null) it[UserCapabilityTable.validTo] = validTo
             }
         }
     }
@@ -263,22 +273,114 @@ object DatabaseTestHelper {
         }
     }
 
-    fun createBranchDayForToday(branchId: UUID): UUID =
+    /**
+     * Inserts a [user_branch_assignment] row directly (bypasses
+     * [com.companyb.companyapp.repository.UserBranchAssignmentRepository]).
+     * NOTE: inside `insert {}` the lambda receiver is the TABLE, so unqualified
+     * names that collide with table columns resolve to COLUMNS, not to enclosing
+     * scope — function parameters and locals win, but object properties lose.
+     * Always pass local values or explicitly-qualified references (this is why
+     * the repository uses `params.*`).
+     */
+    @Suppress("LongParameterList")
+    fun insertTestAssignment(
+        id: UUID = TestFixtures.uuid(),
+        userId: UUID,
+        branchId: UUID,
+        slot: Short,
+        assignedBy: UUID,
+        ended: Boolean = false,
+    ): UUID {
         transaction {
-            val today = LocalDate.now(BranchDayService.manilaZone)
+            UserBranchAssignmentTable.insert {
+                it[UserBranchAssignmentTable.id] = id
+                it[UserBranchAssignmentTable.userId] = userId
+                it[UserBranchAssignmentTable.branchId] = branchId
+                it[UserBranchAssignmentTable.slot] = slot
+                it[UserBranchAssignmentTable.assignedBy] = assignedBy
+                if (ended) it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
+            }
+        }
+        return id
+    }
+
+    fun createBranchDayForToday(branchId: UUID): UUID = createBranchDayForDate(branchId, TestFixtures.today)
+
+    fun createBranchDayForDate(
+        branchId: UUID,
+        date: LocalDate,
+    ): UUID =
+        transaction {
             BranchDayTable.insertIgnore {
                 it[BranchDayTable.branchId] = branchId
-                it[BranchDayTable.date] = today
+                it[BranchDayTable.date] = date
             }
             BranchDayTable
                 .selectAll()
                 .where {
                     (BranchDayTable.branchId eq branchId) and
-                        (BranchDayTable.date eq today)
+                        (BranchDayTable.date eq date)
                 }.single()[BranchDayTable.id]
         }
 
-    fun insertTestClient(id: UUID = UUID.randomUUID()): UUID {
+    /** Creates a REMITTED branch day for [date] (e.g. a past covered day). */
+    fun createRemittedBranchDay(
+        branchId: UUID,
+        date: LocalDate,
+    ): UUID =
+        createBranchDayForDate(branchId, date).also { id ->
+            transaction {
+                BranchDayTable.update({ BranchDayTable.id eq id }) {
+                    it[BranchDayTable.status] = DayStatus.REMITTED
+                }
+            }
+        }
+
+    /** Grants EDIT_PAST_DAY at [branchId] — the capability that permits writes on PAST/REMITTED days. */
+    fun grantEditPastDay(
+        userId: UUID,
+        branchId: UUID,
+        sourceId: UUID,
+    ) {
+        grantCapability(
+            userId = userId,
+            capabilityCode = CapabilityCodes.EDIT_PAST_DAY,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+    }
+
+    /**
+     * Inserts a PENDING REGULAR session row directly against [branchDayId] (bypasses
+     * [SessionService.create]).
+     */
+    @Suppress("LongParameterList")
+    fun insertTestSession(
+        id: UUID,
+        clientId: UUID,
+        branchDayId: UUID,
+        sessionType: SessionType = SessionType.REGULAR,
+        sessionStatus: SessionStatus = SessionStatus.PENDING,
+        isWalkIn: Boolean = false,
+        basePrice: BigDecimal = BigDecimal("2500.00"),
+        finalPrice: BigDecimal = BigDecimal("2500.00"),
+    ) {
+        transaction {
+            SessionTable.insertIgnore {
+                it[SessionTable.id] = id
+                it[SessionTable.clientId] = clientId
+                it[SessionTable.branchDayId] = branchDayId
+                it[SessionTable.sessionType] = sessionType
+                it[SessionTable.sessionStatus] = sessionStatus
+                it[SessionTable.isWalkIn] = isWalkIn
+                it[SessionTable.basePrice] = basePrice
+                it[SessionTable.finalPrice] = finalPrice
+            }
+        }
+    }
+
+    fun insertTestClient(id: UUID = TestFixtures.uuid()): UUID {
         transaction {
             ClientTable.insertIgnore {
                 it[ClientTable.id] = id
@@ -289,6 +391,47 @@ object DatabaseTestHelper {
             }
         }
         return id
+    }
+
+    /**
+     * Inserts a notification row directly (bypasses the scheduler — the only production
+     * writer). Parameters named like the columns so callers can't fall into the Exposed v1
+     * insert trap (the lambda receiver is the table, so an unqualified FIELD name resolves
+     * to the column, not the test's field).
+     */
+    fun insertTestNotification(
+        id: UUID = TestFixtures.uuid(),
+        sessionId: UUID,
+        userId: UUID,
+        branchId: UUID,
+    ): com.companyb.companyapp.repository.model.Notification {
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = id
+                it[NotificationTable.sessionId] = sessionId
+                it[NotificationTable.userId] = userId
+                it[NotificationTable.branchId] = branchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        return transaction {
+            NotificationTable
+                .selectAll()
+                .where { NotificationTable.id eq id }
+                .single()
+                .let { row ->
+                    com.companyb.companyapp.repository.model.Notification(
+                        id = row[NotificationTable.id],
+                        sessionId = row[NotificationTable.sessionId],
+                        userId = row[NotificationTable.userId],
+                        branchId = row[NotificationTable.branchId],
+                        message = row[NotificationTable.message],
+                        isRead = row[NotificationTable.isRead],
+                        readAt = row[NotificationTable.readAt],
+                        createdAt = row[NotificationTable.createdAt],
+                    )
+                }
+        }
     }
 
     fun insertTestCategory(
@@ -356,31 +499,6 @@ object DatabaseTestHelper {
     }
 
     @Suppress("LongParameterList")
-    fun insertTestSession(
-        id: UUID,
-        clientId: UUID,
-        branchDayId: UUID,
-        sessionType: SessionType = SessionType.REGULAR,
-        sessionStatus: SessionStatus = SessionStatus.PENDING,
-        isWalkIn: Boolean = false,
-        basePrice: BigDecimal = BigDecimal("2500.00"),
-        finalPrice: BigDecimal = BigDecimal("2500.00"),
-    ) {
-        transaction {
-            SessionTable.insertIgnore {
-                it[SessionTable.id] = id
-                it[SessionTable.clientId] = clientId
-                it[SessionTable.branchDayId] = branchDayId
-                it[SessionTable.sessionType] = sessionType
-                it[SessionTable.sessionStatus] = sessionStatus
-                it[SessionTable.isWalkIn] = isWalkIn
-                it[SessionTable.basePrice] = basePrice
-                it[SessionTable.finalPrice] = finalPrice
-            }
-        }
-    }
-
-    @Suppress("LongParameterList")
     fun insertTestCompensation(
         branchDayId: UUID,
         userId: UUID,
@@ -389,7 +507,7 @@ object DatabaseTestHelper {
     ) {
         transaction {
             CompensationTable.insert {
-                it[CompensationTable.id] = UUID.randomUUID()
+                it[CompensationTable.id] = TestFixtures.uuid()
                 it[CompensationTable.workBranchDayId] = branchDayId
                 it[CompensationTable.payingBranchDayId] = branchDayId
                 it[CompensationTable.userId] = userId
@@ -408,7 +526,7 @@ object DatabaseTestHelper {
     ) {
         transaction {
             ExpenseTable.insert {
-                it[ExpenseTable.id] = UUID.randomUUID()
+                it[ExpenseTable.id] = TestFixtures.uuid()
                 it[ExpenseTable.branchDayId] = branchDayId
                 it[ExpenseTable.amount] = amount
                 it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS
@@ -418,6 +536,21 @@ object DatabaseTestHelper {
                     it[ExpenseTable.deletedBy] = userId
                     it[ExpenseTable.deletedAt] = CurrentTimestampWithTimeZone
                 }
+            }
+        }
+    }
+
+    fun insertTestAttendance(
+        branchDayId: UUID,
+        userId: UUID,
+    ) {
+        transaction {
+            AttendanceTable.insertIgnore {
+                it[AttendanceTable.id] = TestFixtures.uuid()
+                it[AttendanceTable.branchDayId] = branchDayId
+                it[AttendanceTable.userId] = userId
+                it[AttendanceTable.markedBy] = userId
+                it[AttendanceTable.clockIn] = TestFixtures.now
             }
         }
     }
@@ -435,7 +568,11 @@ object DatabaseTestHelper {
         field: String,
     ): String {
         val jsonElement = json.parseToJsonElement(jsonString)
-        return jsonElement.jsonObject[field]?.jsonPrimitive?.content ?: ""
+        return jsonElement
+            .jsonObject[field]
+            ?.jsonPrimitive
+            ?.content
+            .orEmpty()
     }
 
     private const val SNAPSHOT_TABLE = "remittance_financial_snapshot"

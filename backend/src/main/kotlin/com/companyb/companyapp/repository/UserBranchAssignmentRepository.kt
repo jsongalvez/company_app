@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.UserBranchAssignment
@@ -10,6 +11,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -44,6 +46,18 @@ object UserBranchAssignmentRepository {
                         .single()
                         .toAssignment()
                 auditFn(assignment)
+            } else {
+                val sameIdExists =
+                    UserBranchAssignmentTable
+                        .selectAll()
+                        .where { UserBranchAssignmentTable.id eq params.id }
+                        .empty()
+                        .not()
+                // Same-ID retries are idempotent. A different row means the active
+                // business key won the race, so expose a deterministic domain error.
+                if (!sameIdExists) {
+                    throw ConflictException("User already has an active assignment at this branch")
+                }
             }
 
             created
@@ -64,32 +78,29 @@ object UserBranchAssignmentRepository {
                 ).map { it.toAssignment() }
         }.also { logger.info { "[FIND-ASSIGNMENTS-BY-BRANCH] Fetched ${it.size} active assignments" } }
 
-    fun findActiveByBranchAndUserInTransaction(
+    private fun findActiveByBranchAndUserInTransaction(
         branchId: UUID,
         userId: UUID,
-    ): UserBranchAssignment? =
-        UserBranchAssignmentTable
-            .selectAll()
-            .where {
-                (UserBranchAssignmentTable.branchId eq branchId) and
-                    (UserBranchAssignmentTable.userId eq userId) and
-                    (UserBranchAssignmentTable.endedAt.isNull())
-            }.singleOrNull()
-            ?.toAssignment()
-
-    fun findActiveByBranchAndUser(
-        branchId: UUID,
-        userId: UUID,
-    ): UserBranchAssignment? =
-        transaction {
+        forUpdate: Boolean,
+    ): UserBranchAssignment? {
+        val query =
             UserBranchAssignmentTable
                 .selectAll()
                 .where {
                     (UserBranchAssignmentTable.branchId eq branchId) and
                         (UserBranchAssignmentTable.userId eq userId) and
                         (UserBranchAssignmentTable.endedAt.isNull())
-                }.singleOrNull()
-                ?.toAssignment()
+                }
+        val materialized = if (forUpdate) query.forUpdate(ForUpdateOption.ForUpdate) else query
+        return materialized.singleOrNull()?.toAssignment()
+    }
+
+    fun findActiveByBranchAndUser(
+        branchId: UUID,
+        userId: UUID,
+    ): UserBranchAssignment? =
+        transaction {
+            findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
         }
 
     fun findById(id: UUID): UserBranchAssignment? =
@@ -186,12 +197,18 @@ object UserBranchAssignmentRepository {
         auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
     ): Pair<UserBranchAssignment, UserBranchAssignment> =
         transaction {
-            val a =
-                findActiveByBranchAndUserInTransaction(branchId, userIdA)
-                    ?: throw NotFoundException("Active assignment not found for user A at this branch")
-            val b =
-                findActiveByBranchAndUserInTransaction(branchId, userIdB)
-                    ?: throw NotFoundException("Active assignment not found for user B at this branch")
+            // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
+            // lesson) serializes swap against concurrent remove/updateSlot on either user.
+            // Locks are taken in ascending user-ID order so concurrent opposite-direction
+            // swaps (A,B vs B,A) cannot cross-deadlock.
+            val lockOrder = listOf(userIdA, userIdB).sorted()
+            val assignments =
+                lockOrder.associateWith { id ->
+                    findActiveByBranchAndUserInTransaction(branchId, id, forUpdate = true)
+                        ?: throw NotFoundException("Active assignment not found for user $id at this branch")
+                }
+            val a = assignments.getValue(userIdA)
+            val b = assignments.getValue(userIdB)
 
             val slotA = a.slot
             val slotB = b.slot

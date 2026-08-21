@@ -25,6 +25,7 @@ import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.ProductTable
+import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -89,6 +90,7 @@ abstract class BasePostgresTest {
         }
     }
 
+    @Suppress("UnreachableCode")
     protected fun cleanTrackedRows() {
         val grouped = tracked.groupBy({ it.table to it.column }) { it.id }
         transaction {
@@ -114,7 +116,7 @@ abstract class BasePostgresTest {
             mapOf(
                 AllowanceTable to setOf(AppUserTable, BranchDayTable),
                 AttendanceTable to setOf(BranchDayTable, AppUserTable),
-                AuditLogTable to setOf(AppUserTable),
+                AuditLogTable to setOf(AppUserTable, BranchTable),
                 BranchDayAssignmentTable to setOf(BranchDayTable, AppUserTable),
                 BranchInventoryTable to setOf(BranchTable, ProductTable),
                 CommissionManualInclusionTable to setOf(BranchDayTable),
@@ -123,9 +125,10 @@ abstract class BasePostgresTest {
                 ConcernTable to setOf(AppUserTable),
                 ExpenseTable to setOf(BranchDayTable, AppUserTable),
                 GrantReliefAccessTable to setOf(AppUserTable),
-                InventoryMovementTable to setOf(BranchInventoryTable, ProductSaleTable),
-                MedicalMissionDelegateTable to setOf(SessionTable, BranchDayTable, AppUserTable),
-                NotificationTable to setOf(SessionTable, AppUserTable),
+                InventoryMovementTable to
+                    setOf(ProductTable, ProductSaleTable, BranchTable, BranchDayTable, AppUserTable),
+                MedicalMissionDelegateTable to setOf(AppUserTable, BranchTable),
+                NotificationTable to setOf(SessionTable, AppUserTable, BranchTable),
                 RemittanceDayBreakdownTable to setOf(RemittanceTable, BranchDayTable),
                 RemittanceFinancialSnapshotTable to setOf(RemittanceTable),
                 RemittanceLineTable to setOf(RemittanceTable, SessionTable, ProductTable),
@@ -139,6 +142,7 @@ abstract class BasePostgresTest {
                 UserRoleTable to setOf(AppUserTable, RoleTable),
                 ProductSaleTable to setOf(BranchDayTable, SessionTable, ProductTable, AppUserTable, ClientTable),
                 ProductTable to setOf(ProductCategoryTable),
+                ReliefInviteTable to setOf(AppUserTable, BranchDayTable),
                 SessionTable to setOf(BranchDayTable, ClientTable),
                 BranchDayTable to setOf(BranchTable),
             )

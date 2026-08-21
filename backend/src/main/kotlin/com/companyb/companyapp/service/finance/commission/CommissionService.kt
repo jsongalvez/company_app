@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.commission
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
@@ -9,10 +10,11 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertParams
 import com.companyb.companyapp.repository.model.CommissionSplit
-import com.companyb.companyapp.repository.model.DayStatus
 import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
@@ -21,6 +23,8 @@ object CommissionService {
     private val logger = KotlinLogging.logger {}
 
     private const val COMMISSION_SCALE = 4
+
+    internal var failAfterReplacementForTests: Boolean = false
 
     fun splitCommission(
         commissionAmount: BigDecimal,
@@ -48,10 +52,25 @@ object CommissionService {
         userId: UUID,
         isIncluded: Boolean,
         reason: String?,
+    ): CommissionManualInclusion =
+        transaction {
+            createManualInclusionInTransaction(callerId, id, productSaleId, userId, isIncluded, reason)
+        }
+
+    @Suppress("ThrowsCount", "LongParameterList")
+    private fun createManualInclusionInTransaction(
+        callerId: UUID,
+        id: UUID,
+        productSaleId: UUID,
+        userId: UUID,
+        isIncluded: Boolean,
+        reason: String?,
     ): CommissionManualInclusion {
         val sale =
             ProductSaleRepository.findById(productSaleId)
                 ?: throw NotFoundException("Product sale not found")
+
+        val branchId = BranchDayService.requireBranchDayExists(sale.branchDayId).branchId
 
         val result =
             CommissionManualInclusionRepository.upsert(
@@ -69,6 +88,7 @@ object CommissionService {
                         tableName = CommissionManualInclusionTable.tableName,
                         recordId = updated.id,
                         changedBy = callerId,
+                        branchId = branchId,
                         fields = CommissionManualInclusionTable.auditFields(updated),
                     )
                 } else {
@@ -78,6 +98,7 @@ object CommissionService {
                         before = existing,
                         after = updated,
                         changedBy = callerId,
+                        branchId = branchId,
                         auditFields = CommissionManualInclusionTable::auditFields,
                     )
                 }
@@ -96,6 +117,15 @@ object CommissionService {
     fun recalculate(
         branchDayId: UUID,
         force: Boolean = false,
+    ) = transaction {
+        BranchDayRepository.acquireLock(branchDayId)
+        recalculateInTransaction(branchDayId, force)
+    }
+
+    @Suppress("ReturnCount")
+    private fun recalculateInTransaction(
+        branchDayId: UUID,
+        force: Boolean,
     ) {
         logger.info { "[COMMISSION-SERVICE] Recalculating commission for branchDay=$branchDayId force=$force" }
 
@@ -115,6 +145,7 @@ object CommissionService {
         if (sales.isEmpty()) {
             logger.info { "[COMMISSION-SERVICE] No non-voided sales for branchDay=$branchDayId" }
             CommissionSplitRepository.replaceForBranchDay(branchDayId, emptyMap())
+            failIfInjectedForTests()
             return
         }
 
@@ -145,6 +176,7 @@ object CommissionService {
         }
 
         CommissionSplitRepository.replaceForBranchDay(branchDayId, accumulatedTotals)
+        failIfInjectedForTests()
 
         logger.info {
             "[COMMISSION-SERVICE] Recalculated commission for branchDay=$branchDayId: " +
@@ -155,5 +187,11 @@ object CommissionService {
     fun manualRecalculate(branchDayId: UUID) {
         BranchDayService.requireBranchDayExists(branchDayId)
         recalculate(branchDayId, force = true)
+    }
+
+    private fun failIfInjectedForTests() {
+        if (failAfterReplacementForTests) {
+            error("injected commission trigger failure")
+        }
     }
 }

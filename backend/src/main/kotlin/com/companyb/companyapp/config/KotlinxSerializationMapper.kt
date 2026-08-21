@@ -1,5 +1,7 @@
 package com.companyb.companyapp.config
 
+import io.github.oshai.kotlinlogging.KotlinLogging
+import io.javalin.http.BadRequestResponse
 import io.javalin.json.JsonMapper
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -9,7 +11,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.serializer
-import java.lang.reflect.Type
 
 class KotlinxSerializationMapper : JsonMapper {
     private val json: Json =
@@ -20,16 +21,21 @@ class KotlinxSerializationMapper : JsonMapper {
     @Suppress("UNCHECKED_CAST")
     override fun <T : Any> fromJsonString(
         json: String,
-        targetType: Type,
+        targetType: java.lang.reflect.Type,
     ): T =
-        this@KotlinxSerializationMapper.json.decodeFromString(
-            serializerForType(targetType),
-            json,
-        ) as T
+        try {
+            this@KotlinxSerializationMapper.json.decodeFromString(
+                serializerForType(targetType),
+                json,
+            ) as T
+        } catch (e: SerializationException) {
+            logger.debug(e) { "Request body failed serialization" }
+            throw BadRequestResponse("Invalid request body")
+        }
 
     override fun toJsonString(
         obj: Any,
-        type: Type,
+        type: java.lang.reflect.Type,
     ): String =
         json.encodeToString(
             JsonElement.serializer(),
@@ -38,7 +44,7 @@ class KotlinxSerializationMapper : JsonMapper {
 
     private fun toJsonElement(
         obj: Any?,
-        type: Type,
+        type: java.lang.reflect.Type,
     ): JsonElement =
         when (obj) {
             null -> {
@@ -63,14 +69,17 @@ class KotlinxSerializationMapper : JsonMapper {
 
             else -> {
                 try {
-                    @Suppress("UNCHECKED_CAST")
                     json.encodeToJsonElement(serializerForType(type), obj)
-                } catch (_: SerializationException) {
-                    @Suppress("UNCHECKED_CAST")
+                } catch (e: SerializationException) {
+                    logger.debug(e) { "Falling back to runtime JSON serializer type" }
                     json.encodeToJsonElement(serializerForType(obj.javaClass), obj)
                 }
             }
         }
 
-    private fun serializerForType(type: Type): KSerializer<Any> = serializer(type)
+    private fun serializerForType(type: java.lang.reflect.Type): KSerializer<Any> = serializer(type)
+
+    private companion object {
+        private val logger = KotlinLogging.logger {}
+    }
 }

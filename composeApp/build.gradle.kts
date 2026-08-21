@@ -1,3 +1,4 @@
+import io.gitlab.arturbosch.detekt.Detekt
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -51,12 +52,20 @@ kotlin {
             implementation(libs.ktor.client.auth)
             implementation(libs.ktor.client.logging)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.navigation.compose)
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.ktor.client.cio)
             implementation(libs.logback.classic)
+        }
+        val desktopTest by getting {
+            dependencies {
+                // Route::class.sealedSubclasses is kotlin-reflect-backed on JVM
+                implementation(kotlin("reflect"))
+            }
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -78,6 +87,10 @@ compose.desktop {
 
 tasks.withType<JavaExec>().configureEach {
     if (name == "run") workingDir = rootProject.projectDir
+}
+
+tasks.withType<Detekt>().configureEach {
+    exclude("**/generated/**")
 }
 
 

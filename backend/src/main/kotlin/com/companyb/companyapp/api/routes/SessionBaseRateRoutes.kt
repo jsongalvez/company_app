@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -12,21 +12,40 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = "/api/branches/{branchId}/rates",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "session_rates_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/{branchId}/rates",
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "session_rates_post",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object SessionBaseRateRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
 
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
         config.routes.before("/api/branches/{branchId}/rates") { context ->
-            CapabilityFilter.requireGlobalCapability(
+            CapabilityFilter.requireBranchCapabilityForBranchId(
                 context,
+                context.pathParamAsUuid(BRANCH_ID_PARAM),
                 CapabilityCodes.MANAGE_PRODUCTS,
             )
         }
 
-        config.routes.post("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
+        config.routes.post(ApiRoutes.BRANCH_RATES_PATH) { context ->
             val callerId = context.callerUuid()
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
             val request = context.bodyAsClass<SetRateRequest>()
@@ -46,7 +65,7 @@ object SessionBaseRateRoutes {
             context.json(result.rate.toResponse())
         }
 
-        config.routes.get("/api/branches/{$BRANCH_ID_PARAM}/rates") { context ->
+        config.routes.get(ApiRoutes.BRANCH_RATES_PATH) { context ->
             val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
 
             context.json(SessionService.findActiveRates(branchId).map { it.toResponse() })

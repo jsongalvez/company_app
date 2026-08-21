@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.domain.CapabilityCodes
@@ -11,12 +11,27 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = ApiRoutes.ALLOWANCES,
+    methods = [HttpMethod.GET],
+    operationId = "allowances_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.ALLOWANCES,
+    methods = [HttpMethod.POST],
+    operationId = "allowances_post",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object AllowanceRoutes {
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/allowances") { context ->
+        config.routes.before(ApiRoutes.ALLOWANCES) { context ->
             val branchDayId =
                 when (context.method()) {
                     io.javalin.http.HandlerType.POST -> {
@@ -39,7 +54,7 @@ object AllowanceRoutes {
             )
         }
 
-        config.routes.post("/api/allowances") { context ->
+        config.routes.post(ApiRoutes.ALLOWANCES) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateAllowanceRequest>()
 
@@ -55,13 +70,14 @@ object AllowanceRoutes {
                     branchDayId = branchDayId,
                     userId = userId,
                     amount = amount,
+                    reason = request.reason,
                 )
 
             context.status(HttpStatus.CREATED)
             context.json(allowance.toResponse())
         }
 
-        config.routes.get("/api/allowances") { context ->
+        config.routes.get(ApiRoutes.ALLOWANCES) { context ->
             val branchDayId = context.uuidFromQuery("branchDayId")
 
             val allowances = AllowanceService.findByBranchDayId(branchDayId)

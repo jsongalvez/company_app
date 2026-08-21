@@ -1,0 +1,384 @@
+# Anti-slop overlay for Detekt 1.23.8.
+#
+# Design goal: reject low-evidence, low-signal Kotlin instead of policing
+# formatting. This is inspired by dmmulroy/anti-slop and the vendored copy in
+# tobi/qmd, adapted to Kotlin's type system and Detekt's first-party rules.
+#
+# Apply this ON TOP OF Detekt's defaults. In build.gradle.kts:
+#
+# detekt {
+#     toolVersion = 1.23.8
+#     buildUponDefaultConfig = true
+#     allRules = false
+#     config.setFrom(files(/config/detekt/detekt-anti-slop.yml))
+# }
+#
+# Several enabled rules require type resolution. Prefer the Gradle plugin's
+# source-set tasks (detektMain, detektTest, Android variant tasks) so Detekt has
+# a compile classpath. Exclude generated/build sources at task level.
+
+config:
+  validation: true
+  warningsAsErrors: true
+  excludes: ''
+
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+# Keep control flow small enough that reviewers can verify it rather than infer
+# intent from a large, generated-looking block.
+complexity:
+  CognitiveComplexMethod:
+    active: false
+    threshold: 15
+
+  ComplexCondition:
+    active: true
+    threshold: 4
+
+  ComplexInterface:
+    active: false
+    threshold: 10
+
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 15
+    ignoreSingleWhenExpression: true
+    ignoreSimpleWhenEntries: true
+
+  LabeledExpression:
+    active: false
+    ignoredLabels: []
+
+  LargeClass:
+    active: true
+    threshold: 600
+
+  LongMethod:
+    active: true
+    threshold: 60
+
+  LongParameterList:
+    active: true
+    functionThreshold: 6
+    constructorThreshold: 7
+    ignoreDefaultParameters: false
+    ignoreDataClasses: true
+
+  MethodOverloading:
+    active: false
+    threshold: 6
+
+  NamedArguments:
+    active: false
+    threshold: 3
+    ignoreArgumentsMatchingNames: true
+
+  NestedBlockDepth:
+    active: true
+    threshold: 4
+
+  NestedScopeFunctions:
+    active: false
+    threshold: 1
+
+  StringLiteralDuplication:
+    active: false
+    threshold: 3
+    ignoreAnnotation: true
+    excludeStringsWithLessThan5Characters: true
+    excludes:
+      - '**/test/**'
+      - '**/androidTest/**'
+      - '**/commonTest/**'
+      - '**/jvmTest/**'
+      - '**/*Test.kt'
+      - '**/*Spec.kt'
+
+# Reject detached work, hidden cancellation, and hard-coded execution policy.
+coroutines:
+  GlobalCoroutineUsage:
+    active: true
+
+  InjectDispatcher:
+    active: true
+
+  RedundantSuspendModifier:
+    active: true
+
+  SleepInsteadOfDelay:
+    active: true
+
+  SuspendFunSwallowedCancellation:
+    active: true
+
+  SuspendFunWithCoroutineScopeReceiver:
+    active: true
+
+  SuspendFunWithFlowReturnType:
+    active: true
+
+# Empty catch blocks are never made acceptable by naming the exception
+# ignored. If an outcome is intentionally ignored, encode that decision in
+# a typed API (for example, null/Result/sealed outcome) instead.
+empty-blocks:
+  EmptyCatchBlock:
+    active: true
+    allowedExceptionNameRegex: '^$'
+
+# Do not merge placeholders or exception handling that erases evidence.
+exceptions:
+  NotImplementedDeclaration:
+    active: true
+
+  ObjectExtendsThrowable:
+    active: true
+
+  SwallowedException:
+    active: true
+    ignoredExceptionTypes: []
+    allowedExceptionNameRegex: '^$'
+
+  TooGenericExceptionCaught:
+    active: true
+    allowedExceptionNameRegex: '^$'
+
+# Names should describe a capability or policy, not merely announce that a
+# class is a bag, wrapper, implementation, or generic coordinator.
+naming:
+  BooleanPropertyNaming:
+    active: false
+    allowedPattern: '^(is|has|can|should|was|will|needs)[A-Z].*'
+
+  ForbiddenClassName:
+    active: false
+    forbiddenName:
+      - '*Shape'
+      - '*Manager'
+      - '*Helper'
+      - '*Util'
+      - '*Utils'
+      - '*Wrapper'
+      - '*Impl'
+      - '*Common'
+      - '*Misc'
+
+  NonBooleanPropertyPrefixedWithIs:
+    active: false
+
+# Activate the high-signal checks that are off in Detekt's default profile.
+# These are the closest first-party equivalents to anti-slop's cast/widening
+# rules; they require type resolution for full coverage.
+potential-bugs:
+  CastNullableToNonNullableType:
+    active: true
+
+  CastToNullableType:
+    active: true
+
+  Deprecation:
+    active: true
+
+  DontDowncastCollectionTypes:
+    active: true
+
+  ElseCaseInsteadOfExhaustiveWhen:
+    active: true
+
+  ExitOutsideMain:
+    active: true
+
+  NullCheckOnMutableProperty:
+    active: true
+
+  NullableToStringCall:
+    active: true
+
+  PropertyUsedBeforeDeclaration:
+    active: true
+
+  UnconditionalJumpStatementInLoop:
+    active: true
+
+  UnnecessaryNotNullCheck:
+    active: true
+
+# Ban shortcuts that fabricate certainty, hide dependencies, or make tests pass
+# by changing global/module state instead of exercising a real seam.
+style:
+  CanBeNonNullable:
+    active: true
+
+  DataClassShouldBeImmutable:
+    active: true
+
+  DoubleNegativeLambda:
+    active: true
+
+  ForbiddenComment:
+    active: true
+    comments:
+      - reason: 'Resolve TODO work before merging; track future work outside source.'
+        value: '(?i)\bTODO\b'
+      - reason: 'Resolve FIXME work before merging.'
+        value: '(?i)\bFIXME\b'
+      - reason: 'STOPSHIP markers must never reach the main branch.'
+        value: '(?i)\bSTOPSHIP\b'
+      - reason: 'Replace temporary code with the intended implementation.'
+        value: '(?i)\bTEMP(?:ORARY)?\b'
+      - reason: 'Replace placeholder code with the intended implementation.'
+        value: '(?i)\bPLACEHOLDER\b'
+      - reason: 'Explain and remove hacks instead of normalizing them.'
+        value: '(?i)\bHACK\b'
+      - reason: 'Resolve XXX review markers before merging.'
+        value: '(?i)\bXXX\b'
+      - reason: 'Do not leave unimplemented behavior in production source.'
+        value: '(?i)\bNOT[ -]?IMPLEMENTED\b'
+
+  ForbiddenImport:
+    active: true
+    imports: []
+    forbiddenPatterns: '^(java\.lang\.reflect|kotlin\.reflect\.full|org\.powermock)(\.|$)'
+
+  ForbiddenMethodCall:
+    active: true
+    methods:
+      # Ad-hoc console output is not application logging.
+      - 'kotlin.io.print'
+      - 'kotlin.io.println'
+
+      # Reflection bypasses normal contracts and should live behind a reviewed,
+      # typed boundary if it is genuinely required.
+      - 'java.lang.Class.forName'
+      - 'java.lang.reflect.Method.invoke'
+      - 'java.lang.reflect.Constructor.newInstance'
+      - 'java.lang.reflect.Field.get'
+      - 'java.lang.reflect.Field.set'
+      - 'kotlin.reflect.KCallable.call'
+      - 'kotlin.reflect.KCallable.callBy'
+
+      # Static/object/constructor mocking changes global behavior. Prefer a
+      # small interface plus a real/fake implementation.
+      - 'io.mockk.mockkStatic'
+      - 'io.mockk.mockkObject'
+      - 'io.mockk.mockkConstructor'
+      - 'org.mockito.Mockito.mockStatic'
+      - 'org.mockito.Mockito.mockConstruction'
+
+      # Blocking policy remains forbidden in business code.
+      - 'java.lang.Thread.sleep'
+
+  ForbiddenSuppress:
+    active: true
+    rules:
+      # Generic library-boundary casts and broad handler catches are reviewed
+      # at function scope; Detekt cannot express that scope in this rule's
+      # configuration. The underlying type/catch rules remain active.
+      - 'UnsafeCast'
+      - 'UnsafeCallOnNullableType'
+      - 'CastNullableToNonNullableType'
+      - 'CastToNullableType'
+      - 'SwallowedException'
+      - 'TooGenericExceptionThrown'
+      - 'NotImplementedDeclaration'
+      - 'ForbiddenImport'
+      - 'ForbiddenMethodCall'
+      - 'GlobalCoroutineUsage'
+      - 'SuspendFunSwallowedCancellation'
+
+  MaxChainedCallsOnSameLine:
+    active: false
+    maxChainedCalls: 4
+
+  MultilineLambdaItParameter:
+    active: false
+
+  NullableBooleanCheck:
+    active: false
+
+  ObjectLiteralToLambda:
+    active: true
+
+  RedundantExplicitType:
+    active: false
+
+  RedundantVisibilityModifierRule:
+    active: false
+
+  ReturnCount:
+    active: true
+    max: 3
+    excludedFunctions:
+      - 'equals'
+    excludeLabeled: false
+    excludeReturnFromLambda: true
+    excludeGuardClauses: true
+
+  ThrowsCount:
+    active: true
+    max: 2
+    excludeGuardClauses: true
+
+  UnnecessaryAbstractClass:
+    active: true
+
+  UnnecessaryApply:
+    active: true
+
+  UnnecessaryFilter:
+    active: true
+
+  UnnecessaryInheritance:
+    active: true
+
+  UnnecessaryInnerClass:
+    active: true
+
+  UnnecessaryLet:
+    active: true
+
+  UnusedImports:
+    active: false
+
+  UnusedParameter:
+    active: true
+    allowedNames: '^$'
+
+  UnusedPrivateClass:
+    active: true
+
+  UnusedPrivateMember:
+    active: true
+    allowedNames: '^$'
+    excludes:
+      - '**/api/routes/CompensationRoutes.kt'
+      - '**/api/routes/BranchInventoryRoutes.kt'
+      - '**/api/routes/RemittanceRoutes.kt'
+      - '**/api/routes/CommissionRoutes.kt'
+
+  UnusedPrivateProperty:
+    active: true
+    allowedNames: '^_$|^serialVersionUID$'
+
+  VarCouldBeVal:
+    active: true
+    ignoreLateinitVar: false
+
+  WildcardImport:
+    active: true
+
+# Deliberate coverage limits
+# --------------------------
+# A configuration-only Detekt preset cannot faithfully implement these parts of
+# the TypeScript anti-slop plugin:
+#
+# - reject Any/Any? in parameters and return types;
+# - reject Map<String, Any?> and equivalent weak dictionary contracts;
+# - reject a known value widened to Any and later cast back;
+# - require a specific SAFETY comment for every unavoidable cast;
+# - reject every unsafe cast that remains runtime-plausible;
+# - ban ad-hoc runtime type checks while allowing named boundary parsers.
+#
+# Those require custom PSI/type-resolution rules. Do not approximate them with
+# regex naming rules: that creates blind spots and false confidence.

@@ -8,9 +8,10 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
-import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.statements.BatchInsertBlockingExecutable
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
@@ -18,28 +19,29 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object NotificationRepository {
-    fun insert(params: NotificationCreateParams): Notification =
-        transaction {
-            NotificationTable.insert {
-                it[NotificationTable.sessionId] = params.sessionId
-                it[NotificationTable.userId] = params.userId
-                it[NotificationTable.branchId] = params.branchId
-                it[NotificationTable.message] = params.message
-            }
+    fun insertBatch(params: List<NotificationCreateParams>): Int {
+        if (params.isEmpty()) return 0
 
-            NotificationTable
-                .selectAll()
-                .where {
-                    (NotificationTable.sessionId eq params.sessionId) and
-                        (NotificationTable.userId eq params.userId)
-                }.single()
-                .toNotification()
-        }.also {
-            logger.info {
-                "[INSERT-NOTIFICATION] session=${params.sessionId.toString().maskUUID()} " +
-                    "user=${params.userId.toString().maskUUID()}"
+        return transaction {
+            val statement =
+                BatchInsertStatement(
+                    table = NotificationTable,
+                    ignore = true,
+                    shouldReturnGeneratedValues = false,
+                )
+            params.forEach { params ->
+                statement.addBatch()
+                statement[NotificationTable.sessionId] = params.sessionId
+                statement[NotificationTable.userId] = params.userId
+                statement[NotificationTable.branchId] = params.branchId
+                statement[NotificationTable.message] = params.message
+                statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
             }
+            BatchInsertBlockingExecutable(statement).execute(this) ?: 0
+        }.also {
+            logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
         }
+    }
 
     fun findUnreadByUserId(userId: UUID): List<Notification> =
         transaction {
@@ -48,22 +50,59 @@ object NotificationRepository {
                 .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
                 .orderBy(NotificationTable.createdAt, SortOrder.DESC)
                 .map { it.toNotification() }
-        }.also { logger.info { "[FIND-UNREAD] $it.size unread notifications for user $userId" } }
+        }.also {
+            logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
+        }
 
-    fun markRead(notificationId: UUID): Notification? =
+    // #152 bearer check for the session-detail read (#151 Q1): the notification row IS the
+    // authorization — any read state. Served by the UNIQUE idx_notification_unique
+    // (session_id, user_id), so the lookup is one indexed hit.
+    fun existsForSessionAndUser(
+        sessionId: UUID,
+        userId: UUID,
+    ): Boolean =
         transaction {
-            val found =
-                NotificationTable
-                    .selectAll()
-                    .where { NotificationTable.id eq notificationId }
-                    .empty()
-                    .not()
-            if (!found) return@transaction null
+            NotificationTable
+                .selectAll()
+                .where {
+                    (NotificationTable.sessionId eq sessionId) and
+                        (NotificationTable.userId eq userId)
+                }.empty()
+                .not()
+        }
 
-            NotificationTable.update({ NotificationTable.id eq notificationId }) {
+    fun markAllRead(userId: UUID): Int =
+        transaction {
+            NotificationTable.update({
+                (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false)
+            }) {
                 it[isRead] = true
                 it[readAt] = CurrentTimestampWithTimeZone
             }
+
+            NotificationTable
+                .selectAll()
+                .where { (NotificationTable.userId eq userId) and (NotificationTable.isRead eq false) }
+                .count()
+                .toInt()
+        }.also { logger.info { "[MARK-ALL-READ] user=${userId.toString().maskUUID()} unreadRemaining=$it" } }
+
+    // Ownership in the WHERE clause (backend AGENTS.md parent-child scoping rule): a caller can
+    // never mutate another user's row — an update scoped to caller + id either hits the caller's
+    // own row or affects nothing, so the 404-on-foreign-row case leaves the row untouched.
+    fun markRead(
+        callerId: UUID,
+        notificationId: UUID,
+    ): Notification? =
+        transaction {
+            val updated =
+                NotificationTable.update({
+                    (NotificationTable.id eq notificationId) and (NotificationTable.userId eq callerId)
+                }) {
+                    it[isRead] = true
+                    it[readAt] = CurrentTimestampWithTimeZone
+                }
+            if (updated == 0) return@transaction null
 
             NotificationTable
                 .selectAll()

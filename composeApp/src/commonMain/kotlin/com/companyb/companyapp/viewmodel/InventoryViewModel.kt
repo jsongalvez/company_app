@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
@@ -38,7 +39,7 @@ class InventoryViewModel(
             state = _inventory,
             operation = "loadInventory",
             endpoint = "GET /api/branches/$branchId/inventory",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/inventory") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchInventory(branchId)) },
             transform = { it.body() },
         )
     }
@@ -52,7 +53,7 @@ class InventoryViewModel(
             operation = "ensureCard",
             endpoint = "POST /api/branches/$branchId/inventory",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/inventory") {
+                apiClient.httpClient.post(ApiRoutes.branchInventory(branchId)) {
                     setBody(request)
                 }
             },
@@ -71,7 +72,7 @@ class InventoryViewModel(
             endpoint = "POST /api/branches/$branchId/inventory/$productId/restock",
             block = {
                 apiClient.httpClient.post(
-                    "/api/branches/$branchId/inventory/$productId/restock",
+                    ApiRoutes.branchInventoryRestock(branchId, productId),
                 ) {
                     setBody(request)
                 }
@@ -91,7 +92,7 @@ class InventoryViewModel(
             endpoint = "POST /api/branches/$branchId/inventory/$productId/movement",
             block = {
                 apiClient.httpClient.post(
-                    "/api/branches/$branchId/inventory/$productId/movement",
+                    ApiRoutes.branchInventoryMovement(branchId, productId),
                 ) {
                     setBody(request)
                 }

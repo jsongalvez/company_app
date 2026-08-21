@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -13,14 +13,44 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = ApiRoutes.PRODUCTS,
+    methods = [HttpMethod.GET],
+    operationId = "products_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.PRODUCTS,
+    methods = [HttpMethod.POST],
+    operationId = "products_post",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/products/{productId}",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
+    operationId = "product_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/products/{productId}",
+    methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "productId", type = UUID::class, required = true)],
+    operationId = "product_patch",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ProductRoutes {
     private const val PRODUCT_ID_PARAM = "productId"
 
     @Suppress("ThrowsCount", "LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/products") { context ->
+        config.routes.before(ApiRoutes.PRODUCTS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.MANAGE_PRODUCTS,
@@ -28,7 +58,7 @@ object ProductRoutes {
             )
         }
 
-        config.routes.post("/api/products") { context ->
+        config.routes.post(ApiRoutes.PRODUCTS) { context ->
             val callerId = context.callerUuid()
             val request = context.bodyAsClass<CreateProductRequest>()
             val productId = uuidOrThrow(request.id, "product id")
@@ -51,16 +81,16 @@ object ProductRoutes {
             context.json(result.product.toResponse())
         }
 
-        config.routes.get("/api/products") { context ->
+        config.routes.get(ApiRoutes.PRODUCTS) { context ->
             context.json(ProductService.findAllActive().map { it.toResponse() })
         }
 
-        config.routes.get("/api/products/{$PRODUCT_ID_PARAM}") { context ->
+        config.routes.get(ApiRoutes.PRODUCT_PATH) { context ->
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             context.json(ProductService.findById(productId).toResponse())
         }
 
-        config.routes.patch("/api/products/{$PRODUCT_ID_PARAM}") { context ->
+        config.routes.patch(ApiRoutes.PRODUCT_PATH) { context ->
             val callerId = context.callerUuid()
             val productId = context.pathParamAsUuid(PRODUCT_ID_PARAM)
             val request = context.bodyAsClass<UpdateProductRequest>()

@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
 import com.companyb.companyapp.repository.model.SessionPractitionerTable
@@ -18,24 +19,22 @@ internal object SessionPractitionerService {
 
     private const val DEFAULT_SLOT: Short = 999
 
-    @Suppress("ReturnCount", "ThrowsCount")
+    @Suppress("ReturnCount", "ThrowsCount", "LongParameterList")
     fun addPractitioner(
         callerId: UUID,
         id: UUID,
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        reason: String? = null,
     ): AddPractitionerResult {
-        val (session, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
 
         val existing = SessionPractitionerRepository.findBySessionAndPractitioner(sessionId, practitionerId)
         if (existing != null) {
             logger.info { "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)" }
             return AddPractitionerResult(existing, false)
         }
-
-        val branchDay =
-            BranchDayService.requireBranchDayExists(session.branchDayId)
 
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchDay.branchId, practitionerId)
         val slotAtTime = assignment?.slot ?: DEFAULT_SLOT
@@ -52,8 +51,10 @@ internal object SessionPractitionerService {
                         tableName = SessionPractitionerTable.tableName,
                         recordId = p.id,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         fields = SessionPractitionerTable.auditFields(p),
                         isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
             )
@@ -69,23 +70,24 @@ internal object SessionPractitionerService {
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
+        reason: String? = null,
     ): SessionPractitioner {
-        val (_, isRemitted) = resolveSession(sessionId, callerId)
-        val oldPractitioner = requirePractitionerInSession(sessionId, practitionerId)
-
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
         val updated =
             SessionPractitionerRepository.updateRemarks(
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = remarks,
-                auditFn = { p ->
+                auditFn = { before, after ->
                     AuditLogRepository.recordUpdate(
                         tableName = SessionPractitionerTable.tableName,
-                        recordId = p.id,
-                        before = oldPractitioner,
-                        after = p,
+                        recordId = after.id,
+                        before = before,
+                        after = after,
                         changedBy = callerId,
+                        branchId = branchDay.branchId,
                         isFlagged = isRemitted,
+                        reason = reason,
                         auditFields = SessionPractitionerTable::auditFields,
                     )
                 },
@@ -104,24 +106,29 @@ internal object SessionPractitionerService {
         callerId: UUID,
         sessionId: UUID,
         practitionerId: UUID,
+        reason: String? = null,
     ) {
-        val (_, isRemitted) = resolveSession(sessionId, callerId)
+        val (_, branchDay, isRemitted) = resolveSession(sessionId, callerId, reason)
         requirePractitionerInSession(sessionId, practitionerId)
 
-        SessionPractitionerRepository.remove(
-            sessionId = sessionId,
-            practitionerId = practitionerId,
-            auditFn = { p ->
-                AuditLogRepository.recordDelete(
-                    tableName = SessionPractitionerTable.tableName,
-                    recordId = p.id,
-                    before = p,
-                    changedBy = callerId,
-                    isFlagged = isRemitted,
-                    auditFields = SessionPractitionerTable::auditFields,
-                )
-            },
-        )
+        val removed =
+            SessionPractitionerRepository.remove(
+                sessionId = sessionId,
+                practitionerId = practitionerId,
+                auditFn = { p ->
+                    AuditLogRepository.recordDelete(
+                        tableName = SessionPractitionerTable.tableName,
+                        recordId = p.id,
+                        before = p,
+                        changedBy = callerId,
+                        branchId = branchDay.branchId,
+                        isFlagged = isRemitted,
+                        reason = reason,
+                        auditFields = SessionPractitionerTable::auditFields,
+                    )
+                },
+            )
+        if (!removed) throw NotFoundException("Practitioner not found in session")
 
         logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
     }
@@ -129,10 +136,11 @@ internal object SessionPractitionerService {
     private fun resolveSession(
         sessionId: UUID,
         callerId: UUID,
-    ): Pair<Session, Boolean> {
+        reason: String?,
+    ): Triple<Session, BranchDay, Boolean> {
         val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
-        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId)
-        return session to isRemitted
+        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
+        return Triple(session, branchDay, isRemitted)
     }
 
     private fun requirePractitionerInSession(

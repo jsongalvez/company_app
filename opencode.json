@@ -1,10 +1,25 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "/home/jayson/.config/opencode/skills/ponytail.mjs",
+    "/home/jayson/.config/opencode/plugins/caveman/plugin.js"
+  ],
   "skills": {
     "paths": ["skill"]
   },
   "server": {
     "hostname": "0.0.0.0",
     "port": 8080
-  }
+  },
+  "permissions": [
+    { "action": "read", "resource": "*.env", "effect": "allow" },
+    { "action": "read", "resource": "*.env.*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/home/ubuntu/company_app/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "/tmp/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "$HOME/.config/opencode/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "$HOME/.npm-global/*", "effect": "allow" },
+    { "action": "external_directory", "resource": "$HOME/.gradle/*", "effect": "allow" },
+    { "action": "read", "resource": "$HOME/.gradle/*", "effect": "allow" },
+    { "action": "edit", "resource": "$HOME/.gradle/*", "effect": "allow" }
+  ]
 }

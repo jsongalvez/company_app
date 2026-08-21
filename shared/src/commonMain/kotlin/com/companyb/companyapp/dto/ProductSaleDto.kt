@@ -12,6 +12,7 @@ data class CreateProductSaleRequest(
     val productId: String,
     val quantity: Int,
     val expectedVersion: Int,
+    val reason: String? = null,
 )
 
 @Serializable

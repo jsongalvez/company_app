@@ -11,38 +11,31 @@ source "$ROOT_DIR/scripts/lib/common.sh"
 
 source_env
 
-DB_NAME="${TEST_DB_NAME:-${POSTGRES_DB}_test}"
+DB_NAME="$(test_db_name)"
 DB_USER="${POSTGRES_USER:-company_user}"
 
 log clean-test-db "Truncating user-data tables in test DB '$DB_NAME'..."
 
-SEED_TABLES="role capability role_capability flyway_schema_history"
+TABLES_OUTPUT=$(test_data_tables "$DB_USER" "$DB_NAME")
 
-TABLES=$(docker exec company-postgres psql \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
-    -t -A -c "
-SELECT string_agg(tablename, ', ') FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename NOT IN ($(echo $SEED_TABLES | sed "s/ /', '/g" | sed "s/^/'/;s/$/'/"))
-  AND EXISTS (
-    SELECT 1 FROM information_schema.tables t2
-    WHERE t2.table_schema = 'public' AND t2.table_name = pg_tables.tablename
-    AND t2.table_type = 'BASE TABLE'
-  );
-" 2>/dev/null || echo "")
-
-if [ -z "$TABLES" ]; then
+if [ -z "$TABLES_OUTPUT" ]; then
     log clean-test-db "No user-data tables found. Nothing to truncate."
     exit 0
 fi
 
-log clean-test-db "Truncating tables: $TABLES"
+QUOTED_TABLES=""
+while IFS= read -r table; do
+    [ -n "$table" ] || continue
+    QUOTED_TABLES+="$(quote_sql_identifier "$table"),"
+done <<< "$TABLES_OUTPUT"
+QUOTED_TABLES=${QUOTED_TABLES%,}
 
-docker exec company-postgres psql \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
-    -c "TRUNCATE TABLE $TABLES CASCADE;" \
+log clean-test-db "Truncating tables: $QUOTED_TABLES"
+
+test_db_psql \
+    "$DB_USER" \
+    "$DB_NAME" \
+    -c "TRUNCATE TABLE $QUOTED_TABLES CASCADE;" \
     2>&1 | tail -5
 
 log clean-test-db "Verifying cleanliness..."

@@ -1,12 +1,14 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.RateLimiter
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.domain.RegisterResult
+import com.companyb.companyapp.exception.RegistrationConflictException
+import com.companyb.companyapp.exception.RegistrationConflictField
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.validation.EmailPolicy
@@ -41,7 +43,6 @@ object AuthService {
         }
 
         val token: String = JwtService.generateToken(appUser.id)
-        DenyList.allow(UUID.fromString(appUser.id)) // safe: appUser is null-checked above, .id is non-null String
         logger.info { "[LOGIN] User has logged in successfully " }
         return LoginResult.Success(token)
     }
@@ -74,7 +75,22 @@ object AuthService {
 
         val passwordHash = Password.create(password)
 
-        val userID: UUID = UserRepository.createUser(username, passwordHash, email, displayName)
+        val userID: UUID =
+            try {
+                UserRepository.createUser(
+                    UserCreateParams(
+                        username = username,
+                        passwordHash = passwordHash,
+                        email = email,
+                        displayName = displayName,
+                    ),
+                )
+            } catch (exception: RegistrationConflictException) {
+                return when (exception.field) {
+                    RegistrationConflictField.USERNAME -> RegisterResult.UsernameTaken
+                    RegistrationConflictField.EMAIL -> RegisterResult.EmailTaken
+                }
+            }
         logger.info { "[REGISTER] Registered user ${userID.toString().maskUUID()} successfully" }
         return RegisterResult.Success
     }

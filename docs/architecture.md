@@ -63,10 +63,10 @@ Single language (Kotlin) across mobile, shared logic, and backend. All branches 
 
 ### Server Hardening
 - SSH key authentication only — password login disabled
-- SSH on a non-standard port (e.g. 51920)
+- SSH on a non-standard port (e.g. 51920) — **superseded (session 65): the VPS-migration wizard hardens SSH to tailnet-only (no public SSH port)**
 - `PermitRootLogin no`
 - Oracle Security Groups + `ufw` as two independent firewall layers
-- Fail2ban on SSH
+- Fail2ban on SSH — **superseded (session 65): not needed with tailnet-only SSH**
 - Unattended security upgrades enabled
 
 ### Network
@@ -280,7 +280,13 @@ Called at the top of every mutating service method — not in routes, not in rep
 
 ### 9.3 Capability Codes
 
-All capability codes are inserted as seed data in `V2__seed_capabilities.sql`. They are constants — not dynamic. The application references them by their string code, defined in `shared/domain/`.
+Capability codes are fixed contract values, not runtime-created values. V2 seeds the initial
+capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`.
+Later feature migrations may add codes: V5 adds
+`RECEIVE_NEXT_APPOINTMENT_ALERTS`, and V21 derives its active branch grants for Coordinators
+with active branch assignments. The application references codes through
+`shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt`; migration SQL
+keeps its database-owned string literals.
 
 | Code | Scope | Who holds it |
 |------|-------|--------------|
@@ -293,8 +299,13 @@ All capability codes are inserted as seed data in `V2__seed_capabilities.sql`. T
 | `MANAGE_PRODUCTS` | BRANCH | Owner (home branch only), Coordinator (assigned branches) |
 | `ASSIGN_DELEGATE` | GLOBAL | Owner, Manager |
 | `EDIT_PAST_DAY` | BRANCH | Coordinator only (PAST/REMITTED days) |
+| `RECEIVE_NEXT_APPOINTMENT_ALERTS` | BRANCH | Coordinator with an active assignment to the branch |
 
 **Rule:** Owner does NOT hold `EDIT_PAST_DAY`. The branch state machine enforces Coordinator-only editing on PAST/REMITTED days.
+
+`RECEIVE_NEXT_APPOINTMENT_ALERTS` is inserted and initially role-linked by V5, not V2. V21
+derives its branch-scoped capability from active Coordinator roles and active branch assignments;
+it is not a GLOBAL role-derived capability because role membership alone cannot identify a branch.
 
 ### 9.4 context_type Enum Usage
 
@@ -325,7 +336,7 @@ The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) h
 
 `active_user_capabilities` joins `app_user` and filters `status = 'ACTIVE'`. Setting a user to `INACTIVE` immediately revokes all capability checks. The session token itself is also rejected via an in-memory deny list keyed by `userId`.
 
-**Deny list:** `ConcurrentHashMap<UUID, Instant>` — evicted after 24h (JWT max expiry). On server restart, repopulates from `app_user WHERE status = 'INACTIVE'`.
+**Deny list:** `ConcurrentHashMap<UUID, Instant>` — evicted after 24h (JWT max expiry). Deactivation persists an independent `jwt_revoked_at` boundary; on server restart, the cache repopulates from all persisted boundaries so Reactivate does not revive old JWTs.
 
 ### 9.7 Relief Access Grant Flow
 
@@ -349,10 +360,13 @@ Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs
 **Migration rules:**
 - Never edit a committed migration file — always add a new version
 - Destructive changes (DROP, RENAME) get their own migration with a comment explaining why
+- Application startup runs `migrate()` only. Operators must stop the application and run
+  `flyway -url=<jdbc-url> -user=<user> -password=<password> repair` explicitly after reviewing
+  migration history; repair is never an automatic startup action.
 
-Current migration files:
-- `V1__full_schema.sql` — all tables, constraints, indexes, views, triggers
-- `V2__seed_roles_capabilities.sql` — roles, capabilities, role_capability assignments
+The migration directory is authoritative. Inspect all versioned files in
+`backend/src/main/resources/db/migration/` when reasoning about the current
+schema; do not rely on a cached migration list here.
 
 ---
 
@@ -378,7 +392,7 @@ Edits to REMITTED records require a `reason` in the request body. The service la
 
 - Audit entries are written in the **service layer only** — never in routes, never in repositories
 - Every INSERT, UPDATE, and soft-DELETE to financial and operational tables gets an audit entry
-- Written inside the same DB transaction as the mutation (via callback pattern, see ADR 0013)
+- Written inside the same DB transaction as the mutation (via callback pattern; see ADR 0013 and its entity-based amendments in ADR 0018 and ADR 0019)
 - The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String>` field maps
 - Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
 

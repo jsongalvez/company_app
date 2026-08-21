@@ -1,7 +1,7 @@
 package com.companyb.companyapp.viewmodel
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AssignmentResponse
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
@@ -26,9 +26,6 @@ class BranchViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "BranchVM")
 
-    private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
-    val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
-
     private val _branchDetail = MutableStateFlow<UiState<BranchResponse>>(UiState.Idle)
     val branchDetail: StateFlow<UiState<BranchResponse>> = _branchDetail.asStateFlow()
 
@@ -50,22 +47,12 @@ class BranchViewModel(
     private val _setRateState = MutableStateFlow<UiState<RateResponse>>(UiState.Idle)
     val setRateState: StateFlow<UiState<RateResponse>> = _setRateState.asStateFlow()
 
-    fun loadBranches() {
-        handler.launch(
-            state = _branches,
-            operation = "loadBranches",
-            endpoint = "GET /api/branches",
-            block = { apiClient.httpClient.get("/api/branches") },
-            transform = { it.body() },
-        )
-    }
-
     fun loadBranchDetail(branchId: String) {
         handler.launch(
             state = _branchDetail,
             operation = "loadBranchDetail",
             endpoint = "GET /api/branches/$branchId",
-            block = { apiClient.httpClient.get("/api/branches/$branchId") },
+            block = { apiClient.httpClient.get(ApiRoutes.branch(branchId)) },
             transform = { it.body() },
         )
     }
@@ -76,7 +63,7 @@ class BranchViewModel(
             operation = "createBranch",
             endpoint = "POST /api/branches",
             block = {
-                apiClient.httpClient.post("/api/branches") {
+                apiClient.httpClient.post(ApiRoutes.BRANCHES) {
                     setBody(request)
                 }
             },
@@ -89,7 +76,7 @@ class BranchViewModel(
             state = _assignments,
             operation = "loadAssignments",
             endpoint = "GET /api/branches/$branchId/assignments",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/assignments") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchAssignments(branchId)) },
             transform = { it.body() },
         )
     }
@@ -103,7 +90,7 @@ class BranchViewModel(
             operation = "createAssignment",
             endpoint = "POST /api/branches/$branchId/assignments",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/assignments") {
+                apiClient.httpClient.post(ApiRoutes.branchAssignments(branchId)) {
                     setBody(request)
                 }
             },
@@ -121,7 +108,7 @@ class BranchViewModel(
             endpoint = "DELETE /api/branches/$branchId/assignments/$userId",
             block = {
                 apiClient.httpClient.delete(
-                    "/api/branches/$branchId/assignments/$userId",
+                    ApiRoutes.branchAssignment(branchId, userId),
                 )
             },
             transform = {
@@ -146,7 +133,7 @@ class BranchViewModel(
             operation = "swapSlots",
             endpoint = "POST /api/branches/$branchId/slots/swap",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/slots/swap") {
+                apiClient.httpClient.post(ApiRoutes.branchSlotsSwap(branchId)) {
                     setBody(request)
                 }
             },
@@ -164,7 +151,7 @@ class BranchViewModel(
             endpoint = "PATCH /api/branches/$branchId/assignments/$userId/slot",
             block = {
                 apiClient.httpClient.patch(
-                    "/api/branches/$branchId/assignments/$userId/slot",
+                    ApiRoutes.branchAssignmentSlot(branchId, userId),
                 ) {
                     setBody(request)
                 }
@@ -178,7 +165,7 @@ class BranchViewModel(
             state = _rates,
             operation = "loadRates",
             endpoint = "GET /api/branches/$branchId/rates",
-            block = { apiClient.httpClient.get("/api/branches/$branchId/rates") },
+            block = { apiClient.httpClient.get(ApiRoutes.branchRates(branchId)) },
             transform = { it.body() },
         )
     }
@@ -192,7 +179,7 @@ class BranchViewModel(
             operation = "setRate",
             endpoint = "POST /api/branches/$branchId/rates",
             block = {
-                apiClient.httpClient.post("/api/branches/$branchId/rates") {
+                apiClient.httpClient.post(ApiRoutes.branchRates(branchId)) {
                     setBody(request)
                 }
             },

@@ -27,7 +27,7 @@ private val Primary = Color(0xFF5E6AD2)
 private val OnPrimary = Color(0xFFFFFFFF)
 private val Ink = Color(0xFFF7F8F8)
 private val InkMuted = Color(0xFFD0D6E0)
-private val InkSubtle = Color(0xFF8A8F98)
+val InkSubtle = Color(0xFF8A8F98)
 private val Hairline = Color(0xFF23252A)
 private val HairlineStrong = Color(0xFF34343A)
 private val HairlineTertiary = Color(0xFF3E3E44)
@@ -99,7 +99,16 @@ fun LinearTheme(content: @Composable () -> Unit) {
             bodyLarge = TextStyle(fontFamily = fontFamily, fontSize = 16.sp, lineHeight = 24.sp),
             bodyMedium = TextStyle(fontFamily = fontFamily, fontSize = 14.sp, lineHeight = 20.sp),
             bodySmall = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, lineHeight = 16.sp),
-            titleLarge = TextStyle(fontFamily = fontFamily, fontSize = 22.sp, lineHeight = 28.sp),
+            // DESIGN.md:54-59 — Linear card-title = 22px / 600 (SemiBold) / lineHeight 28sp; mapped onto
+            // Material3's titleLarge slot (Material3 Typography has no cardTitle slot — fog: theme hardening).
+            // Mapping #107 Q4 reads `CardTitle` from LinearTheme.kt at call site ↔ titleLarge now carries SemiBold.
+            titleLarge =
+                TextStyle(
+                    fontFamily = fontFamily,
+                    fontSize = 22.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
             titleMedium = TextStyle(fontFamily = fontFamily, fontSize = 16.sp, lineHeight = 24.sp),
             labelLarge = TextStyle(fontFamily = fontFamily, fontSize = 14.sp, lineHeight = 20.sp),
             labelSmall = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, lineHeight = 16.sp),

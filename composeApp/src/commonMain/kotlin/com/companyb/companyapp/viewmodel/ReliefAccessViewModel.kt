@@ -2,6 +2,7 @@ package com.companyb.companyapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.network.ApiClient
@@ -33,7 +34,7 @@ class ReliefAccessViewModel(
             operation = "requestAccess",
             endpoint = "POST /api/relief-access/request",
             block = {
-                apiClient.httpClient.post("/api/relief-access/request") {
+                apiClient.httpClient.post(ApiRoutes.RELIEF_ACCESS_REQUEST) {
                     setBody(request)
                 }
             },
@@ -46,7 +47,7 @@ class ReliefAccessViewModel(
             state = _grantState,
             operation = "grantAccess",
             endpoint = "PATCH /api/relief-access/$requestId/grant",
-            block = { apiClient.httpClient.patch("/api/relief-access/$requestId/grant") },
+            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessRequest(requestId) + "/grant") },
             transform = { it.body() },
         )
     }
@@ -56,7 +57,7 @@ class ReliefAccessViewModel(
             state = _denyState,
             operation = "denyAccess",
             endpoint = "PATCH /api/relief-access/$requestId/deny",
-            block = { apiClient.httpClient.patch("/api/relief-access/$requestId/deny") },
+            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessRequest(requestId) + "/deny") },
             transform = { it.body() },
         )
     }

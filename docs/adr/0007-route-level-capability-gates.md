@@ -63,6 +63,8 @@ config.routes.before("/api/expenses") { context ->
 
 config.routes.before("/api/expenses/{expenseId}") { context ->
     val expenseId = context.pathParamAsUuid("expenseId")
+    // Pre-#157 shape: the expense record-scoped gate. #157 replaced it with the
+    // day-scoped requireBranchOrBranchDayCapabilityForExpense (see the amendment below).
     CapabilityFilter.requireBranchCapabilityForExpense(context, expenseId)
 }
 ```
@@ -78,6 +80,52 @@ config.routes.before("/api/expenses/{expenseId}") { context ->
   `requireBranchCapability` (from branchDayId), `requireBranchCapabilityForExpense`,
   `requireBranchCapabilityForRemittance`, `requireBranchCapabilityForBranchId` (from direct branch UUID),
   `requireBranchCapabilityForSession` (from sessionId), and `requireGlobalCapability` for system-wide checks.
+  (#157 replaced the expense filters' `requireBranchCapabilityForExpense` with the day-scoped
+  `requireBranchOrBranchDayCapability` family — see the amendment below; the branch-only variant
+  was removed.)
+
+## Deviation (2026-08-09, #134)
+
+The UserBranchAssignment surface enforces at the **service layer**, not the route layer:
+`create`, `remove`, and `findActiveByBranch` gate on GLOBAL `MANAGE_USERS` inside the
+service; `swapSlots` requires GLOBAL `MANAGE_USERS` OR the caller is one of the two
+swapped users — a participant-exception rule no path filter can express; `updateSlot`
+requires GLOBAL `MANAGE_USERS` OR the caller is the target user (self-service slot
+change). The 4-segment `before("/api/branches/{branchId}/slots")` and `/assignments`
+filters never matched the 5-segment `/slots/swap` and assignment-DELETE paths (the #114
+exact-path lesson, third occurrence) and were removed as misleading; the service-level
+checks are now the only authorization surface for that route group. All other surfaces
+keep route-filter enforcement. See #134's resolution for the leak-falsification record.
+
+## Amendment (2026-08-14, #157) — day-scoped (BRANCH_DAY) gates
+
+The day-scoped write surface accepts a **BRANCH_DAY grant for the specific branch day** in
+addition to the BRANCH grant (see `CapabilityFilter.requireBranchOrBranchDayCapability`).
+Relief grants are written as `(EDIT_BRANCH_DATA, BRANCH_DAY, branchDayId)` with a
+`validFrom`/`validTo` window but were never checked — the exact-triple
+`hasCapability` could never match them, so day-scoped relief editing 403'd end-to-end
+(the #155 falsification). The gate is: `BRANCH at the day's branch OR BRANCH_DAY for the
+day` — the day-scoped grant satisfies the gate for that day only. **GLOBAL never
+satisfies these gates** (the #131 strictness: the OR adds only the narrower day-scoped
+form, never a relaxation). Covered surface: expenses (all verbs + the read), product-sale
+create, session create (resolves today's day **find-only** — filters never create rows)
++ session mutations. Not covered (decided): inventory movements (the movement's day comes
+from the body while the route is branch-scoped via the path — a day-grant check there
+would authorize a write against a different branch, the parent-child scoping trap), the
+branch-day status read (`GET /api/branches/{branchId}/today`), and surfaces gated on other
+codes (the relief grant carries only `EDIT_BRANCH_DATA`).
+
+**#158 (the Finance day-detail ride)**: the read side gained day legs — the single-day summary
+read (`GET /api/branches/{branchId}/daily-summary?date=`,
+`CapabilityFilter.requireBranchOrGlobalOrBranchDayCapabilityForBranchId`: BRANCH or GLOBAL
+`VIEW_BRANCH_DATA` OR a BRANCH_DAY `EDIT_BRANCH_DATA` grant for the day) and `/today`
+(find-only `findToday` → `requireBranchOrBranchDayCapability`). Both resolve the day find-only;
+a missing day row means no day grant can exist and the gate falls back — for the summary read to
+the branch/global leg, for `/today` to the plain BRANCH gate (GLOBAL never passes `/today`, the
+#131 strictness; that asymmetry is deliberate and unchanged from the pre-ride gate). The
+multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only — a single-day grant cannot
+authorize an unbounded list. The frontend ride (Finance day-detail gates resolving the day
+grant) landed in the same ticket.
 
 **Negative:**
 - The DELETE filter looks up the expense and branch day to resolve the branch ID,

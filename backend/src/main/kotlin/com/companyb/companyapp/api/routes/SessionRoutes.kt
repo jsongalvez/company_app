@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -9,19 +9,23 @@ import com.companyb.companyapp.dto.AddSessionConcernRequest
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.dto.PromoteConcernRequest
+import com.companyb.companyapp.dto.RemovePractitionerRequest
+import com.companyb.companyapp.dto.RemoveSessionConcernRequest
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UnvoidSessionRequest
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
+import com.companyb.companyapp.dto.UpdateSessionFinalPriceRequest
 import com.companyb.companyapp.dto.UpdateSessionStatusRequest
 import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionPractitioner
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.service.ConcernService
+import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.dashboard.DashboardService
 import com.companyb.companyapp.service.session.SessionService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -29,35 +33,181 @@ import io.javalin.http.Context
 import io.javalin.http.HandlerType
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
 @Suppress("TooManyFunctions")
+@OpenApi(
+    path = ApiRoutes.CONCERNS,
+    methods = [HttpMethod.GET],
+    operationId = "concerns",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSIONS,
+    methods = [HttpMethod.POST],
+    operationId = "sessions",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_CONCERNS_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_concerns_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_CONCERNS_PATH,
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_concerns_post",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/concerns/{concernId}",
+    methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "sessionId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "concernId", type = UUID::class, required = true),
+    ],
+    operationId = "session_concern_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_FINAL_PRICE_PATH,
+    methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_final_price",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_PRACTITIONERS_PATH,
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_practitioners",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+    methods = [HttpMethod.PATCH],
+    pathParams = [
+        OpenApiParam(
+            name = "sessionId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "practitionerId", type = UUID::class, required = true),
+    ],
+    operationId = "session_practitioner_patch",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/practitioners/{practitionerId}",
+    methods = [HttpMethod.DELETE],
+    pathParams = [
+        OpenApiParam(
+            name = "sessionId",
+            type = UUID::class,
+            required = true,
+        ), OpenApiParam(name = "practitionerId", type = UUID::class, required = true),
+    ],
+    operationId = "session_practitioner_delete",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/sessions/{sessionId}/promote-concern",
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_promote_concern",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_STATUS_PATH,
+    methods = [HttpMethod.PATCH],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_status",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_UNVOID_PATH,
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_unvoid",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_VOID_PATH,
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_void",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object SessionRoutes {
+    /**
+     * Request-scoped attribute: the branch day the create gate resolved (#157). The handler
+     * hands it to [com.companyb.companyapp.service.session.SessionService.create] so the gate
+     * and the write share one day resolution (no Manila-midnight divergence). Absent when the
+     * gate ran the plain branch check (no day row existed — no BRANCH_DAY grant possible).
+     */
+    private const val GATED_BRANCH_DAY_ATTR = "gatedBranchDayId"
+
     @Suppress("LongMethod")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/sessions") { context ->
+        config.routes.before(ApiRoutes.SESSIONS) { context ->
             if (context.method() != HandlerType.POST) return@before
             val request = context.bodyAsClass<CreateSessionRequest>()
             val branchId = uuidOrThrow(request.branchId, "branch id")
-            CapabilityFilter.requireBranchCapabilityForBranchId(
-                context,
-                branchId,
-                CapabilityCodes.EDIT_BRANCH_DATA,
-            )
+            // Day-scoped (#157): a BRANCH_DAY relief grant for today satisfies the create gate.
+            // Find-only (never creates): a missing day means no BRANCH_DAY grant can exist for
+            // it, so the plain branch check covers the no-day case; a 403'd attempt must not
+            // leave a day row behind. The resolved day is handed to the handler so the gate and
+            // the write share one resolution (no midnight-boundary divergence).
+            val todayBranchDay = BranchDayService.findToday(branchId)
+            if (todayBranchDay != null) {
+                CapabilityFilter.requireBranchOrBranchDayCapability(context, todayBranchDay.id)
+                context.attribute(GATED_BRANCH_DAY_ATTR, todayBranchDay.id)
+            } else {
+                CapabilityFilter.requireBranchCapabilityForBranchId(
+                    context,
+                    branchId,
+                    CapabilityCodes.EDIT_BRANCH_DATA,
+                )
+            }
         }
 
-        config.routes.before("/api/sessions/{sessionId}/status") { context ->
+        config.routes.before(ApiRoutes.SESSION_STATUS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/void") { context ->
+        config.routes.before(ApiRoutes.SESSION_FINAL_PRICE_PATH) { context ->
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+                context,
+                sessionId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
+        config.routes.before(ApiRoutes.SESSION_VOID_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchCapabilityForSession(
                 context,
@@ -66,7 +216,7 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/unvoid") { context ->
+        config.routes.before(ApiRoutes.SESSION_UNVOID_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
             CapabilityFilter.requireBranchCapabilityForSession(
                 context,
@@ -75,25 +225,34 @@ object SessionRoutes {
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/practitioners") { context ->
+        config.routes.before(ApiRoutes.SESSION_PRACTITIONERS_PATH) { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
         }
 
-        config.routes.before("/api/sessions/{sessionId}/concerns") { context ->
+        config.routes.before("/api/sessions/{sessionId}/practitioners/{practitionerId}") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
         }
 
-        config.routes.before("/api/concerns") { context ->
+        config.routes.before(ApiRoutes.SESSION_CONCERNS_PATH) { context ->
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+                context,
+                sessionId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
+        config.routes.before(ApiRoutes.CONCERNS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.EDIT_BRANCH_DATA,
@@ -103,18 +262,20 @@ object SessionRoutes {
 
         config.routes.before("/api/sessions/{sessionId}/promote-concern") { context ->
             val sessionId = context.pathParamAsUuid("sessionId")
-            CapabilityFilter.requireBranchCapabilityForSession(
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
                 context,
                 sessionId,
                 CapabilityCodes.EDIT_BRANCH_DATA,
             )
         }
 
-        config.routes.post("/api/sessions", ::handleCreateSession)
-        config.routes.patch("/api/sessions/{sessionId}/status", ::handleUpdateStatus)
-        config.routes.post("/api/sessions/{sessionId}/void", ::handleVoidSession)
-        config.routes.post("/api/sessions/{sessionId}/unvoid", ::handleUnvoidSession)
-        config.routes.post("/api/sessions/{sessionId}/practitioners", ::handleAddPractitioner)
+        config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
+        config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
+        config.routes.patch(ApiRoutes.SESSION_STATUS_PATH, ::handleUpdateStatus)
+        config.routes.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, ::handleUpdateFinalPrice)
+        config.routes.post(ApiRoutes.SESSION_VOID_PATH, ::handleVoidSession)
+        config.routes.post(ApiRoutes.SESSION_UNVOID_PATH, ::handleUnvoidSession)
+        config.routes.post(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleAddPractitioner)
         config.routes.patch(
             "/api/sessions/{sessionId}/practitioners/{practitionerId}",
             ::handleUpdatePractitionerRemarks,
@@ -123,11 +284,30 @@ object SessionRoutes {
             "/api/sessions/{sessionId}/practitioners/{practitionerId}",
             ::handleRemovePractitioner,
         )
-        config.routes.get("/api/concerns", ::handleGetConcerns)
-        config.routes.get("/api/sessions/{sessionId}/concerns", ::handleGetSessionConcerns)
-        config.routes.post("/api/sessions/{sessionId}/concerns", ::handleAddSessionConcern)
-        config.routes.delete("/api/sessions/{sessionId}/concerns/{concernId}", ::handleRemoveSessionConcern)
-        config.routes.post("/api/sessions/{sessionId}/promote-concern", ::handlePromoteConcern)
+        config.routes.get(ApiRoutes.CONCERNS, ::handleGetConcerns)
+        config.routes.get(ApiRoutes.SESSION_CONCERNS_PATH, ::handleGetSessionConcerns)
+        config.routes.post(ApiRoutes.SESSION_CONCERNS_PATH, ::handleAddSessionConcern)
+        config.routes.delete(ApiRoutes.SESSION_CONCERN_PATH, ::handleRemoveSessionConcern)
+        config.routes.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, ::handlePromoteConcern)
+    }
+
+    private fun handleGetSession(context: Context) {
+        val callerId = context.callerUuid()
+        val sessionId = context.pathParamAsUuid("sessionId")
+
+        // #152 — notifications-path session detail (#151): bearer-only gate (the notification
+        // row IS the authorization), no capability/day-state filters, 404 for both non-bearer
+        // and missing sessions. Byte-identical rendering with the dashboard path (Q3).
+        val data = DashboardService.getSessionDetail(callerId, sessionId)
+        context.json(
+            mapDashboardSession(
+                session = data.session,
+                clientNames = data.clientNames,
+                voidedSessionIds = data.voidedSessionIds,
+                practitionerBySession = data.practitioners.groupBy { it.sessionId },
+                concernsBySession = data.concerns.groupBy { it.sessionId },
+            ),
+        )
     }
 
     @Suppress("ThrowsCount")
@@ -165,6 +345,7 @@ object SessionRoutes {
                 otherConcerns = request.otherConcerns,
                 bookedAt = bookedAt,
                 nextAppointmentDate = nextAppt,
+                gatedBranchDayId = context.attribute(GATED_BRANCH_DAY_ATTR),
             )
 
         val concerns = SessionService.getSessionConcerns(callerId, sessionId).map { it.toResponse() }
@@ -177,11 +358,22 @@ object SessionRoutes {
         val sessionId = context.pathParamAsUuid("sessionId")
         val request = context.bodyAsClass<UpdateSessionStatusRequest>()
 
-        val newStatus =
-            runCatching { SessionStatus.valueOf(request.status.uppercase()) }
-                .getOrElse { throw BadRequestResponse("Invalid session status: ${request.status}") }
+        val newStatus = request.status
 
-        val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version)
+        val updated = SessionService.updateStatus(callerId, sessionId, newStatus, request.version, request.reason)
+
+        context.status(HttpStatus.OK)
+        context.json(updated.toResponse())
+    }
+
+    private fun handleUpdateFinalPrice(context: Context) {
+        val callerId = context.callerUuid()
+        val sessionId = context.pathParamAsUuid("sessionId")
+        val request = context.bodyAsClass<UpdateSessionFinalPriceRequest>()
+
+        val newPrice = parseNonNegativeBigDecimal(request.finalPrice, "finalPrice")
+
+        val updated = SessionService.updateFinalPrice(callerId, sessionId, newPrice, request.version, request.reason)
 
         context.status(HttpStatus.OK)
         context.json(updated.toResponse())
@@ -228,6 +420,7 @@ object SessionRoutes {
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = request.remarks,
+                reason = request.reason,
             )
 
         context.status(if (result.created) HttpStatus.CREATED else HttpStatus.OK)
@@ -246,6 +439,7 @@ object SessionRoutes {
                 sessionId = sessionId,
                 practitionerId = practitionerId,
                 remarks = request.remarks,
+                reason = request.reason,
             )
 
         context.status(HttpStatus.OK)
@@ -256,11 +450,13 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val practitionerId = context.pathParamAsUuid("practitionerId")
+        val reason = context.bodyIfPresent<RemovePractitionerRequest>()?.reason
 
         SessionService.removePractitioner(
             callerId = callerId,
             sessionId = sessionId,
             practitionerId = practitionerId,
+            reason = reason,
         )
 
         context.status(HttpStatus.NO_CONTENT)
@@ -286,7 +482,7 @@ object SessionRoutes {
 
         val concernId = uuidOrThrow(request.concernId, "concern id")
 
-        SessionService.addSessionConcern(callerId, sessionId, concernId)
+        SessionService.addSessionConcern(callerId, sessionId, concernId, request.reason)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -294,8 +490,9 @@ object SessionRoutes {
         val callerId = context.callerUuid()
         val sessionId = context.pathParamAsUuid("sessionId")
         val concernId = context.pathParamAsUuid("concernId")
+        val reason = context.bodyIfPresent<RemoveSessionConcernRequest>()?.reason
 
-        SessionService.removeSessionConcern(callerId, sessionId, concernId)
+        SessionService.removeSessionConcern(callerId, sessionId, concernId, reason)
         context.status(HttpStatus.NO_CONTENT)
     }
 
@@ -307,7 +504,7 @@ object SessionRoutes {
         if (request.label.isBlank()) throw BadRequestResponse("label must not be blank")
         val concernId = uuidOrThrow(request.id, "concern id")
 
-        val concern = SessionService.promoteConcern(callerId, sessionId, concernId, request.label)
+        val concern = SessionService.promoteConcern(callerId, sessionId, concernId, request.label, request.reason)
         context.status(HttpStatus.CREATED)
         context.json(concern.toResponse())
     }

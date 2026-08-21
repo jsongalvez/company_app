@@ -1,60 +1,73 @@
 @file:Suppress("LargeClass")
 
 package com.companyb.companyapp.api.routes
-
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.dto.DailySalesSummaryBrowseResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductTable
-import com.companyb.companyapp.repository.model.RemittanceMethod
-import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.CapabilityService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.JavalinTestServerRule
+import com.companyb.companyapp.test.TestFixtures
 import io.javalin.Javalin
 import io.javalin.config.JavalinConfig
-import io.javalin.testtools.JavalinTest
+import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.junit.ClassRule
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class RouteValidationTest : BasePostgresTest() {
+    private val json = Json { ignoreUnknownKeys = true }
     private val testUserId = TEST_USER_ID
-    private val testBranchId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private var testBranchDayId: UUID = UUID.randomUUID()
-    private val testCategoryId = UUID.randomUUID()
-    private val testProductId = UUID.randomUUID()
-    private val testClientId = UUID.randomUUID()
-    private val testSessionId = UUID.randomUUID()
+    private val testBranchId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private var testBranchDayId: UUID = TestFixtures.uuid()
+    private val testCategoryId = TestFixtures.uuid()
+    private val testProductId = TestFixtures.uuid()
+    private val testClientId = TestFixtures.uuid()
+    private val testClientNoSessionsId = TestFixtures.uuid()
+    private val testSessionId = TestFixtures.uuid()
 
     override fun initTestData() {
         trackOwned(AppUserTable, AppUserTable.id, testUserId)
         DatabaseTestHelper.insertTestUser(testUserId, "route-test")
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, testUserId)
         trackOwned(BranchTable, BranchTable.id, testBranchId)
         DatabaseTestHelper.insertTestBranch(testBranchId, "Route Test Branch $testBranchId")
         val allCodes =
@@ -94,6 +107,8 @@ class RouteValidationTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestProduct(testProductId, categoryId = testCategoryId)
         trackOwned(ClientTable, ClientTable.id, testClientId)
         DatabaseTestHelper.insertTestClient(testClientId)
+        trackOwned(ClientTable, ClientTable.id, testClientNoSessionsId)
+        DatabaseTestHelper.insertTestClient(testClientNoSessionsId)
         trackOwned(SessionTable, SessionTable.id, testSessionId)
         DatabaseTestHelper.insertTestSession(
             id = testSessionId,
@@ -103,7 +118,11 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     companion object {
-        val TEST_USER_ID = UUID.randomUUID()
+        @JvmField
+        @ClassRule
+        val testServer = JavalinTestServerRule(::createApp)
+
+        val TEST_USER_ID = TestFixtures.uuid()
 
         fun createApp(): Javalin {
             val config = AppConfig.parse()
@@ -135,6 +154,7 @@ class RouteValidationTest : BasePostgresTest() {
         private fun registerAllRoutes(config: JavalinConfig) {
             AllowanceRoutes.register(config)
             CompensationRoutes.register(config)
+            DashboardRoutes.register(config)
             SessionRoutes.register(config)
             ClientRoutes.register(config)
             ProductRoutes.register(config)
@@ -143,7 +163,9 @@ class RouteValidationTest : BasePostgresTest() {
             UserBranchAssignmentRoutes.register(config)
             RemittanceRoutes.register(config)
             ExportRoutes.register(config)
+            DailySalesSummaryRoutes.register(config)
             ExpenseRoutes.register(config)
+            NotificationRoutes.register(config)
         }
     }
 
@@ -153,12 +175,12 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST allowance negative amount returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "-1.00",
                 )
             assertEquals(400, client.post("/api/allowances", body).code)
@@ -167,12 +189,12 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST allowance invalid amount string returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "not-a-number",
                 )
             assertEquals(400, client.post("/api/allowances", body).code)
@@ -181,12 +203,12 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST allowance invalid branchDayId UUID returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to "not-a-uuid",
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "100.00",
                 )
             assertEquals(400, client.post("/api/allowances", body).code)
@@ -199,13 +221,13 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST compensation negative amount returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "workBranchDayId" to testBranchDayId.toString(),
                     "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "-50.00",
                 )
             assertEquals(400, client.post("/api/compensation", body).code)
@@ -214,13 +236,13 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST compensation invalid amount returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "workBranchDayId" to testBranchDayId.toString(),
                     "payingBranchDayId" to testBranchDayId.toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "amount" to "abc",
                 )
             assertEquals(400, client.post("/api/compensation", body).code)
@@ -229,7 +251,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `PATCH compensation negative amount returns 400`() {
-        val compId = UUID.randomUUID()
+        val compId = TestFixtures.uuid()
         transaction {
             CompensationTable.insert {
                 it[CompensationTable.id] = compId
@@ -241,7 +263,7 @@ class RouteValidationTest : BasePostgresTest() {
             }
         }
         trackOwned(CompensationTable, CompensationTable.id, compId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
@@ -259,11 +281,11 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST session negative finalPrice returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "clientId" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
+                    "clientId" to TestFixtures.uuid().toString(),
                     "branchId" to testBranchId.toString(),
                     "isWalkIn" to false,
                     "finalPrice" to "-100.00",
@@ -274,11 +296,11 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST session invalid finalPrice string returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "clientId" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
+                    "clientId" to TestFixtures.uuid().toString(),
                     "branchId" to testBranchId.toString(),
                     "isWalkIn" to false,
                     "finalPrice" to "abc",
@@ -289,24 +311,43 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST void session blank voidReason returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("id" to UUID.randomUUID().toString(), "voidReason" to "  ")
+        testServer.client.let { client ->
+            val body = mapOf("id" to TestFixtures.uuid().toString(), "voidReason" to "  ")
             assertEquals(400, client.post("/api/sessions/$testSessionId/void", body).code)
         }
     }
 
     @Test
     fun `POST unvoid session blank unvoidedReason returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.post("/api/sessions/$testSessionId/unvoid", mapOf("unvoidedReason" to "  ")).code)
         }
     }
 
     @Test
     fun `POST promote concern blank label returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
-            val body = mapOf("id" to UUID.randomUUID().toString(), "label" to "  ")
+        testServer.client.let { client ->
+            val body = mapOf("id" to TestFixtures.uuid().toString(), "label" to "  ")
             assertEquals(400, client.post("/api/sessions/$testSessionId/promote-concern", body).code)
+        }
+    }
+
+    @Test
+    fun `GET session concerns on REMITTED day returns 200 with EDIT_PAST_DAY`() {
+        val remittedDayId =
+            DatabaseTestHelper.createRemittedBranchDay(
+                testBranchId,
+                TestFixtures.today.minusDays(3),
+            )
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
+        val remittedClientId = DatabaseTestHelper.insertTestClient()
+        trackOwned(ClientTable, ClientTable.id, remittedClientId)
+        val remittedSessionId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestSession(remittedSessionId, remittedClientId, remittedDayId)
+        trackOwned(SessionTable, SessionTable.id, remittedSessionId)
+
+        testServer.client.let { client ->
+            assertEquals(200, client.get("/api/sessions/$remittedSessionId/concerns").code)
         }
     }
 
@@ -316,10 +357,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST client blank firstName returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "  ",
                     "lastName" to "Doe",
                     "gender" to "M",
@@ -331,10 +372,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST client blank lastName returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "John",
                     "lastName" to "  ",
                     "gender" to "M",
@@ -346,10 +387,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST client partial BP systolic only returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "John",
                     "lastName" to "Doe",
                     "gender" to "M",
@@ -362,10 +403,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST client partial BP diastolic only returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "firstName" to "John",
                     "lastName" to "Doe",
                     "gender" to "M",
@@ -378,36 +419,66 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `GET clients blank search query returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.get("/api/clients?q=%20%20").code)
         }
     }
 
     @Test
     fun `GET clients missing search query returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.get("/api/clients").code)
         }
     }
 
     @Test
     fun `PATCH client blank firstName returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("firstName" to "  ")).code)
         }
     }
 
     @Test
     fun `PATCH client blank lastName returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("lastName" to "  ")).code)
         }
     }
 
     @Test
     fun `PATCH client partial BP returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.patch("/api/clients/$testClientId", mapOf("systolicBp" to 120)).code)
+        }
+    }
+
+    @Test
+    fun `POST anonymize client with pending session returns 409 and keeps PII`() {
+        testServer.client.let { client ->
+            val response = client.post("/api/clients/$testClientId/anonymize")
+
+            assertEquals(409, response.code)
+            transaction {
+                val row = ClientTable.selectAll().where { ClientTable.id eq testClientId }.single()
+                assertEquals("Test", row[ClientTable.firstName])
+                assertEquals("Client", row[ClientTable.lastName])
+                assertNull(row[ClientTable.deletedAt])
+            }
+        }
+    }
+
+    @Test
+    fun `POST anonymize client without sessions returns 204`() {
+        testServer.client.let { client ->
+            val response = client.post("/api/clients/$testClientNoSessionsId/anonymize")
+
+            assertEquals(204, response.code)
+            transaction {
+                val row =
+                    ClientTable.selectAll().where { ClientTable.id eq testClientNoSessionsId }.single()
+                assertNull(row[ClientTable.firstName])
+                assertNull(row[ClientTable.lastName])
+            }
         }
     }
 
@@ -417,10 +488,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product blank name returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "name" to "  ",
                     "productCategoryId" to testCategoryId.toString(),
                     "unitPrice" to "100.00",
@@ -432,10 +503,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product negative price returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "name" to "Test Product",
                     "productCategoryId" to testCategoryId.toString(),
                     "unitPrice" to "-1.00",
@@ -447,10 +518,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product negative commission returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "name" to "Test Product",
                     "productCategoryId" to testCategoryId.toString(),
                     "unitPrice" to "100.00",
@@ -466,10 +537,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST restock zero quantity returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to 0,
                     "branchDayId" to testBranchDayId.toString(),
                 )
@@ -479,10 +550,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST restock negative quantity returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "quantity" to -1,
                     "branchDayId" to testBranchDayId.toString(),
                 )
@@ -492,10 +563,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST movement invalid reason returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "INVALID_REASON",
                     "quantityChange" to -1,
                     "branchDayId" to testBranchDayId.toString(),
@@ -506,11 +577,26 @@ class RouteValidationTest : BasePostgresTest() {
     }
 
     @Test
-    fun `POST movement MISSING without notes returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+    fun `POST movement RESTOCK reason is rejected by endpoint restriction`() {
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
+                    "reason" to "RESTOCK",
+                    "quantityChange" to 1,
+                    "branchDayId" to testBranchDayId.toString(),
+                    "expectedVersion" to 0,
+                )
+            assertEquals(400, client.post("/api/branches/$testBranchId/inventory/$testProductId/movement", body).code)
+        }
+    }
+
+    @Test
+    fun `POST movement MISSING without notes returns 400`() {
+        testServer.client.let { client ->
+            val body =
+                mapOf(
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "MISSING",
                     "quantityChange" to -1,
                     "branchDayId" to testBranchDayId.toString(),
@@ -522,10 +608,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST movement MISSING with blank notes returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "movementId" to UUID.randomUUID().toString(),
+                    "movementId" to TestFixtures.uuid().toString(),
                     "reason" to "MISSING",
                     "quantityChange" to -1,
                     "notes" to "  ",
@@ -542,10 +628,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product sale zero quantity returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "isWalkIn" to true,
                     "productId" to testProductId.toString(),
@@ -558,12 +644,12 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product sale sessionId plus clientId returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "sessionId" to UUID.randomUUID().toString(),
+                    "sessionId" to TestFixtures.uuid().toString(),
                     "clientId" to testClientId.toString(),
                     "isWalkIn" to false,
                     "productId" to testProductId.toString(),
@@ -576,12 +662,12 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product sale sessionId with walkIn true returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
-                    "sessionId" to UUID.randomUUID().toString(),
+                    "sessionId" to TestFixtures.uuid().toString(),
                     "isWalkIn" to true,
                     "productId" to testProductId.toString(),
                     "quantity" to 1,
@@ -593,10 +679,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product sale known client without walkIn returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "clientId" to testClientId.toString(),
                     "isWalkIn" to false,
@@ -610,10 +696,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST product sale anonymous without walkIn returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "isWalkIn" to false,
                     "productId" to testProductId.toString(),
@@ -630,11 +716,11 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST assignment slot less than 1 returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
-                    "userId" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
+                    "userId" to TestFixtures.uuid().toString(),
                     "slot" to 0,
                 )
             assertEquals(400, client.post("/api/branches/$testBranchId/assignments", body).code)
@@ -643,12 +729,12 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `PATCH assignment slot less than 1 returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
                     .patch(
-                        "/api/branches/$testBranchId/assignments/${UUID.randomUUID()}/slot",
+                        "/api/branches/$testBranchId/assignments/${TestFixtures.uuid()}/slot",
                         mapOf("slot" to 0),
                     ).code,
             )
@@ -661,10 +747,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST remittance draft reversed date range returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "type" to "SESSION",
                     "branchId" to testBranchId.toString(),
                     "method" to "BANK_TRANSFER",
@@ -677,7 +763,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST remittance SESSION line without sessionId returns 400`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         transaction {
             RemittanceTable.insert {
                 it[RemittanceTable.id] = remittanceId
@@ -691,14 +777,14 @@ class RouteValidationTest : BasePostgresTest() {
             }
         }
         trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
                     .post(
                         "/api/remittances/$remittanceId/lines",
                         mapOf(
-                            "id" to UUID.randomUUID().toString(),
+                            "id" to TestFixtures.uuid().toString(),
                             "type" to "SESSION",
                             "amount" to "100.00",
                         ),
@@ -709,7 +795,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST remittance PRODUCT_SALE line without productSaleId returns 400`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         transaction {
             RemittanceTable.insert {
                 it[RemittanceTable.id] = remittanceId
@@ -723,14 +809,14 @@ class RouteValidationTest : BasePostgresTest() {
             }
         }
         trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client
                     .post(
                         "/api/remittances/$remittanceId/lines",
                         mapOf(
-                            "id" to UUID.randomUUID().toString(),
+                            "id" to TestFixtures.uuid().toString(),
                             "type" to "PRODUCT_SALE",
                             "amount" to "100.00",
                         ),
@@ -745,18 +831,228 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `GET export daily missing format returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.get("/api/branches/$testBranchId/export/daily?date=2024-01-15").code)
         }
     }
 
     @Test
     fun `GET export daily invalid format returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(
                 400,
                 client.get("/api/branches/$testBranchId/export/daily?date=2024-01-15&format=invalid").code,
             )
+        }
+    }
+
+    @Test
+    fun `GET export range missing from returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/export/range?to=2024-01-15&format=csv").code)
+        }
+    }
+
+    @Test
+    fun `GET export range missing to returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/export/range?from=2024-01-15&format=csv").code)
+        }
+    }
+
+    @Test
+    fun `GET export range invalid date returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/$testBranchId/export/range?from=not-a-date&to=2024-01-15&format=csv").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET export range from after to returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/$testBranchId/export/range?from=2024-01-16&to=2024-01-15&format=csv").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET export range missing format returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client.get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16").code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET export range invalid format returns 400`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client
+                    .get("/api/branches/$testBranchId/export/range?from=2024-01-15&to=2024-01-16&format=invalid")
+                    .code,
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // DailySalesSummaryRoutes — paged daily-summaries feed
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `GET daily-summaries returns 200 with seeded day`() {
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$testBranchId/daily-summaries")
+            assertEquals(200, response.code)
+            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            assertEquals(1, body.entries.size)
+            assertEquals(testBranchDayId.toString(), body.entries.single().branchDayId)
+            assertEquals(TestFixtures.today.toString(), body.entries.single().date)
+            assertNull(body.nextCursor)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries returns 200 empty feed for branch without days`() {
+        val noDaysBranchId = TestFixtures.uuid()
+        trackOwned(BranchTable, BranchTable.id, noDaysBranchId)
+        DatabaseTestHelper.insertTestBranch(noDaysBranchId, "No-Days Branch")
+        testServer.client.let { client ->
+            val response = client.get("/api/branches/$noDaysBranchId/daily-summaries")
+            assertEquals(200, response.code, "a feed is 200 not 404 when the branch has no days")
+            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            assertTrue(body.entries.isEmpty())
+            assertNull(body.nextCursor)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects limit zero`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=0").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects limit above max`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=101").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects non-numeric limit`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?limit=abc").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects malformed cursor`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?cursor=not-a-cursor").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects malformed from date`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?from=2026-13-99").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects malformed to date`() {
+        testServer.client.let { client ->
+            assertEquals(400, client.get("/api/branches/$testBranchId/daily-summaries?to=not-a-date").code)
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries rejects from after to`() {
+        testServer.client.let { client ->
+            val tomorrow = TestFixtures.today.plusDays(1)
+            val yesterday = TestFixtures.today.minusDays(1)
+            assertEquals(
+                400,
+                client
+                    .get(
+                        "/api/branches/$testBranchId/daily-summaries?from=$tomorrow&to=$yesterday",
+                    ).code,
+            )
+        }
+    }
+
+    @Test
+    fun `GET daily-summaries window filters the feed`() {
+        testServer.client.let { client ->
+            val today = TestFixtures.today
+            val yesterday = today.minusDays(1)
+            val response =
+                client.get(
+                    "/api/branches/$testBranchId/daily-summaries?from=$yesterday&to=$today",
+                )
+            assertEquals(200, response.code)
+            val body = json.decodeFromString<DailySalesSummaryBrowseResponse>(response.body.string())
+            assertEquals(1, body.entries.size, "the window admits only the seeded day")
+            assertEquals(today.toString(), body.entries.single().date)
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // NotificationRoutes
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `POST notifications read-all returns 200 and marks all unread as read`() {
+        val notificationId = TestFixtures.uuid()
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = notificationId
+                it[NotificationTable.sessionId] = testSessionId
+                it[NotificationTable.userId] = testUserId
+                it[NotificationTable.branchId] = testBranchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        trackOwned(NotificationTable, NotificationTable.id, notificationId)
+        testServer.client.let { client ->
+            val response = client.post("/api/notifications/read-all")
+            assertEquals(200, response.code)
+            assertTrue(response.body.string().contains("\"unreadCount\":0"))
+        }
+        val isRead =
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.id eq notificationId }
+                    .single()[NotificationTable.isRead]
+            }
+        assertTrue(isRead)
+    }
+
+    @Test
+    fun `PATCH notification read still matches param route when read-all literal registered first`() {
+        val notificationId = TestFixtures.uuid()
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = notificationId
+                it[NotificationTable.sessionId] = testSessionId
+                it[NotificationTable.userId] = testUserId
+                it[NotificationTable.branchId] = testBranchId
+                it[NotificationTable.message] = "Test notification"
+            }
+        }
+        trackOwned(NotificationTable, NotificationTable.id, notificationId)
+        testServer.client.let { client ->
+            assertEquals(200, client.patch("/api/notifications/$notificationId/read").code)
         }
     }
 
@@ -766,10 +1062,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST expense non-positive amount returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "-0.01",
                     "category" to "MISCELLANEOUS",
@@ -780,10 +1076,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST expense zero amount returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "0.00",
                     "category" to "MISCELLANEOUS",
@@ -794,10 +1090,10 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `POST expense invalid category returns 400`() {
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             val body =
                 mapOf(
-                    "id" to UUID.randomUUID().toString(),
+                    "id" to TestFixtures.uuid().toString(),
                     "branchDayId" to testBranchDayId.toString(),
                     "amount" to "100.00",
                     "category" to "INVALID",
@@ -808,7 +1104,7 @@ class RouteValidationTest : BasePostgresTest() {
 
     @Test
     fun `DELETE expense blank reason returns 400`() {
-        val expenseId = UUID.randomUUID()
+        val expenseId = TestFixtures.uuid()
         transaction {
             ExpenseTable.insert {
                 it[ExpenseTable.id] = expenseId
@@ -820,7 +1116,7 @@ class RouteValidationTest : BasePostgresTest() {
             }
         }
         trackOwned(ExpenseTable, ExpenseTable.id, expenseId)
-        JavalinTest.test(createApp()) { _, client ->
+        testServer.client.let { client ->
             assertEquals(400, client.delete("/api/expenses/$expenseId", mapOf("reason" to "  ")).code)
         }
     }

@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
@@ -15,23 +15,47 @@ import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
 import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.util.UUID
 
+@OpenApi(
+    path = ApiRoutes.COMMISSION_INCLUSIONS,
+    methods = [HttpMethod.POST],
+    operationId = "commission_inclusions",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.COMMISSION_SPLITS_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
+    operationId = "commission_splits",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.COMMISSION_RECALCULATE_PATH,
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "branchDayId", type = UUID::class, required = true)],
+    operationId = "commission_recalculate",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object CommissionRoutes {
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/commission-inclusions") { context ->
+        config.routes.before(ApiRoutes.COMMISSION_INCLUSIONS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
                 CapabilityCodes.ASSIGN_COMPENSATION,
             )
         }
 
-        config.routes.before("/api/commission-splits/{branchDayId}") { context ->
+        config.routes.before(ApiRoutes.COMMISSION_SPLITS_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
             CapabilityFilter.requireBranchCapability(context, branchDayId, CapabilityCodes.VIEW_BRANCH_DATA)
         }
 
-        config.routes.before("/api/commission/recalculate/{branchDayId}") { context ->
+        config.routes.before(ApiRoutes.COMMISSION_RECALCULATE_PATH) { context ->
             val branchDayId = context.pathParamAsUuid("branchDayId")
             CapabilityFilter.requireBranchCapability(
                 context,
@@ -40,9 +64,9 @@ object CommissionRoutes {
             )
         }
 
-        config.routes.post("/api/commission-inclusions", ::handleCreateInclusion)
-        config.routes.get("/api/commission-splits/{branchDayId}", ::handleGetSplits)
-        config.routes.post("/api/commission/recalculate/{branchDayId}", ::handleRecalculate)
+        config.routes.post(ApiRoutes.COMMISSION_INCLUSIONS, ::handleCreateInclusion)
+        config.routes.get(ApiRoutes.COMMISSION_SPLITS_PATH, ::handleGetSplits)
+        config.routes.post(ApiRoutes.COMMISSION_RECALCULATE_PATH, ::handleRecalculate)
     }
 
     @Suppress("ThrowsCount")

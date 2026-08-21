@@ -1,17 +1,21 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.ExpenseCategory
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceStatus
+import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
-import com.companyb.companyapp.repository.model.DayStatus
-import com.companyb.companyapp.repository.model.ExpenseCategory
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
@@ -19,17 +23,14 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceLineType
-import com.companyb.companyapp.repository.model.RemittanceMethod
-import com.companyb.companyapp.repository.model.RemittanceStatus
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RemittanceType
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -52,10 +53,10 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
 class RemittanceServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
     private var sessionId: UUID? = null
     private var productSaleId: UUID? = null
 
@@ -63,7 +64,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.insertTestUser(callerId, "remittance-caller")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
 
-        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${UUID.randomUUID()}")
+        DatabaseTestHelper.insertTestBranch(branchId, "Test Remittance Branch ${TestFixtures.uuid()}")
         trackOwned(BranchTable, BranchTable.id, branchId)
         trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
 
@@ -75,7 +76,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft remittance succeeds`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         val dateRangeStart = LocalDate.of(2026, 7, 1)
         val dateRangeEnd = LocalDate.of(2026, 7, 15)
 
@@ -109,7 +110,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft PRODUCT type succeeds`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         val dateRangeStart = LocalDate.of(2026, 7, 1)
         val dateRangeEnd = LocalDate.of(2026, 7, 15)
 
@@ -134,7 +135,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft idempotent duplicate returns existing`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         val dateRangeStart = LocalDate.of(2026, 7, 1)
         val dateRangeEnd = LocalDate.of(2026, 7, 15)
 
@@ -176,7 +177,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         val remittance =
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 type = RemittanceType.SESSION,
                 branchId = branchId,
                 method = RemittanceMethod.BANK_TRANSFER,
@@ -193,13 +194,13 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft with non-existent branch returns not found`() {
-        val nonexistentBranchId = UUID.randomUUID()
+        val nonexistentBranchId = TestFixtures.uuid()
         DatabaseTestHelper.grantSubmitRemittance(callerId, sourceId, nonexistentBranchId)
 
         assertFailsWith<NotFoundException> {
             RemittanceService.createDraft(
                 callerId = callerId,
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 type = RemittanceType.SESSION,
                 branchId = nonexistentBranchId,
                 method = RemittanceMethod.BANK_TRANSFER,
@@ -211,7 +212,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create draft writes audit log entry`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
 
         RemittanceService.createDraft(
             callerId = callerId,
@@ -242,9 +243,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit SESSION remittance succeeds with snapshot and branch day updates`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
@@ -290,9 +291,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit PRODUCT remittance succeeds without snapshot`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createDraftProductRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
@@ -326,10 +327,10 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit calculates compensation and expenses correctly`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
-        val compId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
+        val compId = TestFixtures.uuid()
 
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
@@ -360,7 +361,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit with version mismatch throws conflict`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
 
         trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
@@ -375,7 +376,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit without SUBMIT_REMITTANCE is allowed at service layer`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
         DatabaseTestHelper.revokeAllCapabilities(callerId)
 
@@ -393,15 +394,15 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     @Test
     fun `submit non-existent remittance returns not found`() {
         assertFailsWith<NotFoundException> {
-            RemittanceService.submit(callerId, UUID.randomUUID(), 1)
+            RemittanceService.submit(callerId, TestFixtures.uuid(), 1)
         }
     }
 
     @Test
     fun `submit already submitted remittance throws version mismatch`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
@@ -425,9 +426,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `submit writes audit log entries for remittance and branch days`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createDraftRemittance(remittanceId)
         val branchDayId = resolveBranchDay()
@@ -441,7 +442,8 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionTable, SessionTable.id, sessionId!!)
         trackOwned(ClientTable, ClientTable.id, clientId)
 
-        RemittanceService.submit(callerId, remittanceId, 2)
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
 
         val auditCount =
             transaction {
@@ -460,8 +462,77 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `submit branch day audit preserves lazy past before status`() {
+        val remittanceId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
+
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, breakdownId, branchDayId)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.action eq AuditAction.UPDATE) and
+                            (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                            (AuditLogTable.recordId eq branchDayId)
+                    }.single()
+            }
+        assertEquals("OPEN", DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
+        assertEquals(
+            "REMITTED",
+            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
+        )
+    }
+
+    @Test
+    fun `submit branch day audit preserves current open before status`() {
+        val remittanceId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
+
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveCurrentBranchDay()
+        addDayBreakdown(remittanceId, breakdownId, branchDayId)
+
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+
+        val version = RemittanceService.getRemittance(remittanceId).remittance.version
+        RemittanceService.submit(callerId, remittanceId, version)
+
+        val audit =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.changedBy eq callerId) and
+                            (AuditLogTable.action eq AuditAction.UPDATE) and
+                            (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                            (AuditLogTable.recordId eq branchDayId)
+                    }.single()
+            }
+        assertEquals("OPEN", DatabaseTestHelper.extractJsonField(audit[AuditLogTable.oldValue].orEmpty(), "status"))
+        assertEquals(
+            "REMITTED",
+            DatabaseTestHelper.extractJsonField(audit[AuditLogTable.newValue].orEmpty(), "status"),
+        )
+    }
+
+    @Test
     fun `submit with no day breakdowns succeeds with zero calculations`() {
-        val remittanceId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
         createDraftRemittance(remittanceId)
 
         trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
@@ -505,6 +576,11 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private fun resolveBranchDay(): UUID {
         val today = LocalDate.of(2026, 7, 10)
         val bd = BranchDayService.resolveOrCreate(branchId, today)
+        return bd.id
+    }
+
+    private fun resolveCurrentBranchDay(): UUID {
+        val bd = BranchDayService.resolveOrCreate(branchId, TestFixtures.today)
         return bd.id
     }
 
@@ -561,7 +637,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     private fun createSession(): UUID {
         if (sessionCreated) return sessionId!!
         ensureClientExists()
-        val sId = UUID.randomUUID()
+        val sId = TestFixtures.uuid()
         val branchDayId = resolveBranchDay()
         DatabaseTestHelper.insertTestSession(
             id = sId,
@@ -575,9 +651,9 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
     private fun createProductSale(): UUID {
         if (productSaleCreated) return productSaleId!!
-        val psId = UUID.randomUUID()
-        val catId = UUID.randomUUID()
-        val prodId = UUID.randomUUID()
+        val psId = TestFixtures.uuid()
+        val catId = TestFixtures.uuid()
+        val prodId = TestFixtures.uuid()
         val branchDayId = resolveBranchDay()
         DatabaseTestHelper.insertTestCategory(catId, "Cat ${psId.toString().take(8)}")
         DatabaseTestHelper.insertTestProduct(prodId, "Prod ${psId.toString().take(8)}", catId)
@@ -634,7 +710,7 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
     ) {
         transaction {
             ExpenseTable.insert {
-                it[ExpenseTable.id] = UUID.randomUUID()
+                it[ExpenseTable.id] = TestFixtures.uuid()
                 it[ExpenseTable.branchDayId] = branchDayId
                 it[ExpenseTable.amount] = amount
                 it[ExpenseTable.category] = ExpenseCategory.MISCELLANEOUS

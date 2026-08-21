@@ -4,10 +4,12 @@ import com.companyb.companyapp.repository.model.CommissionSplit
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -30,20 +32,32 @@ object CommissionSplitRepository {
         auditFn: (List<CommissionSplit>) -> Unit = {},
     ) {
         transaction {
-            CommissionSplitTable.deleteWhere {
-                CommissionSplitTable.branchDayId eq branchDayId
-            }
-
+            val existing =
+                CommissionSplitTable
+                    .selectAll()
+                    .where { CommissionSplitTable.branchDayId eq branchDayId }
+                    .associate { it[CommissionSplitTable.userId] to it[CommissionSplitTable.id] }
             val created = mutableListOf<CommissionSplit>()
             splits.forEach { (userId, amount) ->
-                val insert =
-                    CommissionSplitTable.insert {
-                        it[CommissionSplitTable.branchDayId] = branchDayId
-                        it[CommissionSplitTable.userId] = userId
+                val existingId = existing[userId]
+                if (existingId == null) {
+                    val insert =
+                        CommissionSplitTable.insert {
+                            it[CommissionSplitTable.branchDayId] = branchDayId
+                            it[CommissionSplitTable.userId] = userId
+                            it[CommissionSplitTable.amount] = amount
+                        }
+                    val id = insert[CommissionSplitTable.id]
+                    created.add(CommissionSplit(id, branchDayId, userId, amount))
+                } else {
+                    CommissionSplitTable.update({ CommissionSplitTable.id eq existingId }) {
                         it[CommissionSplitTable.amount] = amount
                     }
-                val id = insert[CommissionSplitTable.id]
-                created.add(CommissionSplit(id, branchDayId, userId, amount))
+                }
+            }
+            val staleIds = existing.filterKeys { it !in splits }.values
+            if (staleIds.isNotEmpty()) {
+                CommissionSplitTable.deleteWhere { CommissionSplitTable.id inList staleIds }
             }
             auditFn(created)
         }.also {

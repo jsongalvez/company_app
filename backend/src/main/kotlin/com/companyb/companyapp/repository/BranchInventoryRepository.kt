@@ -1,11 +1,13 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
-import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -20,6 +22,7 @@ import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.LocalDate
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
@@ -45,6 +48,7 @@ data class MovementAuditData(
     val notes: String?,
 )
 
+@Suppress("TooManyFunctions")
 object BranchInventoryRepository {
     fun requireCardForUpdate(
         oldCard: BranchInventory,
@@ -103,6 +107,30 @@ object BranchInventoryRepository {
         auditFn: (MovementAuditData) -> Unit = {},
     ): InventoryMovement =
         transaction {
+            val inserted =
+                InventoryMovementTable.insertIgnore {
+                    it[InventoryMovementTable.id] = params.movementId
+                    it[InventoryMovementTable.productId] = params.productId
+                    it[InventoryMovementTable.branchId] = params.branchId
+                    it[InventoryMovementTable.branchDayId] = params.branchDayId
+                    it[InventoryMovementTable.reason] = params.reason
+                    it[InventoryMovementTable.quantityChange] = params.quantityChange
+                    it[InventoryMovementTable.movedBy] = params.movedBy
+                    it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
+                    if (params.notes != null) {
+                        it[InventoryMovementTable.notes] = params.notes
+                    }
+                }
+            val wasInserted = inserted.insertedCount > 0
+
+            if (!wasInserted) {
+                val existingMovement = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
+                if (!sameMovementRequest(existingMovement, params)) {
+                    throw ConflictException("Movement ID already belongs to another request")
+                }
+                return@transaction existingMovement
+            }
+
             val oldCard =
                 findCardInTransaction(params.branchId, params.productId)
                     ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
@@ -114,26 +142,7 @@ object BranchInventoryRepository {
                     params.quantityChange,
                 )
 
-            InventoryMovementTable.insertIgnore {
-                it[InventoryMovementTable.id] = params.movementId
-                it[InventoryMovementTable.productId] = params.productId
-                it[InventoryMovementTable.branchId] = params.branchId
-                it[InventoryMovementTable.branchDayId] = params.branchDayId
-                it[InventoryMovementTable.reason] = params.reason
-                it[InventoryMovementTable.quantityChange] = params.quantityChange
-                it[InventoryMovementTable.movedBy] = params.movedBy
-                it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
-                if (params.notes != null) {
-                    it[InventoryMovementTable.notes] = params.notes
-                }
-            }
-
-            val movementRow =
-                InventoryMovementTable
-                    .selectAll()
-                    .where { InventoryMovementTable.id eq params.movementId }
-                    .single()
-                    .toInventoryMovement()
+            val movementRow = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
 
             auditFn(
                 MovementAuditData(
@@ -153,6 +162,31 @@ object BranchInventoryRepository {
             }
         }
 
+    fun findMovementById(movementId: UUID): InventoryMovement? =
+        transaction {
+            findMovementInTransaction(movementId)
+        }
+
+    private fun findMovementInTransaction(movementId: UUID): InventoryMovement? =
+        InventoryMovementTable
+            .selectAll()
+            .where { InventoryMovementTable.id eq movementId }
+            .singleOrNull()
+            ?.toInventoryMovement()
+
+    @Suppress("ComplexCondition")
+    private fun sameMovementRequest(
+        existing: InventoryMovement,
+        params: RecordMovementParams,
+    ): Boolean =
+        existing.branchId == params.branchId &&
+            existing.productId == params.productId &&
+            existing.branchDayId == params.branchDayId &&
+            existing.reason == params.reason &&
+            existing.quantityChange == params.quantityChange &&
+            existing.notes == params.notes &&
+            existing.movedBy == params.movedBy
+
     fun findCardInTransaction(
         branchId: UUID,
         productId: UUID,
@@ -164,6 +198,35 @@ object BranchInventoryRepository {
                     (BranchInventoryTable.productId eq productId)
             }.singleOrNull()
             ?.let { it.toBranchInventory() }
+
+    fun findMovements(
+        branchId: UUID,
+        date: LocalDate? = null,
+    ): List<InventoryMovement> =
+        transaction {
+            InventoryMovementTable
+                .innerJoin(
+                    BranchDayTable,
+                    { InventoryMovementTable.branchDayId },
+                    { BranchDayTable.id },
+                ).selectAll()
+                .where {
+                    if (date != null) {
+                        (InventoryMovementTable.branchId eq branchId) and
+                            (BranchDayTable.date eq date)
+                    } else {
+                        InventoryMovementTable.branchId eq branchId
+                    }
+                }.orderBy(
+                    InventoryMovementTable.movedAt to SortOrder.DESC,
+                    InventoryMovementTable.id to SortOrder.DESC,
+                ).map { it.toInventoryMovement() }
+        }.also {
+            logger.info {
+                "[FIND-MOVEMENTS] Fetched ${it.size} movement(s) for branch $branchId " +
+                    "date=${date?.toString().orEmpty()}"
+            }
+        }
 
     fun findByBranch(branchId: UUID): List<BranchInventoryWithProduct> =
         transaction {
@@ -179,6 +242,8 @@ object BranchInventoryRepository {
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
                         productName = row[ProductTable.name],
+                        unitPrice = row[ProductTable.unitPrice],
+                        commissionAmount = row[ProductTable.commissionAmount],
                     )
                 }
         }.also { logger.info { "[FIND-INVENTORY] Fetched ${it.size} inventory card(s) for branch $branchId" } }
@@ -202,6 +267,8 @@ object BranchInventoryRepository {
                     BranchInventoryWithProduct(
                         inventory = row.toBranchInventory(),
                         productName = row[ProductTable.name],
+                        unitPrice = row[ProductTable.unitPrice],
+                        commissionAmount = row[ProductTable.commissionAmount],
                     )
                 }
         }.also {

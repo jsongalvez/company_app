@@ -1,10 +1,13 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CapabilitySourceType
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
+import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.repository.CapabilityRepository
+import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.repository.model.ReliefStatus
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -16,22 +19,66 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 data class GrantWithCapabilityParams(
     val requestId: UUID,
     val grantedBy: UUID,
     val userId: UUID,
-    val capabilityId: UUID,
     val branchDayId: UUID,
     val sourceId: UUID,
     val validTo: OffsetDateTime?,
-    val priority: Short,
     val requestedBy: UUID,
 )
 
+/** The shared relief-grant write (#159 Q1): who gets the day, for which day, from which source. */
+data class GrantReliefCapabilityParams(
+    val userId: UUID,
+    val branchDayId: UUID,
+    val sourceId: UUID,
+    val validTo: OffsetDateTime?,
+)
+
+@Suppress("TooManyFunctions")
 object ReliefAccessRepository {
+    /**
+     * The shared relief-grant writer (#159 Q1): inserts the day-scoped capability
+     * (EDIT_BRANCH_DATA, BRANCH_DAY, [GrantReliefCapabilityParams.branchDayId], source
+     * RELIEF_ACCESS, priority [GrantPriorities.RELIEF_ACCESS], validFrom = now, validTo =
+     * [GrantReliefCapabilityParams.validTo]) — the capability write used by BOTH the
+     * request flow's grant ([grantWithCapability]) and the invite flow's accept.
+     * `insertIgnore` keeps a redundant grant harmless (the #159 Q3 decision: capabilities
+     * ≠ assignments).
+     */
+    fun grantReliefCapability(params: GrantReliefCapabilityParams): Unit =
+        transaction {
+            insertReliefCapabilityInTransaction(params.userId, params.branchDayId, params.sourceId, params.validTo)
+        }
+
+    private fun insertReliefCapabilityInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+        sourceId: UUID,
+        validTo: OffsetDateTime?,
+    ) {
+        UserCapabilityTable.insertIgnore {
+            it[UserCapabilityTable.userId] = userId
+            it[UserCapabilityTable.capabilityId] = reliefCapabilityId()
+            it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
+            it[UserCapabilityTable.contextId] = branchDayId
+            it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
+            it[UserCapabilityTable.sourceId] = sourceId
+            it[UserCapabilityTable.validFrom] = CurrentTimestampWithTimeZone
+            it[UserCapabilityTable.validTo] = validTo
+            it[UserCapabilityTable.priority] = GrantPriorities.RELIEF_ACCESS
+        }
+    }
+
+    private fun reliefCapabilityId(): UUID =
+        checkNotNull(
+            CapabilityRepository.findIdByCode(CapabilityCodes.EDIT_BRANCH_DATA),
+        ) { "EDIT_BRANCH_DATA capability not found" }
+
     fun findById(id: UUID): ReliefAccess? =
         transaction {
             GrantReliefAccessTable
@@ -44,7 +91,7 @@ object ReliefAccessRepository {
     fun findByRequestedByAndBranchDayId(
         requestedBy: UUID,
         branchDayId: UUID,
-        status: ReliefStatus,
+        status: ReliefAccessStatus,
     ): ReliefAccess? =
         transaction {
             GrantReliefAccessTable
@@ -62,13 +109,6 @@ object ReliefAccessRepository {
         auditFn: (ReliefAccess, ReliefAccess) -> Unit = { _, _ -> },
     ): ReliefAccess? =
         transaction {
-            val before =
-                GrantReliefAccessTable
-                    .selectAll()
-                    .where { GrantReliefAccessTable.id eq params.requestId }
-                    .singleOrNull()
-                    ?.toReliefAccess()
-
             GrantReliefAccessTable
                 .selectAll()
                 .where {
@@ -77,13 +117,24 @@ object ReliefAccessRepository {
                 }.forUpdate(ForUpdateOption.ForUpdate)
                 .toList()
 
+            val before =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq params.requestId }
+                    .singleOrNull()
+                    ?.toReliefAccess()
+
+            if (before == null || before.requestStatus != ReliefAccessStatus.PENDING) {
+                return@transaction before
+            }
+
             val existingGrant =
                 GrantReliefAccessTable
                     .selectAll()
                     .where {
                         (GrantReliefAccessTable.requestedBy eq params.requestedBy) and
                             (GrantReliefAccessTable.branchDayId eq params.branchDayId) and
-                            (GrantReliefAccessTable.requestStatus eq ReliefStatus.GRANTED)
+                            (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.GRANTED)
                     }.singleOrNull()
                     ?.toReliefAccess()
 
@@ -92,23 +143,21 @@ object ReliefAccessRepository {
             }
 
             GrantReliefAccessTable
-                .update({ GrantReliefAccessTable.id eq params.requestId }) {
-                    it[GrantReliefAccessTable.requestStatus] = ReliefStatus.GRANTED
+                .update({
+                    (GrantReliefAccessTable.id eq params.requestId) and
+                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
+                }) {
+                    it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.GRANTED
                     it[GrantReliefAccessTable.grantedBy] = params.grantedBy
                     it[GrantReliefAccessTable.grantedAt] = CurrentTimestampWithTimeZone
                 }
 
-            UserCapabilityTable.insertIgnore {
-                it[UserCapabilityTable.userId] = params.userId
-                it[UserCapabilityTable.capabilityId] = params.capabilityId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH_DAY
-                it[UserCapabilityTable.contextId] = params.branchDayId
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.RELIEF_ACCESS
-                it[UserCapabilityTable.sourceId] = params.sourceId
-                it[UserCapabilityTable.validFrom] = OffsetDateTime.now(ZoneOffset.UTC)
-                it[UserCapabilityTable.validTo] = params.validTo
-                it[UserCapabilityTable.priority] = params.priority
-            }
+            insertReliefCapabilityInTransaction(
+                userId = params.userId,
+                branchDayId = params.branchDayId,
+                sourceId = params.sourceId,
+                validTo = params.validTo,
+            )
 
             val after =
                 GrantReliefAccessTable
@@ -117,37 +166,45 @@ object ReliefAccessRepository {
                     .single()
                     .toReliefAccess()
 
-            if (before != null) {
-                auditFn(before, after)
-            }
+            auditFn(before, after)
             after
         }
 
     fun deny(
         requestId: UUID,
         auditFn: (ReliefAccess, ReliefAccess) -> Unit = { _, _ -> },
-    ) = transaction {
-        val before =
-            GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq requestId }
-                .single()
-                .toReliefAccess()
+    ): ReliefAccess =
+        transaction {
+            val before =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq requestId }
+                    .forUpdate(ForUpdateOption.ForUpdate)
+                    .single()
+                    .toReliefAccess()
 
-        GrantReliefAccessTable
-            .update({ GrantReliefAccessTable.id eq requestId }) {
-                it[GrantReliefAccessTable.requestStatus] = ReliefStatus.DENIED
+            if (before.requestStatus != ReliefAccessStatus.PENDING) {
+                return@transaction before
             }
 
-        val after =
             GrantReliefAccessTable
-                .selectAll()
-                .where { GrantReliefAccessTable.id eq requestId }
-                .single()
-                .toReliefAccess()
+                .update({
+                    (GrantReliefAccessTable.id eq requestId) and
+                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
+                }) {
+                    it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.DENIED
+                }
 
-        auditFn(before, after)
-    }
+            val after =
+                GrantReliefAccessTable
+                    .selectAll()
+                    .where { GrantReliefAccessTable.id eq requestId }
+                    .single()
+                    .toReliefAccess()
+
+            auditFn(before, after)
+            after
+        }
 
     fun insertRequest(
         id: UUID,

@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.ExpenseCategory
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
@@ -8,18 +9,6 @@ import org.postgresql.util.PGobject
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
-
-enum class ExpenseCategory {
-    PANTRY,
-    COMMUNICATION,
-    WATER,
-    TRANSPORTATION,
-    ELECTRICITY,
-    RENTAL,
-    OFFICE_SUPPLIES,
-    FURNITURE_FIXTURES,
-    MISCELLANEOUS,
-}
 
 data class Expense(
     val id: UUID,
@@ -31,6 +20,8 @@ data class Expense(
     val createdAt: OffsetDateTime,
     val deletedBy: UUID?,
     val deletedAt: OffsetDateTime?,
+    val deletedReason: String?,
+    val version: Int,
 )
 
 data class ExpenseCreateParams(
@@ -66,6 +57,8 @@ object ExpenseTable : Table("expense") {
     val createdAt = timestampWithTimeZone("created_at").defaultExpression(CurrentTimestampWithTimeZone)
     val deletedBy = javaUUID("deleted_by").nullable()
     val deletedAt = timestampWithTimeZone("deleted_at").nullable()
+    val deletedReason = text("deleted_reason").nullable()
+    val version = integer("version").default(1)
 
     override val primaryKey = PrimaryKey(id)
 
@@ -80,5 +73,7 @@ object ExpenseTable : Table("expense") {
             "createdAt" to entity.createdAt.toString(),
             "deletedBy" to (entity.deletedBy?.toString() ?: "null"),
             "deletedAt" to (entity.deletedAt?.toString() ?: "null"),
+            "deletedReason" to (entity.deletedReason ?: "null"),
+            "version" to entity.version.toString(),
         )
 }

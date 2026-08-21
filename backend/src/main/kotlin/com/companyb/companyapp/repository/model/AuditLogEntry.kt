@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.AuditAction
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -9,6 +10,8 @@ data class AuditLogEntry(
     val recordId: UUID,
     val action: AuditAction,
     val changedBy: UUID,
+    val changedByName: String?,
+    val branchId: UUID?,
     val changedAt: OffsetDateTime,
     val oldValue: String?,
     val newValue: String?,

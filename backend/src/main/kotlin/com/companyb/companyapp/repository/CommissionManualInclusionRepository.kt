@@ -7,7 +7,7 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusionUpsertP
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -69,13 +69,21 @@ object CommissionManualInclusionRepository {
         params: CommissionManualInclusionUpsertParams,
         auditFn: (CommissionManualInclusion?, CommissionManualInclusion) -> Unit,
     ): CommissionManualInclusion {
-        CommissionManualInclusionTable.insert {
-            it[CommissionManualInclusionTable.id] = params.id
-            it[CommissionManualInclusionTable.productSaleId] = params.productSaleId
-            it[CommissionManualInclusionTable.userId] = params.userId
-            it[CommissionManualInclusionTable.isIncluded] = params.isIncluded
-            if (params.reason != null) it[CommissionManualInclusionTable.reason] = params.reason
-            it[CommissionManualInclusionTable.assignedBy] = params.assignedBy
+        val inserted =
+            CommissionManualInclusionTable.insertIgnore {
+                it[CommissionManualInclusionTable.id] = params.id
+                it[CommissionManualInclusionTable.productSaleId] = params.productSaleId
+                it[CommissionManualInclusionTable.userId] = params.userId
+                it[CommissionManualInclusionTable.isIncluded] = params.isIncluded
+                if (params.reason != null) it[CommissionManualInclusionTable.reason] = params.reason
+                it[CommissionManualInclusionTable.assignedBy] = params.assignedBy
+            }
+
+        if (inserted.insertedCount == 0) {
+            val existing =
+                findByProductSaleAndUserInTransaction(params.productSaleId, params.userId)
+                    ?: error("commission_manual_inclusion conflict row not found")
+            return updateInclusion(existing, params.isIncluded, params.reason, params.assignedBy, auditFn)
         }
 
         val created =

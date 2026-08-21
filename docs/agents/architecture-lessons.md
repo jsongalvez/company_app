@@ -1,0 +1,59 @@
+# Architecture Lessons Ledger
+
+Durable lessons from repository architecture audits. Future agents consume this before proposing simplifications.
+
+## Current Lessons
+
+- **Authoritative paths beat cached inventories.** Flyway migration directory is schema history; `docs/adr/*.md` is decision history. Documentation must point to these authorities instead of enumerating a stale subset.
+- **Shared contract ownership must be complete or absent.** A partial `ApiRoutes` object creates false confidence while backend and Compose literals drift. Either migrate a route family fully or leave ownership explicit until its implementation ticket is ready.
+- **Type finite wire values once.** Shared DTO strings duplicate persistence enums and permit invalid states. Convert only with an explicit unknown-value and serialized-name compatibility policy.
+- **One adapter is a hypothetical seam.** Do not introduce generic repository/service interfaces or registries without a second concrete adapter and a deletion test showing complexity concentrates.
+- **Deletion test is necessary but not sufficient for schema changes.** Removing apparently redundant indexes requires query plans and representative data; removing Exposed metadata requires proving no schema tooling consumes it.
+- **Idempotency belongs beside uniqueness.** Scheduler check-then-insert logic is not atomic. When duplicate prevention matters, repository bulk operations and database uniqueness should own it together.
+- **Lifecycle state should be one snapshot.** Related JWT algorithm, verifier, issuer, and audience fields must not be independently observable during initialization.
+- **Tooling parsers need one implementation.** Normalizer and verifier duplicate source parsing; any syntax rule change must be made once and tested against malformed input.
+- **Thresholds need one source.** k6 helper thresholds are authoritative; suite-specific profiles must be named rather than copied.
+- **Dead ownership seams should be deleted, not documented.** `ReportViewModel` had no consumers while `FinanceReportsViewModel` owned active report state; an unused module is an invitation to future-agent misrouting.
+
+## Rejected Recommendations
+
+- Exposed unique-index metadata removal rejected: no material behavior or ownership gain proven without a schema-tooling path.
+- Broad Compose state refactor rejected: no second adapter or specific invalid-state reduction proven; recent `ApiCallHandler` and KeepLast decisions remain authoritative.
+- Generic interface/registry abstractions rejected: deletion test relocates complexity instead of concentrating it.
+
+## Reopen Markers
+
+- R3 reopens when enum unknown-value and backward-client policy is decided.
+- R5 reopens when multi-instance scheduler volume or deployment concurrency becomes material.
+- R7 reopens after representative query plans prove the two single-column trigram indexes redundant.
+- A third transport-pin consumer reopens shared fixture design; existing marker is preserved in Map #89 fog.
+- **Route ownership audits must scan callers after migration.** A shared route catalog can be structurally broad while a few production literals remain; grep every client path family after each route-contract child.
+- **Transaction time is part of a module interface.** Mixing JVM and database clocks in rate, attendance, or capability-window paths creates boundary behavior that callers cannot observe or test reliably.
+- **Gate ownership must be executable.** A generated-contract verifier documented as manual evidence is not a quality gate; hook/build/CI invocation must own drift detection.
+- **Conflict-safe batch operations must report database truth.** A precheck followed by `ignore` insertion can preserve uniqueness while returning false creation counts under concurrent schedulers.
+- **Snapshot fields need one-way ownership.** If business requirements define session type as a creation-time snapshot, exposing a later mutation route creates an invalid state; remove the mutation seam instead of adding more authorization around it.
+- **Business-key uniqueness must own conflict behavior.** A service pre-check before insert does not serialize concurrent compensation creation; the unique database constraint must be translated into deterministic domain conflict handling inside the transaction-owned repository operation.
+- **Persistence time belongs to the persistence owner.** JVM timestamps mixed with PostgreSQL `now()` create untestable boundary behavior; narrow fixes should use the database clock without inventing a universal clock abstraction.
+- **Generated-contract checks must run in one ordered gate.** Normalization, verification, and source freshness are one dependency chain; documenting the verifier without invoking it in hooks and CI leaves drift unchecked.
+- **Ownerless executors are hidden application state.** A scheduler executor created in startup but never retained cannot be stopped, restarted safely, or tested; lifecycle ownership must be explicit while work logic stays separate.
+- **Parent-child idempotency must include URL parent.** A globally unique child UUID is not enough: idempotent lookup must scope by the parent embedded in the route, or a retry can return a foreign child.
+- **Financial child links need domain ownership checks.** Independent foreign keys do not prove a remittance day belongs to remittance branch; resolve child through parent branch before writing.
+- **Required gates must fail closed at discovery.** Empty output after an infrastructure/query failure is not an empty database; mandatory cleanliness checks must distinguish “clean” from “not inspected.”
+- **Discovery failures must remain errors.** `set -euo pipefail` cannot protect a required gate when a command is followed by `|| echo ""`; preserve successful empty results, but never convert an unreadable test database into a clean result.
+- **Audit before-state must precede mutation.** Reading a record after a remittance status update and naming it `before` erases the transition the Audit Log is meant to preserve; capture before rows before the write, then read after rows.
+- **Load tests need valid domain fixtures.** Random UUIDs for dependent branch-day, client, and user records exercise rejection paths; unless failure is the scenario, that produces latency data and thresholds for invalid workflows rather than business behavior.
+- **Supported platform means complete actual ownership.** Declaring an iOS target is not enough; every common `expect` and host entry point needs a working iOS actual/adapter and compile proof before platform support is claimed.
+- **Benchmark gates must validate evidence before comparison.** Empty or truncated JMH output is not a clean run; require a result table, numeric rows, and coverage of every existing baseline while allowing explicitly new benchmarks.
+- **Related finite statuses need distinct shared types.** Relief-access request states and relief-invite lifecycle states both contain `PENDING` but represent different workflows; type each wire contract separately instead of reusing a coincidentally overlapping enum.
+- **State reads do not authorize state transitions.** A relief grant or deny pre-read is stale once another request can mutate the row; repository-owned `PENDING` predicates and atomic capability writes must enforce the transition invariant.
+- **Shared wire enums should also own backend capability values when representations are identical.** Duplicate persistence enums create name-conversion drift; PostgreSQL `customEnumeration` can bind the shared enum directly without a second adapter.
+- **Shared enum ownership must reach every consumer.** After backend capability bindings moved to shared enums, Compose still duplicated context values as strings; typed matcher parameters remove the last conversion seam and make drift a compile-time failure.
+- **Identical mobile actuals should share implementation, not platform behavior.** Keep compile-time mobile/desktop seams and target adapters, but place byte-identical Android/iOS host or card-list bodies in `commonMain`; leave desktop divergence explicit.
+- **Shared capability-code ownership must reach every Kotlin consumer.** Database migrations retain SQL literals, but runtime scheduler code must use shared capability-code constants alongside routes, services, and tests.
+- **Finite action values need one Kotlin owner across persistence and wire.** When PostgreSQL, backend persistence, DTOs, and Compose use the same closed action set, share one serializable enum and keep only the database binding at the persistence boundary.
+- **Branch-scoped writes must validate branch-owned day references.** Independent foreign keys for `branch_id` and `branch_day_id` allow operational records to cross Branch boundaries; resolve the Branch Day through its owning Branch before mutation.
+- **Business-key races include user-management assignments.** An `insertIgnore` count of zero cannot be read back by a caller UUID that lost a different business-key race; repository conflict handling must distinguish same-ID idempotency from active-key conflict.
+- **Business-key conflict ownership belongs in the write transaction.** A user-branch assignment pre-check followed by `insertIgnore` cannot classify a distinct-ID loser; preserve same-ID idempotency, translate active-key collisions to a domain conflict, and audit only newly inserted assignments.
+- **Idempotent UUID retries still need request ownership.** Returning any existing row by client UUID before checking caller and parent context can disclose a foreign session or attendance record; idempotency lookup must enforce the same ownership context as the write.
+- **Test-database discovery is one policy.** Cleanliness assertions and disposable cleanup must share seed-table and schema-discovery rules while keeping count and truncate operations separate; otherwise gate and cleanup drift silently.
+- **Capability catalogs must distinguish seed history from live ownership.** A later capability migration omitted from an architecture table is truth-class drift even when runtime authorization is correct; compare docs with shared constants and all capability migrations.

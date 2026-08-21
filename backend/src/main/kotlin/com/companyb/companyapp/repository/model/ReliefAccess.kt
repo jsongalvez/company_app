@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
@@ -11,7 +12,7 @@ data class ReliefAccess(
     val id: UUID,
     val branchDayId: UUID,
     val requestedBy: UUID,
-    val requestStatus: ReliefStatus,
+    val requestStatus: ReliefAccessStatus,
     val targetUser: UUID,
     val grantedBy: UUID?,
     val grantedAt: OffsetDateTime?,
@@ -22,17 +23,17 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)
     val requestedBy = javaUUID("requested_by").references(AppUserTable.id)
     val requestStatus =
-        customEnumeration<ReliefStatus>(
+        customEnumeration<ReliefAccessStatus>(
             name = "request_status",
             sql = "relief_status",
-            fromDb = { value -> ReliefStatus.valueOf(value as String) },
+            fromDb = { value -> ReliefAccessStatus.valueOf(value as String) },
             toDb = {
                 val obj = PGobject()
                 obj.type = "relief_status"
                 obj.value = it.name
                 obj
             },
-        ).default(ReliefStatus.PENDING)
+        ).default(ReliefAccessStatus.PENDING)
     val targetUser = javaUUID("target_user").references(AppUserTable.id)
     val grantedBy = javaUUID("granted_by").references(AppUserTable.id).nullable()
     val grantedAt = timestampWithTimeZone("granted_at").nullable()

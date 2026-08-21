@@ -1,0 +1,77 @@
+# Handoff — Wayfinder Map #89 (Frontend Rebuild), Session 40
+
+## What this is
+
+A wayfinder session on map **#89** ("Frontend rebuild — from scratch to fully-integrated UI"). Session 40 continued the Tier-1 audit stream: the user picked **Clients screens** (over User Management / Audit Log / backend grants) as the second audit surface. The audit ticket **#142** ("Audit — Clients screens (phased loop)") — `wayfinder:task`, AFK — was created, wired as a sub-issue of #89, claimed, run through the phased code-review loop (**21 passes, 18 HARD findings, all fixed**), resolved, and closed. Resolution comment: https://github.com/jsongalvez/company_app/issues/142#issuecomment-5248996209. 20 fix commits `4548aa9`→`756b56d` on `ralph/company-app-full-build` (unpushed; each pre-commit-gate passed: ktlint/detekt/backend-tests/cleanliness/shared-compile/Postgres). Map #89 updated (Decisions-so-far #142 entry + frontier paragraph).
+
+**Next-session state:** **0 unblocked tickets** — unchanged. The audit stream's remaining Tier 1 surfaces (**User Management, Audit Log, backend grants #132–#134, day-gates #136–#138**) are listed in the map's frontier paragraph, pending the user's go-ahead — each graduates as `wayfinder:task` "Audit — <surface> (phased loop)" children of #89.
+
+## Session outcome
+
+**#142 (Audit — Clients screens (phased loop)) — created + resolved + closed (AFK).**
+
+- **Created the ticket** (surface picked by the user: Clients screens — the handoff's lean), wired sub-issue of #89, claimed, then the usual AFK flow. Spec = the ORIGINAL tickets' resolutions (#99 D1–D10 + #113 shipped decisions + build-time decisions 1–5).
+- **The audit found the predicted reservoir, deeper than the pilot** — 18 HARD findings over 21 passes, fixed in 20 batch commits:
+  - **The supersede/edit state machine was the deep well (11 of 18 HARDs)**: (a) `retrySearch` bypassed the D2 current-query guard — untracked launch, X-clear/newer-query couldn't cancel it, stale response resurrected/overwrote; (b) PATCH success never committed into `clientDetail` — the screen renders detail, not updateState, so a successful edit looked lost; (c) BP blur-commit misfires ×2 (seeded-draft tap-through "unchanged" cancel; intra-pair focus transfer committing pre-correction values — moved to Row-level focus-loss); (d) field-switch + pair-supersede draft drops (per-field ownership `pendingEditField` + hoisted `BpDraftState` + parent-owned `commitBpDrafts`); (e) the 409-reload disposal-blur phantom (composed updateState already Idle at unmount → identical failed payload re-dispatched, clobbered the reloaded record + cleared the banner — `shouldBailOnReload` live-flow guard); (f) the supersede abandon-gate itself redesigned 3× (pass-9 Error-gate → pass-10 fieldError-gate → pass-11 synchronous `DispatchedDraft` dispatch-record — the intermediate forms each regressed under P1/P2/P4 convergence: stale-Error abandonment, validation-error misfires, frame-late reads, trim asymmetry, record-surviving-exit, numeric-alias strings) — **extraction into pure tested functions (`shouldAbandonFailedDraft`, `DispatchedDraft.matches`, `shouldBailOnReload`) was what finally converged it**.
+  - **Editor traps (2)**: null-BP pair (untouched empty seeds vs null values hit both-required before the unchanged check → supersede aborted → trapped with no Esc on mobile — seed-string comparison exits silently); one-frame snackbar kill (consume-before-show keyed on the notice flow — consuming changed the key, restarting the effect, cancelling showSnackbar — unit-keyed collect loop).
+  - **Stale-label (1)**: `lastFiredQuery` went stale via Loading-dedupe (consecutive Loading emissions are equal; the observation effect never re-ran) — the VM fire point is now authoritative.
+  - **Dead error gate (1)**: after a successful no-results search the cache holds `[]`, so attempt-2 failures rendered a silent blank list with no retry — `isNullOrEmpty()` gate restores the D2 error row.
+  - **Anonymize/PATCH race (1)**: clicking Anonymize blur-committed a PATCH; confirming could race it against the POST — slow PATCH lands after the anonymize and re-populates PII on the soft-deleted row. **Backend leg**: `ClientRepository.update` had no `deletedAt` filter — WHERE + re-read guard now 404s anonymized rows (PII immutable, no audit row, test-locked with the foreign-row-untouched assert).
+  - **D4 gap (1)**: the gender editor had no `fieldError` slot — a failed gender PATCH was invisible.
+  - **Comment-truth (1)**: the keep-last/stale-list acceptance was partially false — the search field is composition state, so pop-back clears the search (the VM's list survives but the screen clears it one frame later); logged as a D9 deviation + candidate follow-up, not a HARD.
+- **Shipped**: retry under the D2 guard (dead `search()`/`clearSearch()`/`createClient` removed — D6 truth); fire-point `lastFiredQuery`; PATCH-success commit into the detail flow; per-field ownership (landings resolve only their own field); supersede commits/aborts (invalid)/abandons (unchanged-failed) by draft state; synchronous dispatch-record gate (trimmed + parse-canonicalized numeric matching, cleared on edit-session exit); reload-bail guard; hoisted `BpDraftState` + seed-string unchanged-exit + Row-level blur (fires once per pair-focus-loss, disposal included); gender inline error + `isError` border; typing clears errors; changed-elsewhere banner retired on the user's next PATCH success; anonymize mutual exclusion (Confirm disabled while the blur-committed PATCH is in flight; edits blocked during the POST; button disabled in-flight); collect-loop snackbar (no restart-kill, no swallow).
+- **Tests**: desktop suite 146 → **170** (+24: 8 in `ClientViewModelTest`, 16 in the new `ClientEditStateTest` — every gate/guard/match decision that regressed before extraction is now pinned); backend +1 (update-after-anonymize 404 + PII untouched + audit count). All gates green.
+- **Accepted residuals (documented in code)**: blur-commit re-dispatch of a failed draft (visible error re-flash — D4 blur semantics); disposal blur (back-press — VM teardown; 204-pop — backend deletedAt 404 backstop); silent keep-last on non-empty-cache failures (#113); the D9 deviation above (pop-back clears the search — candidate small follow-up); superseded-400 silence (per-field ownership); one-sided-BP mobile escape via revert/complete; age/BP range backend-owned; sub-frame click races (live-flow reads; identical idempotent payloads); 'Saving your edit…' caption (load-bearing for the disabled Confirm).
+- **Finding rate (the calibration)**: 18 HARD + ~40 fixed SOFTs over ~8 files; 8 of 18 HARDs were the stale-state/interaction class the pre-loop lens missed; 11 of 18 came from the supersede/edit machine alone. **The audit premise holds a second time — recommend proceeding with the rest of Tier 1.**
+- **App-wide follow-up surfaced (not this ticket's scope)**: keep-last-results now exists in Notifications + Clients only — Audit Log, User Management, Remittance still flash on reload (candidates for their Tier-1 audits). New: the Clients search field resets on pop-back (composition state) — a D9-deviation worth a small fix (VM-held query + no-refire gating) in a future surface.
+
+## Patterns + learnings (cumulative across sessions)
+
+- **Session-40 additions**:
+  - **The convergence curve tells the story**: 5 → 1 → 0 → 2 → 1 → 0 → 0 → 0 → 1 → 1 → 1 → 2 → 0 → 0 → 0 → 1 → 0 → 1 → 2 → 0 → 0. The supersede/edit machine's pass-11→13 regressions (3 consecutive passes on the same gate) stopped only when the decision was **extracted as a pure function with tests** — gate/guard/match decisions that can't be VM-tested must become pure internal functions before the loop can converge on them.
+  - **Convergent-finding pattern (P1/P2/P4 triple-flag) = high-confidence HARD**: every time all three phases flagged the same line independently (retry guard, snackbar restart, stale-Error gate, trim asymmetry), it was real and load-bearing. Single-phase HARDs were sometimes false-premise (the pass-7 re-seed pair — P4's finding-1 falsified P2's premise: any reload unmounts the editor via the Loading state, so drafts die with the remember).
+  - **Live-flow reads beat composed snapshots in event handlers**: the composition-lagged `collectAsState` value lies inside same-frame event ordering (the pass-11 gate's frame-lateness, the pass-16 disposal-blur Idle-read). The pattern: `viewModel.flow.value` read synchronously in the handler + screen-side remembers written in the dispatch path = no lag, no dedupe.
+  - **Compose unmount is an edit-state killer AND a phantom-dispatcher**: any `Loading` state unmounts `ClientDetailContent` (its remembers die — the re-seed fix premise was unreachable), but the disposal-blur fires on the way out and can re-dispatch through stale composed guards (the pass-16 phantom — the reload-owns-the-exit guard).
+  - **StateFlow equal-emission suppression bites observation-based patterns twice**: the Loading-dedupe (lastFiredQuery) and the consume-keyed effect restart (snackbar). Record at the write/fire point, never infer from emission observation.
+  - **D4's 'failure keeps value + inline error' contract is the sharpest spec edge on this surface** — three separate HARDs were silent-drop/suppressed-failure violations of it.
+- Prior-session patterns unchanged: AFK flow = red-first falsification (N/A here — audit, not build), quality gate, phased loop per `docs/agents/code-review-loop.md`, k6 (N/A — no endpoint changes), resolution comment → close → map Decisions-so-far + frontier paragraph + handoff.
+- **iOS compile is pre-existing-broken** (from #120 handoff): `:composeApp:compileKotlinIosSimulatorArm64` fails on HEAD — pre-push gate excludes iOS intentionally.
+- **Flyway migration numbering**: V1–V18 taken; next is **V19** (`ls backend/src/main/resources/db/migration/` before picking).
+- **Test-DB pollution on partial `--tests` runs**: `bash scripts/clean-test-db.sh` before AND after partial runs.
+
+## Current frontier (verified live post-session)
+
+Per `gh issue list --state open`: only #89 (map), #110 (standalone hardcoded-month test fix, NOT a child), #139 (standalone OpenAPI map) open. **0 open children of #89** — #142 created+closed this session.
+
+## Recommended next picks
+
+- **The rest of Tier 1 (the audit stream)** — the user's go-ahead is pending; the frontier paragraph lists the surfaces: **User Management, Audit Log, backend grants #132–#134, day-gates #136–#138**. **Recommendation: User Management next** — it's the freshest surface (loop-reviewed in #135) but it's also the one built against the freshly-hardened #132–#134 backend (grant-path view derivation + gate hardening) and the newest client code, so the audit would check both directions of that integration. Graduate as `wayfinder:task` "Audit — <surface> (phased loop)" children of #89; for the two screen audits P1 spec = the ORIGINAL tickets' resolutions (e.g. #106/#135 for User Management, #104/#121–#124 for Audit Log); run the loop; fix HARDs in-ticket; record per-surface verdict + finding rate.
+- **#97-grad Build — Dashboard** (prototype exists: `prototype/0097-session-dashboard`) — the natural next frontend build; the clock-out → dashboard-state-clear transition fog (#97 outline) is a decision inside it. Note: the #141+#142 audits hardened the notification chain AND the client edit surface this build's session-end paths touch — read `NotificationBadgeHost` + the App.kt clear paths + `ClientState` as constraint sources.
+- **Merged Finance & Reports build** (from #101 + #105) — still gated on the #117 expense-GET-includes-soft-deleted question (HITL UX decision).
+- **Relief-request dialog on BranchSelect** — #91's one-liner, needs its own grilling.
+- **Remaining Not-yet-specified candidates** — unchanged from the #141 handoff (user-create flow, non-admin self-slot-edit, F7, desktop token-storage, pushed-route topbar, audit branch-name, detekt gate strategy, #110, route-path constants) + **new from this session**: Clients search-field reset on pop-back (D9 deviation — small fix: VM-held query + no-refire gating).
+
+## How to drive the next session (wayfinder "Work through the map")
+
+1. Load the map (https://github.com/jsongalvez/company_app/issues/89), the wayfinder skill, tracker conventions (`docs/agents/issue-tracker.md` → "Wayfinding operations").
+2. Session-41 has NO unblocked ticket — pick from "Recommended next picks". If continuing the audit stream: confirm the surface with the user (User Management recommended), graduate "Audit — <surface> (phased loop)" as `wayfinder:task` child of #89, claim, run the loop per `docs/agents/code-review-loop.md` (P1 spec = the original tickets' resolutions; the #141/#142 finding rates + residual lists are the calibration references; **for any screen with an edit/supersede-style state machine, extract the decision points as pure internal functions + tests EARLY — it is what converged #142**).
+3. Claim BEFORE work: `gh issue edit <N> --add-assignee @me` — verify no concurrent sessions.
+4. AFK flow: red-first falsification, /implement per module AGENTS.md, the phased loop with `git diff <last-pass-commit>` per pass (first pass = the committed surface; hand untracked files explicitly), batch-fix commits, exit at one full pass with zero HARD.
+5. Post the answer as a **resolution comment** (per-pass record + per-surface verdict + finding rate), then `gh issue close <N>`, then append a context pointer to map #89's Decisions-so-far (fetch body → modify → `gh issue edit 89 --body-file <modified>` — update the frontier paragraph AND clear graduated fog lines).
+6. Graduate fog (create-then-wire): `gh issue create --label wayfinder:task` → sub-issue via `gh issue edit <n> --parent 89` (verify via the child's `parent` field via GraphQL — the REST read can be stale).
+7. **One-ticket-per-session limit.** When done, stop and write `docs/agents/wayfinder-<N>-handoff.md` — follow this session's format.
+
+## Map state at session-end
+
+Map #89 body updated this session:
+- Decisions-so-far: new #142 entry (full shipped-scope summary + the 18-HARD class breakdown + Tier-1 calibration + resolution link).
+- Not-yet-specified: unchanged (the #102 read-history fog line stays; the #141 audit re-confirmed it as the 404-defense rationale).
+- Frontier paragraph: rewritten with the #142 audit outcome first (created+closed, 21 loop passes, 18 HARDs, finding rate), the remaining Tier 1 surfaces listed pending the user's go-ahead (Clients removed from the pending list), rest reworded "closed previous session", 0 unblocked held.
+
+## Suggested skills for next session
+
+- **`/wayfinder`** — the parent workflow; re-load to follow "Work through the map" steps (note: next session must pick/graduate a ticket — 0 unblocked).
+- **`docs/agents/code-review-loop.md`** — the phased loop is now proven across two surfaces; the #142 resolution is the reference example of the per-pass record format AND of the pure-function-extraction convergence lesson.
+- **`/implement`** — for either the Dashboard build or the next audit (audits fix HARDs in-ticket).
+- **`/grilling` + `/domain-modeling`** — if the #97-grad Dashboard build graduates: the clock-out question is a decision (HITL-ish); same for the merged Finance build's #117 gate.
+- **`/handoff`** — when the chosen ticket is resolved and the session is near its limit, compact + write `docs/agents/wayfinder-<N>-handoff.md`.

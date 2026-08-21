@@ -11,6 +11,8 @@ internal object MovementRecorder {
         oldCard: BranchInventory,
         newCard: BranchInventory,
         movement: InventoryMovement,
+        isFlagged: Boolean,
+        reason: String?,
     ) {
         AuditLogRepository.recordUpdate(
             tableName = BranchInventoryTable.tableName,
@@ -18,13 +20,19 @@ internal object MovementRecorder {
             before = oldCard,
             after = newCard,
             changedBy = movement.movedBy,
+            branchId = movement.branchId,
+            isFlagged = isFlagged,
+            reason = reason,
             auditFields = BranchInventoryTable::auditFields,
         )
         AuditLogRepository.recordInsert(
             tableName = InventoryMovementTable.tableName,
             recordId = movement.id,
             changedBy = movement.movedBy,
+            branchId = movement.branchId,
             fields = InventoryMovementTable.auditFields(movement),
+            isFlagged = isFlagged,
+            reason = reason,
         )
     }
 }

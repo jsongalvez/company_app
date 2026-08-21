@@ -1,6 +1,6 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
@@ -11,9 +11,11 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -31,15 +33,21 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
 class AttendanceServicePostgresTest : BasePostgresTest() {
-    private val userId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
+    private val userId = TestFixtures.uuid()
+    private val otherUserId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(userId, "user")
+        DatabaseTestHelper.insertTestUser(otherUserId, "other-user")
         trackOwned(AppUserTable, AppUserTable.id, userId)
+        trackOwned(AppUserTable, AppUserTable.id, otherUserId)
         DatabaseTestHelper.insertTestBranch(branchId, "Test Branch")
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Other Branch")
         trackOwned(BranchTable, BranchTable.id, branchId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
         trackOwned(AttendanceTable, AttendanceTable.userId, userId)
         trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.userId, userId)
@@ -51,7 +59,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockIn creates attendance and branch day assignment and writes audit`() {
-        val attendanceId = UUID.randomUUID()
+        val attendanceId = TestFixtures.uuid()
 
         val (result, duration) =
             measureTimedValue {
@@ -69,21 +77,75 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `clockIn with same id throws Conflict due to active clock-in guard`() {
-        val attendanceId = UUID.randomUUID()
+    fun `clockIn trigger rolls back attendance assignment and audit when transaction fails`() {
+        val attendanceId = TestFixtures.uuid()
+
+        assertFailsWith<IllegalStateException> {
+            transaction {
+                AttendanceService.clockIn(attendanceId, branchId, userId)
+                error("injected commission trigger failure")
+            }
+        }
+
+        assertEquals(
+            0,
+            transaction { AttendanceTable.selectAll().where { AttendanceTable.id eq attendanceId }.count() },
+        )
+        assertEquals(0, auditEntryCount(attendanceId))
+        assertEquals(
+            0,
+            transaction {
+                BranchDayAssignmentTable
+                    .selectAll()
+                    .where { BranchDayAssignmentTable.userId eq userId }
+                    .count()
+            },
+        )
+    }
+
+    @Test
+    fun `clockIn with same id returns existing attendance`() {
+        val attendanceId = TestFixtures.uuid()
+        val first = AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        val second = AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertEquals(first.id, second.id)
+        assertTrue(second.created.not())
+    }
+
+    @Test
+    fun `clockIn rejects same id from another caller without duplicate side effects`() {
+        val attendanceId = TestFixtures.uuid()
         AttendanceService.clockIn(attendanceId, branchId, userId)
 
         assertFailsWith<ConflictException> {
-            AttendanceService.clockIn(attendanceId, branchId, userId)
+            AttendanceService.clockIn(attendanceId, branchId, otherUserId)
         }
+
+        assertEquals(1L, auditEntryCount(attendanceId))
+        assertEquals(1L, branchDayAssignmentCount(userId))
+    }
+
+    @Test
+    fun `clockIn rejects same id for another branch without duplicate side effects`() {
+        val attendanceId = TestFixtures.uuid()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertFailsWith<ConflictException> {
+            AttendanceService.clockIn(attendanceId, otherBranchId, userId)
+        }
+
+        assertEquals(1L, auditEntryCount(attendanceId))
+        assertEquals(1L, branchDayAssignmentCount(userId))
     }
 
     @Test
     fun `clockIn throws Conflict when user already has active clock-in`() {
-        val firstId = UUID.randomUUID()
+        val firstId = TestFixtures.uuid()
         AttendanceService.clockIn(firstId, branchId, userId)
 
-        val secondId = UUID.randomUUID()
+        val secondId = TestFixtures.uuid()
         assertFailsWith<ConflictException> {
             AttendanceService.clockIn(secondId, branchId, userId)
         }
@@ -91,7 +153,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockIn sets isRelief true when no branch assignment exists`() {
-        val attendanceId = UUID.randomUUID()
+        val attendanceId = TestFixtures.uuid()
 
         val result = AttendanceService.clockIn(attendanceId, branchId, userId)
 
@@ -102,10 +164,10 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     fun `clockIn sets isRelief false when branch assignment exists`() {
         DatabaseTestHelper.grantManageUsers(userId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
-        val assignmentId = UUID.randomUUID()
+        val assignmentId = TestFixtures.uuid()
         UserBranchAssignmentService.create(userId, assignmentId, branchId, userId, 1)
 
-        val attendanceId = UUID.randomUUID()
+        val attendanceId = TestFixtures.uuid()
         val result = AttendanceService.clockIn(attendanceId, branchId, userId)
 
         assertTrue(result.isRelief.not())
@@ -113,7 +175,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockOut sets clockOut and writes audit`() {
-        val attendanceId = UUID.randomUUID()
+        val attendanceId = TestFixtures.uuid()
         AttendanceService.clockIn(attendanceId, branchId, userId)
 
         val result = AttendanceService.clockOut(attendanceId, userId)
@@ -126,7 +188,7 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `clockOut on already clocked out record returns existing`() {
-        val attendanceId = UUID.randomUUID()
+        val attendanceId = TestFixtures.uuid()
         AttendanceService.clockIn(attendanceId, branchId, userId)
         val first = AttendanceService.clockOut(attendanceId, userId)
 
@@ -139,8 +201,40 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `repository clockOut only audits first transition`() {
+        val attendanceId = TestFixtures.uuid()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+        var auditCalls = 0
+
+        AttendanceRepository.clockOut(attendanceId) { _, _ -> auditCalls++ }
+        AttendanceRepository.clockOut(attendanceId) { _, _ -> auditCalls++ }
+
+        assertEquals(1, auditCalls)
+    }
+
+    @Test
+    fun `clockOut rejects another user's attendance`() {
+        val attendanceId = TestFixtures.uuid()
+        AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        assertFailsWith<ForbiddenException> {
+            AttendanceService.clockOut(attendanceId, otherUserId)
+        }
+
+        assertNull(
+            transaction {
+                AttendanceTable
+                    .selectAll()
+                    .where { AttendanceTable.id eq attendanceId }
+                    .single()[AttendanceTable.clockOut]
+            },
+        )
+        assertEquals(1L, auditEntryCount(attendanceId))
+    }
+
+    @Test
     fun `clockOut on non-existent attendance throws NotFound`() {
-        val unknownId = UUID.randomUUID()
+        val unknownId = TestFixtures.uuid()
 
         assertFailsWith<NotFoundException> {
             AttendanceService.clockOut(unknownId, userId)
@@ -186,5 +280,13 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                     .limit(1)
                     .single()
             DatabaseTestHelper.extractJsonField(row[AuditLogTable.newValue] ?: "{}", "clockOut")
+        }
+
+    private fun branchDayAssignmentCount(userId: UUID): Long =
+        transaction {
+            BranchDayAssignmentTable
+                .selectAll()
+                .where { BranchDayAssignmentTable.userId eq userId }
+                .count()
         }
 }

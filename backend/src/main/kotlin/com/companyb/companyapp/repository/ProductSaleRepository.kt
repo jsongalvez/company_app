@@ -1,10 +1,12 @@
 package com.companyb.companyapp.repository
 
+import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.exception.ConflictException
+import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
 import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryTable
-import com.companyb.companyapp.repository.model.InventoryMovementReason
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductSale
@@ -19,6 +21,7 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -38,19 +41,58 @@ data class SellProductParams(
     val product: Product,
 )
 
+data class RetryProductSaleParams(
+    val id: UUID,
+    val branchDayId: UUID,
+    val sessionId: UUID?,
+    val clientId: UUID?,
+    val isWalkIn: Boolean,
+    val productId: UUID,
+    val quantity: Int,
+    val handledBy: UUID,
+)
+
+data class SellProductResult(
+    val sale: ProductSale,
+    val created: Boolean,
+)
+
 private val logger = KotlinLogging.logger {}
 
+@Suppress("TooManyFunctions")
 object ProductSaleRepository {
     @Suppress("LongMethod")
     fun sell(
         params: SellProductParams,
         auditFn: (ProductSale, BranchInventory, BranchInventory) -> Unit = { _, _, _ -> },
-    ): ProductSale =
+    ): SellProductResult =
         transaction {
             val existing = findByIdInTransaction(params.id)
             if (existing != null) {
+                validateRetryOwnership(existing, params)
                 logger.info { "[PRODUCT-SALE] Sale ${params.id} already exists, returning existing (idempotent)" }
-                return@transaction existing
+                return@transaction SellProductResult(existing, created = false)
+            }
+
+            val inserted =
+                insertProductSaleRow(
+                    params.id,
+                    params.branchDayId,
+                    params.sessionId,
+                    params.clientId,
+                    params.isWalkIn,
+                    params.productId,
+                    params.product,
+                    params.handledBy,
+                    params.quantity,
+                    params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong()),
+                )
+            if (!inserted) {
+                val concurrentSale =
+                    findByIdInTransaction(params.id)
+                        ?: error("product sale missing after idempotent insert for ${params.id}")
+                validateRetryOwnership(concurrentSale, params)
+                return@transaction SellProductResult(concurrentSale, created = false)
             }
 
             acquireInventoryLock(params.branchId, params.productId)
@@ -68,21 +110,6 @@ object ProductSaleRepository {
                     -params.quantity,
                 )
 
-            val totalAmount = params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong())
-
-            insertProductSaleRow(
-                params.id,
-                params.branchDayId,
-                params.sessionId,
-                params.clientId,
-                params.isWalkIn,
-                params.productId,
-                params.product,
-                params.handledBy,
-                params.quantity,
-                totalAmount,
-            )
-
             insertSaleInventoryMovement(
                 params.id,
                 params.productId,
@@ -97,13 +124,61 @@ object ProductSaleRepository {
                     ?: error("product sale not found after insert for ${params.id}")
 
             auditFn(sale, beforeCard, newCard)
-            sale
+            SellProductResult(sale, created = true)
         }.also {
             logger.info {
                 "[PRODUCT-SALE] Sale ${params.id} created " +
                     "product=${params.productId} branch=${params.branchId} qty=${params.quantity} " +
-                    "total=${it.totalAmountAtTime}"
+                    "total=${it.sale.totalAmountAtTime}"
             }
+        }
+
+    @Suppress("ComplexCondition")
+    private fun validateRetryOwnership(
+        existing: ProductSale,
+        params: SellProductParams,
+    ) {
+        validateRetryOwnership(
+            existing,
+            RetryProductSaleParams(
+                id = params.id,
+                branchDayId = params.branchDayId,
+                sessionId = params.sessionId,
+                clientId = params.clientId,
+                isWalkIn = params.isWalkIn,
+                productId = params.productId,
+                quantity = params.quantity,
+                handledBy = params.handledBy,
+            ),
+        )
+    }
+
+    @Suppress("ComplexCondition")
+    private fun validateRetryOwnership(
+        existing: ProductSale,
+        params: RetryProductSaleParams,
+    ) {
+        if (existing.branchDayId != params.branchDayId) {
+            throw NotFoundException("Product sale not found for this branch day")
+        }
+        if (
+            existing.handledBy != params.handledBy ||
+            existing.sessionId != params.sessionId ||
+            existing.clientId != params.clientId ||
+            existing.isWalkIn != params.isWalkIn ||
+            existing.productId != params.productId ||
+            existing.quantity != params.quantity
+        ) {
+            throw ConflictException("Product sale id already belongs to another create request")
+        }
+    }
+
+    fun findExistingForRetry(params: RetryProductSaleParams): ProductSale? =
+        transaction {
+            val existing = findByIdInTransaction(params.id) ?: return@transaction null
+            if (existing.branchDayId != params.branchDayId) return@transaction null
+            validateRetryOwnership(existing, params)
+            existing
         }
 
     @Suppress("LongParameterList")
@@ -118,22 +193,23 @@ object ProductSaleRepository {
         handledBy: UUID,
         quantity: Int,
         totalAmount: BigDecimal,
-    ) {
-        ProductSaleTable.insert {
-            it[ProductSaleTable.id] = id
-            it[ProductSaleTable.branchDayId] = branchDayId
-            if (sessionId != null) it[ProductSaleTable.sessionId] = sessionId
-            if (clientId != null) it[ProductSaleTable.clientId] = clientId
-            it[ProductSaleTable.isWalkIn] = isWalkIn
-            it[ProductSaleTable.productId] = productId
-            it[ProductSaleTable.productName] = product.name
-            it[ProductSaleTable.handledBy] = handledBy
-            it[ProductSaleTable.quantity] = quantity
-            it[ProductSaleTable.unitPriceAtTime] = product.unitPrice
-            it[ProductSaleTable.totalAmountAtTime] = totalAmount
-            it[ProductSaleTable.commissionAmountAtTime] = product.commissionAmount
-        }
-    }
+    ): Boolean =
+        ProductSaleTable
+            .insertIgnore {
+                it[ProductSaleTable.id] = id
+                it[ProductSaleTable.branchDayId] = branchDayId
+                if (sessionId != null) it[ProductSaleTable.sessionId] = sessionId
+                if (clientId != null) it[ProductSaleTable.clientId] = clientId
+                it[ProductSaleTable.isWalkIn] = isWalkIn
+                it[ProductSaleTable.productId] = productId
+                it[ProductSaleTable.productName] = product.name
+                it[ProductSaleTable.handledBy] = handledBy
+                it[ProductSaleTable.quantity] = quantity
+                it[ProductSaleTable.unitPriceAtTime] = product.unitPrice
+                it[ProductSaleTable.totalAmountAtTime] = totalAmount
+                it[ProductSaleTable.commissionAmountAtTime] = product.commissionAmount
+                it[ProductSaleTable.soldAt] = CurrentTimestampWithTimeZone
+            }.insertedCount > 0
 
     @Suppress("LongParameterList")
     private fun insertSaleInventoryMovement(
@@ -197,6 +273,7 @@ object ProductSaleRepository {
                 (BranchInventoryTable.branchId eq branchId) and
                     (BranchInventoryTable.productId eq productId)
             }.forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
     }
 
     private fun findByIdInTransaction(id: UUID): ProductSale? =

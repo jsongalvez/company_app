@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -8,6 +7,7 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -22,11 +22,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ProductServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val categoryId = UUID.randomUUID()
-    private val productId = UUID.randomUUID()
-    private val productId2 = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val categoryId = TestFixtures.uuid()
+    private val productId = TestFixtures.uuid()
+    private val productId2 = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "caller")
@@ -177,7 +177,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without MANAGE_PRODUCTS is allowed at service layer`() {
-        val newProductId = UUID.randomUUID()
+        val newProductId = TestFixtures.uuid()
         val result =
             ProductService.create(
                 callerId = callerId,
@@ -201,7 +201,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findById without MANAGE_PRODUCTS is allowed at service layer`() {
-        val newProductId = UUID.randomUUID()
+        val newProductId = TestFixtures.uuid()
         DatabaseTestHelper.grantManageProducts(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         ProductService.create(
@@ -213,7 +213,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
             commissionAmount = BigDecimal("25.00"),
         )
 
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 
@@ -233,7 +233,7 @@ class ProductServicePostgresTest : BasePostgresTest() {
                 callerId = callerId,
                 id = productId,
                 name = "Test Product",
-                productCategoryId = UUID.randomUUID(),
+                productCategoryId = TestFixtures.uuid(),
                 unitPrice = BigDecimal("250.00"),
                 commissionAmount = BigDecimal("25.00"),
             )

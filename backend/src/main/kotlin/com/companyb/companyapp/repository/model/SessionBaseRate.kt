@@ -26,7 +26,6 @@ data class SessionBaseRateCreateParams(
     val branchId: UUID,
     val sessionType: SessionType,
     val rate: BigDecimal,
-    val effectiveFrom: OffsetDateTime,
     val effectiveUntil: OffsetDateTime,
 )
 

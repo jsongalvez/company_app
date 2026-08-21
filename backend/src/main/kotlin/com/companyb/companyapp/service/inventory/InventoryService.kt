@@ -1,5 +1,7 @@
 package com.companyb.companyapp.service.inventory
 
+import com.companyb.companyapp.domain.InventoryMovementReason
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
@@ -10,7 +12,9 @@ import com.companyb.companyapp.repository.model.BranchInventory
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
 import com.companyb.companyapp.repository.model.Product
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.time.LocalDate
 import java.util.UUID
 
 private const val LOW_STOCK_DEFAULT_THRESHOLD = 5
@@ -28,16 +32,39 @@ object InventoryService {
         quantityChange: Int,
         notes: String?,
         branchDayId: UUID,
+        reason: String? = null,
     ): InventoryMovement {
+        BranchInventoryRepository.findMovementById(movementId)?.let { existingMovement ->
+            ensureRequestOwnership(
+                existingMovement,
+                branchId,
+                productId,
+                movementType.toInventoryMovementReason(),
+                quantityChange,
+                notes,
+                branchDayId,
+                callerId,
+            )
+            return existingMovement
+        }
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
         if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
+        BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
 
-        StockValidator.validateMovement(callerId, branchDayId, movementType, quantityChange, notes)
+        val isRemitted =
+            StockValidator.validateMovement(
+                callerId,
+                branchDayId,
+                movementType,
+                quantityChange,
+                notes,
+                reason,
+            )
 
         val card = BranchInventoryRepository.ensureCard(branchId, productId)
         val expectedVersion = card.version
 
-        val reason = movementType.toInventoryMovementReason()
+        val movementReason = movementType.toInventoryMovementReason()
 
         val movement =
             BranchInventoryRepository.recordMovement(
@@ -45,7 +72,7 @@ object InventoryService {
                     movementId = movementId,
                     branchId = branchId,
                     productId = productId,
-                    reason = reason,
+                    reason = movementReason,
                     quantityChange = quantityChange,
                     notes = notes,
                     branchDayId = branchDayId,
@@ -57,6 +84,8 @@ object InventoryService {
                         oldCard = data.oldCard,
                         newCard = data.newCard,
                         movement = data.movement,
+                        isFlagged = isRemitted,
+                        reason = reason,
                     )
                 },
             )
@@ -70,6 +99,14 @@ object InventoryService {
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
         if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
         return BranchInventoryRepository.findByBranch(branchId)
+    }
+
+    fun getMovementHistory(
+        branchId: UUID,
+        date: LocalDate? = null,
+    ): List<InventoryMovement> {
+        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+        return BranchInventoryRepository.findMovements(branchId, date)
     }
 
     @Suppress("ReturnCount")
@@ -100,6 +137,30 @@ object InventoryService {
     }
 
     private fun resolveThreshold(product: Product): Int = product.reorderPoint ?: LOW_STOCK_DEFAULT_THRESHOLD
+
+    @Suppress("ComplexCondition", "LongParameterList")
+    private fun ensureRequestOwnership(
+        existingMovement: InventoryMovement,
+        branchId: UUID,
+        productId: UUID,
+        movementReason: InventoryMovementReason,
+        quantityChange: Int,
+        notes: String?,
+        branchDayId: UUID,
+        callerId: UUID,
+    ) {
+        if (
+            existingMovement.branchId != branchId ||
+            existingMovement.productId != productId ||
+            existingMovement.reason != movementReason ||
+            existingMovement.quantityChange != quantityChange ||
+            existingMovement.notes != notes ||
+            existingMovement.branchDayId != branchDayId ||
+            existingMovement.movedBy != callerId
+        ) {
+            throw ConflictException("Movement ID already belongs to another request")
+        }
+    }
 
     @Suppress("ThrowsCount")
     fun ensureCard(

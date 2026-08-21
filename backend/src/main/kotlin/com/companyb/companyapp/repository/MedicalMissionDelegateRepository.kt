@@ -1,7 +1,7 @@
 package com.companyb.companyapp.repository
 
-import com.companyb.companyapp.repository.model.CapabilityContextType
-import com.companyb.companyapp.repository.model.CapabilitySourceType
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.MedicalMissionDelegate
 import com.companyb.companyapp.repository.model.MedicalMissionDelegateTable
@@ -37,21 +37,25 @@ object MedicalMissionDelegateRepository {
         auditFn: (MedicalMissionDelegate) -> Unit = {},
     ): Unit =
         transaction {
-            MedicalMissionDelegateTable.insertIgnore {
-                it[MedicalMissionDelegateTable.id] = delegateId
-                it[MedicalMissionDelegateTable.targetUser] = targetUserId
-                it[MedicalMissionDelegateTable.assignedBy] = assignedBy
-                it[MedicalMissionDelegateTable.branchId] = branchId
-            }
+            val inserted =
+                MedicalMissionDelegateTable
+                    .insertIgnore {
+                        it[MedicalMissionDelegateTable.id] = delegateId
+                        it[MedicalMissionDelegateTable.targetUser] = targetUserId
+                        it[MedicalMissionDelegateTable.assignedBy] = assignedBy
+                        it[MedicalMissionDelegateTable.branchId] = branchId
+                    }.insertedCount > 0
 
-            UserCapabilityTable.insert {
-                it[UserCapabilityTable.userId] = targetUserId
-                it[UserCapabilityTable.capabilityId] = capabilityId
-                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
-                it[UserCapabilityTable.contextId] = branchId
-                it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-                it[UserCapabilityTable.sourceId] = delegateId
-                it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
+            if (inserted) {
+                UserCapabilityTable.insert {
+                    it[UserCapabilityTable.userId] = targetUserId
+                    it[UserCapabilityTable.capabilityId] = capabilityId
+                    it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
+                    it[UserCapabilityTable.contextId] = branchId
+                    it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
+                    it[UserCapabilityTable.sourceId] = delegateId
+                    it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
+                }
             }
 
             val delegate =
@@ -60,7 +64,9 @@ object MedicalMissionDelegateRepository {
                     .where { MedicalMissionDelegateTable.id eq delegateId }
                     .single()
                     .toMedicalMissionDelegate()
-            auditFn(delegate)
+            if (inserted) {
+                auditFn(delegate)
+            }
         }
 
     fun revokeWithCapability(

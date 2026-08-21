@@ -5,15 +5,16 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import java.util.UUID
 
 internal object StockValidator {
-    @Suppress("ThrowsCount")
+    @Suppress("ThrowsCount", "LongParameterList")
     fun validateMovement(
         callerId: UUID,
         branchDayId: UUID,
         movementType: MovementType,
         quantityChange: Int,
         notes: String?,
-    ) {
-        BranchDayService.checkBranchDayEditable(callerId, branchDayId)
+        reason: String? = null,
+    ): Boolean {
+        val (_, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
         val sign = quantityChange.compareTo(0)
         when (movementType.signRequired) {
@@ -31,5 +32,7 @@ internal object StockValidator {
         if (movementType is MovementType.Missing && notes.isNullOrBlank()) {
             throw ValidationException("Notes are required for MISSING movements")
         }
+
+        return isRemitted
     }
 }

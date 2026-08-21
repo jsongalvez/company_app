@@ -10,50 +10,43 @@ source "$ROOT_DIR/scripts/lib/common.sh"
 
 source_env
 
-DB_NAME="${TEST_DB_NAME:-${POSTGRES_DB}_test}"
+DB_NAME="$(test_db_name)"
 DB_USER="${POSTGRES_USER:-company_user}"
 DB_HOST="${DB_HOST:-localhost}"
 DB_PORT="${DB_PORT:-5432}"
 
 log cleanliness "Checking test DB '$DB_NAME' for leftover test data..."
 
-# Seed tables that are expected to have rows
-SEED_TABLES="role capability role_capability flyway_schema_history"
+TABLES_OUTPUT=$(test_data_tables "$DB_USER" "$DB_NAME")
 
-RESULT=$(docker exec company-postgres psql \
-    -U "$DB_USER" \
-    -d "$DB_NAME" \
-    -t -A -c "
-SELECT string_agg(tablename, ' ') FROM pg_tables
-WHERE schemaname = 'public'
-  AND tablename NOT IN ($(echo $SEED_TABLES | sed "s/ /', '/g" | sed "s/^/'/;s/$/'/"))
-  AND EXISTS (
-    SELECT 1 FROM information_schema.tables t2
-    WHERE t2.table_schema = 'public' AND t2.table_name = pg_tables.tablename
-    AND t2.table_type = 'BASE TABLE'
-  );
-" 2>/dev/null || echo "")
-
-TABLES_TO_CHECK=$(echo "$RESULT" | tr ' ' '\n' | sort | tr '\n' ' ' | xargs)
-
-if [ -z "$TABLES_TO_CHECK" ]; then
+if [ -z "$TABLES_OUTPUT" ]; then
     log cleanliness "No tables to check — test DB may not be initialized. Skipping."
     exit 0
 fi
 
-log cleanliness "Checking tables: $TABLES_TO_CHECK"
+mapfile -t TABLES_TO_CHECK <<< "$TABLES_OUTPUT"
+TABLES_TO_LOG=$(printf '%s\n' "${TABLES_TO_CHECK[@]}" | paste -sd ' ' -)
+log cleanliness "Checking tables: $TABLES_TO_LOG"
+
+COUNT_QUERY=""
+for table in "${TABLES_TO_CHECK[@]}"; do
+    quoted_table=$(quote_sql_identifier "$table")
+    quoted_name=${table//\'/\'\'}
+    COUNT_QUERY+="SELECT '$quoted_name' AS table_name, count(*) AS row_count FROM $quoted_table UNION ALL "
+done
+COUNT_QUERY=${COUNT_QUERY% UNION ALL }
+
+COUNTS=$(test_db_psql \
+    "$DB_USER" \
+    "$DB_NAME" \
+    -t -A -F '|' -c "$COUNT_QUERY")
 
 LEAKED=""
-for tbl in $TABLES_TO_CHECK; do
-    COUNT=$(docker exec company-postgres psql \
-        -U "$DB_USER" \
-        -d "$DB_NAME" \
-        -t -A -c "SELECT count(*) FROM \"$tbl\";" 2>/dev/null || echo "0")
-    COUNT=$(echo "$COUNT" | tr -d ' ')
-    if [ "$COUNT" != "0" ]; then
-        LEAKED="$LEAKED $tbl($COUNT)"
+while IFS='|' read -r tbl count; do
+    if [ -n "$tbl" ] && [ "$count" != "0" ]; then
+        LEAKED="$LEAKED $tbl($count)"
     fi
-done
+done <<< "$COUNTS"
 
 if [ -n "$LEAKED" ]; then
     log cleanliness "ERROR: Test-data leak detected in tables:$LEAKED"

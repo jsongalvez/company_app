@@ -1,12 +1,17 @@
 package com.companyb.companyapp.viewmodel
 
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.mockApiClient
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -28,7 +33,7 @@ class AuthViewModelTest {
 
     @Test
     fun loginSuccessTransitionsToSuccess() =
-        runBlocking {
+        runTest {
             val apiClient =
                 mockApiClient(
                     status = HttpStatusCode.OK,
@@ -47,7 +52,7 @@ class AuthViewModelTest {
 
     @Test
     fun loginFailureTransitionsToError() =
-        runBlocking {
+        runTest {
             val apiClient =
                 mockApiClient(
                     status = HttpStatusCode.Unauthorized,
@@ -62,5 +67,33 @@ class AuthViewModelTest {
             val state = viewModel.loginState.value
             val error = assertIs<UiState.Error>(state)
             assertEquals("login failed: 401", error.message)
+        }
+
+    @Test
+    fun authRequestsUseSharedRouteConstants() =
+        runTest {
+            val paths = mutableListOf<String>()
+            val apiClient =
+                mockApiClient { request ->
+                    paths += request.url.encodedPath
+                    respond(
+                        content =
+                            ByteReadChannel(
+                                if (request.url.encodedPath == ApiRoutes.AUTH_LOGIN) {
+                                    "{\"token\": \"fake-jwt\"}"
+                                } else {
+                                    ""
+                                },
+                            ),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
+                    )
+                }
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.login("test", "pass").join()
+            viewModel.register("test", "pass", "test@example.com", "Test User").join()
+
+            assertEquals(listOf(ApiRoutes.AUTH_LOGIN, ApiRoutes.AUTH_REGISTER), paths)
         }
 }

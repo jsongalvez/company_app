@@ -1,10 +1,11 @@
 package com.companyb.companyapp.repository
-
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AuditAction
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -15,10 +16,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 class AuditLogRepositoryPostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val recordId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val recordId = TestFixtures.uuid()
     private val tableName = "test_table"
 
     override fun initTestData() {
@@ -116,6 +118,44 @@ class AuditLogRepositoryPostgresTest : BasePostgresTest() {
         assertEquals(callerId, row[AuditLogTable.changedBy])
         assertNotNull(row[AuditLogTable.oldValue])
         assertNotNull(row[AuditLogTable.newValue])
+    }
+
+    @Test
+    fun `record writes branchId when provided`() {
+        val branchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(branchId)
+        trackOwned(BranchTable, BranchTable.id, branchId)
+
+        transaction {
+            AuditLogRepository.record(
+                tableName = tableName,
+                recordId = recordId,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+                branchId = branchId,
+                newValue = """{"status":"active"}""",
+            )
+        }
+
+        val rows = findAuditRows()
+        assertEquals(1, rows.size)
+        assertEquals(branchId, rows[0][AuditLogTable.branchId])
+    }
+
+    @Test
+    fun `record leaves branchId null when omitted`() {
+        transaction {
+            AuditLogRepository.record(
+                tableName = tableName,
+                recordId = recordId,
+                action = AuditAction.INSERT,
+                changedBy = callerId,
+            )
+        }
+
+        val rows = findAuditRows()
+        assertEquals(1, rows.size)
+        assertNull(rows[0][AuditLogTable.branchId])
     }
 
     @Test

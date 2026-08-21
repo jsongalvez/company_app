@@ -1,12 +1,16 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.domain.RemittanceMethod
+import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
@@ -16,38 +20,36 @@ import com.companyb.companyapp.repository.model.ProductTable
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceLineType
-import com.companyb.companyapp.repository.model.RemittanceMethod
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.RemittanceType
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 
 class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val currentMonth = TestFixtures.currentMonth
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(callerId, "summary-caller")
         trackOwned(AppUserTable, AppUserTable.id, callerId)
-        DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${UUID.randomUUID()}")
+        DatabaseTestHelper.insertTestBranch(branchId, "Monthly Summary Branch ${TestFixtures.uuid()}")
         trackOwned(BranchTable, BranchTable.id, branchId)
         DatabaseTestHelper.insertTestClient(clientId)
         trackOwned(ClientTable, ClientTable.id, clientId)
@@ -77,15 +79,15 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
     @Test
     fun `returns 404 when no remittance data exists for given month`() {
         assertFailsWith<NotFoundException> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+            getCurrentMonthSummary(branchId)
         }
     }
 
     @Test
     fun `returns correct summary for a single SESSION remittance`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createSubmittedSessionRemittance(remittanceId, lineId, breakdownId, BigDecimal("1000.00"))
 
@@ -94,9 +96,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+        val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(1, summary.sessionCount)
         assertEquals(0, summary.productCount)
@@ -108,18 +109,18 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns correct summary with compensation and expenses`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
-        val branchDayId = resolveBranchDay(LocalDate.of(2026, 8, 10))
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
+        val branchDayId = resolveBranchDay(currentMonth.atDay(10))
 
-        createDraftRemittance(remittanceId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31))
+        createDraftRemittance(remittanceId, currentMonth.atDay(1), currentMonth.atEndOfMonth())
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
         DatabaseTestHelper.insertTestCompensation(branchDayId, callerId, BigDecimal("300.00"), assignedBy = callerId)
         DatabaseTestHelper.insertTestExpense(branchDayId, callerId, BigDecimal("150.00"))
 
-        val sId = UUID.randomUUID()
+        val sId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = sId,
             clientId = clientId,
@@ -147,9 +148,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+        val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, BigDecimal("2000.00").compareTo(summary.grossIncome))
         assertEquals(0, BigDecimal("300.00").compareTo(summary.totalCompensation))
@@ -159,9 +159,9 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `returns correct summary for a PRODUCT remittance`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createSubmittedProductRemittance(remittanceId, lineId, breakdownId)
 
@@ -169,9 +169,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+        val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, summary.sessionCount)
         assertEquals(1, summary.productCount)
@@ -181,10 +180,10 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `aggregates multiple remittances in same month`() {
-        val rem1Id = UUID.randomUUID()
-        val rem2Id = UUID.randomUUID()
-        createSubmittedSessionRemittance(rem1Id, UUID.randomUUID(), UUID.randomUUID(), BigDecimal("500.00"))
-        createSubmittedProductRemittance(rem2Id, UUID.randomUUID(), UUID.randomUUID())
+        val rem1Id = TestFixtures.uuid()
+        val rem2Id = TestFixtures.uuid()
+        createSubmittedSessionRemittance(rem1Id, TestFixtures.uuid(), TestFixtures.uuid(), BigDecimal("500.00"))
+        createSubmittedProductRemittance(rem2Id, TestFixtures.uuid(), TestFixtures.uuid())
 
         trackOwned(RemittanceTable, RemittanceTable.id, rem1Id)
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem1Id)
@@ -194,9 +193,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, rem2Id)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, rem2Id)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+        val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(2, summary.totalRemittances)
         assertEquals(1, summary.sessionCount)
         assertEquals(1, summary.productCount)
@@ -210,22 +208,22 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         }
 
         assertFailsWith<NotFoundException> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+            getCurrentMonthSummary(branchId)
         }
     }
 
     @Test
     fun `throws 404 for non-existent branch`() {
         assertFailsWith<NotFoundException> {
-            MonthlyRemittanceSummaryService.getMonthlySummary(UUID.randomUUID(), 2026, 8)
+            getCurrentMonthSummary(TestFixtures.uuid())
         }
     }
 
     @Test
     fun `returns zero snapshot values for PRODUCT remittance with only counts`() {
-        val remittanceId = UUID.randomUUID()
-        val lineId = UUID.randomUUID()
-        val breakdownId = UUID.randomUUID()
+        val remittanceId = TestFixtures.uuid()
+        val lineId = TestFixtures.uuid()
+        val breakdownId = TestFixtures.uuid()
 
         createSubmittedProductRemittance(remittanceId, lineId, breakdownId)
 
@@ -233,9 +231,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
 
-        val summary = MonthlyRemittanceSummaryService.getMonthlySummary(branchId, 2026, 8)
+        val summary = getCurrentMonthSummary(branchId)
 
-        assertNotNull(summary)
         assertEquals(1, summary.totalRemittances)
         assertEquals(0, summary.sessionCount)
         assertEquals(1, summary.productCount)
@@ -251,12 +248,12 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         breakdownId: UUID,
         lineAmount: BigDecimal,
     ) {
-        val branchDayId = resolveBranchDay(LocalDate.of(2026, 8, 10))
-        createDraftRemittance(remittanceId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31))
+        val branchDayId = resolveBranchDay(currentMonth.atDay(10))
+        createDraftRemittance(remittanceId, currentMonth.atDay(1), currentMonth.atEndOfMonth())
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
 
-        val sId = UUID.randomUUID()
+        val sId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestSession(
             id = sId,
             clientId = clientId,
@@ -285,7 +282,7 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         lineId: UUID,
         breakdownId: UUID,
     ) {
-        val branchDayId = resolveBranchDay(LocalDate.of(2026, 8, 10))
+        val branchDayId = resolveBranchDay(currentMonth.atDay(10))
 
         RemittanceService.createDraft(
             callerId = callerId,
@@ -293,8 +290,8 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
             type = RemittanceType.PRODUCT,
             branchId = branchId,
             method = RemittanceMethod.HANDED_TO_ACCOUNTANT,
-            dateRangeStart = LocalDate.of(2026, 8, 1),
-            dateRangeEnd = LocalDate.of(2026, 8, 31),
+            dateRangeStart = currentMonth.atDay(1),
+            dateRangeEnd = currentMonth.atEndOfMonth(),
         )
 
         RemittanceService.addDayBreakdown(callerId, remittanceId, breakdownId, branchDayId)
@@ -330,15 +327,18 @@ class MonthlyRemittanceSummaryServicePostgresTest : BasePostgresTest() {
         )
     }
 
+    private fun getCurrentMonthSummary(branchId: UUID) =
+        MonthlyRemittanceSummaryService.getMonthlySummary(branchId, currentMonth.year, currentMonth.monthValue)
+
     private fun resolveBranchDay(date: LocalDate): UUID {
         val bd = BranchDayService.resolveOrCreate(branchId, date)
         return bd.id
     }
 
     private fun createProductSale(branchDayId: UUID): UUID {
-        val psId = UUID.randomUUID()
-        val productCategoryId = UUID.randomUUID()
-        val productId = UUID.randomUUID()
+        val psId = TestFixtures.uuid()
+        val productCategoryId = TestFixtures.uuid()
+        val productId = TestFixtures.uuid()
         DatabaseTestHelper.insertTestCategory(productCategoryId, "Test Cat $psId")
         DatabaseTestHelper.insertTestProduct(productId, "Test Prod $psId", productCategoryId)
         DatabaseTestHelper.insertTestProductSale(

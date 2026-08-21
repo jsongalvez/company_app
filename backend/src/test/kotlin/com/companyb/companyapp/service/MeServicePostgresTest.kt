@@ -1,13 +1,13 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.repository.model.UserStatus
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -15,9 +15,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class MeServicePostgresTest : BasePostgresTest() {
-    private val userId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val inactiveUserId = UUID.randomUUID()
+    private val userId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val inactiveUserId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertUser(
@@ -45,13 +45,13 @@ class MeServicePostgresTest : BasePostgresTest() {
 
         assertEquals(userId.toString(), response.id)
         assertEquals("me-caller-$userId", response.username)
-        assertEquals("ACTIVE", response.status)
+        assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, response.status)
         assertTrue(response.createdAt.isNotBlank())
     }
 
     @Test
     fun `getMe throws NotFoundException for non-existent user`() {
-        val unknownId = UUID.randomUUID()
+        val unknownId = TestFixtures.uuid()
         assertFailsWith<NotFoundException> {
             MeService.getMe(unknownId)
         }

@@ -19,27 +19,43 @@ The authoritative schema is `backend/src/main/resources/db/migration/V1__full_sc
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
 
-## Quality gate (run before every commit)
+## Quality gate
 
-The pre-commit hook (`.githooks/pre-commit`) enforces these gates automatically:
+The pre-commit hook (`.githooks/pre-commit`) is intentionally fast: it formats staged
+Kotlin, checks staged shell syntax, and runs compile/static checks for changed modules.
+It does not access Postgres or run full tests, OpenAPI verification, Compose target
+matrices, or test-data cleanliness. Those integration checks run in CI on the pull
+request and merge path.
 
-1. **Formatting:** ktlint scoped to staged `.kt`/`.kts` files via `ktlint --format` CLI (falls back to project-wide `./gradlew ktlintFormat` if CLI not on PATH)
-2. **Static analysis & tests:** `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
-3. **Test-data cleanliness:** verifies all test tables are empty after the test suite
-4. **Shared module compilation:** `./gradlew :shared:compileKotlinJvm`
-5. **Postgres connectivity:** verifies Postgres is reachable before commit is allowed.
+For the complete local quality gate, run:
 
-A pre-push hook (`.githooks/pre-push`) additionally runs composeApp multi-target
-compilation and the k6 load-test baseline. **JMH no longer runs on push** — it lives
-in CI (`.github/workflows/jmh.yml`, runs on backend-touching pushes + merge to
-master): a single failing baseline comparison re-runs once and warns; the check
-fails only when the regression reproduces across two runs. CI-runner scores differ
+```bash
+./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest :shared:detektIosArm64Main :shared:detektIosArm64Test :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test :composeApp:detektDesktopTest :composeApp:detektAndroidDebugUnitTest :composeApp:detektIosArm64Test :composeApp:detektIosSimulatorArm64Test :composeApp:desktopTest :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main :composeApp:detektIosSimulatorArm64Main :shared:compileKotlinJvm :shared:jvmTest -PwarningsAsErrors=true
+bash scripts/check-test-cleanliness.sh
+```
+
+A pre-push hook (`.githooks/pre-push`) classifies the complete outgoing tree. Approved
+documentation-only pushes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`,
+`README*.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates;
+mixed or gate-sensitive pushes run all gates. **JMH no longer runs in local hooks** — it lives
+in CI (`.github/workflows/jmh.yml`, runs on pull requests and backend-touching pushes
+or merges to master): a single failing baseline comparison re-runs once and warns;
+the check fails only when the regression reproduces across two runs. CI-runner scores differ
 from the dev-machine scores in `backend/jmh-baselines.md` — after a runner baseline
 shift, copy the first CI run's scores into the file (see the workflow's comment).
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
-To run manually: `./gradlew :backend:detekt :backend:ktlintCheck :backend:test`
+The pre-commit hook's changed-module checks can be run manually by staging the files;
+CI remains authoritative for full validation.
+
+The pre-commit quality path passes `-PwarningsAsErrors=true`, making Kotlin and Java compiler
+warnings fail the local gate. Warnings must be fixed, not suppressed or baselined.
+
+Postgres test database is shared by all backend test processes. Clean it with
+`bash scripts/clean-test-db.sh` before rerunning contaminated tests, then run the
+full backend gate as one Gradle invocation. Parallel `./gradlew :backend:test`
+processes race on test data and can produce false duplicate-key or scope failures.
 
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
 
@@ -125,6 +141,28 @@ GLOBAL-scoped capabilities (`MANAGE_USERS`, `ASSIGN_DELEGATE`) have no specific 
 `CapabilityContextType.GLOBAL` with `contextId = CapabilityService.GLOBAL_CONTEXT_ID` (the nil
 all-zero UUID).
 
+**Day-scoped gates (#157).** Relief grants are written as `(EDIT_BRANCH_DATA, BRANCH_DAY, branchDayId)`
+with a `validFrom`/`validTo` window (`ReliefAccessRepository.grantWithCapability`; the window is
+enforced by the `active_user_capabilities` view). The day-scoped write surface — expenses
+(create/read/update/delete/restore), product-sale create, session create + mutations — gates via
+`CapabilityFilter.requireBranchOrBranchDayCapability`: a BRANCH grant at the day's branch OR a
+BRANCH_DAY grant for the specific branch day satisfies it (the day-scoped grant satisfies the gate
+for that day only). Session create resolves today's day **find-only** (`BranchDayService.findToday`
+— never creates in a filter). GLOBAL grants never satisfy these gates (the #131 strictness — the
+OR adds only the narrower day-scoped form). Not relief-eligible (documented #157 decisions):
+inventory movements (branch-scoped — the movement's day comes from the body while the route is
+branch-scoped via the path; the parent-child scoping trap), allowances/compensations
+(`ASSIGN_COMPENSATION`), commission (`VIEW_BRANCH_DATA`/`ASSIGN_COMPENSATION`/`EDIT_PAST_DAY`),
+remittance (`SUBMIT_REMITTANCE`), session void/unvoid (`VOID_SESSION`), and (pre-#158) the branch-day status
+read (`GET /api/branches/{branchId}/today`). **#158**: the ride landed — the single-day summary read
+(`GET /api/branches/{branchId}/daily-summary?date=`, `requireBranchOrGlobalOrBranchDayCapabilityForBranchId`)
+and `/today` (via `findToday` → `requireBranchOrBranchDayCapability`) now accept the day grant (find-only
+day resolution; a missing day row means no day grant can exist — the summary read falls back to the
+branch/global leg, `/today` to the plain BRANCH gate, and GLOBAL never passes `/today` — the #131
+strictness, unchanged). The
+multi-day browse (`/daily-summaries`) stays VIEW_BRANCH_DATA-only: a single-day grant cannot authorize an
+unbounded list.
+
 When inserting `user_capability` rows (e.g. for relief access grants or delegate assignments), use
 `CapabilityRepository.findIdByCode("EDIT_BRANCH_DATA")` to look up the capability ID, then use the
 Exposed DSL `UserCapabilityTable.insert {}` with `customEnumeration` columns (see below).
@@ -154,6 +192,9 @@ inside `JwtService.verifyToken` BEFORE any DB lookup, populated at startup
 Signal business errors by throwing domain exceptions from the service layer:
 `ValidationException` (400), `NotFoundException` (404), `ConflictException` (409),
 `ForbiddenException` (403).
+Repository-layer guards inside transactions may throw the same domain exceptions where
+the check+write must stay atomic (precedents: the PENDING-session guard, the
+duplicate-remittance-line 409, `VersionMismatchException`).
 These are defined in `com.companyb.companyapp.exception` and are mapped to HTTP status codes
 by a centralized exception handler in `Main.kt` (`registerExceptionHandlers`).
 Route handlers may still throw Javalin HTTP exceptions for request-validation concerns
@@ -272,9 +313,13 @@ val myJsonCol = registerColumn("my_json_col", JsonBColumnType()).nullable()
 
 Session create (`POST /api/sessions`) uses an idempotent PK lookup first (`SessionRepository.findById`) to handle retries with the same UUID before checking the PENDING guard (`hasActivePendingSession`). This prevents `ConflictException` for idempotent retries.
 
+Dashboard read (`GET /api/branches/{branchId}/dashboard/today`, `DashboardService`/`DashboardRoutes`) returns today's enriched session rows (client name, practitioner names, voided-ness via `active_session_voids`, structured concerns) plus the caller's own commission — computed live by replicating `CommissionService.recalculate`'s per-sale eligibility (clocked-in-at-sale-time + manual inclusions), NOT read from `commission_split` rows (a forced recalc on a PAST day could otherwise serve stale splits). The gate is the caller's own active clock-in at the branch today (`AttendanceService.hasActiveClockIn`) — the dashboard is universal post-clock-in and deliberately NOT capability-gated; a caller clocked in elsewhere gets 403 (no cross-branch window).
+
+Session detail read (`GET /api/sessions/{sessionId}`, #152/#151) is a deliberate exception to the "read endpoints gate on capabilities" rule: the gate is **bearer-only** — the caller may fetch iff a notification row exists for `(sessionId, caller)`, any read state (the notification IS the authorization; the #141 ownership shape). 404 for both non-bearer and missing sessions; no day-state gate (the #138 `checkBranchDayReadable` rule governs capability-gated browsing, and notified sessions' branch days are today-or-past — an `EDIT_PAST_DAY` requirement would 403 the primary case). Response reuses `DashboardSessionResponse` via the shared `mapDashboardSession` mapper.
+
 The `computeSessionType` pure function is extracted from the service so it can be unit-tested without a database. The prior session count excludes MEDICAL_MISSION sessions and voided sessions (via `active_session_voids` view LEFT JOIN).
 
-For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Exposed `Query.forUpdate()` is not available; rely on unique indexes + pre-checks.
+For concurrency, the partial unique index `idx_client_one_pending_session` is the database-level backstop against duplicate PENDING sessions for the same client — the service pre-check (`hasActivePendingSession`) is the first line of defense, followed by the unique index. Row locks via Exposed `Query.forUpdate()` ARE available and execute only with a terminal op (`.singleOrNull()`) — `SessionRepository.acquireClientLock` / `ProductSaleRepository.acquireInventoryLock` / the RemittanceRepository lock helpers materialize them this way; a `forUpdate()` without a terminal op silently no-ops (the #136 lazy-lock bug class).
 
 Session status update (`PATCH /api/sessions/{sessionId}/status`) uses Exposed DSL `SessionTable.update({ (id eq sessionId) and (version eq expectedVersion) })` for atomic optimistic locking — if the version doesn't match, no rows are updated and the service throws 409 Conflict. The version is incremented by setting `it[SessionTable.version] = expectedVersion + 1`. Call `AuditLogRepository.record` inside the same `transaction {}` block. The DB has `CONSTRAINT walk_in_status CHECK (NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED')))` — always validate this at the service layer for a cleaner 400 error before hitting the DB constraint.
 
@@ -449,15 +494,17 @@ bash scripts/clean-test-db.sh
 The pre-push hook (`.githooks/pre-push`) automates this entire workflow: it starts the app on
 the test DB with seeding enabled, runs the k6 baseline, cleans the test DB, and stops the app.
 
-The baseline enforces these thresholds (edit `options.thresholds` in the script to adjust):
+The baseline uses `thresholdProfiles.baseline` from `tests/k6/helpers.js`. Edit the named profile
+there to adjust thresholds; suites consume profiles and do not own threshold values:
 - `branches_latency`: p95 < 500ms
 - `clients_search_latency`: p95 < 1000ms
 - `product_latency`: p95 < 1000ms
 - `errors`: rate < 5%
 
-**Adding a new endpoint to the baseline** — edit `tests/k6/baseline.js`:
+**Adding a new endpoint to the baseline** — edit `tests/k6/baseline.js` and
+`tests/k6/helpers.js`:
 1. Use an existing metric from `helpers.js` or add a new `Trend` to `metrics` in `helpers.js`
-2. Add a threshold in the script's `options.thresholds` (or in `thresholds` in `helpers.js`)
+2. Add the metric threshold to the appropriate named `thresholdProfiles` entry in `helpers.js`
 3. Add the `http.get`/`http.post` call in the `default` function
 4. Run `k6 run` to establish a baseline p95, then tighten the threshold
 
@@ -493,8 +540,9 @@ Threshold violation detected
    `backend/jmh-baselines.md`.
 
 3. **k6 threshold** — Run k6 3 times and take the worst p95. Add a 50% buffer for the
-   new threshold. Update `options.thresholds` in `tests/k6/baseline.js` and the
-   table in `tests/k6/results/baseline-results.md`.
+   new threshold. Update the relevant named `thresholdProfiles` entry in
+   `tests/k6/helpers.js` and record the resulting threshold/history in
+   `tests/k6/results/baseline-results.md`.
 
 4. **Commit message** — Include the tool, the old threshold, the new threshold, and a brief
    justification. Example:
@@ -509,6 +557,7 @@ Threshold violation detected
 
 | File | What it tracks |
 |---|---|
-| `backend/jmh-baselines.md` | JMH scores + measureTimedValue + k6 thresholds (single source of truth) |
+| `backend/jmh-baselines.md` | JMH scores and measureTimedValue thresholds |
+| `tests/k6/helpers.js` | k6 metrics and named threshold profiles (runtime source of truth) |
 | `tests/k6/results/baseline-results.md` | k6 threshold history and run instructions |
 | `tests/k6/results/latest.json` | k6 raw JSON output from last run (gitignored) |

@@ -29,9 +29,10 @@ app_build() {
 # --- app_start BOOT_LOG_PATH ---
 # Starts the app in the background. Sets APP_PID and waits for port binding.
 # Args: $1 — path to the boot log file (required)
-# Returns: exits 1 if the app crashes or fails to bind the port within 45s.
+# Returns: exits 1 if the app crashes or fails to bind the port within 90s.
 app_start() {
     local boot_log="${1:?app_start requires a boot log path}"
+    local startup_timeout=90
 
     log "$LOG_TAG" "Starting app in background..."
     ./gradlew :backend:run --no-daemon > "$boot_log" 2>&1 &
@@ -41,7 +42,7 @@ app_start() {
     local app_port="${APP_PORT:-3023}"
     local app_started=false
 
-    for i in $(seq 1 45); do
+    for i in $(seq 1 "$startup_timeout"); do
         if ! kill -0 "$APP_PID" 2>/dev/null; then
             wait "$APP_PID" || true
             log "$LOG_TAG" "ERROR: App process died during startup. Last 20 lines:"
@@ -56,7 +57,7 @@ app_start() {
     done
 
     if [ "$app_started" = false ]; then
-        log "$LOG_TAG" "ERROR: App did not start within 45 seconds. Last 20 lines:"
+        log "$LOG_TAG" "ERROR: App did not start within ${startup_timeout} seconds. Last 20 lines:"
         tail -20 "$boot_log"
         kill "$APP_PID" 2>/dev/null || true
         exit 1

@@ -9,6 +9,10 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
 
 git config core.hooksPath .githooks
+if [ ! -x "$ROOT_DIR/.githooks/commit-msg" ]; then
+    echo "ERROR: .githooks/commit-msg is missing or not executable." >&2
+    exit 1
+fi
 log setup-hooks "Git hooks installed from .githooks/"
 
 # Install ktlint CLI (needed by pre-commit for staged-only formatting).

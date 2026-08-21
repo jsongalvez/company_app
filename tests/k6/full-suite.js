@@ -1,11 +1,12 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { BASE_URL, uuid, authHeaders, metrics, thresholds } from "./helpers.js";
+import { BASE_URL, uuid, authHeaders, metrics, thresholdProfiles } from "./helpers.js";
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 
-export const options = { thresholds, stages: [
+export const options = { thresholds: thresholdProfiles.full, stages: [
   { duration: "15s", target: 5 },
   { duration: "30s", target: 5 },
   { duration: "15s", target: 0 },
@@ -18,52 +19,64 @@ export function setup() {
   const res = http.post(`${BASE_URL}/auth/login`, JSON.stringify({
     username: USERNAME, password: PASSWORD,
   }), { headers: { "Content-Type": "application/json" } });
-  check(res, { "setup login": (r) => r.status === 200 });
-  return { token: res.json("token") };
+  if (!observe(res, null, {}, "setup login", (r) => r.status === 200)) throw new Error("Load-test login failed");
+  const token = res.json("token");
+  const me = http.get(`${BASE_URL}/api/me`, { headers: authHeaders(token) });
+  if (!observe(me, null, {}, "setup current user", (r) => r.status === 200)) throw new Error("Load-test user lookup failed");
+  const userId = me.json("id");
+  const branches = http.get(`${BASE_URL}/api/branches`, { headers: authHeaders(token) });
+  if (!observe(branches, null, {}, "setup fixture branches", (r) => r.status === 200)) throw new Error("Load-test branch lookup failed");
+  const branch = branches.json().find((candidate) => candidate.name === "K6 Fixture Branch");
+  if (!branch) throw new Error("Dev seeder did not create K6 Fixture Branch");
+  const branchDetail = http.get(`${BASE_URL}/api/branches/${branch.id}`, { headers: authHeaders(token) });
+  if (!observe(branchDetail, null, {}, "setup fixture branch detail", (r) => r.status === 200)) throw new Error("Load-test fixture lookup failed");
+  const clockIn = http.post(`${BASE_URL}/api/attendance/clock-in`, JSON.stringify({
+    attendanceId: uuid(), branchId: branch.id,
+  }), { headers: authHeaders(token) });
+  const clockedIn = observe(clockIn, null, {}, "setup fixture clock-in", (r) => r.status === 200 || r.status === 201 || r.status === 409);
+  let branchDayId = clockedIn ? clockIn.json("branchDayId") : null;
+  if (!branchDayId) {
+    const today = http.get(`${BASE_URL}/api/branches/${branch.id}/today`, { headers: authHeaders(token) });
+    if (!observe(today, null, {}, "setup fixture day", (r) => r.status === 200)) throw new Error("Load-test day lookup failed");
+    branchDayId = today.json("branchDayId");
+  }
+  return { token, userId, branchId: branch.id, branchDayId };
 }
 
 export default function (data) {
   const headers = authHeaders(data.token);
   const tid = uuid();
 
-  const branchId = createBranch(headers, tid);
+  const branch = { id: data.branchId, dayId: data.branchDayId };
   const clientId = createClient(headers, tid);
-  const sessionId = createSession(headers, tid, branchId, clientId);
-  updateSessionStatus(headers, tid, sessionId);
-  voidAndUnvoidSession(headers, tid, sessionId);
-  managePractitioners(headers, tid, sessionId);
+  if (!clientId) return;
+  const session = createSession(headers, tid, branch.id, clientId);
+  if (!session) return;
+  updateSessionStatus(headers, tid, session.id);
+  voidAndUnvoidSession(headers, tid, session.id);
+  managePractitioners(headers, tid, session.id, data.userId);
   const catId = createProductCategory(headers, tid);
+  if (!catId) return;
   const prodId = createProduct(headers, tid, catId);
-  createInventoryCard(headers, tid, branchId, prodId);
-  restockInventory(headers, tid, branchId, prodId);
-  createProductSale(headers, tid, branchId, prodId, sessionId);
-  createCompensation(headers, tid);
-  createExpense(headers, tid);
-  createAllowance(headers, tid);
-  createAndSubmitRemittance(headers, tid, branchId);
+  if (!prodId || !createInventoryCard(headers, tid, branch.id, prodId)) return;
+  const inventoryVersion = restockInventory(headers, tid, branch.id, prodId, branch.dayId);
+  if (inventoryVersion === null) return;
+  const uniqueWrites = __VU === 1 && __ITER === 0;
+  if (uniqueWrites) {
+    const saleVersion = recordInventoryMovement(headers, tid, branch.id, prodId, branch.dayId, inventoryVersion);
+    if (saleVersion === null) return;
+    createProductSale(headers, tid, branch.dayId, prodId, session.id, saleVersion);
+    createCompensation(headers, tid, branch.dayId, data.userId);
+  }
+  createExpense(headers, tid, branch.dayId);
+  createAllowance(headers, tid, branch.dayId, data.userId);
+  if (uniqueWrites) {
+    createAndSubmitRemittance(headers, tid, branch.id, branch.dayId, session.id);
+  }
   fetchNotifications(headers, tid);
-  fetchReports(headers, tid, branchId);
+  fetchReports(headers, tid, branch.id);
 
   sleep(0.5);
-}
-
-function createBranch(headers, tid) {
-  const tags = { group: "branch" };
-  const branchId = uuid();
-  const res = http.post(`${BASE_URL}/api/branches`, JSON.stringify({
-    id: branchId, name: `K6 Branch ${tid}`, branchType: "CLINIC",
-  }), { headers });
-  metrics.branchLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
-  check(res, { "create branch": (r) => r.status === 201 || r.status === 200 });
-
-  const listRes = http.get(`${BASE_URL}/api/branches`, { headers });
-  metrics.branchLatency.add(listRes.timings.duration, tags);
-
-  const getRes = http.get(`${BASE_URL}/api/branches/${branchId}`, { headers });
-  metrics.branchLatency.add(getRes.timings.duration, tags);
-
-  return branchId;
 }
 
 function createClient(headers, tid) {
@@ -73,19 +86,18 @@ function createClient(headers, tid) {
     id: clientId, firstName: `K6First-${tid}`, lastName: `K6Last-${tid}`,
     gender: "F", age: 30, phoneNumber: "09170000000",
   }), { headers });
-  metrics.clientLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  if (!observe(res, metrics.clientLatency, tags, "create client", (r) => r.status === 201 || r.status === 200)) return null;
 
   const searchRes = http.get(`${BASE_URL}/api/clients?q=K6First`, { headers });
-  metrics.clientLatency.add(searchRes.timings.duration, tags);
+  observe(searchRes, metrics.clientLatency, tags, "search clients", (r) => r.status === 200);
 
   const getRes = http.get(`${BASE_URL}/api/clients/${clientId}`, { headers });
-  metrics.clientLatency.add(getRes.timings.duration, tags);
+  observe(getRes, metrics.clientLatency, tags, "get client", (r) => r.status === 200);
 
   const updRes = http.patch(`${BASE_URL}/api/clients/${clientId}`, JSON.stringify({
     phoneNumber: "09171111111",
   }), { headers });
-  metrics.clientLatency.add(updRes.timings.duration, tags);
+  observe(updRes, metrics.clientLatency, tags, "update client", (r) => r.status === 200);
 
   return clientId;
 }
@@ -96,19 +108,16 @@ function createSession(headers, tid, branchId, clientId) {
   const res = http.post(`${BASE_URL}/api/sessions`, JSON.stringify({
     id: sessionId, clientId, branchId, isWalkIn: true, finalPrice: "2500.00",
   }), { headers });
-  metrics.sessionLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
-  check(res, { "create session": (r) => r.status === 201 || r.status === 200 });
-  return sessionId;
+  if (!observe(res, metrics.sessionLatency, tags, "create session", (r) => r.status === 201 || r.status === 200)) return null;
+  return { id: sessionId, branchDayId: res.json("branchDayId") };
 }
 
 function updateSessionStatus(headers, tid, sessionId) {
   const tags = { group: "session" };
   const res = http.patch(`${BASE_URL}/api/sessions/${sessionId}/status`, JSON.stringify({
-    status: "COMPLETED", version: 1,
+    status: "COMPLETED", version: 1, reason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.sessionLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  observe(res, metrics.sessionLatency, tags, "complete session", (r) => r.status === 200);
 }
 
 function voidAndUnvoidSession(headers, tid, sessionId) {
@@ -118,36 +127,35 @@ function voidAndUnvoidSession(headers, tid, sessionId) {
   const voidRes = http.post(`${BASE_URL}/api/sessions/${sessionId}/void`, JSON.stringify({
     id: voidId, voidReason: "K6 load test void",
   }), { headers });
-  metrics.sessionLatency.add(voidRes.timings.duration, tags);
-  metrics.errorRate.add(voidRes.status >= 400, tags);
+  observe(voidRes, metrics.sessionLatency, tags, "void session", (r) => r.status === 200 || r.status === 201);
 
   const unvoidRes = http.post(`${BASE_URL}/api/sessions/${sessionId}/unvoid`, JSON.stringify({
     unvoidedReason: "K6 load test unvoid",
   }), { headers });
-  metrics.sessionLatency.add(unvoidRes.timings.duration, tags);
-  metrics.errorRate.add(unvoidRes.status >= 400, tags);
+  observe(unvoidRes, metrics.sessionLatency, tags, "unvoid session", (r) => r.status === 200);
 }
 
-function managePractitioners(headers, tid, sessionId) {
+function managePractitioners(headers, tid, sessionId, practitionerId) {
   const tags = { group: "session" };
 
-  const pId = uuid();
   const addRes = http.post(`${BASE_URL}/api/sessions/${sessionId}/practitioners`, JSON.stringify({
-    id: pId, practitionerId: tid,
+    id: uuid(), practitionerId, reason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.sessionLatency.add(addRes.timings.duration, tags);
+  const added = observe(addRes, metrics.sessionLatency, tags, "add practitioner", (r) => r.status === 201 || r.status === 200);
 
-  if (addRes.status === 201 || addRes.status === 200) {
-    const updRes = http.patch(`${BASE_URL}/api/sessions/${sessionId}/practitioners/${tid}`,
-      JSON.stringify({ remarks: "K6 test remarks" }), { headers });
-    metrics.sessionLatency.add(updRes.timings.duration, tags);
+  if (added) {
+    const updRes = http.patch(`${BASE_URL}/api/sessions/${sessionId}/practitioners/${practitionerId}`,
+      JSON.stringify({ remarks: "K6 test remarks", reason: "K6 repeated-workflow fixture" }), { headers });
+    observe(updRes, metrics.sessionLatency, tags, "update practitioner", (r) => r.status === 200);
 
-    const delRes = http.del(`${BASE_URL}/api/sessions/${sessionId}/practitioners/${tid}`, null, { headers });
-    metrics.sessionLatency.add(delRes.timings.duration, tags);
+    const delRes = http.del(`${BASE_URL}/api/sessions/${sessionId}/practitioners/${practitionerId}`, JSON.stringify({
+      reason: "K6 repeated-workflow fixture",
+    }), { headers });
+    observe(delRes, metrics.sessionLatency, tags, "remove practitioner", (r) => r.status === 200 || r.status === 204);
   }
 
   const concernsRes = http.get(`${BASE_URL}/api/concerns`, { headers });
-  metrics.sessionLatency.add(concernsRes.timings.duration, tags);
+  observe(concernsRes, metrics.sessionLatency, tags, "list concerns", (r) => r.status === 200);
 }
 
 function createProductCategory(headers, tid) {
@@ -156,11 +164,10 @@ function createProductCategory(headers, tid) {
   const res = http.post(`${BASE_URL}/api/product-categories`, JSON.stringify({
     id: catId, name: `K6 Category ${tid}`,
   }), { headers });
-  metrics.productLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  if (!observe(res, metrics.productLatency, tags, "create category", (r) => r.status === 201 || r.status === 200)) return null;
 
-  http.get(`${BASE_URL}/api/product-categories`, { headers });
-  http.get(`${BASE_URL}/api/product-categories/${catId}`, { headers });
+  observe(http.get(`${BASE_URL}/api/product-categories`, { headers }), metrics.productLatency, tags, "list categories", (r) => r.status === 200);
+  observe(http.get(`${BASE_URL}/api/product-categories/${catId}`, { headers }), metrics.productLatency, tags, "get category", (r) => r.status === 200);
 
   return catId;
 }
@@ -172,11 +179,10 @@ function createProduct(headers, tid, catId) {
     id: prodId, name: `K6 Product ${tid}`, productCategoryId: catId,
     unitPrice: "500.00", commissionAmount: "50.00",
   }), { headers });
-  metrics.productLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  if (!observe(res, metrics.productLatency, tags, "create product", (r) => r.status === 201 || r.status === 200)) return null;
 
-  http.get(`${BASE_URL}/api/products`, { headers });
-  http.get(`${BASE_URL}/api/products/${prodId}`, { headers });
+  observe(http.get(`${BASE_URL}/api/products`, { headers }), metrics.productLatency, tags, "list products", (r) => r.status === 200);
+  observe(http.get(`${BASE_URL}/api/products/${prodId}`, { headers }), metrics.productLatency, tags, "get product", (r) => r.status === 200);
   return prodId;
 }
 
@@ -185,123 +191,143 @@ function createInventoryCard(headers, tid, branchId, prodId) {
   const res = http.post(`${BASE_URL}/api/branches/${branchId}/inventory`, JSON.stringify({
     productId: prodId,
   }), { headers });
-  metrics.inventoryLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
-  check(res, { "create inventory card": (r) => r.status === 201 || r.status === 200 });
+  return observe(res, metrics.inventoryLatency, tags, "create inventory card", (r) => r.status === 201 || r.status === 200);
 }
 
-function restockInventory(headers, tid, branchId, prodId) {
+function restockInventory(headers, tid, branchId, prodId, branchDayId) {
   const tags = { group: "inventory" };
-  const today = new Date().toISOString().slice(0, 10);
-  const branchDayId = uuid();
-
   const res = http.post(`${BASE_URL}/api/branches/${branchId}/inventory/${prodId}/restock`, JSON.stringify({
     id: uuid(), quantity: 50, branchDayId,
+    editReason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.inventoryLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  if (!observe(res, metrics.inventoryLatency, tags, "restock inventory", (r) => r.status === 201 || r.status === 200)) return null;
 
   const listRes = http.get(`${BASE_URL}/api/branches/${branchId}/inventory`, { headers });
-  metrics.inventoryLatency.add(listRes.timings.duration, tags);
-
-  const movementRes = http.post(`${BASE_URL}/api/branches/${branchId}/inventory/${prodId}/movement`, JSON.stringify({
-    movementId: uuid(), reason: "ADJUSTMENT", quantityChange: 5, branchDayId: uuid(), expectedVersion: 1,
-  }), { headers });
-  metrics.inventoryLatency.add(movementRes.timings.duration, tags);
+  observe(listRes, metrics.inventoryLatency, tags, "list inventory", (r) => r.status === 200);
+  if (listRes.status !== 200) return null;
+  const inventory = listRes.json();
+  const card = inventory.find((item) => item.productId === prodId);
+  return card ? card.version : null;
 }
 
-function createProductSale(headers, tid, branchId, prodId, sessionId) {
+function recordInventoryMovement(headers, tid, branchId, prodId, branchDayId, version) {
+  const tags = { group: "inventory" };
+  const movementRes = http.post(`${BASE_URL}/api/branches/${branchId}/inventory/${prodId}/movement`, JSON.stringify({
+    movementId: uuid(), reason: "ADJUSTMENT", quantityChange: 5, branchDayId, expectedVersion: version,
+    editReason: "K6 repeated-workflow fixture",
+  }), { headers });
+  const moved = observe(movementRes, metrics.inventoryLatency, tags, "record inventory movement", (r) => r.status === 201 || r.status === 200);
+  return moved ? version + 1 : null;
+}
+
+function createProductSale(headers, tid, branchDayId, prodId, sessionId, expectedVersion) {
   const tags = { group: "sale" };
-  const branchDayId = uuid();
 
   const res = http.post(`${BASE_URL}/api/product-sales`, JSON.stringify({
-    id: uuid(), branchDayId, sessionId, clientId: uuid(),
-    isWalkIn: false, productId: prodId, quantity: 1, expectedVersion: 1,
+    id: uuid(), branchDayId, sessionId, clientId: null,
+    isWalkIn: false, productId: prodId, quantity: 1, expectedVersion,
+    reason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.saleLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  observe(res, metrics.saleLatency, tags, "create product sale", (r) => r.status === 201 || r.status === 200);
 }
 
-function createCompensation(headers, tid) {
+function createCompensation(headers, tid, branchDayId, userId) {
   const tags = { group: "compensation" };
   const compId = uuid();
-  const workBranchDayId = uuid();
-  const payingBranchDayId = uuid();
-
   const res = http.post(`${BASE_URL}/api/compensation`, JSON.stringify({
-    id: compId, workBranchDayId, payingBranchDayId,
-    userId: tid, amount: "500.00", note: "K6 test compensation",
+    id: compId, workBranchDayId: branchDayId, payingBranchDayId: branchDayId,
+    userId, amount: "500.00", note: "K6 test compensation", reason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.compensationLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  observe(res, metrics.compensationLatency, tags, "create compensation", (r) => r.status === 201 || r.status === 200);
 }
 
-function createExpense(headers, tid) {
+function createExpense(headers, tid, branchDayId) {
   const tags = { group: "expense" };
-  const branchDayId = uuid();
   const expenseId = uuid();
 
   const res = http.post(`${BASE_URL}/api/expenses`, JSON.stringify({
     id: expenseId, branchDayId, amount: "100.00", category: "MISCELLANEOUS",
+    reason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.expenseLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  observe(res, metrics.expenseLatency, tags, "create expense", (r) => r.status === 201 || r.status === 200);
 
   const listRes = http.get(`${BASE_URL}/api/expenses?branchDayId=${branchDayId}`, { headers });
-  metrics.expenseLatency.add(listRes.timings.duration, tags);
+  observe(listRes, metrics.expenseLatency, tags, "list expenses", (r) => r.status === 200);
 }
 
-function createAllowance(headers, tid) {
+function createAllowance(headers, tid, branchDayId, userId) {
   const tags = { group: "allowance" };
-  const branchDayId = uuid();
 
   const res = http.post(`${BASE_URL}/api/allowances`, JSON.stringify({
-    id: uuid(), branchDayId, userId: tid, amount: "200.00",
+    id: uuid(), branchDayId, userId, amount: "200.00", reason: "K6 repeated-workflow fixture",
   }), { headers });
-  metrics.allowanceLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  observe(res, metrics.allowanceLatency, tags, "create allowance", (r) => r.status === 201 || r.status === 200);
 
   const listRes = http.get(`${BASE_URL}/api/allowances?branchDayId=${branchDayId}`, { headers });
-  metrics.allowanceLatency.add(listRes.timings.duration, tags);
+  observe(listRes, metrics.allowanceLatency, tags, "list allowances", (r) => r.status === 200);
 }
 
-function createAndSubmitRemittance(headers, tid, branchId) {
+function createAndSubmitRemittance(headers, tid, branchId, branchDayId, sessionId) {
   const tags = { group: "remittance" };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = manilaDate();
 
   const remitRes = http.post(`${BASE_URL}/api/remittances`, JSON.stringify({
     id: uuid(), type: "SESSION", branchId,
     method: "BANK_TRANSFER", dateRangeStart: today, dateRangeEnd: today,
   }), { headers });
-  metrics.remittanceLatency.add(remitRes.timings.duration, tags);
-  metrics.errorRate.add(remitRes.status >= 400, tags);
+  const created = observe(remitRes, metrics.remittanceLatency, tags, "create remittance", (r) => r.status === 201 || r.status === 200);
 
   const remittanceId = remitRes.json("id");
-  if (remittanceId) {
-    const submitRes = http.post(`${BASE_URL}/api/remittances/${remittanceId}/submit`, JSON.stringify({
-      expectedVersion: 1,
+  if (created && remittanceId) {
+    const dayRes = http.post(`${BASE_URL}/api/remittances/${remittanceId}/day-breakdowns`, JSON.stringify({
+      id: uuid(), branchDayId,
     }), { headers });
-    metrics.remittanceLatency.add(submitRes.timings.duration, tags);
-    metrics.errorRate.add(submitRes.status >= 400 && submitRes.status !== 409, tags);
+    const dayAdded = observe(dayRes, metrics.remittanceLatency, tags, "add remittance day", (r) => r.status === 201 || r.status === 200);
+    const lineRes = http.post(`${BASE_URL}/api/remittances/${remittanceId}/lines`, JSON.stringify({
+      id: uuid(), type: "SESSION", sessionId, amount: "2500.00",
+    }), { headers });
+    const lineAdded = observe(lineRes, metrics.remittanceLatency, tags, "add remittance line", (r) => r.status === 201 || r.status === 200);
+    if (dayAdded && lineAdded) {
+      const currentRes = http.get(`${BASE_URL}/api/remittances/${remittanceId}`, { headers });
+      const current = observe(currentRes, metrics.remittanceLatency, tags, "get remittance before submit", (r) => r.status === 200);
+      if (current) {
+        const submitRes = http.post(`${BASE_URL}/api/remittances/${remittanceId}/submit`, JSON.stringify({
+          expectedVersion: currentRes.json("version"),
+        }), { headers });
+        observe(submitRes, metrics.remittanceLatency, tags, "submit remittance", (r) => r.status === 200);
+      }
+    }
   }
 }
 
 function fetchNotifications(headers, tid) {
   const tags = { group: "notification" };
   const res = http.get(`${BASE_URL}/api/notifications`, { headers });
-  metrics.notificationLatency.add(res.timings.duration, tags);
-  metrics.errorRate.add(res.status >= 400, tags);
+  observe(res, metrics.notificationLatency, tags, "list notifications", (r) => r.status === 200);
 }
 
 function fetchReports(headers, tid, branchId) {
   const tags = { group: "report" };
-  const today = new Date().toISOString().slice(0, 10);
+  const today = manilaDate();
   const year = today.slice(0, 4);
   const month = today.slice(5, 7);
 
   const dailyRes = http.get(`${BASE_URL}/api/branches/${branchId}/daily-summary?date=${today}`, { headers });
-  metrics.reportLatency.add(dailyRes.timings.duration, tags);
+  observe(dailyRes, metrics.reportLatency, tags, "daily report", (r) => r.status === 200);
 
   const monthlyRes = http.get(`${BASE_URL}/api/branches/${branchId}/monthly-summary?year=${year}&month=${month}`, { headers });
-  metrics.reportLatency.add(monthlyRes.timings.duration, tags);
+  observe(monthlyRes, metrics.reportLatency, tags, "monthly report", (r) => r.status === 200);
+}
+
+function manilaDate() {
+  return new Date(Date.now() + MANILA_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function observe(res, metric, tags, name, expected) {
+  if (metric) metric.add(res.timings.duration, tags);
+  const ok = expected(res);
+  metrics.errorRate.add(!ok, tags);
+  if (!ok) console.log(`${name}: ${res.status} ${res.body}`);
+  check(res, { [name]: expected });
+  return ok;
 }

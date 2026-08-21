@@ -19,7 +19,10 @@ data class AppConfig(
 ) {
     companion object {
         fun parse(): AppConfig {
-            val env = dotenv()
+            val env =
+                dotenv {
+                    ignoreIfMissing = true
+                }
             return AppConfig(
                 appHost = env["APP_HOST"] ?: "localhost",
                 appPort =

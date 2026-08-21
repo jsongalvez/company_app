@@ -1,5 +1,4 @@
 package com.companyb.companyapp.service
-
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -7,6 +6,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -20,11 +20,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class BranchServicePostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val sourceId = UUID.randomUUID()
-    private val clinicId = UUID.randomUUID()
-    private val provincialTourId = UUID.randomUUID()
-    private val medicalMissionId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val sourceId = TestFixtures.uuid()
+    private val clinicId = TestFixtures.uuid()
+    private val provincialTourId = TestFixtures.uuid()
+    private val medicalMissionId = TestFixtures.uuid()
     private val branchIds = listOf(clinicId, provincialTourId, medicalMissionId)
 
     override fun initTestData() {
@@ -95,7 +95,7 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `create without MANAGE_USERS is allowed at service layer`() {
-        val newBranchId = UUID.randomUUID()
+        val newBranchId = TestFixtures.uuid()
         val result = BranchService.create(callerId, newBranchId, "New Branch", BranchType.CLINIC)
         trackOwned(BranchTable, BranchTable.id, newBranchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
@@ -112,14 +112,14 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
     @Test
     fun `findById without MANAGE_USERS is allowed at service layer`() {
-        val newBranchId = UUID.randomUUID()
+        val newBranchId = TestFixtures.uuid()
         DatabaseTestHelper.grantManageUsers(callerId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
         BranchService.create(callerId, newBranchId, "Find Branch", BranchType.CLINIC)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(BranchTable, BranchTable.id, newBranchId)
 
-        val otherCaller = UUID.randomUUID()
+        val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")
         trackOwned(AppUserTable, AppUserTable.id, otherCaller)
 

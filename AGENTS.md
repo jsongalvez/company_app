@@ -21,6 +21,47 @@ When a fresh agent opens a GitHub issue to work on:
 5. Open the relevant doc from the Document Map below (e.g. `docs/architecture.md` for layering, `docs/engines.md` for pseudocode, `docs/business-requirements.md` for rules)
 6. Load the skill indicated by the workflow (`/implement`, `/code-review`, etc.)
 
+## Human Decisions
+
+Never ask the user a question or invoke the question tool. When business behavior,
+scope, safety, external authorization, or preference needs human input, create a
+separate issue with `needs-info` or `ready-for-human`, record verified facts and the
+blocking decision, and continue unrelated AFK work. If no safe continuation exists,
+record the blocker in the handoff and stop. Never guess.
+
+## Code review — risk-based graph
+
+Implementation work uses a review profile matched to blast radius. Review work is a dependency graph, not fixed ceremony: independent read-only lanes run in parallel, one writer applies a coherent fix batch, and only affected checks rerun.
+
+- **Fast profile** — docs, configuration, tests, and sub-30-minute mechanical fixes: targeted validation and focused review. Gates are skipped when `docs/agents/gates.md` permits it.
+- **Standard profile** — normal implementation: parallel P1 Spec, P2 Standards, P3 Behavior, and P4 Adversarial review once; fix HARD findings; rerun only lenses affected by the fix; stop when required lenses report zero HARD and no unadjudicated ESCALATE.
+- **High-risk profile** — auth, finance, migrations, concurrency, shared contracts, `commonMain`, `expect`/`actual`, Gradle, or cross-module interfaces: standard profile plus earlier full validation and targeted architecture review. Run full P5 only when risk or evidence warrants it.
+
+P1-P4 remain available as independent review packets:
+
+1. **P1 Spec conformance** — ticket requirements, missing/partial behavior, scope creep, and false claims.
+2. **P2 Standards + constraints** — documented standards and every constraint source consumed by changed code.
+3. **P3 Behavior trace** — composed-tree flows, error paths, repeated attempts, lifecycle, and back-stack.
+4. **P4 Adversarial edges** — races, stale state, empty states, dead branches, unmapped slots, and format coupling.
+
+P5 is not a mandatory exit phase. Cheap hygiene checks run with each fix batch. Architecture-depth review triggers when the delta changes an interface, seam, shared state, layering, or creates repeated structure; findings become separate architecture tickets or cheap in-ticket fixes. Full P5 can run for high-risk deltas or when focused review finds architecture residue.
+
+**Graph mechanics:**
+
+- Parallel agents are read-only unless they own disjoint isolated work. One writer/integrator owns production edits, formatting, compilation, and commits.
+- A ticket may span multiple sessions. Handoffs record claimed ticket, phase, last verified commit, evidence, blockers, and next action. Handoff before context becomes crowded; stay below 150k tokens.
+- Review agents do not run expensive aggregate builds. The writer runs targeted checks after a fix batch and one full compile/test gate at integration. High-risk changes escalate earlier.
+- HARD findings, security issues, regressions, data loss, documented breaches, and lesson-class matches must be fixed. SOFT findings need a logged disposition. Unresolved ESCALATE findings block exit.
+- Each pass re-derives behavior from the ticket and composed tree; previous passes are evidence, never authority.
+
+Record selected profile, review lanes, fix batches, validation, skipped checks, accepted SOFTs, and architecture findings in the resolution comment.
+
+## Decision loop — deferred human review
+
+Grilling / wayfinder human-review tickets run the decision-loop discipline before a design reaches the human — `docs/agents/decision-loop.md`: five parallel lenses (fact integrity, domain coherence, long-term architecture, falsification, comprehension), HARD/SOFT triage, exit on one full zero-HARD pass. Decisions are delivered asynchronously through tracker issues, never through questions in-session.
+
+Architectural choices are agent-owned by default. Do not ask the user to choose between implementation shapes, modules, seams, abstractions, or review dispositions when business requirements and existing constraints are clear. Select the strongest evidence-backed design, record important rationale in the ticket or ADR, and proceed. When business behavior, scope, safety, external authorization, or explicit preference is ambiguous, defer it as a separate appropriately labeled tracker issue and continue only with safe independent work.
+
 ## Document map
 
 This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `docs/adr/` (architecture decisions). Below is a quick-reference for where to find what.
@@ -31,13 +72,15 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Architecture, tech stack, layering, deep module map | `docs/architecture.md` |
 | Business rules and domain terminology (detailed) | `docs/business-requirements.md` |
 | Engine pseudocode (commission, delegate, remittance) | `docs/engines.md` |
-| Architecture decisions | `docs/adr/` (numbered 0001-0015) |
+| Architecture decisions | `docs/adr/` (authoritative directory; inspect each relevant ADR's status, supersedes, and amends fields) |
 | Feature specs | `docs/specs/` |
 | Backend conventions (Exposed, routes, auth, testing, Javalin) | `backend/AGENTS.md` |
 | Frontend conventions (logging, ViewModels, design tokens) | `composeApp/AGENTS.md` |
 | Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
 | Issue tracking | `docs/agents/issue-tracker.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
+| Decision-loop lenses + deferred human-review frame | `docs/agents/decision-loop.md` |
+| Gate ledger (runnable CHECK/EXPECT acceptance for builds) | `docs/agents/gates.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
 | Load test results | `tests/k6/results/baseline-results.md` |
 
@@ -72,12 +115,17 @@ bash scripts/check-baselines.sh
 ./gradlew :backend:jmh
 ```
 
+Future non-merge commits must include `ref #<number>` somewhere in the commit
+message. The local `commit-msg` hook enforces this without network access, accepts
+closed issue numbers, permits multiple references, and exempts Git merge commits.
+Run `bash scripts/setup-hooks.sh` after cloning to install `.githooks`.
+
 ## Git hooks (CRITICAL)
 
 After `bash scripts/setup-hooks.sh`:
 
 - **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, test-data cleanliness check, `:shared:compileKotlinJvm`, and verifies Postgres is reachable. Commits are blocked if any step fails.
-- **pre-push** runs test-data cleanliness check, composeApp multi-target compilation (desktop + Android + iOS), and k6 load-test baseline. JMH no longer runs on push — it lives in CI (`.github/workflows/jmh.yml`, backend-touching pushes + merge to master; re-runs once on a suspected regression, fails only on a confirmed two-run regression). Takes ~3 min — always run `git push` with a sufficient timeout (600000 ms).
+- **pre-push** classifies the complete outgoing tree. Pushes containing only approved documentation files (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`, `README*.md`, `CONTRIBUTING.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates; mixed or gate-sensitive pushes run all gates. JMH no longer runs on push — it lives in CI (`.github/workflows/jmh.yml`, backend-touching pushes + merge to master; re-runs once on a suspected regression, fails only on a confirmed two-run regression). Gate duration is variable — run pre-commit and gate-sensitive `git push` tool calls with timeout `1200000` ms (20 minutes) or higher; never use short defaults.
 
 ## Configuration details
 
@@ -85,6 +133,7 @@ After `bash scripts/setup-hooks.sh`:
 - Gradle configuration cache and build cache are enabled (`gradle.properties`).
 - ktlint + detekt applied to all subprojects via root `build.gradle.kts` `subprojects {}`. Detekt config: `config/detekt/detekt.yml`. Plugin: `detekt-formatting`.
 - EditorConfig: 4-space indent, 120-char max line for Kotlin, no-wildcard-imports disabled.
+- **Permissions** — `opencode.json`'s `permissions` array at repo root holds the agent's access rules. When you need to know what you may access, or must request a new access, read **only that section** — the plugin/skill/server blocks are unrelated config and don't justify whole-file reads.
 
 ## composeApp
 
@@ -114,3 +163,7 @@ Default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `read
 ### Domain docs
 
 Single-context layout: `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
+
+### Agent-facing docs
+
+When editing any agent-facing markdown — AGENTS.md files, `docs/agents/`, `CONTEXT.md`, ADRs, skills — load `/writing-for-agents` first.

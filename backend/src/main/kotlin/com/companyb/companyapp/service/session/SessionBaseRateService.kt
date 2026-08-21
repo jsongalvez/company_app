@@ -41,34 +41,37 @@ internal object SessionBaseRateService {
         branchId: UUID,
         sessionType: SessionType,
         rate: BigDecimal,
-    ): SetRateResult {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-
-        SessionBaseRateRepository.deactivatePreviousRates(branchId, sessionType, now)
-
-        return SessionBaseRateRepository.setRate(
+    ): SetRateResult =
+        SessionBaseRateRepository.setRate(
             SessionBaseRateCreateParams(
                 id = id,
                 setBy = callerId,
                 branchId = branchId,
                 sessionType = sessionType,
                 rate = rate,
-                effectiveFrom = now,
                 effectiveUntil = FAR_FUTURE,
             ),
-            auditFn = { rate ->
+            auditFn = { rateRecord ->
                 AuditLogRepository.recordInsert(
                     tableName = SessionBaseRateTable.tableName,
-                    recordId = rate.id,
+                    recordId = rateRecord.id,
                     changedBy = callerId,
-                    fields = SessionBaseRateTable.auditFields(rate),
+                    branchId = branchId,
+                    fields = SessionBaseRateTable.auditFields(rateRecord),
+                )
+            },
+            auditUpdateFn = { before, after ->
+                AuditLogRepository.recordUpdate(
+                    tableName = SessionBaseRateTable.tableName,
+                    recordId = before.id,
+                    before = before,
+                    after = after,
+                    changedBy = callerId,
+                    branchId = branchId,
+                    auditFields = SessionBaseRateTable::auditFields,
                 )
             },
         )
-    }
 
-    fun findActiveRates(branchId: UUID): List<SessionBaseRate> {
-        val now = OffsetDateTime.now(ZoneOffset.UTC)
-        return SessionBaseRateRepository.findActiveByBranch(branchId, now)
-    }
+    fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateRepository.findActiveByBranch(branchId)
 }

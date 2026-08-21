@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -35,6 +36,50 @@ internal object BranchDayRepository {
             BranchDayTable
                 .selectAll()
                 .where { BranchDayTable.id eq branchDayId }
+                .singleOrNull()
+                ?.toBranchDay()
+        }
+
+    fun acquireLock(branchDayId: UUID) {
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where { BranchDayTable.id eq branchDayId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull()
+        }
+    }
+
+    /**
+     * Find-only branch-day lookup by (branch, date) — never creates. Used by gates that must
+     * resolve a day without mutating (the #157 session-create day-scoped gate: a 403'd
+     * attempt must not leave a day row behind).
+     */
+    fun findByBranchAndDate(
+        branchId: UUID,
+        date: LocalDate,
+    ): BranchDay? =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where { (BranchDayTable.branchId eq branchId) and (BranchDayTable.date eq date) }
+                .singleOrNull()
+                ?.toBranchDay()
+        }
+
+    /**
+     * Branch-scoped find by id — the parent-child convention (#157 session-create guard):
+     * a day that exists but belongs to a different branch is indistinguishable from a
+     * missing one (null), so callers fail closed with a 404.
+     */
+    fun findByIdForBranch(
+        branchDayId: UUID,
+        branchId: UUID,
+    ): BranchDay? =
+        transaction {
+            BranchDayTable
+                .selectAll()
+                .where { (BranchDayTable.id eq branchDayId) and (BranchDayTable.branchId eq branchId) }
                 .singleOrNull()
                 ?.toBranchDay()
         }

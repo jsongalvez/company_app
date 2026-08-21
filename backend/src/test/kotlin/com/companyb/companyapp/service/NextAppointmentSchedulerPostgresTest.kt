@@ -1,25 +1,30 @@
 package com.companyb.companyapp.service
-
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
+import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
-import com.companyb.companyapp.repository.model.SessionStatus
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.SessionVoidTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
+import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -38,23 +43,29 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
-    private val callerId = UUID.randomUUID()
-    private val coordinatorId = UUID.randomUUID()
-    private val nonCoordinatorId = UUID.randomUUID()
-    private val unassignedCoordinatorId = UUID.randomUUID()
-    private val branchId = UUID.randomUUID()
-    private val otherBranchId = UUID.randomUUID()
-    private val clientId = UUID.randomUUID()
+    private val callerId = TestFixtures.uuid()
+    private val coordinatorId = TestFixtures.uuid()
+    private val nonCoordinatorId = TestFixtures.uuid()
+    private val unassignedCoordinatorId = TestFixtures.uuid()
+    private val branchId = TestFixtures.uuid()
+    private val otherBranchId = TestFixtures.uuid()
+    private val clientId = TestFixtures.uuid()
 
     private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
-    private val sourceId = UUID.randomUUID()
+    private val sourceId = TestFixtures.uuid()
 
     private lateinit var branchDayId: UUID
-    private val rateId = UUID.randomUUID()
-    private val secondSessionRateId = UUID.randomUUID()
-    private val subsequentRateId = UUID.randomUUID()
+    private val rateId = TestFixtures.uuid()
+    private val secondSessionRateId = TestFixtures.uuid()
+    private val subsequentRateId = TestFixtures.uuid()
 
-    private val allTestUsers
+    private val fixedClock: Clock
+        get() {
+            val now = TestFixtures.today.atTime(7, 0).toInstant(ZoneOffset.UTC)
+            return Clock.fixed(now, manilaZone)
+        }
+
+    private val allTestUsers: List<UUID>
         get() = listOf(callerId, coordinatorId, nonCoordinatorId, unassignedCoordinatorId)
 
     override fun initTestData() {
@@ -80,6 +91,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         allTestUsers.forEach { userId ->
             trackOwned(AuditLogTable, AuditLogTable.changedBy, userId)
             trackOwned(UserCapabilityTable, UserCapabilityTable.userId, userId)
+            trackOwned(UserRoleTable, UserRoleTable.userId, userId)
             trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
             trackOwned(NotificationTable, NotificationTable.userId, userId)
         }
@@ -114,6 +126,26 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `scheduler derives notification capability for assigned coordinator role`() {
+        insertCoordinatorRole(coordinatorId)
+        insertUserBranchAssignment(coordinatorId, branchId)
+
+        val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
+
+        val count = NextAppointmentScheduler.run(fixedClock)
+        assertEquals(1, count)
+
+        val notifications =
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.sessionId eq sessionId }
+                    .map { it[NotificationTable.userId] }
+            }
+        assertEquals(listOf(coordinatorId), notifications)
+    }
+
+    @Test
     fun `scheduler skips if all notifications already exist`() {
         grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
         insertUserBranchAssignment(coordinatorId, branchId)
@@ -132,6 +164,32 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
                     .count()
             }
         assertEquals(1, count.toInt())
+    }
+
+    @Test
+    fun `notification batch count matches rows inserted when input repeats a pair`() {
+        val sessionId = createCompletedSessionWithAppointment(twoDaysFromNow())
+        val params =
+            NotificationCreateParams(
+                sessionId = sessionId,
+                userId = coordinatorId,
+                branchId = branchId,
+                message = "Upcoming appointment",
+            )
+
+        val count = NotificationRepository.insertBatch(listOf(params, params))
+
+        assertEquals(1, count)
+        assertEquals(
+            1,
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.sessionId eq sessionId }
+                    .count()
+                    .toInt()
+            },
+        )
     }
 
     @Test
@@ -163,6 +221,19 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
 
         val count = NextAppointmentScheduler.run(fixedClock)
         assertEquals(0, count)
+    }
+
+    @Test
+    fun `scheduler scopes capability to matching assignment branch`() {
+        grantReceiveNextAppointmentAlerts(coordinatorId, branchId)
+        insertUserBranchAssignment(coordinatorId, branchId)
+        insertUserBranchAssignment(coordinatorId, otherBranchId)
+
+        val coordinatorsByBranch =
+            NextAppointmentScheduler.findActiveCoordinatorsForBranches(listOf(branchId, otherBranchId))
+
+        assertEquals(listOf(coordinatorId), coordinatorsByBranch[branchId])
+        assertEquals(null, coordinatorsByBranch[otherBranchId])
     }
 
     @Test
@@ -252,17 +323,11 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         )
     }
 
-    private val fixedClock: Clock
-        get() {
-            val now = LocalDate.now(manilaZone).atTime(7, 0).toInstant(ZoneOffset.UTC)
-            return Clock.fixed(now, manilaZone)
-        }
-
-    private fun twoDaysFromNow(): LocalDate = LocalDate.now(manilaZone).plusDays(2)
+    private fun twoDaysFromNow(): LocalDate = TestFixtures.today.plusDays(2)
 
     @Suppress("ThrowsCount")
     private fun createCompletedSessionWithAppointment(appointmentDate: LocalDate): UUID {
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
             id = sessionId,
@@ -281,7 +346,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     }
 
     private fun createSession(appointmentDate: LocalDate): UUID {
-        val sessionId = UUID.randomUUID()
+        val sessionId = TestFixtures.uuid()
         SessionService.create(
             callerId = callerId,
             id = sessionId,
@@ -302,7 +367,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         transaction {
             SessionVoidTable.insertIgnore {
                 it[SessionVoidTable.id] =
-                    UUID.randomUUID()
+                    TestFixtures.uuid()
                 it[SessionVoidTable.sessionId] =
                     sessionId
                 it[SessionVoidTable.voidedBy] =
@@ -319,7 +384,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     ) {
         DatabaseTestHelper.grantCapability(
             userId = userId,
-            capabilityCode = "RECEIVE_NEXT_APPOINTMENT_ALERTS",
+            capabilityCode = CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS,
             contextType = CapabilityContextType.BRANCH,
             contextId = branchId,
             sourceId = sourceId,
@@ -339,12 +404,25 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
     ) {
         UserBranchAssignmentRepository.create(
             UserBranchAssignmentCreateParams(
-                id = UUID.randomUUID(),
+                id = TestFixtures.uuid(),
                 userId = userId,
                 branchId = branchId,
                 slot = 1,
                 assignedBy = callerId,
             ),
         )
+    }
+
+    private fun insertCoordinatorRole(userId: UUID) {
+        val coordinatorRoleId =
+            transaction {
+                RoleTable.selectAll().where { RoleTable.name eq "COORDINATOR" }.single()[RoleTable.id]
+            }
+        transaction {
+            UserRoleTable.insertIgnore {
+                it[UserRoleTable.userId] = userId
+                it[UserRoleTable.roleId] = coordinatorRoleId
+            }
+        }
     }
 }

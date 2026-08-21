@@ -1,5 +1,5 @@
 package com.companyb.companyapp.api.routes
-
+import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.BranchType
@@ -9,43 +9,96 @@ import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Header
 import io.javalin.http.HttpStatus
+import io.javalin.openapi.HttpMethod
+import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
 
+@Suppress("TooManyFunctions")
+@OpenApi(
+    path = "/api/branches/export/medical-mission",
+    methods = [HttpMethod.GET],
+    operationId = "export_medical_mission",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = "/api/branches/export/provincial",
+    methods = [HttpMethod.GET],
+    operationId = "export_provincial",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "export_all_time",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.BRANCH_EXPORT_DAILY_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "export_daily",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "export_monthly",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.BRANCH_EXPORT_RANGE_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "export_range",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ExportRoutes {
     private const val MAX_MONTH = 12
     private const val MIN_MONTH = 1
 
     @Suppress("ThrowsCount")
     fun register(config: JavalinConfig) {
-        config.routes.before("/api/branches/{branchId}/export") { context ->
+        // #114 lesson, 4th occurrence: a 4-segment literal filter never fires
+        // on the 5-segment routes below — the wildcard is what makes the gate
+        // actually run (leak proven red-first by ReportsReadScopeAuthzTest).
+        // The 5-segment /range route (#129) rides the same wildcard — no new
+        // filter; ReportsReadScopeAuthzTest's matrix covers it (403 never 404
+        // for zero-grant callers).
+        // #128: the sibling 3-segment before("/api/branches/export") filter was
+        // equally dead on the 4-segment provincial/medical-mission routes, so
+        // those exports were already public (JWT-only, the #105 D2 target
+        // state) — the filter is removed and ReportsReadScopeAuthzTest locks
+        // the JWT-gate regression.
+        config.routes.before("/api/branches/{branchId}/export/*") { context ->
             val branchId = context.pathParamAsUuid("branchId")
-            CapabilityFilter.requireBranchCapabilityForBranchId(
+            CapabilityFilter.requireBranchOrGlobalCapabilityForBranchId(
                 context,
                 branchId,
                 CapabilityCodes.VIEW_BRANCH_DATA,
             )
         }
-        config.routes.before("/api/branches/export") { context ->
-            CapabilityFilter.requireGlobalCapability(
-                context,
-                CapabilityCodes.VIEW_BRANCH_DATA,
-            )
-        }
 
-        config.routes.get("/api/branches/{branchId}/export/daily") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_DAILY_PATH) { context ->
             handleDailyExport(context)
         }
-        config.routes.get("/api/branches/{branchId}/export/monthly") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_RANGE_PATH) { context ->
+            handleRangeExport(context)
+        }
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_MONTHLY_PATH) { context ->
             handleMonthlyExport(context)
         }
-        config.routes.get("/api/branches/{branchId}/export/all-time") { context ->
+        config.routes.get(ApiRoutes.BRANCH_EXPORT_ALL_TIME_PATH) { context ->
             handleAllTimeExport(context)
         }
-        config.routes.get("/api/branches/export/provincial") { context ->
+        config.routes.get(ApiRoutes.BRANCHES_EXPORT_PROVINCIAL_PATH) { context ->
             handleBranchTypeExport(context, BranchType.PROVINCIAL_TOUR)
         }
-        config.routes.get("/api/branches/export/medical-mission") { context ->
+        config.routes.get(ApiRoutes.BRANCHES_EXPORT_MEDICAL_MISSION_PATH) { context ->
             handleBranchTypeExport(context, BranchType.MEDICAL_MISSION)
         }
     }
@@ -62,6 +115,30 @@ object ExportRoutes {
 
         val result = ExportService.exportDaily(branchId, date, format)
         sendFileResponse(context, result)
+    }
+
+    private fun handleRangeExport(context: io.javalin.http.Context) {
+        val branchId = context.pathParamAsUuid("branchId")
+        val from = parseRequiredDate(context, "from")
+        val to = parseRequiredDate(context, "to")
+        if (from.isAfter(to)) {
+            throw BadRequestResponse("from must be on or before to")
+        }
+        val format = parseFormat(context.queryParam("format"))
+
+        val result = ExportService.exportRange(branchId, from, to, format)
+        sendFileResponse(context, result)
+    }
+
+    private fun parseRequiredDate(
+        context: io.javalin.http.Context,
+        paramName: String,
+    ): LocalDate {
+        val param =
+            context.queryParam(paramName)
+                ?: throw BadRequestResponse("$paramName query param is required")
+        return runCatching { LocalDate.parse(param) }
+            .getOrElse { throw BadRequestResponse("Invalid $paramName format (expected yyyy-MM-dd)") }
     }
 
     private fun handleMonthlyExport(context: io.javalin.http.Context) {

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -8,7 +9,6 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.CapabilityContextType
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
@@ -20,6 +20,19 @@ import java.util.UUID
 
 object UserBranchAssignmentService {
     private val logger = KotlinLogging.logger {}
+
+    private fun requireManageUsers(
+        callerId: UUID,
+        message: String,
+    ) {
+        CapabilityService.requireCapability(
+            userId = callerId,
+            capabilityCode = CapabilityCodes.MANAGE_USERS,
+            contextType = CapabilityContextType.GLOBAL,
+            contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            message = message,
+        )
+    }
 
     data class CreateResult(
         val assignment: UserBranchAssignment,
@@ -34,6 +47,8 @@ object UserBranchAssignmentService {
         userId: UUID,
         slot: Short,
     ): CreateResult {
+        requireManageUsers(callerId, "MANAGE_USERS capability required to create assignments")
+
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
@@ -52,6 +67,9 @@ object UserBranchAssignmentService {
 
         val existing = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
         if (existing != null) {
+            if (existing.id == id) {
+                return CreateResult(existing, created = false)
+            }
             throw ValidationException("User already has an active assignment at this branch")
         }
 
@@ -69,6 +87,7 @@ object UserBranchAssignmentService {
                         tableName = UserBranchAssignmentTable.tableName,
                         recordId = assignment.id,
                         changedBy = callerId,
+                        branchId = branchId,
                         fields = UserBranchAssignmentTable.auditFields(assignment),
                     )
                 },
@@ -90,6 +109,8 @@ object UserBranchAssignmentService {
         branchId: UUID,
         userId: UUID,
     ) {
+        requireManageUsers(callerId, "MANAGE_USERS capability required to remove assignments")
+
         val branchExists = BranchRepository.findById(branchId)
         if (branchExists == null) {
             throw NotFoundException("Branch not found")
@@ -108,6 +129,7 @@ object UserBranchAssignmentService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = branchId,
                     auditFields = UserBranchAssignmentTable::auditFields,
                 )
             },
@@ -150,6 +172,7 @@ object UserBranchAssignmentService {
                     before = before,
                     after = after,
                     changedBy = callerId,
+                    branchId = branchId,
                     auditFields = UserBranchAssignmentTable::auditFields,
                 )
             },
@@ -164,6 +187,23 @@ object UserBranchAssignmentService {
         userIdA: UUID,
         userIdB: UUID,
     ) {
+        if (userIdA == userIdB) {
+            throw ValidationException("Cannot swap a user with themselves")
+        }
+
+        val canManage =
+            CapabilityService.hasCapability(
+                userId = callerId,
+                capabilityCode = CapabilityCodes.MANAGE_USERS,
+                contextType = CapabilityContextType.GLOBAL,
+                contextId = CapabilityService.GLOBAL_CONTEXT_ID,
+            )
+        val isParticipant = callerId == userIdA || callerId == userIdB
+
+        if (!canManage && !isParticipant) {
+            throw ForbiddenException("MANAGE_USERS capability required to swap slots")
+        }
+
         val (assignA, assignB) =
             UserBranchAssignmentRepository.swapSlots(
                 branchId,
@@ -176,6 +216,7 @@ object UserBranchAssignmentService {
                         before = a,
                         after = a.copy(slot = b.slot),
                         changedBy = callerId,
+                        branchId = branchId,
                         auditFields = UserBranchAssignmentTable::auditFields,
                     )
                     AuditLogRepository.recordUpdate(
@@ -184,6 +225,7 @@ object UserBranchAssignmentService {
                         before = b,
                         after = b.copy(slot = a.slot),
                         changedBy = callerId,
+                        branchId = branchId,
                         auditFields = UserBranchAssignmentTable::auditFields,
                     )
                 },
@@ -193,6 +235,11 @@ object UserBranchAssignmentService {
         logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }
     }
 
-    fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =
-        UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    fun findActiveByBranch(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<UserBranchAssignment> {
+        requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
+        return UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    }
 }

@@ -19,6 +19,15 @@ class VersionMismatchException(
     recordId: UUID,
 ) : ConflictException("Version mismatch on $table for record $recordId")
 
+enum class RegistrationConflictField {
+    USERNAME,
+    EMAIL,
+}
+
+class RegistrationConflictException(
+    val field: RegistrationConflictField,
+) : ConflictException("Registration $field is already taken")
+
 open class ForbiddenException(
     message: String,
 ) : RuntimeException(message)

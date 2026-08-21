@@ -36,9 +36,25 @@ _Avoid_: Auditor, bookkeeper
 A freshly registered user with zero capabilities. Functionally locked out until `MANAGE_USERS` assigns them to a branch, at which point they gain practitioner access.
 _Avoid_: New user, unassigned, pending
 
+**Role**:
+A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped capabilities derive from the user's role through the capability view; BRANCH-scoped grants come from direct grants (relief, delegate).
+_Avoid_: Position, title
+
+**Deactivate**:
+The act of setting a user INACTIVE: login is blocked immediately (active JWT killed), all capabilities vanish, records and branch assignments are kept. Reversible via Reactivate. The deactivation time is recorded (`deactivated_at`).
+_Avoid_: Disable, ban, delete
+
+**Reactivate**:
+The act of restoring a deactivated user to ACTIVE. Capabilities return through the capability view; the user logs in fresh (the old JWT stays dead).
+_Avoid_: Re-enable, unban
+
 **Relief Duty**:
-When any user clocks into a non-home branch. Starts with view-only access; edit access requires a relief grant from a currently checked-in user at that branch. Expires at 04:00 Manila the next day. Compensation is paid from the relief branch's drawer.
+When any user clocks into a non-home branch. Starts with view-only access; edit access requires a relief grant (user-initiated request approved by a checked-in user, or branch-initiated via a relief invite). Expires at 04:00 Manila the next day. Compensation is paid from the relief branch's drawer.
 _Avoid_: Temporary assignment, loaned staff
+
+**Relief Invite**:
+The branch-initiated offer of relief access for a single future day. Any user assigned to the branch can invite any active user; the invitee accepts or declines. Accepting writes the day's relief grant. Distinct from a relief request, which the relief user initiates.
+_Avoid_: Shift offer, temporary assignment offer
 
 **Day State**:
 Every branch day has a status. `OPEN` (current day, editable by all on-duty users) transitions lazily to `PAST` at 04:00 AM Manila the following day. `REMITTED` days are covered by a submitted remittance and require Coordinator-only edits with flagged audit entries.
@@ -49,8 +65,12 @@ The act of submitting session income to the business. Two independent flows: SES
 _Avoid_: Payout, cash-out, settlement
 
 **Snapshot**:
-An immutable financial record written at remittance submission time. Cannot be updated or deleted. Later edits to the underlying session/expense/compensation data do not retroactively change the snapshot.
+An immutable financial record written at remittance submission time. Cannot be updated or deleted — except by an Undo within 48 hours of submission. Later edits to the underlying session/expense/compensation data do not retroactively change the snapshot.
 _Avoid_: Freeze, archive
+
+**Undo**:
+The act of reverting a submitted remittance within 48 hours of submission: the remittance returns to Draft, the covered days unlock, and the frozen snapshot is deleted. Requires a reason, recorded in the audit trail. Time-limited — after the window closes, the snapshot is permanent.
+_Avoid_: Reverse, cancel, refund
 
 **Void**:
 The act of excluding a session from financial calculations while preserving its record. Requires a reason. Can be undone (unvoided) if done in error. A voided session remains visible with a clear indicator.

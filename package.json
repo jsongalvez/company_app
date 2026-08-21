@@ -1,0 +1,14 @@
+{
+  "name": "company_app-tooling",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint:js": "oxlint scripts tests/gates"
+  },
+  "devDependencies": {
+    "@oxlint/binding-linux-arm64-gnu": "^1.78.0",
+    "@oxlint/plugins": "1.78.0",
+    "oxlint": "1.78.0"
+  }
+}

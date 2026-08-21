@@ -1,5 +1,6 @@
 package com.companyb.companyapp.repository.model
 
+import com.companyb.companyapp.domain.DayStatus
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.date
@@ -13,8 +14,6 @@ data class BranchDay(
     val date: LocalDate,
     val status: DayStatus,
 )
-
-enum class DayStatus { OPEN, PAST, REMITTED }
 
 object BranchDayTable : Table("branch_day") {
     val id = javaUUID("id").autoGenerate()
