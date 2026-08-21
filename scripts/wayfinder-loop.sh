@@ -299,7 +299,8 @@ spawn_session() {
   fi
   local model_ref="null" pid model_id model_provider
   if [ -n "${WAYFINDER_MODEL:-}" ]; then
-    model_id="${WAYFINDER_MODEL##*/}"
+    # Split on the FIRST slash only: ids may contain slashes (openrouter/stealth/ox-alpha).
+    model_id="${WAYFINDER_MODEL#*/}"
     model_provider=""
     [[ "$WAYFINDER_MODEL" == */* ]] && model_provider="${WAYFINDER_MODEL%%/*}"
     # `|| true` keeps the die below reachable: under `set -e`, a failing pipeline would abort
