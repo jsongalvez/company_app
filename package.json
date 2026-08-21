@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint:js": "oxlint scripts tests/gates"
+    "lint:js": "oxlint scripts"
   },
   "devDependencies": {
     "@oxlint/binding-linux-arm64-gnu": "^1.78.0",

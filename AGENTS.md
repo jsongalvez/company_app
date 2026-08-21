@@ -33,7 +33,7 @@ record the blocker in the handoff and stop. Never guess.
 
 Implementation work uses a review profile matched to blast radius. Review work is a dependency graph, not fixed ceremony: independent read-only lanes run in parallel, one writer applies a coherent fix batch, and only affected checks rerun.
 
-- **Fast profile** — docs, configuration, tests, and sub-30-minute mechanical fixes: targeted validation and focused review. Gates are skipped when `docs/agents/gates.md` permits it.
+- **Fast profile** — docs, configuration, tests, and sub-30-minute mechanical fixes: targeted validation and focused review.
 - **Standard profile** — normal implementation: parallel P1 Spec, P2 Standards, P3 Behavior, and P4 Adversarial review once; fix HARD findings; rerun only lenses affected by the fix; stop when required lenses report zero HARD and no unadjudicated ESCALATE.
 - **High-risk profile** — auth, finance, migrations, concurrency, shared contracts, `commonMain`, `expect`/`actual`, Gradle, or cross-module interfaces: standard profile plus earlier full validation and targeted architecture review. Run full P5 only when risk or evidence warrants it.
 
@@ -80,7 +80,6 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Issue tracking | `docs/agents/issue-tracker.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
 | Decision-loop lenses + deferred human-review frame | `docs/agents/decision-loop.md` |
-| Gate ledger (runnable CHECK/EXPECT acceptance for builds) | `docs/agents/gates.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
 | Load test results | `tests/k6/results/baseline-results.md` |
 

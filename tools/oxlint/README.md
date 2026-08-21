@@ -1,15 +1,15 @@
 # oxlint + anti-slop (vendored)
 
-Vendored lint tooling for the repo's small JS surface (`scripts/gate-check.mjs` +
-`tests/`). Kotlin modules stay under their own gates (ktlint/detekt); this covers the
-scripts that tooling agents write.
+Vendored lint tooling for the repo's small JS surface (`scripts/*.mjs` + `tests/`). Kotlin
+modules stay under their own gates (ktlint/detekt); this covers the scripts that tooling
+agents write.
 
 - `oxlint.config.json` — enables the 15 `anti-slop` rules (error) + oxlint core.
 - `tools/oxlint/anti-slop/` — vendored from `dmmulroy/anti-slop` (MIT; LICENSE ships
   alongside). Keep byte-identical to upstream `src/` — including the vendored `*.test.ts`
   files, which exist as upstream provenance for the re-copy diff, not as runnable tests here.
   Re-copy on upgrade.
-- `package.json` — `lint:js` script runs `oxlint scripts tests/gates`.
+- `package.json` — `lint:js` script runs `oxlint scripts`.
 
 **`@oxlint/binding-linux-arm64-gnu` is pinned on purpose**: npm 9 has an
 optional-dependency bug that skips the native binding on aarch64 (oxlint then dies with

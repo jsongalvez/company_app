@@ -87,12 +87,12 @@ code-verified or contradicted with evidence. Quote the spec line for each findin
 Under 400 words. Format: [MISSING|SCOPE-CREEP|WRONG|CLAIM-FALSE] — spec line — problem.
 ```
 
-If the ticket has a gates file (`docs/gates/<n>-*.md`), the driving agent runs
-`node scripts/gate-check.mjs <file>` once per pass — its verdict is the mechanical half of
-spec conformance. Verify the verdict with `node scripts/gate-check.mjs --dry <file>` if you
-doubt it, never with a second write; report any unmet gate as `[GATE-MISSING]` and let the
-driving agent rerun the fix loop. Your judgment budget goes to (a)–(d), not to re-reading
-acceptance the machine already decided.
+If the ticket defines executable acceptance criteria, the driving agent runs them once per
+pass — the verdict is the mechanical half of spec conformance. There is no per-ticket gate
+ledger: acceptance criteria live in the GitHub issue; focused negative controls (proving a
+regression test is meaningful) run when they answer the ticket's question and their result is
+recorded in the resolution comment. Your judgment budget goes to reading the ticket and the
+composed code/tests, not to re-reading acceptance the machine already decided.
 
 ### P2 — Standards + constraints
 
