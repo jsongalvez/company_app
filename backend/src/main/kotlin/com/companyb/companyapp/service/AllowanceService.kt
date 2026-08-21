@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AllowanceRepository
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.Allowance
 import com.companyb.companyapp.repository.model.AllowanceCreateParams
@@ -44,11 +45,8 @@ object AllowanceService {
                 )
             if (result.created) {
                 AllowanceAudit.inserted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    allowance = result.allowance,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    result.allowance,
                 )
             }
             result.allowance
@@ -67,18 +65,15 @@ object AllowanceService {
  */
 internal object AllowanceAudit {
     fun inserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         allowance: Allowance,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordInsert(
         tableName = AllowanceTable.tableName,
         recordId = allowance.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = AllowanceTable.auditFields(allowance),
-        isFlagged = isFlagged,
-        reason = reason,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 }

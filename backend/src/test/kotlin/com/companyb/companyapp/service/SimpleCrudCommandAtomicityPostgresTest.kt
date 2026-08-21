@@ -254,31 +254,11 @@ class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
         assertEquals(concernId, promoted.id)
         val (concernInserts, linkInserts, sessionUpdates) =
             transaction {
-                val concerns =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.auditTableName eq ConcernTable.tableName) and
-                                (AuditLogTable.recordId eq concernId) and
-                                (AuditLogTable.action eq AuditAction.INSERT)
-                        }.count()
-                val links =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.auditTableName eq SessionConcernTable.tableName) and
-                                (AuditLogTable.recordId eq sessionId) and
-                                (AuditLogTable.action eq AuditAction.INSERT)
-                        }.count()
-                val updates =
-                    AuditLogTable
-                        .selectAll()
-                        .where {
-                            (AuditLogTable.auditTableName eq SessionTable.tableName) and
-                                (AuditLogTable.recordId eq sessionId) and
-                                (AuditLogTable.action eq AuditAction.UPDATE)
-                        }.count()
-                Triple(concerns, links, updates)
+                Triple(
+                    countAudits(ConcernTable.tableName, concernId, AuditAction.INSERT),
+                    countAudits(SessionConcernTable.tableName, sessionId, AuditAction.INSERT),
+                    countAudits(SessionTable.tableName, sessionId, AuditAction.UPDATE),
+                )
             }
         val otherConcerns =
             transaction {
@@ -293,4 +273,17 @@ class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
         assertEquals(1L, sessionUpdates, "other-concerns clear audited")
         assertEquals(null, otherConcerns, "other_concerns cleared on the session row")
     }
+
+    private fun countAudits(
+        tableName: String,
+        recordId: UUID,
+        action: AuditAction,
+    ): Long =
+        AuditLogTable
+            .selectAll()
+            .where {
+                (AuditLogTable.auditTableName eq tableName) and
+                    (AuditLogTable.recordId eq recordId) and
+                    (AuditLogTable.action eq action)
+            }.count()
 }

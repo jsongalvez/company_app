@@ -2,6 +2,7 @@ package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
@@ -59,11 +60,8 @@ object CompensationService {
                 )
             if (result.created) {
                 CompensationAudit.inserted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    compensation = result.compensation,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    result.compensation,
                 )
             }
             result.compensation
@@ -100,12 +98,9 @@ object CompensationService {
                 CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
 
             CompensationAudit.updated(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                before = before,
-                after = after,
-                isFlagged = isRemitted,
-                reason = reason,
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                before,
+                after,
             )
             after
         }.also {
@@ -120,37 +115,31 @@ object CompensationService {
  */
 internal object CompensationAudit {
     fun inserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         compensation: Compensation,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordInsert(
         tableName = CompensationTable.tableName,
         recordId = compensation.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = CompensationTable.auditFields(compensation),
-        isFlagged = isFlagged,
-        reason = reason,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 
     fun updated(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         before: Compensation,
         after: Compensation,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordUpdate(
         tableName = CompensationTable.tableName,
         recordId = after.id,
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = CompensationTable::auditFields,
     )
 }

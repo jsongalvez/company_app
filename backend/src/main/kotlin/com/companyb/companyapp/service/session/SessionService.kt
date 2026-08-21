@@ -7,6 +7,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddPractitionerResult
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
@@ -123,11 +124,7 @@ object SessionService {
                     ),
                 )
             if (result.created) {
-                SessionAudit.inserted(
-                    changedBy = callerId,
-                    branchId = branchId,
-                    session = result.session,
-                )
+                SessionAudit.inserted(AuditContext(callerId, branchId), result.session)
             }
 
             logger.info {
@@ -174,12 +171,9 @@ object SessionService {
             val updated = SessionRepository.updateStatusInTransaction(sessionId, newStatus, expectedVersion)
 
             SessionAudit.updated(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                before = session,
-                after = updated,
-                isFlagged = isRemitted,
-                reason = reason,
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                session,
+                updated,
             )
 
             logger.info {
@@ -212,12 +206,9 @@ object SessionService {
                 SessionRepository.updateFinalPriceInTransaction(sessionId, newFinalPrice, expectedVersion)
 
             SessionAudit.updated(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                before = session,
-                after = updated,
-                isFlagged = isRemitted,
-                reason = reason,
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                session,
+                updated,
             )
 
             logger.info {
@@ -261,11 +252,8 @@ object SessionService {
                 )
             if (result.created) {
                 SessionAudit.voidInserted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    voidRecord = result.sessionVoid,
-                    isFlagged = isRemitted,
-                    reason = voidReason,
+                    AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = voidReason),
+                    result.sessionVoid,
                 )
             }
 
@@ -309,12 +297,9 @@ object SessionService {
                 ) ?: throw NotFoundException("Session void record not found after unvoid")
 
             SessionAudit.voidUpdated(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                before = sessionVoid,
-                after = updated,
-                isFlagged = isRemitted,
-                reason = unvoidedReason,
+                AuditContext(callerId, branchDay.branchId, isFlagged = isRemitted, reason = unvoidedReason),
+                sessionVoid,
+                updated,
             )
 
             logger.info { "[UNVOID-SESSION] Session $sessionId unvoided" }
@@ -425,68 +410,58 @@ object SessionService {
  */
 internal object SessionAudit {
     fun inserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         session: Session,
     ) = AuditLogRepository.recordInsert(
         tableName = SessionTable.tableName,
         recordId = session.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = SessionTable.auditFields(session),
     )
 
     fun updated(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         before: Session,
         after: Session,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordUpdate(
         tableName = SessionTable.tableName,
         recordId = after.id,
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = SessionTable::auditFields,
     )
 
     fun voidInserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         voidRecord: SessionVoid,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordInsert(
         tableName = SessionVoidTable.tableName,
         recordId = voidRecord.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = SessionVoidTable.auditFields(voidRecord),
-        isFlagged = isFlagged,
-        reason = reason,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 
     fun voidUpdated(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         before: SessionVoid,
         after: SessionVoid,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordUpdate(
         tableName = SessionVoidTable.tableName,
         recordId = after.id,
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = SessionVoidTable::auditFields,
     )
 }

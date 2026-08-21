@@ -6,6 +6,7 @@ import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductCreateResult
 import com.companyb.companyapp.repository.ProductRepository
+import com.companyb.companyapp.repository.ProductUpdate
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductTable
@@ -84,11 +85,14 @@ object ProductService {
             val (updatedCount, after) =
                 ProductRepository.updateInTransaction(
                     productId = productId,
-                    name = name?.takeIf { it.isNotEmpty() },
-                    productCategoryId = productCategoryId,
-                    unitPrice = unitPrice,
-                    commissionAmount = commissionAmount,
-                    isActive = isActive,
+                    update =
+                        ProductUpdate(
+                            name = name?.takeIf { it.isNotEmpty() },
+                            productCategoryId = productCategoryId,
+                            unitPrice = unitPrice,
+                            commissionAmount = commissionAmount,
+                            isActive = isActive,
+                        ),
                 )
 
             if (updatedCount > 0 && after != null) {

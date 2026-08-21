@@ -22,6 +22,15 @@ data class ProductCreateResult(
     val created: Boolean,
 )
 
+/** Nullable-field update payload (#323): only non-null fields are written to the product row. */
+data class ProductUpdate(
+    val name: String? = null,
+    val productCategoryId: UUID? = null,
+    val unitPrice: BigDecimal? = null,
+    val commissionAmount: BigDecimal? = null,
+    val isActive: Boolean? = null,
+)
+
 object ProductRepository {
     /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
     fun createInTransaction(params: ProductCreateParams): ProductCreateResult {
@@ -73,19 +82,15 @@ object ProductRepository {
      */
     fun updateInTransaction(
         productId: UUID,
-        name: String?,
-        productCategoryId: UUID?,
-        unitPrice: BigDecimal?,
-        commissionAmount: BigDecimal?,
-        isActive: Boolean?,
+        update: ProductUpdate,
     ): Pair<Int, Product?> {
         val updatedCount =
-            ProductTable.update({ ProductTable.id eq productId }) {
-                if (name != null) it[ProductTable.name] = name
-                if (productCategoryId != null) it[ProductTable.productCategoryId] = productCategoryId
-                if (unitPrice != null) it[ProductTable.unitPrice] = unitPrice
-                if (commissionAmount != null) it[ProductTable.commissionAmount] = commissionAmount
-                if (isActive != null) it[ProductTable.isActive] = isActive
+            ProductTable.update({ ProductTable.id eq productId }) { statement ->
+                update.name?.let { statement[ProductTable.name] = it }
+                update.productCategoryId?.let { statement[ProductTable.productCategoryId] = it }
+                update.unitPrice?.let { statement[ProductTable.unitPrice] = it }
+                update.commissionAmount?.let { statement[ProductTable.commissionAmount] = it }
+                update.isActive?.let { statement[ProductTable.isActive] = it }
             }
         return updatedCount to findByIdInTransaction(productId)
     }

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
@@ -64,15 +65,14 @@ internal object SessionBaseRateService {
                 // the insert audit on the new rate.
                 result.previousAfter?.let { after ->
                     SessionBaseRateAudit.updated(
-                        changedBy = callerId,
-                        before = result.previousBefore ?: after,
-                        after = after,
+                        AuditContext(callerId),
+                        result.previousBefore ?: after,
+                        after,
                     )
                 }
                 SessionBaseRateAudit.inserted(
-                    changedBy = callerId,
-                    branchId = branchId,
-                    rateRecord = result.rate,
+                    AuditContext(callerId, branchId),
+                    result.rate,
                 )
             }
 
@@ -93,19 +93,18 @@ internal object SessionBaseRateService {
  */
 internal object SessionBaseRateAudit {
     fun inserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         rateRecord: SessionBaseRate,
     ) = AuditLogRepository.recordInsert(
         tableName = SessionBaseRateTable.tableName,
         recordId = rateRecord.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = SessionBaseRateTable.auditFields(rateRecord),
     )
 
     fun updated(
-        changedBy: UUID,
+        context: AuditContext,
         before: SessionBaseRate,
         after: SessionBaseRate,
     ) = AuditLogRepository.recordUpdate(
@@ -113,7 +112,7 @@ internal object SessionBaseRateAudit {
         recordId = before.id,
         before = before,
         after = after,
-        changedBy = changedBy,
+        changedBy = context.changedBy,
         branchId = before.branchId,
         auditFields = SessionBaseRateTable::auditFields,
     )

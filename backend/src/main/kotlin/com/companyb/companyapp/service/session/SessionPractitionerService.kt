@@ -2,6 +2,7 @@ package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AddPractitionerResult
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -66,11 +67,8 @@ internal object SessionPractitionerService {
                 )
             if (result.created) {
                 SessionPractitionerAudit.inserted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    practitioner = result.practitioner,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    result.practitioner,
                 )
             }
 
@@ -105,12 +103,9 @@ internal object SessionPractitionerService {
                 )
 
             SessionPractitionerAudit.updated(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                before = before,
-                after = after,
-                isFlagged = isRemitted,
-                reason = reason,
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                before,
+                after,
             )
 
             logger.info {
@@ -138,11 +133,8 @@ internal object SessionPractitionerService {
                     ?: throw NotFoundException("Practitioner not found in session")
 
             SessionPractitionerAudit.deleted(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                practitioner = removed,
-                isFlagged = isRemitted,
-                reason = reason,
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                removed,
             )
 
             logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
@@ -167,54 +159,45 @@ internal object SessionPractitionerService {
  */
 internal object SessionPractitionerAudit {
     fun inserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         practitioner: SessionPractitioner,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordInsert(
         tableName = SessionPractitionerTable.tableName,
         recordId = practitioner.id,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = SessionPractitionerTable.auditFields(practitioner),
-        isFlagged = isFlagged,
-        reason = reason,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 
     fun updated(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         before: SessionPractitioner,
         after: SessionPractitioner,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordUpdate(
         tableName = SessionPractitionerTable.tableName,
         recordId = after.id,
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = SessionPractitionerTable::auditFields,
     )
 
     fun deleted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         practitioner: SessionPractitioner,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordDelete(
         tableName = SessionPractitionerTable.tableName,
         recordId = practitioner.id,
         before = practitioner,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = SessionPractitionerTable::auditFields,
     )
 }

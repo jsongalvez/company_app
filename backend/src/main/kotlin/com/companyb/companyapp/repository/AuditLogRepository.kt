@@ -41,6 +41,18 @@ data class AuditBrowseCursor(
     val id: UUID,
 )
 
+/**
+ * Command context stamped onto audit rows (#323): who acted, on which branch, and the
+ * REMITTED-day flag vocabulary. Audit seams take this as their first parameter so their
+ * domain-row parameters stay separate from the who/where/why of the audit event.
+ */
+data class AuditContext(
+    val changedBy: UUID,
+    val branchId: UUID? = null,
+    val isFlagged: Boolean = false,
+    val reason: String? = null,
+)
+
 @Suppress("TooManyFunctions")
 object AuditLogRepository {
     @Suppress("LongParameterList")

@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service.session
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ConcernRepository
 import com.companyb.companyapp.repository.SessionRepository
@@ -51,12 +52,9 @@ internal object SessionConcernService {
             val created = ConcernRepository.addToSessionInTransaction(sessionId, concernId)
             if (created) {
                 SessionConcernAudit.linkInserted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    sessionId = sessionId,
-                    concernId = concernId,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    sessionId,
+                    concernId,
                 )
             }
 
@@ -80,12 +78,9 @@ internal object SessionConcernService {
             val deleted = ConcernRepository.removeFromSessionInTransaction(sessionId, concernId)
             if (deleted) {
                 SessionConcernAudit.linkDeleted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    sessionId = sessionId,
-                    concernId = concernId,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    sessionId,
+                    concernId,
                 )
             }
 
@@ -114,29 +109,21 @@ internal object SessionConcernService {
 
             if (result.concernCreated) {
                 SessionConcernAudit.concernInserted(
-                    changedBy = callerId,
-                    concern = result.concern,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, isFlagged = isRemitted, reason = reason),
+                    result.concern,
                 )
             }
             if (result.linkCreated) {
                 SessionConcernAudit.linkInserted(
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    sessionId = sessionId,
-                    concernId = concernId,
-                    isFlagged = isRemitted,
-                    reason = reason,
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    sessionId,
+                    concernId,
                 )
             }
             SessionConcernAudit.otherConcernsCleared(
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                before = result.sessionBefore,
-                after = result.sessionAfter,
-                isFlagged = isRemitted,
-                reason = reason,
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                result.sessionBefore,
+                result.sessionAfter,
             )
 
             logger.info { "[PROMOTE-CONCERN] Promoted concern '$label' for session $sessionId, cleared other_concerns" }
@@ -162,70 +149,59 @@ internal object SessionConcernService {
  */
 internal object SessionConcernAudit {
     fun linkInserted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         sessionId: UUID,
         concernId: UUID,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordInsert(
         tableName = SessionConcernTable.tableName,
         recordId = sessionId,
-        changedBy = changedBy,
-        branchId = branchId,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
         fields = SessionConcernTable.auditFields(SessionConcern(sessionId, concernId)),
-        isFlagged = isFlagged,
-        reason = reason,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 
     fun linkDeleted(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         sessionId: UUID,
         concernId: UUID,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordDelete(
         tableName = SessionConcernTable.tableName,
         recordId = sessionId,
         before = SessionConcern(sessionId, concernId),
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = SessionConcernTable::auditFields,
     )
 
     fun concernInserted(
-        changedBy: UUID,
+        context: AuditContext,
         concern: Concern,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordInsert(
         tableName = ConcernTable.tableName,
         recordId = concern.id,
-        changedBy = changedBy,
+        changedBy = context.changedBy,
         fields = ConcernTable.auditFields(concern),
-        isFlagged = isFlagged,
-        reason = reason,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
     )
 
     fun otherConcernsCleared(
-        changedBy: UUID,
-        branchId: UUID,
+        context: AuditContext,
         before: Session,
         after: Session,
-        isFlagged: Boolean,
-        reason: String?,
     ) = AuditLogRepository.recordUpdate(
         tableName = SessionTable.tableName,
         recordId = after.id,
         before = before,
         after = after,
-        changedBy = changedBy,
-        branchId = branchId,
-        isFlagged = isFlagged,
-        reason = reason,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
         auditFields = SessionTable::auditFields,
     )
 }

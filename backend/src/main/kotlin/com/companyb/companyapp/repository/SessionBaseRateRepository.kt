@@ -57,23 +57,7 @@ object SessionBaseRateRepository {
                 return SetRateResult(existing, created = false)
             }
 
-            val previousRate =
-                SessionBaseRateTable
-                    .selectAll()
-                    .where {
-                        (SessionBaseRateTable.branchId eq params.branchId) and
-                            (SessionBaseRateTable.sessionType eq params.sessionType) and
-                            (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
-                    }.singleOrNull()
-                    ?.toSessionBaseRate()
-            SessionBaseRateTable
-                .update({
-                    (SessionBaseRateTable.branchId eq params.branchId) and
-                        (SessionBaseRateTable.sessionType eq params.sessionType) and
-                        (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
-                }) {
-                    it[SessionBaseRateTable.effectiveUntil] = CurrentTimestampWithTimeZone
-                }
+            val previousRate = closePreviousRate(params.branchId, params.sessionType)
             val insertedCount =
                 SessionBaseRateTable
                     .insertIgnore {
@@ -117,6 +101,35 @@ object SessionBaseRateRepository {
             }
             throw error
         }
+
+    /**
+     * Reads the still-open previous rate for the branch+session type and closes it by rotating
+     * `effectiveUntil` to now — the rotation half of the rate handover (#323, ADR-0024).
+     */
+    private fun closePreviousRate(
+        branchId: UUID,
+        sessionType: SessionType,
+    ): SessionBaseRate? {
+        val previous =
+            SessionBaseRateTable
+                .selectAll()
+                .where {
+                    (SessionBaseRateTable.branchId eq branchId) and
+                        (SessionBaseRateTable.sessionType eq sessionType) and
+                        (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
+                }.singleOrNull()
+                ?.toSessionBaseRate()
+                ?: return null
+        SessionBaseRateTable
+            .update({
+                (SessionBaseRateTable.branchId eq branchId) and
+                    (SessionBaseRateTable.sessionType eq sessionType) and
+                    (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
+            }) {
+                it[SessionBaseRateTable.effectiveUntil] = CurrentTimestampWithTimeZone
+            }
+        return previous
+    }
 
     @Suppress("ComplexCondition")
     private fun validateRetryOwnership(
