@@ -146,6 +146,19 @@ iosApp ──────imports────> shared (as KMP framework)
 ### Database (`database/`)
 - HikariCP config, Flyway initialization, connection management
 
+### Enforced boundaries (#324)
+
+These dependency rules are executable, not prose: `BackendFeatureBoundaryArchitectureTest`
+(backend test source set) fails CI on violations and pins allowed/forbidden shapes.
+
+- `api/**` stays an HTTP adapter — no Exposed imports, transaction blocks, persistence-table
+  imports, or raw-SQL exec (the health probe lives in `database/DatabaseHealth`).
+- In `service/**`, persistence-table knowledge appears only inside `internal object` bodies
+  (`*Audit` seams, `*Repository` stores) — public command/service surfaces stay table-free;
+  feature-local stores are declared `internal`.
+- Audit writes are owned by feature seams/commands inside the command's transaction — never
+  opened from `repository/**`; the retired `auditFn` callback stays gone.
+
 ---
 
 ## 8. Deep Module Map

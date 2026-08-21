@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.ExpenseCategory
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.Expense
@@ -48,14 +49,9 @@ object ExpenseService {
                     ),
                 )
             if (result.created) {
-                AuditLogRepository.recordInsert(
-                    tableName = ExpenseTable.tableName,
-                    recordId = result.expense.id,
-                    changedBy = callerId,
-                    branchId = branchDay.branchId,
-                    fields = ExpenseTable.auditFields(result.expense),
-                    isFlagged = isRemitted,
-                    reason = reason,
+                ExpenseAudit.inserted(
+                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    result.expense,
                 )
             }
             result.expense
@@ -88,16 +84,10 @@ object ExpenseService {
             val after =
                 ExpenseRepository.updateInTransaction(expenseId, amount, category, notes, expectedVersion)
 
-            AuditLogRepository.recordUpdate(
-                tableName = ExpenseTable.tableName,
-                recordId = expenseId,
-                before = before,
-                after = after,
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                isFlagged = isRemitted,
-                reason = reason,
-                auditFields = ExpenseTable::auditFields,
+            ExpenseAudit.updated(
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                before,
+                after,
             )
             after
         }
@@ -119,15 +109,9 @@ object ExpenseService {
                 ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason)
                     ?: throw NotFoundException("Expense not found")
 
-            AuditLogRepository.recordDelete(
-                tableName = ExpenseTable.tableName,
-                recordId = expenseId,
-                before = before,
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                reason = reason,
-                isFlagged = isRemitted,
-                auditFields = ExpenseTable::auditFields,
+            ExpenseAudit.deleted(
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                before,
             )
             after
         }
@@ -162,16 +146,10 @@ object ExpenseService {
                 ExpenseRepository.restoreInTransaction(expenseId)
                     ?: throw ValidationException("Expense is not deleted")
 
-            AuditLogRepository.recordUpdate(
-                tableName = ExpenseTable.tableName,
-                recordId = expenseId,
-                before = before,
-                after = after,
-                changedBy = callerId,
-                branchId = branchDay.branchId,
-                isFlagged = isRemitted,
-                reason = reason,
-                auditFields = ExpenseTable::auditFields,
+            ExpenseAudit.updated(
+                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                before,
+                after,
             )
             after
         }
@@ -185,4 +163,49 @@ object ExpenseService {
 
         return ExpenseRepository.findByBranchDayId(branchDayId)
     }
+}
+
+internal object ExpenseAudit {
+    fun inserted(
+        context: AuditContext,
+        expense: Expense,
+    ) = AuditLogRepository.recordInsert(
+        tableName = ExpenseTable.tableName,
+        recordId = expense.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = ExpenseTable.auditFields(expense),
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+    )
+
+    fun updated(
+        context: AuditContext,
+        before: Expense,
+        after: Expense,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = ExpenseTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+        auditFields = ExpenseTable::auditFields,
+    )
+
+    fun deleted(
+        context: AuditContext,
+        before: Expense,
+    ) = AuditLogRepository.recordDelete(
+        tableName = ExpenseTable.tableName,
+        recordId = before.id,
+        before = before,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        reason = context.reason,
+        isFlagged = context.isFlagged,
+        auditFields = ExpenseTable::auditFields,
+    )
 }

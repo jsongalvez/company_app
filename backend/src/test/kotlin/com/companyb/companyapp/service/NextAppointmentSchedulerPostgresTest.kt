@@ -230,7 +230,7 @@ class NextAppointmentSchedulerPostgresTest : BasePostgresTest() {
         insertUserBranchAssignment(coordinatorId, otherBranchId)
 
         val coordinatorsByBranch =
-            NextAppointmentScheduler.findActiveCoordinatorsForBranches(listOf(branchId, otherBranchId))
+            NextAppointmentRepository.findActiveCoordinatorsForBranches(listOf(branchId, otherBranchId))
 
         assertEquals(listOf(coordinatorId), coordinatorsByBranch[branchId])
         assertEquals(null, coordinatorsByBranch[otherBranchId])

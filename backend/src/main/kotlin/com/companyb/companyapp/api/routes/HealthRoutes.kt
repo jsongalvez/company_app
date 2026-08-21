@@ -1,12 +1,12 @@
 package com.companyb.companyapp.api.routes
 
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.database.DatabaseHealth
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
 import io.javalin.openapi.OpenApiResponse
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 @OpenApi(
     path = "/health",
@@ -28,10 +28,5 @@ object HealthRoutes {
         }
     }
 
-    internal fun isDatabaseReachable(): Boolean =
-        runCatching {
-            transaction {
-                exec("SELECT 1")
-            }
-        }.isSuccess
+    internal fun isDatabaseReachable(): Boolean = DatabaseHealth.isReachable()
 }

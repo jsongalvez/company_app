@@ -1,46 +1,26 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.domain.CapabilityContextType
-import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
-import com.companyb.companyapp.repository.model.BranchDayTable
-import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.NotificationCreateParams
-import com.companyb.companyapp.repository.model.SessionTable
-import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.v1.core.JoinType
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.between
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.innerJoin
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.leftJoin
-import org.jetbrains.exposed.v1.jdbc.select
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZonedDateTime
-import java.util.UUID
 
+/**
+ * Daily next-appointment notification sweep (#322 time ownership, #324 boundaries). The run
+ * date is the current **operational** date from the Branch Day authority — never a locally
+ * derived calendar date; queries live behind [NextAppointmentRepository], this scheduler owns
+ * no persistence or time policy of its own.
+ */
 object NextAppointmentScheduler {
     private val logger = KotlinLogging.logger {}
     private const val RUN_HOUR = 7
     private const val RUN_MINUTE = 0
     private const val DAYS_AHEAD = 2L
-
-    data class UpcomingSession(
-        val sessionId: UUID,
-        val branchId: UUID,
-    )
 
     fun targetDate(now: LocalDate): LocalDate = now.plusDays(DAYS_AHEAD)
 
@@ -52,15 +32,10 @@ object NextAppointmentScheduler {
         return Duration.between(now, nextRun).toMillis()
     }
 
-    /**
-     * Runs the daily notification sweep. The run date is the current **operational** date from
-     * the Branch Day authority (#322) — never a locally derived calendar date — and the zone
-     * comes from [BranchDayService.manilaZone]; this scheduler owns no time policy of its own.
-     */
     fun run(clock: Clock = Clock.system(BranchDayService.manilaZone)): Int {
         val now = ZonedDateTime.now(clock)
         val target = targetDate(BranchDayService.currentOperationalDate(now.toInstant()))
-        val sessions = findUpcomingSessions(target)
+        val sessions = NextAppointmentRepository.findUpcomingSessions(target)
 
         if (sessions.isEmpty()) {
             logger.info { "[SCHEDULER] No upcoming appointment sessions for $target" }
@@ -68,7 +43,8 @@ object NextAppointmentScheduler {
         }
 
         val branchIds = sessions.map { it.branchId }.distinct()
-        val coordinatorsByBranch = findActiveCoordinatorsForBranches(branchIds)
+        val coordinatorsByBranch =
+            NextAppointmentRepository.findActiveCoordinatorsForBranches(branchIds)
 
         val message = "You have an upcoming appointment on $target"
 
@@ -91,55 +67,4 @@ object NextAppointmentScheduler {
         }
         return created
     }
-
-    internal fun findUpcomingSessions(targetDate: LocalDate): List<UpcomingSession> =
-        transaction {
-            SessionTable
-                .leftJoin(
-                    ActiveSessionVoidsView,
-                    { SessionTable.id },
-                    { ActiveSessionVoidsView.sessionId },
-                ).join(
-                    BranchDayTable,
-                    JoinType.INNER,
-                    SessionTable.branchDayId,
-                    BranchDayTable.id,
-                ).selectAll()
-                .where {
-                    (SessionTable.sessionStatus eq SessionStatus.COMPLETED) and
-                        (SessionTable.nextAppointmentDate eq targetDate) and
-                        (ActiveSessionVoidsView.sessionId.isNull())
-                }.map { row ->
-                    UpcomingSession(
-                        sessionId = row[SessionTable.id],
-                        branchId = row[BranchDayTable.branchId],
-                    )
-                }
-        }
-
-    internal fun findActiveCoordinatorsForBranches(branchIds: Collection<UUID>): Map<UUID, List<UUID>> =
-        transaction {
-            UserBranchAssignmentTable
-                .innerJoin(
-                    ActiveUserCapabilitiesView,
-                    { UserBranchAssignmentTable.userId },
-                    { ActiveUserCapabilitiesView.userId },
-                ).innerJoin(
-                    CapabilityTable,
-                    { ActiveUserCapabilitiesView.capabilityId },
-                    { CapabilityTable.id },
-                ).select(
-                    UserBranchAssignmentTable.userId,
-                    UserBranchAssignmentTable.branchId,
-                ).where {
-                    (UserBranchAssignmentTable.branchId inList branchIds) and
-                        (UserBranchAssignmentTable.endedAt.isNull()) and
-                        (ActiveUserCapabilitiesView.contextType eq CapabilityContextType.BRANCH) and
-                        (ActiveUserCapabilitiesView.contextId eq UserBranchAssignmentTable.branchId) and
-                        (CapabilityTable.code eq CapabilityCodes.RECEIVE_NEXT_APPOINTMENT_ALERTS)
-                }.withDistinct()
-                .map { row ->
-                    row[UserBranchAssignmentTable.branchId] to row[UserBranchAssignmentTable.userId]
-                }.groupBy({ it.first }, { it.second })
-        }
 }

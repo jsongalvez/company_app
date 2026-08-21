@@ -3,6 +3,7 @@ package com.companyb.companyapp.service.attendance
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -65,14 +66,10 @@ object AttendanceService {
             val (attendance, wasClockedOut) = AttendanceRepository.clockOutInTransaction(attendanceId)
 
             if (wasClockedOut) {
-                AuditLogRepository.recordUpdate(
-                    tableName = AttendanceTable.tableName,
-                    recordId = attendance.id,
-                    before = existing,
-                    after = attendance,
-                    changedBy = callerId,
-                    branchId = branchId,
-                    auditFields = AttendanceTable::auditFields,
+                AttendanceAudit.updated(
+                    AuditContext(changedBy = callerId, branchId = branchId),
+                    existing,
+                    attendance,
                 )
             }
 
@@ -129,12 +126,9 @@ object AttendanceService {
                 )
 
             if (wasCreated) {
-                AuditLogRepository.recordInsert(
-                    tableName = AttendanceTable.tableName,
-                    recordId = attendance.id,
-                    changedBy = callerId,
-                    branchId = branchId,
-                    fields = AttendanceTable.auditFields(attendance),
+                AttendanceAudit.inserted(
+                    AuditContext(changedBy = callerId, branchId = branchId),
+                    attendance,
                 )
             }
 
@@ -164,3 +158,30 @@ data class AttendanceServiceResult(
 }
 
 private typealias Attendance = com.companyb.companyapp.repository.model.Attendance
+
+internal object AttendanceAudit {
+    fun inserted(
+        context: AuditContext,
+        attendance: Attendance,
+    ) = AuditLogRepository.recordInsert(
+        tableName = AttendanceTable.tableName,
+        recordId = attendance.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = AttendanceTable.auditFields(attendance),
+    )
+
+    fun updated(
+        context: AuditContext,
+        before: Attendance,
+        after: Attendance,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = AttendanceTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        auditFields = AttendanceTable::auditFields,
+    )
+}
