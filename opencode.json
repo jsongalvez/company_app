@@ -4,9 +4,6 @@
     "/home/jayson/.config/opencode/skills/ponytail.mjs",
     "/home/jayson/.config/opencode/plugins/caveman/plugin.js"
   ],
-  "skills": {
-    "paths": ["skill"]
-  },
   "server": {
     "hostname": "0.0.0.0",
     "port": 8080
