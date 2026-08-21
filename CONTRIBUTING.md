@@ -11,7 +11,7 @@ Do not push directly to `master` as a substitute for review.
 2. Request review and resolve review comments before merge.
 3. Wait for every applicable CI check to pass. Backend, shared, and Compose
    changes use `quality`; API contract changes use `openapi`. JMH runs on
-   pull requests and backend-touching pushes or merges to `master`; it is not a
+   backend-touching pushes or merges to `master` plus manual dispatch; it is not a
    local hook gate.
 4. Merge normally into `master`; do not rewrite history, force-push, squash, or
    drop commits from a long-lived integration branch unless policy is explicitly
@@ -19,19 +19,16 @@ Do not push directly to `master` as a substitute for review.
 
 ## Gate Classification
 
-Pre-commit provides fast local feedback: staged Kotlin formatting, changed-module
-compile/static checks, and staged shell syntax checks. It does not require Postgres or
-run full tests. CI owns complete test, contract, integration, target-matrix, and
-test-data cleanliness checks.
+Git hooks are bookkeeping, not build pipelines (map #329). Pre-commit formats staged
+Kotlin with the standalone ktlint CLI (warn + skip when missing) and syntax-checks
+staged shell files. Pre-push runs no gates. Neither hook starts Gradle, Postgres, the
+backend, k6, JMH, OpenAPI generation, or Compose compilation, and neither queries the
+database. CI owns complete test, contract, integration, target-matrix, and test-data
+cleanliness checks, and the active agent never polls it — failures are consumed by the
+next session.
 
-Docs-only changes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`,
-`CONTEXT.md`, `README*.md`, `CONTRIBUTING.md`, and `CHANGELOG.md`) skip local
-pre-push code, contract, Compose, startup, and k6 gates. They still use the
-pull-request workflow by default.
-
-Mixed or gate-sensitive pushes run complete local pre-push checks, including
-test-data cleanliness, OpenAPI, Compose desktop/Android compilation, and k6
-against the disposable test database.
+While implementing, run the smallest warm Gradle/test task that answers the current
+question; do not rerun broad suites because commit or push is next.
 
 ## Emergency Or AFK Work
 

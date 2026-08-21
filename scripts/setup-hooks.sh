@@ -16,8 +16,8 @@ fi
 log setup-hooks "Git hooks installed from .githooks/"
 
 # Install ktlint CLI (needed by pre-commit for staged-only formatting).
-# The hook falls back to project-wide ./gradlew ktlintFormat if unavailable,
-# but scoped formatting is faster and avoids sweeping unrelated changes.
+# Hooks never run Gradle (map #329), so without this CLI the hook warns and
+# skips Kotlin formatting; asynchronous ktlintCheck in CI still catches debt.
 KTLINT_VERSION="1.8.0"
 KTLINT_DIR="$HOME/.cache/company-app/ktlint"
 KTLINT_PATH="$KTLINT_DIR/$KTLINT_VERSION"
@@ -31,5 +31,5 @@ elif command -v java &>/dev/null; then
     echo "ktlint $KTLINT_VERSION cached at $KTLINT_PATH."
 else
     echo "WARNING: java not found — cannot run ktlint standalone jar."
-    echo "Pre-commit will fall back to project-wide ktlintFormat."
+    echo "Pre-commit will warn and skip Kotlin formatting; CI ktlintCheck still applies."
 fi

@@ -1,8 +1,8 @@
 #!/bin/bash
 # Truncate all user-data tables in the test database, preserving seed tables
 # (role, capability, role_capability) and Flyway metadata.
-# Run after k6 load tests to restore the cleanliness invariant required by
-# scripts/check-test-cleanliness.sh and the pre-commit/pre-push hooks.
+# Run after k6 load tests to restore the cleanliness invariant verified by
+# scripts/check-test-cleanliness.sh (asynchronous verification, map #329).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

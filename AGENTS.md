@@ -124,8 +124,8 @@ Run `bash scripts/setup-hooks.sh` after cloning to install `.githooks`.
 
 After `bash scripts/setup-hooks.sh`:
 
-- **pre-commit** runs ktlintFormat (scoped to staged `.kt`/`.kts` files; falls back to project-wide if `ktlint` CLI not on PATH), then `:backend:detekt :backend:ktlintCheck :backend:test`, test-data cleanliness check, `:shared:compileKotlinJvm`, and verifies Postgres is reachable. Commits are blocked if any step fails.
-- **pre-push** classifies the complete outgoing tree. Pushes containing only approved documentation files (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`, `README*.md`, `CONTRIBUTING.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates; mixed or gate-sensitive pushes run all gates. JMH no longer runs on push — it lives in CI (`.github/workflows/jmh.yml`, push-only: backend-touching master pushes + manual `workflow_dispatch`; re-runs once on a suspected regression, fails only on a confirmed two-run regression). Gate duration is variable — run pre-commit and gate-sensitive `git push` tool calls with timeout `1200000` ms (20 minutes) or higher; never use short defaults.
+- **pre-commit** formats staged `.kt`/`.kts` files with the standalone ktlint CLI (warn + skip when missing — never a Gradle fallback) and runs `bash -n` on staged shell files. It never starts Gradle, Postgres, the backend, k6, JMH, or tests; normal overhead is well under 5 seconds. Compile/static/test coverage is targeted, warm, agent-invoked validation plus asynchronous CI.
+- **pre-push** is bookkeeping only: no Gradle, DB, backend startup, OpenAPI build, Compose compile, k6, JMH, Detekt, `ktlintCheck`, warning-as-error compile, or test execution. Full validation runs asynchronously in CI; push network transfer dominates. Run hook and `git push` tool calls with normal short timeouts.
 
 ## Configuration details
 

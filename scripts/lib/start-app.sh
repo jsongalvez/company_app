@@ -1,6 +1,8 @@
 #!/bin/bash
 # Shared app-boot lifecycle module.
-# Source after common.sh. Callers must set LOG_TAG (e.g. LOG_TAG=pre-commit).
+# Source after common.sh. Callers must set LOG_TAG (e.g. LOG_TAG=pre-push).
+# Git hooks no longer source this module (map #329: hooks never start Gradle,
+# the backend, or Postgres); it remains for manual k6/integration workflows.
 #
 #   source "$ROOT_DIR/scripts/lib/common.sh"
 #   source "$ROOT_DIR/scripts/lib/start-app.sh"

@@ -21,23 +21,27 @@ Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`,
 
 ## Quality gate
 
-The pre-commit hook (`.githooks/pre-commit`) is intentionally fast: it formats staged
-Kotlin, checks staged shell syntax, and runs compile/static checks for changed modules.
-It does not access Postgres or run full tests, OpenAPI verification, Compose target
-matrices, or test-data cleanliness. Those integration checks run in CI on the pull
-request and merge path.
+Git hooks are bookkeeping, not build pipelines (map #329). Pre-commit formats staged
+Kotlin with the standalone ktlint CLI and syntax-checks staged shell files; pre-push
+runs no gates. Neither hook starts Gradle, Postgres, the backend, k6, JMH, OpenAPI
+generation, or Compose compilation, and neither queries the database.
 
-For the complete local quality gate, run:
+Compile, static analysis, tests, contracts, and DB checks are **targeted and
+agent-invoked** while implementing — run the smallest warm task that answers the
+current question. Full validation runs asynchronously in CI; the active session never
+waits for it. The anti-slop Detekt rule policy (`config/detekt/detekt.yml` +
+`detekt-anti-slop.yml`) is unchanged; only its mandatory local execution schedule is
+retired.
+
+For a complete local sweep when explicitly wanted (e.g. verifying a broad refactor),
+run:
 
 ```bash
 ./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest :shared:detektIosArm64Main :shared:detektIosArm64Test :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test :composeApp:detektDesktopTest :composeApp:detektAndroidDebugUnitTest :composeApp:detektIosArm64Test :composeApp:detektIosSimulatorArm64Test :composeApp:desktopTest :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main :composeApp:detektIosSimulatorArm64Main :shared:compileKotlinJvm :shared:jvmTest -PwarningsAsErrors=true
 bash scripts/check-test-cleanliness.sh
 ```
 
-A pre-push hook (`.githooks/pre-push`) classifies the complete outgoing tree. Approved
-documentation-only pushes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`,
-`README*.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates;
-mixed or gate-sensitive pushes run all gates. **JMH no longer runs in local hooks** — it lives
+**JMH does not run in local hooks** — it lives
 in CI (`.github/workflows/jmh.yml`, push-only: master pushes touching backend code plus manual
 `workflow_dispatch`; no pull_request trigger, per the #267 policy): a single failing baseline
 comparison re-runs once and warns; the check fails only when the regression reproduces across
@@ -48,11 +52,8 @@ after a runner baseline shift, dispatch the workflow several times and recompute
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
-The pre-commit hook's changed-module checks can be run manually by staging the files;
-CI remains authoritative for full validation.
-
-The pre-commit quality path passes `-PwarningsAsErrors=true`, making Kotlin and Java compiler
-warnings fail the local gate. Warnings must be fixed, not suppressed or baselined.
+`-PwarningsAsErrors=true` is available for targeted local compiles and stays on in
+asynchronous CI. Warnings must be fixed, not suppressed or baselined.
 
 Postgres test database is shared by all backend test processes. Clean it with
 `bash scripts/clean-test-db.sh` before rerunning contaminated tests, then run the
@@ -460,8 +461,9 @@ All k6 scripts live in `tests/k6/`. `helpers.js` is the single source of truth f
 thresholds, and auth utilities.
 
 k6 tests MUST run against the **test database** (`company_app_test`), not the main DB.
-The test DB is designed for throwaway use and is automatically cleaned after each run
-by the pre-push hook.
+The test DB is designed for throwaway use; clean it after each run with
+`bash scripts/clean-test-db.sh` to preserve the cleanliness invariant that
+`scripts/check-test-cleanliness.sh` verifies.
 
 **Quick start — two terminals:**
 
@@ -493,8 +495,8 @@ After the k6 run, clean the test DB to preserve the cleanliness invariant:
 bash scripts/clean-test-db.sh
 ```
 
-The pre-push hook (`.githooks/pre-push`) automates this entire workflow: it starts the app on
-the test DB with seeding enabled, runs the k6 baseline, cleans the test DB, and stops the app.
+Run this workflow manually when load-testing is the ticket's question; hooks and CI do
+not start the backend or run k6 for you.
 
 The baseline uses `thresholdProfiles.baseline` from `tests/k6/helpers.js`. Edit the named profile
 there to adjust thresholds; suites consume profiles and do not own threshold values:
