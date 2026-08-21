@@ -252,6 +252,17 @@ object SessionRoutes {
             )
         }
 
+        // #304 — the DELETE child path needs its own gate: Javalin path filters match
+        // exact literals, so the parent /concerns filter never fires for /concerns/{concernId}.
+        config.routes.before(ApiRoutes.SESSION_CONCERN_PATH) { context ->
+            val sessionId = context.pathParamAsUuid("sessionId")
+            CapabilityFilter.requireBranchOrBranchDayCapabilityForSession(
+                context,
+                sessionId,
+                CapabilityCodes.EDIT_BRANCH_DATA,
+            )
+        }
+
         config.routes.before(ApiRoutes.CONCERNS) { context ->
             CapabilityFilter.requireGlobalCapability(
                 context,
