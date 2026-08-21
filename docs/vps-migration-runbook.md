@@ -11,7 +11,7 @@ Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the l
 | `opencode2` CLI (`@opencode-ai/cli@0.0.0-next-17444`) | daemon's `api` calls + spawned sessions | install via npm (pinned) |
 | opencode service (`opencode2 serve --service`) | daemon's local API endpoint (`$OC_BIN api …`) | start once after install |
 | `~/.config/opencode/` | skills (wayfinder/implement/…), caveman plugin, `service.json` password, cli.json | copy whole dir |
-| `~/.local/share/opencode/auth.json` | provider API keys (`opencode-go` = the chain's `gpt-5.6-luna`) | copy (126 B) — do NOT copy the 2.1 GB `opencode.db` |
+| `~/.local/share/opencode/auth.json` | provider API keys (`opencode` / OpenCode Zen = the chain's `Ox Alpha Free`) | copy (126 B) — do NOT copy the 2.1 GB `opencode.db` |
 | `gh` CLI + auth | issue tracker: `gh issue create/view/close/edit`, `gh api …/sub_issues` | install + `gh auth login` (token needs `repo` scope) |
 | JDK 21 + Gradle 8.14.3 wrapper | build/test gates | `openjdk-21-jdk`; wrapper downloads Gradle |
 | Android SDK (cmdline-tools, platform 36, build-tools 36.0.0) | Android compile + unit tests (targeted/CI validation) | `sdkmanager` (wizard stage); on aarch64 first add qemu-user-static binfmt + amd64 multiarch libs — AGP's aapt2 is x86_64-only |

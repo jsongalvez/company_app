@@ -279,7 +279,7 @@ spawn_session() {
   fi
   local model_ref="null" pid model_id model_provider
   if [ -n "${WAYFINDER_MODEL:-}" ]; then
-    # Split on the FIRST slash only: ids may contain slashes (openrouter/stealth/ox-alpha).
+    # Split on the FIRST slash only: model ids may contain slashes.
     model_id="${WAYFINDER_MODEL#*/}"
     model_provider=""
     [[ "$WAYFINDER_MODEL" == */* ]] && model_provider="${WAYFINDER_MODEL%%/*}"
@@ -287,7 +287,7 @@ spawn_session() {
     # the whole script BEFORE the guard (silent chain death — no FATAL log, no push).
     # /api/model has grown past 64KB and `opencode2 api` truncates piped stdout at 64KB,
     # so jq always saw malformed JSON and the lookup always failed (the 2026-08-21
-    # bootstrap FATAL on openrouter/stealth/ox-alpha). Buffer through a temp file.
+    # bootstrap FATAL on a configured model. Buffer through a temp file.
     local models_json
     models_json="$(mktemp)"
     api get /api/model > "$models_json" 2>/dev/null || true
