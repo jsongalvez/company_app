@@ -1,0 +1,49 @@
+name: repair
+
+# Next-session CI reconciliation (#333): the active agent never polls CI; instead
+# this cheap workflow records the verification state of the latest integrated
+# master commit. A red repair run is the durable failure signal a later session
+# picks up as corrective priority; green runs cost the agent zero waiting time.
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record latest master commit for next-session reconciliation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha="${GITHUB_SHA}"
+          echo "Latest integrated commit: ${sha}"
+          gh api repos/${GITHUB_REPOSITORY}/commits/${sha}/check-runs --paginate \
+            -F per_page=100 \
+            --jq '.check_runs | map(select(.name != "reconcile"))
+                  | group_by(.name) | map(.[0])
+                  | map({(.name): .conclusion}) | add // {}' > /tmp/checks.json
+          cat /tmp/checks.json
+
+          failed=$(python3 -c "
+          import json,sys
+          checks = json.load(open('/tmp/checks.json'))
+          bad = {k: v for k, v in checks.items() if v not in ('success', 'skipping', 'neutral', None)}
+          print(json.dumps(bad))")
+          if [ "${failed}" != "{}" ]; then
+            echo "::error::CI failures pending repair on ${sha}: ${failed}"
+            exit 1
+          fi

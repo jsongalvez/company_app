@@ -161,7 +161,24 @@ See `composeApp/AGENTS.md` for UI conventions, logging, ViewModel patterns, and 
 
 ## Performance
 
-JMH benchmarks run in CI (`.github/workflows/jmh.yml`, push-only: master pushes touching backend code plus manual `workflow_dispatch` — no pull_request trigger, per the #267 policy) on backend-touching pushes and merge to master. Regressions exceeding the per-benchmark threshold (default 20%; 40% for noise-sensitive nanosecond-scale benchmarks like `BranchDayBenchmark.*`) from `backend/jmh-baselines.md` are flagged; the check fails only when a regression reproduces across two runs. Baselines in `backend/jmh-baselines.md` are per-benchmark medians of repeated clean CI runs — shared-runner scores vary ~1.6× run-to-run, so never recalibrate from a single run; after any CI-runner baseline shift, dispatch the workflow several times and recompute the medians. See `backend/AGENTS.md` for the full performance workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
+JMH is a manual diagnostic (`workflow_dispatch` on `.github/workflows/jmh.yml`), never an
+integration gate: ordinary pushes launch nothing, no session waits for it, and a JMH result
+cannot block a ticket. Regressions exceeding the per-benchmark threshold (default 20%; 40% for
+noise-sensitive nanosecond-scale benchmarks like `BranchDayBenchmark.*`) from
+`backend/jmh-baselines.md` are flagged only when someone actually runs it; the check fails only
+when a regression reproduces across two runs. Baselines in `backend/jmh-baselines.md` are
+per-benchmark medians of repeated clean CI runs — shared-runner scores vary ~1.6× run-to-run, so
+never recalibrate from a single run; after any CI-runner baseline shift, dispatch the workflow
+several times and recompute the medians. See `backend/AGENTS.md` for the full performance
+workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
+
+CI is asynchronous and budgeted (#333): the active agent never polls it, and failures surface
+as a red [repair workflow](.github/workflows/repair.yml) on master — next-session corrective
+priority, not a synchronous gate. GitHub-hosted Actions minutes are a constrained monthly
+budget: the hosted set is capped at **≤300 minutes/month** (quality ≤240, repair ≤5, jmh ≤55
+manual-dispatch diagnostics), and hosted schedules beyond this set need a measured reserved
+slice of that cap before existing. Ordinary successful tickets should consume near-zero hosted
+minutes.
 
 ## Ticket tracking
 

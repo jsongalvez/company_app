@@ -15,15 +15,10 @@ name: jmh
 # A regression failing one run re-runs once and warns; the check fails only
 # when the regression reproduces across two runs (runner noise doesn't fail).
 
+# Manual diagnostic only (#333/#334): JMH is not an integration gate. Run it via
+# workflow_dispatch when a performance question actually exists; ordinary pushes
+# launch nothing and no Wayfinder session waits for or is blocked by JMH results.
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'backend/**'
-      - 'scripts/check-baselines.sh'
-      - 'backend/jmh-baselines.md'
-      - '.github/workflows/jmh.yml'
   workflow_dispatch:
 
 permissions:

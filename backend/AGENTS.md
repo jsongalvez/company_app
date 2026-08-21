@@ -69,14 +69,14 @@ Opt-in broad sweep (explicitly wanted, e.g. verifying a wide refactor):
 ./gradlew :backend:detekt :backend:test :shared:jvmTest :composeApp:desktopTest -PwarningsAsErrors=true
 ```
 
-**JMH does not run in local hooks** — it lives
-in CI (`.github/workflows/jmh.yml`, push-only: master pushes touching backend code plus manual
-`workflow_dispatch`; no pull_request trigger, per the #267 policy): a single failing baseline
-comparison re-runs once and warns; the check fails only when the regression reproduces across
-two runs. CI-runner scores are noisy across runs (shared-runner CPU lots vary ~1.6×), and
-`backend/jmh-baselines.md` holds the per-benchmark **medians of repeated clean CI runs** —
-after a runner baseline shift, dispatch the workflow several times and recompute the medians
-(see the workflow's comment and the baseline file's header).
+**JMH does not run in local hooks and does not run automatically in CI** — it is a manual
+diagnostic (`workflow_dispatch` on `.github/workflows/jmh.yml`, #333/#334): dispatch it when a
+performance question actually exists. A single failing baseline comparison re-runs once and
+warns; the check fails only when the regression reproduces across two runs. CI-runner scores
+are noisy across runs (shared-runner CPU lots vary ~1.6×), and `backend/jmh-baselines.md` holds
+the per-benchmark **medians of repeated clean CI runs** — after a runner baseline shift, dispatch
+the workflow several times and recompute the medians (see the workflow's comment and the
+baseline file's header).
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 
@@ -524,7 +524,8 @@ bash scripts/clean-test-db.sh
 ```
 
 Run this workflow manually when load-testing is the ticket's question; hooks and CI do
-not start the backend or run k6 for you.
+not start the backend or run k6 for you (#333/#335 — the hosted k6 workflow was removed, and
+broad/load suites are manual diagnostics).
 
 The baseline uses `thresholdProfiles.baseline` from `tests/k6/helpers.js`. Edit the named profile
 there to adjust thresholds; suites consume profiles and do not own threshold values:
