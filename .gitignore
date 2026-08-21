@@ -52,3 +52,5 @@ logs/
 .wayfinder-loop.log
 .wayfinder-vps.env
 .wayfinder-loop.run.log
+# ephemeral wayfinder handoff packets (map #329 #336) — never committed
+.wayfinder/

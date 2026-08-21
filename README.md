@@ -48,10 +48,10 @@ gate policy.
 
 ## Wayfinder Loop (Automated Wayfinder Chain)
 
-Automates the wayfinder session chain: watches `docs/agents/` for new `wayfinder-*-handoff.md` files, waits for the producing session and its child sessions to exit, then spawns one fresh zero-context opencode2 session that reads the handoff and drives the next session per its instructions. A lock prevents duplicate daemons. Sessions are one-ticket-per-session, claim-first, per the handoff docs.
+Automates the wayfinder session chain: watches `.wayfinder/handoffs/` (gitignored runtime packets — never committed) for new `wayfinder-*-handoff.md` files, waits for the producing session and its child sessions to exit, then spawns one fresh zero-context opencode2 session that reads the packet and drives the next session per its instructions. A lock prevents duplicate daemons. Sessions are one-ticket-per-session, claim-first, per the handoff docs.
 
 ```bash
-# First start (seed with the latest handoff and spawn immediately)
+# First start (seed with the latest handoff packet and spawn immediately)
 ./scripts/wayfinder-loop.sh --bootstrap wayfinder-163-handoff.md
 
 # Normal start / restart (resumes supervision of the running session)
@@ -110,10 +110,11 @@ Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` 
 - **Stalled session**: if a session stops producing messages for ~9 minutes, the daemon asks it to continue where it left off (same session, same context) — up to 2 attempts. No work is touched or reverted.
 - **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./scripts/wayfinder-loop.sh --retry`.
 - **opencode2 API outage**: daemon keeps retrying and notifies once if the service is unreachable (`opencode2 service status` to check).
-- **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon auto-checkpoints completed-session work when possible; the active agent owns local recovery and must leave the handoff committed before completion. In-place session resumes bypass this gate — they continue their own uncommitted work.
+- **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon **never stages or commits** — the owning agent cleans up its own work; a dirty tree pauses the chain with a notification until it's clean. In-place session resumes bypass this gate — they continue their own uncommitted work.
 - **Crash-safe state**: `.wayfinder-loop.state` records the active session id + retry counters; any restart resumes supervision in place.
 
 ### Runtime files
 
+- `.wayfinder/handoffs/` — ephemeral handoff packets (gitignored; never committed)
 - `.wayfinder-loop.state` — last processed handoff + active session id (gitignored)
 - `.wayfinder-loop.log` — daemon history (gitignored)

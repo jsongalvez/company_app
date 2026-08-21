@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # wayfinder-loop.sh — unattended wayfinder chain driver for opencode2.
 #
-# Watches docs/agents/ for new wayfinder-*-handoff.md files (the chain's
-# completion signal), spawns a fresh 0-context opencode2 session that reads
-# the newest handoff and drives the next session from the canonical map, and
-# notifies the human when the agent parks on a human decision or the chain breaks.
+# Watches .wayfinder/handoffs/ for new wayfinder-*-handoff.md files (the chain's
+# completion signal — gitignored runtime packets, never committed; map #329
+# ticket #336), spawns a fresh 0-context opencode2 session that reads the
+# newest packet and drives the next session from the canonical map, and
+# notifies the human when the agent parks on a human decision or the chain
+# breaks.
 #
 # Usage:
 #   wayfinder-loop.sh --bootstrap <doc>   first start: seed with <doc>, spawn immediately
@@ -19,7 +21,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-DOCS_DIR="$REPO/docs/agents"
+HANDOFF_DIR="$REPO/.wayfinder/handoffs"
 STATE_FILE="$REPO/.wayfinder-loop.state"
 LOG_FILE="$REPO/.wayfinder-loop.log"
 [ -f "$REPO/.wayfinder-loop.env" ] && set -a && . "$REPO/.wayfinder-loop.env" && set +a
@@ -56,7 +58,7 @@ exec 9>"$REPO/.wayfinder-loop.lock"
 flock -n 9 || die "another wayfinder-loop daemon is already running"
 
 handoff_docs() {
-  find "$DOCS_DIR" -maxdepth 1 -name 'wayfinder-*-handoff.md' -printf '%f\n' 2>/dev/null |
+  find "$HANDOFF_DIR" -maxdepth 1 -name 'wayfinder-*-handoff.md' -printf '%f\n' 2>/dev/null |
     sort -t- -k2,2n
 }
 
@@ -65,43 +67,21 @@ worktree_dirty() {
     grep -Ev '^[ MARC?]{2} \.wayfinder-loop\.(env|log|state|tmux\.log)$' || true
 }
 
-handoff_committed() {
-  git -C "$REPO" cat-file -e "HEAD:docs/agents/$1" 2>/dev/null
-}
-
-checkpoint_handoff() {
-  local doc="$1"
-  # spawn_session waits for a clean tree before creating each session. Any dirty
-  # path seen after that session writes its completion handoff belongs to the
-  # completed session, so checkpoint code and handoff together instead of
-  # pausing for manual cleanup.
-  if [ -n "$(worktree_dirty)" ]; then
-    git -C "$REPO" add --all -- \
-      ':!.wayfinder-loop.env' ':!.wayfinder-loop.log' ':!.wayfinder-loop.state' ':!.wayfinder-loop.tmux.log'
-    if git -C "$REPO" commit --no-verify -m "docs(wayfinder): checkpoint $doc" >/dev/null 2>&1; then
-      log "auto-committed completed session worktree for $doc"
-      return 0
-    fi
-    log "completed session checkpoint failed for $doc — waiting for manual recovery"
-  fi
-  return 1
-}
-
+# Spawn gate is a clean worktree only. The daemon never stages or commits —
+# a session's implementation commits belong to that session, and the handoff
+# packet is gitignored runtime state (map #329 ticket #336). A dirty tree
+# pauses the chain with a notification until the owning agent cleans up.
 wait_for_clean_handoff() {
-  local doc="$1" dirty notified=0
+  local dirty notified=0
   while :; do
     dirty="$(worktree_dirty)"
-    if [ -z "$dirty" ] && handoff_committed "$doc"; then
-      [ "$notified" -eq 0 ] || log "worktree clean and $doc committed — spawn resumes"
+    if [ -z "$dirty" ]; then
+      [ "$notified" -eq 0 ] || log "worktree clean — spawn resumes"
       return 0
     fi
-    if checkpoint_handoff "$doc"; then
-      continue
-    fi
     if [ "$notified" -eq 0 ]; then
-      log "spawn paused before session creation for $doc — commit handoff and clean worktree"
-      [ -z "$dirty" ] || log "dirty paths: $(printf '%s' "$dirty" | tr '\n' ' ')"
-      notify "wayfinder paused" "commit $doc and clean worktree before next session creation"
+      log "spawn paused before session creation for $1 — clean worktree to resume"
+      notify "wayfinder paused" "dirty worktree — clean it before next session creation"
       notified=1
     fi
     sleep 60
@@ -146,7 +126,7 @@ wait_for_session_exit() {
 # overwrite one of them. Basename-only tracking misses that successor handoff.
 seen_docs=""
 handoff_fingerprint() {
-  sha256sum "$DOCS_DIR/$1" | awk '{print $1}'
+  sha256sum "$HANDOFF_DIR/$1" | awk '{print $1}'
 }
 
 seed_seen_docs() {
@@ -170,7 +150,7 @@ normalize_seen_docs() {
       fp="${entry##*@}"
     else
       d="$entry"
-      [ -f "$DOCS_DIR/$d" ] || continue
+      [ -f "$HANDOFF_DIR/$d" ] || continue
       fp="$(handoff_fingerprint "$d")"
     fi
     if [ -n "$normalized" ]; then normalized="$normalized,$d@$fp"; else normalized="$d@$fp"; fi
@@ -333,7 +313,7 @@ spawn_session() {
   session_id="$sid"
   save_state
   local prompt
-  prompt="/wayfinder docs/agents/$doc"
+  prompt="/wayfinder .wayfinder/handoffs/$doc"
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
@@ -358,7 +338,7 @@ supervise_session() {
       retries=0
       save_state
       wait_for_session_exit
-      [ -f "$DOCS_DIR/$pending_doc" ] || die "pending handoff disappeared: $pending_doc"
+      [ -f "$HANDOFF_DIR/$pending_doc" ] || die "pending handoff disappeared: $pending_doc"
       log "session $session_id completed; next handoff: $pending_doc"
       notify "wayfinder session done" "handoff written: $pending_doc — starting next"
       last_doc="$pending_doc"
@@ -555,7 +535,7 @@ wait_for_doc() {
 }
 
 [ -n "$OC_BIN" ] || die "opencode2 binary not found"
-[ -d "$DOCS_DIR" ] || die "docs/agents not found at $DOCS_DIR"
+[ -d "$HANDOFF_DIR" ] || die ".wayfinder/handoffs not found at $HANDOFF_DIR (create it; handoff packets are gitignored runtime state)"
 command -v jq >/dev/null 2>&1 || die "jq not found"
 
 load_state
@@ -565,7 +545,7 @@ if [ "${1:-}" = "--bootstrap" ]; then
   [ $# -ge 2 ] || die "--bootstrap requires <doc> (e.g. wayfinder-162-handoff.md)"
   # Accept either a handoff basename or a path copied from a log/prompt.
   doc="${2##*/}"
-  [ -f "$DOCS_DIR/$doc" ] || die "bootstrap doc not found: $DOCS_DIR/$doc"
+  [ -f "$HANDOFF_DIR/$doc" ] || die "bootstrap doc not found: $HANDOFF_DIR/$doc"
   # Seed every existing handoff by content, not basename. A later session may
   # overwrite an existing numbered handoff filename.
   seen_docs="$(seed_seen_docs)"

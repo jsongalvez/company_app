@@ -215,16 +215,18 @@ env_val() { grep -E "^$1=" "$REPO/.env" 2>/dev/null | head -1 | cut -d= -f2- || 
 IPV4_RE='(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])'
 
 # latest_handoff EMPTY_ABORT_MSG — sets HANDOFF to the newest
-# docs/agents/wayfinder-<N>-handoff.md basename, or aborts. Validates the
+# .wayfinder/handoffs/wayfinder-<N>-handoff.md basename, or aborts. Validates the
 # filename shape (digits only) + regular-file — a malformed name must never
 # reach the remote shell quoted sites. Call as a plain statement, NEVER inside
 # $() — abort() inside a substitution is swallowed (loud-stop swallow class).
+# Packets are gitignored runtime state (map #329 #336): they travel to the VPS
+# by scp, never by git.
 latest_handoff() {
   local f
-  f="$(ls -td "$REPO"/docs/agents/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
+  f="$(ls -td "$REPO"/.wayfinder/handoffs/wayfinder-*-handoff.md 2>/dev/null | head -1 | xargs -n1 basename 2>/dev/null || true)"
   [[ -n "$f" ]] || abort "$1"
-  [[ "$f" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from docs/agents/wayfinder-<N>-handoff.md"
-  [[ -f "$REPO/docs/agents/$f" ]] || abort "handoff path is not a regular file — remove the directory and re-run"
+  [[ "$f" =~ ^wayfinder-[0-9]+-handoff\.md$ ]] || abort "unexpected handoff filename — the switch bootstraps from .wayfinder/handoffs/wayfinder-<N>-handoff.md"
+  [[ -f "$REPO/.wayfinder/handoffs/$f" ]] || abort "handoff path is not a regular file — remove the directory and re-run"
   HANDOFF="$f"
 }
 
@@ -889,12 +891,10 @@ fi
 if [[ "$MODE" == "full" ]]; then
 
 stage "Boundary check" 2
-latest_handoff "no handoff found in docs/agents/ — the switch bootstraps from one"
+latest_handoff "no handoff found in .wayfinder/handoffs/ — the switch bootstraps from one"
 note "latest handoff: $HANDOFF"
 git -C "$REPO" log --oneline -3
-UNCOMMITTED_HANDOFF="$(git -C "$REPO" status --porcelain 2>/dev/null | grep "wayfinder-" || true)"
-[[ -n "$UNCOMMITTED_HANDOFF" ]] && warn "the handoff is NOT committed yet — it must land before the switch"
-pause "Session N complete — handoff committed, and the next session number is the one that handoff names?"
+pause "Session N complete — handoff packet written, and the next session number is the one that handoff names?"
 
 stage "Kill the local daemon" 2
 warn "Rollback if anything fails below: tmux new -s wayfinder-loop && ./scripts/wayfinder-loop.sh"
@@ -912,8 +912,9 @@ else
   abort "Nothing was started; re-run the wizard later to resume (state is saved)"
 fi
 
-stage "Push the branch (carries the handoff)" 4
+stage "Push the branch (carries committed work)" 4
 # Push AFTER the kill: anything a session committed up to the boundary lands in this push.
+# The handoff packet does NOT ride the push — it is gitignored and travels by scp below.
 git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
@@ -946,11 +947,14 @@ else
   fi
   note "aligning the VPS checkout with origin (a local-only VPS commit from a partial run is discarded — origin is canonical)…"
   vps "cd ~/company_app && git fetch origin && (git switch -C '$DEPLOY_BRANCH' origin/'$DEPLOY_BRANCH' 2>/dev/null || git switch '$DEPLOY_BRANCH') && { git pull --ff-only || true; }" || abort "git alignment failed on the VPS — re-run resumes after the (dead) kill check"
-  vps "test -f ~/company_app/docs/agents/$HANDOFF" || abort "handoff not in the VPS checkout — the pull or push is stale"
-  LOCAL_SHA="$(sha256sum "$REPO/docs/agents/$HANDOFF" | cut -d' ' -f1)"
-  VPS_SHA="$(vps "sha256sum ~/company_app/docs/agents/$HANDOFF" 2>/dev/null | cut -d' ' -f1 || true)"
+  # Packets are gitignored — transfer the packet directly, then verify it byte-for-byte.
+  vps "mkdir -p ~/company_app/.wayfinder/handoffs" || abort "could not create .wayfinder/handoffs on the VPS"
+  vpsscp "$REPO/.wayfinder/handoffs/$HANDOFF" "$VPS_USER@$TS_IP":~/company_app/.wayfinder/handoffs/ || abort "packet scp failed"
+  vps "test -f ~/company_app/.wayfinder/handoffs/$HANDOFF" || abort "handoff not on the VPS — scp failed silently"
+  LOCAL_SHA="$(sha256sum "$REPO/.wayfinder/handoffs/$HANDOFF" | cut -d' ' -f1)"
+  VPS_SHA="$(vps "sha256sum ~/company_app/.wayfinder/handoffs/$HANDOFF" 2>/dev/null | cut -d' ' -f1 || true)"
   [[ -n "$VPS_SHA" ]] || abort "could not read the handoff checksum on the VPS (ssh failure?)"
-  [[ "$LOCAL_SHA" == "$VPS_SHA" ]] || abort "handoff on the VPS differs from local — the pull or push is stale"
+  [[ "$LOCAL_SHA" == "$VPS_SHA" ]] || abort "handoff on the VPS differs from local — scp was stale"
   note "✓ handoff present and identical on the VPS"
   vps "tmux new-session -d -s wayfinder-loop \"bash -lc 'cd ~/company_app && ./scripts/wayfinder-loop.sh --bootstrap $HANDOFF'\"" || abort "tmux start failed on the VPS"
 fi

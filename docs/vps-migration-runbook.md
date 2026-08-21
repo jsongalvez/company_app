@@ -133,21 +133,29 @@ Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#1
 
 ## Phase 3 — the session-boundary switch (CRITICAL — never two daemons)
 
-**The wizard's order differs from the runbook's original: kill FIRST, then push** (the push then carries anything a session committed up to the boundary; the handoff is re-derived after the kill and verified by sha256 on the VPS before the daemon starts).
+**The wizard's order differs from the runbook's original: kill FIRST, then push** (the push then carries anything a session committed up to the boundary; the handoff packet is re-derived after the kill, scp'd to the VPS, and verified by sha256 before the daemon starts).
 
-1. **Wait for session N to complete** — `docs/agents/wayfinder-N-handoff.md` appears and is committed. The next session number is the one that handoff names.
+1. **Wait for session N to complete** — the handoff packet `.wayfinder/handoffs/wayfinder-N-handoff.md` appears (gitignored runtime state — it is never committed; map #329 #336). The next session number is the one that handoff names.
 2. On **this machine**: stop the local daemon.
    ```bash
    tmux kill-session -t wayfinder-loop
    ```
    Confirm: `tmux ls` shows no `wayfinder-loop`; `ps aux | grep wayfinder-loop.sh` is empty. (The wizard confirm-gates this and aborts if declined.)
-3. On **this machine**: push the branch (carries the handoff):
+3. On **this machine**: push the branch (committed work only — the handoff packet is gitignored and travels by scp in step 4):
    ```bash
    git push origin ralph/company-app-full-build        # hooks are bookkeeping; push is network-only
    ```
-4. On the **VPS**: pull, then bootstrap the daemon on the handoff.
+4. On the **VPS**: pull, copy the packet by scp, then bootstrap the daemon on it.
    ```bash
    cd company_app && git pull
+   ```
+   From **this machine** (packet is gitignored — it does not ride the push):
+   ```bash
+   mkdir -p <vps>:company_app/.wayfinder/handoffs   # via ssh, or: ssh <vps> 'mkdir -p ~/company_app/.wayfinder/handoffs'
+   scp .wayfinder/handoffs/wayfinder-<N>-handoff.md <vps>:~/company_app/.wayfinder/handoffs/
+   ```
+   Then on the **VPS**:
+   ```bash
    tmux new -s wayfinder-loop
    ./scripts/wayfinder-loop.sh --bootstrap wayfinder-<N>-handoff.md
    ```
