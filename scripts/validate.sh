@@ -75,15 +75,23 @@ fi
 if [ $buildlogic -eq 1 ]; then
   # Build logic touches every module's configuration; compile one target per module.
   tasks+=(:backend:compileKotlin :shared:compileKotlinJvm :composeApp:compileKotlinDesktop)
-fi
-if [ $backend -eq 1 ]; then
-  tasks+=(:backend:compileKotlin)
-fi
-if [ $shared -eq 1 ]; then
-  tasks+=(:shared:compileKotlinJvm :shared:jvmTest)
-fi
-if [ $compose -eq 1 ]; then
-  tasks+=(:composeApp:compileKotlinDesktop :composeApp:desktopTest)
+elif [ ${#focused[@]} -gt 0 ]; then
+  # Focused --tests filters configure only Test tasks — a compile task in the same
+  # invocation fails ("Unknown command-line option '--tests'"). Test tasks compile
+  # their main + test source sets themselves, so they run alone here.
+  [ $backend -eq 1 ] && tasks+=(:backend:test)
+  [ $shared -eq 1 ] && tasks+=(:shared:jvmTest)
+  [ $compose -eq 1 ] && tasks+=(:composeApp:desktopTest)
+else
+  if [ $backend -eq 1 ]; then
+    tasks+=(:backend:compileKotlin)
+  fi
+  if [ $shared -eq 1 ]; then
+    tasks+=(:shared:compileKotlinJvm :shared:jvmTest)
+  fi
+  if [ $compose -eq 1 ]; then
+    tasks+=(:composeApp:compileKotlinDesktop :composeApp:desktopTest)
+  fi
 fi
 
 # Focused --tests filters ride the last test task in the invocation (Gradle ORs them).
