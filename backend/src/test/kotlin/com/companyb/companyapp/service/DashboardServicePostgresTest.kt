@@ -171,16 +171,18 @@ class DashboardServicePostgresTest : BasePostgresTest() {
             quantity = 1,
             commissionAmount = BigDecimal("50.00"),
         )
-        CommissionManualInclusionRepository.upsert(
-            CommissionManualInclusionUpsertParams(
-                id = TestFixtures.uuid(),
-                productSaleId = saleId,
-                userId = callerId,
-                isIncluded = false,
-                reason = null,
-                assignedBy = callerId,
-            ),
-        )
+        transaction {
+            CommissionManualInclusionRepository.upsertInTransaction(
+                CommissionManualInclusionUpsertParams(
+                    id = TestFixtures.uuid(),
+                    productSaleId = saleId,
+                    userId = callerId,
+                    isIncluded = false,
+                    reason = null,
+                    assignedBy = callerId,
+                ),
+            )
+        }
 
         val data = DashboardService.getToday(callerId, branchId)
 

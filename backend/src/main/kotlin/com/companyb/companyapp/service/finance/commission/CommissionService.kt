@@ -2,6 +2,7 @@ package com.companyb.companyapp.service.finance.commission
 
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CommissionManualInclusionRepository
 import com.companyb.companyapp.repository.CommissionSplitRepository
@@ -72,8 +73,8 @@ object CommissionService {
 
         val branchId = BranchDayService.requireBranchDayExists(sale.branchDayId).branchId
 
-        val result =
-            CommissionManualInclusionRepository.upsert(
+        val mutation =
+            CommissionManualInclusionRepository.upsertInTransaction(
                 CommissionManualInclusionUpsertParams(
                     id = id,
                     productSaleId = productSaleId,
@@ -82,35 +83,22 @@ object CommissionService {
                     reason = reason,
                     assignedBy = callerId,
                 ),
-            ) { existing, updated ->
-                if (existing == null) {
-                    AuditLogRepository.recordInsert(
-                        tableName = CommissionManualInclusionTable.tableName,
-                        recordId = updated.id,
-                        changedBy = callerId,
-                        branchId = branchId,
-                        fields = CommissionManualInclusionTable.auditFields(updated),
-                    )
-                } else {
-                    AuditLogRepository.recordUpdate(
-                        tableName = CommissionManualInclusionTable.tableName,
-                        recordId = updated.id,
-                        before = existing,
-                        after = updated,
-                        changedBy = callerId,
-                        branchId = branchId,
-                        auditFields = CommissionManualInclusionTable::auditFields,
-                    )
-                }
-            }
+            )
+
+        val context = AuditContext(callerId, branchId)
+        if (mutation.existing == null) {
+            CommissionAudit.inserted(context, mutation.inclusion)
+        } else {
+            CommissionAudit.updated(context, mutation.existing, mutation.inclusion)
+        }
 
         recalculate(sale.branchDayId)
 
         logger.info {
-            "[COMMISSION-INCLUSION] Created inclusion ${result.id} for productSale=$productSaleId " +
+            "[COMMISSION-INCLUSION] Created inclusion ${mutation.inclusion.id} for productSale=$productSaleId " +
                 "userId=$userId isIncluded=$isIncluded"
         }
-        return result
+        return mutation.inclusion
     }
 
     @Suppress("ReturnCount")
@@ -144,7 +132,7 @@ object CommissionService {
         val sales = ProductSaleRepository.findNonVoidedSalesByBranchDay(branchDayId)
         if (sales.isEmpty()) {
             logger.info { "[COMMISSION-SERVICE] No non-voided sales for branchDay=$branchDayId" }
-            CommissionSplitRepository.replaceForBranchDay(branchDayId, emptyMap())
+            CommissionSplitRepository.replaceForBranchDayInTransaction(branchDayId, emptyMap())
             failIfInjectedForTests()
             return
         }
@@ -175,7 +163,7 @@ object CommissionService {
             }
         }
 
-        CommissionSplitRepository.replaceForBranchDay(branchDayId, accumulatedTotals)
+        CommissionSplitRepository.replaceForBranchDayInTransaction(branchDayId, accumulatedTotals)
         failIfInjectedForTests()
 
         logger.info {
@@ -194,4 +182,40 @@ object CommissionService {
             error("injected commission trigger failure")
         }
     }
+}
+
+/**
+ * Commission audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so each row commits atomically with the inclusion upsert. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object CommissionAudit {
+    fun inserted(
+        context: AuditContext,
+        inclusion: CommissionManualInclusion,
+    ) = AuditLogRepository.recordInsert(
+        tableName = CommissionManualInclusionTable.tableName,
+        recordId = inclusion.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = CommissionManualInclusionTable.auditFields(inclusion),
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+    )
+
+    fun updated(
+        context: AuditContext,
+        before: CommissionManualInclusion,
+        after: CommissionManualInclusion,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = CommissionManualInclusionTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+        auditFields = CommissionManualInclusionTable::auditFields,
+    )
 }

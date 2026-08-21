@@ -26,43 +26,38 @@ object CommissionSplitRepository {
             logger.info { "[COMMISSION-SPLIT] Found ${it.size} splits for branchDay=$branchDayId" }
         }
 
-    fun replaceForBranchDay(
+    /**
+     * In-transaction store operation (#323, ADR-0024) — replaces the day's commission splits
+     * on the caller's command transaction.
+     */
+    fun replaceForBranchDayInTransaction(
         branchDayId: UUID,
         splits: Map<UUID, BigDecimal>,
-        auditFn: (List<CommissionSplit>) -> Unit = {},
     ) {
-        transaction {
-            val existing =
-                CommissionSplitTable
-                    .selectAll()
-                    .where { CommissionSplitTable.branchDayId eq branchDayId }
-                    .associate { it[CommissionSplitTable.userId] to it[CommissionSplitTable.id] }
-            val created = mutableListOf<CommissionSplit>()
-            splits.forEach { (userId, amount) ->
-                val existingId = existing[userId]
-                if (existingId == null) {
-                    val insert =
-                        CommissionSplitTable.insert {
-                            it[CommissionSplitTable.branchDayId] = branchDayId
-                            it[CommissionSplitTable.userId] = userId
-                            it[CommissionSplitTable.amount] = amount
-                        }
-                    val id = insert[CommissionSplitTable.id]
-                    created.add(CommissionSplit(id, branchDayId, userId, amount))
-                } else {
-                    CommissionSplitTable.update({ CommissionSplitTable.id eq existingId }) {
-                        it[CommissionSplitTable.amount] = amount
-                    }
+        val existing =
+            CommissionSplitTable
+                .selectAll()
+                .where { CommissionSplitTable.branchDayId eq branchDayId }
+                .associate { it[CommissionSplitTable.userId] to it[CommissionSplitTable.id] }
+        splits.forEach { (userId, amount) ->
+            val existingId = existing[userId]
+            if (existingId == null) {
+                CommissionSplitTable.insert {
+                    it[CommissionSplitTable.branchDayId] = branchDayId
+                    it[CommissionSplitTable.userId] = userId
+                    it[CommissionSplitTable.amount] = amount
+                }
+            } else {
+                CommissionSplitTable.update({ CommissionSplitTable.id eq existingId }) {
+                    it[CommissionSplitTable.amount] = amount
                 }
             }
-            val staleIds = existing.filterKeys { it !in splits }.values
-            if (staleIds.isNotEmpty()) {
-                CommissionSplitTable.deleteWhere { CommissionSplitTable.id inList staleIds }
-            }
-            auditFn(created)
-        }.also {
-            logger.info { "[COMMISSION-SPLIT] Replaced splits for branchDay=$branchDayId with ${splits.size} entries" }
         }
+        val staleIds = existing.filterKeys { it !in splits }.values
+        if (staleIds.isNotEmpty()) {
+            CommissionSplitTable.deleteWhere { CommissionSplitTable.id inList staleIds }
+        }
+        logger.info { "[COMMISSION-SPLIT] Replaced splits for branchDay=$branchDayId with ${splits.size} entries" }
     }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toCommissionSplit(): CommissionSplit =

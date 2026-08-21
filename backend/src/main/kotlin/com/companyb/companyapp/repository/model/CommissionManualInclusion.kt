@@ -26,6 +26,12 @@ data class CommissionManualInclusionUpsertParams(
     val assignedBy: UUID,
 )
 
+/** Upsert outcome: [existing] is null when the row was freshly inserted (#323). */
+data class CommissionManualInclusionUpsertResult(
+    val existing: CommissionManualInclusion?,
+    val inclusion: CommissionManualInclusion,
+)
+
 object CommissionManualInclusionTable : Table("commission_manual_inclusion") {
     val id = javaUUID("id").autoGenerate()
     val productSaleId = javaUUID("product_sale_id")

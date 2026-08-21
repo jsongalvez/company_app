@@ -7,9 +7,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * #323 batches 1–5 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
+ * #323 batches 1–6 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
  * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation, session cluster,
- * user/access cluster, inventory/product-sale cluster) keep their shape:
+ * user/access cluster, inventory/product-sale cluster, commission cluster) keep their shape:
  * mutating store operations are `*InTransaction` with no `auditFn` coordination and no nested
  * write transactions, and each public command owns exactly one transaction while persistence-table
  * knowledge stays behind the feature/audit seam. Mechanical enforcement for the whole backend
@@ -44,6 +44,9 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 // Batch 5 — inventory/product-sale cluster.
                 "repository/ProductSaleRepository.kt" to 2,
                 "repository/BranchInventoryRepository.kt" to 4,
+                // Batch 6 — commission cluster.
+                "repository/CommissionSplitRepository.kt" to 1,
+                "repository/CommissionManualInclusionRepository.kt" to 3,
             )
         files.forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
@@ -86,6 +89,10 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 // Batch 5 — inventory/product-sale cluster.
                 "service/ProductSaleService.kt" to listOf("sell"),
                 "service/inventory/InventoryService.kt" to listOf("recordMovement", "ensureCard"),
+                // Batch 6 — commission cluster. recalculate keeps its single wrapper so callers
+                // (sell, clock-in/out, manualRecalculate) join one shared transaction per command.
+                "service/finance/commission/CommissionService.kt" to
+                    listOf("createManualInclusion", "recalculate"),
             )
         commands.forEach { (file, names) ->
             val source = mainSource(file)
@@ -126,6 +133,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 // Batch 5 — inventory/product-sale cluster.
                 "service/ProductSaleService.kt" to "ProductSaleAudit",
                 "service/inventory/InventoryService.kt" to "BranchInventoryAudit",
+                // Batch 6 — commission cluster.
+                "service/finance/commission/CommissionService.kt" to "CommissionAudit",
             )
         seams.forEach { (file, seam) ->
             val source = mainSource(file)
