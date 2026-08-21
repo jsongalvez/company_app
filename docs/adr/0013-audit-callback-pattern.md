@@ -1,8 +1,14 @@
 # ADR 0013: Audit callback pattern for repository-to-service migration
 
 **Date:** 2026-07-18  
-**Status:** ✅ accepted (amended 2026-07-20 by [ADR-0019](./0019-repository-owns-before-state-capture.md))  
+**Status:** ⛔ **Superseded by [ADR-0024](./0024-command-owned-mutation-transactions.md)** — the `auditFn` callback pattern was transitional and is retired program-wide (map #317: #320 Remittance, #321 Attendance, #323 remaining mutations). Main-source `auditFn` uses are zero with no recorded exceptions, and the retirement is pinned by `BackendFeatureBoundaryArchitectureTest`. Kept as history; see ADR-0024 for the standing contract.  
 **Stakeholders:** backend team
+
+> **Where this went:** commands own their single transaction; repositories are internal
+> `*InTransaction` store operations that open no transaction and accept no `auditFn`; the
+> command writes the audit row directly into that same transaction. Before-state capture
+> remains transaction-local (ADR-0019's invariant), owned by the command via
+> `findByIdInTransaction`.
 
 ## Context
 

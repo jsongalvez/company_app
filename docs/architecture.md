@@ -138,6 +138,8 @@ iosApp ──────imports────> shared (as KMP framework)
 - DB queries, row-to-domain-model mapping
 - Exposed DSL only — no raw SQL
 - No business logic, no HTTP
+- Mutating store functions are `*InTransaction`: they open no transaction and run on the owning
+  command's transaction (ADR-0024)
 
 ### Auth (`auth/`)
 - JWT issuance and verification, bcrypt password hashing, rate limiting, deny list
@@ -403,11 +405,19 @@ Edits to REMITTED records require a `reason` in the request body. The service la
 
 ### 12.1 Rules
 
-- Audit entries are written in the **service layer only** — never in routes, never in repositories
+- Audit entries are written by the owning feature **command**: the service command opens exactly one
+  DB transaction, performs the mutation, and calls `AuditLogRepository.record*` directly inside it —
+  never in routes, never opened from repositories (ADR-0024)
 - Every INSERT, UPDATE, and soft-DELETE to financial and operational tables gets an audit entry
-- Written inside the same DB transaction as the mutation (via callback pattern; see ADR 0013 and its entity-based amendments in ADR 0018 and ADR 0019)
-- The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String>` field maps
+- Written inside the same DB transaction as the mutation. The retired ADR-0013 `auditFn` callback
+  pattern (with its ADR-0018/0019 entity-overload amendments) was transitional; map #317 (#320,
+  #321, #323) replaced every callback path with command-owned transactions, keeping ADR-0019's
+  transaction-local before-state invariant — the command reads the before entity via
+  `findByIdInTransaction` inside its own transaction
+- The `AuditLogRepository` convenience methods (`recordInsert`, `recordUpdate`, `recordDelete`) accept `Map<String, String>` field maps; entity-based overloads take `(before, after)` with the Table companion's `auditFields(entity)` function (see ADR 0014 / 0018)
 - Each Table companion defines an `auditFields(entity)` function (see ADR 0014)
+- These shapes are enforced executably by `BackendFeatureBoundaryArchitectureTest` (§7) — that test,
+  not this prose, is authoritative
 
 **Covered tables:** `session`, `session_void`, `product_sale`, `compensation`, `commission_split`, `expense`, `remittance`, `remittance_line`, `inventory_movement`, `attendance`, `branch_day`, `user_branch_assignment`.
 

@@ -56,6 +56,10 @@ _Avoid_: Temporary assignment, loaned staff
 The branch-initiated offer of relief access for a single future day. Any user assigned to the branch can invite any active user; the invitee accepts or declines. Accepting writes the day's relief grant. Distinct from a relief request, which the relief user initiates.
 _Avoid_: Shift offer, temporary assignment offer
 
+**Branch Day**:
+One operational business day at one branch, identified by its calendar date. The operational-day boundary is 04:00 Asia/Manila — a branch day stays editable until 04:00 the following morning, then transitions lazily (see Day State). `BranchDayService.currentOperationalDate` is the sole authority for deriving the current operational date; consumers delegate to it and never derive day semantics from the wall clock themselves.
+_Avoid_: Business day, calendar day (ambiguous at the boundary), operating day
+
 **Day State**:
 Every branch day has a status. `OPEN` (current day, editable by all on-duty users) transitions lazily to `PAST` at 04:00 AM Manila the following day. `REMITTED` days are covered by a submitted remittance and require Coordinator-only edits with flagged audit entries.
 _Avoid_: Day status, day phase

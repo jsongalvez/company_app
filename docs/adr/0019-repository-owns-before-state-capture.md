@@ -2,7 +2,8 @@
 
 **Status:** Accepted  
 **Date:** 2026-07-20  
-**Supersedes:** Amends ADR-0013 (service-owns-before-state) for entity-based overloads
+**Supersedes:** Amends ADR-0013 (service-owns-before-state) for entity-based overloads  
+**Amended by:** [ADR-0024](./0024-command-owned-mutation-transactions.md) (2026-08-21) — the **invariant stands**: before/after must be read inside the mutation's transaction. The **owner moved**: with command-owned mutations the command captures before state via `findByIdInTransaction` inside its own transaction; repositories are `*InTransaction` store operations that open no transaction. The repository-owned capture described below applies only to the retired callback-era code paths kept as history.
 
 ## Context
 
