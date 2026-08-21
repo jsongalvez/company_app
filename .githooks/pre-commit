@@ -1,30 +1,40 @@
 #!/bin/bash
 set -euo pipefail
 
+# Near-zero-cost pre-commit hook (map #329).
+#
+# This hook performs bookkeeping only: staged-Kotlin formatting with the
+# standalone ktlint CLI and syntax checks for staged shell files. It must
+# never start Gradle, Postgres, the backend, k6, JMH, OpenAPI generation,
+# Compose compilation, broad tests, or any network-dependent validation.
+# Compile/static/test coverage is the agent's targeted, warm, on-demand
+# local validation plus asynchronous CI — never a commit toll.
+
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
 LOG_TAG=pre-commit
 log pre-commit "$@"
 
-# Classify staged changes before any formatter, database, or build work.
+# Classify staged changes before any formatter work so documentation-only
+# commits skip even the cheap checks.
 STAGED_FILES="$(git diff --cached --no-renames --name-only)"
 PRE_COMMIT_CLASSIFICATION="$(printf '%s\n' "$STAGED_FILES" | bash "$ROOT_DIR/scripts/classify-push-files.sh")"
 log pre-commit "Staged change classification: $PRE_COMMIT_CLASSIFICATION"
 if [ "$PRE_COMMIT_CLASSIFICATION" = "docs-only" ]; then
-    log pre-commit "Documentation-only staged change; skipping local code gates."
+    log pre-commit "Documentation-only staged change; skipping local checks."
     exit 0
 fi
 
 # ----------------------------------------------------------------
-# 1. Optimize imports (auto-fix via ktlintFormat, scoped to staged files)
+# 1. Format staged Kotlin files (standalone ktlint CLI only)
 # ----------------------------------------------------------------
-# Note: ktlint Gradle plugin (org.jlleitschuh.gradle.ktlint) doesn't support file-scoped
-# formatting. We use the standalone CLI instead, with project-wide fallback if unavailable.
+# The ktlint Gradle plugin doesn't support file-scoped formatting, and Gradle
+# is banned from hooks (map #329), so only the standalone CLI qualifies.
 KT_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(kt|kts)$' || true)
 
 if [ -z "$KT_FILES" ]; then
-    log pre-commit "No staged Kotlin files — skipping ktlintFormat"
+    log pre-commit "No staged Kotlin files — skipping ktlint"
 else
     # Resolve ktlint command: PATH, then ~/.cache/company-app/ktlint (installed by setup-hooks.sh)
     KTLINT_CMD=""
@@ -39,36 +49,23 @@ else
         echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r "$KTLINT_CMD" --format 2>&1 | tail -3
         log pre-commit "Re-staging formatted files..."
         echo "$KT_FILES" | tr '\n' '\0' | xargs -0 -r git add
-        log pre-commit "Import optimization complete."
+        log pre-commit "Formatting complete."
     else
-        # Fallback: project-wide formatting (slower, touches all tracked files).
-        # Tradeoff: preserves correctness but can sweep unrelated formatting into the commit.
-        # Run scripts/setup-hooks.sh to install ktlint for staged-only formatting.
-        log pre-commit "WARNING: ktlint not found. Falling back to project-wide ktlintFormat."
-        log pre-commit "Run 'bash scripts/setup-hooks.sh' to install ktlint for staged-only formatting."
-        ./gradlew ktlintFormat --no-daemon 2>&1 | tail -3
-        git add -u
-        log pre-commit "Import optimization complete."
+        # Never fall back to project-wide Gradle formatting: a missing formatter
+        # must not turn a commit into a multi-minute build. Formatting debt is
+        # caught by asynchronous ktlintCheck in CI.
+        log pre-commit "WARNING: ktlint not found — skipping staged Kotlin formatting."
+        log pre-commit "Run 'bash scripts/setup-hooks.sh' to install ktlint."
     fi
 fi
 
 # ----------------------------------------------------------------
-# 2. Fast staged validation
+# 2. Syntax-check staged shell files
 # ----------------------------------------------------------------
-GRADLE_TASKS=()
 SHELL_FILES=()
 while IFS= read -r file; do
     case "$file" in
-        backend/src/main/**/*.kt|backend/src/test/**/*.kt|backend/src/**/*.java|backend/build.gradle.kts)
-            GRADLE_TASKS+=(":backend:compileKotlin" ":backend:compileTestKotlin" ":backend:detekt" ":backend:ktlintCheck") ;;
-        shared/**/*.kt|shared/build.gradle.kts)
-            GRADLE_TASKS+=(":shared:compileKotlinJvm" ":shared:detektJvmMain" ":shared:detektJvmTest") ;;
-        composeApp/**/*.kt|composeApp/build.gradle.kts)
-            GRADLE_TASKS+=(":composeApp:compileKotlinDesktop" ":composeApp:detektDesktopMain" ":composeApp:detektDesktopTest") ;;
-        build.gradle.kts|settings.gradle.kts|gradle.properties|gradle/**/*.kts)
-            GRADLE_TASKS+=(":backend:compileKotlin" ":backend:compileTestKotlin" ":backend:detekt" ":backend:ktlintCheck" ":shared:compileKotlinJvm" ":shared:detektJvmMain" ":shared:detektJvmTest" ":composeApp:compileKotlinDesktop" ":composeApp:detektDesktopMain" ":composeApp:detektDesktopTest") ;;
-        *.sh|scripts/**/*.sh|.githooks/*)
-            SHELL_FILES+=("$file") ;;
+        *.sh|scripts/**/*.sh|.githooks/*) SHELL_FILES+=("$file") ;;
     esac
 done <<< "$STAGED_FILES"
 
@@ -77,10 +74,4 @@ if [ "${#SHELL_FILES[@]}" -gt 0 ]; then
     bash -n "${SHELL_FILES[@]}"
 fi
 
-if [ "${#GRADLE_TASKS[@]}" -gt 0 ]; then
-    mapfile -t GRADLE_TASKS < <(printf '%s\n' "${GRADLE_TASKS[@]}" | sort -u)
-    log pre-commit "Running staged-module compile and static checks: ${GRADLE_TASKS[*]}"
-    ./gradlew "${GRADLE_TASKS[@]}" -PwarningsAsErrors=true --no-daemon
-fi
-
-log pre-commit "Fast local checks passed; full tests, contracts, integration, and database cleanliness run in CI."
+log pre-commit "Pre-commit checks passed; compile/test/static analysis run on demand and asynchronously, not at commit time."

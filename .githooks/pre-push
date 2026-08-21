@@ -1,141 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
+# Near-zero-cost pre-push hook (map #329).
+#
+# This hook is bookkeeping only. It must never run Gradle, Detekt, ktlintCheck,
+# warning-as-error compiles, database queries, backend startup, OpenAPI builds,
+# Compose compilation, k6, JMH, tests, or any network-dependent validation.
+# Full validation is asynchronous CI; targeted local validation is the agent's
+# on-demand choice while implementing — never a push toll.
+
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOKS_DIR/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/common.sh"
 LOG_TAG=pre-push
-source "$ROOT_DIR/scripts/lib/start-app.sh"
 
 log pre-push "$@"
-
-# Classify complete outgoing tree before starting expensive or stateful gates.
-EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
-PUSH_FILES=""
-while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
-    [ -n "${LOCAL_SHA:-}" ] || continue
-    if [ "$REMOTE_SHA" = "0000000000000000000000000000000000000000" ]; then
-        BASE_SHA="$EMPTY_TREE"
-    else
-        BASE_SHA="$REMOTE_SHA"
-    fi
-    if [ "$LOCAL_SHA" = "0000000000000000000000000000000000000000" ]; then
-        TARGET_SHA="$EMPTY_TREE"
-    else
-        TARGET_SHA="$LOCAL_SHA"
-    fi
-    PUSH_FILES+="$(git diff --name-only "$BASE_SHA" "$TARGET_SHA")"$'\n'
-done
-
-PUSH_CLASSIFICATION="$(printf '%s' "$PUSH_FILES" | bash scripts/classify-push-files.sh)"
-log pre-push "Outgoing push classification: $PUSH_CLASSIFICATION"
-if [ "$PUSH_CLASSIFICATION" = "docs-only" ]; then
-    log pre-push "Documentation-only push; skipping code, contract, Compose, startup, and k6 gates."
-    log pre-push "Pre-push checks passed."
-    exit 0
-fi
-
-# ----------------------------------------------------------------
-# 1. Test-data cleanliness check
-# ----------------------------------------------------------------
-log pre-push "Checking for test-data leaks..."
-if ! bash scripts/check-test-cleanliness.sh 2>&1 | tail -5; then
-    log pre-push "ERROR: Test-data leak detected before push."
-    exit 1
-fi
-log pre-push "Test-data cleanliness check passed."
-
-# ----------------------------------------------------------------
-# 2. OpenAPI contract gate
-# ----------------------------------------------------------------
-log pre-push "Checking generated OpenAPI contract..."
-if ! bash scripts/check-openapi-spec.sh 2>&1 | tail -10; then
-    log pre-push "ERROR: OpenAPI contract gate failed."
-    exit 1
-fi
-log pre-push "OpenAPI contract gate passed."
-
-# ----------------------------------------------------------------
-# 3. ComposeApp compilation check (desktop + android)
-# ----------------------------------------------------------------
-# iOS targets intentionally excluded: iOS is out of scope per
-# docs/specs/0001-frontend-rebuild.md:171; the iOS compile fails on the
-# missing AppNavHost.ios.kt actual (pre-existing, tracked on map #89).
-log pre-push "Compiling composeApp (desktop + android)..."
-if ! ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid --no-daemon 2>&1 | tail -5; then
-    log pre-push "ERROR: composeApp compilation failed. Fix before pushing."
-    exit 1
-fi
-log pre-push "composeApp compilation passed."
-
-# ----------------------------------------------------------------
-# 4. k6 load-test baseline
-# ----------------------------------------------------------------
-source_env
-K6_BASELINE_SCRIPT="tests/k6/baseline.js"
-
-# Check k6 availability
-if ! command -v k6 &>/dev/null; then
-    log pre-push "ERROR: k6 not found. Install k6 from https://k6.io/docs/getting-started/installation/"
-    exit 1
-fi
-
-if [ ! -f "$K6_BASELINE_SCRIPT" ]; then
-    log pre-push "ERROR: k6 baseline script not found at $K6_BASELINE_SCRIPT."
-    exit 1
-fi
-
-TEST_USERNAME="${TEST_USERNAME:-}"
-TEST_PASSWORD="${TEST_PASSWORD:-}"
-if [ -z "$TEST_USERNAME" ] || [ -z "$TEST_PASSWORD" ]; then
-    log pre-push "ERROR: TEST_USERNAME and TEST_PASSWORD are required for k6. Set them in .env or export them before pushing."
-    exit 1
-fi
-
-trap app_cleanup EXIT
-
-    # Run k6 against the test database (not main DB) to avoid polluting production data.
-    # The test DB is already designed for throwaway use and verified clean by the
-    # pre-push cleanliness check above.
-    K6_DB_NAME="${TEST_DB_NAME:-company_app_test}"
-    export TEST_DB_NAME="$K6_DB_NAME"
-    export POSTGRES_DB="$K6_DB_NAME"
-    log pre-push "Using test database '$K6_DB_NAME' for k6 baseline."
-
-    app_build
-    app_start /tmp/company-app-k6-boot.log
-    app_wait_ready /tmp/company-app-k6-health.json /tmp/company-app-k6-boot.log
-
-    # Run k6 baseline
-    K6_LOG="/tmp/company-app-k6-baseline.log"
-    K6_EXIT_CODE=0
-    log pre-push "Running k6 baseline against test DB..."
-    set +o pipefail
-    TEST_USERNAME="$TEST_USERNAME" TEST_PASSWORD="$TEST_PASSWORD" \
-        k6 run "$K6_BASELINE_SCRIPT" --quiet 2>&1 | tee "$K6_LOG" || true
-    K6_EXIT_CODE=${PIPESTATUS[0]}
-    set -o pipefail
-
-    # Clean up test DB to preserve the cleanliness invariant checked by pre-commit.
-    # Seed tables (role, capability, role_capability, flyway_schema_history) are
-    # preserved; all user-data tables are truncated via CASCADE, then the
-    # cleanliness check is re-run to verify the DB is clean.
-    log pre-push "Cleaning test DB '$K6_DB_NAME' after k6 run..."
-    if ! bash scripts/clean-test-db.sh 2>&1 | tail -5; then
-        log pre-push "ERROR: Failed to clean test DB after k6 run."
-        exit 1
-    fi
-
-    app_cleanup
-    trap - EXIT
-
-    if [ "$K6_EXIT_CODE" -ne 0 ]; then
-        log pre-push "ERROR: k6 baseline failed (exit code $K6_EXIT_CODE). Threshold violation detected."
-        log pre-push "--- k6 summary ---"
-        tail -20 "$K6_LOG" 2>/dev/null || true
-        log pre-push "--- full output: $K6_LOG ---"
-        exit 1
-    fi
-    log pre-push "k6 baseline passed."
-
-log pre-push "Pre-push checks passed."
+log pre-push "No local gates: full validation runs asynchronously in CI."
