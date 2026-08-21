@@ -47,6 +47,7 @@ logs/
 
 # wayfinder-loop runtime state
 .wayfinder-loop.state
+.wayfinder-loop.lock
 .wayfinder-loop.env
 .wayfinder-loop.tmux.log
 .wayfinder-loop.log
