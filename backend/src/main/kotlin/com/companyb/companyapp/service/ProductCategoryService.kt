@@ -1,11 +1,13 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.model.ProductCategory
 import com.companyb.companyapp.repository.model.ProductCategoryTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object ProductCategoryService {
@@ -16,13 +18,14 @@ object ProductCategoryService {
         id: UUID,
         name: String,
     ): ProductCategory =
-        ProductCategoryRepository.create(id, name) { category ->
-            AuditLogRepository.recordInsert(
-                tableName = ProductCategoryTable.tableName,
-                recordId = category.id,
-                changedBy = callerId,
-                fields = ProductCategoryTable.auditFields(category),
-            )
+        transaction {
+            val (category, created) = ProductCategoryRepository.createInTransaction(id, name)
+            if (created) {
+                ProductCategoryAudit.inserted(callerId, category)
+            }
+            category
+        }.also {
+            logger.info { "[CREATE-PRODUCT-CATEGORY] Category ${it.id.toString().maskUUID()}" }
         }
 
     fun findAll(): List<ProductCategory> = ProductCategoryRepository.findAll()
@@ -30,4 +33,21 @@ object ProductCategoryService {
     fun findById(categoryId: UUID): ProductCategory =
         ProductCategoryRepository.findById(categoryId)
             ?: throw NotFoundException("Product category not found")
+}
+
+/**
+ * Product-category audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object ProductCategoryAudit {
+    fun inserted(
+        changedBy: UUID,
+        category: ProductCategory,
+    ) = AuditLogRepository.recordInsert(
+        tableName = ProductCategoryTable.tableName,
+        recordId = category.id,
+        changedBy = changedBy,
+        fields = ProductCategoryTable.auditFields(category),
+    )
 }

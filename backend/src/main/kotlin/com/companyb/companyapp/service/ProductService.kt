@@ -10,9 +10,16 @@ import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductCreateParams
 import com.companyb.companyapp.repository.model.ProductTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
 
+/**
+ * Product feature commands (#323, ADR-0024). Each mutating command owns exactly one business
+ * transaction: persistence runs on it via `ProductRepository.*InTransaction` store operations,
+ * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
+ * inserted directly into it — so domain write + audit commit atomically or not at all.
+ */
 object ProductService {
     private val logger = KotlinLogging.logger {}
 
@@ -30,22 +37,22 @@ object ProductService {
             throw ValidationException("Product category not found")
         }
 
-        return ProductRepository.create(
-            ProductCreateParams(
-                id = id,
-                name = name,
-                productCategoryId = productCategoryId,
-                unitPrice = unitPrice,
-                commissionAmount = commissionAmount,
-                changedBy = callerId,
-            ),
-        ) { product ->
-            AuditLogRepository.recordInsert(
-                tableName = ProductTable.tableName,
-                recordId = product.id,
-                changedBy = callerId,
-                fields = ProductTable.auditFields(product),
-            )
+        return transaction {
+            val result =
+                ProductRepository.createInTransaction(
+                    ProductCreateParams(
+                        id = id,
+                        name = name,
+                        productCategoryId = productCategoryId,
+                        unitPrice = unitPrice,
+                        commissionAmount = commissionAmount,
+                        changedBy = callerId,
+                    ),
+                )
+            if (result.created) {
+                ProductAudit.inserted(callerId, result.product)
+            }
+            result
         }
     }
 
@@ -68,26 +75,56 @@ object ProductService {
             throw ValidationException("Product category not found")
         }
 
-        val old = ProductRepository.findById(productId) ?: throw NotFoundException("Product not found")
+        return transaction {
+            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
+            val before =
+                ProductRepository.findByIdInTransaction(productId)
+                    ?: throw NotFoundException("Product not found")
 
-        val updated =
-            ProductRepository.update(
-                productId = productId,
-                name = name?.takeIf { it.isNotEmpty() },
-                productCategoryId = productCategoryId,
-                unitPrice = unitPrice,
-                commissionAmount = commissionAmount,
-                isActive = isActive,
-            ) { updated ->
-                AuditLogRepository.recordUpdate(
-                    tableName = ProductTable.tableName,
-                    recordId = productId,
-                    before = old,
-                    after = updated,
-                    changedBy = callerId,
-                    auditFields = ProductTable::auditFields,
+            val (updatedCount, after) =
+                ProductRepository.updateInTransaction(
+                    productId = productId,
+                    name = name?.takeIf { it.isNotEmpty() },
+                    productCategoryId = productCategoryId,
+                    unitPrice = unitPrice,
+                    commissionAmount = commissionAmount,
+                    isActive = isActive,
                 )
+
+            if (updatedCount > 0 && after != null) {
+                ProductAudit.updated(callerId, before, after)
             }
-        return updated ?: throw NotFoundException("Product not found")
+            after ?: throw NotFoundException("Product not found")
+        }
     }
+}
+
+/**
+ * Product audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object ProductAudit {
+    fun inserted(
+        changedBy: UUID,
+        product: Product,
+    ) = AuditLogRepository.recordInsert(
+        tableName = ProductTable.tableName,
+        recordId = product.id,
+        changedBy = changedBy,
+        fields = ProductTable.auditFields(product),
+    )
+
+    fun updated(
+        changedBy: UUID,
+        before: Product,
+        after: Product,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = ProductTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = changedBy,
+        auditFields = ProductTable::auditFields,
+    )
 }

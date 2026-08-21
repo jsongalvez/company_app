@@ -23,36 +23,22 @@ data class ProductCreateResult(
 )
 
 object ProductRepository {
-    fun create(
-        params: ProductCreateParams,
-        auditFn: (Product) -> Unit = {},
-    ): ProductCreateResult =
-        transaction {
-            val insertedCount =
-                ProductTable
-                    .insertIgnore {
-                        it[ProductTable.id] = params.id
-                        it[ProductTable.name] = params.name
-                        it[ProductTable.productCategoryId] = params.productCategoryId
-                        it[ProductTable.unitPrice] = params.unitPrice
-                        it[ProductTable.commissionAmount] = params.commissionAmount
-                    }.insertedCount
-            val inserted = insertedCount > 0
-            val product =
-                findByIdInTransaction(params.id)
-                    ?: error("product row not found after idempotent insert for ${params.id}")
-
-            if (inserted) {
-                auditFn(product)
-                ProductCreateResult(product, created = true)
-            } else {
-                ProductCreateResult(product, created = false)
-            }
-        }.also {
-            logger.info {
-                "[CREATE-PRODUCT] Product ${it.product.id.toString().maskUUID()} created=${it.created}"
-            }
-        }
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: ProductCreateParams): ProductCreateResult {
+        val insertedCount =
+            ProductTable
+                .insertIgnore {
+                    it[ProductTable.id] = params.id
+                    it[ProductTable.name] = params.name
+                    it[ProductTable.productCategoryId] = params.productCategoryId
+                    it[ProductTable.unitPrice] = params.unitPrice
+                    it[ProductTable.commissionAmount] = params.commissionAmount
+                }.insertedCount
+        val product =
+            findByIdInTransaction(params.id)
+                ?: error("product row not found after idempotent insert for ${params.id}")
+        return ProductCreateResult(product, created = insertedCount > 0)
+    }
 
     fun findById(id: UUID): Product? =
         transaction {
@@ -80,34 +66,32 @@ object ProductRepository {
                 .map { it.toProduct() }
         }.also { logger.info { "[FIND-PRODUCTS] Fetched ${it.size} active product(s)" } }
 
-    @Suppress("LongParameterList")
-    fun update(
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * Returns the updated row count and the post-write row (null when the product does not exist);
+     * the command decides audit from the count.
+     */
+    fun updateInTransaction(
         productId: UUID,
         name: String?,
         productCategoryId: UUID?,
         unitPrice: BigDecimal?,
         commissionAmount: BigDecimal?,
         isActive: Boolean?,
-        auditFn: (Product) -> Unit = {},
-    ): Product? =
-        transaction {
-            val updatedCount =
-                ProductTable.update({ ProductTable.id eq productId }) {
-                    if (name != null) it[ProductTable.name] = name
-                    if (productCategoryId != null) it[ProductTable.productCategoryId] = productCategoryId
-                    if (unitPrice != null) it[ProductTable.unitPrice] = unitPrice
-                    if (commissionAmount != null) it[ProductTable.commissionAmount] = commissionAmount
-                    if (isActive != null) it[ProductTable.isActive] = isActive
-                }
-            val updated = findByIdInTransaction(productId) ?: return@transaction null
-
-            if (updatedCount > 0) {
-                auditFn(updated)
+    ): Pair<Int, Product?> {
+        val updatedCount =
+            ProductTable.update({ ProductTable.id eq productId }) {
+                if (name != null) it[ProductTable.name] = name
+                if (productCategoryId != null) it[ProductTable.productCategoryId] = productCategoryId
+                if (unitPrice != null) it[ProductTable.unitPrice] = unitPrice
+                if (commissionAmount != null) it[ProductTable.commissionAmount] = commissionAmount
+                if (isActive != null) it[ProductTable.isActive] = isActive
             }
-            updated
-        }
+        return updatedCount to findByIdInTransaction(productId)
+    }
 
-    private fun findByIdInTransaction(id: UUID): Product? =
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): Product? =
         ProductTable
             .selectAll()
             .where { ProductTable.id eq id }

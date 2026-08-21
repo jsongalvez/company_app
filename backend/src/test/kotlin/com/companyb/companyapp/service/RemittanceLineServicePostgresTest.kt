@@ -1275,24 +1275,28 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
 
     @Suppress("UNUSED_PARAMETER")
     private fun insertProductCategory(changedBy: UUID = callerId) {
-        ProductCategoryRepository.create(
-            id = productCategoryId,
-            name = "Test Category $productCategoryId",
-        )
+        transaction {
+            ProductCategoryRepository.createInTransaction(
+                id = productCategoryId,
+                name = "Test Category $productCategoryId",
+            )
+        }
     }
 
     @Suppress("UNUSED_PARAMETER")
     private fun insertProduct(changedBy: UUID = callerId) {
-        ProductRepository.create(
-            ProductCreateParams(
-                id = productId,
-                name = "Test Product $productId",
-                productCategoryId = productCategoryId,
-                unitPrice = BigDecimal("500.00"),
-                commissionAmount = BigDecimal("50.00"),
-                changedBy = callerId,
-            ),
-        )
+        transaction {
+            ProductRepository.createInTransaction(
+                ProductCreateParams(
+                    id = productId,
+                    name = "Test Product $productId",
+                    productCategoryId = productCategoryId,
+                    unitPrice = BigDecimal("500.00"),
+                    commissionAmount = BigDecimal("50.00"),
+                    changedBy = callerId,
+                ),
+            )
+        }
     }
 
     private fun ensureBranchDay() {

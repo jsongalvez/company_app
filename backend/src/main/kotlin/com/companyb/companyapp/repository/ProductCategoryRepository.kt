@@ -14,31 +14,22 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object ProductCategoryRepository {
-    fun create(
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(
         id: UUID,
         name: String,
-        auditFn: (ProductCategory) -> Unit = {},
-    ): ProductCategory =
-        transaction {
-            val insertedCount =
-                ProductCategoryTable
-                    .insertIgnore {
-                        it[ProductCategoryTable.id] = id
-                        it[ProductCategoryTable.name] = name
-                    }.insertedCount
-            val category =
-                findByIdInTransaction(id)
-                    ?: error("product_category row not found after idempotent insert for $id")
-
-            if (insertedCount > 0) {
-                auditFn(category)
-            }
-            category
-        }.also {
-            logger.info {
-                "[CREATE-PRODUCT-CATEGORY] Category ${it.id.toString().maskUUID()}"
-            }
-        }
+    ): Pair<ProductCategory, Boolean> {
+        val insertedCount =
+            ProductCategoryTable
+                .insertIgnore {
+                    it[ProductCategoryTable.id] = id
+                    it[ProductCategoryTable.name] = name
+                }.insertedCount
+        val category =
+            findByIdInTransaction(id)
+                ?: error("product_category row not found after idempotent insert for $id")
+        return category to (insertedCount > 0)
+    }
 
     fun findById(id: UUID): ProductCategory? =
         transaction {

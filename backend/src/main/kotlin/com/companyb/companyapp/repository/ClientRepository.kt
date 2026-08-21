@@ -72,109 +72,77 @@ object ClientRepository {
     private const val FULL_NAME_CONCAT_WIDTH = 510
     private const val SPACE_COLUMN_WIDTH = 1
 
-    fun create(
-        params: ClientCreateParams,
-        auditFn: (Client) -> Unit = {},
-    ): ClientCreateResult =
-        transaction {
-            val insertedCount =
-                ClientTable
-                    .insertIgnore {
-                        it[ClientTable.id] = params.id
-                        it[ClientTable.firstName] = params.firstName
-                        it[ClientTable.lastName] = params.lastName
-                        if (params.middleName != null) it[ClientTable.middleName] = params.middleName
-                        if (params.suffix != null) it[ClientTable.suffix] = params.suffix
-                        if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
-                        it[ClientTable.address] = params.address
-                        it[ClientTable.gender] = params.gender.name
-                        it[ClientTable.age] = params.age
-                        if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
-                        if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
-                        if (params.medicalConditions !=
-                            null
-                        ) {
-                            it[ClientTable.medicalConditions] = params.medicalConditions
-                        }
-                    }.insertedCount
-            val created = insertedCount > 0
-            val client =
-                findByIdInTransaction(params.id)
-                    ?: error("client row not found after idempotent insert for ${params.id}")
-
-            if (created) {
-                auditFn(client)
-            }
-            ClientCreateResult(client, created)
-        }.also {
-            logger.info {
-                "[CREATE-CLIENT] Client ${it.client.id.toString().maskUUID()} created=${it.created}"
-            }
-        }
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: ClientCreateParams): ClientCreateResult {
+        val insertedCount =
+            ClientTable
+                .insertIgnore {
+                    it[ClientTable.id] = params.id
+                    it[ClientTable.firstName] = params.firstName
+                    it[ClientTable.lastName] = params.lastName
+                    if (params.middleName != null) it[ClientTable.middleName] = params.middleName
+                    if (params.suffix != null) it[ClientTable.suffix] = params.suffix
+                    if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
+                    it[ClientTable.address] = params.address
+                    it[ClientTable.gender] = params.gender.name
+                    it[ClientTable.age] = params.age
+                    if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
+                    if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
+                    if (params.medicalConditions !=
+                        null
+                    ) {
+                        it[ClientTable.medicalConditions] = params.medicalConditions
+                    }
+                }.insertedCount
+        val client =
+            findByIdInTransaction(params.id)
+                ?: error("client row not found after idempotent insert for ${params.id}")
+        return ClientCreateResult(client, created = insertedCount > 0)
+    }
 
     fun findById(id: UUID): Client? =
         transaction {
             findByIdInTransaction(id)
         }.also { logger.info { "[FIND-CLIENT] Client ${id.toString().maskUUID()} found=${it != null}" } }
 
-    @Suppress("CyclomaticComplexMethod")
-    fun update(
-        params: ClientUpdateParams,
-        auditFn: (Client) -> Unit = {},
-    ): Client? =
-        transaction {
-            // H4 — the WHERE clause excludes anonymized rows (the anonymize guard's mirror): an
-            // update can never write PII onto a soft-deleted record, even if a stale in-flight
-            // PATCH lands after the anonymize. The re-read below additionally 404s them.
-            val updatedCount =
-                ClientTable.update({ (ClientTable.id eq params.clientId) and (ClientTable.deletedAt.isNull()) }) {
-                    if (params.firstName != null) it[ClientTable.firstName] = params.firstName
-                    if (params.lastName != null) it[ClientTable.lastName] = params.lastName
-                    if (params.middleName != null) it[ClientTable.middleName] = params.middleName
-                    if (params.suffix != null) it[ClientTable.suffix] = params.suffix
-                    if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
-                    if (params.address != null) it[ClientTable.address] = params.address
-                    if (params.gender != null) it[ClientTable.gender] = params.gender.name
-                    if (params.age != null) it[ClientTable.age] = params.age
-                    if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
-                    if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
-                    if (params.medicalConditions != null) it[ClientTable.medicalConditions] = params.medicalConditions
-                }
-            val updated = findByIdInTransaction(params.clientId) ?: return@transaction null
-            if (updated.deletedAt != null) return@transaction null
-
-            if (updatedCount > 0) {
-                auditFn(updated)
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * Returns the updated row count and the post-write row; null after when the row is missing or
+     * anonymized (H4 mirror: an update can never land on a soft-deleted record).
+     */
+    fun updateInTransaction(params: ClientUpdateParams): Pair<Int, Client?> {
+        val updatedCount =
+            ClientTable.update({ (ClientTable.id eq params.clientId) and (ClientTable.deletedAt.isNull()) }) {
+                if (params.firstName != null) it[ClientTable.firstName] = params.firstName
+                if (params.lastName != null) it[ClientTable.lastName] = params.lastName
+                if (params.middleName != null) it[ClientTable.middleName] = params.middleName
+                if (params.suffix != null) it[ClientTable.suffix] = params.suffix
+                if (params.phoneNumber != null) it[ClientTable.phoneNumber] = params.phoneNumber
+                if (params.address != null) it[ClientTable.address] = params.address
+                if (params.gender != null) it[ClientTable.gender] = params.gender.name
+                if (params.age != null) it[ClientTable.age] = params.age
+                if (params.systolicBp != null) it[ClientTable.systolicBp] = params.systolicBp
+                if (params.diastolicBp != null) it[ClientTable.diastolicBp] = params.diastolicBp
+                if (params.medicalConditions != null) it[ClientTable.medicalConditions] = params.medicalConditions
             }
-            updated
-        }
+        val updated = findByIdInTransaction(params.clientId)
+        if (updated?.deletedAt != null) return updatedCount to null
+        return updatedCount to updated
+    }
 
-    fun anonymize(
-        clientId: UUID,
-        guardFn: () -> Unit,
-        auditFn: (Client) -> Unit = {},
-    ): Boolean =
-        transaction {
-            guardFn()
-            val updatedCount =
-                ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
-                    it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone
-                    it[ClientTable.firstName] = null
-                    it[ClientTable.lastName] = null
-                    it[ClientTable.middleName] = null
-                    it[ClientTable.suffix] = null
-                    it[ClientTable.phoneNumber] = null
-                    it[ClientTable.address] = null
-                    it[ClientTable.medicalConditions] = null
-                    it[ClientTable.systolicBp] = null
-                    it[ClientTable.diastolicBp] = null
-                }
-
-            if (updatedCount > 0) {
-                val updated = findByIdInTransaction(clientId) ?: error("client not found after update")
-                auditFn(updated)
-            }
-            updatedCount > 0
+    /** In-transaction store operation (#323, ADR-0024) — anonymize write only; guards stay with the command. */
+    fun anonymizeInTransaction(clientId: UUID): Int =
+        ClientTable.update({ (ClientTable.id eq clientId) and (ClientTable.deletedAt.isNull()) }) {
+            it[ClientTable.deletedAt] = CurrentTimestampWithTimeZone
+            it[ClientTable.firstName] = null
+            it[ClientTable.lastName] = null
+            it[ClientTable.middleName] = null
+            it[ClientTable.suffix] = null
+            it[ClientTable.phoneNumber] = null
+            it[ClientTable.address] = null
+            it[ClientTable.medicalConditions] = null
+            it[ClientTable.systolicBp] = null
+            it[ClientTable.diastolicBp] = null
         }
 
     fun search(query: String): List<Client> =
@@ -221,7 +189,8 @@ object ClientRepository {
                 .map { it.toClient() }
         }.also { logger.info { "[SEARCH-CLIENTS] Matched ${it.size} result(s) for query '$query'" } }
 
-    private fun findByIdInTransaction(id: UUID): Client? =
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): Client? =
         ClientTable
             .selectAll()
             .where { ClientTable.id eq id }

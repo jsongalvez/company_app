@@ -21,37 +21,20 @@ data class BranchCreateResult(
 )
 
 object BranchRepository {
-    fun create(
-        params: BranchCreateParams,
-        auditFn: (Branch) -> Unit = {},
-    ): BranchCreateResult =
-        transaction {
-            val insertedCount =
-                BranchTable
-                    .insertIgnore {
-                        it[BranchTable.id] = params.id
-                        it[BranchTable.branchType] = params.branchType
-                        it[BranchTable.name] = params.name
-                    }.insertedCount
-            val inserted = insertedCount > 0
-            val branch =
-                findByIdInTransaction(params.id)
-                    ?: error("branch row not found after idempotent insert for ${params.id}")
-
-            if (inserted) {
-                auditFn(branch)
-                BranchCreateResult(branch, created = true)
-            } else {
-                BranchCreateResult(
-                    branch = branch,
-                    created = false,
-                )
-            }
-        }.also {
-            logger.info {
-                "[CREATE-BRANCH] Branch ${it.branch.id.toString().maskUUID()} created=${it.created}"
-            }
-        }
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: BranchCreateParams): BranchCreateResult {
+        val insertedCount =
+            BranchTable
+                .insertIgnore {
+                    it[BranchTable.id] = params.id
+                    it[BranchTable.branchType] = params.branchType
+                    it[BranchTable.name] = params.name
+                }.insertedCount
+        val branch =
+            findByIdInTransaction(params.id)
+                ?: error("branch row not found after idempotent insert for ${params.id}")
+        return BranchCreateResult(branch, created = insertedCount > 0)
+    }
 
     fun findById(id: UUID): Branch? =
         transaction {
