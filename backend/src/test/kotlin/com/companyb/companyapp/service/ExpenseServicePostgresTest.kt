@@ -371,6 +371,8 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             notes = null,
         )
 
+        val auditsBefore = callerAuditCount()
+
         assertFailsWith<ConflictException> {
             ExpenseService.update(
                 callerId = callerId,
@@ -381,6 +383,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 expectedVersion = 999,
             )
         }
+        assertEquals(auditsBefore, callerAuditCount(), "conflicted update writes no audit rows")
     }
 
     @Test
@@ -855,6 +858,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         DatabaseTestHelper.grantEditPastDay(callerId, branchId, sourceId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val auditsBefore = callerAuditCount()
 
         assertFailsWith<ValidationException> {
             ExpenseService.create(
@@ -866,6 +870,7 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
                 notes = "Test",
             )
         }
+        assertEquals(auditsBefore, callerAuditCount(), "rejected create writes no audit rows")
     }
 
     @Test
@@ -1027,6 +1032,14 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         assertEquals(created.version, rowVersion, "row untouched")
         assertEquals(0L, updateAudits, "no audit row for a failed mutation")
     }
+
+    private fun callerAuditCount(): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where { AuditLogTable.changedBy eq callerId }
+                .count()
+        }
 
     private fun grantEditBranchData(userId: UUID) {
         DatabaseTestHelper.grantCapability(

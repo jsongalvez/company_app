@@ -184,11 +184,14 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
                 .minusHours(WINDOW_HOURS + 1),
         )
 
+        val auditsBefore = callerAuditCount()
+
         assertFailsWith<ValidationException> {
             RemittanceService.undo(callerId, remittanceId, submittedVersion, "too late")
         }
         assertEquals(RemittanceStatus.SUBMITTED, RemittanceService.getRemittance(remittanceId).remittance.status)
         assertSnapshot(remittanceId, exists = true)
+        assertEquals(auditsBefore, callerAuditCount(), "expired undo writes no audit rows")
     }
 
     @Test
@@ -235,9 +238,12 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         val remittanceId = createDraft(RemittanceType.SESSION)
         addBreakdown(remittanceId)
 
+        val auditsBefore = callerAuditCount()
+
         assertFailsWith<ValidationException> {
             RemittanceService.undo(callerId, remittanceId, 1, "nope")
         }
+        assertEquals(auditsBefore, callerAuditCount(), "rejected undo writes no audit rows")
     }
 
     @Test
@@ -253,11 +259,14 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         addBreakdown(remittanceId)
         submit(remittanceId)
 
+        val auditsBefore = callerAuditCount()
+
         assertFailsWith<VersionMismatchException> {
             RemittanceService.undo(callerId, remittanceId, 1, "wrong version")
         }
         assertEquals(RemittanceStatus.SUBMITTED, RemittanceService.getRemittance(remittanceId).remittance.status)
         assertSnapshot(remittanceId, exists = true)
+        assertEquals(auditsBefore, callerAuditCount(), "conflicted undo writes no audit rows")
     }
 
     @Test
@@ -315,6 +324,8 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         addBreakdown(remittanceId)
         submit(remittanceId)
 
+        val auditsBefore = callerAuditCount()
+
         assertFailsWith<ValidationException> {
             RemittanceService.updateHeader(
                 callerId = callerId,
@@ -326,11 +337,14 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
                 expectedVersion = 99,
             )
         }
+        assertEquals(auditsBefore, callerAuditCount(), "rejected header update writes no audit rows")
     }
 
     @Test
     fun `update header with version mismatch throws conflict`() {
         val remittanceId = createDraft(RemittanceType.SESSION)
+
+        val auditsBefore = callerAuditCount()
 
         assertFailsWith<VersionMismatchException> {
             RemittanceService.updateHeader(
@@ -344,6 +358,7 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
             )
         }
         assertEquals(RemittanceType.SESSION, RemittanceService.getRemittance(remittanceId).remittance.type)
+        assertEquals(auditsBefore, callerAuditCount(), "conflicted header update writes no audit rows")
     }
 
     @Test
@@ -439,6 +454,14 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
                 .selectAll()
                 .where { BranchDayTable.id eq dayId }
                 .single()[BranchDayTable.status]
+        }
+
+    private fun callerAuditCount(): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where { AuditLogTable.changedBy eq callerId }
+                .count()
         }
 
     private fun auditRow(

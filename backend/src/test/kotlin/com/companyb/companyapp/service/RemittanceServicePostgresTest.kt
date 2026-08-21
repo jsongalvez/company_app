@@ -377,9 +377,12 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
         trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
 
+        val auditsBefore = callerAuditCount()
+
         assertFailsWith<ConflictException> {
             RemittanceService.submit(callerId, remittanceId, 99)
         }
+        assertEquals(auditsBefore, callerAuditCount(), "conflicted submit writes no audit rows")
     }
 
     @Test
@@ -426,10 +429,12 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
 
         val v1 = RemittanceService.getRemittance(remittanceId).remittance.version
         RemittanceService.submit(callerId, remittanceId, v1)
+        val auditsBefore = callerAuditCount()
 
         assertFailsWith<VersionMismatchException> {
             RemittanceService.submit(callerId, remittanceId, 99)
         }
+        assertEquals(auditsBefore, callerAuditCount(), "duplicate submit writes no audit rows")
     }
 
     @Test
@@ -889,6 +894,14 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
             }
         }
     }
+
+    private fun callerAuditCount(): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where { AuditLogTable.changedBy eq callerId }
+                .count()
+        }
 
     private data class SubmitOutcome(
         val status: RemittanceStatus,
