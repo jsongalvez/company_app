@@ -121,10 +121,10 @@ show_status() {
         exit 1
     fi
     cat "$STATUS_FILE"
-    if [ -f "$RESULT_FILE" ]; then
-        echo "overall: $(cat "$RESULT_FILE")"
-    elif [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
         echo "overall: RUNNING (pid $(cat "$PID_FILE"), log: $RUN_LOG)"
+    elif [ -f "$RESULT_FILE" ]; then
+        echo "overall: $(cat "$RESULT_FILE")"
     else
         echo "overall: INCOMPLETE (runner died? log: $RUN_LOG)"
     fi
