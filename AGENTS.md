@@ -120,6 +120,26 @@ message. The local `commit-msg` hook enforces this without network access, accep
 closed issue numbers, permits multiple references, and exempts Git merge commits.
 Run `bash scripts/setup-hooks.sh` after cloning to install `.githooks`.
 
+## Integration — direct-to-master
+
+Ordinary AFK tickets integrate as well-scoped commits **directly on `master`**, then push
+immediately — no feature branch, PR, or merge step (map #329). One ticket = one or more
+identifiable commits; `ref #<number>` in every commit message keeps each ticket's commits
+revertable.
+
+**PR escalation triggers** (the only reasons to leave direct-to-master):
+
+- the human explicitly requests a PR/review;
+- work arrives from an external contributor;
+- unusually risky or irreversible integration where isolated review adds real value;
+- a future multi-agent/concurrent workflow needs an integration boundary.
+
+High-risk code still uses the high-risk review profile above — that is review depth, not an
+integration branch, and never "wait on full CI" (asynchronous CI owns remote verification).
+
+Never commit unrelated dirty work: stage only the ticket's files. Do not reintroduce
+long-lived integration branches.
+
 ## Git hooks (CRITICAL)
 
 After `bash scripts/setup-hooks.sh`:

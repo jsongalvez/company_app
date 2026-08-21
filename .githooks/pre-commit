@@ -65,7 +65,9 @@ fi
 SHELL_FILES=()
 while IFS= read -r file; do
     case "$file" in
-        *.sh|scripts/**/*.sh|.githooks/*) SHELL_FILES+=("$file") ;;
+        *.sh|scripts/**/*.sh|.githooks/*)
+            # Staged deletions appear in the name list but no longer exist on disk.
+            [[ -f "$file" ]] && SHELL_FILES+=("$file") ;;
     esac
 done <<< "$STAGED_FILES"
 
