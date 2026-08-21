@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
@@ -9,9 +10,17 @@ import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
 
+/**
+ * Compensation feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * business transaction: persistence runs on it via `CompensationRepository.*InTransaction`
+ * store operations, the before/after state is captured inside it (ADR-0019 invariant), and
+ * the audit row is inserted directly into it — so domain write + audit commit atomically or
+ * not at all.
+ */
 object CompensationService {
     private val logger = KotlinLogging.logger {}
 
@@ -35,30 +44,34 @@ object CompensationService {
 
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId, reason)
 
-        val result =
-            CompensationRepository.create(
-                CompensationCreateParams(
-                    id = id,
-                    workBranchDayId = workBranchDayId,
-                    payingBranchDayId = payingBranchDayId,
-                    userId = userId,
-                    amount = amount,
-                    assignedBy = callerId,
-                    note = note,
-                ),
-            ) { compensation ->
-                AuditLogRepository.recordInsert(
-                    tableName = CompensationTable.tableName,
-                    recordId = compensation.id,
+        return transaction {
+            val result =
+                CompensationRepository.createInTransaction(
+                    CompensationCreateParams(
+                        id = id,
+                        workBranchDayId = workBranchDayId,
+                        payingBranchDayId = payingBranchDayId,
+                        userId = userId,
+                        amount = amount,
+                        assignedBy = callerId,
+                        note = note,
+                    ),
+                )
+            if (result.created) {
+                CompensationAudit.inserted(
                     changedBy = callerId,
                     branchId = branchDay.branchId,
-                    fields = CompensationTable.auditFields(compensation),
+                    compensation = result.compensation,
                     isFlagged = isRemitted,
                     reason = reason,
                 )
             }
-        logger.info { "[CREATE-COMPENSATION] Created compensation ${result.compensation.id} created=${result.created}" }
-        return result.compensation
+            result.compensation
+        }.also { created ->
+            logger.info {
+                "[CREATE-COMPENSATION] Compensation ${created.id.toString().maskUUID()} created"
+            }
+        }
     }
 
     @Suppress("ThrowsCount", "LongParameterList")
@@ -69,30 +82,75 @@ object CompensationService {
         note: String?,
         expectedVersion: Int,
         reason: String? = null,
-    ): Compensation {
-        val before =
-            CompensationRepository.findById(compensationId)
-                ?: throw NotFoundException("Compensation not found")
+    ): Compensation =
+        transaction {
+            // Transaction-local before-state (ADR-0019): read inside the command's transaction.
+            val before =
+                CompensationRepository.findByIdInTransaction(compensationId)
+                    ?: throw NotFoundException("Compensation not found")
 
-        val (branchDay, isRemitted) =
-            BranchDayService.checkBranchDayEditable(
-                callerId,
-                before.payingBranchDayId,
-                reason,
-            )
+            val (branchDay, isRemitted) =
+                BranchDayService.checkBranchDayEditable(
+                    callerId,
+                    before.payingBranchDayId,
+                    reason,
+                )
 
-        return CompensationRepository.update(compensationId, amount, note, expectedVersion) { after ->
-            AuditLogRepository.recordUpdate(
-                tableName = CompensationTable.tableName,
-                recordId = compensationId,
-                before = before,
-                after = after,
+            val after =
+                CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
+
+            CompensationAudit.updated(
                 changedBy = callerId,
                 branchId = branchDay.branchId,
+                before = before,
+                after = after,
                 isFlagged = isRemitted,
                 reason = reason,
-                auditFields = CompensationTable::auditFields,
             )
+            after
+        }.also {
+            logger.info { "[UPDATE-COMPENSATION] Compensation ${compensationId.toString().maskUUID()} updated" }
         }
-    }
+}
+
+/**
+ * Compensation audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object CompensationAudit {
+    fun inserted(
+        changedBy: UUID,
+        branchId: UUID,
+        compensation: Compensation,
+        isFlagged: Boolean,
+        reason: String?,
+    ) = AuditLogRepository.recordInsert(
+        tableName = CompensationTable.tableName,
+        recordId = compensation.id,
+        changedBy = changedBy,
+        branchId = branchId,
+        fields = CompensationTable.auditFields(compensation),
+        isFlagged = isFlagged,
+        reason = reason,
+    )
+
+    fun updated(
+        changedBy: UUID,
+        branchId: UUID,
+        before: Compensation,
+        after: Compensation,
+        isFlagged: Boolean,
+        reason: String?,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = CompensationTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = changedBy,
+        branchId = branchId,
+        isFlagged = isFlagged,
+        reason = reason,
+        auditFields = CompensationTable::auditFields,
+    )
 }

@@ -41,83 +41,69 @@ data class CompensationWithUser(
 )
 
 object CompensationRepository {
-    fun create(
-        params: CompensationCreateParams,
-        auditFn: (Compensation) -> Unit = {},
-    ): CompensationCreateResult =
-        transaction {
-            val insertedCount =
-                CompensationTable
-                    .insertIgnore {
-                        it[CompensationTable.id] = params.id
-                        it[CompensationTable.workBranchDayId] = params.workBranchDayId
-                        it[CompensationTable.payingBranchDayId] = params.payingBranchDayId
-                        it[CompensationTable.userId] = params.userId
-                        it[CompensationTable.amount] = params.amount
-                        it[CompensationTable.assignedBy] = params.assignedBy
-                        if (params.note != null) it[CompensationTable.note] = params.note
-                    }.insertedCount
-            val created = insertedCount > 0
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: CompensationCreateParams): CompensationCreateResult {
+        val insertedCount =
+            CompensationTable
+                .insertIgnore {
+                    it[CompensationTable.id] = params.id
+                    it[CompensationTable.workBranchDayId] = params.workBranchDayId
+                    it[CompensationTable.payingBranchDayId] = params.payingBranchDayId
+                    it[CompensationTable.userId] = params.userId
+                    it[CompensationTable.amount] = params.amount
+                    it[CompensationTable.assignedBy] = params.assignedBy
+                    if (params.note != null) it[CompensationTable.note] = params.note
+                }.insertedCount
+        val created = insertedCount > 0
 
-            if (!created) {
-                val existingByKey = findByUserAndPayingDayInTransaction(params.userId, params.payingBranchDayId)
-                val existingById = findByIdInTransaction(params.id)
-                if (existingById != null) {
-                    return@transaction CompensationCreateResult(existingById, created = false)
-                }
-                if (existingByKey != null) {
-                    throw ConflictException("Compensation already exists for this user and paying branch day")
-                }
-                error("compensation insert was ignored without a conflicting row for ${params.id}")
+        if (!created) {
+            val existingByKey = findByUserAndPayingDayInTransaction(params.userId, params.payingBranchDayId)
+            val existingById = findByIdInTransaction(params.id)
+            if (existingById != null) {
+                return CompensationCreateResult(existingById, created = false)
             }
-
-            val compensation =
-                findByIdInTransaction(params.id) ?: error("compensation not found after insert for ${params.id}")
-            auditFn(compensation)
-            CompensationCreateResult(compensation, created = true)
-        }.also { result ->
-            logger.info {
-                "[CREATE-COMPENSATION] Compensation ${result.compensation.id.toString().maskUUID()}" +
-                    " created=${result.created}"
+            if (existingByKey != null) {
+                throw ConflictException("Compensation already exists for this user and paying branch day")
             }
+            error("compensation insert was ignored without a conflicting row for ${params.id}")
         }
 
-    @Suppress("LongParameterList")
-    fun update(
+        val compensation =
+            findByIdInTransaction(params.id) ?: error("compensation not found after insert for ${params.id}")
+        return CompensationCreateResult(compensation, created = true)
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — optimistic-version write on the caller's
+     * command transaction; a version mismatch throws before any audit can be written.
+     */
+    fun updateInTransaction(
         compensationId: UUID,
         amount: BigDecimal,
         note: String?,
         expectedVersion: Int,
-        auditFn: (Compensation) -> Unit = {},
-    ): Compensation =
-        transaction {
-            val updatedCount =
-                CompensationTable.update({
-                    (CompensationTable.id eq compensationId) and
-                        (CompensationTable.version eq expectedVersion)
-                }) {
-                    it[CompensationTable.amount] = amount
-                    if (note != null) {
-                        it[CompensationTable.note] = note
-                    } else {
-                        it[CompensationTable.note] = null
-                    }
-                    it[CompensationTable.version] = expectedVersion + 1
+    ): Compensation {
+        val updatedCount =
+            CompensationTable.update({
+                (CompensationTable.id eq compensationId) and
+                    (CompensationTable.version eq expectedVersion)
+            }) {
+                it[CompensationTable.amount] = amount
+                if (note != null) {
+                    it[CompensationTable.note] = note
+                } else {
+                    it[CompensationTable.note] = null
                 }
-
-            if (updatedCount == 0) {
-                throw VersionMismatchException(CompensationTable.tableName, compensationId)
+                it[CompensationTable.version] = expectedVersion + 1
             }
 
-            val after =
-                findByIdInTransaction(compensationId)
-                    ?: error("compensation not found after update for $compensationId")
-
-            auditFn(after)
-            after
-        }.also {
-            logger.info { "[UPDATE-COMPENSATION] Compensation ${compensationId.toString().maskUUID()} updated" }
+        if (updatedCount == 0) {
+            throw VersionMismatchException(CompensationTable.tableName, compensationId)
         }
+
+        return findByIdInTransaction(compensationId)
+            ?: error("compensation not found after update for $compensationId")
+    }
 
     fun findById(id: UUID): Compensation? =
         transaction {
@@ -153,7 +139,8 @@ object CompensationRepository {
             }
         }
 
-    private fun findByIdInTransaction(id: UUID): Compensation? =
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): Compensation? =
         CompensationTable
             .selectAll()
             .where { CompensationTable.id eq id }

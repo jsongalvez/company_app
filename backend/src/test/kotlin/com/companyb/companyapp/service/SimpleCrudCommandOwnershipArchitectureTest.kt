@@ -7,12 +7,12 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * #323 batch 1 ownership seam (ADR-0024). Cheap source-level assertions that the simple-CRUD
- * modules (Branch, ProductCategory, Product, Client) keep their migrated shape: mutating store
- * operations are `*InTransaction` with no `auditFn` coordination and no nested write transactions,
- * and each public command owns exactly one transaction while persistence-table knowledge stays
- * behind the feature/audit seam. Mechanical enforcement for the whole backend arrives with #324;
- * this pins this migration batch until then.
+ * #323 batches 1–2 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
+ * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation) keep their shape:
+ * mutating store operations are `*InTransaction` with no `auditFn` coordination and no nested
+ * write transactions, and each public command owns exactly one transaction while persistence-table
+ * knowledge stays behind the feature/audit seam. Mechanical enforcement for the whole backend
+ * arrives with #324; this pins these migration batches until then.
  */
 class SimpleCrudCommandOwnershipArchitectureTest {
     private fun mainSource(relative: String): String =
@@ -27,6 +27,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/ProductCategoryRepository.kt" to 2,
                 "repository/ProductRepository.kt" to 3,
                 "repository/ClientRepository.kt" to 2,
+                "repository/AllowanceRepository.kt" to 1,
+                "repository/CompensationRepository.kt" to 3,
             )
         files.forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
@@ -46,6 +48,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/ProductCategoryService.kt" to listOf("create"),
                 "service/ProductService.kt" to listOf("create", "update"),
                 "service/ClientService.kt" to listOf("create", "update", "anonymize"),
+                "service/AllowanceService.kt" to listOf("create"),
+                "service/CompensationService.kt" to listOf("create", "update"),
             )
         commands.forEach { (file, names) ->
             val source = mainSource(file)
@@ -71,6 +75,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/ProductCategoryService.kt" to "ProductCategoryAudit",
                 "service/ProductService.kt" to "ProductAudit",
                 "service/ClientService.kt" to "ClientAudit",
+                "service/AllowanceService.kt" to "AllowanceAudit",
+                "service/CompensationService.kt" to "CompensationAudit",
             )
         seams.forEach { (file, seam) ->
             val source = mainSource(file)

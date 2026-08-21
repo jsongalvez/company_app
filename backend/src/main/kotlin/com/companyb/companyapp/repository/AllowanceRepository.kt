@@ -22,40 +22,31 @@ data class AllowanceCreateResult(
 )
 
 object AllowanceRepository {
-    fun create(
-        params: AllowanceCreateParams,
-        auditFn: (Allowance) -> Unit = {},
-    ): AllowanceCreateResult =
-        transaction {
-            val insertedCount =
-                AllowanceTable
-                    .insertIgnore {
-                        it[AllowanceTable.id] = params.id
-                        it[AllowanceTable.branchDayId] = params.branchDayId
-                        it[AllowanceTable.userId] = params.userId
-                        it[AllowanceTable.amount] = params.amount
-                        it[AllowanceTable.assignedBy] = params.assignedBy
-                        it[AllowanceTable.assignedAt] = CurrentTimestampWithTimeZone
-                    }.insertedCount
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: AllowanceCreateParams): AllowanceCreateResult {
+        val insertedCount =
+            AllowanceTable
+                .insertIgnore {
+                    it[AllowanceTable.id] = params.id
+                    it[AllowanceTable.branchDayId] = params.branchDayId
+                    it[AllowanceTable.userId] = params.userId
+                    it[AllowanceTable.amount] = params.amount
+                    it[AllowanceTable.assignedBy] = params.assignedBy
+                    it[AllowanceTable.assignedAt] = CurrentTimestampWithTimeZone
+                }.insertedCount
 
-            val existing =
-                findByIdInTransaction(params.id)
-                    ?: error("allowance not found after insert for ${params.id}")
-            if (existing.branchDayId != params.branchDayId) {
-                throw NotFoundException("Allowance not found for this branch day")
-            }
-            if (insertedCount == 0) {
-                return@transaction AllowanceCreateResult(existing, created = false)
-            }
-
-            auditFn(existing)
-            AllowanceCreateResult(existing, created = true)
-        }.also { result ->
-            logger.info {
-                "[CREATE-ALLOWANCE] Allowance ${result.allowance.id.toString().maskUUID()}" +
-                    " created=${result.created}"
-            }
+        val existing =
+            findByIdInTransaction(params.id)
+                ?: error("allowance not found after insert for ${params.id}")
+        if (existing.branchDayId != params.branchDayId) {
+            throw NotFoundException("Allowance not found for this branch day")
         }
+        if (insertedCount == 0) {
+            return AllowanceCreateResult(existing, created = false)
+        }
+
+        return AllowanceCreateResult(existing, created = true)
+    }
 
     fun findByBranchDayId(branchDayId: UUID): List<Allowance> =
         transaction {

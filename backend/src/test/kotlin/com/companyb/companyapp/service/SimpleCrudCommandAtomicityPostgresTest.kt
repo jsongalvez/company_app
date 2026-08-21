@@ -3,14 +3,17 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ClientCreateParams
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -19,6 +22,7 @@ import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,7 +31,8 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * #323 batch 1 atomicity proofs (ADR-0024). Representative risk class: simple CRUD commands.
+ * #323 batches 1–2 atomicity proofs (ADR-0024). Representative risk classes: simple CRUD
+ * commands and optimistic-version updates.
  * Proves the migrated composition — store write on the command transaction, then the audit
  * insert into that same transaction — commits atomically, and that neither a failing audit
  * statement nor a failing mutation can leave one side of the pair behind.
@@ -158,5 +163,51 @@ class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertEquals(0L, updateAudits, "no audit row for a failed mutation")
+    }
+
+    @Test
+    fun `version-mismatched compensation update writes no audit row`() {
+        val targetUserId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(targetUserId, "crud-atomic-target")
+        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
+        // initTestData only tracks the branch id; this test needs a real branch_day under it.
+        DatabaseTestHelper.insertTestBranch(branchId)
+        val workDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val payingDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
+
+        val created =
+            CompensationService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                workBranchDayId = workDayId,
+                payingBranchDayId = payingDayId,
+                userId = targetUserId,
+                amount = BigDecimal("100.00"),
+                note = null,
+            )
+
+        assertFailsWith<ConflictException> {
+            CompensationService.update(
+                callerId = callerId,
+                compensationId = created.id,
+                amount = BigDecimal("200.00"),
+                note = null,
+                expectedVersion = 999,
+            )
+        }
+
+        val updateAudits =
+            transaction {
+                AuditLogTable
+                    .selectAll()
+                    .where {
+                        (AuditLogTable.auditTableName eq CompensationTable.tableName) and
+                            (AuditLogTable.recordId eq created.id) and
+                            (AuditLogTable.action eq AuditAction.UPDATE)
+                    }.count()
+            }
+        assertEquals(0L, updateAudits, "version mismatch must abort before any audit write")
     }
 }
