@@ -212,7 +212,7 @@ This ensures the audit insert commits atomically with the mutation it describes.
 
 Transaction ownership depends on the module's migration state ([ADR-0024](../docs/adr/0024-command-owned-mutation-transactions.md)):
 
-- **Migrated modules (Expense; later Remittance/Attendance per #320/#321):** the feature command owns
+- **Migrated modules (Expense, Remittance; later Attendance per #321):** the feature command owns
   one transaction, repository mutators are `*InTransaction` store operations that open no transaction,
   and the command calls `AuditLogRepository.record*` directly inside its own transaction.
 - **Un-migrated modules (transitional until #323):** audit goes through the repository's `auditFn`

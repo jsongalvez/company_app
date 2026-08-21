@@ -223,7 +223,9 @@ class RemittanceUndoServicePostgresTest : BasePostgresTest() {
         assertSnapshot(remittanceId, exists = true)
 
         assertFailsWith<org.jetbrains.exposed.v1.exceptions.ExposedSQLException> {
-            RemittanceFinancialSnapshotRepository.deleteByRemittanceId(remittanceId)
+            transaction {
+                RemittanceFinancialSnapshotRepository.deleteByRemittanceIdInTransaction(remittanceId)
+            }
         }
         assertSnapshot(remittanceId, exists = true)
     }

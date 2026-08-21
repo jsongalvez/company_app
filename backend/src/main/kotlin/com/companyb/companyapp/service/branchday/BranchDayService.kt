@@ -230,6 +230,46 @@ object BranchDayService {
     }
 
     /**
+     * In-transaction Branch Day transitions for a remittance submission (#320): marks every
+     * covered day REMITTED and returns before/after images for the caller's audit rows. Runs
+     * on the caller's open transaction — no transaction of its own (ADR-0024 rule 2). This is
+     * the Branch Day feature boundary: remittance code never touches branch-day tables.
+     */
+    fun markDaysRemittedInTransaction(branchDayIds: List<UUID>): List<Pair<BranchDay, BranchDay>> =
+        branchDayIds.map { id ->
+            val before =
+                BranchDayRepository.findByIdInTransaction(id)
+                    ?: error("branch day not found for remittance submit: $id")
+            BranchDayRepository.updateStatusInTransaction(id, DayStatus.REMITTED)
+            val after =
+                BranchDayRepository.findByIdInTransaction(id)
+                    ?: error("branch day not found after remittance submit: $id")
+            before to after
+        }
+
+    /**
+     * In-transaction inverse of [markDaysRemittedInTransaction] (#320, undo path): each released
+     * day re-derives its status from its operational date via [evaluateStatus] (an OPEN day whose
+     * date has passed becomes PAST) and returns before/after images for audit. Runs on the
+     * caller's open transaction.
+     */
+    fun releaseDaysFromRemittanceInTransaction(
+        branchDayIds: List<UUID>,
+        today: LocalDate,
+    ): List<Pair<BranchDay, BranchDay>> =
+        branchDayIds.map { id ->
+            val before =
+                BranchDayRepository.findByIdInTransaction(id)
+                    ?: error("branch day not found for remittance undo: $id")
+            val afterStatus = evaluateStatus(DayStatus.OPEN, before.date, today)
+            BranchDayRepository.updateStatusInTransaction(id, afterStatus)
+            val after =
+                BranchDayRepository.findByIdInTransaction(id)
+                    ?: error("branch day not found after remittance undo: $id")
+            before to after
+        }
+
+    /**
      * Converts a branch calendar [branchDate] to its UTC expiration instant at the 4 AM Manila
      * boundary of the following day. Used for relief-access capability `valid_to` timestamps.
      */

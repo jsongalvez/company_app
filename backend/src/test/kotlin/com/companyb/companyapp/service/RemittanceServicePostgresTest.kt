@@ -10,6 +10,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -27,7 +28,10 @@ import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.remittance.RemittancePolicy
+import com.companyb.companyapp.service.finance.remittance.RemittanceRepository
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
+import com.companyb.companyapp.service.finance.remittance.RemittanceSubmissionResult
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -43,6 +47,9 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -52,6 +59,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
 
+@Suppress("LargeClass")
 class RemittanceServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
@@ -549,6 +557,169 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
         assertEquals(BigDecimal.ZERO, result.netIncome)
     }
 
+    // ===== #320 contract proofs — command-owned SERIALIZABLE submission (ADR-0024) =====
+
+    @Test
+    fun `audit failure inside the submit command rolls the whole submission back`() {
+        val remittanceId = TestFixtures.uuid()
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+
+        // Exercises the exact composition the migrated submit command runs — store writes and
+        // Branch Day transitions on the command transaction, then the audit insert into that
+        // same transaction. A failing audit statement must abort everything.
+        val error =
+            runCatching {
+                transaction {
+                    val before =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId) ?: error("missing draft")
+                    RemittancePolicy.assertSubmittable(before.status, before.version, 1, remittanceId)
+                    RemittanceRepository.markSubmittedInTransaction(
+                        remittanceId,
+                        1,
+                        callerId,
+                        LocalDate.of(2026, 7, 10),
+                    )
+                    BranchDayService.markDaysRemittedInTransaction(listOf(branchDayId))
+                    AuditLogRepository.record(
+                        tableName = RemittanceTable.tableName,
+                        recordId = remittanceId,
+                        action = AuditAction.UPDATE,
+                        changedBy = callerId,
+                        oldValue = "{not-valid-json",
+                    )
+                }
+            }.exceptionOrNull()
+
+        assertNotNull(error, "malformed jsonb audit payload must fail the statement")
+
+        val (status, dayStatus, auditCount) =
+            transaction {
+                val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
+                val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
+                val audits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.recordId eq remittanceId) and
+                                (AuditLogTable.action eq AuditAction.UPDATE)
+                        }.count()
+                Triple(remittance[RemittanceTable.status], day[BranchDayTable.status], audits)
+            }
+        assertEquals(RemittanceStatus.DRAFT, status, "mutation rolled back with the failed audit")
+        assertEquals(DayStatus.OPEN, dayStatus, "branch-day transition rolled back with the failed audit")
+        assertEquals(0L, auditCount, "no partial audit row survived")
+    }
+
+    @Test
+    fun `failed submit writes no audit rows`() {
+        val remittanceId = TestFixtures.uuid()
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+
+        assertFailsWith<VersionMismatchException> {
+            RemittanceService.submit(callerId, remittanceId, 999)
+        }
+
+        val (status, dayStatus, auditCount) =
+            transaction {
+                val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
+                val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
+                val audits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.recordId eq remittanceId) and
+                                (AuditLogTable.action eq AuditAction.UPDATE)
+                        }.count()
+                Triple(remittance[RemittanceTable.status], day[BranchDayTable.status], audits)
+            }
+        assertEquals(RemittanceStatus.DRAFT, status, "row untouched")
+        assertEquals(DayStatus.OPEN, dayStatus, "no day transition for a failed mutation")
+        assertEquals(0L, auditCount, "no audit row for a failed mutation")
+    }
+
+    @Suppress("LongMethod")
+    @Test
+    fun `concurrent submit of the same draft lets exactly one win`() {
+        val remittanceId = TestFixtures.uuid()
+        createDraftRemittance(remittanceId)
+        val branchDayId = resolveBranchDay()
+        addDayBreakdown(remittanceId, TestFixtures.uuid(), branchDayId)
+        trackOwned(RemittanceTable, RemittanceTable.id, remittanceId)
+        trackOwned(RemittanceLineTable, RemittanceLineTable.remittanceId, remittanceId)
+        trackOwned(RemittanceDayBreakdownTable, RemittanceDayBreakdownTable.remittanceId, remittanceId)
+        trackOwned(RemittanceFinancialSnapshotTable, RemittanceFinancialSnapshotTable.remittanceId, remittanceId)
+
+        val threads = 2
+        val executor = Executors.newFixedThreadPool(threads)
+        val ready = CountDownLatch(threads)
+        val start = CountDownLatch(1)
+        val futures =
+            (1..threads).map {
+                executor.submit<Result<RemittanceSubmissionResult>> {
+                    ready.countDown()
+                    start.await()
+                    runCatching { RemittanceService.submit(callerId, remittanceId, 1) }
+                }
+            }
+
+        try {
+            assertTrue(ready.await(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+            start.countDown()
+            val outcomes = futures.map { it.get() }
+            assertEquals(1, outcomes.count { it.isSuccess }, "exactly one concurrent submit wins")
+            assertEquals(1, outcomes.count { it.isFailure }, "the loser is rejected")
+        } finally {
+            executor.shutdownNow()
+            assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+        }
+
+        val outcome =
+            transaction {
+                val remittance = RemittanceTable.selectAll().where { RemittanceTable.id eq remittanceId }.single()
+                val day = BranchDayTable.selectAll().where { BranchDayTable.id eq branchDayId }.single()
+                val rAudits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.recordId eq remittanceId) and
+                                (AuditLogTable.auditTableName eq RemittanceTable.tableName) and
+                                (AuditLogTable.action eq AuditAction.UPDATE)
+                        }.count()
+                val dAudits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.recordId eq branchDayId) and
+                                (AuditLogTable.auditTableName eq BranchDayTable.tableName) and
+                                (AuditLogTable.action eq AuditAction.UPDATE)
+                        }.count()
+                SubmitOutcome(
+                    remittance[RemittanceTable.status],
+                    remittance[RemittanceTable.version],
+                    day[BranchDayTable.status],
+                    rAudits,
+                    dAudits,
+                )
+            }
+        assertEquals(RemittanceStatus.SUBMITTED, outcome.status)
+        assertEquals(2, outcome.version, "one winner, one version bump")
+        assertEquals(DayStatus.REMITTED, outcome.dayStatus)
+        assertEquals(1L, outcome.remittanceAudits, "one remittance audit row total")
+        assertEquals(1L, outcome.dayAudits, "one branch-day audit row total")
+    }
+
     private fun createDraftRemittance(remittanceId: UUID) {
         RemittanceService.createDraft(
             callerId = callerId,
@@ -717,5 +888,17 @@ class RemittanceServicePostgresTest : BasePostgresTest() {
                 it[ExpenseTable.createdBy] = callerId
             }
         }
+    }
+
+    private data class SubmitOutcome(
+        val status: RemittanceStatus,
+        val version: Int,
+        val dayStatus: DayStatus,
+        val remittanceAudits: Long,
+        val dayAudits: Long,
+    )
+
+    private companion object {
+        private const val EXECUTOR_TERMINATION_SECONDS = 30L
     }
 }

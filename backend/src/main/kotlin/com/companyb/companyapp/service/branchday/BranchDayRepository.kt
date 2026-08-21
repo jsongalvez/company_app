@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.branchday
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.BranchDayTable
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -9,6 +10,7 @@ import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
 import java.util.UUID
 
@@ -33,12 +35,26 @@ internal object BranchDayRepository {
 
     fun findById(branchDayId: UUID): BranchDay? =
         transaction {
-            BranchDayTable
-                .selectAll()
-                .where { BranchDayTable.id eq branchDayId }
-                .singleOrNull()
-                ?.toBranchDay()
+            findByIdInTransaction(branchDayId)
         }
+
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(branchDayId: UUID): BranchDay? =
+        BranchDayTable
+            .selectAll()
+            .where { BranchDayTable.id eq branchDayId }
+            .singleOrNull()
+            ?.toBranchDay()
+
+    /** In-transaction status write — runs on the caller's open transaction (ADR-0024). */
+    fun updateStatusInTransaction(
+        branchDayId: UUID,
+        status: DayStatus,
+    ) {
+        BranchDayTable.update({ BranchDayTable.id eq branchDayId }) {
+            it[BranchDayTable.status] = status
+        }
+    }
 
     fun acquireLock(branchDayId: UUID) {
         transaction {

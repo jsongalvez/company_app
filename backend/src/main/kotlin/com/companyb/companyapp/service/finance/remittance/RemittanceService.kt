@@ -7,65 +7,107 @@ import com.companyb.companyapp.domain.RemittanceType
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.BranchDay
-import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
+import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
 import com.companyb.companyapp.repository.model.RemittanceLine
-import com.companyb.companyapp.repository.model.RemittanceLineTable
-import com.companyb.companyapp.repository.model.RemittanceTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
+import java.sql.Connection
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
+/**
+ * Remittance feature commands (#320, ADR-0024). Each mutating command owns exactly one business
+ * transaction — SERIALIZABLE for the financial submit/undo workflow — choosing its isolation
+ * there. Persistence runs on that transaction via the internal `*InTransaction` stores, Branch
+ * Day transitions go through the [BranchDayService] boundary, and the audit rows are inserted
+ * directly into the same transaction ([RemittanceAudit]), so every mutation commits together
+ * with its audit trail or not at all. Pure state/financial rules live in [RemittancePolicy].
+ */
 @Suppress("TooManyFunctions")
 object RemittanceService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount")
+    private const val SERIALIZABLE_ISOLATION = Connection.TRANSACTION_SERIALIZABLE
+
+    /**
+     * Freezes the draft into a SUBMITTED remittance: locks the row, validates the transition,
+     * computes the financial totals from live lines/compensations/expenses, writes the immutable
+     * SESSION snapshot, stamps the submission, marks every covered day REMITTED through the
+     * Branch Day boundary, and audits all of it inside one SERIALIZABLE transaction.
+     */
+    @Suppress("ThrowsCount", "LongMethod")
     fun submit(
         callerId: UUID,
         remittanceId: UUID,
         expectedVersion: Int,
     ): RemittanceSubmissionResult {
         val result =
-            RemittanceRepository.submit(
-                remittanceId = remittanceId,
-                expectedVersion = expectedVersion,
-                callerId = callerId,
-                auditFn = { ctx ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = RemittanceTable.tableName,
-                        recordId = ctx.remittanceAfter.id,
-                        before = ctx.remittanceBefore,
-                        after = ctx.remittanceAfter,
-                        changedBy = callerId,
-                        branchId = ctx.remittanceAfter.branchId,
-                        auditFields = RemittanceTable::auditFields,
-                    )
-                    ctx.branchDayPairs.forEach { (before, after) ->
-                        AuditLogRepository.recordUpdate(
-                            tableName = BranchDayTable.tableName,
-                            recordId = after.id,
-                            before = before,
-                            after = after,
-                            changedBy = callerId,
-                            branchId = before.branchId,
-                            auditFields = BranchDayTable::auditFields,
+            try {
+                transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                    val before =
+                        RemittanceRepository.lockByIdInTransaction(remittanceId)
+                            ?: return@transaction null
+
+                    RemittancePolicy.assertSubmittable(before.status, before.version, expectedVersion, remittanceId)
+
+                    val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
+                    val grossIncome = RemittanceRepository.sumGrossIncomeInTransaction(remittanceId)
+                    val totalCompensation = RemittanceRepository.sumCompensationsInTransaction(breakdownIds)
+                    val totalExpenses = RemittanceRepository.sumExpensesInTransaction(breakdownIds)
+                    val netIncome = RemittancePolicy.netOf(grossIncome, totalCompensation, totalExpenses)
+
+                    if (RemittancePolicy.requiresSnapshot(before.type)) {
+                        RemittanceFinancialSnapshotRepository.insertInTransaction(
+                            RemittanceFinancialSnapshotCreateParams(
+                                remittanceId = remittanceId,
+                                grossIncome = grossIncome,
+                                totalCompensation = totalCompensation,
+                                totalExpenses = totalExpenses,
+                                netIncome = netIncome,
+                            ),
                         )
                     }
-                },
-            ) ?: throw NotFoundException("Remittance not found")
+
+                    RemittanceRepository.markSubmittedInTransaction(
+                        remittanceId,
+                        expectedVersion,
+                        callerId,
+                        submittedDate = BranchDayService.currentOperationalDate(),
+                    )
+                    val branchDayPairs =
+                        BranchDayService.markDaysRemittedInTransaction(breakdownIds)
+
+                    val after =
+                        RemittanceRepository.findByIdInTransaction(remittanceId)
+                            ?: error("remittance not found after submit for $remittanceId")
+
+                    RemittanceAudit.remittanceUpdated(callerId, before, after)
+                    branchDayPairs.forEach { (dayBefore, dayAfter) ->
+                        RemittanceAudit.branchDayUpdated(callerId, dayBefore, dayAfter)
+                    }
+
+                    RemittanceSubmissionResult(
+                        remittance = after,
+                        grossIncome = grossIncome,
+                        totalCompensation = totalCompensation,
+                        totalExpenses = totalExpenses,
+                        netIncome = netIncome,
+                    )
+                }
+            } catch (error: ExposedSQLException) {
+                throw RemittanceRepository.remittanceOverlapError(error) ?: error
+            } ?: throw NotFoundException("Remittance not found")
 
         logger.info {
             "[SUBMIT-REMITTANCE] Remittance $remittanceId submitted. Gross=${result.grossIncome} " +
@@ -74,7 +116,7 @@ object RemittanceService {
         return result
     }
 
-    @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
+    @Suppress("ThrowsCount", "LongParameterList")
     fun createDraft(
         callerId: UUID,
         id: UUID,
@@ -89,25 +131,24 @@ object RemittanceService {
 
         val today = BranchDayService.currentOperationalDate()
         val result =
-            RemittanceRepository.createDraft(
-                CreateDraftParams(
-                    id = id,
-                    type = type,
-                    branchId = branchId,
-                    method = method,
-                    dateRangeStart = dateRangeStart,
-                    dateRangeEnd = dateRangeEnd,
-                    submittedDate = today,
-                    submittedBy = callerId,
-                ),
-            ) { remittance ->
-                AuditLogRepository.recordInsert(
-                    tableName = RemittanceTable.tableName,
-                    recordId = remittance.id,
-                    changedBy = callerId,
-                    branchId = branchId,
-                    fields = RemittanceTable.auditFields(remittance),
-                )
+            transaction {
+                val createResult =
+                    RemittanceRepository.createDraftInTransaction(
+                        CreateDraftParams(
+                            id = id,
+                            type = type,
+                            branchId = branchId,
+                            method = method,
+                            dateRangeStart = dateRangeStart,
+                            dateRangeEnd = dateRangeEnd,
+                            submittedDate = today,
+                            submittedBy = callerId,
+                        ),
+                    )
+                if (createResult.created) {
+                    RemittanceAudit.draftInserted(callerId, createResult.remittance)
+                }
+                createResult
             }
         logger.info { "[CREATE-REMITTANCE-DRAFT] Remittance ${result.remittance.id} created=${result.created}" }
         return result.remittance
@@ -127,6 +168,14 @@ object RemittanceService {
             reason = reason,
         )
 
+    /**
+     * Reverts a SUBMITTED remittance to DRAFT within the server-enforced 48-hour window
+     * ([RemittancePolicy.assertWithinUndoWindow], database clock), deletes the immutable
+     * snapshot (V13 trigger carve-out), releases every covered day back through the Branch Day
+     * boundary, and audits all of it inside one SERIALIZABLE transaction.
+     *
+     * [now] remains an explicit test seam for deterministic boundary tests.
+     */
     @Suppress("ThrowsCount", "LongMethod")
     internal fun undoAt(
         callerId: UUID,
@@ -136,47 +185,48 @@ object RemittanceService {
         now: OffsetDateTime? = null,
     ): Remittance {
         val remittance =
-            RemittanceRepository.undo(
-                UndoParams(
-                    remittanceId = remittanceId,
-                    expectedVersion = expectedVersion,
-                    reason = reason,
-                    now = now,
-                ),
-            ) { ctx ->
-                AuditLogRepository.recordUpdate(
-                    tableName = RemittanceTable.tableName,
-                    recordId = ctx.remittanceAfter.id,
-                    before = ctx.remittanceBefore,
-                    after = ctx.remittanceAfter,
-                    changedBy = callerId,
-                    branchId = ctx.remittanceAfter.branchId,
-                    reason = reason,
-                    auditFields = RemittanceTable::auditFields,
+            transaction(transactionIsolation = SERIALIZABLE_ISOLATION) {
+                val before =
+                    RemittanceRepository.lockByIdInTransaction(remittanceId)
+                        ?: return@transaction null
+
+                RemittancePolicy.assertUndoable(before.status, before.version, expectedVersion, remittanceId)
+
+                val submissionInstant =
+                    before.submittedAt
+                        ?: RemittanceFinancialSnapshotRepository
+                            .findByRemittanceIdInTransaction(remittanceId)
+                            ?.snapshottedAt
+                        ?: throw ValidationException("No submission timestamp — cannot undo this remittance")
+                RemittancePolicy.assertWithinUndoWindow(
+                    submissionInstant,
+                    comparisonInstant = now ?: RemittanceRepository.currentDatabaseTimeInTransaction(),
                 )
-                ctx.branchDayPairs.forEach { (before, after) ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = BranchDayTable.tableName,
-                        recordId = after.id,
-                        before = before,
-                        after = after,
-                        changedBy = callerId,
-                        branchId = before.branchId,
-                        reason = reason,
-                        auditFields = BranchDayTable::auditFields,
+
+                val breakdownIds = RemittanceRepository.findBreakdownDayIdsInTransaction(remittanceId)
+
+                RemittanceRepository.markRevertedToDraftInTransaction(remittanceId, expectedVersion)
+                val snapshotBefore =
+                    RemittanceFinancialSnapshotRepository.deleteByRemittanceIdInTransaction(remittanceId)
+                val branchDayPairs =
+                    BranchDayService.releaseDaysFromRemittanceInTransaction(
+                        breakdownIds,
+                        today = BranchDayService.currentOperationalDate(),
                     )
+
+                val after =
+                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                        ?: error("remittance not found after undo for $remittanceId")
+
+                RemittanceAudit.remittanceUpdated(callerId, before, after, reason)
+                branchDayPairs.forEach { (dayBefore, dayAfter) ->
+                    RemittanceAudit.branchDayUpdated(callerId, dayBefore, dayAfter, reason)
                 }
-                ctx.snapshotBefore?.let { snapshot ->
-                    AuditLogRepository.recordDelete(
-                        tableName = RemittanceFinancialSnapshotTable.tableName,
-                        recordId = snapshot.remittanceId,
-                        before = snapshot,
-                        changedBy = callerId,
-                        branchId = ctx.remittanceAfter.branchId,
-                        reason = reason,
-                        auditFields = RemittanceFinancialSnapshotTable::auditFields,
-                    )
+                snapshotBefore?.let { snapshot ->
+                    RemittanceAudit.snapshotDeleted(callerId, after.branchId, snapshot, reason)
                 }
+
+                after
             } ?: throw NotFoundException("Remittance not found")
 
         logger.info {
@@ -196,26 +246,28 @@ object RemittanceService {
         expectedVersion: Int,
     ): Remittance {
         val remittance =
-            RemittanceRepository.updateHeader(
-                UpdateHeaderParams(
-                    remittanceId = remittanceId,
-                    expectedVersion = expectedVersion,
-                    type = type,
-                    method = method,
-                    dateRangeStart = dateRangeStart,
-                    dateRangeEnd = dateRangeEnd,
-                ),
-            ) { before, after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = RemittanceTable.tableName,
-                    recordId = after.id,
-                    before = before,
-                    after = after,
-                    changedBy = callerId,
-                    branchId = after.branchId,
-                    auditFields = RemittanceTable::auditFields,
-                )
-            } ?: throw NotFoundException("Remittance not found")
+            transaction {
+                val before =
+                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                        ?: throw NotFoundException("Remittance not found")
+
+                RemittancePolicy.assertDraft(before.status, "update header of")
+
+                val after =
+                    RemittanceRepository.updateHeaderInTransaction(
+                        UpdateHeaderParams(
+                            remittanceId = remittanceId,
+                            expectedVersion = expectedVersion,
+                            type = type,
+                            method = method,
+                            dateRangeStart = dateRangeStart,
+                            dateRangeEnd = dateRangeEnd,
+                        ),
+                    )
+
+                RemittanceAudit.remittanceUpdated(callerId, before, after)
+                after
+            }
 
         logger.info {
             "[UPDATE-REMITTANCE-HEADER] Remittance ${remittanceId.toString().maskUUID()} header updated"
@@ -223,7 +275,7 @@ object RemittanceService {
         return remittance
     }
 
-    @Suppress("ThrowsCount", "ReturnCount", "LongParameterList", "MaxLineLength")
+    @Suppress("ThrowsCount", "LongParameterList")
     fun addLine(
         callerId: UUID,
         remittanceId: UUID,
@@ -233,40 +285,34 @@ object RemittanceService {
         productSaleId: UUID?,
         amount: BigDecimal,
     ): RemittanceLine {
-        val remittance =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundException("Remittance not found")
-
-        if (remittance.status != RemittanceStatus.DRAFT) {
-            throw ValidationException("Can only add lines to DRAFT remittances")
-        }
-
-        val params =
-            AddLineParams(
-                id = id,
-                remittanceId = remittanceId,
-                type = type,
-                sessionId = sessionId,
-                productSaleId = productSaleId,
-                amount = amount,
-                createdBy = callerId,
-                expectedVersion = remittance.version,
-            )
-        RemittanceLineRepository.findExistingRequest(params)?.let { return it }
-
-        requireSourceBelongsToBranch(type, sessionId, productSaleId, remittance.branchId)
-
         val line =
-            RemittanceLineRepository.addLine(
-                params,
-            ) { line ->
-                AuditLogRepository.recordInsert(
-                    tableName = RemittanceLineTable.tableName,
-                    recordId = line.id,
-                    changedBy = callerId,
-                    branchId = remittance.branchId,
-                    fields = RemittanceLineTable.auditFields(line),
-                )
+            transaction {
+                val remittance =
+                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                        ?: throw NotFoundException("Remittance not found")
+
+                RemittancePolicy.assertDraft(remittance.status, "add lines to")
+
+                val params =
+                    AddLineParams(
+                        id = id,
+                        remittanceId = remittanceId,
+                        type = type,
+                        sessionId = sessionId,
+                        productSaleId = productSaleId,
+                        amount = amount,
+                        createdBy = callerId,
+                        expectedVersion = remittance.version,
+                    )
+                RemittanceLineRepository.findExistingRequestInTransaction(params)?.let { return@transaction it }
+
+                requireSourceBelongsToBranch(type, sessionId, productSaleId, remittance.branchId)
+
+                val addResult = RemittanceLineRepository.addLineInTransaction(params)
+                if (addResult.created) {
+                    RemittanceAudit.lineInserted(callerId, remittance.branchId, addResult.line)
+                }
+                addResult.line
             }
 
         logger.info { "[ADD-REMITTANCE-LINE] Line ${line.id} added to remittance $remittanceId" }
@@ -301,108 +347,95 @@ object RemittanceService {
         }
     }
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    @Suppress("ThrowsCount")
     fun removeLine(
         callerId: UUID,
         remittanceId: UUID,
         lineId: UUID,
     ): RemittanceLine {
-        val remittance =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundException("Remittance not found")
-
-        if (remittance.status != RemittanceStatus.DRAFT) {
-            throw ValidationException("Can only delete lines from DRAFT remittances")
-        }
-
         val line =
-            RemittanceLineRepository.softDeleteLine(
-                lineId,
-                remittanceId,
-                callerId,
-                remittance.version,
-            ) { before, after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = RemittanceLineTable.tableName,
-                    recordId = after.id,
-                    before = before,
-                    after = after,
-                    changedBy = callerId,
-                    branchId = remittance.branchId,
-                    auditFields = RemittanceLineTable::auditFields,
-                )
+            transaction {
+                val remittance =
+                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                        ?: throw NotFoundException("Remittance not found")
+
+                RemittancePolicy.assertDraft(remittance.status, "delete lines from")
+
+                val (before, after) =
+                    RemittanceLineRepository.softDeleteLineInTransaction(
+                        lineId,
+                        remittanceId,
+                        callerId,
+                        remittance.version,
+                    ) ?: throw NotFoundException("Remittance line not found")
+
+                // An idempotent retry of an already-deleted line returns it unchanged, no new audit.
+                if (before.deletedAt == null) {
+                    RemittanceAudit.lineUpdated(callerId, remittance.branchId, before, after)
+                }
+                after
             }
-                ?: throw NotFoundException("Remittance line not found")
 
         logger.info { "[DELETE-REMITTANCE-LINE] Line $lineId deleted from remittance $remittanceId" }
         return line
     }
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    @Suppress("ThrowsCount")
     fun addDayBreakdown(
         callerId: UUID,
         remittanceId: UUID,
         id: UUID,
         branchDayId: UUID,
     ): RemittanceDayBreakdown {
-        val remittance =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundException("Remittance not found")
-
-        if (remittance.status != RemittanceStatus.DRAFT) {
-            throw ValidationException("Can only add day breakdowns to DRAFT remittances")
-        }
-
-        BranchDayService.requireBranchDayForBranch(branchDayId, remittance.branchId)
-
         val breakdown =
-            RemittanceDayBreakdownRepository.addDayBreakdown(
-                id = id,
-                remittanceId = remittanceId,
-                branchDayId = branchDayId,
-            ) { breakdown ->
-                AuditLogRepository.recordInsert(
-                    tableName = RemittanceDayBreakdownTable.tableName,
-                    recordId = breakdown.id,
-                    changedBy = callerId,
-                    branchId = remittance.branchId,
-                    fields = RemittanceDayBreakdownTable.auditFields(breakdown),
-                )
+            transaction {
+                val remittance =
+                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                        ?: throw NotFoundException("Remittance not found")
+
+                RemittancePolicy.assertDraft(remittance.status, "add day breakdowns to")
+
+                BranchDayService.requireBranchDayForBranch(branchDayId, remittance.branchId)
+
+                val addResult =
+                    RemittanceDayBreakdownRepository.addDayBreakdownInTransaction(
+                        id = id,
+                        remittanceId = remittanceId,
+                        branchDayId = branchDayId,
+                    )
+                if (addResult.created) {
+                    RemittanceAudit.breakdownInserted(callerId, remittance.branchId, addResult.breakdown)
+                }
+                addResult.breakdown
             }
 
         logger.info { "[ADD-REMITTANCE-BREAKDOWN] Day breakdown ${breakdown.id} added to remittance $remittanceId" }
         return breakdown
     }
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    @Suppress("ThrowsCount")
     fun removeDayBreakdown(
         callerId: UUID,
         remittanceId: UUID,
         breakdownId: UUID,
     ): RemittanceDayBreakdown {
-        val remittance =
-            RemittanceRepository.findById(remittanceId)
-                ?: throw NotFoundException("Remittance not found")
-
-        if (remittance.status != RemittanceStatus.DRAFT) {
-            throw ValidationException("Can only remove day breakdowns from DRAFT remittances")
-        }
-
         val breakdown =
-            RemittanceDayBreakdownRepository.deleteDayBreakdown(
-                breakdownId = breakdownId,
-                remittanceId = remittanceId,
-            ) { before ->
-                AuditLogRepository.recordDelete(
-                    tableName = RemittanceDayBreakdownTable.tableName,
-                    recordId = before.id,
-                    before = before,
-                    changedBy = callerId,
-                    branchId = remittance.branchId,
-                    auditFields = RemittanceDayBreakdownTable::auditFields,
-                )
+            transaction {
+                val remittance =
+                    RemittanceRepository.findByIdInTransaction(remittanceId)
+                        ?: throw NotFoundException("Remittance not found")
+
+                RemittancePolicy.assertDraft(remittance.status, "remove day breakdowns from")
+
+                val deleted =
+                    RemittanceDayBreakdownRepository.deleteDayBreakdownInTransaction(
+                        breakdownId = breakdownId,
+                        remittanceId = remittanceId,
+                    ) ?: throw NotFoundException("Day breakdown not found")
+
+                RemittanceAudit.breakdownDeleted(callerId, remittance.branchId, deleted)
+                deleted
             }
-                ?: throw NotFoundException("Day breakdown not found")
 
         logger.info { "[DELETE-REMITTANCE-BREAKDOWN] Day breakdown $breakdownId removed from remittance $remittanceId" }
         return breakdown
@@ -496,7 +529,7 @@ object RemittanceService {
                 .map { it.branchDayId }
         val currentCompensation = RemittanceRepository.calculateCompensationSum(breakdownIds)
         val currentExpenses = RemittanceRepository.calculateExpenseSum(breakdownIds)
-        val currentNet = RemittanceRepository.netOf(snapshot.grossIncome, currentCompensation, currentExpenses)
+        val currentNet = RemittancePolicy.netOf(snapshot.grossIncome, currentCompensation, currentExpenses)
 
         return RemittanceDrift(
             frozen = snapshot,

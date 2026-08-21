@@ -3,13 +3,13 @@ package com.companyb.companyapp.service.finance.remittance
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.exception.VersionMismatchException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -33,158 +33,147 @@ data class AddLineParams(
     val expectedVersion: Int,
 )
 
+data class AddLineResult(
+    val line: RemittanceLine,
+    val created: Boolean,
+)
+
 private val logger = KotlinLogging.logger {}
 
-@Suppress("TooManyFunctions", "UnreachableCode")
+/**
+ * Remittance-line store (#320, ADR-0024). Mutating functions are in-transaction store operations
+ * on the caller's (command-owned) transaction — they keep the idempotent-insert, duplicate-source
+ * guard, and optimistic-version bump; audit stays with the command. Read helpers keep wrappers.
+ */
+@Suppress("TooManyFunctions")
 internal object RemittanceLineRepository {
-    fun findExistingRequest(params: AddLineParams): RemittanceLine? =
-        transaction {
+    /** Idempotency probe for a retried add request; asserts payload match on a hit. */
+    fun findExistingRequestInTransaction(params: AddLineParams): RemittanceLine? =
+        RemittanceLineTable
+            .selectAll()
+            .where {
+                (RemittanceLineTable.id eq params.id) and
+                    (RemittanceLineTable.remittanceId eq params.remittanceId)
+            }.singleOrNull()
+            ?.let { row ->
+                val line = row.toRemittanceLine()
+                assertRequestMatches(line, params)
+                line
+            }
+
+    /**
+     * Inserts the line and bumps the parent version atomically. `created` distinguishes a fresh
+     * insert (the command audits it) from an idempotent/raced return of an identical request
+     * (no new audit — the original insert already has one).
+     */
+    fun addLineInTransaction(params: AddLineParams): AddLineResult {
+        val existing =
             RemittanceLineTable
                 .selectAll()
                 .where {
                     (RemittanceLineTable.id eq params.id) and
                         (RemittanceLineTable.remittanceId eq params.remittanceId)
                 }.singleOrNull()
-                ?.let { row ->
-                    val line = row.toRemittanceLine()
-                    assertRequestMatches(line, params)
-                    line
-                }
+        if (existing != null) {
+            assertRequestMatches(existing.toRemittanceLine(), params)
+            return AddLineResult(existing.toRemittanceLine(), created = false)
         }
 
-    @Suppress("LongMethod")
-    fun addLine(
-        params: AddLineParams,
-        auditFn: (RemittanceLine) -> Unit = {},
-    ): RemittanceLine =
-        transaction {
-            val existing =
-                RemittanceLineTable
-                    .selectAll()
-                    .where {
-                        (RemittanceLineTable.id eq params.id) and
-                            (RemittanceLineTable.remittanceId eq params.remittanceId)
-                    }.singleOrNull()
-            if (existing != null) {
-                assertRequestMatches(existing.toRemittanceLine(), params)
-                return@transaction existing.toRemittanceLine()
+        assertNotAlreadyIncluded(params)
+
+        val inserted =
+            RemittanceLineTable.insertIgnore {
+                it[RemittanceLineTable.id] = params.id
+                it[RemittanceLineTable.remittanceId] = params.remittanceId
+                it[RemittanceLineTable.type] = params.type
+                it[RemittanceLineTable.sessionId] = params.sessionId
+                it[RemittanceLineTable.productSaleId] = params.productSaleId
+                it[RemittanceLineTable.amount] = params.amount
+                it[RemittanceLineTable.createdBy] = params.createdBy
             }
-
-            assertNotAlreadyIncluded(params)
-
-            val inserted =
-                RemittanceLineTable.insertIgnore {
-                    it[RemittanceLineTable.id] = params.id
-                    it[RemittanceLineTable.remittanceId] = params.remittanceId
-                    it[RemittanceLineTable.type] = params.type
-                    it[RemittanceLineTable.sessionId] = params.sessionId
-                    it[RemittanceLineTable.productSaleId] = params.productSaleId
-                    it[RemittanceLineTable.amount] = params.amount
-                    it[RemittanceLineTable.createdBy] = params.createdBy
-                }
-            if (inserted.insertedCount == 0) {
-                val racedRetry =
-                    RemittanceLineTable
-                        .selectAll()
-                        .where {
-                            (RemittanceLineTable.id eq params.id) and
-                                (RemittanceLineTable.remittanceId eq params.remittanceId) and
-                                entityRefCondition(params)
-                        }.singleOrNull()
-                if (racedRetry != null) {
-                    assertRequestMatches(racedRetry.toRemittanceLine(), params)
-                    return@transaction racedRetry.toRemittanceLine()
-                }
-                throw ConflictException(duplicateMessage(params.type))
-            }
-
-            val versionUpdated =
-                RemittanceTable.update({
-                    (RemittanceTable.id eq params.remittanceId) and (RemittanceTable.version eq params.expectedVersion)
-                }) {
-                    it[RemittanceTable.version] = params.expectedVersion + 1
-                }
-
-            if (versionUpdated == 0) {
-                throw VersionMismatchException(RemittanceTable.tableName, params.remittanceId)
-            }
-
-            val created =
-                RemittanceLineTable
-                    .selectAll()
-                    .where {
-                        (RemittanceLineTable.id eq params.id) and
-                            (RemittanceLineTable.remittanceId eq params.remittanceId)
-                    }.single()
-                    .toRemittanceLine()
-
-            auditFn(created)
-            created
-        }.also { line ->
-            logger.info {
-                "[ADD-REMITTANCE-LINE] Line ${line.id.toString().maskUUID()} added to " +
-                    "remittance ${line.remittanceId.toString().maskUUID()}"
-            }
+        if (inserted.insertedCount == 0) {
+            return AddLineResult(racedRetryOrFail(params), created = false)
         }
 
-    fun softDeleteLine(
+        val versionUpdated =
+            RemittanceTable.update({
+                (RemittanceTable.id eq params.remittanceId) and (RemittanceTable.version eq params.expectedVersion)
+            }) {
+                it[RemittanceTable.version] = params.expectedVersion + 1
+            }
+
+        if (versionUpdated == 0) {
+            throw remittanceVersionMismatch(params.remittanceId)
+        }
+
+        val created =
+            RemittanceLineTable
+                .selectAll()
+                .where {
+                    (RemittanceLineTable.id eq params.id) and
+                        (RemittanceLineTable.remittanceId eq params.remittanceId)
+                }.single()
+                .toRemittanceLine()
+
+        logger.info {
+            "[ADD-REMITTANCE-LINE] Line ${created.id.toString().maskUUID()} added to " +
+                "remittance ${created.remittanceId.toString().maskUUID()}"
+        }
+        return AddLineResult(created, created = true)
+    }
+
+    /**
+     * Soft-deletes the line scoped to its parent remittance (the parent-child convention) and
+     * bumps the parent version atomically. Null when the line does not exist under the parent;
+     * an already-deleted line is returned unchanged (idempotent retry, no new audit image).
+     * Returns the before/after images so the command can audit the diff.
+     */
+    fun softDeleteLineInTransaction(
         lineId: UUID,
         remittanceId: UUID,
         deletedBy: UUID,
         expectedVersion: Int,
-        auditFn: (RemittanceLine, RemittanceLine) -> Unit = { _, _ -> },
-    ): RemittanceLine? =
-        transaction {
-            val existing =
-                RemittanceLineTable
-                    .selectAll()
-                    .where {
-                        (RemittanceLineTable.id eq lineId) and (RemittanceLineTable.remittanceId eq remittanceId)
-                    }.singleOrNull() ?: return@transaction null
+    ): Pair<RemittanceLine, RemittanceLine>? {
+        val existing =
+            RemittanceLineTable
+                .selectAll()
+                .where {
+                    (RemittanceLineTable.id eq lineId) and (RemittanceLineTable.remittanceId eq remittanceId)
+                }.singleOrNull() ?: return null
 
-            if (existing[RemittanceLineTable.deletedAt] != null) {
-                return@transaction existing.toRemittanceLine()
-            }
-
-            val beforeLine = existing.toRemittanceLine()
-
-            val updated =
-                RemittanceLineTable
-                    .update({ RemittanceLineTable.id eq lineId and RemittanceLineTable.deletedAt.isNull() }) {
-                        it[RemittanceLineTable.deletedBy] = deletedBy
-                        it[RemittanceLineTable.deletedAt] =
-                            CurrentTimestampWithTimeZone
-                    }
-
-            if (updated == 0) return@transaction null
-
-            val versionUpdated =
-                RemittanceTable.update({
-                    (RemittanceTable.id eq remittanceId) and (RemittanceTable.version eq expectedVersion)
-                }) {
-                    it[RemittanceTable.version] = expectedVersion + 1
-                }
-
-            if (versionUpdated == 0) {
-                throw VersionMismatchException(RemittanceTable.tableName, remittanceId)
-            }
-
-            val afterLine =
-                RemittanceLineTable
-                    .selectAll()
-                    .where { RemittanceLineTable.id eq lineId }
-                    .single()
-                    .toRemittanceLine()
-
-            auditFn(beforeLine, afterLine)
-            afterLine
-        }.also { line ->
-            if (line != null) {
-                logger.info {
-                    "[DELETE-REMITTANCE-LINE] Line ${line.id.toString().maskUUID()} deleted"
-                }
-            }
+        val beforeLine = existing.toRemittanceLine()
+        if (existing[RemittanceLineTable.deletedAt] != null) {
+            return beforeLine to beforeLine
         }
+
+        RemittanceLineTable
+            .update({ RemittanceLineTable.id eq lineId and RemittanceLineTable.deletedAt.isNull() }) {
+                it[RemittanceLineTable.deletedBy] = deletedBy
+                it[RemittanceLineTable.deletedAt] =
+                    CurrentTimestampWithTimeZone
+            }
+
+        val versionUpdated =
+            RemittanceTable.update({
+                (RemittanceTable.id eq remittanceId) and (RemittanceTable.version eq expectedVersion)
+            }) {
+                it[RemittanceTable.version] = expectedVersion + 1
+            }
+
+        if (versionUpdated == 0) {
+            throw remittanceVersionMismatch(remittanceId)
+        }
+
+        val afterLine =
+            RemittanceLineTable
+                .selectAll()
+                .where { RemittanceLineTable.id eq lineId }
+                .single()
+                .toRemittanceLine()
+
+        logger.info { "[DELETE-REMITTANCE-LINE] Line ${afterLine.id.toString().maskUUID()} deleted" }
+        return beforeLine to afterLine
+    }
 
     fun findByRemittanceId(remittanceId: UUID): List<RemittanceLine> =
         transaction {
@@ -198,14 +187,36 @@ internal object RemittanceLineRepository {
 
     fun sumAmountsByRemittanceId(remittanceId: UUID): BigDecimal =
         transaction {
+            RemittancePolicy.sum(
+                RemittanceLineTable
+                    .selectAll()
+                    .where {
+                        (RemittanceLineTable.remittanceId eq remittanceId) and
+                            RemittanceLineTable.deletedAt.isNull()
+                    }.map { it[RemittanceLineTable.amount] },
+            )
+        }
+
+    /**
+     * Resolves a lost insert race: another transaction committed an identical request between
+     * this command's probe and its `insertIgnore`. Returns the existing line after asserting the
+     * payload matches; a different source entity under the same ID is a conflict.
+     */
+    private fun racedRetryOrFail(params: AddLineParams): RemittanceLine {
+        val racedRetry =
             RemittanceLineTable
                 .selectAll()
                 .where {
-                    (RemittanceLineTable.remittanceId eq remittanceId) and
-                        RemittanceLineTable.deletedAt.isNull()
-                }.map { it[RemittanceLineTable.amount] }
-                .fold(BigDecimal.ZERO) { acc, amount -> acc.add(amount) }
+                    (RemittanceLineTable.id eq params.id) and
+                        (RemittanceLineTable.remittanceId eq params.remittanceId) and
+                        entityRefCondition(params)
+                }.singleOrNull()
+        if (racedRetry != null) {
+            assertRequestMatches(racedRetry.toRemittanceLine(), params)
+            return racedRetry.toRemittanceLine()
         }
+        throw ConflictException(duplicateMessage(params.type))
+    }
 
     private fun assertNotAlreadyIncluded(params: AddLineParams) {
         val existingLine =
@@ -262,7 +273,7 @@ internal object RemittanceLineRepository {
             RemittanceLineType.PRODUCT_SALE -> "Product sale"
         }
 
-    private fun org.jetbrains.exposed.v1.core.ResultRow.toRemittanceLine(): RemittanceLine =
+    private fun ResultRow.toRemittanceLine(): RemittanceLine =
         RemittanceLine(
             id = this[RemittanceLineTable.id],
             remittanceId = this[RemittanceLineTable.remittanceId],
