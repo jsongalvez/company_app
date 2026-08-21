@@ -7,7 +7,7 @@ unset OPENAPI_ROUTE_CONTRACT_PATH OPENAPI_TEST_MODE UPDATE_OPENAPI_ROUTE_CONTRAC
 
 # Compilation owns generation; its finalized task normalizes the artifact before
 # this verifier reads it. Keeping both steps here makes this the one build gate.
-./gradlew :backend:compileKotlin --no-daemon
+./gradlew :backend:compileKotlin
 
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 verification_output=$(./scripts/verify-openapi-spec.sh "$spec")

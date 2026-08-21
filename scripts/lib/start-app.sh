@@ -19,7 +19,7 @@ set -euo pipefail
 app_build() {
     log "$LOG_TAG" "Building backend distribution..."
     local build_output
-    build_output=$(./gradlew :backend:installDist --no-daemon 2>&1) || {
+    build_output=$(./gradlew :backend:installDist 2>&1) || {
         echo "$build_output" | tail -3
         log "$LOG_TAG" "ERROR: Backend build failed."
         exit 1
@@ -37,7 +37,7 @@ app_start() {
     local startup_timeout=90
 
     log "$LOG_TAG" "Starting app in background..."
-    ./gradlew :backend:run --no-daemon > "$boot_log" 2>&1 &
+    ./gradlew :backend:run > "$boot_log" 2>&1 &
     APP_PID=$!
     log "$LOG_TAG" "App started (PID $APP_PID)."
 

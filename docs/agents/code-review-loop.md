@@ -11,7 +11,8 @@ work launches P1–P4 as parallel read-only sub-agents against the current delta
 triages findings, applies one coherent fix batch, commits it, and reruns only packets whose
 inputs changed. Exit when required packets report **zero HARD findings and no unadjudicated
 ESCALATEs**. Review agents do not run expensive aggregate builds; the writer owns targeted
-checks and the full integration gate.
+checks only — integration is direct-to-master with no mandatory full compile/test gate;
+asynchronous CI owns broad verification (map #329).
 
 P5 is optional. Run architecture-depth and hygiene review when a risk trigger or focused
 review warrants it. P5 findings land in the ARCH bucket (below). In-ticket P5 fixes get one

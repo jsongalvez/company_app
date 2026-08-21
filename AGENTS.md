@@ -50,7 +50,7 @@ P5 is not a mandatory exit phase. Cheap hygiene checks run with each fix batch. 
 
 - Parallel agents are read-only unless they own disjoint isolated work. One writer/integrator owns production edits, formatting, compilation, and commits.
 - A ticket may span multiple sessions. Handoffs record claimed ticket, phase, last verified commit, evidence, blockers, and next action. Handoff before context becomes crowded; stay below 150k tokens.
-- Review agents do not run expensive aggregate builds. The writer runs targeted checks after a fix batch and one full compile/test gate at integration. High-risk changes escalate earlier.
+- Review agents do not run expensive aggregate builds. The writer runs targeted checks after a fix batch; integration is direct-to-master with no mandatory full compile/test gate — asynchronous CI owns broad verification. High-risk changes escalate earlier.
 - HARD findings, security issues, regressions, data loss, documented breaches, and lesson-class matches must be fixed. SOFT findings need a logged disposition. Unresolved ESCALATE findings block exit.
 - Each pass re-derives behavior from the ticket and composed tree; previous passes are evidence, never authority.
 
@@ -95,25 +95,25 @@ cp .env.example .env                  # then fill in values
 docker compose -f docker/docker-compose.yml up -d
 docker compose -f docker/docker-compose.yml down -v   # teardown + wipe data
 
+# Targeted local validation (map #329) — auto-selects the narrowest warm Gradle
+# tasks for the current change; pass gradle args to override. No broad gates.
+bash scripts/validate.sh
+
 # Format (auto-fix all subprojects)
 ./gradlew ktlintFormat
-./gradlew ktlintCheck                 # check only
 
-# Backend quality gate (lint + detekt + test)
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test
-
-# JMH benchmarks + baseline check (runs actual benchmarks, not just compile)
+# JMH benchmarks + baseline check — manual diagnostics only, never a ticket toll
 ./gradlew :backend:jmh
-
-# Check JMH baselines against saved scores
 bash scripts/check-baselines.sh
 
 # Run backend (requires Postgres at DB_HOST:DB_PORT, workingDir = repo root for .env)
 ./gradlew :backend:run
-
-# JMH benchmarks
-./gradlew :backend:jmh
 ```
+
+Local validation is targeted and agent-invoked: run the smallest warm task that answers the
+current question, once per meaningful slice — not again at commit/push. Change-type → task
+table: `backend/AGENTS.md` ("Targeted validation"). Hooks and CI own no local gates
+(map #329).
 
 Future non-merge commits must include `ref #<number>` somewhere in the commit
 message. The local `commit-msg` hook enforces this without network access, accepts

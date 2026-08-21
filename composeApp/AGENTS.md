@@ -6,6 +6,14 @@
 - Desktop JVM (`desktopMain/`)
 - iOS (`iosMain/`)
 
+## Validation
+
+Targeted and agent-invoked (map #329): a narrow desktop UI change compiles
+`:composeApp:compileKotlinDesktop` only — never every platform target by default. VM logic
+adds `:composeApp:desktopTest --tests '<Fqcn>'`. Broader target compiles are risk-based:
+common/shared contract changes may justify them. `bash scripts/validate.sh` auto-selects.
+Full multi-platform Detekt/test coverage is asynchronous CI work.
+
 ## Design language
 
 The project uses the Linear design system defined in `composeApp/DESIGN.md`. All new composables reference its token conventions: dark canvas (`#010102`), four-step surface ladder, lavender-blue accent (`#5e6ad2`), hairline borders instead of shadows.

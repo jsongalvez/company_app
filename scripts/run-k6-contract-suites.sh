@@ -81,7 +81,7 @@ trap cleanup EXIT
 
 echo "Building and starting backend on test DB '$POSTGRES_DB' (port $APP_PORT)..."
 # Own process group so cleanup can take down gradle + the backend JVM together.
-setsid ./gradlew :backend:run --no-daemon > "$BOOT_LOG" 2>&1 &
+setsid ./gradlew :backend:run > "$BOOT_LOG" 2>&1 &
 APP_PID=$!
 
 # Cold CI Gradle builds can take longer than a minute before the app listens.

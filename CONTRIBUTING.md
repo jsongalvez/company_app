@@ -28,7 +28,8 @@ cleanliness checks, and the active agent never polls it — failures are consume
 next session.
 
 While implementing, run the smallest warm Gradle/test task that answers the current
-question; do not rerun broad suites because commit or push is next.
+question (`bash scripts/validate.sh` auto-selects; see `backend/AGENTS.md` "Targeted
+validation"); do not rerun broad suites because commit or push is next.
 
 ## Emergency Or AFK Work
 

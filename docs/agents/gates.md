@@ -28,8 +28,9 @@ passes can reference them.
    proof. Keep that output in the ticket's resolution comment.
 2. Implement.
 3. **Before claiming done**: re-run the checker — every box checked with evidence, then run
-   selected risk-based review profile (`AGENTS.md`, `docs/agents/code-review-loop.md`). The
-   full compile/test gate belongs at integration; do not repeat it once per review lens.
+   selected risk-based review profile (`AGENTS.md`, `docs/agents/code-review-loop.md`). There is
+   no mandatory full compile/test gate at integration; targeted checks + asynchronous CI carry
+   verification (map #329).
 
 The vacuous-test watch-lens (a test that would still pass with the fix stripped) stays a
 **loop lens** — phases re-derive it on the composed tree — never a gate command. A

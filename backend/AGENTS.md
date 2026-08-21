@@ -33,12 +33,40 @@ waits for it. The anti-slop Detekt rule policy (`config/detekt/detekt.yml` +
 `detekt-anti-slop.yml`) is unchanged; only its mandatory local execution schedule is
 retired.
 
-For a complete local sweep when explicitly wanted (e.g. verifying a broad refactor),
-run:
+## Targeted validation
+
+Local validation is agent-invoked, targeted, informational (map #329). Run the smallest
+warm task that answers the current question, once per meaningful slice — never again just
+because commit/push is next. `bash scripts/validate.sh` auto-selects from changed files;
+pass gradle args to override. Keep the daemon and configuration/build caches warm: no
+`--no-daemon` without a documented isolation reason.
+
+| Change | Narrowest useful check |
+|---|---|
+| Backend pure-service logic | `./gradlew :backend:test --tests '<Fqcn>'` |
+| Backend DB/transaction/locking change | focused `*PostgresTest`; `bash scripts/clean-test-db.sh` after contamination |
+| Backend route/DTO contract change | `bash scripts/check-openapi-spec.sh` (pays its hidden compile once) |
+| Shared DTO/domain type | `./gradlew :shared:compileKotlinJvm :shared:jvmTest` |
+| Compose desktop UI only | `./gradlew :composeApp:compileKotlinDesktop` (+ `:composeApp:desktopTest` for VM logic) |
+| Build logic / detekt config | compile one target per module; Detekt on affected modules |
+| Docs-only | nothing |
+
+Combine tasks into one invocation when one piece of evidence genuinely needs several
+(`./gradlew :backend:compileKotlin :backend:test --tests '...'`) — do not pair compile +
+Detekt + `ktlintCheck` + tests merely because they exist.
+
+- **Detekt** runs locally only when informative: changed module/source set, Detekt config
+  change, or a suspected violation — narrowest task (`:backend:detekt`,
+  `:composeApp:detektDesktopMain`, …), warm daemon. Full multi-platform Detekt coverage is
+  asynchronous CI work, never a local ticket step.
+- **`-PwarningsAsErrors=true`** is targeted evidence, not a ticket-completion ritual.
+- **OpenAPI** verification is local only for route/DTO/contract work; otherwise asynchronous.
+- **k6/JMH** are manual diagnostics run when performance is the ticket's question.
+
+Opt-in broad sweep (explicitly wanted, e.g. verifying a wide refactor):
 
 ```bash
-./gradlew :backend:detekt :backend:ktlintCheck :backend:test :shared:detektMetadataCommonMain :shared:detektJvmMain :shared:detektJvmTest :shared:detektAndroidDebug :shared:detektAndroidDebugUnitTest :shared:detektIosArm64Main :shared:detektIosArm64Test :shared:detektIosSimulatorArm64Main :shared:detektIosSimulatorArm64Test :composeApp:detektDesktopTest :composeApp:detektAndroidDebugUnitTest :composeApp:detektIosArm64Test :composeApp:detektIosSimulatorArm64Test :composeApp:desktopTest :composeApp:detektMetadataCommonMain :composeApp:detektDesktopMain :composeApp:detektAndroidDebug :composeApp:detektIosArm64Main :composeApp:detektIosSimulatorArm64Main :shared:compileKotlinJvm :shared:jvmTest -PwarningsAsErrors=true
-bash scripts/check-test-cleanliness.sh
+./gradlew :backend:detekt :backend:test :shared:jvmTest :composeApp:desktopTest -PwarningsAsErrors=true
 ```
 
 **JMH does not run in local hooks** — it lives
@@ -56,8 +84,8 @@ Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githo
 asynchronous CI. Warnings must be fixed, not suppressed or baselined.
 
 Postgres test database is shared by all backend test processes. Clean it with
-`bash scripts/clean-test-db.sh` before rerunning contaminated tests, then run the
-full backend gate as one Gradle invocation. Parallel `./gradlew :backend:test`
+`bash scripts/clean-test-db.sh` before rerunning contaminated tests, then rerun the
+focused tests as one Gradle invocation. Parallel `./gradlew :backend:test`
 processes race on test data and can produce false duplicate-key or scope failures.
 
 Auto-fix formatting: `./gradlew :backend:ktlintFormat`.
