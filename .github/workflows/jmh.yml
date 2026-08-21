@@ -1,8 +1,10 @@
 name: jmh
 
-# JMH benchmark gate — moved out of the pre-push hook (doc-only pushes
-# were paying ~4 min of JMH on a shared machine; see .githooks/pre-push).
-# Runs on every push touching backend code and on merge to master.
+# JMH benchmark diagnostics — manual `workflow_dispatch` only (#333/#334):
+# not an integration gate. Run it when a performance question actually exists;
+# ordinary pushes launch nothing and no Wayfinder session waits for or is
+# blocked by JMH results. Hosted runs consume the budgeted Actions allowance
+# (≤55 min/month), so dispatch only when investigating.
 #
 # NOTE ON BASELINES: scores in backend/jmh-baselines.md are per-benchmark MEDIANS of
 # repeated clean CI runs on this runner (shared-runner CPU lots vary ~1.6x run-to-run;
@@ -14,10 +16,6 @@ name: jmh
 #
 # A regression failing one run re-runs once and warns; the check fails only
 # when the regression reproduces across two runs (runner noise doesn't fail).
-
-# Manual diagnostic only (#333/#334): JMH is not an integration gate. Run it via
-# workflow_dispatch when a performance question actually exists; ordinary pushes
-# launch nothing and no Wayfinder session waits for or is blocked by JMH results.
 on:
   workflow_dispatch:
 

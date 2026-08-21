@@ -36,7 +36,7 @@ trap 'rm -f "$PARSED_RESULTS"' EXIT
 # Example line: "SessionTypeBenchmark.computeMedicalMission   thrpt    5  3655579314.012 ± 126351230.212  ops/s"
 parse_jmh() {
     # Parse the JMH results table from the log. A missing table or row is a
-    # failed gate, not an empty benchmark run.
+    # failed comparison, not an empty benchmark run.
     if ! grep -qE '^Benchmark[[:space:]]+Mode' "$JMH_LOG"; then
         log baselines "ERROR: JMH results table not found in $JMH_LOG"
         return 2
@@ -136,7 +136,7 @@ if [ "$INVALID_RESULTS" -ne 0 ]; then
     exit 2
 elif [ "$FAILURES" -gt 0 ]; then
     log baselines "FAILED: $FAILURES benchmark(s) dropped below threshold."
-    log baselines "Investigate with JFR before pushing. If the change is intentional, update backend/jmh-baselines.md."
+    log baselines "Investigate with JFR. If the change is intentional, update backend/jmh-baselines.md."
     exit 1
 else
     log baselines "OK: All JMH scores within 20% of baseline."

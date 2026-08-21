@@ -44,7 +44,7 @@ Single language (Kotlin) across mobile, shared logic, and backend. All branches 
 | Database | PostgreSQL 15+, Flyway |
 | Infrastructure | Docker, Docker Compose, Oracle Cloud Free Tier (singapore west), Coolify |
 | Quality | Detekt, Ktlint |
-| Testing | JavalinTest, k6, JMH |
+| Testing | JavalinTest, k6, JMH (manual diagnostics) |
 
 **Non-goals:** No Node/Express, no Spring Boot, no paid tooling, no web dashboard.
 

@@ -1,21 +1,24 @@
 # Contributing
 
-Use a short-lived branch from `master`, named `ralph/<feature-name>` for feature or
-fix work. Push commits to that branch and open a pull request targeting `master`.
-Do not push directly to `master` as a substitute for review.
+Development integrates **directly to `master`** for ordinary AFK work: commit with
+`ref #<issue>` in the message and push immediately. Hooks are bookkeeping only —
+they never run gates. Pull requests exist only for explicit escalation triggers:
+human request, external contributor, unusually risky or irreversible integration,
+or a multi-agent concurrency boundary.
 
-## Normal Merge Flow
+## Normal Flow
 
-1. Open or update the pull request early, including issue references in commit
-   messages (`ref #<number>`).
-2. Request review and resolve review comments before merge.
-3. Wait for every applicable CI check to pass. Backend, shared, and Compose
-   changes use `quality`; API contract changes use `openapi`. JMH runs on
-   backend-touching pushes or merges to `master` plus manual dispatch; it is not a
-   local hook gate.
-4. Merge normally into `master`; do not rewrite history, force-push, squash, or
-   drop commits from a long-lived integration branch unless policy is explicitly
-   changed first.
+1. Implement with targeted, warm validation (`bash scripts/validate.sh`
+   auto-selects; see `backend/AGENTS.md` "Targeted validation") — run the
+   smallest check that answers the current question, once per meaningful slice.
+2. Commit with issue references (`ref #<number>`; enforced by the local
+   `commit-msg` hook) and push directly to `master`. Do not rewrite history or
+   force-push `master`.
+3. CI runs asynchronously and never blocks the session; failures are consumed
+   and repaired by the next session (one check-runs API call at session start).
+   JMH and broad k6/e2e are **not** in CI's automatic path — JMH runs only via
+   manual `workflow_dispatch` on `.github/workflows/jmh.yml` when a performance
+   question exists, and it never blocks a session or ticket.
 
 ## Gate Classification
 
@@ -33,7 +36,8 @@ validation"); do not rerun broad suites because commit or push is next.
 
 ## Emergency Or AFK Work
 
-Push to a branch, open a draft or urgent pull request, record reason and owner
-in the pull request, and leave a handoff when review or follow-up is
-unavailable. Do not merge with failed checks or use force-push/history
-rewriting as an emergency shortcut.
+If direct-to-master is unavailable (e.g. review is explicitly requested, or the
+change is unusually risky), open a pull request, record reason and owner in the
+pull request, and leave a handoff when review or follow-up is unavailable. Do
+not merge with failed checks or use force-push/history rewriting as an
+emergency shortcut.

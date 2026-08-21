@@ -3,8 +3,9 @@
 Last updated: 2026-08-21
 
 > **Baselines are medians of repeated clean CI runs on the GitHub Actions runner.**
-> JMH lives in CI only (`.github/workflows/jmh.yml`, push-only + manual dispatch — no
-> pull_request trigger, no local hook). The scores below are the per-benchmark medians of
+> JMH is a manual diagnostic: `.github/workflows/jmh.yml` is `workflow_dispatch`-only
+> (no push/merge/PR triggers, no local hook, never a session or ticket blocker). The
+> scores below are the per-benchmark medians of
 > 5 clean `ubuntu-latest` (JDK 21, Temurin) runs on master, workflow runs 32449735234,
 > 32456048722, 32456448282, 32457067330, 32457565962 (2026-08-21, ticket #311); benchmark
 > code was identical across all five. The range column shows the observed min–max across
@@ -25,7 +26,8 @@ Last updated: 2026-08-21
 > reduce false-positive failures while still catching real regressions.
 
 **How to use:** Before raising any `measureTimedValue` or k6 threshold, run `./gradlew :backend:jmh`
-first (locally, for direction only — CI medians are the gate). If the CI JMH score for the relevant
+first (locally, for direction only — these CI medians are the comparison reference). If a dispatched
+JMH score for the relevant
 benchmark dropped significantly (>20%, >40% for BranchDayBenchmark.*), you have a real
 regression — **do not raise the threshold, fix the regression instead**. If JMH scores are stable
 but the integration test or k6 threshold fails, the bottleneck is in the DB/networking layer —
