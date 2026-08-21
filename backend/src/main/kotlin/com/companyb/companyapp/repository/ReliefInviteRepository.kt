@@ -29,6 +29,12 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+/** Before/after projection for invite status mutations (#323). */
+data class ReliefInviteMutation(
+    val before: ReliefInvite,
+    val after: ReliefInvite,
+)
+
 @Suppress("TooManyFunctions")
 object ReliefInviteRepository {
     /**
@@ -38,35 +44,33 @@ object ReliefInviteRepository {
      * insert — a conflict, never a success (the count-0 discipline: the swallowed
      * constraint class here is exactly the per-person guard, and the read-back by id
      * can only miss if the insert was swallowed).
+     *
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction.
      */
-    fun insert(
+    fun insertInTransaction(
         id: UUID,
         branchDayId: UUID,
         invitedBy: UUID,
         invitee: UUID,
-        auditFn: (ReliefInvite) -> Unit = {},
-    ): Pair<ReliefInvite?, Boolean> =
-        transaction {
-            val insertedCount =
-                ReliefInviteTable
-                    .insertIgnore {
-                        it[ReliefInviteTable.id] = id
-                        it[ReliefInviteTable.branchDayId] = branchDayId
-                        it[ReliefInviteTable.invitedBy] = invitedBy
-                        it[ReliefInviteTable.invitee] = invitee
-                        // insertIgnore does not emit DEFAULT expressions — set both
-                        // explicitly (the AGENTS.md insertIgnore convention).
-                        it[ReliefInviteTable.status] = ReliefInviteStatus.PENDING
-                        it[ReliefInviteTable.createdAt] = CurrentTimestampWithTimeZone
-                    }.insertedCount
-            val isNew = insertedCount > 0
+    ): Pair<ReliefInvite?, Boolean> {
+        val insertedCount =
+            ReliefInviteTable
+                .insertIgnore {
+                    it[ReliefInviteTable.id] = id
+                    it[ReliefInviteTable.branchDayId] = branchDayId
+                    it[ReliefInviteTable.invitedBy] = invitedBy
+                    it[ReliefInviteTable.invitee] = invitee
+                    // insertIgnore does not emit DEFAULT expressions — set both
+                    // explicitly (the AGENTS.md insertIgnore convention).
+                    it[ReliefInviteTable.status] = ReliefInviteStatus.PENDING
+                    it[ReliefInviteTable.createdAt] = CurrentTimestampWithTimeZone
+                }.insertedCount
+        val isNew = insertedCount > 0
 
-            val row = findByIdInTransaction(id)
-            if (isNew && row != null) {
-                auditFn(row)
-            }
-            row to isNew
-        }
+        val row = findByIdInTransaction(id)
+        return row to isNew
+    }
 
     fun findById(id: UUID): ReliefInvite? =
         transaction {
@@ -279,65 +283,65 @@ object ReliefInviteRepository {
      * Atomic status transition for decline/retract: only a PENDING row moves (the
      * WHERE carries the status, so a concurrent response wins and this update hits
      * 0 rows → null → the service 409s). `respondedAt` stamps the DB clock.
+     *
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction. Returns null when the invite is missing, not PENDING, or lost a race.
      */
-    fun respond(
+    fun respondInTransaction(
         id: UUID,
         status: ReliefInviteStatus,
-        auditFn: (ReliefInvite, ReliefInvite) -> Unit = { _, _ -> },
-    ): ReliefInvite? =
-        transaction {
-            val before = findByIdInTransaction(id) ?: return@transaction null
-            if (before.status != ReliefInviteStatus.PENDING) return@transaction null
-            val updated =
-                ReliefInviteTable.update({
-                    (ReliefInviteTable.id eq id) and (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
-                }) {
-                    it[ReliefInviteTable.status] = status
-                    it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
-                }
-            if (updated == 0) return@transaction null
-            val after = findByIdInTransaction(id) ?: return@transaction null
-            auditFn(before, after)
-            after
-        }
+    ): ReliefInviteMutation? {
+        val before = findByIdInTransaction(id) ?: return null
+        if (before.status != ReliefInviteStatus.PENDING) return null
+        val updated =
+            ReliefInviteTable.update({
+                (ReliefInviteTable.id eq id) and (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
+            }) {
+                it[ReliefInviteTable.status] = status
+                it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
+            }
+        if (updated == 0) return null
+        val after = findByIdInTransaction(id) ?: return null
+        return ReliefInviteMutation(before, after)
+    }
 
     /**
      * Atomic accept: PENDING → ACCEPTED + the shared relief-grant capability write in
-     * ONE transaction (the grant must not outlive a failed status flip, and the status
-     * flip must not commit without the grant). The grant is written via
+     * one atomic store operation (the grant must not outlive a failed status flip, and
+     * the status flip must not commit without the grant). The grant is written via
      * [ReliefAccessRepository.grantReliefCapability] (insertIgnore — a redundant grant
-     * stays harmless). Returns null when the invite is not PENDING (concurrent
-     * response won, or a stale client).
+     * stays harmless).
+     *
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction. Returns null when the invite is not PENDING (concurrent response won,
+     * or a stale client).
      */
-    fun accept(
+    fun acceptInTransaction(
         id: UUID,
         invitee: UUID,
         validTo: java.time.OffsetDateTime,
-        auditFn: (ReliefInvite, ReliefInvite) -> Unit = { _, _ -> },
-    ): ReliefInvite? =
-        transaction {
-            val before = findByIdInTransaction(id) ?: return@transaction null
-            if (before.status != ReliefInviteStatus.PENDING) return@transaction null
-            val updated =
-                ReliefInviteTable.update({
-                    (ReliefInviteTable.id eq id) and (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
-                }) {
-                    it[ReliefInviteTable.status] = ReliefInviteStatus.ACCEPTED
-                    it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
-                }
-            if (updated == 0) return@transaction null
-            ReliefAccessRepository.grantReliefCapability(
-                GrantReliefCapabilityParams(
-                    userId = invitee,
-                    branchDayId = before.branchDayId,
-                    sourceId = id,
-                    validTo = validTo,
-                ),
-            )
-            val after = findByIdInTransaction(id) ?: return@transaction null
-            auditFn(before, after)
-            after
-        }
+    ): ReliefInviteMutation? {
+        val before = findByIdInTransaction(id) ?: return null
+        if (before.status != ReliefInviteStatus.PENDING) return null
+        val updated =
+            ReliefInviteTable.update({
+                (ReliefInviteTable.id eq id) and (ReliefInviteTable.status eq ReliefInviteStatus.PENDING)
+            }) {
+                it[ReliefInviteTable.status] = ReliefInviteStatus.ACCEPTED
+                it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
+            }
+        if (updated == 0) return null
+        ReliefAccessRepository.grantReliefCapability(
+            GrantReliefCapabilityParams(
+                userId = invitee,
+                branchDayId = before.branchDayId,
+                sourceId = id,
+                validTo = validTo,
+            ),
+        )
+        val after = findByIdInTransaction(id) ?: return null
+        return ReliefInviteMutation(before, after)
+    }
 
     private fun findByIdInTransaction(id: UUID): ReliefInvite? =
         ReliefInviteTable

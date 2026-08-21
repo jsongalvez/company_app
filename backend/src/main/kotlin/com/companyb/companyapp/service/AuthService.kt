@@ -14,6 +14,7 @@ import com.companyb.companyapp.repository.model.AppUser
 import com.companyb.companyapp.validation.EmailPolicy
 import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
 object AuthService {
@@ -77,14 +78,16 @@ object AuthService {
 
         val userID: UUID =
             try {
-                UserRepository.createUser(
-                    UserCreateParams(
-                        username = username,
-                        passwordHash = passwordHash,
-                        email = email,
-                        displayName = displayName,
-                    ),
-                )
+                transaction {
+                    UserRepository.createUserInTransaction(
+                        UserCreateParams(
+                            username = username,
+                            passwordHash = passwordHash,
+                            email = email,
+                            displayName = displayName,
+                        ),
+                    )
+                }
             } catch (exception: RegistrationConflictException) {
                 return when (exception.field) {
                     RegistrationConflictField.USERNAME -> RegisterResult.UsernameTaken

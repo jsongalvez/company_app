@@ -6,6 +6,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
@@ -15,6 +16,7 @@ import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
 
@@ -25,6 +27,11 @@ import java.util.UUID
  * harmless). One day per invite; accept writes the day-scoped grant immediately via the
  * shared relief-grant writer ([ReliefAccessRepository.grantReliefCapability]); day-state
  * is the expiry (a past/REMITTED day accept 400s — no cron).
+ *
+ * Mutating commands own exactly one transaction (#323, ADR-0024): persistence runs via
+ * `ReliefInviteRepository.*InTransaction` store operations and the audit row is inserted
+ * into the same transaction. Accept's day-open gate and expiration live inside its command
+ * transaction so the expiry decision commits atomically with the grant it authorizes.
  */
 object ReliefInviteService {
     private val logger = KotlinLogging.logger {}
@@ -72,22 +79,19 @@ object ReliefInviteService {
         }
 
         val (invite, isNew) =
-            ReliefInviteRepository.insert(
-                id = UUID.randomUUID(),
-                branchDayId = branchDay.id,
-                invitedBy = callerId,
-                invitee = inviteeUserId,
-                auditFn = { created ->
-                    AuditLogRepository.recordInsert(
-                        tableName = ReliefInviteTable.tableName,
-                        recordId = created.id,
-                        changedBy = callerId,
-                        branchId = branchId,
-                        fields = ReliefInviteTable.auditFields(created),
-                        isFlagged = isRemitted,
+            transaction {
+                val pair =
+                    ReliefInviteRepository.insertInTransaction(
+                        id = UUID.randomUUID(),
+                        branchDayId = branchDay.id,
+                        invitedBy = callerId,
+                        invitee = inviteeUserId,
                     )
-                },
-            )
+                if (pair.second && pair.first != null) {
+                    ReliefInviteAudit.inserted(AuditContext(callerId, branchId, isRemitted), checkNotNull(pair.first))
+                }
+                pair
+            }
 
         if (!isNew) {
             // The partial unique index swallowed a concurrent duplicate — never a success
@@ -129,30 +133,22 @@ object ReliefInviteService {
         inviteId: UUID,
     ): ReliefInvite {
         val invite = requireOwnInvite(callerId, inviteId)
-        val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
-        val effectiveStatus = BranchDayService.getEffectiveStatus(invite.branchDayId)
-        if (effectiveStatus != DayStatus.OPEN) {
-            throw ValidationException("This relief invite has expired — the day is no longer open")
-        }
 
-        val validTo = BranchDayService.expirationUtc(branchDay.date)
         val result =
-            ReliefInviteRepository.accept(
-                id = inviteId,
-                invitee = callerId,
-                validTo = validTo,
-                auditFn = { before, after ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = ReliefInviteTable.tableName,
-                        recordId = after.id,
-                        before = before,
-                        after = after,
-                        changedBy = callerId,
-                        branchId = branchDay.branchId,
-                        auditFields = ReliefInviteTable::auditFields,
-                    )
-                },
-            ) ?: throw ConflictException("This invite was already responded to")
+            transaction {
+                val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
+                val effectiveStatus = BranchDayService.getEffectiveStatus(invite.branchDayId)
+                if (effectiveStatus != DayStatus.OPEN) {
+                    throw ValidationException("This relief invite has expired — the day is no longer open")
+                }
+                val validTo = BranchDayService.expirationUtc(branchDay.date)
+
+                val mutation =
+                    ReliefInviteRepository.acceptInTransaction(id = inviteId, invitee = callerId, validTo = validTo)
+                        ?: throw ConflictException("This invite was already responded to")
+                ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
+                mutation.after
+            }
 
         logger.info { "[RELIEF-INVITE-ACCEPT] Invite $inviteId accepted by $callerId (day grant written)" }
         return result
@@ -165,22 +161,15 @@ object ReliefInviteService {
     ): ReliefInvite {
         val invite = requireOwnInvite(callerId, inviteId)
         val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
+
         val result =
-            ReliefInviteRepository.respond(
-                id = inviteId,
-                status = ReliefInviteStatus.DECLINED,
-                auditFn = { before, after ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = ReliefInviteTable.tableName,
-                        recordId = after.id,
-                        before = before,
-                        after = after,
-                        changedBy = callerId,
-                        branchId = branchDay.branchId,
-                        auditFields = ReliefInviteTable::auditFields,
-                    )
-                },
-            ) ?: throw ConflictException("This invite was already responded to")
+            transaction {
+                val mutation =
+                    ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.DECLINED)
+                        ?: throw ConflictException("This invite was already responded to")
+                ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
+                mutation.after
+            }
         return result
     }
 
@@ -200,21 +189,13 @@ object ReliefInviteService {
         requireActiveAssignment(callerId, branchId)
 
         val result =
-            ReliefInviteRepository.respond(
-                id = inviteId,
-                status = ReliefInviteStatus.RETRACTED,
-                auditFn = { before, after ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = ReliefInviteTable.tableName,
-                        recordId = after.id,
-                        before = before,
-                        after = after,
-                        changedBy = callerId,
-                        branchId = branchId,
-                        auditFields = ReliefInviteTable::auditFields,
-                    )
-                },
-            ) ?: throw ConflictException("This invite was already responded to")
+            transaction {
+                val mutation =
+                    ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.RETRACTED)
+                        ?: throw ConflictException("This invite was already responded to")
+                ReliefInviteAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
+                mutation.after
+            }
         return result
     }
 
@@ -267,4 +248,37 @@ object ReliefInviteService {
             throw ForbiddenException("An active assignment at this branch is required")
         }
     }
+}
+
+/**
+ * Relief-invite audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object ReliefInviteAudit {
+    fun inserted(
+        context: AuditContext,
+        invite: ReliefInvite,
+    ) = AuditLogRepository.recordInsert(
+        tableName = ReliefInviteTable.tableName,
+        recordId = invite.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = ReliefInviteTable.auditFields(invite),
+        isFlagged = context.isFlagged,
+    )
+
+    fun updated(
+        context: AuditContext,
+        before: ReliefInvite,
+        after: ReliefInvite,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = ReliefInviteTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        auditFields = ReliefInviteTable::auditFields,
+    )
 }

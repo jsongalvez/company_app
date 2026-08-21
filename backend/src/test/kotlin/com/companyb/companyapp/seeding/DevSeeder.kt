@@ -59,7 +59,7 @@ object DevSeeder {
 
             val passwordHash = Password.create(password)
             val userId =
-                UserRepository.createUser(
+                UserRepository.createUserInTransaction(
                     UserCreateParams(
                         username = username,
                         passwordHash = passwordHash,

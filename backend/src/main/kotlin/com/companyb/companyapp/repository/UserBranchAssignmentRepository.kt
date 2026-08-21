@@ -21,49 +21,55 @@ import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
+data class AssignmentCreateResult(
+    val assignment: UserBranchAssignment,
+    val created: Boolean,
+)
+
+/** Before/after projection for single-assignment mutations (#323). */
+data class AssignmentMutation(
+    val before: UserBranchAssignment,
+    val after: UserBranchAssignment,
+)
+
 object UserBranchAssignmentRepository {
-    fun create(
-        params: UserBranchAssignmentCreateParams,
-        auditFn: (UserBranchAssignment) -> Unit = {},
-    ): Boolean =
-        transaction {
-            val insertedCount =
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: UserBranchAssignmentCreateParams): AssignmentCreateResult {
+        val insertedCount =
+            UserBranchAssignmentTable
+                .insertIgnore {
+                    it[UserBranchAssignmentTable.id] = params.id
+                    it[UserBranchAssignmentTable.userId] = params.userId
+                    it[UserBranchAssignmentTable.branchId] = params.branchId
+                    it[UserBranchAssignmentTable.slot] = params.slot
+                    it[UserBranchAssignmentTable.assignedBy] = params.assignedBy
+                }.insertedCount
+        val created = insertedCount > 0
+
+        if (created) {
+            val assignment =
                 UserBranchAssignmentTable
-                    .insertIgnore {
-                        it[UserBranchAssignmentTable.id] = params.id
-                        it[UserBranchAssignmentTable.userId] = params.userId
-                        it[UserBranchAssignmentTable.branchId] = params.branchId
-                        it[UserBranchAssignmentTable.slot] = params.slot
-                        it[UserBranchAssignmentTable.assignedBy] = params.assignedBy
-                    }.insertedCount
-            val created = insertedCount > 0
-
-            if (created) {
-                val assignment =
-                    UserBranchAssignmentTable
-                        .selectAll()
-                        .where { UserBranchAssignmentTable.id eq params.id }
-                        .single()
-                        .toAssignment()
-                auditFn(assignment)
-            } else {
-                val sameIdExists =
-                    UserBranchAssignmentTable
-                        .selectAll()
-                        .where { UserBranchAssignmentTable.id eq params.id }
-                        .empty()
-                        .not()
-                // Same-ID retries are idempotent. A different row means the active
-                // business key won the race, so expose a deterministic domain error.
-                if (!sameIdExists) {
-                    throw ConflictException("User already has an active assignment at this branch")
-                }
-            }
-
-            created
-        }.also { created ->
-            logger.info { "[CREATE-ASSIGNMENT] Assignment ${params.id} created=$created" }
+                    .selectAll()
+                    .where { UserBranchAssignmentTable.id eq params.id }
+                    .single()
+                    .toAssignment()
+            return AssignmentCreateResult(assignment, created = true)
         }
+
+        val sameIdExists =
+            UserBranchAssignmentTable
+                .selectAll()
+                .where { UserBranchAssignmentTable.id eq params.id }
+                .empty()
+                .not()
+        // Same-ID retries are idempotent. A different row means the active
+        // business key won the race, so expose a deterministic domain error.
+        if (!sameIdExists) {
+            throw ConflictException("User already has an active assignment at this branch")
+        }
+        val existing = findByIdInTransaction(params.id) ?: error("Assignment not found after create for ${params.id}")
+        return AssignmentCreateResult(existing, created = false)
+    }
 
     fun findActiveByBranch(branchId: UUID): List<UserBranchAssignment> =
         transaction {
@@ -78,7 +84,7 @@ object UserBranchAssignmentRepository {
                 ).map { it.toAssignment() }
         }.also { logger.info { "[FIND-ASSIGNMENTS-BY-BRANCH] Fetched ${it.size} active assignments" } }
 
-    private fun findActiveByBranchAndUserInTransaction(
+    fun findActiveByBranchAndUserInTransaction(
         branchId: UUID,
         userId: UUID,
         forUpdate: Boolean,
@@ -105,69 +111,64 @@ object UserBranchAssignmentRepository {
 
     fun findById(id: UUID): UserBranchAssignment? =
         transaction {
+            findByIdInTransaction(id)
+        }.also { logger.info { "[FIND-ASSIGNMENT-BY-ID] id=${id.toString().maskUUID()} found=${it != null}" } }
+
+    private fun findByIdInTransaction(id: UUID): UserBranchAssignment? =
+        UserBranchAssignmentTable
+            .selectAll()
+            .where { UserBranchAssignmentTable.id eq id }
+            .singleOrNull()
+            ?.toAssignment()
+
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun setEndedAtInTransaction(id: UUID): AssignmentMutation {
+        val before =
             UserBranchAssignmentTable
                 .selectAll()
                 .where { UserBranchAssignmentTable.id eq id }
-                .singleOrNull()
-                ?.toAssignment()
-        }.also { logger.info { "[FIND-ASSIGNMENT-BY-ID] id=${id.toString().maskUUID()} found=${it != null}" } }
+                .single()
+                .toAssignment()
 
-    fun setEndedAt(
-        id: UUID,
-        auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
-    ) {
-        transaction {
-            val before =
-                UserBranchAssignmentTable
-                    .selectAll()
-                    .where { UserBranchAssignmentTable.id eq id }
-                    .single()
-                    .toAssignment()
-
-            UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
-                it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
-            }
-
-            val after =
-                UserBranchAssignmentTable
-                    .selectAll()
-                    .where { UserBranchAssignmentTable.id eq id }
-                    .single()
-                    .toAssignment()
-            auditFn(before, after)
+        UserBranchAssignmentTable.update({ UserBranchAssignmentTable.id eq id }) {
+            it[UserBranchAssignmentTable.endedAt] = CurrentTimestampWithTimeZone
         }
-        logger.info { "[SET-ENDED-AT] Assignment ${id.toString().maskUUID()}" }
+
+        val after =
+            UserBranchAssignmentTable
+                .selectAll()
+                .where { UserBranchAssignmentTable.id eq id }
+                .single()
+                .toAssignment()
+        return AssignmentMutation(before, after)
     }
 
-    fun updateSlot(
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun updateSlotInTransaction(
         id: UUID,
         slot: Short,
-        auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
-    ) {
-        transaction {
-            val before =
-                UserBranchAssignmentTable
-                    .selectAll()
-                    .where { UserBranchAssignmentTable.id eq id }
-                    .single()
-                    .toAssignment()
+    ): AssignmentMutation {
+        val before =
+            UserBranchAssignmentTable
+                .selectAll()
+                .where { UserBranchAssignmentTable.id eq id }
+                .single()
+                .toAssignment()
 
-            UserBranchAssignmentTable.update({
-                (UserBranchAssignmentTable.id eq id) and
-                    (UserBranchAssignmentTable.endedAt.isNull())
-            }) {
-                it[UserBranchAssignmentTable.slot] = slot
-            }
-
-            val after =
-                UserBranchAssignmentTable
-                    .selectAll()
-                    .where { UserBranchAssignmentTable.id eq id }
-                    .single()
-                    .toAssignment()
-            auditFn(before, after)
+        UserBranchAssignmentTable.update({
+            (UserBranchAssignmentTable.id eq id) and
+                (UserBranchAssignmentTable.endedAt.isNull())
+        }) {
+            it[UserBranchAssignmentTable.slot] = slot
         }
-        logger.info { "[UPDATE-SLOT] Assignment ${id.toString().maskUUID()} slot=$slot" }
+
+        val after =
+            UserBranchAssignmentTable
+                .selectAll()
+                .where { UserBranchAssignmentTable.id eq id }
+                .single()
+                .toAssignment()
+        return AssignmentMutation(before, after)
     }
 
     fun swapSlotsInTransaction(
@@ -189,36 +190,6 @@ object UserBranchAssignmentRepository {
             it[UserBranchAssignmentTable.slot] = slotA
         }
     }
-
-    fun swapSlots(
-        branchId: UUID,
-        userIdA: UUID,
-        userIdB: UUID,
-        auditFn: (UserBranchAssignment, UserBranchAssignment) -> Unit = { _, _ -> },
-    ): Pair<UserBranchAssignment, UserBranchAssignment> =
-        transaction {
-            // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
-            // lesson) serializes swap against concurrent remove/updateSlot on either user.
-            // Locks are taken in ascending user-ID order so concurrent opposite-direction
-            // swaps (A,B vs B,A) cannot cross-deadlock.
-            val lockOrder = listOf(userIdA, userIdB).sorted()
-            val assignments =
-                lockOrder.associateWith { id ->
-                    findActiveByBranchAndUserInTransaction(branchId, id, forUpdate = true)
-                        ?: throw NotFoundException("Active assignment not found for user $id at this branch")
-                }
-            val a = assignments.getValue(userIdA)
-            val b = assignments.getValue(userIdB)
-
-            val slotA = a.slot
-            val slotB = b.slot
-
-            swapSlotsInTransaction(a.id, slotA, b.id, slotB)
-
-            auditFn(a, b)
-
-            a to b
-        }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignment(): UserBranchAssignment =
         UserBranchAssignment(

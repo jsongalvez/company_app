@@ -893,15 +893,17 @@ class SessionServicePostgresTest : BasePostgresTest() {
     )
 
     private fun insertAssignment(userId: UUID) {
-        UserBranchAssignmentRepository.create(
-            UserBranchAssignmentCreateParams(
-                id = TestFixtures.uuid(),
-                userId = userId,
-                branchId = branchId,
-                slot = 1,
-                assignedBy = callerId,
-            ),
-        )
+        transaction {
+            UserBranchAssignmentRepository.createInTransaction(
+                UserBranchAssignmentCreateParams(
+                    id = TestFixtures.uuid(),
+                    userId = userId,
+                    branchId = branchId,
+                    slot = 1,
+                    assignedBy = callerId,
+                ),
+            )
+        }
     }
 
     private fun insertSessionBaseRate(

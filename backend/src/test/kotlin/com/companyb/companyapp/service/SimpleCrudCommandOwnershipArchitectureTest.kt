@@ -7,9 +7,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * #323 batches 1–3 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
- * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation, session cluster)
- * keep their shape:
+ * #323 batches 1–4 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
+ * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation, session cluster,
+ * user/access cluster) keep their shape:
  * mutating store operations are `*InTransaction` with no `auditFn` coordination and no nested
  * write transactions, and each public command owns exactly one transaction while persistence-table
  * knowledge stays behind the feature/audit seam. Mechanical enforcement for the whole backend
@@ -35,6 +35,12 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/SessionPractitionerRepository.kt" to 2,
                 "repository/ConcernRepository.kt" to 3,
                 "repository/SessionBaseRateRepository.kt" to 1,
+                // Batch 4 — user/access cluster.
+                "repository/UserRepository.kt" to 7,
+                "repository/UserBranchAssignmentRepository.kt" to 3,
+                "repository/ReliefAccessRepository.kt" to 4,
+                "repository/ReliefInviteRepository.kt" to 10,
+                "repository/MedicalMissionDelegateRepository.kt" to 1,
             )
         files.forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
@@ -65,6 +71,15 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/session/SessionConcernService.kt" to
                     listOf("addToSession", "removeFromSession", "promoteConcern"),
                 "service/session/SessionBaseRateService.kt" to listOf("setRate"),
+                // Batch 4 — user/access cluster.
+                "service/UserService.kt" to listOf("deactivate", "reactivate"),
+                "service/UserBranchAssignmentService.kt" to
+                    listOf("create", "remove", "updateSlot", "swapSlots"),
+                "service/ReliefAccessService.kt" to
+                    listOf("grantAccess", "denyAccess", "requestReliefAccess"),
+                "service/ReliefInviteService.kt" to
+                    listOf("createInvite", "acceptInvite", "declineInvite", "retractInvite"),
+                "service/MedicalMissionDelegateService.kt" to listOf("assignDelegate", "revokeDelegate"),
             )
         commands.forEach { (file, names) ->
             val source = mainSource(file)
@@ -96,6 +111,12 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/session/SessionPractitionerService.kt" to "SessionPractitionerAudit",
                 "service/session/SessionConcernService.kt" to "SessionConcernAudit",
                 "service/session/SessionBaseRateService.kt" to "SessionBaseRateAudit",
+                // Batch 4 — user/access cluster.
+                "service/UserService.kt" to "UserAudit",
+                "service/UserBranchAssignmentService.kt" to "UserBranchAssignmentAudit",
+                "service/ReliefAccessService.kt" to "ReliefAccessAudit",
+                "service/ReliefInviteService.kt" to "ReliefInviteAudit",
+                "service/MedicalMissionDelegateService.kt" to "MedicalMissionDelegateAudit",
             )
         seams.forEach { (file, seam) ->
             val source = mainSource(file)

@@ -42,7 +42,14 @@ data class UserCreateParams(
     val displayName: String,
 )
 
-@Suppress("UnreachableCode")
+/** Before/after status projection for deactivate/reactivate (#323): `changed=false` marks the idempotent no-op skip. */
+data class UserStatusTransition(
+    val before: AppUser,
+    val after: AppUser,
+    val changed: Boolean,
+)
+
+@Suppress("UnreachableCode", "TooManyFunctions")
 object UserRepository {
     fun findByUsername(username: String): AppUser? =
         transaction {
@@ -71,49 +78,53 @@ object UserRepository {
             }
         }
 
-    fun createUser(
-        params: UserCreateParams,
-        auditFn: (UUID) -> Unit = {},
-    ): UUID =
-        transaction {
-            val insert =
-                AppUserTable.insertIgnore {
-                    it[AppUserTable.username] = params.username
-                    it[AppUserTable.passwordHash] = params.passwordHash
-                    it[AppUserTable.email] = params.email
-                    it[AppUserTable.displayName] = params.displayName
-                    it[AppUserTable.status] = UserStatus.ACTIVE
-                    it[AppUserTable.createdAt] = CurrentTimestampWithTimeZone
-                }
-            if (insert.insertedCount == 0) {
-                val conflict =
-                    when {
-                        AppUserTable
-                            .select(AppUserTable.id)
-                            .where { AppUserTable.username eq params.username }
-                            .empty()
-                            .not() -> {
-                            RegistrationConflictField.USERNAME
-                        }
-
-                        AppUserTable
-                            .select(AppUserTable.id)
-                            .where { AppUserTable.email eq params.email }
-                            .empty()
-                            .not() -> {
-                            RegistrationConflictField.EMAIL
-                        }
-
-                        else -> {
-                            error("Registration insert was ignored without a username or email conflict")
-                        }
-                    }
-                throw RegistrationConflictException(conflict)
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createUserInTransaction(params: UserCreateParams): UUID {
+        val insert =
+            AppUserTable.insertIgnore {
+                it[AppUserTable.username] = params.username
+                it[AppUserTable.passwordHash] = params.passwordHash
+                it[AppUserTable.email] = params.email
+                it[AppUserTable.displayName] = params.displayName
+                it[AppUserTable.status] = UserStatus.ACTIVE
+                it[AppUserTable.createdAt] = CurrentTimestampWithTimeZone
             }
-            val id = insert[AppUserTable.id]
-            auditFn(id)
-            id
-        }.also { logger.info { "[CREATE-USER] Added user to ${AppUserTable.tableName} table" } }
+        if (insert.insertedCount == 0) {
+            val conflict =
+                when {
+                    AppUserTable
+                        .select(AppUserTable.id)
+                        .where { AppUserTable.username eq params.username }
+                        .empty()
+                        .not() -> {
+                        RegistrationConflictField.USERNAME
+                    }
+
+                    AppUserTable
+                        .select(AppUserTable.id)
+                        .where { AppUserTable.email eq params.email }
+                        .empty()
+                        .not() -> {
+                        RegistrationConflictField.EMAIL
+                    }
+
+                    else -> {
+                        error("Registration insert was ignored without a username or email conflict")
+                    }
+                }
+            throw RegistrationConflictException(conflict)
+        }
+        return insert[AppUserTable.id]
+    }
+
+    fun existsById(userId: UUID): Boolean =
+        transaction {
+            AppUserTable
+                .select(AppUserTable.id)
+                .where { AppUserTable.id eq userId }
+                .empty()
+                .not()
+        }
 
     fun findJwtRevocationBoundaries(): Map<UUID, Instant> =
         transaction {
@@ -127,87 +138,67 @@ object UserRepository {
 
     /**
      * Sets INACTIVE status and stamps [AppUserTable.deactivatedAt]. Idempotent for
-     * already-INACTIVE users — no update and no audit row are written, so a retry
-     * never resets the "deactivated X ago" timestamp. Returns null when the user
-     * does not exist.
+     * already-INACTIVE users — no update and no audit row are written (`changed=false`),
+     * so a retry never resets the "deactivated X ago" timestamp. Returns null when the
+     * user does not exist.
      */
-    fun deactivate(
-        userId: UUID,
-        auditFn: (AppUser, AppUser) -> Unit = { _, _ -> },
-    ): AppUser? {
-        var changed = false
-        val user =
-            transaction {
-                val beforeRow =
-                    AppUserTable
-                        .selectAll()
-                        .where { AppUserTable.id eq userId }
-                        .singleOrNull() ?: return@transaction null
+    fun deactivateInTransaction(userId: UUID): UserStatusTransition? {
+        val beforeRow =
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .singleOrNull() ?: return null
 
-                if (beforeRow[AppUserTable.status] == UserStatus.INACTIVE) {
-                    return@transaction beforeRow.toAppUser()
-                }
+        if (beforeRow[AppUserTable.status] == UserStatus.INACTIVE) {
+            val before = beforeRow.toAppUser()
+            return UserStatusTransition(before, before, changed = false)
+        }
 
-                AppUserTable.update({ AppUserTable.id eq userId }) {
-                    it[status] = UserStatus.INACTIVE
-                    it[deactivatedAt] = CurrentTimestampWithTimeZone
-                    it[jwtRevokedAt] = CurrentTimestampWithTimeZone
-                }
+        AppUserTable.update({ AppUserTable.id eq userId }) {
+            it[status] = UserStatus.INACTIVE
+            it[deactivatedAt] = CurrentTimestampWithTimeZone
+            it[jwtRevokedAt] = CurrentTimestampWithTimeZone
+        }
 
-                val afterRow =
-                    AppUserTable
-                        .selectAll()
-                        .where { AppUserTable.id eq userId }
-                        .single()
-                val after = afterRow.toAppUser()
-                auditFn(beforeRow.toAppUser(), after)
-                changed = true
-                after
-            }
-        logger.info { "[DEACTIVATE] User ${userId.toString().maskUUID()} deactivated=${user != null && changed}" }
-        return user
+        val after =
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .single()
+                .toAppUser()
+        return UserStatusTransition(beforeRow.toAppUser(), after, changed = true)
     }
 
     /**
-     * Reverses [deactivate]: INACTIVE → ACTIVE and clears [AppUserTable.deactivatedAt].
+     * Reverses [deactivateInTransaction]: INACTIVE → ACTIVE and clears [AppUserTable.deactivatedAt].
      * Idempotent for already-ACTIVE users — no update and no audit row are written
-     * (the status did not change), so repeated retries are harmless. Returns null
-     * only when the user does not exist.
+     * (`changed=false`; the status did not change), so repeated retries are harmless.
+     * Returns null only when the user does not exist.
      */
-    fun reactivate(
-        userId: UUID,
-        auditFn: (AppUser, AppUser) -> Unit = { _, _ -> },
-    ): AppUser? {
-        var changed = false
-        val user =
-            transaction {
-                val beforeRow =
-                    AppUserTable
-                        .selectAll()
-                        .where { AppUserTable.id eq userId }
-                        .singleOrNull() ?: return@transaction null
+    fun reactivateInTransaction(userId: UUID): UserStatusTransition? {
+        val beforeRow =
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .singleOrNull() ?: return null
 
-                if (beforeRow[AppUserTable.status] == UserStatus.ACTIVE) {
-                    return@transaction beforeRow.toAppUser()
-                }
+        if (beforeRow[AppUserTable.status] == UserStatus.ACTIVE) {
+            val before = beforeRow.toAppUser()
+            return UserStatusTransition(before, before, changed = false)
+        }
 
-                AppUserTable.update({ AppUserTable.id eq userId }) {
-                    it[status] = UserStatus.ACTIVE
-                    it[deactivatedAt] = null
-                }
+        AppUserTable.update({ AppUserTable.id eq userId }) {
+            it[status] = UserStatus.ACTIVE
+            it[deactivatedAt] = null
+        }
 
-                val afterRow =
-                    AppUserTable
-                        .selectAll()
-                        .where { AppUserTable.id eq userId }
-                        .single()
-                val after = afterRow.toAppUser()
-                auditFn(beforeRow.toAppUser(), after)
-                changed = true
-                after
-            }
-        logger.info { "[REACTIVATE] User ${userId.toString().maskUUID()} reactivated=${user != null && changed}" }
-        return user
+        val after =
+            AppUserTable
+                .selectAll()
+                .where { AppUserTable.id eq userId }
+                .single()
+                .toAppUser()
+        return UserStatusTransition(beforeRow.toAppUser(), after, changed = true)
     }
 
     fun findAll(): List<AppUser> =

@@ -3,6 +3,7 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -25,7 +26,6 @@ import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -187,11 +187,10 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `repository race classifies active key conflict without audit callback`() {
+    fun `repository race classifies active key conflict and audits exactly the winner`() {
         val executor = Executors.newFixedThreadPool(CONCURRENT_ASSIGNMENTS)
         val ready = CountDownLatch(CONCURRENT_ASSIGNMENTS)
         val start = CountDownLatch(1)
-        val auditCalls = AtomicInteger(0)
         val assignmentIds = (1..CONCURRENT_ASSIGNMENTS).map { TestFixtures.uuid() }
         val futures =
             assignmentIds.map { assignmentId ->
@@ -199,16 +198,25 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
                     ready.countDown()
                     start.await()
                     runCatching {
-                        UserBranchAssignmentRepository.create(
-                            UserBranchAssignmentCreateParams(
-                                id = assignmentId,
-                                userId = userBId,
-                                branchId = branchId,
-                                slot = 1,
-                                assignedBy = callerId,
-                            ),
-                            auditFn = { auditCalls.incrementAndGet() },
-                        )
+                        transaction {
+                            val result =
+                                UserBranchAssignmentRepository.createInTransaction(
+                                    UserBranchAssignmentCreateParams(
+                                        id = assignmentId,
+                                        userId = userBId,
+                                        branchId = branchId,
+                                        slot = 1,
+                                        assignedBy = callerId,
+                                    ),
+                                )
+                            if (result.created) {
+                                UserBranchAssignmentAudit.inserted(
+                                    AuditContext(callerId, branchId),
+                                    result.assignment,
+                                )
+                            }
+                            result.created
+                        }
                     }
                 }
             }
@@ -224,7 +232,10 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
 
         assertEquals(1, results.count { it.isSuccess && it.getOrThrow() })
         assertTrue(results.single { it.isFailure }.exceptionOrNull() is ConflictException)
-        assertEquals(1, auditCalls.get())
+        val winningId = assignmentIds[results.indexOfFirst { it.isSuccess }]
+        val losingId = assignmentIds.single { it != winningId }
+        assertEquals(1L, auditEntryCount(winningId))
+        assertEquals(0L, auditEntryCount(losingId))
     }
 
     @Test

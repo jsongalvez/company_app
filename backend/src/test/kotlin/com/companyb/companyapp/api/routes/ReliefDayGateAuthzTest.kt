@@ -64,7 +64,7 @@ import kotlin.test.assertTrue
  *
  * Day-scoped gates must accept a BRANCH grant at the day's branch OR a BRANCH_DAY grant for
  * the specific branch day. The relief grant is written as (EDIT_BRANCH_DATA, BRANCH_DAY,
- * branchDayId) with a validFrom/validTo window (`ReliefAccessRepository.grantWithCapability`),
+ * branchDayId) with a validFrom/validTo window (`ReliefAccessRepository.grantInTransaction`),
  * and the window is enforced by the `active_user_capabilities` view. GLOBAL grants
  * deliberately do NOT satisfy these gates (the #131 strictness).
  *

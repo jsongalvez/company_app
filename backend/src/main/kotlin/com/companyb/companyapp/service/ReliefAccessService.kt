@@ -1,10 +1,10 @@
 package com.companyb.companyapp.service
 
-import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
@@ -12,8 +12,15 @@ import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
+/**
+ * Relief-access feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * transaction: the Branch Day gate runs inside it, persistence runs via
+ * `ReliefAccessRepository.*InTransaction` store operations, and the audit row is inserted
+ * into the same transaction — so mutation + audit commit atomically or not at all.
+ */
 object ReliefAccessService {
     private val logger = KotlinLogging.logger {}
 
@@ -35,37 +42,33 @@ object ReliefAccessService {
             return request
         }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
-
-        val validTo = BranchDayService.expirationUtc(branchDay.date)
-
         val result =
-            checkNotNull(
-                ReliefAccessRepository.grantWithCapability(
-                    GrantWithCapabilityParams(
-                        requestId = requestId,
-                        grantedBy = callerId,
-                        userId = request.requestedBy,
-                        branchDayId = request.branchDayId,
-                        sourceId = requestId,
-                        validTo = validTo,
-                        requestedBy = request.requestedBy,
-                    ),
-                    auditFn = { before, after ->
-                        AuditLogRepository.recordUpdate(
-                            tableName = GrantReliefAccessTable.tableName,
-                            recordId = after.id,
-                            before = before,
-                            after = after,
-                            changedBy = callerId,
-                            branchId = branchDay.branchId,
-                            isFlagged = isRemitted,
-                            reason = reason,
-                            auditFields = GrantReliefAccessTable::auditFields,
-                        )
-                    },
-                ),
-            ) { "Grant failed: relief access request not found in transaction" }
+            transaction {
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+
+                val mutation =
+                    ReliefAccessRepository.grantInTransaction(
+                        GrantWithCapabilityParams(
+                            requestId = requestId,
+                            grantedBy = callerId,
+                            userId = request.requestedBy,
+                            branchDayId = request.branchDayId,
+                            sourceId = requestId,
+                            validTo = BranchDayService.expirationUtc(branchDay.date),
+                            requestedBy = request.requestedBy,
+                        ),
+                    ) ?: error("Grant failed: relief access request not found in transaction")
+
+                if (mutation.updated) {
+                    ReliefAccessAudit.updated(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        mutation.before,
+                        mutation.after,
+                    )
+                }
+                mutation.after
+            }
 
         if (result.requestStatus == ReliefAccessStatus.DENIED) {
             logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId was already denied" }
@@ -103,25 +106,21 @@ object ReliefAccessService {
             throw ValidationException("Cannot deny a request that has already been granted")
         }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
-
         val result =
-            ReliefAccessRepository.deny(
-                requestId,
-                auditFn = { before, after ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = GrantReliefAccessTable.tableName,
-                        recordId = after.id,
-                        before = before,
-                        after = after,
-                        changedBy = callerId,
-                        branchId = branchDay.branchId,
-                        isFlagged = isRemitted,
-                        reason = reason,
-                        auditFields = GrantReliefAccessTable::auditFields,
+            transaction {
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+
+                val mutation = ReliefAccessRepository.denyInTransaction(requestId)
+                if (mutation.updated) {
+                    ReliefAccessAudit.updated(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        mutation.before,
+                        mutation.after,
                     )
-                },
-            )
+                }
+                mutation.after
+            }
 
         if (result.requestStatus == ReliefAccessStatus.GRANTED) {
             throw ValidationException("Cannot deny a request that has already been granted")
@@ -140,8 +139,6 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
-
         val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
         if (!targetHasClockIn) {
             throw ValidationException("Target user does not have an active clock-in on this branch day")
@@ -153,23 +150,24 @@ object ReliefAccessService {
         }
 
         val (reliefAccess, wasCreated) =
-            ReliefAccessRepository.insertRequest(
-                requestId,
-                branchDayId,
-                callerId,
-                targetUserId,
-                auditFn = { created ->
-                    AuditLogRepository.recordInsert(
-                        tableName = GrantReliefAccessTable.tableName,
-                        recordId = created.id,
-                        changedBy = callerId,
-                        branchId = branchDay.branchId,
-                        fields = GrantReliefAccessTable.auditFields(created),
-                        isFlagged = isRemitted,
-                        reason = reason,
+            transaction {
+                val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
+
+                val pair =
+                    ReliefAccessRepository.insertRequestInTransaction(
+                        id = requestId,
+                        branchDayId = branchDayId,
+                        requestedBy = callerId,
+                        targetUser = targetUserId,
                     )
-                },
-            )
+                if (pair.second) {
+                    ReliefAccessAudit.inserted(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        pair.first,
+                    )
+                }
+                pair
+            }
 
         logger.info {
             "[RELIEF-ACCESS-REQUEST] Request $requestId created " +
@@ -178,4 +176,40 @@ object ReliefAccessService {
 
         return reliefAccess
     }
+}
+
+/**
+ * Relief-access audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so the audit row commits atomically with the mutation. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object ReliefAccessAudit {
+    fun inserted(
+        context: AuditContext,
+        reliefAccess: ReliefAccess,
+    ) = AuditLogRepository.recordInsert(
+        tableName = GrantReliefAccessTable.tableName,
+        recordId = reliefAccess.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = GrantReliefAccessTable.auditFields(reliefAccess),
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+    )
+
+    fun updated(
+        context: AuditContext,
+        before: ReliefAccess,
+        after: ReliefAccess,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = GrantReliefAccessTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+        auditFields = GrantReliefAccessTable::auditFields,
+    )
 }

@@ -5,19 +5,24 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
-import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
 
+/**
+ * Assignment feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * transaction: persistence runs on it via `UserBranchAssignmentRepository.*InTransaction`
+ * store operations and the audit row is inserted into the same transaction. The slot-swap
+ * lock ordering (ascending user id) lives inside the command's transaction.
+ */
 object UserBranchAssignmentService {
     private val logger = KotlinLogging.logger {}
 
@@ -54,14 +59,7 @@ object UserBranchAssignmentService {
             throw NotFoundException("Branch not found")
         }
 
-        val userFound =
-            transaction {
-                AppUserTable
-                    .select(AppUserTable.id)
-                    .where { AppUserTable.id eq userId }
-                    .any()
-            }
-        if (!userFound) {
+        if (!UserRepository.existsById(userId)) {
             throw NotFoundException("User not found")
         }
 
@@ -73,35 +71,29 @@ object UserBranchAssignmentService {
             throw ValidationException("User already has an active assignment at this branch")
         }
 
-        val created =
-            UserBranchAssignmentRepository.create(
-                UserBranchAssignmentCreateParams(
-                    id = id,
-                    userId = userId,
-                    branchId = branchId,
-                    slot = slot,
-                    assignedBy = callerId,
-                ),
-                auditFn = { assignment ->
-                    AuditLogRepository.recordInsert(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = assignment.id,
-                        changedBy = callerId,
-                        branchId = branchId,
-                        fields = UserBranchAssignmentTable.auditFields(assignment),
+        val result =
+            transaction {
+                val r =
+                    UserBranchAssignmentRepository.createInTransaction(
+                        UserBranchAssignmentCreateParams(
+                            id = id,
+                            userId = userId,
+                            branchId = branchId,
+                            slot = slot,
+                            assignedBy = callerId,
+                        ),
                     )
-                },
-            )
+                if (r.created) {
+                    UserBranchAssignmentAudit.inserted(AuditContext(callerId, branchId), r.assignment)
+                }
+                r
+            }
 
-        val assignment =
-            UserBranchAssignmentRepository.findById(id)
-                ?: error("Assignment not found after create for $id")
-
-        if (created) {
+        if (result.created) {
             logger.info { "[CREATE-ASSIGNMENT] Created assignment $id for user $userId at branch $branchId slot=$slot" }
         }
 
-        return CreateResult(assignment, created)
+        return CreateResult(result.assignment, result.created)
     }
 
     fun remove(
@@ -117,23 +109,15 @@ object UserBranchAssignmentService {
         }
 
         val assignment =
-            UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
-                ?: throw NotFoundException("Active assignment not found")
-
-        UserBranchAssignmentRepository.setEndedAt(
-            assignment.id,
-            auditFn = { before, after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = UserBranchAssignmentTable.tableName,
-                    recordId = after.id,
-                    before = before,
-                    after = after,
-                    changedBy = callerId,
-                    branchId = branchId,
-                    auditFields = UserBranchAssignmentTable::auditFields,
-                )
-            },
-        )
+            transaction {
+                val target =
+                    UserBranchAssignmentRepository
+                        .findActiveByBranchAndUserInTransaction(branchId, userId, forUpdate = false)
+                        ?: throw NotFoundException("Active assignment not found")
+                val mutation = UserBranchAssignmentRepository.setEndedAtInTransaction(target.id)
+                UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
+                mutation.after
+            }
         logger.info { "[REMOVE-ASSIGNMENT] Ended assignment ${assignment.id} for user $userId at branch $branchId" }
     }
 
@@ -158,26 +142,16 @@ object UserBranchAssignmentService {
         }
 
         val assignment =
-            UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, targetUserId)
-                ?: throw NotFoundException("Active assignment not found for user at this branch")
-
-        val oldSlot = assignment.slot
-        UserBranchAssignmentRepository.updateSlot(
-            assignment.id,
-            newSlot,
-            auditFn = { before, after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = UserBranchAssignmentTable.tableName,
-                    recordId = after.id,
-                    before = before,
-                    after = after,
-                    changedBy = callerId,
-                    branchId = branchId,
-                    auditFields = UserBranchAssignmentTable::auditFields,
-                )
-            },
-        )
-        logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} from $oldSlot to $newSlot" }
+            transaction {
+                val target =
+                    UserBranchAssignmentRepository
+                        .findActiveByBranchAndUserInTransaction(branchId, targetUserId, forUpdate = false)
+                        ?: throw NotFoundException("Active assignment not found for user at this branch")
+                val mutation = UserBranchAssignmentRepository.updateSlotInTransaction(target.id, newSlot)
+                UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
+                mutation.after
+            }
+        logger.info { "[UPDATE-SLOT] Changed slot for assignment ${assignment.id} to $newSlot" }
     }
 
     @Suppress("ReturnCount")
@@ -204,35 +178,27 @@ object UserBranchAssignmentService {
             throw ForbiddenException("MANAGE_USERS capability required to swap slots")
         }
 
-        val (assignA, assignB) =
-            UserBranchAssignmentRepository.swapSlots(
-                branchId,
-                userIdA,
-                userIdB,
-                auditFn = { a, b ->
-                    AuditLogRepository.recordUpdate(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = a.id,
-                        before = a,
-                        after = a.copy(slot = b.slot),
-                        changedBy = callerId,
-                        branchId = branchId,
-                        auditFields = UserBranchAssignmentTable::auditFields,
-                    )
-                    AuditLogRepository.recordUpdate(
-                        tableName = UserBranchAssignmentTable.tableName,
-                        recordId = b.id,
-                        before = b,
-                        after = b.copy(slot = a.slot),
-                        changedBy = callerId,
-                        branchId = branchId,
-                        auditFields = UserBranchAssignmentTable::auditFields,
-                    )
-                },
-            )
-        val slotA = assignA.slot
-        val slotB = assignB.slot
-        logger.info { "[SWAP-SLOTS] Swapped slots: user $userIdA ($slotA <-> $slotB) user $userIdB" }
+        transaction {
+            // FOR UPDATE on both rows (materialized via singleOrNull — the #136 lazy-lock
+            // lesson) serializes swap against concurrent remove/updateSlot on either user.
+            // Locks are taken in ascending user-ID order so concurrent opposite-direction
+            // swaps (A,B vs B,A) cannot cross-deadlock.
+            val lockOrder = listOf(userIdA, userIdB).sorted()
+            val assignments =
+                lockOrder.associateWith { id ->
+                    UserBranchAssignmentRepository
+                        .findActiveByBranchAndUserInTransaction(branchId, id, forUpdate = true)
+                        ?: throw NotFoundException("Active assignment not found for user $id at this branch")
+                }
+            val a = assignments.getValue(userIdA)
+            val b = assignments.getValue(userIdB)
+
+            UserBranchAssignmentRepository.swapSlotsInTransaction(a.id, a.slot, b.id, b.slot)
+
+            UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), a, a.copy(slot = b.slot))
+            UserBranchAssignmentAudit.updated(AuditContext(callerId, branchId), b, b.copy(slot = a.slot))
+        }
+        logger.info { "[SWAP-SLOTS] Swapped slots at branch $branchId: user $userIdA <-> user $userIdB" }
     }
 
     fun findActiveByBranch(
@@ -242,4 +208,36 @@ object UserBranchAssignmentService {
         requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
         return UserBranchAssignmentRepository.findActiveByBranch(branchId)
     }
+}
+
+/**
+ * User-branch-assignment audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside
+ * its own transaction so the audit row commits atomically with the mutation. Owns the
+ * persistence-table imports so the public command surface does not.
+ */
+internal object UserBranchAssignmentAudit {
+    fun inserted(
+        context: AuditContext,
+        assignment: UserBranchAssignment,
+    ) = AuditLogRepository.recordInsert(
+        tableName = UserBranchAssignmentTable.tableName,
+        recordId = assignment.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = UserBranchAssignmentTable.auditFields(assignment),
+    )
+
+    fun updated(
+        context: AuditContext,
+        before: UserBranchAssignment,
+        after: UserBranchAssignment,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = UserBranchAssignmentTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        auditFields = UserBranchAssignmentTable::auditFields,
+    )
 }

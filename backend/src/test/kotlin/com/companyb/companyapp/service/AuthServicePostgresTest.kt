@@ -9,9 +9,15 @@ import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -107,22 +113,23 @@ class AuthServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `registration conflict does not invoke audit callback`() {
-        var auditCalls = 0
+    fun `registration conflict writes no audit row`() {
+        val conflictingUserId = TestFixtures.uuid()
 
         assertFailsWith<RegistrationConflictException> {
-            UserRepository.createUser(
-                UserCreateParams(
-                    username = "logout-test-$userId",
-                    passwordHash = Password.create("test-password"),
-                    email = "audit-${userId.toString().take(8)}@example.test",
-                    displayName = "Duplicate User",
-                ),
-                auditFn = { auditCalls++ },
-            )
+            transaction {
+                UserRepository.createUserInTransaction(
+                    UserCreateParams(
+                        username = "logout-test-$userId",
+                        passwordHash = Password.create("test-password"),
+                        email = "audit-${userId.toString().take(8)}@example.test",
+                        displayName = "Duplicate User",
+                    ),
+                )
+            }
         }
 
-        assertEquals(0, auditCalls)
+        assertEquals(0L, auditEntryCount(conflictingUserId))
         assertNotNull(UserRepository.findByUsername("logout-test-$userId"))
     }
 
@@ -188,6 +195,15 @@ class AuthServicePostgresTest : BasePostgresTest() {
         assertNotNull(created)
         trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
     }
+
+    private fun auditEntryCount(recordId: UUID): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq "app_user") and (AuditLogTable.recordId eq recordId)
+                }.count()
+        }
 
     private companion object {
         const val CONCURRENT_REGISTRATIONS = 2

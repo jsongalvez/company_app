@@ -17,84 +17,92 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
+/** Store result for delegate assign (#323): `inserted=false` marks an idempotent same-id retry. */
+data class DelegateAssignResult(
+    val delegate: MedicalMissionDelegate,
+    val inserted: Boolean,
+)
+
 object MedicalMissionDelegateRepository {
     fun findById(id: UUID): MedicalMissionDelegate? =
         transaction {
-            MedicalMissionDelegateTable
-                .selectAll()
-                .where { MedicalMissionDelegateTable.id eq id }
-                .singleOrNull()
-                ?.toMedicalMissionDelegate()
+            findByIdInTransaction(id)
         }
 
-    @Suppress("LongParameterList")
-    fun assignWithCapability(
+    fun findByIdInTransaction(id: UUID): MedicalMissionDelegate? =
+        MedicalMissionDelegateTable
+            .selectAll()
+            .where { MedicalMissionDelegateTable.id eq id }
+            .singleOrNull()
+            ?.toMedicalMissionDelegate()
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction. The capability insert stays inside so it cannot outlive a failed
+     * delegate insert.
+     */
+    fun assignInTransaction(
         delegateId: UUID,
         targetUserId: UUID,
         assignedBy: UUID,
         branchId: UUID,
         capabilityId: UUID,
-        auditFn: (MedicalMissionDelegate) -> Unit = {},
-    ): Unit =
-        transaction {
-            val inserted =
-                MedicalMissionDelegateTable
-                    .insertIgnore {
-                        it[MedicalMissionDelegateTable.id] = delegateId
-                        it[MedicalMissionDelegateTable.targetUser] = targetUserId
-                        it[MedicalMissionDelegateTable.assignedBy] = assignedBy
-                        it[MedicalMissionDelegateTable.branchId] = branchId
-                    }.insertedCount > 0
-
-            if (inserted) {
-                UserCapabilityTable.insert {
-                    it[UserCapabilityTable.userId] = targetUserId
-                    it[UserCapabilityTable.capabilityId] = capabilityId
-                    it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
-                    it[UserCapabilityTable.contextId] = branchId
-                    it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
-                    it[UserCapabilityTable.sourceId] = delegateId
-                    it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
-                }
-            }
-
-            val delegate =
-                MedicalMissionDelegateTable
-                    .selectAll()
-                    .where { MedicalMissionDelegateTable.id eq delegateId }
-                    .single()
-                    .toMedicalMissionDelegate()
-            if (inserted) {
-                auditFn(delegate)
-            }
-        }
-
-    fun revokeWithCapability(
-        delegateId: UUID,
-        auditFn: (MedicalMissionDelegate) -> Unit = {},
-    ): Unit =
-        transaction {
+    ): DelegateAssignResult {
+        val inserted =
             MedicalMissionDelegateTable
-                .update({ MedicalMissionDelegateTable.id eq delegateId }) {
-                    it[MedicalMissionDelegateTable.endedAt] = CurrentTimestampWithTimeZone
-                }
+                .insertIgnore {
+                    it[MedicalMissionDelegateTable.id] = delegateId
+                    it[MedicalMissionDelegateTable.targetUser] = targetUserId
+                    it[MedicalMissionDelegateTable.assignedBy] = assignedBy
+                    it[MedicalMissionDelegateTable.branchId] = branchId
+                }.insertedCount > 0
 
-            UserCapabilityTable
-                .update({
-                    (UserCapabilityTable.sourceId eq delegateId) and
-                        (UserCapabilityTable.validTo.isNull())
-                }) {
-                    it[UserCapabilityTable.validTo] = CurrentTimestampWithTimeZone
-                }
-
-            val revoked =
-                MedicalMissionDelegateTable
-                    .selectAll()
-                    .where { MedicalMissionDelegateTable.id eq delegateId }
-                    .single()
-                    .toMedicalMissionDelegate()
-            auditFn(revoked)
+        if (inserted) {
+            UserCapabilityTable.insert {
+                it[UserCapabilityTable.userId] = targetUserId
+                it[UserCapabilityTable.capabilityId] = capabilityId
+                it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
+                it[UserCapabilityTable.contextId] = branchId
+                it[UserCapabilityTable.sourceType] = CapabilitySourceType.MEDICAL_MISSION_DELEGATE
+                it[UserCapabilityTable.sourceId] = delegateId
+                it[UserCapabilityTable.priority] = GrantPriorities.MEDICAL_MISSION_DELEGATE
+            }
         }
+
+        val delegate =
+            MedicalMissionDelegateTable
+                .selectAll()
+                .where { MedicalMissionDelegateTable.id eq delegateId }
+                .single()
+                .toMedicalMissionDelegate()
+        return DelegateAssignResult(delegate, inserted)
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction. The endedAt update and the capability-window close stay inside so
+     * neither commits without the other.
+     */
+    fun revokeInTransaction(delegateId: UUID): MedicalMissionDelegate {
+        MedicalMissionDelegateTable
+            .update({ MedicalMissionDelegateTable.id eq delegateId }) {
+                it[MedicalMissionDelegateTable.endedAt] = CurrentTimestampWithTimeZone
+            }
+
+        UserCapabilityTable
+            .update({
+                (UserCapabilityTable.sourceId eq delegateId) and
+                    (UserCapabilityTable.validTo.isNull())
+            }) {
+                it[UserCapabilityTable.validTo] = CurrentTimestampWithTimeZone
+            }
+
+        return MedicalMissionDelegateTable
+            .selectAll()
+            .where { MedicalMissionDelegateTable.id eq delegateId }
+            .single()
+            .toMedicalMissionDelegate()
+    }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toMedicalMissionDelegate(): MedicalMissionDelegate =
         MedicalMissionDelegate(
