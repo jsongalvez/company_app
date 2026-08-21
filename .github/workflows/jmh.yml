@@ -16,12 +16,13 @@ name: jmh
 
 on:
   push:
+    branches:
+      - master
     paths:
       - 'backend/**'
       - 'scripts/check-baselines.sh'
       - 'backend/jmh-baselines.md'
-       - '.github/workflows/jmh.yml'
-   pull_request:
+      - '.github/workflows/jmh.yml'
   workflow_dispatch:
 
 permissions:
