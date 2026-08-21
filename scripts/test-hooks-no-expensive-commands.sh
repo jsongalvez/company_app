@@ -79,37 +79,45 @@ STDIN_FEED='refs/heads/master old refs/heads/master new
 ' run_hook "$ROOT_DIR/.githooks/pre-push" push push >/dev/null 2>&1 || die "pre-push failed unexpectedly"
 markers_empty "$WORK_DIR/fake-push" || die "pre-push invoked banned tools: $(ls "$WORK_DIR/fake-push/markers")"
 
-# --- Fixture 3 (negative control): retired hooks must trip the probe --------
-# The fixtures above are only meaningful if the same probe catches the old
-# gates-heavy hooks replayed from history.
+# --- Fixture 3 (negative controls): the probe must catch gate-running hooks --
+# 3a: a synthetic hook that invokes banned tools must trip the probe.
+# 3b: the actual retired hooks (parent of the #330 rewrite) must trip it too,
+#     replayed when that history is available locally.
+SYNTHETIC="$WORK_DIR/synthetic-hook"
+cat > "$SYNTHETIC" <<'EOF'
+#!/bin/bash
+./gradlew --version
+psql --version
+EOF
+chmod +x "$SYNTHETIC"
+if run_hook "$SYNTHETIC" commit commit >/dev/null 2>&1; then
+    die "negative control failed: synthetic gate-running hook passed the probe"
+fi
+markers_empty "$WORK_DIR/fake-commit" && die "probe caught synthetic hook but recorded no tool markers"
+
 OLD_COMMIT="$WORK_DIR/old-pre-commit"
 OLD_PUSH="$WORK_DIR/old-pre-push"
-git -C "$ROOT_DIR" show 'HEAD:.githooks/pre-commit' > "$OLD_COMMIT" 2>/dev/null || true
-git -C "$ROOT_DIR" show 'HEAD:.githooks/pre-push' > "$OLD_PUSH" 2>/dev/null || true
-
-if [ -f "$OLD_COMMIT" ]; then
-    chmod +x "$OLD_COMMIT"
-    # The retired hook shells out to ./gradlew relative to the working tree;
-    # plant the shim there so the invocation is captured instead of resolved
-    # from the real repo root.
+# 52d57bbf is the #330 hooks rewrite; its parent still carries the gates-heavy hooks.
+if git -C "$ROOT_DIR" cat-file -e '52d57bbf^:.githooks/pre-commit' 2>/dev/null; then
+    git -C "$ROOT_DIR" show '52d57bbf^:.githooks/pre-commit' > "$OLD_COMMIT"
+    git -C "$ROOT_DIR" show '52d57bbf^:.githooks/pre-push' > "$OLD_PUSH"
+    chmod +x "$OLD_COMMIT" "$OLD_PUSH"
+    # The retired pre-commit shells out to ./gradlew relative to the working tree;
+    # plant the shim there so the invocation is captured instead of resolved from
+    # the real repo root.
     cp "$WORK_DIR/fake-commit/gradlew" "$SANDBOX/gradlew"
     chmod +x "$SANDBOX/gradlew"
     if run_hook "$OLD_COMMIT" commit commit >/dev/null 2>&1; then
         die "negative control failed: retired pre-commit passed the banned-tool probe"
     fi
-else
-    die "could not replay retired pre-commit from HEAD for the negative control"
-fi
-
-if [ -f "$OLD_PUSH" ]; then
-    chmod +x "$OLD_PUSH"
     STDIN_FEED='refs/heads/master old refs/heads/master new
 '
     if run_hook "$OLD_PUSH" push push >/dev/null 2>&1; then
         die "negative control failed: retired pre-push passed the banned-tool probe"
     fi
+    printf 'negative controls: retired hooks from 52d57bbf^ tripped the probe\n'
 else
-    die "could not replay retired pre-push from HEAD for the negative control"
+    printf 'negative controls: retired-hook history unavailable; synthetic control only\n'
 fi
 
 printf 'PASS: hooks never invoke Gradle, psql, containers, network clients, or k6\n'
