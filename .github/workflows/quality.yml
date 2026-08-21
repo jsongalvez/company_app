@@ -2,6 +2,9 @@ name: quality
 
 on:
   push:
+    branches:
+      - master
+      - ralph/company-app-full-build
     paths:
       - 'backend/**'
       - 'composeApp/**'
@@ -106,4 +109,3 @@ jobs:
 
       - name: Compile Compose ${{ matrix.name }} target
         run: ./gradlew '${{ matrix.task }}' --no-daemon
-

@@ -16,6 +16,9 @@ name: jmh
 
 on:
   push:
+    branches:
+      - master
+      - ralph/company-app-full-build
     paths:
       - 'backend/**'
       - 'scripts/check-baselines.sh'
