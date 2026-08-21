@@ -11,6 +11,7 @@ import com.companyb.companyapp.repository.model.CapabilityTable
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
@@ -27,13 +28,11 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.UUID
 
 object NextAppointmentScheduler {
     private val logger = KotlinLogging.logger {}
-    private val manilaZone: ZoneId = ZoneId.of("Asia/Manila")
     private const val RUN_HOUR = 7
     private const val RUN_MINUTE = 0
     private const val DAYS_AHEAD = 2L
@@ -53,9 +52,14 @@ object NextAppointmentScheduler {
         return Duration.between(now, nextRun).toMillis()
     }
 
-    fun run(clock: Clock = Clock.system(manilaZone)): Int {
+    /**
+     * Runs the daily notification sweep. The run date is the current **operational** date from
+     * the Branch Day authority (#322) — never a locally derived calendar date — and the zone
+     * comes from [BranchDayService.manilaZone]; this scheduler owns no time policy of its own.
+     */
+    fun run(clock: Clock = Clock.system(BranchDayService.manilaZone)): Int {
         val now = ZonedDateTime.now(clock)
-        val target = targetDate(now.toLocalDate())
+        val target = targetDate(BranchDayService.currentOperationalDate(now.toInstant()))
         val sessions = findUpcomingSessions(target)
 
         if (sessions.isEmpty()) {

@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.time.Clock
-import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -11,8 +11,8 @@ import java.util.concurrent.TimeUnit
 
 class SchedulerLifecycle(
     private val executorFactory: () -> ScheduledExecutorService = ::createExecutor,
-    private val now: () -> ZonedDateTime = { ZonedDateTime.now(MANILA_ZONE) },
-    private val task: () -> Unit = { NextAppointmentScheduler.run(Clock.system(MANILA_ZONE)) },
+    private val now: () -> ZonedDateTime = { ZonedDateTime.now(BranchDayService.manilaZone) },
+    private val task: () -> Unit = { NextAppointmentScheduler.run(Clock.system(BranchDayService.manilaZone)) },
 ) {
     private var executor: ScheduledExecutorService? = null
 
@@ -53,7 +53,6 @@ class SchedulerLifecycle(
 
     private companion object {
         private val logger = KotlinLogging.logger {}
-        private val MANILA_ZONE: ZoneId = ZoneId.of("Asia/Manila")
         private const val PERIOD_HOURS = 24L
 
         private fun createExecutor(): ScheduledExecutorService =
