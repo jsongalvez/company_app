@@ -8,7 +8,7 @@ internal object ShiftGuard {
         userId: UUID,
         branchDayId: UUID,
     ) {
-        val activeClockIn = AttendanceRepository.hasActiveClockIn(userId, branchDayId)
+        val activeClockIn = AttendanceRepository.hasActiveClockInInTransaction(userId, branchDayId)
         if (activeClockIn) {
             throw ConflictException("User already has an active clock-in for this branch day")
         }

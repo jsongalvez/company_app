@@ -1,7 +1,9 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.AuditLogTable
@@ -13,7 +15,10 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.attendance.AttendanceRepository
 import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.attendance.AttendanceServiceResult
+import com.companyb.companyapp.service.attendance.ClockInParams
 import com.companyb.companyapp.service.branchday.BranchDayService
+import com.companyb.companyapp.service.finance.commission.CommissionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -24,6 +29,9 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -214,16 +222,151 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
         assertEquals(2L, auditEntryCount(attendanceId))
     }
 
+    // ===== #321 contract proofs — command-owned attendance mutations (ADR-0024) =====
+
     @Test
-    fun `repository clockOut only audits first transition`() {
+    fun `audit failure inside the clock-in composition rolls attendance assignment and audit back`() {
+        val attendanceId = TestFixtures.uuid()
+
+        // Exercises the exact composition the migrated clock-in command runs — day resolution
+        // through the Branch Day boundary, the store writes on the command transaction, then
+        // the audit insert into that same transaction. A failing audit statement must abort all.
+        val error =
+            runCatching {
+                transaction {
+                    val branchDay =
+                        BranchDayService.resolveOrCreate(branchId, BranchDayService.currentOperationalDate())
+                    AttendanceRepository.clockInInTransaction(
+                        ClockInParams(
+                            attendanceId = attendanceId,
+                            branchDayId = branchDay.id,
+                            userId = userId,
+                            markedBy = userId,
+                            branchDayAssignmentId = TestFixtures.uuid(),
+                            isRelief = true,
+                            branchId = branchId,
+                        ),
+                    )
+                    AuditLogRepository.record(
+                        tableName = AttendanceTable.tableName,
+                        recordId = attendanceId,
+                        action = AuditAction.INSERT,
+                        changedBy = userId,
+                        oldValue = "{not-valid-json",
+                    )
+                }
+            }.exceptionOrNull()
+
+        assertNotNull(error, "malformed jsonb audit payload must fail the statement")
+
+        assertEquals(0L, attendanceCount(attendanceId), "mutation rolled back with the failed audit")
+        assertEquals(0L, auditEntryCount(attendanceId), "no partial audit row survived")
+        assertEquals(0L, branchDayAssignmentCount(userId), "assignment rolled back with the failed audit")
+    }
+
+    @Test
+    fun `audit failure inside the clock-out composition rolls the clock-out back`() {
         val attendanceId = TestFixtures.uuid()
         AttendanceService.clockIn(attendanceId, branchId, userId)
-        var auditCalls = 0
 
-        AttendanceRepository.clockOut(attendanceId) { _, _ -> auditCalls++ }
-        AttendanceRepository.clockOut(attendanceId) { _, _ -> auditCalls++ }
+        val error =
+            runCatching {
+                transaction {
+                    checkNotNull(AttendanceRepository.findByIdInTransaction(attendanceId))
+                    AttendanceRepository.clockOutInTransaction(attendanceId)
+                    AuditLogRepository.record(
+                        tableName = AttendanceTable.tableName,
+                        recordId = attendanceId,
+                        action = AuditAction.UPDATE,
+                        changedBy = userId,
+                        oldValue = "{not-valid-json",
+                    )
+                }
+            }.exceptionOrNull()
 
-        assertEquals(1, auditCalls)
+        assertNotNull(error, "malformed jsonb audit payload must fail the statement")
+
+        assertEquals(1L, auditEntryCount(attendanceId), "only the clock-in audit survives")
+        assertNull(
+            transaction {
+                AttendanceTable
+                    .selectAll()
+                    .where { AttendanceTable.id eq attendanceId }
+                    .single()[AttendanceTable.clockOut]
+            },
+            "clock-out rolled back with the failed audit",
+        )
+    }
+
+    @Test
+    fun `commission failure inside the clock-in command rolls the attendance back`() {
+        val attendanceId = TestFixtures.uuid()
+        CommissionService.failAfterReplacementForTests = true
+        try {
+            assertFailsWith<IllegalStateException> {
+                AttendanceService.clockIn(attendanceId, branchId, userId)
+            }
+        } finally {
+            CommissionService.failAfterReplacementForTests = false
+        }
+
+        assertEquals(
+            0L,
+            attendanceCount(attendanceId),
+            "attendance rolled back with the failed commission recalculation",
+        )
+        assertEquals(0L, auditEntryCount(attendanceId), "no audit row survived the failed recalculation")
+        assertEquals(0L, branchDayAssignmentCount(userId), "assignment rolled back with the failed recalculation")
+    }
+
+    @Test
+    fun `clockIn resolves today through the authority even when a stale earlier day exists`() {
+        val yesterday = TestFixtures.today.minusDays(1)
+        BranchDayService.resolveOrCreate(branchId, yesterday)
+        val attendanceId = TestFixtures.uuid()
+
+        val result = AttendanceService.clockIn(attendanceId, branchId, userId)
+
+        val expectedBranchDay =
+            BranchDayService.findByBranchAndDate(branchId, BranchDayService.currentOperationalDate())
+        assertNotNull(expectedBranchDay)
+        assertEquals(expectedBranchDay.id, result.branchDayId, "stale day rows must not capture clock-in")
+    }
+
+    @Test
+    fun `concurrent clock-in retries with the same id create exactly once`() {
+        val attendanceId = TestFixtures.uuid()
+        val threads = 2
+        val executor = Executors.newFixedThreadPool(threads)
+        val ready = CountDownLatch(threads)
+        val start = CountDownLatch(1)
+        val futures =
+            (1..threads).map {
+                executor.submit<Result<AttendanceServiceResult>> {
+                    ready.countDown()
+                    start.await()
+                    runCatching { AttendanceService.clockIn(attendanceId, branchId, userId) }
+                }
+            }
+
+        try {
+            assertTrue(ready.await(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+            start.countDown()
+            val outcomes = futures.map { it.get() }
+            assertTrue(outcomes.any { it.isSuccess }, "at least the first retry succeeds")
+            assertEquals(
+                1,
+                outcomes.count { it.getOrNull()?.created == true },
+                "exactly one retry creates, whichever interleaving wins",
+            )
+        } finally {
+            executor.shutdownNow()
+            assertTrue(executor.awaitTermination(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
+        }
+
+        assertEquals(1L, attendanceCount(attendanceId), "exactly one attendance row for the retries")
+        assertEquals(1L, auditEntryCount(attendanceId), "exactly one audit row for the retries")
+        assertEquals(1L, branchDayAssignmentCount(userId), "exactly one day assignment for the retries")
     }
 
     @Test
@@ -303,4 +446,16 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
                 .where { BranchDayAssignmentTable.userId eq userId }
                 .count()
         }
+
+    private fun attendanceCount(attendanceId: UUID): Long =
+        transaction {
+            AttendanceTable
+                .selectAll()
+                .where { AttendanceTable.id eq attendanceId }
+                .count()
+        }
+
+    private companion object {
+        const val EXECUTOR_TERMINATION_SECONDS = 30L
+    }
 }

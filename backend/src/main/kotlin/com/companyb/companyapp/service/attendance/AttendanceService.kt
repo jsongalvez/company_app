@@ -12,6 +12,15 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.OffsetDateTime
 import java.util.UUID
 
+/**
+ * Attendance feature commands (#321, ADR-0024). Each mutating command owns exactly one business
+ * transaction: persistence runs on it via `AttendanceRepository.*InTransaction` store operations,
+ * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
+ * inserted directly into it — so domain write + audit commit atomically or not at all.
+ * Operational-day resolution goes through the Branch Day boundary (#318); the commission
+ * recalculation triggered by clock-in/out joins the same transaction, keeping side effects
+ * atomic with the attendance mutation.
+ */
 object AttendanceService {
     private val logger = KotlinLogging.logger {}
 
@@ -36,52 +45,46 @@ object AttendanceService {
         callerId: UUID,
     ): AttendanceServiceResult =
         transaction {
-            clockOutInTransaction(attendanceId, callerId)
-        }
+            // Transaction-local before-state (ADR-0019): read inside the command's transaction,
+            // never held across a method boundary where a concurrent write could stale it.
+            val existing =
+                AttendanceRepository.findByIdInTransaction(attendanceId)
+                    ?: throw NotFoundException("Attendance record not found")
 
-    @Suppress("ThrowsCount")
-    private fun clockOutInTransaction(
-        attendanceId: UUID,
-        callerId: UUID,
-    ): AttendanceServiceResult {
-        val existing = AttendanceRepository.findById(attendanceId)
-        if (existing == null) {
-            throw NotFoundException("Attendance record not found")
-        }
+            if (existing.userId != callerId) {
+                throw ForbiddenException("Only attendance owner can clock out")
+            }
 
-        if (existing.userId != callerId) {
-            throw ForbiddenException("Only attendance owner can clock out")
-        }
+            if (existing.clockOut != null) {
+                val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
+                return@transaction AttendanceServiceResult(existing, false, isRelief)
+            }
 
-        if (existing.clockOut != null) {
-            val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
-            return AttendanceServiceResult(existing, false, isRelief)
-        }
+            val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
 
-        val branchId = BranchDayService.requireBranchDayExists(existing.branchDayId).branchId
+            val (attendance, wasClockedOut) = AttendanceRepository.clockOutInTransaction(attendanceId)
 
-        val (attendance, wasClockedOut) =
-            AttendanceRepository.clockOut(attendanceId) { before, after ->
+            if (wasClockedOut) {
                 AuditLogRepository.recordUpdate(
                     tableName = AttendanceTable.tableName,
-                    recordId = after.id,
-                    before = before,
-                    after = after,
+                    recordId = attendance.id,
+                    before = existing,
+                    after = attendance,
                     changedBy = callerId,
                     branchId = branchId,
                     auditFields = AttendanceTable::auditFields,
                 )
             }
 
-        logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
+            logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
 
-        if (wasClockedOut) {
-            CommissionService.recalculate(attendance.branchDayId)
+            if (wasClockedOut) {
+                CommissionService.recalculate(attendance.branchDayId)
+            }
+
+            val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
+            AttendanceServiceResult(attendance, false, isRelief)
         }
-
-        val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
-        return AttendanceServiceResult(attendance, false, isRelief)
-    }
 
     @Suppress("ThrowsCount")
     fun clockIn(
@@ -90,49 +93,42 @@ object AttendanceService {
         callerId: UUID,
     ): AttendanceServiceResult =
         transaction {
-            clockInInTransaction(attendanceId, branchId, callerId)
-        }
-
-    @Suppress("ThrowsCount")
-    private fun clockInInTransaction(
-        attendanceId: UUID,
-        branchId: UUID,
-        callerId: UUID,
-    ): AttendanceServiceResult {
-        val existing = AttendanceRepository.findById(attendanceId)
-        if (existing != null) {
-            val sameCaller = existing.userId == callerId && existing.markedBy == callerId
-            val sameBranch =
-                BranchDayService.requireBranchDayExists(existing.branchDayId).branchId == branchId
-            val sameDay = BranchDayService.findToday(branchId)?.id == existing.branchDayId
-            if (!sameCaller || !sameBranch || !sameDay) {
-                throw ConflictException("Attendance id already belongs to another clock-in request")
+            val existing = AttendanceRepository.findByIdInTransaction(attendanceId)
+            if (existing != null) {
+                val sameCaller = existing.userId == callerId && existing.markedBy == callerId
+                val sameBranch =
+                    BranchDayService.requireBranchDayExists(existing.branchDayId).branchId == branchId
+                val sameDay = BranchDayService.findToday(branchId)?.id == existing.branchDayId
+                if (!sameCaller || !sameBranch || !sameDay) {
+                    throw ConflictException("Attendance id already belongs to another clock-in request")
+                }
+                val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
+                return@transaction AttendanceServiceResult(existing, false, isRelief)
             }
-            val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
-            return AttendanceServiceResult(existing, false, isRelief)
-        }
 
-        val today = BranchDayService.currentOperationalDate()
-        val branchDay = BranchDayService.resolveOrCreate(branchId, today)
+            val today = BranchDayService.currentOperationalDate()
+            val branchDay = BranchDayService.resolveOrCreate(branchId, today)
 
-        ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
+            ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
 
-        val isRelief = AssignmentResolver.resolveIsRelief(branchId, callerId)
+            val isRelief = AssignmentResolver.resolveIsRelief(branchId, callerId)
 
-        val branchDayAssignmentId = UUID.randomUUID()
+            val branchDayAssignmentId = UUID.randomUUID()
 
-        val (attendance, wasCreated) =
-            AttendanceRepository.clockIn(
-                ClockInParams(
-                    attendanceId = attendanceId,
-                    branchDayId = branchDay.id,
-                    userId = callerId,
-                    markedBy = callerId,
-                    branchDayAssignmentId = branchDayAssignmentId,
-                    isRelief = isRelief,
-                    branchId = branchId,
-                ),
-            ) { attendance ->
+            val (attendance, wasCreated) =
+                AttendanceRepository.clockInInTransaction(
+                    ClockInParams(
+                        attendanceId = attendanceId,
+                        branchDayId = branchDay.id,
+                        userId = callerId,
+                        markedBy = callerId,
+                        branchDayAssignmentId = branchDayAssignmentId,
+                        isRelief = isRelief,
+                        branchId = branchId,
+                    ),
+                )
+
+            if (wasCreated) {
                 AuditLogRepository.recordInsert(
                     tableName = AttendanceTable.tableName,
                     recordId = attendance.id,
@@ -142,16 +138,16 @@ object AttendanceService {
                 )
             }
 
-        logger.info {
-            "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
-        }
+            logger.info {
+                "[CLOCK-IN] User $callerId clocked in at branch $branchId (relief=$isRelief, attendance=$attendanceId)"
+            }
 
-        if (wasCreated) {
-            CommissionService.recalculate(branchDay.id)
-        }
+            if (wasCreated) {
+                CommissionService.recalculate(branchDay.id)
+            }
 
-        return AttendanceServiceResult(attendance, wasCreated, isRelief)
-    }
+            AttendanceServiceResult(attendance, wasCreated, isRelief)
+        }
 }
 
 data class AttendanceServiceResult(

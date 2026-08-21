@@ -18,6 +18,7 @@ import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.Test
@@ -145,17 +146,19 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         assignToBranch(branchA)
         val yesterday = TestFixtures.today.minusDays(1)
         val staleBranchDay = BranchDayService.resolveOrCreate(branchB, yesterday)
-        AttendanceRepository.clockIn(
-            ClockInParams(
-                attendanceId = TestFixtures.uuid(),
-                branchDayId = staleBranchDay.id,
-                userId = userId,
-                markedBy = userId,
-                branchDayAssignmentId = TestFixtures.uuid(),
-                isRelief = true,
-                branchId = branchB,
-            ),
-        )
+        transaction {
+            AttendanceRepository.clockInInTransaction(
+                ClockInParams(
+                    attendanceId = TestFixtures.uuid(),
+                    branchDayId = staleBranchDay.id,
+                    userId = userId,
+                    markedBy = userId,
+                    branchDayAssignmentId = TestFixtures.uuid(),
+                    isRelief = true,
+                    branchId = branchB,
+                ),
+            )
+        }
 
         val branches = MeService.getBranches(userId)
 

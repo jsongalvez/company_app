@@ -40,6 +40,12 @@ data class BranchDayUser(
     val displayName: String,
 )
 
+/**
+ * Attendance persistence (#321, ADR-0024). Mutating functions are **in-transaction store
+ * operations**: they open no transaction of their own and take no audit callback — they execute
+ * on the caller's (command-owned) transaction, which [AttendanceService] also uses to insert
+ * the audit row atomically. Read helpers keep their convenient transaction wrappers.
+ */
 @Suppress("UnreachableCode")
 internal object AttendanceRepository {
     fun hasActiveClockIn(
@@ -47,66 +53,65 @@ internal object AttendanceRepository {
         branchDayId: UUID,
     ): Boolean =
         transaction {
+            hasActiveClockInInTransaction(userId, branchDayId)
+        }
+
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun hasActiveClockInInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+    ): Boolean =
+        AttendanceTable
+            .selectAll()
+            .where {
+                (AttendanceTable.userId eq userId) and
+                    (AttendanceTable.branchDayId eq branchDayId) and
+                    (AttendanceTable.clockOut.isNull())
+            }.empty()
+            .not()
+
+    fun clockInInTransaction(params: ClockInParams): Pair<Attendance, Boolean> {
+        val insertedCount =
+            AttendanceTable
+                .insertIgnore {
+                    it[AttendanceTable.id] = params.attendanceId
+                    it[AttendanceTable.branchDayId] = params.branchDayId
+                    it[AttendanceTable.userId] = params.userId
+                    it[AttendanceTable.markedBy] = params.markedBy
+                    it[AttendanceTable.clockIn] = CurrentTimestampWithTimeZone
+                }.insertedCount
+        val isNew = insertedCount > 0
+
+        if (isNew) {
+            BranchDayAssignmentTable.insertIgnore {
+                it[BranchDayAssignmentTable.id] = params.branchDayAssignmentId
+                it[BranchDayAssignmentTable.branchDayId] = params.branchDayId
+                it[BranchDayAssignmentTable.userId] = params.userId
+                it[BranchDayAssignmentTable.isRelief] = params.isRelief
+            }
+            logger.info { "[CLOCK-IN] Inserted attendance ${params.attendanceId} (relief=${params.isRelief})" }
+        } else {
+            logger.info { "[CLOCK-IN] Attendance ${params.attendanceId} already exists, returning existing" }
+        }
+
+        val attendance =
             AttendanceTable
                 .selectAll()
-                .where {
-                    (AttendanceTable.userId eq userId) and
-                        (AttendanceTable.branchDayId eq branchDayId) and
-                        (AttendanceTable.clockOut.isNull())
-                }.empty()
-                .not()
+                .where { AttendanceTable.id eq params.attendanceId }
+                .singleOrNull()
+                ?.toAttendance()
+                ?: throw ConflictException("Attendance already exists for this user and branch day")
+
+        val ownsExistingAttendance =
+            attendance.branchDayId == params.branchDayId &&
+                attendance.userId == params.userId &&
+                attendance.markedBy == params.markedBy
+        if (!isNew && !ownsExistingAttendance) {
+            throw ConflictException("Attendance id already belongs to another clock-in request")
         }
 
-    fun clockIn(
-        params: ClockInParams,
-        auditFn: (Attendance) -> Unit = {},
-    ): Pair<Attendance, Boolean> =
-        transaction {
-            val insertedCount =
-                AttendanceTable
-                    .insertIgnore {
-                        it[AttendanceTable.id] = params.attendanceId
-                        it[AttendanceTable.branchDayId] = params.branchDayId
-                        it[AttendanceTable.userId] = params.userId
-                        it[AttendanceTable.markedBy] = params.markedBy
-                        it[AttendanceTable.clockIn] = CurrentTimestampWithTimeZone
-                    }.insertedCount
-            val isNew = insertedCount > 0
-
-            if (isNew) {
-                BranchDayAssignmentTable.insertIgnore {
-                    it[BranchDayAssignmentTable.id] = params.branchDayAssignmentId
-                    it[BranchDayAssignmentTable.branchDayId] = params.branchDayId
-                    it[BranchDayAssignmentTable.userId] = params.userId
-                    it[BranchDayAssignmentTable.isRelief] = params.isRelief
-                }
-                logger.info { "[CLOCK-IN] Inserted attendance ${params.attendanceId} (relief=${params.isRelief})" }
-            } else {
-                logger.info { "[CLOCK-IN] Attendance ${params.attendanceId} already exists, returning existing" }
-            }
-
-            val attendance =
-                AttendanceTable
-                    .selectAll()
-                    .where { AttendanceTable.id eq params.attendanceId }
-                    .singleOrNull()
-                    ?.toAttendance()
-                    ?: throw ConflictException("Attendance already exists for this user and branch day")
-
-            val ownsExistingAttendance =
-                attendance.branchDayId == params.branchDayId &&
-                    attendance.userId == params.userId &&
-                    attendance.markedBy == params.markedBy
-            if (!isNew && !ownsExistingAttendance) {
-                throw ConflictException("Attendance id already belongs to another clock-in request")
-            }
-
-            if (isNew) {
-                auditFn(attendance)
-            }
-
-            attendance to isNew
-        }
+        return attendance to isNew
+    }
 
     fun branchDayAssignmentIsRelief(
         branchDayId: UUID,
@@ -124,43 +129,33 @@ internal object AttendanceRepository {
 
     fun findById(attendanceId: UUID): Attendance? =
         transaction {
+            findByIdInTransaction(attendanceId)
+        }
+
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(attendanceId: UUID): Attendance? =
+        AttendanceTable
+            .selectAll()
+            .where { AttendanceTable.id eq attendanceId }
+            .singleOrNull()
+            ?.toAttendance()
+
+    fun clockOutInTransaction(attendanceId: UUID): Pair<Attendance, Boolean> {
+        val updated =
+            AttendanceTable
+                .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
+                    it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
+                }
+
+        val after =
             AttendanceTable
                 .selectAll()
                 .where { AttendanceTable.id eq attendanceId }
-                .singleOrNull()
-                ?.toAttendance()
-        }
+                .single()
+                .toAttendance()
 
-    fun clockOut(
-        attendanceId: UUID,
-        auditFn: (Attendance, Attendance) -> Unit = { _, _ -> },
-    ): Pair<Attendance, Boolean> =
-        transaction {
-            val before =
-                AttendanceTable
-                    .selectAll()
-                    .where { AttendanceTable.id eq attendanceId }
-                    .single()
-                    .toAttendance()
-
-            val updated =
-                AttendanceTable
-                    .update({ (AttendanceTable.id eq attendanceId) and (AttendanceTable.clockOut.isNull()) }) {
-                        it[AttendanceTable.clockOut] = CurrentTimestampWithTimeZone
-                    }
-
-            val after =
-                AttendanceTable
-                    .selectAll()
-                    .where { AttendanceTable.id eq attendanceId }
-                    .single()
-                    .toAttendance()
-
-            if (updated > 0) {
-                auditFn(before, after)
-            }
-            after to (updated > 0)
-        }
+        return after to (updated > 0)
+    }
 
     fun findUsersClockedInAt(
         branchDayId: UUID,
