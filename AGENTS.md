@@ -98,6 +98,11 @@ docker compose -f docker/docker-compose.yml down -v   # teardown + wipe data
 # tasks for the current change; pass gradle args to override. No broad gates.
 bash scripts/validate.sh
 
+# Local full-CI replication (#341) — runs the hosted quality.yml gate set detached
+# (non-blocking) when CI minutes are unavailable; opt-in diagnostic, never a gate.
+bash scripts/local-ci.sh            # launch detached
+bash scripts/local-ci.sh --status   # per-gate PASS/FAIL/SKIP/RUNNING
+
 # Format (auto-fix all subprojects)
 ./gradlew ktlintFormat
 

@@ -57,7 +57,7 @@ class TimeOwnershipArchitectureTest {
                 .toList()
         assertTrue(
             offenders.isEmpty(),
-            "unrecorded Instant.now() sites: $offenders — delegate to the owning feature or record an exception on #322",
+            "unrecorded Instant.now() sites: $offenders — record an exception or delegate to the owner",
         )
     }
 
