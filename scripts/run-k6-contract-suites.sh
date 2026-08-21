@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run every k6 contract suite against a disposable test-database backend.
 #
-# Used by CI (.github/workflows/k6.yml) and runnable locally as the k6 gate:
+# Manual diagnostic (#333/#335): git hooks and CI never run this. Use it when
+# load/contract behavior is the ticket's actual question:
 #
 #   bash scripts/run-k6-contract-suites.sh
 #

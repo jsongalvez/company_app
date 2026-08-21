@@ -164,7 +164,7 @@ No automated Compose UI tests in this phase. The build gate is `./gradlew :compo
 
 ### Integration tests
 
-Run the existing k6 suite (`tests/k6/full-suite.js`) after backend changes to verify no regressions. Run `./gradlew :backend:test` as the quality gate for all backend work.
+Run the existing k6 suite (`tests/k6/full-suite.js`) manually when load/contract behavior is the ticket's question — it is a diagnostic, not a per-change gate (#335). Run focused `./gradlew :backend:test` tasks as validation for backend work.
 
 ## Out of Scope
 
