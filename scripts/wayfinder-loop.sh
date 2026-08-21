@@ -305,7 +305,14 @@ spawn_session() {
     [[ "$WAYFINDER_MODEL" == */* ]] && model_provider="${WAYFINDER_MODEL%%/*}"
     # `|| true` keeps the die below reachable: under `set -e`, a failing pipeline would abort
     # the whole script BEFORE the guard (silent chain death — no FATAL log, no push).
-    pid="$(api get /api/model 2>/dev/null | jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' | head -1)" || true
+    # /api/model has grown past 64KB and `opencode2 api` truncates piped stdout at 64KB,
+    # so jq always saw malformed JSON and the lookup always failed (the 2026-08-21
+    # bootstrap FATAL on openrouter/stealth/ox-alpha). Buffer through a temp file.
+    local models_json
+    models_json="$(mktemp)"
+    api get /api/model > "$models_json" 2>/dev/null || true
+    pid="$(jq -r --arg id "$model_id" --arg provider "$model_provider" '.data[] | select(.id == $id) | select(($provider == "") or (.providerID == $provider)) | .providerID' "$models_json" 2>/dev/null | head -1)" || true
+    rm -f "$models_json"
     [ -n "$pid" ] || die "WAYFINDER_MODEL '$WAYFINDER_MODEL' lookup failed via /api/model (model/provider absent, or the API errored)"
     model_ref="$(jq -nc --arg id "$model_id" --arg p "$pid" '{id: $id, providerID: $p, variant: "max"}')"
   fi
