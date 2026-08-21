@@ -109,66 +109,56 @@ object SessionRepository {
             }.singleOrNull()
             ?.get(AuditLogTable.changedBy)
 
-    fun create(
-        params: SessionCreateParams,
-        auditFn: (Session) -> Unit = {},
-    ): SessionCreateResult =
-        transaction {
-            val existingBeforeLock = findSessionByIdInTransaction(params.id)
-            if (existingBeforeLock != null) {
-                return@transaction idempotentResult(existingBeforeLock, params)
-            }
-
-            val clientRow = acquireClientLock(params.clientId)
-            val existingAfterLock = findSessionByIdInTransaction(params.id)
-            if (existingAfterLock != null) {
-                return@transaction idempotentResult(existingAfterLock, params)
-            }
-
-            val hasActive = hasActivePendingSessionInTransaction(params.clientId)
-            if (hasActive) {
-                throw ConflictException("Client already has an active PENDING session")
-            }
-            if (clientRow != null && clientRow[ClientTable.deletedAt] != null) {
-                throw ConflictException("Cannot create a session for an anonymized client")
-            }
-
-            val insertedCount =
-                SessionTable
-                    .insertIgnore {
-                        it[SessionTable.id] = params.id
-                        it[SessionTable.clientId] = params.clientId
-                        it[SessionTable.branchDayId] = params.branchDayId
-                        if (params.requestedPractitionerId != null) {
-                            it[SessionTable.requestedPractitionerId] = params.requestedPractitionerId
-                        }
-                        it[SessionTable.sessionType] = params.sessionType
-                        it[SessionTable.isWalkIn] = params.isWalkIn
-                        it[SessionTable.basePrice] = params.basePrice
-                        it[SessionTable.finalPrice] = params.finalPrice
-                        if (params.remarks != null) it[SessionTable.remarks] = params.remarks
-                        if (params.otherConcerns != null) it[SessionTable.otherConcerns] = params.otherConcerns
-                        if (params.bookedAt != null) it[SessionTable.bookedAt] = params.bookedAt
-                        if (params.nextAppointmentDate !=
-                            null
-                        ) {
-                            it[SessionTable.nextAppointmentDate] = params.nextAppointmentDate
-                        }
-                    }.insertedCount
-            val created = insertedCount > 0
-            val session =
-                findSessionByIdInTransaction(params.id)
-                    ?: error("session row not found after idempotent insert for ${params.id}")
-
-            if (created) {
-                auditFn(session)
-            }
-            SessionCreateResult(session, created)
-        }.also {
-            logger.info {
-                "[CREATE-SESSION] Session ${it.session.id} created=${it.created}"
-            }
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun createInTransaction(params: SessionCreateParams): SessionCreateResult {
+        val existingBeforeLock = findSessionByIdInTransaction(params.id)
+        if (existingBeforeLock != null) {
+            return idempotentResult(existingBeforeLock, params)
         }
+
+        val clientRow = acquireClientLock(params.clientId)
+        val existingAfterLock = findSessionByIdInTransaction(params.id)
+        if (existingAfterLock != null) {
+            return idempotentResult(existingAfterLock, params)
+        }
+
+        val hasActive = hasActivePendingSessionInTransaction(params.clientId)
+        if (hasActive) {
+            throw ConflictException("Client already has an active PENDING session")
+        }
+        if (clientRow != null && clientRow[ClientTable.deletedAt] != null) {
+            throw ConflictException("Cannot create a session for an anonymized client")
+        }
+
+        val insertedCount =
+            SessionTable
+                .insertIgnore {
+                    it[SessionTable.id] = params.id
+                    it[SessionTable.clientId] = params.clientId
+                    it[SessionTable.branchDayId] = params.branchDayId
+                    if (params.requestedPractitionerId != null) {
+                        it[SessionTable.requestedPractitionerId] = params.requestedPractitionerId
+                    }
+                    it[SessionTable.sessionType] = params.sessionType
+                    it[SessionTable.isWalkIn] = params.isWalkIn
+                    it[SessionTable.basePrice] = params.basePrice
+                    it[SessionTable.finalPrice] = params.finalPrice
+                    if (params.remarks != null) it[SessionTable.remarks] = params.remarks
+                    if (params.otherConcerns != null) it[SessionTable.otherConcerns] = params.otherConcerns
+                    if (params.bookedAt != null) it[SessionTable.bookedAt] = params.bookedAt
+                    if (params.nextAppointmentDate !=
+                        null
+                    ) {
+                        it[SessionTable.nextAppointmentDate] = params.nextAppointmentDate
+                    }
+                }.insertedCount
+        val created = insertedCount > 0
+        val session =
+            findSessionByIdInTransaction(params.id)
+                ?: error("session row not found after idempotent insert for ${params.id}")
+
+        return SessionCreateResult(session, created)
+    }
 
     private fun idempotentResult(
         existing: Session,
@@ -183,95 +173,61 @@ object SessionRepository {
         return SessionCreateResult(existing, false)
     }
 
-    @Suppress("LongParameterList", "UNUSED_PARAMETER")
-    fun updateStatus(
+    /**
+     * In-transaction store operation (#323, ADR-0024) — optimistic-version write on the caller's
+     * command transaction. The affected-row count is load-bearing (the #149 count-0 misfire
+     * lesson): a concurrent commit between the command's version pre-check and this conditional
+     * UPDATE matches 0 rows — the command must not read back the OTHER writer's row and serve it
+     * as its own success (a silent lost update, ADR-0022).
+     */
+    fun updateStatusInTransaction(
         sessionId: UUID,
-        oldStatus: SessionStatus,
         newStatus: SessionStatus,
         expectedVersion: Int,
-        changedBy: UUID,
-        auditFn: (Session) -> Unit = {},
-    ): Session =
-        transaction {
-            // The affected-row count is load-bearing (the #149 count-0 misfire lesson): a
-            // concurrent commit between the service's version pre-check and this conditional
-            // UPDATE matches 0 rows — the service must not read back the OTHER writer's row
-            // and serve it as its own success (a silent lost update, ADR-0022).
-            val updatedCount =
-                SessionTable.update({
-                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-                }) {
-                    it[SessionTable.sessionStatus] = newStatus
-                    it[SessionTable.version] = expectedVersion + 1
-                }
-            if (updatedCount != 1) {
-                throw VersionMismatchException(SessionTable.tableName, sessionId)
+    ): Session {
+        val updatedCount =
+            SessionTable.update({
+                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+            }) {
+                it[SessionTable.sessionStatus] = newStatus
+                it[SessionTable.version] = expectedVersion + 1
             }
-
-            val session =
-                findSessionByIdInTransaction(sessionId)
-                    ?: error("Session $sessionId not found after status update")
-
-            auditFn(session)
-
-            session
+        if (updatedCount != 1) {
+            throw VersionMismatchException(SessionTable.tableName, sessionId)
         }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun updateFinalPrice(
+        return findSessionByIdInTransaction(sessionId)
+            ?: error("Session $sessionId not found after status update")
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024). Count-0 misfire guard (the #149 lesson):
+     * 0 affected rows = a concurrent commit won the version — the caller must 409, never read
+     * back the other writer's row.
+     */
+    fun updateFinalPriceInTransaction(
         sessionId: UUID,
         newFinalPrice: BigDecimal,
         expectedVersion: Int,
-        changedBy: UUID,
-        auditFn: (Session) -> Unit = {},
-    ): Session =
-        transaction {
-            // Count-0 misfire guard (the #149 lesson): 0 affected rows = a concurrent commit
-            // won the version — the caller must 409, never read back the other writer's row.
-            val updatedCount =
-                SessionTable.update({
-                    (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
-                }) {
-                    it[SessionTable.finalPrice] = newFinalPrice
-                    it[SessionTable.version] = expectedVersion + 1
-                }
-            if (updatedCount != 1) {
-                throw VersionMismatchException(SessionTable.tableName, sessionId)
+    ): Session {
+        val updatedCount =
+            SessionTable.update({
+                (SessionTable.id eq sessionId) and (SessionTable.version eq expectedVersion)
+            }) {
+                it[SessionTable.finalPrice] = newFinalPrice
+                it[SessionTable.version] = expectedVersion + 1
             }
-
-            val session =
-                findSessionByIdInTransaction(sessionId)
-                    ?: error("Session $sessionId not found after final price update")
-
-            auditFn(session)
-
-            session
+        if (updatedCount != 1) {
+            throw VersionMismatchException(SessionTable.tableName, sessionId)
         }
+
+        return findSessionByIdInTransaction(sessionId)
+            ?: error("Session $sessionId not found after final price update")
+    }
 
     fun findById(id: UUID): Session? =
         transaction {
             findSessionByIdInTransaction(id)
-        }
-
-    @Suppress("UNUSED_PARAMETER")
-    fun updateOtherConcerns(
-        sessionId: UUID,
-        otherConcerns: String?,
-        changedBy: UUID,
-        auditFn: (Session) -> Unit = {},
-    ): Session =
-        transaction {
-            SessionTable.update({ SessionTable.id eq sessionId }) {
-                it[SessionTable.otherConcerns] = otherConcerns
-            }
-
-            val updated =
-                findSessionByIdInTransaction(sessionId)
-                    ?: error("Session $sessionId not found after other concerns update")
-
-            auditFn(updated)
-
-            updated
         }
 }
 
@@ -293,6 +249,7 @@ fun hasActivePendingSessionInTransaction(clientId: UUID): Boolean =
         }.empty()
         .not()
 
+/** In-transaction read for command-owned flows — runs on the caller's open transaction. */
 fun findSessionByIdInTransaction(id: UUID): Session? =
     SessionTable
         .selectAll()

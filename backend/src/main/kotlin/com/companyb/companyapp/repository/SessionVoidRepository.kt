@@ -2,7 +2,6 @@ package com.companyb.companyapp.repository
 
 import com.companyb.companyapp.repository.model.SessionVoid
 import com.companyb.companyapp.repository.model.SessionVoidTable
-import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -12,8 +11,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
-
-private val logger = KotlinLogging.logger {}
 
 data class VoidResult(
     val sessionVoid: SessionVoid,
@@ -28,68 +25,57 @@ object SessionVoidRepository {
 
     fun findBySessionId(sessionId: UUID): SessionVoid? =
         transaction {
-            SessionVoidTable
-                .selectAll()
-                .where { SessionVoidTable.sessionId eq sessionId }
-                .singleOrNull()
-                ?.toSessionVoid()
+            findBySessionIdInTransaction(sessionId)
         }
 
-    fun void(
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findBySessionIdInTransaction(sessionId: UUID): SessionVoid? =
+        SessionVoidTable
+            .selectAll()
+            .where { SessionVoidTable.sessionId eq sessionId }
+            .singleOrNull()
+            ?.toSessionVoid()
+
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun voidInTransaction(
         id: UUID,
         sessionId: UUID,
         voidReason: String,
         voidedBy: UUID,
-        auditFn: (SessionVoid) -> Unit = {},
-    ): VoidResult =
-        transaction {
-            val insertedCount =
-                SessionVoidTable
-                    .insertIgnore {
-                        it[SessionVoidTable.id] = id
-                        it[SessionVoidTable.sessionId] = sessionId
-                        it[SessionVoidTable.voidReason] = voidReason
-                        it[SessionVoidTable.voidedBy] = voidedBy
-                    }.insertedCount
-            val created = insertedCount > 0
+    ): VoidResult {
+        val insertedCount =
+            SessionVoidTable
+                .insertIgnore {
+                    it[SessionVoidTable.id] = id
+                    it[SessionVoidTable.sessionId] = sessionId
+                    it[SessionVoidTable.voidReason] = voidReason
+                    it[SessionVoidTable.voidedBy] = voidedBy
+                }.insertedCount
+        val created = insertedCount > 0
 
-            val sessionVoid =
-                findByIdInTransaction(id) ?: findBySessionId(sessionId)
-                    ?: error("session_void row not found after idempotent insert for $id")
+        val sessionVoid =
+            findByIdInTransaction(id) ?: findBySessionIdInTransaction(sessionId)
+                ?: error("session_void row not found after idempotent insert for $id")
 
-            if (created) {
-                auditFn(sessionVoid)
-            }
-            VoidResult(sessionVoid, created)
-        }.also {
-            logger.info {
-                "[VOID-SESSION] SessionVoid ${it.sessionVoid.id} for session $sessionId created=${it.created}"
-            }
-        }
+        return VoidResult(sessionVoid, created)
+    }
 
-    fun unvoid(
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun unvoidInTransaction(
         sessionVoidId: UUID,
         unvoidedBy: UUID,
         unvoidedReason: String,
-        auditFn: (SessionVoid) -> Unit = {},
-    ): SessionVoid? =
-        transaction {
-            SessionVoidTable.update({
-                (SessionVoidTable.id eq sessionVoidId) and (SessionVoidTable.unvoidedAt.isNull())
-            }) {
-                it[SessionVoidTable.unvoidedAt] = CurrentTimestampWithTimeZone
-                it[SessionVoidTable.unvoidedBy] = unvoidedBy
-                it[SessionVoidTable.unvoidedReason] = unvoidedReason
-            }
-
-            val sessionVoid = findByIdInTransaction(sessionVoidId)
-
-            if (sessionVoid != null) {
-                auditFn(sessionVoid)
-            }
-
-            sessionVoid
+    ): SessionVoid? {
+        SessionVoidTable.update({
+            (SessionVoidTable.id eq sessionVoidId) and (SessionVoidTable.unvoidedAt.isNull())
+        }) {
+            it[SessionVoidTable.unvoidedAt] = CurrentTimestampWithTimeZone
+            it[SessionVoidTable.unvoidedBy] = unvoidedBy
+            it[SessionVoidTable.unvoidedReason] = unvoidedReason
         }
+
+        return findByIdInTransaction(sessionVoidId)
+    }
 
     private fun findByIdInTransaction(id: UUID): SessionVoid? =
         SessionVoidTable

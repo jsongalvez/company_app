@@ -30,84 +30,86 @@ private const val RATE_OVERLAP_SQL_STATE = "23P01"
 data class SetRateResult(
     val rate: SessionBaseRate,
     val created: Boolean,
+    /** Previous active rate (before/after its effectiveUntil close) when this set rotated one. */
+    val previousBefore: SessionBaseRate? = null,
+    val previousAfter: SessionBaseRate? = null,
 )
 
 @Suppress("UnreachableCode")
 object SessionBaseRateRepository {
-    @Suppress("LongMethod")
-    fun setRate(
-        params: SessionBaseRateCreateParams,
-        auditFn: (SessionBaseRate) -> Unit = {},
-        auditUpdateFn: (SessionBaseRate, SessionBaseRate) -> Unit = { _, _ -> },
-    ): SetRateResult =
+    /**
+     * In-transaction store operation (#323, ADR-0024) — branch lock, retry-ownership check,
+     * rate rotation, and insert run on the caller's command transaction; the SQLSTATE 23P01
+     * exclusion-violation translation is preserved here.
+     */
+    fun setRateInTransaction(params: SessionBaseRateCreateParams): SetRateResult =
         try {
-            transaction {
-                BranchTable
-                    .selectAll()
-                    .where { BranchTable.id eq params.branchId }
-                    .forUpdate(ForUpdateOption.ForUpdate)
-                    .singleOrNull()
-                    ?: throw NotFoundException("Branch not found")
+            BranchTable
+                .selectAll()
+                .where { BranchTable.id eq params.branchId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull()
+                ?: throw NotFoundException("Branch not found")
 
-                val existing = findByIdInTransaction(params.id)
-                if (existing != null) {
-                    validateRetryOwnership(existing, params)
-                    return@transaction SetRateResult(existing, created = false)
-                }
+            val existing = findByIdInTransaction(params.id)
+            if (existing != null) {
+                validateRetryOwnership(existing, params)
+                return SetRateResult(existing, created = false)
+            }
 
-                val previousRate =
-                    SessionBaseRateTable
-                        .selectAll()
-                        .where {
-                            (SessionBaseRateTable.branchId eq params.branchId) and
-                                (SessionBaseRateTable.sessionType eq params.sessionType) and
-                                (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
-                        }.singleOrNull()
-                        ?.toSessionBaseRate()
+            val previousRate =
                 SessionBaseRateTable
-                    .update({
+                    .selectAll()
+                    .where {
                         (SessionBaseRateTable.branchId eq params.branchId) and
                             (SessionBaseRateTable.sessionType eq params.sessionType) and
                             (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
-                    }) {
-                        it[SessionBaseRateTable.effectiveUntil] = CurrentTimestampWithTimeZone
-                    }
-                val insertedCount =
-                    SessionBaseRateTable
-                        .insertIgnore {
-                            it[SessionBaseRateTable.id] = params.id
-                            it[SessionBaseRateTable.setBy] = params.setBy
-                            it[SessionBaseRateTable.branchId] = params.branchId
-                            it[SessionBaseRateTable.sessionType] = params.sessionType
-                            it[SessionBaseRateTable.rate] = params.rate
-                            it[SessionBaseRateTable.effectiveFrom] = CurrentTimestampWithTimeZone
-                            it[SessionBaseRateTable.effectiveUntil] = params.effectiveUntil
-                        }.insertedCount
-                val inserted = insertedCount > 0
-                val rateRow =
-                    findByIdInTransaction(params.id)
-                        ?: throw ConflictException("Another rate was created for this branch and session type")
+                    }.singleOrNull()
+                    ?.toSessionBaseRate()
+            SessionBaseRateTable
+                .update({
+                    (SessionBaseRateTable.branchId eq params.branchId) and
+                        (SessionBaseRateTable.sessionType eq params.sessionType) and
+                        (SessionBaseRateTable.effectiveUntil greater CurrentTimestampWithTimeZone)
+                }) {
+                    it[SessionBaseRateTable.effectiveUntil] = CurrentTimestampWithTimeZone
+                }
+            val insertedCount =
+                SessionBaseRateTable
+                    .insertIgnore {
+                        it[SessionBaseRateTable.id] = params.id
+                        it[SessionBaseRateTable.setBy] = params.setBy
+                        it[SessionBaseRateTable.branchId] = params.branchId
+                        it[SessionBaseRateTable.sessionType] = params.sessionType
+                        it[SessionBaseRateTable.rate] = params.rate
+                        it[SessionBaseRateTable.effectiveFrom] = CurrentTimestampWithTimeZone
+                        it[SessionBaseRateTable.effectiveUntil] = params.effectiveUntil
+                    }.insertedCount
+            val inserted = insertedCount > 0
+            val rateRow =
+                findByIdInTransaction(params.id)
+                    ?: throw ConflictException("Another rate was created for this branch and session type")
 
-                if (inserted) {
-                    if (previousRate != null) {
-                        val updatedPreviousRate =
-                            SessionBaseRateTable
-                                .selectAll()
-                                .where { SessionBaseRateTable.id eq previousRate.id }
-                                .single()
-                                .toSessionBaseRate()
-                        auditUpdateFn(previousRate, updatedPreviousRate)
-                    }
-                    auditFn(rateRow)
-                    SetRateResult(rateRow, created = true)
+            if (inserted) {
+                if (previousRate != null) {
+                    val updatedPreviousRate =
+                        SessionBaseRateTable
+                            .selectAll()
+                            .where { SessionBaseRateTable.id eq previousRate.id }
+                            .single()
+                            .toSessionBaseRate()
+                    SetRateResult(
+                        rate = rateRow,
+                        created = true,
+                        previousBefore = previousRate,
+                        previousAfter = updatedPreviousRate,
+                    )
                 } else {
-                    validateRetryOwnership(rateRow, params)
-                    SetRateResult(rateRow, created = false)
+                    SetRateResult(rateRow, created = true)
                 }
-            }.also {
-                logger.info {
-                    "[SET-RATE] Rate ${it.rate.id.toString().maskUUID()} created=${it.created}"
-                }
+            } else {
+                validateRetryOwnership(rateRow, params)
+                SetRateResult(rateRow, created = false)
             }
         } catch (error: ExposedSQLException) {
             if (error.sqlState == RATE_OVERLAP_SQL_STATE) {

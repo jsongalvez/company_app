@@ -11,7 +11,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.ProductCategoryRepository
 import com.companyb.companyapp.repository.ProductRepository
-import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -27,13 +26,13 @@ import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
 import com.companyb.companyapp.repository.model.RemittanceTable
-import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.inventory.InventoryService
+import com.companyb.companyapp.service.session.SessionBaseRateService
 import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -1261,15 +1260,12 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
         id: UUID = rateId,
         sessionType: SessionType = SessionType.REGULAR,
     ) {
-        SessionBaseRateRepository.setRate(
-            SessionBaseRateCreateParams(
-                id = id,
-                setBy = callerId,
-                branchId = branchId,
-                sessionType = sessionType,
-                rate = BigDecimal("2500.00"),
-                effectiveUntil = TestFixtures.now.plusYears(10),
-            ),
+        SessionBaseRateService.setRate(
+            callerId = callerId,
+            id = id,
+            branchId = branchId,
+            sessionType = sessionType,
+            rate = BigDecimal("2500.00"),
         )
     }
 

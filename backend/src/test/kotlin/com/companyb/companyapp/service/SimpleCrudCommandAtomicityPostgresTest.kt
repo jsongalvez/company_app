@@ -3,6 +3,7 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.AuditLogRepository
@@ -14,12 +15,17 @@ import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
+import com.companyb.companyapp.repository.model.ConcernTable
+import com.companyb.companyapp.repository.model.SessionConcernTable
+import com.companyb.companyapp.repository.model.SessionTable
+import com.companyb.companyapp.service.session.SessionService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -209,5 +215,82 @@ class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
                     }.count()
             }
         assertEquals(0L, updateAudits, "version mismatch must abort before any audit write")
+    }
+
+    @Test
+    fun `promote concern commits mutation and all three audit rows atomically`() {
+        // New risk class for batch 3: one command writing THREE audit rows (concern insert,
+        // session_concern link insert, session other-concerns clear). All three must commit
+        // with the mutations in the command's single transaction.
+        DatabaseTestHelper.insertTestBranch(branchId)
+        val dayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+
+        val clientId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestClient(clientId)
+        trackOwned(ClientTable, ClientTable.id, clientId)
+
+        val sessionId = TestFixtures.uuid()
+        transaction {
+            SessionTable.insert {
+                it[SessionTable.id] = sessionId
+                it[SessionTable.clientId] = clientId
+                it[SessionTable.branchDayId] = dayId
+                it[SessionTable.sessionType] = SessionType.REGULAR
+                it[SessionTable.isWalkIn] = false
+                it[SessionTable.basePrice] = BigDecimal("100.00")
+                it[SessionTable.finalPrice] = BigDecimal("100.00")
+                it[SessionTable.otherConcerns] = "stale concerns"
+            }
+        }
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+        trackOwned(SessionConcernTable, SessionConcernTable.sessionId, sessionId)
+
+        val concernId = TestFixtures.uuid()
+        trackOwned(ConcernTable, ConcernTable.id, concernId)
+
+        val promoted = SessionService.promoteConcern(callerId, sessionId, concernId, "Promoted", "reason")
+
+        assertEquals(concernId, promoted.id)
+        val (concernInserts, linkInserts, sessionUpdates) =
+            transaction {
+                val concerns =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.auditTableName eq ConcernTable.tableName) and
+                                (AuditLogTable.recordId eq concernId) and
+                                (AuditLogTable.action eq AuditAction.INSERT)
+                        }.count()
+                val links =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.auditTableName eq SessionConcernTable.tableName) and
+                                (AuditLogTable.recordId eq sessionId) and
+                                (AuditLogTable.action eq AuditAction.INSERT)
+                        }.count()
+                val updates =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.auditTableName eq SessionTable.tableName) and
+                                (AuditLogTable.recordId eq sessionId) and
+                                (AuditLogTable.action eq AuditAction.UPDATE)
+                        }.count()
+                Triple(concerns, links, updates)
+            }
+        val otherConcerns =
+            transaction {
+                SessionTable
+                    .selectAll()
+                    .where { SessionTable.id eq sessionId }
+                    .single()[SessionTable.otherConcerns]
+            }
+
+        assertEquals(1L, concernInserts, "concern insert audited")
+        assertEquals(1L, linkInserts, "session_concern link insert audited")
+        assertEquals(1L, sessionUpdates, "other-concerns clear audited")
+        assertEquals(null, otherConcerns, "other_concerns cleared on the session row")
     }
 }

@@ -24,141 +24,110 @@ data class AddPractitionerResult(
 )
 
 object SessionPractitionerRepository {
-    @Suppress("LongParameterList")
-    fun add(
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findBySessionAndPractitionerInTransaction(
+        sessionId: UUID,
+        practitionerId: UUID,
+    ): SessionPractitioner? =
+        SessionPractitionerTable
+            .selectAll()
+            .where {
+                (SessionPractitionerTable.sessionId eq sessionId) and
+                    (SessionPractitionerTable.practitionerId eq practitionerId)
+            }.singleOrNull()
+            ?.toSessionPractitioner()
+
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun addInTransaction(
         id: UUID,
         sessionId: UUID,
         practitionerId: UUID,
         slotAtTime: Short,
         remarks: String?,
-        auditFn: (SessionPractitioner) -> Unit = {},
-    ): AddPractitionerResult =
-        transaction {
-            val insertedCount =
-                SessionPractitionerTable
-                    .insertIgnore {
-                        it[SessionPractitionerTable.id] = id
-                        it[SessionPractitionerTable.sessionId] = sessionId
-                        it[SessionPractitionerTable.practitionerId] = practitionerId
-                        it[SessionPractitionerTable.slotAtTime] = slotAtTime
-                        if (remarks != null) it[SessionPractitionerTable.remarks] = remarks
-                    }.insertedCount
-            val created = insertedCount > 0
+    ): AddPractitionerResult {
+        val insertedCount =
+            SessionPractitionerTable
+                .insertIgnore {
+                    it[SessionPractitionerTable.id] = id
+                    it[SessionPractitionerTable.sessionId] = sessionId
+                    it[SessionPractitionerTable.practitionerId] = practitionerId
+                    it[SessionPractitionerTable.slotAtTime] = slotAtTime
+                    if (remarks != null) it[SessionPractitionerTable.remarks] = remarks
+                }.insertedCount
+        val created = insertedCount > 0
 
-            if (created) {
-                val sessionVersion = readSessionVersion(sessionId)
-                incrementSessionVersion(sessionId, sessionVersion)
-            }
-
-            val practitioner =
-                SessionPractitionerTable
-                    .selectAll()
-                    .where {
-                        (SessionPractitionerTable.sessionId eq sessionId) and
-                            (SessionPractitionerTable.practitionerId eq practitionerId)
-                    }.singleOrNull()
-                    ?.toSessionPractitioner()
-                    ?: throw ConflictException("Session practitioner request ID already exists")
-
-            if (created) {
-                auditFn(practitioner)
-                logger.info {
-                    "[ADD-PRACTITIONER] Added practitioner $practitionerId to session $sessionId slot=$slotAtTime"
-                }
-            } else {
-                logger.info {
-                    "[ADD-PRACTITIONER] Practitioner $practitionerId already in session $sessionId (idempotent)"
-                }
-            }
-
-            AddPractitionerResult(practitioner, created)
+        if (created) {
+            val sessionVersion = readSessionVersion(sessionId)
+            incrementSessionVersion(sessionId, sessionVersion)
         }
 
-    fun updateRemarks(
+        val practitioner =
+            findBySessionAndPractitionerInTransaction(sessionId, practitionerId)
+                ?: throw ConflictException("Session practitioner request ID already exists")
+
+        return AddPractitionerResult(practitioner, created)
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — updates remarks and bumps the parent
+     * session version on the caller's command transaction; a lost update race throws before any
+     * audit can be written.
+     */
+    fun updateRemarksInTransaction(
         sessionId: UUID,
         practitionerId: UUID,
         remarks: String?,
-        auditFn: (SessionPractitioner, SessionPractitioner) -> Unit = { _, _ -> },
-    ): SessionPractitioner? =
-        transaction {
-            val before =
-                SessionPractitionerTable
-                    .selectAll()
-                    .where {
-                        (SessionPractitionerTable.sessionId eq sessionId) and
-                            (SessionPractitionerTable.practitionerId eq practitionerId)
-                    }.singleOrNull()
-                    ?.toSessionPractitioner()
-
-            if (before == null) return@transaction null
-
-            val updated =
-                SessionPractitionerTable.update({
-                    (SessionPractitionerTable.sessionId eq sessionId) and
-                        (SessionPractitionerTable.practitionerId eq practitionerId)
-                }) {
-                    it[SessionPractitionerTable.remarks] = remarks
-                }
-
-            if (updated == 1) {
-                val sessionVersion = readSessionVersion(sessionId)
-                incrementSessionVersion(sessionId, sessionVersion)
-
-                val practitioner =
-                    SessionPractitionerTable
-                        .selectAll()
-                        .where {
-                            (SessionPractitionerTable.sessionId eq sessionId) and
-                                (SessionPractitionerTable.practitionerId eq practitionerId)
-                        }.single()
-                        .toSessionPractitioner()
-
-                auditFn(before, practitioner)
-                logger.info {
-                    "[UPDATE-PRACTITIONER-REMARKS] Updated remarks for " +
-                        "practitioner $practitionerId in session $sessionId"
-                }
-                practitioner
-            } else {
-                throw VersionMismatchException(SessionPractitionerTable.tableName, before.id)
+    ): SessionPractitioner {
+        val updated =
+            SessionPractitionerTable.update({
+                (SessionPractitionerTable.sessionId eq sessionId) and
+                    (SessionPractitionerTable.practitionerId eq practitionerId)
+            }) {
+                it[SessionPractitionerTable.remarks] = remarks
             }
+
+        if (updated != 1) {
+            throw VersionMismatchException(SessionPractitionerTable.tableName, practitionerId)
         }
 
-    fun remove(
+        val sessionVersion = readSessionVersion(sessionId)
+        incrementSessionVersion(sessionId, sessionVersion)
+
+        return SessionPractitionerTable
+            .selectAll()
+            .where {
+                (SessionPractitionerTable.sessionId eq sessionId) and
+                    (SessionPractitionerTable.practitionerId eq practitionerId)
+            }.single()
+            .toSessionPractitioner()
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — returns the removed row for the
+     * command's delete audit, or null when nothing was deleted.
+     */
+    fun removeInTransaction(
         sessionId: UUID,
         practitionerId: UUID,
-        auditFn: (SessionPractitioner) -> Unit = {},
-    ): Boolean =
-        transaction {
-            val existing =
-                SessionPractitionerTable
-                    .selectAll()
-                    .where {
-                        (SessionPractitionerTable.sessionId eq sessionId) and
-                            (SessionPractitionerTable.practitionerId eq practitionerId)
-                    }.singleOrNull()
-                    ?.toSessionPractitioner()
+    ): SessionPractitioner? {
+        val existing = findBySessionAndPractitionerInTransaction(sessionId, practitionerId)
 
-            val deleted =
-                SessionPractitionerTable.deleteWhere {
-                    (SessionPractitionerTable.sessionId eq sessionId) and
-                        (SessionPractitionerTable.practitionerId eq practitionerId)
-                }
-
-            if (deleted > 0) {
-                val sessionVersion = readSessionVersion(sessionId)
-                incrementSessionVersion(sessionId, sessionVersion)
-
-                if (existing != null) {
-                    auditFn(existing)
-                }
-                logger.info { "[REMOVE-PRACTITIONER] Removed practitioner $practitionerId from session $sessionId" }
-            } else if (existing != null) {
-                throw VersionMismatchException(SessionPractitionerTable.tableName, existing.id)
+        val deleted =
+            SessionPractitionerTable.deleteWhere {
+                (SessionPractitionerTable.sessionId eq sessionId) and
+                    (SessionPractitionerTable.practitionerId eq practitionerId)
             }
 
-            deleted > 0
+        if (deleted > 0) {
+            val sessionVersion = readSessionVersion(sessionId)
+            incrementSessionVersion(sessionId, sessionVersion)
+            return existing
         }
+        if (existing != null) {
+            throw VersionMismatchException(SessionPractitionerTable.tableName, existing.id)
+        }
+        return null
+    }
 
     fun findBySessionId(sessionId: UUID): List<SessionPractitioner> =
         transaction {

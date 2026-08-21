@@ -8,11 +8,17 @@ import com.companyb.companyapp.repository.model.SessionBaseRate
 import com.companyb.companyapp.repository.model.SessionBaseRateCreateParams
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
 
+/**
+ * Session base-rate command (#323, ADR-0024). Owns exactly one business transaction: the branch
+ * lock, retry-ownership check, rate rotation/insert, and both audit rows (previous rate close +
+ * new rate insert) run on it.
+ */
 internal object SessionBaseRateService {
     private val logger = KotlinLogging.logger {}
     private const val FAR_FUTURE_YEAR = 9999
@@ -34,7 +40,6 @@ internal object SessionBaseRateService {
             ZoneOffset.UTC,
         )
 
-    @Suppress("ThrowsCount")
     fun setRate(
         callerId: UUID,
         id: UUID,
@@ -42,36 +47,74 @@ internal object SessionBaseRateService {
         sessionType: SessionType,
         rate: BigDecimal,
     ): SetRateResult =
-        SessionBaseRateRepository.setRate(
-            SessionBaseRateCreateParams(
-                id = id,
-                setBy = callerId,
-                branchId = branchId,
-                sessionType = sessionType,
-                rate = rate,
-                effectiveUntil = FAR_FUTURE,
-            ),
-            auditFn = { rateRecord ->
-                AuditLogRepository.recordInsert(
-                    tableName = SessionBaseRateTable.tableName,
-                    recordId = rateRecord.id,
+        transaction {
+            val result =
+                SessionBaseRateRepository.setRateInTransaction(
+                    SessionBaseRateCreateParams(
+                        id = id,
+                        setBy = callerId,
+                        branchId = branchId,
+                        sessionType = sessionType,
+                        rate = rate,
+                        effectiveUntil = FAR_FUTURE,
+                    ),
+                )
+            if (result.created) {
+                // Preserve the original order: close-audit on the rotated previous rate, then
+                // the insert audit on the new rate.
+                result.previousAfter?.let { after ->
+                    SessionBaseRateAudit.updated(
+                        changedBy = callerId,
+                        before = result.previousBefore ?: after,
+                        after = after,
+                    )
+                }
+                SessionBaseRateAudit.inserted(
                     changedBy = callerId,
                     branchId = branchId,
-                    fields = SessionBaseRateTable.auditFields(rateRecord),
+                    rateRecord = result.rate,
                 )
-            },
-            auditUpdateFn = { before, after ->
-                AuditLogRepository.recordUpdate(
-                    tableName = SessionBaseRateTable.tableName,
-                    recordId = before.id,
-                    before = before,
-                    after = after,
-                    changedBy = callerId,
-                    branchId = branchId,
-                    auditFields = SessionBaseRateTable::auditFields,
-                )
-            },
-        )
+            }
+
+            logger.info {
+                "[SET-RATE] Rate ${result.rate.id} created=${result.created}"
+            }
+
+            result
+        }
 
     fun findActiveRates(branchId: UUID): List<SessionBaseRate> = SessionBaseRateRepository.findActiveByBranch(branchId)
+}
+
+/**
+ * Session base-rate audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its
+ * own transaction so audit rows commit atomically with the mutation. Owns the persistence-table
+ * import so the public command surface does not.
+ */
+internal object SessionBaseRateAudit {
+    fun inserted(
+        changedBy: UUID,
+        branchId: UUID,
+        rateRecord: SessionBaseRate,
+    ) = AuditLogRepository.recordInsert(
+        tableName = SessionBaseRateTable.tableName,
+        recordId = rateRecord.id,
+        changedBy = changedBy,
+        branchId = branchId,
+        fields = SessionBaseRateTable.auditFields(rateRecord),
+    )
+
+    fun updated(
+        changedBy: UUID,
+        before: SessionBaseRate,
+        after: SessionBaseRate,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = SessionBaseRateTable.tableName,
+        recordId = before.id,
+        before = before,
+        after = after,
+        changedBy = changedBy,
+        branchId = before.branchId,
+        auditFields = SessionBaseRateTable::auditFields,
+    )
 }

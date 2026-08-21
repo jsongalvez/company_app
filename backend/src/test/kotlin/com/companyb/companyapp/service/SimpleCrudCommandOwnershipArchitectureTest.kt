@@ -7,8 +7,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * #323 batches 1–2 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
- * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation) keep their shape:
+ * #323 batches 1–3 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
+ * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation, session cluster)
+ * keep their shape:
  * mutating store operations are `*InTransaction` with no `auditFn` coordination and no nested
  * write transactions, and each public command owns exactly one transaction while persistence-table
  * knowledge stays behind the feature/audit seam. Mechanical enforcement for the whole backend
@@ -29,6 +30,11 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/ClientRepository.kt" to 2,
                 "repository/AllowanceRepository.kt" to 1,
                 "repository/CompensationRepository.kt" to 3,
+                "repository/SessionRepository.kt" to 5,
+                "repository/SessionVoidRepository.kt" to 2,
+                "repository/SessionPractitionerRepository.kt" to 2,
+                "repository/ConcernRepository.kt" to 3,
+                "repository/SessionBaseRateRepository.kt" to 1,
             )
         files.forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
@@ -50,6 +56,15 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/ClientService.kt" to listOf("create", "update", "anonymize"),
                 "service/AllowanceService.kt" to listOf("create"),
                 "service/CompensationService.kt" to listOf("create", "update"),
+                // Session cluster (batch 3): pass-through delegates in SessionService are not
+                // commands; the transaction-owning mutations live in these four files.
+                "service/session/SessionService.kt" to
+                    listOf("create", "updateStatus", "updateFinalPrice", "voidSession", "unvoidSession"),
+                "service/session/SessionPractitionerService.kt" to
+                    listOf("addPractitioner", "updatePractitionerRemarks", "removePractitioner"),
+                "service/session/SessionConcernService.kt" to
+                    listOf("addToSession", "removeFromSession", "promoteConcern"),
+                "service/session/SessionBaseRateService.kt" to listOf("setRate"),
             )
         commands.forEach { (file, names) ->
             val source = mainSource(file)
@@ -77,6 +92,10 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/ClientService.kt" to "ClientAudit",
                 "service/AllowanceService.kt" to "AllowanceAudit",
                 "service/CompensationService.kt" to "CompensationAudit",
+                "service/session/SessionService.kt" to "SessionAudit",
+                "service/session/SessionPractitionerService.kt" to "SessionPractitionerAudit",
+                "service/session/SessionConcernService.kt" to "SessionConcernAudit",
+                "service/session/SessionBaseRateService.kt" to "SessionBaseRateAudit",
             )
         seams.forEach { (file, seam) ->
             val source = mainSource(file)

@@ -4,7 +4,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.repository.model.Concern
 import com.companyb.companyapp.repository.model.ConcernTable
 import com.companyb.companyapp.repository.model.Session
-import com.companyb.companyapp.repository.model.SessionConcern
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import org.jetbrains.exposed.v1.core.JoinType
@@ -17,6 +16,14 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
+data class PromoteConcernResult(
+    val concern: Concern,
+    val concernCreated: Boolean,
+    val linkCreated: Boolean,
+    val sessionBefore: Session,
+    val sessionAfter: Session,
+)
+
 object ConcernRepository {
     fun findAll(): List<Concern> =
         transaction {
@@ -27,84 +34,38 @@ object ConcernRepository {
 
     fun findById(id: UUID): Concern? =
         transaction {
-            ConcernTable
-                .selectAll()
-                .where { ConcernTable.id eq id }
-                .singleOrNull()
-                ?.toConcern()
+            findByIdInTransaction(id)
         }
 
-    fun create(
-        id: UUID,
-        label: String,
-        createdBy: UUID?,
-        auditFn: (Concern) -> Unit = {},
-    ): Concern {
-        val inserted =
-            transaction {
-                val insertedCount =
-                    ConcernTable
-                        .insertIgnore {
-                            it[ConcernTable.id] = id
-                            it[ConcernTable.label] = label
-                            if (createdBy != null) {
-                                it[ConcernTable.createdBy] = createdBy
-                            }
-                        }.insertedCount
+    /** In-transaction read for command-owned flows — runs on the caller's open transaction. */
+    fun findByIdInTransaction(id: UUID): Concern? =
+        ConcernTable
+            .selectAll()
+            .where { ConcernTable.id eq id }
+            .singleOrNull()
+            ?.toConcern()
 
-                val concern =
-                    findByIdInTransaction(id)
-                        ?: throw NotFoundException("Concern not found after idempotent insert")
-
-                if (insertedCount > 0 && createdBy != null) {
-                    auditFn(concern)
-                }
-
-                concern
-            }
-        return inserted
-    }
-
-    fun addToSession(
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun addToSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
-        auditFn: (SessionConcern) -> Unit = {},
     ): Boolean =
-        transaction {
-            val insertedCount =
-                SessionConcernTable
-                    .insertIgnore {
-                        it[SessionConcernTable.sessionId] = sessionId
-                        it[SessionConcernTable.concernId] = concernId
-                    }.insertedCount
+        SessionConcernTable
+            .insertIgnore {
+                it[SessionConcernTable.sessionId] = sessionId
+                it[SessionConcernTable.concernId] = concernId
+            }.insertedCount > 0
 
-            val created = insertedCount > 0
-            if (created) {
-                auditFn(SessionConcern(sessionId, concernId))
-            }
-
-            created
-        }
-
-    fun removeFromSession(
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun removeFromSessionInTransaction(
         sessionId: UUID,
         concernId: UUID,
-        auditFn: (SessionConcern) -> Unit = {},
     ): Boolean =
-        transaction {
-            val deleted =
-                SessionConcernTable
-                    .deleteWhere {
-                        (SessionConcernTable.sessionId eq sessionId) and
-                            (SessionConcernTable.concernId eq concernId)
-                    } > 0
-
-            if (deleted) {
-                auditFn(SessionConcern(sessionId, concernId))
-            }
-
-            deleted
-        }
+        SessionConcernTable
+            .deleteWhere {
+                (SessionConcernTable.sessionId eq sessionId) and
+                    (SessionConcernTable.concernId eq concernId)
+            } > 0
 
     fun getConcernsForSession(sessionId: UUID): List<Concern> =
         transaction {
@@ -119,67 +80,56 @@ object ConcernRepository {
                 .map { it.toConcern() }
         }
 
-    @Suppress("LongParameterList")
-    fun promoteConcern(
+    /**
+     * In-transaction store operation (#323, ADR-0024) — the concern insert, link insert, and
+     * session other-concerns clear run on the caller's command transaction; the command writes
+     * the three audit rows into that same transaction from [PromoteConcernResult].
+     */
+    fun promoteConcernInTransaction(
         concernId: UUID,
         label: String,
         createdBy: UUID,
         sessionId: UUID,
-        onConcernCreated: (Concern) -> Unit = {},
-        onLinkCreated: (SessionConcern) -> Unit = {},
-        onSessionOtherConcernsCleared: (before: Session, after: Session) -> Unit = { _: Session, _: Session -> },
-    ): Concern =
-        transaction {
-            val beforeSession =
-                findSessionByIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found")
+    ): PromoteConcernResult {
+        val sessionBefore =
+            findSessionByIdInTransaction(sessionId)
+                ?: throw NotFoundException("Session not found")
 
-            val insertedCount =
-                ConcernTable
-                    .insertIgnore {
-                        it[ConcernTable.id] = concernId
-                        it[ConcernTable.label] = label
-                        it[ConcernTable.createdBy] = createdBy
-                    }.insertedCount
+        val insertedCount =
+            ConcernTable
+                .insertIgnore {
+                    it[ConcernTable.id] = concernId
+                    it[ConcernTable.label] = label
+                    it[ConcernTable.createdBy] = createdBy
+                }.insertedCount
 
-            val concern =
-                findByIdInTransaction(concernId)
-                    ?: throw NotFoundException("Concern not found after idempotent insert")
+        val concern =
+            findByIdInTransaction(concernId)
+                ?: throw NotFoundException("Concern not found after idempotent insert")
 
-            if (insertedCount > 0) {
-                onConcernCreated(concern)
-            }
+        val linkInserted =
+            SessionConcernTable
+                .insertIgnore {
+                    it[SessionConcernTable.sessionId] = sessionId
+                    it[SessionConcernTable.concernId] = concernId
+                }.insertedCount > 0
 
-            val linkInserted =
-                SessionConcernTable
-                    .insertIgnore {
-                        it[SessionConcernTable.sessionId] = sessionId
-                        it[SessionConcernTable.concernId] = concernId
-                    }.insertedCount
-
-            if (linkInserted > 0) {
-                onLinkCreated(SessionConcern(sessionId, concernId))
-            }
-
-            SessionTable.update({ SessionTable.id eq sessionId }) {
-                it[SessionTable.otherConcerns] = null
-            }
-
-            val afterSession =
-                findSessionByIdInTransaction(sessionId)
-                    ?: throw NotFoundException("Session not found after concern promotion update")
-
-            onSessionOtherConcernsCleared(beforeSession, afterSession)
-
-            concern
+        SessionTable.update({ SessionTable.id eq sessionId }) {
+            it[SessionTable.otherConcerns] = null
         }
 
-    private fun findByIdInTransaction(id: UUID): Concern? =
-        ConcernTable
-            .selectAll()
-            .where { ConcernTable.id eq id }
-            .singleOrNull()
-            ?.toConcern()
+        val sessionAfter =
+            findSessionByIdInTransaction(sessionId)
+                ?: throw NotFoundException("Session not found after concern promotion update")
+
+        return PromoteConcernResult(
+            concern = concern,
+            concernCreated = insertedCount > 0,
+            linkCreated = linkInserted,
+            sessionBefore = sessionBefore,
+            sessionAfter = sessionAfter,
+        )
+    }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toConcern(): Concern =
         Concern(

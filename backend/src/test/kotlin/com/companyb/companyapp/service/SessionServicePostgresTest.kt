@@ -458,7 +458,9 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
 
         assertFailsWith<ConflictException> {
-            SessionRepository.updateStatus(sessionId, SessionStatus.PENDING, SessionStatus.COMPLETED, 99, callerId)
+            transaction {
+                SessionRepository.updateStatusInTransaction(sessionId, SessionStatus.COMPLETED, 99)
+            }
         }
     }
 
@@ -470,7 +472,9 @@ class SessionServicePostgresTest : BasePostgresTest() {
         trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, sessionId)
 
         assertFailsWith<ConflictException> {
-            SessionRepository.updateFinalPrice(sessionId, BigDecimal("2750.00"), 99, callerId)
+            transaction {
+                SessionRepository.updateFinalPriceInTransaction(sessionId, BigDecimal("2750.00"), 99)
+            }
         }
     }
 
