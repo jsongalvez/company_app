@@ -207,9 +207,17 @@ capability, the corresponding read endpoint (GET) should check the same capabili
 
 Every mutating service must write an audit row via `AuditLogRepository.record(tableName, recordId,
 action, changedBy, oldValue?, newValue?, reason?)`. `record` does **not** open its own `transaction {}`
-— it runs the insert on the current connection and must be called inside an existing `transaction {}`
-(typically via the repository's `auditFn` callback, which is invoked inside the repository's
-`transaction {}`). This ensures the audit insert commits atomically with the mutation it describes.
+— it runs the insert on the current connection and must be called inside an existing `transaction {}`.
+This ensures the audit insert commits atomically with the mutation it describes.
+
+Transaction ownership depends on the module's migration state ([ADR-0024](../docs/adr/0024-command-owned-mutation-transactions.md)):
+
+- **Migrated modules (Expense; later Remittance/Attendance per #320/#321):** the feature command owns
+  one transaction, repository mutators are `*InTransaction` store operations that open no transaction,
+  and the command calls `AuditLogRepository.record*` directly inside its own transaction.
+- **Un-migrated modules (transitional until #323):** audit goes through the repository's `auditFn`
+  callback (ADR-0013), which the repository invokes inside its own `transaction {}`.
+
 Build JSON values with `AuditLogRepository.jsonField(key, value)` (safely escaped) or use the
 convenience methods `recordInsert`, `recordUpdate`, `recordDelete` which accept
 and `Map<String, String>` field maps.

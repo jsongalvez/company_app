@@ -9,11 +9,13 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.exception.VersionMismatchException
+import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.ExpenseRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -444,13 +446,15 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
         )
 
         assertFailsWith<VersionMismatchException> {
-            ExpenseRepository.update(
-                expenseId = expenseId,
-                amount = BigDecimal("750.00"),
-                category = ExpenseCategory.WATER,
-                notes = "Stale update",
-                expectedVersion = created.version,
-            )
+            transaction {
+                ExpenseRepository.updateInTransaction(
+                    expenseId = expenseId,
+                    amount = BigDecimal("750.00"),
+                    category = ExpenseCategory.WATER,
+                    notes = "Stale update",
+                    expectedVersion = created.version,
+                )
+            }
         }
 
         val after = ExpenseRepository.findById(expenseId)
@@ -900,6 +904,128 @@ class ExpenseServicePostgresTest : BasePostgresTest() {
             }
         assertEquals(true, audit[AuditLogTable.isFlagged])
         assertEquals("Coordinator correction", audit[AuditLogTable.reason])
+    }
+
+    // ===== #319 contract proofs — command-owned mutation transaction (ADR-0024) =====
+
+    @Test
+    fun `command commits domain write and audit atomically`() {
+        val expenseId = TestFixtures.uuid()
+
+        ExpenseService.create(
+            callerId = callerId,
+            id = expenseId,
+            branchDayId = branchDayId,
+            amount = BigDecimal("500.00"),
+            category = ExpenseCategory.PANTRY,
+            notes = "Proof",
+        )
+
+        val (expenseRows, insertAudits) =
+            transaction {
+                val expenses =
+                    ExpenseTable.selectAll().where { ExpenseTable.id eq expenseId }.count()
+                val audits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                                (AuditLogTable.recordId eq expenseId) and
+                                (AuditLogTable.action eq AuditAction.INSERT)
+                        }.count()
+                expenses to audits
+            }
+        assertEquals(1L, expenseRows, "domain row committed")
+        assertEquals(1L, insertAudits, "audit row committed in the same transaction")
+    }
+
+    @Test
+    fun `audit failure inside the command rolls the mutation back`() {
+        val expenseId = TestFixtures.uuid()
+
+        // Exercises the exact composition a migrated command runs — store write on the command
+        // transaction, then the audit insert into that same transaction. A failing audit
+        // statement must abort the whole transaction: no domain row, no partial audit.
+        val error =
+            runCatching {
+                transaction {
+                    ExpenseRepository.createInTransaction(
+                        ExpenseCreateParams(
+                            id = expenseId,
+                            branchDayId = branchDayId,
+                            amount = BigDecimal("500.00"),
+                            category = ExpenseCategory.PANTRY,
+                            createdBy = callerId,
+                            notes = null,
+                        ),
+                    )
+                    AuditLogRepository.record(
+                        tableName = ExpenseTable.tableName,
+                        recordId = expenseId,
+                        action = AuditAction.INSERT,
+                        changedBy = callerId,
+                        oldValue = "{not-valid-json",
+                    )
+                }
+            }.exceptionOrNull()
+
+        assertNotNull(error, "malformed jsonb audit payload must fail the statement")
+
+        val (expenseRows, allAudits) =
+            transaction {
+                val expenses = ExpenseTable.selectAll().where { ExpenseTable.id eq expenseId }.count()
+                val audits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                                (AuditLogTable.recordId eq expenseId)
+                        }.count()
+                expenses to audits
+            }
+        assertEquals(0L, expenseRows, "mutation rolled back with the failed audit")
+        assertEquals(0L, allAudits, "no partial audit row survived")
+    }
+
+    @Test
+    fun `mutation failure writes no audit row`() {
+        val expenseId = TestFixtures.uuid()
+        val created =
+            ExpenseService.create(
+                callerId = callerId,
+                id = expenseId,
+                branchDayId = branchDayId,
+                amount = BigDecimal("500.00"),
+                category = ExpenseCategory.PANTRY,
+                notes = null,
+            )
+
+        assertFailsWith<ConflictException> {
+            ExpenseService.update(
+                callerId = callerId,
+                expenseId = expenseId,
+                amount = BigDecimal("750.00"),
+                category = ExpenseCategory.WATER,
+                notes = "Rejected",
+                expectedVersion = 999,
+            )
+        }
+
+        val (rowVersion, updateAudits) =
+            transaction {
+                val row = ExpenseTable.selectAll().where { ExpenseTable.id eq expenseId }.single()
+                val audits =
+                    AuditLogTable
+                        .selectAll()
+                        .where {
+                            (AuditLogTable.auditTableName eq ExpenseTable.tableName) and
+                                (AuditLogTable.recordId eq expenseId) and
+                                (AuditLogTable.action eq AuditAction.UPDATE)
+                        }.count()
+                row[ExpenseTable.version] to audits
+            }
+        assertEquals(created.version, rowVersion, "row untouched")
+        assertEquals(0L, updateAudits, "no audit row for a failed mutation")
     }
 
     private fun grantEditBranchData(userId: UUID) {

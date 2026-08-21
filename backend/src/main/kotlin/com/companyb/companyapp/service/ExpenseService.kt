@@ -10,13 +10,20 @@ import com.companyb.companyapp.repository.model.ExpenseCreateParams
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.util.UUID
 
+/**
+ * Expense feature commands (#319, ADR-0024). Each mutating command owns exactly one business
+ * transaction: persistence runs on it via `ExpenseRepository.*InTransaction` store operations,
+ * the before/after state is captured inside it (ADR-0019 invariant), and the audit row is
+ * inserted directly into it — so domain write + audit commit atomically or not at all.
+ */
 object ExpenseService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
+    @Suppress("LongParameterList")
     fun create(
         callerId: UUID,
         id: UUID,
@@ -28,27 +35,31 @@ object ExpenseService {
     ): Expense {
         val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
 
-        return ExpenseRepository
-            .create(
-                ExpenseCreateParams(
-                    id = id,
-                    branchDayId = branchDayId,
-                    amount = amount,
-                    category = category,
-                    createdBy = callerId,
-                    notes = notes,
-                ),
-            ) { expense ->
+        return transaction {
+            val result =
+                ExpenseRepository.createInTransaction(
+                    ExpenseCreateParams(
+                        id = id,
+                        branchDayId = branchDayId,
+                        amount = amount,
+                        category = category,
+                        createdBy = callerId,
+                        notes = notes,
+                    ),
+                )
+            if (result.created) {
                 AuditLogRepository.recordInsert(
                     tableName = ExpenseTable.tableName,
-                    recordId = expense.id,
+                    recordId = result.expense.id,
                     changedBy = callerId,
                     branchId = branchDay.branchId,
-                    fields = ExpenseTable.auditFields(expense),
+                    fields = ExpenseTable.auditFields(result.expense),
                     isFlagged = isRemitted,
                     reason = reason,
                 )
-            }.expense
+            }
+            result.expense
+        }
     }
 
     @Suppress("ThrowsCount", "LongParameterList")
@@ -60,18 +71,23 @@ object ExpenseService {
         notes: String?,
         expectedVersion: Int,
         reason: String? = null,
-    ): Expense {
-        val before =
-            ExpenseRepository.findById(expenseId)
-                ?: throw NotFoundException("Expense not found")
+    ): Expense =
+        transaction {
+            // Transaction-local before-state (ADR-0019): read inside the command's transaction,
+            // never held across a method boundary where a concurrent write could stale it.
+            val before =
+                ExpenseRepository.findByIdInTransaction(expenseId)
+                    ?: throw NotFoundException("Expense not found")
 
-        if (before.deletedAt != null) {
-            throw ValidationException("Cannot update a deleted expense")
-        }
+            if (before.deletedAt != null) {
+                throw ValidationException("Cannot update a deleted expense")
+            }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
-        return ExpenseRepository.update(expenseId, amount, category, notes, expectedVersion) { after ->
+            val after =
+                ExpenseRepository.updateInTransaction(expenseId, amount, category, notes, expectedVersion)
+
             AuditLogRepository.recordUpdate(
                 tableName = ExpenseTable.tableName,
                 recordId = expenseId,
@@ -83,22 +99,26 @@ object ExpenseService {
                 reason = reason,
                 auditFields = ExpenseTable::auditFields,
             )
+            after
         }
-    }
 
     @Suppress("ThrowsCount")
     fun softDelete(
         callerId: UUID,
         expenseId: UUID,
         reason: String,
-    ): Expense {
-        val before =
-            ExpenseRepository.findById(expenseId)
-                ?: throw NotFoundException("Expense not found")
+    ): Expense =
+        transaction {
+            val before =
+                ExpenseRepository.findByIdInTransaction(expenseId)
+                    ?: throw NotFoundException("Expense not found")
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
-        return ExpenseRepository.softDelete(expenseId, callerId, reason) { after ->
+            val after =
+                ExpenseRepository.softDeleteInTransaction(expenseId, callerId, reason)
+                    ?: throw NotFoundException("Expense not found")
+
             AuditLogRepository.recordDelete(
                 tableName = ExpenseTable.tableName,
                 recordId = expenseId,
@@ -109,9 +129,8 @@ object ExpenseService {
                 isFlagged = isRemitted,
                 auditFields = ExpenseTable::auditFields,
             )
+            after
         }
-            ?: throw NotFoundException("Expense not found")
-    }
 
     /**
      * #153 Q5 — restores a soft-deleted expense. Record-scoped EDIT_BRANCH_DATA via the route's
@@ -127,18 +146,22 @@ object ExpenseService {
         callerId: UUID,
         expenseId: UUID,
         reason: String? = null,
-    ): Expense {
-        val before =
-            ExpenseRepository.findById(expenseId)
-                ?: throw NotFoundException("Expense not found")
+    ): Expense =
+        transaction {
+            val before =
+                ExpenseRepository.findByIdInTransaction(expenseId)
+                    ?: throw NotFoundException("Expense not found")
 
-        if (before.deletedAt == null) {
-            throw ValidationException("Expense is not deleted")
-        }
+            if (before.deletedAt == null) {
+                throw ValidationException("Expense is not deleted")
+            }
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
+            val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, before.branchDayId, reason)
 
-        return ExpenseRepository.restore(expenseId) { after ->
+            val after =
+                ExpenseRepository.restoreInTransaction(expenseId)
+                    ?: throw ValidationException("Expense is not deleted")
+
             AuditLogRepository.recordUpdate(
                 tableName = ExpenseTable.tableName,
                 recordId = expenseId,
@@ -150,9 +173,8 @@ object ExpenseService {
                 reason = reason,
                 auditFields = ExpenseTable::auditFields,
             )
+            after
         }
-            ?: throw ValidationException("Expense is not deleted")
-    }
 
     @Suppress("ThrowsCount", "UnusedParameter")
     fun findByBranchDayId(
