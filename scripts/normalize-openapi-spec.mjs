@@ -179,7 +179,7 @@ function registrations() {
   const result = [];
   for (const { name, source } of routeSources) {
     const scanSource = withoutComments(source);
-    for (const match of scanSource.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+|ApiRoutes\.\w+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
+    for (const match of scanSource.matchAll(/(?:config|context)\.routes\.(get|post|patch|delete|put)\(\s*("(?:[^"\\]|\\.)*"|\$[A-Z0-9_]+|ApiRoutes\.\w+)[\s\S]*?(?:::([A-Za-z0-9_]+)|\{\s*context\s*->)/g)) {
       const pathValue = match[2].startsWith("ApiRoutes.")
         ? resolveApiRoute(apiRouteConstants.get(match[2].slice("ApiRoutes.".length)) || "")
         : match[2].replace(/\$([A-Z0-9_]+)/g, (_, constant) => scanSource.match(new RegExp(`const val ${constant}\\s*=\\s*"([^"]+)"`))?.[1] || constant.toLowerCase().replace(/_PARAM$/, ""));

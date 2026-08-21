@@ -1,14 +1,23 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
+import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.dto.UserCreateRequest
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.CapabilityRepository
+import com.companyb.companyapp.repository.RoleRepository
+import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
+import com.companyb.companyapp.service.CapabilityService.GLOBAL_CONTEXT_ID
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -25,6 +34,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -33,6 +43,7 @@ class UserServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
+    private val targetId = TestFixtures.uuid()
 
     override fun initTestData() {
         DenyList.clear()
@@ -40,6 +51,8 @@ class UserServicePostgresTest : BasePostgresTest() {
         trackOwned(AppUserTable, AppUserTable.id, callerId)
         DatabaseTestHelper.insertTestUser(targetUserId, "target")
         trackOwned(AppUserTable, AppUserTable.id, targetUserId)
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
     }
 
     @Test
@@ -243,6 +256,199 @@ class UserServicePostgresTest : BasePostgresTest() {
         assertEquals(com.companyb.companyapp.domain.UserStatus.INACTIVE, target.status)
         assertNotNull(target.deactivatedAt)
     }
+
+    // ──────────────────────────────────────────────
+    // #344 — admin user creation + role assignment
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `create makes an active roleless user and writes an audit row`() {
+        val created =
+            UserService.create(
+                callerId,
+                UserCreateRequest(
+                    username = "created-$targetId",
+                    email = "$targetId@created.st",
+                    displayName = "Created User",
+                    password = "valid-password",
+                ),
+            )
+
+        assertEquals(UserStatus.ACTIVE, created.status)
+        assertTrue(created.roles.isEmpty())
+        assertTrue(created.assignments.isEmpty())
+
+        val createdUserId = UUID.fromString(created.id)
+        trackOwned(AppUserTable, AppUserTable.id, createdUserId)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
+        assertTrue(
+            RoleRepository.findRoleNamesByUser(listOf(createdUserId))[createdUserId].isNullOrEmpty(),
+            "freshly created admin user must hold no roles",
+        )
+        assertEquals(1L, auditActionCount("app_user", AuditAction.INSERT, createdUserId))
+    }
+
+    @Test
+    fun `create rejects weak password and invalid email without writing rows`() {
+        assertFailsWith<ValidationException> {
+            UserService.create(
+                callerId,
+                UserCreateRequest(
+                    username = "weak-$targetId",
+                    email = "$targetId@weak.st",
+                    displayName = "Weak",
+                    password = "short",
+                ),
+            )
+        }
+        assertFailsWith<ValidationException> {
+            UserService.create(
+                callerId,
+                UserCreateRequest(
+                    username = "badmail-$targetId",
+                    email = "not-an-email",
+                    displayName = "Bad Mail",
+                    password = "valid-password",
+                ),
+            )
+        }
+        assertNull(UserRepository.findByUsername("weak-$targetId"))
+    }
+
+    @Test
+    fun `create duplicate username or email conflicts with 409 semantics`() {
+        assertFailsWith<ConflictException> {
+            UserService.create(
+                callerId,
+                UserCreateRequest(
+                    username = "target-${targetUserId.toString().take(8)}",
+                    email = "fresh-${targetUserId.toString().take(8)}@c.st",
+                    displayName = "Dup Username",
+                    password = "valid-password",
+                ),
+            )
+        }
+        assertFailsWith<ConflictException> {
+            UserService.create(
+                callerId,
+                UserCreateRequest(
+                    username = "fresh-$targetUserId",
+                    email = "${targetUserId.toString().take(8)}@t.st",
+                    displayName = "Dup Email",
+                    password = "valid-password",
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `replaceRoles assigns seeded bundles whose capabilities derive through the view`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+
+        UserService.replaceRoles(callerId, targetUserId, listOf("OWNER"))
+
+        assertEquals(listOf("OWNER"), transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId) })
+        assertTrue(
+            CapabilityRepository.hasCapability(
+                targetUserId,
+                "MANAGE_USERS",
+                CapabilityContextType.GLOBAL,
+                GLOBAL_CONTEXT_ID,
+            ),
+            "user_role row must derive MANAGE_USERS through the capability view",
+        )
+        assertEquals(1L, auditActionCount("user_role", AuditAction.UPDATE, targetUserId))
+    }
+
+    @Test
+    fun `replaceRoles rejects unknown role names`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+        assertFailsWith<ValidationException> {
+            UserService.replaceRoles(callerId, targetUserId, listOf("OWNER", "NOT_A_ROLE"))
+        }
+        assertTrue(transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId).isEmpty() })
+    }
+
+    @Test
+    fun `replaceRoles rejects SUPERUSER grant and removal`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+        assertFailsWith<ValidationException> {
+            UserService.replaceRoles(callerId, targetUserId, listOf("SUPERUSER"))
+        }
+
+        transaction {
+            RoleRepository.assignRoleInTransaction(
+                targetUserId,
+                RoleRepository.findIdByNameInTransaction("SUPERUSER")!!,
+            )
+        }
+        assertFailsWith<ValidationException> {
+            UserService.replaceRoles(callerId, targetUserId, listOf("OWNER"))
+        }
+        assertEquals(
+            listOf("SUPERUSER"),
+            transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId) },
+        )
+    }
+
+    @Test
+    fun `replaceRoles is idempotent without a second audit row`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+        UserService.replaceRoles(callerId, targetUserId, listOf("MANAGER", "COORDINATOR"))
+        UserService.replaceRoles(callerId, targetUserId, listOf("COORDINATOR", "MANAGER"))
+
+        assertEquals(1L, auditActionCount("user_role", AuditAction.UPDATE, targetUserId))
+    }
+
+    @Test
+    fun `replaceRoles rewrites roles of a deactivated user following the deactivate precedent`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+        UserService.deactivate(callerId, targetUserId)
+
+        UserService.replaceRoles(callerId, targetUserId, listOf("PRACTITIONER"))
+
+        assertEquals(
+            listOf("PRACTITIONER"),
+            transaction { RoleRepository.findRoleNamesForUserInTransaction(targetUserId) },
+        )
+    }
+
+    @Test
+    fun `replaceRoles on a missing user throws not found`() {
+        assertFailsWith<NotFoundException> { UserService.replaceRoles(callerId, TestFixtures.uuid(), listOf("OWNER")) }
+    }
+
+    @Test
+    fun `listUsers reports each user's role names and getRoles hides SUPERUSER`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUserId)
+        transaction {
+            RoleRepository.assignRoleInTransaction(targetUserId, RoleRepository.findIdByNameInTransaction("OWNER")!!)
+        }
+
+        val summary = UserService.listUsers().single { it.id == targetUserId.toString() }
+        assertEquals(listOf("OWNER"), summary.roles)
+
+        val roleNames = UserService.getRoles().map { it.name }
+        assertFalse(roleNames.contains("SUPERUSER"), "SUPERUSER must not be offered to pickers")
+        assertTrue(roleNames.contains("ONBOARDING"))
+        val ownerResponse = UserService.getRoles().single { it.name == "OWNER" }
+        assertTrue(ownerResponse.capabilities.contains("MANAGE_USERS"))
+    }
+
+    private fun auditActionCount(
+        tableName: String,
+        action: AuditAction,
+        recordId: UUID,
+    ): Long =
+        transaction {
+            AuditLogTable
+                .selectAll()
+                .where {
+                    (AuditLogTable.auditTableName eq tableName) and
+                        (AuditLogTable.recordId eq recordId) and
+                        (AuditLogTable.action eq action)
+                }.count()
+        }
 
     private fun deactivatedAt(userId: UUID): OffsetDateTime? =
         transaction {

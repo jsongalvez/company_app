@@ -22,3 +22,10 @@ object UserRoleTable : Table("user_role") {
 
     override val primaryKey = PrimaryKey(userId, roleId)
 }
+
+object RoleCapabilityTable : Table("role_capability") {
+    val roleId = javaUUID("role_id").references(RoleTable.id)
+    val capabilityId = javaUUID("capability_id").references(CapabilityTable.id)
+
+    override val primaryKey = PrimaryKey(roleId, capabilityId)
+}

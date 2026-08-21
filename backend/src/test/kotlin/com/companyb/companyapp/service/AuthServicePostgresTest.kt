@@ -6,10 +6,12 @@ import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
+import com.companyb.companyapp.repository.RoleRepository
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -162,6 +164,7 @@ class AuthServicePostgresTest : BasePostgresTest() {
         val created = UserRepository.findByUsername(username)
         assertNotNull(created)
         trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
+        trackOwned(UserRoleTable, UserRoleTable.userId, UUID.fromString(created.id))
     }
 
     @Test
@@ -194,6 +197,28 @@ class AuthServicePostgresTest : BasePostgresTest() {
         val created = UserRepository.findByUsername("race-user-$successfulIndex-$userId")
         assertNotNull(created)
         trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
+        trackOwned(UserRoleTable, UserRoleTable.userId, UUID.fromString(created.id))
+    }
+
+    @Test
+    fun `registration assigns the ONBOARDING role in the creation transaction`() {
+        val username = "onboarding-$userId"
+        val result =
+            AuthService.register(
+                username = username,
+                password = "test-password",
+                email = "onboarding-${userId.toString().take(8)}@example.test",
+                displayName = "Onboarding User",
+            )
+
+        assertEquals(RegisterResult.Success, result)
+        val created = UserRepository.findByUsername(username)
+        assertNotNull(created)
+        trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
+        trackOwned(UserRoleTable, UserRoleTable.userId, UUID.fromString(created.id))
+
+        val roles = RoleRepository.findRoleNamesByUser(listOf(UUID.fromString(created.id)))[UUID.fromString(created.id)]
+        assertEquals(listOf("ONBOARDING"), roles)
     }
 
     private fun auditEntryCount(recordId: UUID): Long =

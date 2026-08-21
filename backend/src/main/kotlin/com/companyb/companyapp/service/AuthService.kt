@@ -8,6 +8,7 @@ import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.exception.RegistrationConflictException
 import com.companyb.companyapp.exception.RegistrationConflictField
 import com.companyb.companyapp.logging.maskUUID
+import com.companyb.companyapp.repository.RoleRepository
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
@@ -19,6 +20,7 @@ import java.util.UUID
 
 object AuthService {
     private val logger = KotlinLogging.logger { }
+    private const val ONBOARDING_ROLE = "ONBOARDING"
 
     @Suppress("ReturnCount")
     fun login(
@@ -79,14 +81,20 @@ object AuthService {
         val userID: UUID =
             try {
                 transaction {
-                    UserRepository.createUserInTransaction(
-                        UserCreateParams(
-                            username = username,
-                            passwordHash = passwordHash,
-                            email = email,
-                            displayName = displayName,
-                        ),
-                    )
+                    val id: UUID =
+                        UserRepository.createUserInTransaction(
+                            UserCreateParams(
+                                username = username,
+                                passwordHash = passwordHash,
+                                email = email,
+                                displayName = displayName,
+                            ),
+                        )
+                    val onboardingRoleId =
+                        RoleRepository.findIdByNameInTransaction(ONBOARDING_ROLE)
+                            ?: error("ONBOARDING role missing from seed data")
+                    RoleRepository.assignRoleInTransaction(id, onboardingRoleId)
+                    id
                 }
             } catch (exception: RegistrationConflictException) {
                 return when (exception.field) {

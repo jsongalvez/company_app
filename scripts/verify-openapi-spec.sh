@@ -90,7 +90,7 @@ for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"
       });
     }
   }
-  for (const match of scanSource.matchAll(/routes\.(get|post|patch|delete)\s*\(\s*(?:"([^"]+)"|ApiRoutes\.(\w+))/g)) {
+  for (const match of scanSource.matchAll(/routes\.(get|post|patch|delete|put)\s*\(\s*(?:"([^"]+)"|ApiRoutes\.(\w+))/g)) {
     const path = resolveApiRoute(match[2] || constants[match[3]] || "").replace(/\{\$([A-Z0-9_]+)\}/g, (_, name) => `{${constants[name] || name.toLowerCase().replace(/_PARAM$/, "")}}`);
     routes.push(`${match[1]} ${path}`);
   }

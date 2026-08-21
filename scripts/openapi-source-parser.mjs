@@ -76,7 +76,7 @@ export function sourceAnnotations(source, file, resolvePath = (value) => value) 
     const body = annotation.slice(1, -1);
     const pathMatch = body.match(/\bpath\s*=\s*(?:"((?:[^"\\]|\\.)*)"|ApiRoutes\.(\w+))/);
     const path = pathMatch ? resolvePath(pathMatch[1] || pathMatch[2]) : undefined;
-    const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE)/g)].map((match) => match[1].toLowerCase());
+    const methods = [...(body.match(/\bmethods\s*=\s*\[([\s\S]*?)\]/)?.[1] || "").matchAll(/HttpMethod\.(GET|POST|PATCH|DELETE|PUT)/g)].map((match) => match[1].toLowerCase());
     if (!path || methods.length === 0) throw new Error(`Incomplete OpenApi annotation in ${file}`);
     const owner = enclosingOwner(source, start);
     if (!owner) throw new Error(`OpenApi annotation is not owned by a route object in ${file}`);

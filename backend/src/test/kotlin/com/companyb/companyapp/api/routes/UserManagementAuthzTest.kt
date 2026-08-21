@@ -9,11 +9,14 @@ import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
+import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.UserService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -24,6 +27,7 @@ import io.javalin.testtools.Request
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.junit.ClassRule
@@ -188,5 +192,57 @@ class UserManagementAuthzTest : BasePostgresTest() {
             status = client.patch("/api/users/$targetUser/deactivate", null, asUser(noGrantUser)).code
         }
         assertEquals(403, status)
+    }
+
+    // ──────────────────────────────────────────────
+    // #344 — create-user + role-assignment routes
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `POST users creates for MANAGE_USERS holder and is forbidden without it`() {
+        val newUserId = TestFixtures.uuid()
+        val body =
+            mapOf(
+                "username" to "api-created-$newUserId",
+                "email" to "$newUserId@api.st",
+                "displayName" to "API Created",
+                "password" to "valid-password",
+            )
+        testServer.client.let { client ->
+            assertEquals(403, client.post("/api/users", body, asUser(noGrantUser)).code)
+            val response = client.post("/api/users", body, asUser(managerUser))
+            assertEquals(201, response.code)
+            assertTrue(
+                response.body.string().contains("\"username\":\"api-created-$newUserId\""),
+                "created user payload must round-trip",
+            )
+        }
+        val apiCreated = UserRepository.findByUsername("api-created-$newUserId")
+        trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(apiCreated?.id ?: error("created user must exist")))
+    }
+
+    @Test
+    fun `GET roles is gated like the write surface`() {
+        testServer.client.let { client ->
+            assertEquals(403, client.get("/api/roles", asUser(noGrantUser)).code)
+            assertEquals(200, client.get("/api/roles", asUser(managerUser)).code)
+        }
+    }
+
+    @Test
+    fun `PUT roles replaces for MANAGE_USERS holder and is forbidden without it`() {
+        trackOwned(UserRoleTable, UserRoleTable.userId, targetUser)
+        transaction {
+            UserRoleTable.insert {
+                it[UserRoleTable.userId] = targetUser
+                it[UserRoleTable.roleId] =
+                    RoleTable.selectAll().where { RoleTable.name eq "MANAGER" }.single()[RoleTable.id]
+            }
+        }
+        val body = mapOf("roles" to listOf("COORDINATOR"))
+        testServer.client.let { client ->
+            assertEquals(204, client.put("/api/users/$targetUser/roles", body, asUser(managerUser)).code)
+            assertEquals(403, client.put("/api/users/$targetUser/roles", body, asUser(noGrantUser)).code)
+        }
     }
 }
