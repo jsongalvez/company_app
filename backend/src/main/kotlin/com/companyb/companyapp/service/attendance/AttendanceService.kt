@@ -76,7 +76,7 @@ object AttendanceService {
             logger.info { "[CLOCK-OUT] User $callerId clocked out (attendance=$attendanceId)" }
 
             if (wasClockedOut) {
-                CommissionService.recalculate(attendance.branchDayId)
+                CommissionService.recalculateInTransaction(attendance.branchDayId)
             }
 
             val isRelief = AssignmentResolver.getIsRelief(attendance.branchDayId, attendance.userId)
@@ -137,7 +137,7 @@ object AttendanceService {
             }
 
             if (wasCreated) {
-                CommissionService.recalculate(branchDay.id)
+                CommissionService.recalculateInTransaction(branchDay.id)
             }
 
             AttendanceServiceResult(attendance, wasCreated, isRelief)

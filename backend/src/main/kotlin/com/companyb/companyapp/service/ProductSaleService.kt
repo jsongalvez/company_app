@@ -137,7 +137,7 @@ object ProductSaleService {
 
                 // Commission splits join this same command transaction — a rollback of any write
                 // above also rolls them back (pinned by existing sell/commission failure tests).
-                CommissionService.recalculate(branchDayId)
+                CommissionService.recalculateInTransaction(branchDayId)
 
                 createdBranchId = params.branchId
                 SellProductResult(sale, created = true)

@@ -89,8 +89,9 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 // Batch 5 — inventory/product-sale cluster.
                 "service/ProductSaleService.kt" to listOf("sell"),
                 "service/inventory/InventoryService.kt" to listOf("recordMovement", "ensureCard"),
-                // Batch 6 — commission cluster. recalculate keeps its single wrapper so callers
-                // (sell, clock-in/out, manualRecalculate) join one shared transaction per command.
+                // Batch 6 — commission cluster. recalculate remains the standalone entry point
+                // (manualRecalculate); sell/clock-in/clock-out call recalculateInTransaction
+                // inside their own commands instead of nesting this module's write block.
                 "service/finance/commission/CommissionService.kt" to
                     listOf("createManualInclusion", "recalculate"),
             )

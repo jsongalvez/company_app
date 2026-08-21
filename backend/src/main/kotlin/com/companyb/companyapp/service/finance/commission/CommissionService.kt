@@ -92,7 +92,7 @@ object CommissionService {
             CommissionAudit.updated(context, mutation.existing, mutation.inclusion)
         }
 
-        recalculate(sale.branchDayId)
+        recalculateInTransaction(sale.branchDayId)
 
         logger.info {
             "[COMMISSION-INCLUSION] Created inclusion ${mutation.inclusion.id} for productSale=$productSaleId " +
@@ -106,15 +106,21 @@ object CommissionService {
         branchDayId: UUID,
         force: Boolean = false,
     ) = transaction {
-        BranchDayRepository.acquireLock(branchDayId)
         recalculateInTransaction(branchDayId, force)
     }
 
+    /**
+     * Store-side body for callers already inside their own command-owned write (#326 closeout:
+     * attendance/sale/manual-inclusion commands must not nest this module's write block).
+     * Acquires the branch-day row lock so concurrent recalcs serialize identically whether the
+     * entry point is the standalone wrapper or an enclosing command.
+     */
     @Suppress("ReturnCount")
-    private fun recalculateInTransaction(
+    internal fun recalculateInTransaction(
         branchDayId: UUID,
-        force: Boolean,
+        force: Boolean = false,
     ) {
+        BranchDayRepository.acquireLock(branchDayId)
         logger.info { "[COMMISSION-SERVICE] Recalculating commission for branchDay=$branchDayId force=$force" }
 
         val effectiveStatus = BranchDayService.getEffectiveStatus(branchDayId)
