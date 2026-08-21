@@ -30,7 +30,7 @@ pr_metadata() {
   printf '%s\n' "$pr"
 }
 effective_checks() {
-  local pr="$1" output
+  local pr="$1" output head_sha repo
   if output="$(gh pr checks "$pr" --required 2>&1)"; then
     printf '%s\n' "$output"
     return 0
@@ -42,6 +42,14 @@ effective_checks() {
       printf '%s\n' "$output"
       return 0
     fi
+  fi
+  if printf '%s\n' "$output" | grep -qi 'no checks reported'; then
+    head_sha="$(gh pr view "$pr" --json headRefOid --jq .headRefOid)"
+    repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+    output="$(gh api "repos/$repo/commits/$head_sha/check-runs" --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | join(" ")' 2>&1)" || true
+    [ -n "$output" ] || die "no CI check-runs reported for $pr head $head_sha"
+    printf '%s\n' "$output"
+    return 0
   fi
   printf '%s\n' "$output"
   return 1
@@ -71,7 +79,7 @@ resolve_issue() {
   validate_branch "$ticket"
   pr_metadata "$pr" >/dev/null
   ci_green "$pr"
-  checks="$(gh pr checks "$pr" --required)"
+  checks="$(effective_checks "$pr")"
   commit="$(git -C "$REPO" rev-parse HEAD)"
   gh issue comment "$ticket" --body "AFK resolution evidence: branch=$(branch_name); base=master; commit=$commit; PR=$pr; required checks:\n\n$checks"
   gh issue close "$ticket" --comment "Resolved only after green required CI checks: $pr"
