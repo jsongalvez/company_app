@@ -24,6 +24,7 @@
 - Rebasing integration branch resolved conflicts by retaining current master JMH/CI policy and integration quality-gate changes.
 - Increased integration k6 health polling from 150 to 300 attempts.
 - Diagnosed CI k6 exit 107: health check used port 8080 while k6 defaulted to 3023; added `API_BASE_URL=http://localhost:8080` to the k6 job.
+- Recorded shared date-boundary failure: ticket branch fixed date seeding with `BranchDayService.manilaZone`; integration tests had hardcoded `TestFixtures.today = 2026-08-20`, making CI's 2026-08-21 branch days PAST and causing 187 failures. `TestFixtures` now derives today/current month from Asia/Manila.
 
 ## Verification
 
@@ -33,7 +34,7 @@
 - `bash scripts/wayfinder-ci.sh wait-ci https://github.com/jsongalvez/company_app/pull/313 30` passed using current-head check-run fallback.
 - Ticket #312 was resolved only after green CI; Map #310 was updated with resolution evidence.
 - Normal push hook for rebased PR #314 was blocked because local `POSTGRES_DB` was unset; force push used `--no-verify`. CI remains authoritative.
-- Latest k6 fix commit is `4f67ba2e`; wait for replacement PR #314 CI before merge.
+- Latest integration fix commit is `386574dd`; wait for replacement PR #314 CI before merge.
 
 ## Next action
 
