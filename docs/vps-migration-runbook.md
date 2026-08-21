@@ -14,12 +14,12 @@ Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the l
 | `~/.local/share/opencode/auth.json` | provider API keys (`opencode-go` = the chain's `gpt-5.6-luna`) | copy (126 B) — do NOT copy the 2.1 GB `opencode.db` |
 | `gh` CLI + auth | issue tracker: `gh issue create/view/close/edit`, `gh api …/sub_issues` | install + `gh auth login` (token needs `repo` scope) |
 | JDK 21 + Gradle 8.14.3 wrapper | build/test gates | `openjdk-21-jdk`; wrapper downloads Gradle |
-| Android SDK (cmdline-tools, platform 36, build-tools 36.0.0) | Android compile + unit tests (the pre-push Android leg) | `sdkmanager` (wizard stage); on aarch64 first add qemu-user-static binfmt + amd64 multiarch libs — AGP's aapt2 is x86_64-only |
-| Postgres 18 (docker compose) | pre-commit gate + backend tests | `docker compose -f docker/docker-compose.yml up -d` |
+| Android SDK (cmdline-tools, platform 36, build-tools 36.0.0) | Android compile + unit tests (targeted/CI validation) | `sdkmanager` (wizard stage); on aarch64 first add qemu-user-static binfmt + amd64 multiarch libs — AGP's aapt2 is x86_64-only |
+| Postgres 18 (docker compose) | backend tests (run on demand) | `docker compose -f docker/docker-compose.yml up -d` |
 | `.env` (repo root) | DB creds, JWT secret, test-user creds | copy real values from local box |
 | `.wayfinder-loop.env` (gitignored) | ntfy topic + `WAYFINDER_MODEL` | copy |
 | `bash scripts/setup-hooks.sh` | `.githooks` + ktlint CLI | run once after clone |
-| k6 (optional) | pre-push load-test baseline | skip OK (pre-push warns + skips); or install aarch64 binary |
+| k6 (optional) | manual load-test runs | skip OK; or install aarch64 binary |
 | git + GitHub push auth | sessions commit; you push | `gh auth git-credential` (from `gh auth login`) |
 
 All components have aarch64 builds (JDK 21, Postgres 18 image, Gradle, ktlint jar). The one x86_64-only toolchain piece is AGP's `aapt2` (no `linux-arm64` on the Maven repo) — handled by qemu-user-static binfmt + amd64 multiarch libs in the SDK step below. 2 OCPU / 12 GB is sufficient — the local box runs the same gates.
@@ -93,7 +93,7 @@ docker compose -f docker/docker-compose.yml ps   # wait for healthy
 # 10. Hooks + ktlint
 bash scripts/setup-hooks.sh
 
-# 11. Android SDK — pre-push compiles the Android leg, so the SDK must exist.
+# 11. Android SDK — targeted Android compile/test validation needs it.
 #     On aarch64 (the A1) AGP's aapt2 is x86_64-only, so first make x86_64
 #     binaries runnable: qemu-user-static binfmt + the amd64 glibc loader.
 #     (AGP 8.12 publishes no linux-arm64 aapt2 — checked against the Maven repo.)
@@ -143,7 +143,7 @@ Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#1
    Confirm: `tmux ls` shows no `wayfinder-loop`; `ps aux | grep wayfinder-loop.sh` is empty. (The wizard confirm-gates this and aborts if declined.)
 3. On **this machine**: push the branch (carries the handoff):
    ```bash
-   git push origin ralph/company-app-full-build        # pre-push gate ~3 min
+   git push origin ralph/company-app-full-build        # hooks are bookkeeping; push is network-only
    ```
 4. On the **VPS**: pull, then bootstrap the daemon on the handoff.
    ```bash
@@ -161,8 +161,8 @@ Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#1
 ## Phase 4 — post-migration checks
 
 - `gh issue view 89` — map untouched by the move; the new session claims its ticket on GitHub as usual.
-- The VPS's pre-commit gate runs on every session commit (Postgres + backend tests) — watch the first one succeed end-to-end.
-- Optional: install `k6` (aarch64 binary from GitHub releases) so pre-push load-test baselines run on the VPS too.
+- The VPS's hooks are bookkeeping only (map #329) — validation is targeted/on-demand plus asynchronous CI.
+- Optional: install `k6` (aarch64 binary from GitHub releases) for manual load-test runs.
 - **CORS: the API ships with zero CORS config — correct for the native KMP clients (Android/desktop/iOS don't enforce CORS) and for same-origin web. The moment a browser client on ANOTHER origin appears (web dashboard, web build of the app), register Javalin's bundled `CorsPlugin` with that origin whitelisted — and note the auth is JWT-bearer, not cookie, so no credentials-mode restrictions apply.**
 
 ## Secrets checklist (what leaves this box)

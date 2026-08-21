@@ -355,7 +355,7 @@ else
 fi
 if confirm "Push the branch to origin now"; then
   git -C "$REPO" push
-  note "pushed (pre-push gate ~3 min)"
+  note "pushed (hooks are bookkeeping; push is network-only)"
 else
   if [[ "$MODE" == "full" ]]; then
     warn "deferred — the branch reaches origin at the switch push; the Coolify app stage will push first if it is behind"
@@ -917,8 +917,8 @@ stage "Push the branch (carries the handoff)" 4
 git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
-    git -C "$REPO" push origin "$DEPLOY_BRANCH" || abort "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease; if the PRE-PUSH HOOK failed: fix the gate. Then re-run (the wizard resumes at this stage)"
-    note "pushed (~3 min pre-push gate)"
+    git -C "$REPO" push origin "$DEPLOY_BRANCH" || abort "push FAILED — if the remote diverged: git fetch origin && git pull --rebase, then git push --force-with-lease. Then re-run (the wizard resumes at this stage)"
+    note "pushed (hooks are bookkeeping; push is network-only)"
   else
     note "already up to date"
   fi
@@ -970,8 +970,8 @@ if vps 'cd ~/company_app && git push --dry-run && gh issue list --state open'; t
 else
   warn "push --dry-run or issue list FAILED on the VPS — check git/gh state"
 fi
-note "first VPS pre-commit gate runs on the next session commit (watch it succeed end-to-end)"
-note "k6 skipped (optional): pre-push warns + skips the load test on the VPS"
+note "hooks are bookkeeping on the VPS too — validation is targeted/on-demand plus asynchronous CI"
+note "k6 optional: install it only for manual load-test runs"
 note "next session on the VPS works the map as usual — same branch, same issues"
 
 else
