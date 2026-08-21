@@ -174,7 +174,7 @@ jobs:
           }
           trap cleanup EXIT
           # Cold CI Gradle builds can take longer than a minute before the app listens.
-          for attempt in $(seq 1 150); do
+          for attempt in $(seq 1 300); do
             if curl --fail --silent "http://localhost:${APP_PORT}/health" >/dev/null; then
               break
             fi
