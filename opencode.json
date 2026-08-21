@@ -1,9 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    "/home/jayson/.config/opencode/skills/ponytail.mjs",
-    "/home/jayson/.config/opencode/plugins/caveman/plugin.js"
-  ],
   "server": {
     "hostname": "0.0.0.0",
     "port": 8080

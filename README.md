@@ -52,7 +52,7 @@ Automates the wayfinder session chain: watches `.wayfinder/handoffs/` (gitignore
 
 ```bash
 # First start (seed with the latest handoff packet and spawn immediately)
-./scripts/wayfinder-loop.sh --bootstrap wayfinder-163-handoff.md
+./scripts/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md
 
 # Normal start / restart (resumes supervision of the running session)
 ./scripts/wayfinder-loop.sh
@@ -71,7 +71,7 @@ tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a
 | Watch the daemon log live | `tmux attach -t wayfinder-loop` |
 | Session history | `cat .wayfinder-loop.log` |
 | Stop the chain (running agent session survives) | `tmux kill-session -t wayfinder-loop` |
-| First start (seed with the latest handoff, spawn immediately) | `./scripts/wayfinder-loop.sh --bootstrap wayfinder-163-handoff.md` |
+| First start (seed with the latest handoff, spawn immediately) | `./scripts/wayfinder-loop.sh --bootstrap <latest-handoff-packet>.md` |
 | Normal start / resume supervision after a stop or reboot | `tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh'` |
 | Resume a paused chain (after a dead/stalled session exhausted retries) | `./scripts/wayfinder-loop.sh --retry` |
 | Resume the existing session in place (keeps its uncommitted work) | `./scripts/wayfinder-loop.sh --resume` |

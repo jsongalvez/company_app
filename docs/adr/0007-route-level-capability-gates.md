@@ -29,10 +29,9 @@ The service layer retains day-state assertions (`BranchDayService.assertEditable
 longer performs capability checks.
 
 **Pilot scope (completed):** ExpenseService routes only (`POST/GET /api/expenses`,
-`DELETE /api/expenses/{expenseId}`). Proves the pattern before wider rollout (see
-[#2](../../.scratch/issues/0002-collapse-capability-boilerplate/ISSUE.md)).
+`DELETE /api/expenses/{expenseId}`). Proves the pattern before wider rollout.
 
-**Full rollout (completed, [#7](../../.scratch/issues/0007-group-b-branch-scope/ISSUE.md)):**
+**Full rollout (completed):**
 All Group B services converted from GLOBAL to BRANCH scope:
 
 - **SessionRoutes** (7 of 8 filters): `POST /api/sessions`, `PATCH /api/sessions/{sessionId}/status`,

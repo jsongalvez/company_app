@@ -16,16 +16,6 @@ source "$ROOT_DIR/scripts/lib/common.sh"
 LOG_TAG=pre-commit
 log pre-commit "$@"
 
-# Classify staged changes before any formatter work so documentation-only
-# commits skip even the cheap checks.
-STAGED_FILES="$(git diff --cached --no-renames --name-only)"
-PRE_COMMIT_CLASSIFICATION="$(printf '%s\n' "$STAGED_FILES" | bash "$ROOT_DIR/scripts/classify-push-files.sh")"
-log pre-commit "Staged change classification: $PRE_COMMIT_CLASSIFICATION"
-if [ "$PRE_COMMIT_CLASSIFICATION" = "docs-only" ]; then
-    log pre-commit "Documentation-only staged change; skipping local checks."
-    exit 0
-fi
-
 # ----------------------------------------------------------------
 # 1. Format staged Kotlin files (standalone ktlint CLI only)
 # ----------------------------------------------------------------
@@ -62,6 +52,7 @@ fi
 # ----------------------------------------------------------------
 # 2. Syntax-check staged shell files
 # ----------------------------------------------------------------
+STAGED_FILES="$(git diff --cached --no-renames --name-only)"
 SHELL_FILES=()
 while IFS= read -r file; do
     case "$file" in

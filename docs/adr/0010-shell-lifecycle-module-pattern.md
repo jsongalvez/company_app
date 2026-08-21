@@ -1,6 +1,6 @@
 # Shell lifecycle module pattern
 
-Extracted the shared app-boot lifecycle (build, start, port-wait, health-check, cleanup) into `scripts/lib/start-app.sh`, originally sourced by both `pre-commit` and `pre-push`. Under the #329 throughput map, git hooks no longer start Gradle, the backend, or Postgres, so the hooks no longer source this module; it remains the shared lifecycle for manual k6/integration workflows. Two key design decisions:
+Extracted the shared app-boot lifecycle (build, start, port-wait, health-check, cleanup) into `scripts/lib/start-app.sh`, originally sourced by both pre-commit and pre-push. Under the #329 throughput map, git hooks no longer start Gradle, the backend, or Postgres; no manual workflow adopted the module either, so it had zero live consumers and was deleted (#339). The design decisions below are kept as history.
 
 **Caller-owned LOG_TAG.** The spec suggested the module log with a `[start-app]` tag. We chose to have callers set `LOG_TAG` before sourcing, so log lines inherit the caller's identity (`[pre-push]`, a k6 run). This makes logs unambiguous when reading a single caller's output — the module's origin is obvious from the sourcing line, and each log line tells you *which caller* ran it.
 

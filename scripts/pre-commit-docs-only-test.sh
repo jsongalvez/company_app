@@ -6,6 +6,9 @@ WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 GIT_CALLS="$WORK_DIR/git-calls"
 
+# Fixture: one staged docs file. Hook must still run its cheap checks — the
+# docs-only fast path (classify-push-files.sh) was deleted with #339; hooks
+# are near-zero for every change type (map #329).
 printf '%s\n' \
     '#!/bin/bash' \
     'if [ "$1" = "diff" ]; then' \
@@ -18,8 +21,8 @@ printf '%s\n' \
 chmod +x "$WORK_DIR/git"
 
 output="$(GIT_CALLS="$GIT_CALLS" PATH="$WORK_DIR:$PATH" bash "$ROOT_DIR/.githooks/pre-commit")"
-grep -Fq 'Staged change classification: docs-only' <<<"$output"
-grep -Fq 'Documentation-only staged change; skipping' <<<"$output"
-[ "$(wc -l < "$GIT_CALLS")" -eq 1 ]
+grep -Fq 'No staged Kotlin files' <<<"$output"
+grep -Fq 'Pre-commit checks passed' <<<"$output"
+[ "$(wc -l < "$GIT_CALLS")" -eq 2 ]
 
 printf 'pre-commit docs-only fixture: PASS\n'

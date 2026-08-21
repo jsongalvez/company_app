@@ -54,5 +54,4 @@ The anti-pattern (inline `runCatching`/`UUID.fromString`) appeared in:
 The `UUID.fromString(context.attribute<String>("userId"))` anti-pattern appeared in all
 24 route/filter files (~60 occurrences), all migrated to `context.callerUuid()`.
 
-See [#4](../../.scratch/issues/0004-refactor-uuid-parsing/ISSUE.md) for the original
-refactor work.
+See the original refactor commit history for details.

@@ -542,7 +542,7 @@ load_state
 normalize_seen_docs
 
 if [ "${1:-}" = "--bootstrap" ]; then
-  [ $# -ge 2 ] || die "--bootstrap requires <doc> (e.g. wayfinder-162-handoff.md)"
+  [ $# -ge 2 ] || die "--bootstrap requires <doc> (a .wayfinder/handoffs/ packet filename)"
   # Accept either a handoff basename or a path copied from a log/prompt.
   doc="${2##*/}"
   [ -f "$HANDOFF_DIR/$doc" ] || die "bootstrap doc not found: $HANDOFF_DIR/$doc"

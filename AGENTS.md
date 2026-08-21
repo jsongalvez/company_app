@@ -184,10 +184,9 @@ consume near-zero hosted minutes.
 
 ## Ticket tracking
 
-When completing a ticket via `/implements`:
-
-1. Append `**Status:** ✅ done` to the bottom of the ticket file.
-2. Mark `[x]` on the ticket's row in the corresponding `TRACKING.md` (`.scratch/*/issues/TRACKING.md`).
+GitHub Issues are the canonical ticket store; a closed issue is the completion record.
+No tracked per-ticket Markdown ledgers — git history and the resolution comment own
+ticket state.
 
 ## Agent skills
 

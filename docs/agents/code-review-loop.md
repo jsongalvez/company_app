@@ -2,7 +2,7 @@
 
 The active contract lives in `AGENTS.md` ("Code review — risk-based graph"). This file is the
 operational artifact: review packet templates + flow-trace checklist + **lesson-class
-register**. The former uniform contract is preserved in `docs/agents/code-review-loop-legacy.md`.
+register**.
 
 ## Review graph
 
