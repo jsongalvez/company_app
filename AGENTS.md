@@ -172,13 +172,16 @@ never recalibrate from a single run; after any CI-runner baseline shift, dispatc
 several times and recompute the medians. See `backend/AGENTS.md` for the full performance
 workflow (measureTimedValue, JFR profiling, k6 load testing, threshold tuning procedure).
 
-CI is asynchronous and budgeted (#333): the active agent never polls it, and failures surface
-as a red [repair workflow](.github/workflows/repair.yml) on master — next-session corrective
-priority, not a synchronous gate. GitHub-hosted Actions minutes are a constrained monthly
-budget: the hosted set is capped at **≤300 minutes/month** (quality ≤240, repair ≤5, jmh ≤55
-manual-dispatch diagnostics), and hosted schedules beyond this set need a measured reserved
-slice of that cap before existing. Ordinary successful tickets should consume near-zero hosted
-minutes.
+CI is asynchronous and budgeted (#333): the active agent never polls it, and a failed run is
+the durable repair signal — next-session corrective priority, not a synchronous gate.
+**Next-session reconciliation** is the session-start check: one `gh api
+repos/jsongalvez/company_app/commits/<latest-master-sha>/check-runs --jq '[.check_runs[] |
+select(.conclusion != "success" and .conclusion != null) | .name]'` call (unbilled, no hosted
+compute); red = repair first, green/pending = continue under the map. GitHub-hosted Actions
+minutes are a constrained monthly budget: the hosted set is capped at **≤300 minutes/month**
+(quality ≤240, jmh ≤55 manual-dispatch diagnostics), and hosted schedules beyond this set need
+a measured reserved slice of that cap before existing. Ordinary successful tickets should
+consume near-zero hosted minutes.
 
 ## Ticket tracking
 
