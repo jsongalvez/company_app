@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.lessEq
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -35,17 +36,12 @@ data class RecordMovementParams(
     val quantityChange: Int,
     val notes: String?,
     val branchDayId: UUID,
-    val expectedVersion: Int,
     val movedBy: UUID,
 )
 
-data class MovementAuditData(
+data class RecordMovementResult(
     val movement: InventoryMovement,
-    val oldCard: BranchInventory,
-    val newCard: BranchInventory,
-    val reason: InventoryMovementReason,
-    val quantityChange: Int,
-    val notes: String?,
+    val created: Boolean,
 )
 
 @Suppress("TooManyFunctions")
@@ -77,97 +73,71 @@ object BranchInventoryRepository {
         return oldCard.copy(currentStock = newStock, version = expectedVersion + 1)
     }
 
-    fun ensureCard(
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * Idempotently materializes the inventory card; no audit row is written (matching the
+     * previous ensureCard behavior).
+     */
+    fun ensureCardInTransaction(
         branchId: UUID,
         productId: UUID,
-    ): BranchInventory =
-        transaction {
-            val existing = findCardInTransaction(branchId, productId)
-            if (existing != null) {
-                return@transaction existing
-            }
+    ): BranchInventory {
+        findCardInTransaction(branchId, productId)?.let { return it }
 
-            BranchInventoryTable.insertIgnore {
-                it[BranchInventoryTable.branchId] = branchId
-                it[BranchInventoryTable.productId] = productId
-                it[BranchInventoryTable.currentStock] = 0
-                it[BranchInventoryTable.version] = 1
-            }
-
-            findCardInTransaction(branchId, productId)
-                ?: error("inventory card not found after idempotent insert for branch=$branchId product=$productId")
-        }.also {
-            logger.info {
-                "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId stock=${it.currentStock}"
-            }
+        BranchInventoryTable.insertIgnore {
+            it[BranchInventoryTable.branchId] = branchId
+            it[BranchInventoryTable.productId] = productId
+            it[BranchInventoryTable.currentStock] = 0
+            it[BranchInventoryTable.version] = 1
         }
 
-    fun recordMovement(
-        params: RecordMovementParams,
-        auditFn: (MovementAuditData) -> Unit = {},
-    ): InventoryMovement =
-        transaction {
-            val inserted =
-                InventoryMovementTable.insertIgnore {
-                    it[InventoryMovementTable.id] = params.movementId
-                    it[InventoryMovementTable.productId] = params.productId
-                    it[InventoryMovementTable.branchId] = params.branchId
-                    it[InventoryMovementTable.branchDayId] = params.branchDayId
-                    it[InventoryMovementTable.reason] = params.reason
-                    it[InventoryMovementTable.quantityChange] = params.quantityChange
-                    it[InventoryMovementTable.movedBy] = params.movedBy
-                    it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
-                    if (params.notes != null) {
-                        it[InventoryMovementTable.notes] = params.notes
-                    }
+        return findCardInTransaction(branchId, productId)
+            ?: error("inventory card not found after idempotent insert for branch=$branchId product=$productId")
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — idempotent movement-row write with the
+     * duplicate-request classification kept verbatim from the retired recordMovement wrapper:
+     * a lost insert race re-reads the row and either returns it (same request) or conflicts.
+     * The caller performs the stock update and audit writes only when [RecordMovementResult.created].
+     */
+    fun insertMovementInTransaction(params: RecordMovementParams): RecordMovementResult {
+        val inserted =
+            InventoryMovementTable.insertIgnore {
+                it[InventoryMovementTable.id] = params.movementId
+                it[InventoryMovementTable.productId] = params.productId
+                it[InventoryMovementTable.branchId] = params.branchId
+                it[InventoryMovementTable.branchDayId] = params.branchDayId
+                it[InventoryMovementTable.reason] = params.reason
+                it[InventoryMovementTable.quantityChange] = params.quantityChange
+                it[InventoryMovementTable.movedBy] = params.movedBy
+                it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
+                if (params.notes != null) {
+                    it[InventoryMovementTable.notes] = params.notes
                 }
-            val wasInserted = inserted.insertedCount > 0
-
-            if (!wasInserted) {
-                val existingMovement = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
-                if (!sameMovementRequest(existingMovement, params)) {
-                    throw ConflictException("Movement ID already belongs to another request")
-                }
-                return@transaction existingMovement
             }
+        val wasInserted = inserted.insertedCount > 0
 
-            val oldCard =
-                findCardInTransaction(params.branchId, params.productId)
-                    ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
-
-            val newCard =
-                requireCardForUpdate(
-                    oldCard,
-                    params.expectedVersion,
-                    params.quantityChange,
-                )
-
-            val movementRow = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
-
-            auditFn(
-                MovementAuditData(
-                    movement = movementRow,
-                    oldCard = oldCard,
-                    newCard = newCard,
-                    reason = params.reason,
-                    quantityChange = params.quantityChange,
-                    notes = params.notes,
-                ),
-            )
-            movementRow
-        }.also {
-            logger.info {
-                "[RECORD-MOVEMENT] reason=${params.reason} product=${params.productId} " +
-                    "branch=${params.branchId} qty=${params.quantityChange}"
+        if (!wasInserted) {
+            val existingMovement = findMovementInTransaction(params.movementId) ?: error("movement disappeared")
+            if (!sameMovementRequest(existingMovement, params)) {
+                throw ConflictException("Movement ID already belongs to another request")
             }
+            return RecordMovementResult(existingMovement, created = false)
         }
+        return RecordMovementResult(
+            findMovementInTransaction(params.movementId) ?: error("movement disappeared"),
+            created = true,
+        )
+    }
 
     fun findMovementById(movementId: UUID): InventoryMovement? =
         transaction {
             findMovementInTransaction(movementId)
         }
 
-    private fun findMovementInTransaction(movementId: UUID): InventoryMovement? =
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun findMovementInTransaction(movementId: UUID): InventoryMovement? =
         InventoryMovementTable
             .selectAll()
             .where { InventoryMovementTable.id eq movementId }
@@ -197,6 +167,25 @@ object BranchInventoryRepository {
                 (BranchInventoryTable.branchId eq branchId) and
                     (BranchInventoryTable.productId eq productId)
             }.singleOrNull()
+            ?.let { it.toBranchInventory() }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
+     * Folds the former acquireInventoryLock + read pair into one locked read: a row-level
+     * branch_inventory lock prevents TOCTOU races on concurrent stock checks during sales
+     * (CR-018 D2). The terminal op materializes the FOR UPDATE lock (#136).
+     */
+    fun findCardForUpdateInTransaction(
+        branchId: UUID,
+        productId: UUID,
+    ): BranchInventory? =
+        BranchInventoryTable
+            .selectAll()
+            .where {
+                (BranchInventoryTable.branchId eq branchId) and
+                    (BranchInventoryTable.productId eq productId)
+            }.forUpdate(ForUpdateOption.ForUpdate)
+            .singleOrNull()
             ?.let { it.toBranchInventory() }
 
     fun findMovements(

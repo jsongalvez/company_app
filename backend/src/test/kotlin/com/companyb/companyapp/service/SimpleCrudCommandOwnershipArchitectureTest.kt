@@ -7,9 +7,9 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * #323 batches 1–4 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
+ * #323 batches 1–5 ownership seam (ADR-0024). Cheap source-level assertions that the migrated
  * modules (Branch, ProductCategory, Product, Client, Allowance, Compensation, session cluster,
- * user/access cluster) keep their shape:
+ * user/access cluster, inventory/product-sale cluster) keep their shape:
  * mutating store operations are `*InTransaction` with no `auditFn` coordination and no nested
  * write transactions, and each public command owns exactly one transaction while persistence-table
  * knowledge stays behind the feature/audit seam. Mechanical enforcement for the whole backend
@@ -41,6 +41,9 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/ReliefAccessRepository.kt" to 4,
                 "repository/ReliefInviteRepository.kt" to 10,
                 "repository/MedicalMissionDelegateRepository.kt" to 1,
+                // Batch 5 — inventory/product-sale cluster.
+                "repository/ProductSaleRepository.kt" to 2,
+                "repository/BranchInventoryRepository.kt" to 4,
             )
         files.forEach { (file, expectedBlocks) ->
             val source = mainSource(file)
@@ -80,6 +83,9 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/ReliefInviteService.kt" to
                     listOf("createInvite", "acceptInvite", "declineInvite", "retractInvite"),
                 "service/MedicalMissionDelegateService.kt" to listOf("assignDelegate", "revokeDelegate"),
+                // Batch 5 — inventory/product-sale cluster.
+                "service/ProductSaleService.kt" to listOf("sell"),
+                "service/inventory/InventoryService.kt" to listOf("recordMovement", "ensureCard"),
             )
         commands.forEach { (file, names) ->
             val source = mainSource(file)
@@ -117,6 +123,9 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/ReliefAccessService.kt" to "ReliefAccessAudit",
                 "service/ReliefInviteService.kt" to "ReliefInviteAudit",
                 "service/MedicalMissionDelegateService.kt" to "MedicalMissionDelegateAudit",
+                // Batch 5 — inventory/product-sale cluster.
+                "service/ProductSaleService.kt" to "ProductSaleAudit",
+                "service/inventory/InventoryService.kt" to "BranchInventoryAudit",
             )
         seams.forEach { (file, seam) ->
             val source = mainSource(file)

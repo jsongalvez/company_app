@@ -3,22 +3,17 @@ package com.companyb.companyapp.repository
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
-import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.ActiveSessionVoidsView
-import com.companyb.companyapp.repository.model.BranchInventory
-import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.repository.model.ProductSale
 import com.companyb.companyapp.repository.model.ProductSaleTable
 import com.companyb.companyapp.repository.model.SessionTable
-import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -57,104 +52,60 @@ data class SellProductResult(
     val created: Boolean,
 )
 
-private val logger = KotlinLogging.logger {}
-
-@Suppress("TooManyFunctions")
 object ProductSaleRepository {
-    @Suppress("LongMethod")
-    fun sell(
-        params: SellProductParams,
-        auditFn: (ProductSale, BranchInventory, BranchInventory) -> Unit = { _, _, _ -> },
-    ): SellProductResult =
-        transaction {
-            val existing = findByIdInTransaction(params.id)
-            if (existing != null) {
-                validateRetryOwnership(existing, params)
-                logger.info { "[PRODUCT-SALE] Sale ${params.id} already exists, returning existing (idempotent)" }
-                return@transaction SellProductResult(existing, created = false)
-            }
-
-            val inserted =
-                insertProductSaleRow(
-                    params.id,
-                    params.branchDayId,
-                    params.sessionId,
-                    params.clientId,
-                    params.isWalkIn,
-                    params.productId,
-                    params.product,
-                    params.handledBy,
-                    params.quantity,
-                    params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong()),
-                )
-            if (!inserted) {
-                val concurrentSale =
-                    findByIdInTransaction(params.id)
-                        ?: error("product sale missing after idempotent insert for ${params.id}")
-                validateRetryOwnership(concurrentSale, params)
-                return@transaction SellProductResult(concurrentSale, created = false)
-            }
-
-            acquireInventoryLock(params.branchId, params.productId)
-
-            val beforeCard =
-                BranchInventoryRepository.findCardInTransaction(params.branchId, params.productId)
-                    ?: error("inventory card not found for branch=${params.branchId} product=${params.productId}")
-
-            if (beforeCard.currentStock < params.quantity) throw ValidationException("Insufficient stock")
-
-            val newCard =
-                BranchInventoryRepository.requireCardForUpdate(
-                    beforeCard,
-                    params.expectedVersion,
-                    -params.quantity,
-                )
-
-            insertSaleInventoryMovement(
-                params.id,
-                params.productId,
-                params.branchId,
-                params.branchDayId,
-                params.quantity,
-                params.handledBy,
-            )
-
-            val sale =
-                findByIdInTransaction(params.id)
-                    ?: error("product sale not found after insert for ${params.id}")
-
-            auditFn(sale, beforeCard, newCard)
-            SellProductResult(sale, created = true)
-        }.also {
-            logger.info {
-                "[PRODUCT-SALE] Sale ${params.id} created " +
-                    "product=${params.productId} branch=${params.branchId} qty=${params.quantity} " +
-                    "total=${it.sale.totalAmountAtTime}"
-            }
-        }
-
-    @Suppress("ComplexCondition")
-    private fun validateRetryOwnership(
-        existing: ProductSale,
-        params: SellProductParams,
-    ) {
-        validateRetryOwnership(
-            existing,
-            RetryProductSaleParams(
-                id = params.id,
-                branchDayId = params.branchDayId,
-                sessionId = params.sessionId,
-                clientId = params.clientId,
-                isWalkIn = params.isWalkIn,
-                productId = params.productId,
-                quantity = params.quantity,
-                handledBy = params.handledBy,
-            ),
-        )
+    /**
+     * In-transaction store operation (#323, ADR-0024) — idempotent fast-path for a same-day retry:
+     * returns the existing sale after ownership validation, null when the id belongs to a sale of a
+     * different branch day so the caller falls through to the day gate (gate-beats-NotFound).
+     */
+    fun findSameDaySaleInTransaction(params: RetryProductSaleParams): ProductSale? {
+        val existing = findByIdInTransaction(params.id) ?: return null
+        if (existing.branchDayId != params.branchDayId) return null
+        validateRetryOwnership(existing, params)
+        return existing
     }
 
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun insertSaleInTransaction(params: SellProductParams): Boolean =
+        ProductSaleTable
+            .insertIgnore {
+                it[ProductSaleTable.id] = params.id
+                it[ProductSaleTable.branchDayId] = params.branchDayId
+                if (params.sessionId != null) it[ProductSaleTable.sessionId] = params.sessionId
+                if (params.clientId != null) it[ProductSaleTable.clientId] = params.clientId
+                it[ProductSaleTable.isWalkIn] = params.isWalkIn
+                it[ProductSaleTable.productId] = params.productId
+                it[ProductSaleTable.productName] = params.product.name
+                it[ProductSaleTable.handledBy] = params.handledBy
+                it[ProductSaleTable.quantity] = params.quantity
+                it[ProductSaleTable.unitPriceAtTime] = params.product.unitPrice
+                it[ProductSaleTable.totalAmountAtTime] =
+                    params.product.unitPrice * BigDecimal.valueOf(params.quantity.toLong())
+                it[ProductSaleTable.commissionAmountAtTime] = params.product.commissionAmount
+                it[ProductSaleTable.soldAt] = CurrentTimestampWithTimeZone
+            }.insertedCount > 0
+
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun insertSaleMovementInTransaction(params: SellProductParams) {
+        InventoryMovementTable.insert {
+            it[InventoryMovementTable.productId] = params.productId
+            it[InventoryMovementTable.productSaleId] = params.id
+            it[InventoryMovementTable.branchId] = params.branchId
+            it[InventoryMovementTable.branchDayId] = params.branchDayId
+            it[InventoryMovementTable.reason] = InventoryMovementReason.SALE
+            it[InventoryMovementTable.quantityChange] = -params.quantity
+            it[InventoryMovementTable.movedBy] = params.handledBy
+            it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
+        }
+    }
+
+    /**
+     * Full retry-ownership validation for a lost idempotent-insert race: day mismatch means the
+     * id belongs to another branch day's sale (404), any field mismatch means another request
+     * (409). Pure comparison — no database access.
+     */
     @Suppress("ComplexCondition")
-    private fun validateRetryOwnership(
+    internal fun validateRetryOwnership(
         existing: ProductSale,
         params: RetryProductSaleParams,
     ) {
@@ -170,65 +121,6 @@ object ProductSaleRepository {
             existing.quantity != params.quantity
         ) {
             throw ConflictException("Product sale id already belongs to another create request")
-        }
-    }
-
-    fun findExistingForRetry(params: RetryProductSaleParams): ProductSale? =
-        transaction {
-            val existing = findByIdInTransaction(params.id) ?: return@transaction null
-            if (existing.branchDayId != params.branchDayId) return@transaction null
-            validateRetryOwnership(existing, params)
-            existing
-        }
-
-    @Suppress("LongParameterList")
-    private fun insertProductSaleRow(
-        id: UUID,
-        branchDayId: UUID,
-        sessionId: UUID?,
-        clientId: UUID?,
-        isWalkIn: Boolean,
-        productId: UUID,
-        product: Product,
-        handledBy: UUID,
-        quantity: Int,
-        totalAmount: BigDecimal,
-    ): Boolean =
-        ProductSaleTable
-            .insertIgnore {
-                it[ProductSaleTable.id] = id
-                it[ProductSaleTable.branchDayId] = branchDayId
-                if (sessionId != null) it[ProductSaleTable.sessionId] = sessionId
-                if (clientId != null) it[ProductSaleTable.clientId] = clientId
-                it[ProductSaleTable.isWalkIn] = isWalkIn
-                it[ProductSaleTable.productId] = productId
-                it[ProductSaleTable.productName] = product.name
-                it[ProductSaleTable.handledBy] = handledBy
-                it[ProductSaleTable.quantity] = quantity
-                it[ProductSaleTable.unitPriceAtTime] = product.unitPrice
-                it[ProductSaleTable.totalAmountAtTime] = totalAmount
-                it[ProductSaleTable.commissionAmountAtTime] = product.commissionAmount
-                it[ProductSaleTable.soldAt] = CurrentTimestampWithTimeZone
-            }.insertedCount > 0
-
-    @Suppress("LongParameterList")
-    private fun insertSaleInventoryMovement(
-        saleId: UUID,
-        productId: UUID,
-        branchId: UUID,
-        branchDayId: UUID,
-        quantity: Int,
-        movedBy: UUID,
-    ) {
-        InventoryMovementTable.insert {
-            it[InventoryMovementTable.productId] = productId
-            it[InventoryMovementTable.productSaleId] = saleId
-            it[InventoryMovementTable.branchId] = branchId
-            it[InventoryMovementTable.branchDayId] = branchDayId
-            it[InventoryMovementTable.reason] = InventoryMovementReason.SALE
-            it[InventoryMovementTable.quantityChange] = -quantity
-            it[InventoryMovementTable.movedBy] = movedBy
-            it[InventoryMovementTable.movedAt] = CurrentTimestampWithTimeZone
         }
     }
 
@@ -261,22 +153,8 @@ object ProductSaleRepository {
                 }.map { it.toProductSale() }
         }
 
-    private fun acquireInventoryLock(
-        branchId: UUID,
-        productId: UUID,
-    ) {
-        // Row-level lock on branch_inventory to prevent TOCTOU races
-        // on concurrent stock checks during sales (CR-018 D2).
-        BranchInventoryTable
-            .selectAll()
-            .where {
-                (BranchInventoryTable.branchId eq branchId) and
-                    (BranchInventoryTable.productId eq productId)
-            }.forUpdate(ForUpdateOption.ForUpdate)
-            .singleOrNull()
-    }
-
-    private fun findByIdInTransaction(id: UUID): ProductSale? =
+    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    fun findByIdInTransaction(id: UUID): ProductSale? =
         ProductSaleTable
             .selectAll()
             .where { ProductSaleTable.id eq id }

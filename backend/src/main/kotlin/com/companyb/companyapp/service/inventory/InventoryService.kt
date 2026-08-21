@@ -3,26 +3,37 @@ package com.companyb.companyapp.service.inventory
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchInventoryRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductRepository
 import com.companyb.companyapp.repository.RecordMovementParams
+import com.companyb.companyapp.repository.RecordMovementResult
 import com.companyb.companyapp.repository.model.BranchInventory
+import com.companyb.companyapp.repository.model.BranchInventoryTable
 import com.companyb.companyapp.repository.model.BranchInventoryWithProduct
 import com.companyb.companyapp.repository.model.InventoryMovement
+import com.companyb.companyapp.repository.model.InventoryMovementTable
 import com.companyb.companyapp.repository.model.Product
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.LocalDate
 import java.util.UUID
 
 private const val LOW_STOCK_DEFAULT_THRESHOLD = 5
 
+/**
+ * Inventory feature commands (#323, ADR-0024). Each mutating command owns exactly one
+ * transaction: the day gate and guards run inside it, persistence runs via
+ * `BranchInventoryRepository.*InTransaction` store operations, and the audit rows are
+ * inserted into the same transaction — mutation + audit commit atomically or not at all.
+ */
 object InventoryService {
     private val logger = KotlinLogging.logger {}
 
-    @Suppress("LongParameterList", "ThrowsCount")
+    @Suppress("LongParameterList", "ThrowsCount", "ReturnCount", "LongMethod")
     fun recordMovement(
         callerId: UUID,
         movementId: UUID,
@@ -34,66 +45,77 @@ object InventoryService {
         branchDayId: UUID,
         reason: String? = null,
     ): InventoryMovement {
-        BranchInventoryRepository.findMovementById(movementId)?.let { existingMovement ->
-            ensureRequestOwnership(
-                existingMovement,
-                branchId,
-                productId,
-                movementType.toInventoryMovementReason(),
-                quantityChange,
-                notes,
-                branchDayId,
-                callerId,
-            )
-            return existingMovement
-        }
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-        if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
-        BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
-
-        val isRemitted =
-            StockValidator.validateMovement(
-                callerId,
-                branchDayId,
-                movementType,
-                quantityChange,
-                notes,
-                reason,
-            )
-
-        val card = BranchInventoryRepository.ensureCard(branchId, productId)
-        val expectedVersion = card.version
-
         val movementReason = movementType.toInventoryMovementReason()
 
-        val movement =
-            BranchInventoryRepository.recordMovement(
-                RecordMovementParams(
-                    movementId = movementId,
-                    branchId = branchId,
-                    productId = productId,
-                    reason = movementReason,
-                    quantityChange = quantityChange,
-                    notes = notes,
-                    branchDayId = branchDayId,
-                    expectedVersion = expectedVersion,
-                    movedBy = callerId,
-                ),
-                auditFn = { data ->
-                    MovementRecorder.recordBranchInventoryAudit(
-                        oldCard = data.oldCard,
-                        newCard = data.newCard,
-                        movement = data.movement,
-                        isFlagged = isRemitted,
-                        reason = reason,
+        val result =
+            transaction {
+                val existingMovement = BranchInventoryRepository.findMovementInTransaction(movementId)
+                if (existingMovement != null) {
+                    ensureRequestOwnership(
+                        existingMovement,
+                        branchId,
+                        productId,
+                        movementReason,
+                        quantityChange,
+                        notes,
+                        branchDayId,
+                        callerId,
                     )
-                },
-            )
+                    return@transaction RecordMovementResult(existingMovement, created = false)
+                }
 
-        logger.info {
-            "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
+                if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+                if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
+                BranchDayService.requireBranchDayForBranch(branchDayId, branchId)
+
+                val isRemitted =
+                    StockValidator.validateMovement(
+                        callerId,
+                        branchDayId,
+                        movementType,
+                        quantityChange,
+                        notes,
+                        reason,
+                    )
+
+                // The card read that supplies expectedVersion now happens in this same command
+                // transaction, fixing the former cross-boundary stale version read.
+                val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
+
+                val inserted =
+                    BranchInventoryRepository.insertMovementInTransaction(
+                        RecordMovementParams(
+                            movementId = movementId,
+                            branchId = branchId,
+                            productId = productId,
+                            reason = movementReason,
+                            quantityChange = quantityChange,
+                            notes = notes,
+                            branchDayId = branchDayId,
+                            movedBy = callerId,
+                        ),
+                    )
+                if (!inserted.created) return@transaction inserted
+
+                val newCard =
+                    BranchInventoryRepository.requireCardForUpdate(
+                        oldCard,
+                        oldCard.version,
+                        quantityChange,
+                    )
+
+                val context = AuditContext(callerId, branchId, isRemitted, reason)
+                BranchInventoryAudit.updated(context, oldCard, newCard)
+                BranchInventoryAudit.inserted(context, inserted.movement)
+                inserted
+            }
+
+        if (result.created) {
+            logger.info {
+                "[RECORD-MOVEMENT] $movementType product=$productId branch=$branchId qty=$quantityChange"
+            }
         }
-        return movement
+        return result.movement
     }
 
     fun getStock(branchId: UUID): List<BranchInventoryWithProduct> {
@@ -166,11 +188,48 @@ object InventoryService {
     fun ensureCard(
         branchId: UUID,
         productId: UUID,
-    ): BranchInventory {
-        if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
-        if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
-        val card = BranchInventoryRepository.ensureCard(branchId, productId)
-        logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
-        return card
-    }
+    ): BranchInventory =
+        transaction {
+            if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
+            if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
+            BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
+        }.also {
+            logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
+        }
+}
+
+/**
+ * Inventory audit vocabulary (#323, ADR-0024 rule 3). Called by the command inside its own
+ * transaction so the audit rows commit atomically with the mutation. Owns the persistence-table
+ * imports so the public command surface does not.
+ */
+internal object BranchInventoryAudit {
+    fun updated(
+        context: AuditContext,
+        before: BranchInventory,
+        after: BranchInventory,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = BranchInventoryTable.tableName,
+        recordId = after.id,
+        before = before,
+        after = after,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+        auditFields = BranchInventoryTable::auditFields,
+    )
+
+    fun inserted(
+        context: AuditContext,
+        movement: InventoryMovement,
+    ) = AuditLogRepository.recordInsert(
+        tableName = InventoryMovementTable.tableName,
+        recordId = movement.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = InventoryMovementTable.auditFields(movement),
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+    )
 }
