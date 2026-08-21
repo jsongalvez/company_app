@@ -2,7 +2,9 @@ package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
+import com.companyb.companyapp.dto.UserCreateRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -14,6 +16,7 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import io.ktor.http.isSuccess
 import io.ktor.utils.io.ByteReadChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -691,11 +694,267 @@ class UserManagementViewModelTest {
         assertEquals(expected = users, actual = filterUsers(users, ""))
     }
 
+    // ---- #345 — create-user + role assignment ----
+
+    @Test
+    fun loadRoles_success_emits_list() =
+        runTest(testScheduler) {
+            val vm = UserViewModel(mockApiClient(UserHarness().handler()))
+
+            vm.loadRoles()
+            advanceUntilIdle()
+
+            val state = assertIs<UiState.Success<List<RoleResponse>>>(vm.roles.value)
+            assertEquals(expected = listOf("MANAGER", "CASHIER"), actual = state.data.map { it.name })
+        }
+
+    @Test
+    fun createUser_success_appends_row_to_held_list() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            vm.createUser(
+                UserCreateRequest(
+                    username = "new",
+                    email = "new@x.com",
+                    displayName = "New Staff",
+                    password = "password123",
+                ),
+            )
+            advanceUntilIdle()
+
+            val created = assertIs<UiState.Success<UserSummaryResponse>>(vm.createUserResult.value)
+            assertEquals(expected = "u9", actual = created.data.id)
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = listOf("u1", "u2", "u3", "u9"), actual = users.data.map { it.id })
+            assertTrue(
+                "\"username\":\"new\"" in harness.createBodies.single(),
+                "the request must carry the form payload, got ${harness.createBodies.single()}",
+            )
+        }
+
+    @Test
+    fun createUser_duplicate_conflict_surfaces_backend_error() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.createStatus = HttpStatusCode.Conflict
+            harness.errorBody = """{"error":"Username already exists"}"""
+
+            vm.createUser(UserCreateRequest("ana", "a@x.com", "Ana Cruz", "password123"))
+            advanceUntilIdle()
+
+            // The 409 body names the fix — surfaced verbatim (not the generic status text).
+            val error = assertIs<UiState.Error>(vm.createUserResult.value)
+            assertEquals(expected = "Username already exists", actual = error.message)
+            // The held list is untouched by a failed create.
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = 3, actual = users.data.size)
+        }
+
+    @Test
+    fun createUser_weak_password_surfaces_policy_error() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.createStatus = HttpStatusCode.BadRequest
+            harness.errorBody = """{"error":"Password must be at least 8 characters"}"""
+
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "short"))
+            advanceUntilIdle()
+
+            val error = assertIs<UiState.Error>(vm.createUserResult.value)
+            assertEquals(
+                expected = "Password must be at least 8 characters",
+                actual = error.message,
+            )
+        }
+
+    @Test
+    fun createUser_forbidden_surfaces_status_error() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.createStatus = HttpStatusCode.Forbidden
+
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            advanceUntilIdle()
+
+            // No error body on the route-filter 403 — the status fallback still renders.
+            val error = assertIs<UiState.Error>(vm.createUserResult.value)
+            assertTrue("403" in error.message)
+        }
+
+    @Test
+    fun createUser_network_failure_surfaces_error() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.createFailure = true
+
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            advanceUntilIdle()
+
+            assertIs<UiState.Error>(vm.createUserResult.value)
+        }
+
+    @Test
+    fun createUser_double_tap_fires_single_request() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            // The synchronous Loading pre-set closes the same-frame double-fire — no two
+            // accounts for one submit.
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            advanceUntilIdle()
+
+            assertEquals(expected = 1, actual = harness.createCount)
+        }
+
+    @Test
+    fun replaceRoles_success_updates_row_roles_in_place() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            vm.replaceRoles("u1", listOf("CASHIER", "MANAGER"))
+            advanceUntilIdle()
+
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = listOf("CASHIER", "MANAGER"), actual = users.data.first { it.id == "u1" }.roles)
+            assertTrue(vm.inFlight.value.isEmpty())
+            assertTrue(vm.actionErrors.value.isEmpty())
+            val body = harness.replaceRolesBodies.single()
+            assertTrue("CASHIER" in body && "MANAGER" in body, "full-replace body, got $body")
+        }
+
+    @Test
+    fun replaceRoles_unknown_role_400_names_role_inline() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.replaceRolesStatus = HttpStatusCode.BadRequest
+            harness.errorBody = """{"error":"Unknown role(s): BOSS"}"""
+
+            vm.replaceRoles("u1", listOf("BOSS"))
+            advanceUntilIdle()
+
+            assertEquals(expected = "Unknown role(s): BOSS", actual = vm.actionErrors.value["roles:u1"])
+            // The row keeps its previous bundle.
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = listOf("MANAGER"), actual = users.data.first { it.id == "u1" }.roles)
+            assertTrue(vm.inFlight.value.isEmpty())
+        }
+
+    @Test
+    fun replaceRoles_failure_keeps_roles_with_inline_status_error() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.replaceRolesStatus = HttpStatusCode.InternalServerError
+
+            vm.replaceRoles("u1", listOf("CASHIER"))
+            advanceUntilIdle()
+
+            assertEquals(expected = "Role update failed: 500", actual = vm.actionErrors.value["roles:u1"])
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = listOf("MANAGER"), actual = users.data.first { it.id == "u1" }.roles)
+        }
+
+    @Test
+    fun loadRoles_double_call_while_loading_fires_single_request() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+
+            // The synchronous Loading pre-set coalesces the same-frame entry-effect +
+            // dialog-open double-fire (the loadUsers Guard-2 shape).
+            vm.loadRoles()
+            vm.loadRoles()
+            advanceUntilIdle()
+
+            assertEquals(expected = 1, actual = harness.rolesGetCount)
+        }
+
+    @Test
+    fun loadUsers_during_inflight_create_is_skipped() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            assertEquals(expected = 1, actual = harness.usersGetCount)
+
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            assertTrue(vm.inFlight.value.isNotEmpty())
+            // A reload landing mid-create would clobber the appended row with its pre-create
+            // snapshot — the tracked create marker makes the reload skip (the swap variant of
+            // this guard, now covering create too).
+            vm.loadUsers()
+            advanceUntilIdle()
+
+            assertEquals(expected = 1, actual = harness.usersGetCount)
+            assertTrue(vm.inFlight.value.isEmpty())
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(
+                expected = listOf("u1", "u2", "u3", "u9"),
+                actual = users.data.map { it.id },
+            )
+        }
+
+    @Test
+    fun createUser_skipped_while_users_reload_in_flight() =
+        runTest(testScheduler) {
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            // Reload still Loading (synchronous pre-set) — the same-frame submit must not
+            // dispatch a POST whose append would be overwritten by the load's snapshot.
+            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            advanceUntilIdle()
+
+            assertEquals(expected = 0, actual = harness.createCount)
+            assertIs<UiState.Idle>(vm.createUserResult.value)
+            // The reload itself completes normally.
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = 3, actual = users.data.size)
+        }
+
+    @Test
+    fun extractApiErrorMessage_parses_error_field_else_null() {
+        val body = """{"error":"Username already exists"}"""
+        assertEquals(expected = "Username already exists", actual = extractApiErrorMessage(body))
+        assertNull(extractApiErrorMessage("""{"other":"x"}"""))
+        assertNull(extractApiErrorMessage("not json"))
+        assertNull(extractApiErrorMessage(null))
+        assertNull(extractApiErrorMessage(""))
+    }
+
     private fun user(
         id: String,
         displayName: String,
         status: UserStatus = UserStatus.ACTIVE,
         assignments: List<UserAssignmentResponse> = emptyList(),
+        roles: List<String> = emptyList(),
     ): UserSummaryResponse =
         UserSummaryResponse(
             id = id,
@@ -704,6 +963,7 @@ class UserManagementViewModelTest {
             status = status,
             deactivatedAt = if (status == UserStatus.INACTIVE) "2026-08-01T02:00:00Z" else null,
             assignments = assignments,
+            roles = roles,
         )
 
     private fun assignment(
@@ -723,14 +983,27 @@ class UserManagementViewModelTest {
         var reactivateStatus: HttpStatusCode = HttpStatusCode.OK,
         var swapStatus: HttpStatusCode = HttpStatusCode.OK,
         var updateSlotStatus: HttpStatusCode = HttpStatusCode.OK,
+        var rolesStatus: HttpStatusCode = HttpStatusCode.OK,
+        var createStatus: HttpStatusCode = HttpStatusCode.Created,
+        var replaceRolesStatus: HttpStatusCode = HttpStatusCode.NoContent,
     ) {
         var deactivateCount: Int = 0
         var usersGetCount: Int = 0
+        var rolesGetCount: Int = 0
+        var createCount: Int = 0
         val swapBodies = mutableListOf<String>()
         val updateSlotBodies = mutableListOf<String>()
+        val createBodies = mutableListOf<String>()
+        val replaceRolesBodies = mutableListOf<String>()
 
         // When true the deactivate handler throws — a network failure before any response.
         var deactivateFailure: Boolean = false
+
+        // When true the create-user handler throws — a network failure before any response.
+        var createFailure: Boolean = false
+
+        // Response body for create/role-replace failures (the backend's `{"error": ...}` shape).
+        var errorBody: String? = null
 
         fun handler(): MockRequestHandler =
             { request ->
@@ -742,6 +1015,29 @@ class UserManagementViewModelTest {
 
                     request.method == HttpMethod.Get && request.url.encodedPath == "/api/branches" -> {
                         jsonResponse(HttpStatusCode.OK, BRANCHES_JSON)
+                    }
+
+                    request.method == HttpMethod.Get && request.url.encodedPath == "/api/roles" -> {
+                        rolesGetCount++
+                        jsonResponse(rolesStatus, ROLES_JSON)
+                    }
+
+                    request.method == HttpMethod.Post && request.url.encodedPath == "/api/users" -> {
+                        createCount++
+                        createBodies += (request.body as? TextContent)?.text.orEmpty()
+                        if (createFailure) {
+                            throw IOException("connection reset")
+                        }
+                        jsonResponse(
+                            createStatus,
+                            if (createStatus.isSuccess()) CREATED_USER_JSON else errorBody.orEmpty(),
+                        )
+                    }
+
+                    request.method == HttpMethod.Put &&
+                        request.url.encodedPath.endsWith("/roles") -> {
+                        replaceRolesBodies += (request.body as? TextContent)?.text.orEmpty()
+                        jsonResponse(replaceRolesStatus, errorBody.orEmpty())
                     }
 
                     request.method == HttpMethod.Patch &&
@@ -780,10 +1076,19 @@ class UserManagementViewModelTest {
     private companion object {
         const val USERS_JSON =
             """[
-                {"id":"u1","username":"ana","displayName":"Ana Cruz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"branchId":"b1","branchName":"Main Branch","slot":1}]},
+                {"id":"u1","username":"ana","displayName":"Ana Cruz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"branchId":"b1","branchName":"Main Branch","slot":1}],"roles":["MANAGER"]},
                 {"id":"u2","username":"ben","displayName":"Ben Diaz","status":"ACTIVE","deactivatedAt":null,"assignments":[{"branchId":"b1","branchName":"Main Branch","slot":2},{"branchId":"b2","branchName":"Provincial","slot":1}]},
                 {"id":"u3","username":"cal","displayName":"Cal Lim","status":"INACTIVE","deactivatedAt":"2026-08-01T02:00:00Z","assignments":[{"branchId":"b1","branchName":"Main Branch","slot":4}]}
             ]"""
+
+        const val ROLES_JSON =
+            """[
+                {"name":"MANAGER","capabilities":["MANAGE_USERS"]},
+                {"name":"CASHIER","capabilities":["SELL_PRODUCTS"]}
+            ]"""
+
+        const val CREATED_USER_JSON =
+            """{"id":"u9","username":"new","displayName":"New Staff","status":"ACTIVE","deactivatedAt":null}"""
 
         const val BRANCHES_JSON =
             """[

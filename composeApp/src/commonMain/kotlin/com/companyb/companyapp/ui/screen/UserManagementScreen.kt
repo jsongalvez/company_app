@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,10 +43,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
+import com.companyb.companyapp.dto.UserCreateRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -97,17 +103,29 @@ fun UserManagementScreen(
     val branches by viewModel.branches.collectAsState()
     val inFlight by viewModel.inFlight.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
+    // #345 — create-user + role-picker state.
+    val createState by viewModel.createUserResult.collectAsState()
+    val rolesState by viewModel.roles.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedBranchId by rememberSaveable { mutableStateOf<String?>(null) }
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
     var deactivateTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
     var slotEditTarget by remember { mutableStateOf<SlotEditTarget?>(null) }
+    var showCreateUserDialog by rememberSaveable { mutableStateOf(false) }
+    var roleEditTarget by remember { mutableStateOf<UserSummaryResponse?>(null) }
 
     LaunchedEffect(Unit) {
         logInfo("UserManagementScreen", "composable entered (first composition)")
         viewModel.loadUsers()
         viewModel.loadBranches()
+        viewModel.loadRoles()
+    }
+
+    // Create-user dialog lifecycle (the RemittanceListScreen create-draft shape): a Success
+    // closes the popup — the created row is already appended to the list in place.
+    LaunchedEffect(createState) {
+        if (createState is UiState.Success) showCreateUserDialog = false
     }
 
     val loadedUsers = heldList.orEmpty()
@@ -139,18 +157,29 @@ fun UserManagementScreen(
                 text = "User Management",
                 style = MaterialTheme.typography.titleLarge,
             )
-            TextButton(
-                onClick = {
-                    viewModel.loadUsers()
-                    viewModel.loadBranches()
-                },
-                // A refresh landing mid-mutation lets the mutation's in-place transform re-apply
-                // to the fresh list (swap would double-apply — pass-1 P2/P4 HARD). Belt: the
-                // button gate here; suspenders: UserViewModel.loadUsers also skips while any
-                // mutation is in flight (covers non-click triggers like LaunchedEffect refires).
-                enabled = !mutationsDisabled,
-            ) {
-                Text("Refresh")
+            Row {
+                TextButton(
+                    onClick = { showCreateUserDialog = true },
+                    // Gated on a rendered list too: with nothing held (failed initial load) an
+                    // appended created row would be invisible behind the ErrorCard — force the
+                    // retry path instead (pass-4 P4).
+                    enabled = !mutationsDisabled && heldList != null,
+                ) {
+                    Text("Create user")
+                }
+                TextButton(
+                    onClick = {
+                        viewModel.loadUsers()
+                        viewModel.loadBranches()
+                    },
+                    // A refresh landing mid-mutation lets the mutation's in-place transform re-apply
+                    // to the fresh list (swap would double-apply — pass-1 P2/P4 HARD). Belt: the
+                    // button gate here; suspenders: UserViewModel.loadUsers also skips while any
+                    // mutation is in flight (covers non-click triggers like LaunchedEffect refires).
+                    enabled = !mutationsDisabled,
+                ) {
+                    Text("Refresh")
+                }
             }
         }
 
@@ -251,6 +280,7 @@ fun UserManagementScreen(
                                 mutationsDisabled = mutationsDisabled,
                                 onDeactivate = { deactivateTarget = user },
                                 onReactivate = { viewModel.reactivateUser(user.id) },
+                                onEditRoles = { roleEditTarget = user },
                                 onEditSlot = { assignment ->
                                     slotEditTarget =
                                         SlotEditTarget(
@@ -315,6 +345,34 @@ fun UserManagementScreen(
             onSave = { slot ->
                 slotEditTarget = null
                 viewModel.updateSlot(target.branchId, target.userId, slot)
+            },
+        )
+    }
+
+    if (showCreateUserDialog) {
+        CreateUserDialog(
+            createState = createState,
+            onCreate = viewModel::createUser,
+            onDismiss = {
+                // A mid-flight dismiss would orphan the in-flight POST (the RemittanceList
+                // create-draft guard) — stay open while loading.
+                if (createState !is UiState.Loading) showCreateUserDialog = false
+            },
+        )
+    }
+
+    roleEditTarget?.let { target ->
+        // Save closes the dialog immediately (the slot-edit precedent); a failed PUT surfaces
+        // as the "roles:$userId" inline error in the still-expanded row below the action row.
+        RoleEditDialog(
+            user = target,
+            rolesState = rolesState,
+            mutationsDisabled = mutationsDisabled,
+            onRetryRoles = viewModel::loadRoles,
+            onDismiss = { roleEditTarget = null },
+            onSave = { selected ->
+                roleEditTarget = null
+                viewModel.replaceRoles(target.id, selected)
             },
         )
     }
@@ -503,6 +561,7 @@ private fun UserRow(
     mutationsDisabled: Boolean,
     onDeactivate: () -> Unit,
     onReactivate: () -> Unit,
+    onEditRoles: () -> Unit,
     onEditSlot: (UserAssignmentResponse) -> Unit,
     errors: List<String>,
 ) {
@@ -537,6 +596,16 @@ private fun UserRow(
                         text = user.username,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // #345 — role names inline so admins spot unassigned/ONBOARDING users
+                    // without expanding (the wire omits empty lists — the empty default renders
+                    // the explicit "No roles" line).
+                    Text(
+                        text = if (user.roles.isEmpty()) "No roles" else user.roles.joinToString(", "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     user.deactivatedAt?.let {
                         Text(
@@ -589,6 +658,9 @@ private fun UserRow(
                 }
 
                 Row(modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onEditRoles, enabled = !mutationsDisabled) {
+                        Text("Edit roles")
+                    }
                     if (!isDeactivated && user.id != currentUserId) {
                         TextButton(onClick = onDeactivate, enabled = !mutationsDisabled) {
                             Text(
@@ -759,6 +831,228 @@ private fun EditSlotDialog(
                 },
                 // Gated like the row actions (pass-2 HARD — see DeactivateConfirmDialog).
                 enabled = !mutationsDisabled,
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+/**
+ * #345 — create staff account. Four fields; the backend owns password/email policy and
+ * duplicate detection, so client validation is presence-only and 400/409 bodies render inline.
+ * Dismissal is blocked mid-flight (an orphaned POST would still create the account).
+ */
+@Composable
+private fun CreateUserDialog(
+    createState: UiState<UserSummaryResponse>,
+    onCreate: (UserCreateRequest) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    val inFlight = createState is UiState.Loading
+    val complete = listOf(username, email, displayName, password).all { it.isNotBlank() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create user") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    enabled = !inFlight,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(Spacing.sm))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    singleLine = true,
+                    enabled = !inFlight,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(Spacing.sm))
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it },
+                    label = { Text("Display name") },
+                    singleLine = true,
+                    enabled = !inFlight,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.size(Spacing.sm))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Initial password") },
+                    singleLine = true,
+                    enabled = !inFlight,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                (createState as? UiState.Error)?.let { state ->
+                    LaunchedEffect(state) {
+                        // Sticky branch — log once per state, not per recomposition (the
+                        // usersState=Error guard shape).
+                        logWarn("UserManagementScreen", "createState=Error: ${state.message}")
+                    }
+                    Text(
+                        text = state.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Spacing.sm),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onCreate(
+                        UserCreateRequest(
+                            username = username.trim(),
+                            email = email.trim(),
+                            displayName = displayName.trim(),
+                            password = password,
+                        ),
+                    )
+                },
+                enabled = complete && !inFlight,
+            ) {
+                Text(if (inFlight) "Creating…" else "Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !inFlight) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+/**
+ * #345 — full-replace role editor backed by `GET /api/roles` (seeded bundles only — SUPERUSER
+ * absent by design). Loading/error render in place with tap-to-retry (the BranchPicker shape);
+ * Save issues the PUT only over a loaded bundle list. The checkbox set starts from the row's
+ * current roles intersected with what the picker offers.
+ */
+@Composable
+private fun RoleEditDialog(
+    user: UserSummaryResponse,
+    rolesState: UiState<List<RoleResponse>>,
+    mutationsDisabled: Boolean,
+    onRetryRoles: () -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (List<String>) -> Unit,
+) {
+    val options = (rolesState as? UiState.Success<List<RoleResponse>>)?.data.orEmpty()
+    var selected by remember(user.id, rolesState) {
+        mutableStateOf(
+            user.roles.filter { name -> options.any { it.name == name } }.toSet(),
+        )
+    }
+    // Re-arm ONLY an untouched source: Idle means never loaded (first open). Auto-refiring on
+    // Loading/Error would loop requests (this effect restarts on every state change); Error
+    // retries through the manual tap-to-retry affordance instead.
+    LaunchedEffect(rolesState) {
+        if (rolesState is UiState.Idle) onRetryRoles()
+    }
+
+    val rolesLoading = rolesState is UiState.Loading || rolesState is UiState.Idle
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit roles — ${user.displayName}") },
+        text = {
+            Column {
+                when {
+                    rolesState is UiState.Error -> {
+                        val errorState = rolesState as UiState.Error
+                        LaunchedEffect(errorState) {
+                            logWarn("UserManagementScreen", "rolesState=Error: ${errorState.message}")
+                        }
+                        Text(
+                            text = "Roles unavailable — tap to retry",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onRetryRoles)
+                                    .padding(vertical = Spacing.sm),
+                        )
+                    }
+
+                    rolesLoading -> {
+                        Text(
+                            text = "Loading roles…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = Spacing.sm),
+                        )
+                    }
+
+                    options.isEmpty() -> {
+                        Text(
+                            text = "No roles configured",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    else -> {
+                        options.forEach { role ->
+                            Row(
+                                modifier =
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = !mutationsDisabled) {
+                                            selected =
+                                                if (role.name in selected) {
+                                                    selected - role.name
+                                                } else {
+                                                    selected + role.name
+                                                }
+                                        },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = role.name in selected,
+                                    onCheckedChange = null,
+                                    enabled = !mutationsDisabled,
+                                )
+                                Text(
+                                    text = role.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(selected.toList()) },
+                enabled = !mutationsDisabled && options.isNotEmpty(),
             ) {
                 Text("Save")
             }

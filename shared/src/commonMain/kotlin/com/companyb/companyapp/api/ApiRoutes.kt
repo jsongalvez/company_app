@@ -287,6 +287,8 @@ object ApiRoutes {
 
     const val RELIEF_ACCESS_REQUEST = "$RELIEF_ACCESS/request"
 
+    fun userRoles(id: String) = "${user(id)}/roles"
+
     fun userDeactivate(id: String) = "${user(id)}/deactivate"
 
     fun userReactivate(id: String) = "${user(id)}/reactivate"

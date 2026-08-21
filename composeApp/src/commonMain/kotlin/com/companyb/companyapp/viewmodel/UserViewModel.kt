@@ -4,20 +4,28 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
+import com.companyb.companyapp.dto.UserCreateRequest
+import com.companyb.companyapp.dto.UserRoleReplaceRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Clock
 
 /**
@@ -87,6 +95,23 @@ fun filterUsers(
 }
 
 /**
+ * Extracts the backend's `{"error": "<message>"}` body (#345 create/role-replace 400/409
+ * surfaces — PasswordPolicy/EmailPolicy text and duplicate-username conflicts name the fix).
+ * Pure so the decision is testable; null when the body isn't that shape (non-JSON, missing
+ * field) so callers fall back to their status-code message.
+ */
+fun extractApiErrorMessage(body: String?): String? =
+    body?.let { text ->
+        runCatching {
+            Json
+                .parseToJsonElement(text)
+                .jsonObject["error"]
+                ?.jsonPrimitive
+                ?.content
+        }.getOrNull()
+    }
+
+/**
  * State model for the User Management screen (#106 D2-D5, built in #135).
  *
  * - [users]: full flat user list (`GET /api/users`, GLOBAL MANAGE_USERS).
@@ -113,9 +138,20 @@ class UserViewModel(
     private val _branches = MutableStateFlow<UiState<List<BranchResponse>>>(UiState.Idle)
     val branches: StateFlow<UiState<List<BranchResponse>>> = _branches.asStateFlow()
 
+    // #345 — role picker source (`GET /api/roles`, seeded bundles only; SUPERUSER absent by
+    // design — #344 defense in depth). Loaded alongside users/branches; the role dialog renders
+    // its loading/error/empty states straight from this flow.
+    private val _roles = MutableStateFlow<UiState<List<RoleResponse>>>(UiState.Idle)
+    val roles: StateFlow<UiState<List<RoleResponse>>> = _roles.asStateFlow()
+
+    // #345 — create-user result: Success closes the screen's dialog (the RemittanceListScreen
+    // create-draft shape); Error carries the backend's policy/conflict message inline.
+    private val _createUserResult = MutableStateFlow<UiState<UserSummaryResponse>>(UiState.Idle)
+    val createUserResult: StateFlow<UiState<UserSummaryResponse>> = _createUserResult.asStateFlow()
+
     // Per-action in-flight guard + inline errors (ADR-0022 pessimistic axis). Keys:
     // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$userIdA:$userIdB",
-    // "slot:$branchId:$userId".
+    // "slot:$branchId:$userId", "roles:$userId", "create-user".
     private val actionTracker = ActionTracker<String>()
     val inFlight: StateFlow<Set<String>> = actionTracker.inFlight
     val actionErrors: StateFlow<Map<String, String>> = actionTracker.errors
@@ -170,6 +206,62 @@ class UserViewModel(
             endpoint = "GET /api/branches",
             block = { apiClient.httpClient.get(ApiRoutes.BRANCHES) },
             transform = { it.body() },
+        )
+    }
+
+    // #345 — role picker source. Re-issued when the dialog opens against an untouched source;
+    // the synchronous Loading pre-set (the loadUsers Guard-2 / createUser shape) coalesces the
+    // same-frame entry-effect + dialog-open double-fire regardless of dispatch timing.
+    fun loadRoles() {
+        if (_roles.value is UiState.Loading) return
+        _roles.value = UiState.Loading
+        handler.launch(
+            state = _roles,
+            operation = "loadRoles",
+            endpoint = "GET /api/roles",
+            block = { apiClient.httpClient.get(ApiRoutes.ROLES) },
+            transform = { it.body() },
+        )
+    }
+
+    // #345 — create staff account (GLOBAL MANAGE_USERS, ADR-0007 route gate). On 201 the
+    // returned row appends to the held list in place (the keep-last mutate; a list that never
+    // loaded simply skips the append — the dialog still closes via the Success state). 400
+    // (password/email policy) and 409 (duplicate) surface the backend's `error` message.
+    //
+    // Tracked like every other mutation (key "create-user"): while the POST is in flight
+    // loadUsers SKIPS (a landing reload's pre-create snapshot would clobber the appended row —
+    // the same interleave the swap/slot mutations guard) and the screen disables the row
+    // actions + Refresh via [inFlight]. The users-Loading belt mirrors runMutation's guard for
+    // the same-frame tap that slips past the disabled submit button.
+    fun createUser(request: UserCreateRequest) {
+        if (_createUserResult.value is UiState.Loading) return
+        if (keptUsers.state.value is UiState.Loading) return
+        if (!actionTracker.tryBegin("create-user")) return
+        _createUserResult.value = UiState.Loading
+        handler.launch(
+            state = _createUserResult,
+            operation = "createUser",
+            endpoint = "POST /api/users",
+            block = { apiClient.httpClient.post(ApiRoutes.USERS) { setBody(request) } },
+            transform = { response ->
+                actionTracker.finish("create-user")
+                val created = response.body<UserSummaryResponse>()
+                keptUsers.mutate { users -> users + created }
+                created
+            },
+            onNonSuccess = { response ->
+                actionTracker.finish("create-user")
+                val detail =
+                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                _createUserResult.value =
+                    UiState.Error(detail ?: "Create user failed: ${response.status.value}")
+                true
+            },
+            // Network/deserialize failure: the handler writes the Error onto the state flow
+            // itself; clearing the tracked marker re-enables the gated surface (ADR-0022 — no
+            // frozen in-flight state).
+            onError = { actionTracker.finish("create-user") },
         )
     }
 
@@ -244,6 +336,30 @@ class UserViewModel(
         )
     }
 
+    // #345 — full-replace role bundle (PUT; backend idempotent). On 204 the row's roles update
+    // in place from the request (the ADR-0022 pessimistic shape — no reload round-trip). 400
+    // names the unknown role(s); SUPERUSER is never offered (#344).
+    fun replaceRoles(
+        userId: String,
+        roleNames: List<String>,
+    ) {
+        runMutation(
+            key = "roles:$userId",
+            operation = "replaceRoles",
+            endpoint = "PUT ${ApiRoutes.userRoles(userId)}",
+            block = {
+                apiClient.httpClient.put(ApiRoutes.userRoles(userId)) {
+                    setBody(UserRoleReplaceRequest(roleNames))
+                }
+            },
+            onSuccess = { mutateUser(userId) { it.copy(roles = roleNames) } },
+            responseMessage = { response ->
+                extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+            },
+            statusMessage = { "Role update failed: ${it.value}" },
+        )
+    }
+
     private fun runMutation(
         key: String,
         operation: String,
@@ -251,6 +367,9 @@ class UserViewModel(
         block: suspend () -> HttpResponse,
         onSuccess: () -> Unit,
         statusMessage: (HttpStatusCode) -> String,
+        // #345 — preferred message built from the full response (the `{"error": ...}` body);
+        // when it returns null the status-code [statusMessage] renders.
+        responseMessage: (suspend (HttpResponse) -> String?)? = null,
     ) {
         // A mutation landing while a reload is in flight would be clobbered by the load's
         // pre-mutation snapshot (the pass-1 HARD interleave the keep-last gate opened: rows
@@ -270,7 +389,10 @@ class UserViewModel(
                 onSuccess()
             },
             onNonSuccess = { response ->
-                actionTracker.fail(key, statusMessage(response.status))
+                actionTracker.fail(
+                    key,
+                    responseMessage?.invoke(response) ?: statusMessage(response.status),
+                )
             },
             onError = { e ->
                 // Network failure — clear the in-flight guard so buttons re-enable AND surface
