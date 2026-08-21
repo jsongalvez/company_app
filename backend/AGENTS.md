@@ -38,11 +38,13 @@ A pre-push hook (`.githooks/pre-push`) classifies the complete outgoing tree. Ap
 documentation-only pushes (`docs/**/*.md`, `.opencode/**/*.md`, `AGENTS.md`, `CONTEXT.md`,
 `README*.md`, or `CHANGELOG.md`) skip code, contract, Compose, startup, and k6 gates;
 mixed or gate-sensitive pushes run all gates. **JMH no longer runs in local hooks** — it lives
-in CI (`.github/workflows/jmh.yml`, runs on pull requests and backend-touching pushes
-or merges to master): a single failing baseline comparison re-runs once and warns;
-the check fails only when the regression reproduces across two runs. CI-runner scores differ
-from the dev-machine scores in `backend/jmh-baselines.md` — after a runner baseline
-shift, copy the first CI run's scores into the file (see the workflow's comment).
+in CI (`.github/workflows/jmh.yml`, push-only: master pushes touching backend code plus manual
+`workflow_dispatch`; no pull_request trigger, per the #267 policy): a single failing baseline
+comparison re-runs once and warns; the check fails only when the regression reproduces across
+two runs. CI-runner scores are noisy across runs (shared-runner CPU lots vary ~1.6×), and
+`backend/jmh-baselines.md` holds the per-benchmark **medians of repeated clean CI runs** —
+after a runner baseline shift, dispatch the workflow several times and recompute the medians
+(see the workflow's comment and the baseline file's header).
 
 Install hooks once: `bash scripts/setup-hooks.sh` (sets `core.hooksPath = .githooks`).
 

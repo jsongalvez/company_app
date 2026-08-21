@@ -4,12 +4,13 @@ name: jmh
 # were paying ~4 min of JMH on a shared machine; see .githooks/pre-push).
 # Runs on every push touching backend code and on merge to master.
 #
-# NOTE ON BASELINES: scores in backend/jmh-baselines.md were measured on a
-# dev machine. CI runners differ. Establish the CI baseline by running this
-# workflow once, copying the scores from the "Compare against baseline" log
-# into backend/jmh-baselines.md, and committing that file. After that the
-# absolute comparison holds. (check-baselines.sh passes when no baseline
-# exists — first run is free.)
+# NOTE ON BASELINES: scores in backend/jmh-baselines.md are per-benchmark MEDIANS of
+# repeated clean CI runs on this runner (shared-runner CPU lots vary ~1.6x run-to-run;
+# never recalibrate from a single run). To re-establish after a runner shift: dispatch
+# this workflow several times, extract the "Compare against baseline" scores from each
+# log, and write the per-benchmark medians into backend/jmh-baselines.md. After that the
+# absolute comparison holds. (check-baselines.sh passes when no baseline exists — first
+# run is free.)
 #
 # A regression failing one run re-runs once and warns; the check fails only
 # when the regression reproduces across two runs (runner noise doesn't fail).
