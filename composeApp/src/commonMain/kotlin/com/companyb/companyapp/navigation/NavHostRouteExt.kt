@@ -40,6 +40,8 @@ internal fun serialNameFromPattern(pattern: String): String = pattern.substringB
 internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
     mapOf(
         Route.Login to Route.Login::class,
+        Route.AcceptInvite to Route.AcceptInvite::class,
+        Route.ForgotPassword to Route.ForgotPassword::class,
         Route.BranchSelect to Route.BranchSelect::class,
         Route.Dashboard to Route.Dashboard::class,
         Route.Clients to Route.Clients::class,
@@ -52,6 +54,7 @@ internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
         Route.AuditLog to Route.AuditLog::class,
         Route.AuditLogHistory to Route.AuditLogHistory::class,
         Route.UserManagement to Route.UserManagement::class,
+        Route.SessionCreate to Route.SessionCreate::class,
         Route.SessionDetail to Route.SessionDetail::class,
     ).mapKeys {
         it.value
