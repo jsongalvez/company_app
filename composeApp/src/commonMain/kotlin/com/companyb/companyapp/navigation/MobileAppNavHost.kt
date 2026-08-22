@@ -22,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -215,55 +216,7 @@ internal fun MobileAppNavHost(
                         )
                     }
                     composable<Route.Dashboard> { entry ->
-                        // #358 — relief deep link: a (branchId, date) pair renders the
-                        // branch-day panel instead of the clock-in-gated live dashboard.
-                        val deepLink = entry.toRoute<Route.Dashboard>()
-                        if (deepLink.branchId != null && deepLink.date != null) {
-                            val reliefDayViewModel: ReliefDayViewModel =
-                                viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
-                            ReliefDayScreen(
-                                viewModel = reliefDayViewModel,
-                                branchName = null,
-                                date = deepLink.date,
-                            )
-                            return@composable
-                        }
-                        val dashboardViewModel: SessionDashboardViewModel =
-                            viewModel { SessionDashboardViewModel(apiClient) }
-                        // #351 — entry-scoped relief-access VM (the #112 self-cleaning shape).
-                        val reliefAccessViewModel: ReliefAccessViewModel =
-                            viewModel { ReliefAccessViewModel(apiClient) }
-                        val selectedBranchName by SessionState.selectedBranchName.collectAsState()
-                        val branchDayId by SessionState.branchDayId.collectAsState()
-                        val currentUserId by SessionState.currentUser.collectAsState()
-                        val isRelief by SessionState.isRelief.collectAsState()
-                        SessionDashboardScreen(
-                            viewModel = dashboardViewModel,
-                            selection = DashboardSelection(branchName = selectedBranchName, sessionId = null),
-                            onSessionClick = { row ->
-                                // The dashboard path keeps passing the enriched row (zero extra
-                                // requests — the #152 session-detail GET exists now, but only the
-                                // notifications path fetches on null-row).
-                                navController.navigate(Route.SessionDetail(row.id, row))
-                            },
-                            // #348 — the dashboard's entry into the start-a-session flow.
-                            onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
-                            reliefAccessContent = {
-                                val dayId = branchDayId
-                                if (dayId != null) {
-                                    LaunchedEffect(dayId) {
-                                        reliefAccessViewModel.resetActionStates()
-                                        reliefAccessViewModel.loadRequests(dayId)
-                                    }
-                                    ReliefAccessCard(
-                                        viewModel = reliefAccessViewModel,
-                                        branchDayId = dayId,
-                                        currentUserId = currentUserId?.id,
-                                        isReliefUser = isRelief,
-                                    )
-                                }
-                            },
-                        )
+                        DashboardDestination(apiClient, navController, entry)
                     }
                     composable<Route.Clients> {
                         // #113 D7 — code-only route gate, now the #156 any-context check
@@ -343,43 +296,7 @@ internal fun MobileAppNavHost(
                         )
                     }
                     composable<Route.Notifications> {
-                        // Entry-scoped viewModel(): the Notifications back-stack entry survives the
-                        // SessionDetail push, so readThisSession persists across push/pop — D3
-                        // "appears in Read (dimmed) on return". A fresh entry (new visit) creates a
-                        // fresh VM → Read self-cleans (D1). The invite VM is entry-scoped too — a
-                        // resolved invite stays gone on return (fresh load), and the badge singleton
-                        // is poll-corrected within 60s (the accepted down-then-up bounce).
-                        val notificationsViewModel: NotificationViewModel =
-                            viewModel { NotificationViewModel(apiClient) }
-                        val reliefInviteViewModel: ReliefInviteViewModel =
-                            viewModel { ReliefInviteViewModel(apiClient) }
-                        NotificationsScreen(
-                            viewModel = notificationsViewModel,
-                            reliefInviteViewModel = reliefInviteViewModel,
-                            onNotificationClick = { notification ->
-                                // D3 (mobile): mark-read + navigate to the session detail. The
-                                // route carries only the sessionId — row = null → the detail
-                                // screen fetches once via GET /api/sessions/{sessionId} (#152).
-                                // #358: relief rows deep-link to the dashboard scoped to their
-                                // branch+date (the ReliefDayScreen panel).
-                                notificationsViewModel.markRead(notification.id)
-                                val sessionId = notification.sessionId
-                                when {
-                                    sessionId != null -> {
-                                        navController.navigate(Route.SessionDetail(sessionId))
-                                    }
-
-                                    notification.targetDate != null -> {
-                                        navController.navigate(
-                                            Route.Dashboard(
-                                                branchId = notification.branchId,
-                                                date = notification.targetDate,
-                                            ),
-                                        )
-                                    }
-                                }
-                            },
-                        )
+                        NotificationsDestination(apiClient, navController)
                     }
                     // #123 — D9: no route gate (always-visible per #108; backend-authoritative
                     // read scoping). hasAnyCapability = zero-grant "No branch access" state.
@@ -482,4 +399,105 @@ private fun PlaceholderRoute(label: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text("$label — pending build ticket", style = MaterialTheme.typography.bodyLarge)
     }
+}
+
+@Composable
+private fun DashboardDestination(
+    apiClient: ApiClient,
+    navController: NavHostController,
+    entry: NavBackStackEntry,
+) {
+    // #358 — relief deep link: a (branchId, date) pair renders the
+    // branch-day panel instead of the clock-in-gated live dashboard.
+    val deepLink = entry.toRoute<Route.Dashboard>()
+    if (deepLink.branchId != null && deepLink.date != null) {
+        val reliefDayViewModel: ReliefDayViewModel =
+            viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
+        ReliefDayScreen(
+            viewModel = reliefDayViewModel,
+            branchName = null,
+            date = deepLink.date,
+        )
+        return
+    }
+    val dashboardViewModel: SessionDashboardViewModel =
+        viewModel { SessionDashboardViewModel(apiClient) }
+    // #351 — entry-scoped relief-access VM (the #112 self-cleaning shape).
+    val reliefAccessViewModel: ReliefAccessViewModel =
+        viewModel { ReliefAccessViewModel(apiClient) }
+    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+    val branchDayId by SessionState.branchDayId.collectAsState()
+    val currentUserId by SessionState.currentUser.collectAsState()
+    val isRelief by SessionState.isRelief.collectAsState()
+    SessionDashboardScreen(
+        viewModel = dashboardViewModel,
+        selection = DashboardSelection(branchName = selectedBranchName, sessionId = null),
+        onSessionClick = { row ->
+            // The dashboard path keeps passing the enriched row (zero extra
+            // requests — the #152 session-detail GET exists now, but only the
+            // notifications path fetches on null-row).
+            navController.navigate(Route.SessionDetail(row.id, row))
+        },
+        // #348 — the dashboard's entry into the start-a-session flow.
+        onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
+        reliefAccessContent = {
+            val dayId = branchDayId
+            if (dayId != null) {
+                LaunchedEffect(dayId) {
+                    reliefAccessViewModel.resetActionStates()
+                    reliefAccessViewModel.loadRequests(dayId)
+                }
+                ReliefAccessCard(
+                    viewModel = reliefAccessViewModel,
+                    branchDayId = dayId,
+                    currentUserId = currentUserId?.id,
+                    isReliefUser = isRelief,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun NotificationsDestination(
+    apiClient: ApiClient,
+    navController: NavHostController,
+) {
+    // Entry-scoped viewModel(): the Notifications back-stack entry survives the
+    // SessionDetail push, so readThisSession persists across push/pop — D3
+    // "appears in Read (dimmed) on return". A fresh entry (new visit) creates a
+    // fresh VM → Read self-cleans (D1). The invite VM is entry-scoped too — a
+    // resolved invite stays gone on return (fresh load), and the badge singleton
+    // is poll-corrected within 60s (the accepted down-then-up bounce).
+    val notificationsViewModel: NotificationViewModel =
+        viewModel { NotificationViewModel(apiClient) }
+    val reliefInviteViewModel: ReliefInviteViewModel =
+        viewModel { ReliefInviteViewModel(apiClient) }
+    NotificationsScreen(
+        viewModel = notificationsViewModel,
+        reliefInviteViewModel = reliefInviteViewModel,
+        onNotificationClick = { notification ->
+            // D3 (mobile): mark-read + navigate to the session detail. The
+            // route carries only the sessionId — row = null → the detail
+            // screen fetches once via GET /api/sessions/{sessionId} (#152).
+            // #358: relief rows deep-link to the dashboard scoped to their
+            // branch+date (the ReliefDayScreen panel).
+            notificationsViewModel.markRead(notification.id)
+            val sessionId = notification.sessionId
+            when {
+                sessionId != null -> {
+                    navController.navigate(Route.SessionDetail(sessionId))
+                }
+
+                notification.targetDate != null -> {
+                    navController.navigate(
+                        Route.Dashboard(
+                            branchId = notification.branchId,
+                            date = notification.targetDate,
+                        ),
+                    )
+                }
+            }
+        },
+    )
 }

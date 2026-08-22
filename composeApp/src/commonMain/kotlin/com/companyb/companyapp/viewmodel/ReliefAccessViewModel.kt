@@ -87,7 +87,7 @@ class ReliefAccessViewModel(
             stamp = { actionStamp },
             fallback = {
                 refreshRequests(branchDayId)
-                currentRequests() ?: emptyList()
+                keptRequests.freshestValue() ?: emptyList()
             },
         )
 
@@ -191,8 +191,6 @@ class ReliefAccessViewModel(
         _denyResult.value = UiState.Idle
         _cancelResult.value = UiState.Idle
     }
-
-    private fun currentRequests(): List<ReliefAccessResponse>? = keptRequests.freshestValue()
 
     @OptIn(ExperimentalUuidApi::class)
     private fun newRequestId(): String = Uuid.random().toString()

@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.dto.ReliefBranchOptionResponse
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
@@ -58,36 +59,14 @@ fun ReliefRequestPanel(
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         TextButton(onClick = { expanded = false }) { Text("Hide relief requests") }
 
-        when (val state = options) {
-            is UiState.Loading -> {
-                Text("Loading branches…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-            }
-
-            is UiState.Error -> {
-                Text(state.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-
-            else -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
-                    (state as? UiState.Success)?.data?.forEach { option ->
-                        TextButton(
-                            onClick = {
-                                selectedBranchId = option.branchId
-                                selectedBranchName = option.branchName
-                            },
-                        ) {
-                            val suffix =
-                                if (option.branchId == selectedBranchId) {
-                                    " ✓"
-                                } else {
-                                    ""
-                                }
-                            Text(option.branchName + suffix)
-                        }
-                    }
-                }
-            }
-        }
+        BranchOptionsRow(
+            options = options,
+            selectedBranchId = selectedBranchId,
+            onPick = { option ->
+                selectedBranchId = option.branchId
+                selectedBranchName = option.branchName
+            },
+        )
 
         OutlinedTextField(
             value = dateInput,
@@ -117,6 +96,39 @@ fun ReliefRequestPanel(
             listOfNotNull(requestState as? UiState.Error, cancelState as? UiState.Error).firstOrNull()?.message
         error?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+private fun BranchOptionsRow(
+    options: UiState<List<ReliefBranchOptionResponse>>,
+    selectedBranchId: String?,
+    onPick: (ReliefBranchOptionResponse) -> Unit,
+) {
+    when (options) {
+        is UiState.Loading -> {
+            Text("Loading branches…", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
+        }
+
+        is UiState.Error -> {
+            Text(options.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+
+        else -> {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.fillMaxWidth()) {
+                (options as? UiState.Success)?.data?.forEach { option ->
+                    TextButton(onClick = { onPick(option) }) {
+                        val suffix =
+                            if (option.branchId == selectedBranchId) {
+                                " ✓"
+                            } else {
+                                ""
+                            }
+                        Text(option.branchName + suffix)
+                    }
+                }
+            }
         }
     }
 }
