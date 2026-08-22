@@ -43,7 +43,7 @@ internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
         Route.AcceptInvite to Route.AcceptInvite::class,
         Route.ForgotPassword to Route.ForgotPassword::class,
         Route.BranchSelect to Route.BranchSelect::class,
-        Route.Dashboard to Route.Dashboard::class,
+        Route.Dashboard() to Route.Dashboard::class,
         Route.Clients to Route.Clients::class,
         Route.ClientDetail to Route.ClientDetail::class,
         Route.Inventory to Route.Inventory::class,

@@ -48,6 +48,7 @@ import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.ReliefAccessCard
+import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
@@ -62,6 +63,7 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
+import com.companyb.companyapp.viewmodel.ReliefDayViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
@@ -206,13 +208,26 @@ internal fun MobileAppNavHost(
                                 // start destination (empty back stack below) — popUpTo(Login)
                                 // would no-op there and leave a dead-end BranchSelect reachable
                                 // via back (clocked in, no clock-out — #97-grad fog).
-                                navController.navigate(Route.Dashboard) {
+                                navController.navigate(Route.Dashboard()) {
                                     popUpTo(0) { inclusive = true }
                                 }
                             },
                         )
                     }
-                    composable<Route.Dashboard> {
+                    composable<Route.Dashboard> { entry ->
+                        // #358 — relief deep link: a (branchId, date) pair renders the
+                        // branch-day panel instead of the clock-in-gated live dashboard.
+                        val deepLink = entry.toRoute<Route.Dashboard>()
+                        if (deepLink.branchId != null && deepLink.date != null) {
+                            val reliefDayViewModel: ReliefDayViewModel =
+                                viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
+                            ReliefDayScreen(
+                                viewModel = reliefDayViewModel,
+                                branchName = null,
+                                date = deepLink.date,
+                            )
+                            return@composable
+                        }
                         val dashboardViewModel: SessionDashboardViewModel =
                             viewModel { SessionDashboardViewModel(apiClient) }
                         // #351 — entry-scoped relief-access VM (the #112 self-cleaning shape).
@@ -345,11 +360,23 @@ internal fun MobileAppNavHost(
                                 // D3 (mobile): mark-read + navigate to the session detail. The
                                 // route carries only the sessionId — row = null → the detail
                                 // screen fetches once via GET /api/sessions/{sessionId} (#152).
-                                // #356: non-session rows (relief events) carry no destination
-                                // yet — the tap marks read and stays put until #358 lands.
+                                // #358: relief rows deep-link to the dashboard scoped to their
+                                // branch+date (the ReliefDayScreen panel).
                                 notificationsViewModel.markRead(notification.id)
-                                notification.sessionId?.let {
-                                    navController.navigate(Route.SessionDetail(it))
+                                val sessionId = notification.sessionId
+                                when {
+                                    sessionId != null -> {
+                                        navController.navigate(Route.SessionDetail(sessionId))
+                                    }
+
+                                    notification.targetDate != null -> {
+                                        navController.navigate(
+                                            Route.Dashboard(
+                                                branchId = notification.branchId,
+                                                date = notification.targetDate,
+                                            ),
+                                        )
+                                    }
                                 }
                             },
                         )
@@ -421,7 +448,7 @@ internal fun MobileAppNavHost(
                                 onBack = { navController.popBackStack() },
                                 onSessionCreated = { id ->
                                     navController.navigate(Route.SessionDetail(id)) {
-                                        popUpTo(Route.Dashboard)
+                                        popUpTo(Route.Dashboard())
                                     }
                                 },
                             )

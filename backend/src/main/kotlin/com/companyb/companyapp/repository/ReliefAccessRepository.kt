@@ -18,6 +18,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -129,6 +130,23 @@ object ReliefAccessRepository {
                 .where { GrantReliefAccessTable.requestedBy eq userId }
                 .orderBy(BranchDayTable.date to SortOrder.DESC)
                 .map { it.toReliefRequestWithBranch() }
+        }
+
+    /**
+     * #358 — PENDING requests whose Branch Day has ended (date strictly before the current
+     * operational date): the expiry-notice scan set. Status stays PENDING by design (#159 Q6
+     * invite precedent); the stored EXPIRED notice is the only expiry marker.
+     */
+    fun findPendingWithPastDay(beforeDate: LocalDate): List<ReliefRequestWithBranch> =
+        transaction {
+            GrantReliefAccessTable
+                .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
+                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                .selectAll()
+                .where {
+                    (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING) and
+                        (BranchDayTable.date less beforeDate)
+                }.map { it.toReliefRequestWithBranch() }
         }
 
     fun findByRequestedByAndBranchDayId(

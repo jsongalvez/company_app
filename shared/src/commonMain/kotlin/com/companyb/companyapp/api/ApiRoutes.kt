@@ -302,6 +302,12 @@ object ApiRoutes {
 
     fun reliefAccessList(branchDayId: String) = "$RELIEF_ACCESS?branchDayId=$branchDayId"
 
+    // #358 — notification deep-link addressing: branch+date, no branch-day id needed.
+    fun reliefAccessByBranchAndDate(
+        branchId: String,
+        date: String,
+    ) = "$RELIEF_ACCESS?branchId=$branchId&date=$date"
+
     fun userRoles(id: String) = "${user(id)}/roles"
 
     fun userDeactivate(id: String) = "${user(id)}/deactivate"

@@ -44,10 +44,18 @@ object NotificationRepository {
                         .toSet()
                 }
 
-            val seen = HashSet<Pair<UUID?, UUID>>()
+            // In-batch event identity (#358): appointment rows stay keyed by (session,user);
+            // null-session relief rows by (event,source,user), so one command's broadcast
+            // writes one message per person even when several events share the batch.
+            val seen = HashSet<Pair<Any?, UUID>>()
             val fresh =
                 params.filter { candidate ->
-                    val key = candidate.sessionId to candidate.userId
+                    val key: Pair<Any?, UUID> =
+                        if (candidate.sessionId != null) {
+                            Pair(candidate.sessionId, candidate.userId)
+                        } else {
+                            Pair("${candidate.eventType}:${candidate.sourceId}", candidate.userId)
+                        }
                     (candidate.sessionId == null || key !in existingPairs) && seen.add(key)
                 }
             if (fresh.isEmpty()) {
@@ -66,6 +74,9 @@ object NotificationRepository {
                     statement[NotificationTable.branchId] = params.branchId
                     statement[NotificationTable.message] = params.message
                     statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
+                    statement[NotificationTable.eventType] = params.eventType
+                    statement[NotificationTable.sourceId] = params.sourceId
+                    statement[NotificationTable.targetDate] = params.targetDate
                 }
                 BatchInsertBlockingExecutable(statement).execute(this) ?: 0
             }
@@ -111,6 +122,38 @@ object NotificationRepository {
                         (NotificationTable.userId eq userId)
                 }.empty()
                 .not()
+        }
+
+    // #358 — idempotency marker for the expiry job: a request with a stored EXPIRED notice
+    // is never announced twice (job re-runs, restarts).
+    fun existsForSource(
+        eventType: String,
+        sourceId: UUID,
+    ): Boolean =
+        transaction {
+            NotificationTable
+                .selectAll()
+                .where {
+                    (NotificationTable.eventType eq eventType) and
+                        (NotificationTable.sourceId eq sourceId)
+                }.empty()
+                .not()
+        }
+
+    // #358 — the original ping list of a relief request (#352 Q3): distinct users holding a
+    // RELIEF_REQUESTED row for it. The expiry notice goes to exactly these users.
+    fun findUsersBySource(
+        eventType: String,
+        sourceId: UUID,
+    ): List<UUID> =
+        transaction {
+            NotificationTable
+                .selectAll()
+                .where {
+                    (NotificationTable.eventType eq eventType) and
+                        (NotificationTable.sourceId eq sourceId)
+                }.map { it[NotificationTable.userId] }
+                .distinct()
         }
 
     // Store operation for the owning command (ADR-0024): runs on the caller's transaction and
@@ -163,5 +206,8 @@ object NotificationRepository {
             isRead = this[NotificationTable.isRead],
             readAt = this[NotificationTable.readAt],
             createdAt = this[NotificationTable.createdAt],
+            eventType = this[NotificationTable.eventType],
+            sourceId = this[NotificationTable.sourceId],
+            targetDate = this[NotificationTable.targetDate],
         )
 }

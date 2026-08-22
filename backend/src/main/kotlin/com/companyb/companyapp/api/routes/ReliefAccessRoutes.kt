@@ -8,6 +8,7 @@ import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.dto.ReliefBranchOptionResponse
 import com.companyb.companyapp.repository.ReliefRequestWithBranch
+import com.companyb.companyapp.repository.findDisplayNamesByIds
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.service.ReliefAccessService
 import io.javalin.config.JavalinConfig
@@ -17,7 +18,9 @@ import io.javalin.http.HttpStatus
 import io.javalin.http.bodyAsClass
 import io.javalin.openapi.HttpMethod
 import io.javalin.openapi.OpenApi
+import io.javalin.openapi.OpenApiContent
 import io.javalin.openapi.OpenApiParam
+import io.javalin.openapi.OpenApiResponse
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -33,7 +36,22 @@ import java.util.UUID
     path = ApiRoutes.RELIEF_ACCESS,
     methods = [HttpMethod.GET],
     operationId = "relief_access_list",
+    // #358 — two addressing forms: branchDayId, or the notification deep-link pair
+    // (branchId + date). Response documented explicitly: the handler's when-expression
+    // defeats source-level response inference.
+    queryParams = [
+        OpenApiParam(name = "branchDayId", type = UUID::class, required = false),
+        OpenApiParam(name = "branchId", type = UUID::class, required = false),
+        OpenApiParam(name = "date", type = String::class, required = false),
+    ],
     security = [OpenApiSecurity(name = "BearerAuth")],
+    responses = [
+        OpenApiResponse(
+            status = "200",
+            content = [OpenApiContent(from = ReliefAccessResponse::class)],
+        ),
+        OpenApiResponse(status = "400"),
+    ],
 )
 @OpenApi(
     path = ApiRoutes.RELIEF_ACCESS_MINE,
@@ -73,7 +91,12 @@ object ReliefAccessRoutes {
      * Shared response mapper — every command and read projects the same shape. Branch
      * context rides only on the mine list (the per-day read implies it).
      */
-    private fun ReliefAccess.toResponse(): ReliefAccessResponse =
+    private fun ReliefAccess.toResponse(
+        branchId: String? = null,
+        branchName: String? = null,
+        date: String? = null,
+        requesterName: String? = null,
+    ): ReliefAccessResponse =
         ReliefAccessResponse(
             id = id.toString(),
             branchDayId = branchDayId.toString(),
@@ -81,35 +104,58 @@ object ReliefAccessRoutes {
             requestStatus = requestStatus,
             grantedBy = grantedBy?.toString(),
             grantedAt = grantedAt?.toString(),
+            branchId = branchId,
+            branchName = branchName,
+            date = date,
+            requesterName = requesterName,
         )
 
     private fun ReliefRequestWithBranch.toResponse(): ReliefAccessResponse =
-        ReliefAccessResponse(
-            id = access.id.toString(),
-            branchDayId = access.branchDayId.toString(),
-            requestedBy = access.requestedBy.toString(),
-            requestStatus = access.requestStatus,
-            grantedBy = access.grantedBy?.toString(),
-            grantedAt = access.grantedAt?.toString(),
+        access.toResponse(
             branchId = branchId.toString(),
             branchName = branchName,
             date = date.toString(),
         )
 
+    // #358 — day-read rows carry requester display names (the deep-link panel labels rows
+    // with them); one batched lookup per read.
+    private fun List<ReliefAccess>.toNamedResponses(): List<ReliefAccessResponse> {
+        val names = findDisplayNamesByIds(map { it.requestedBy })
+        return map { it.toResponse(requesterName = names[it.requestedBy]) }
+    }
+
     fun listReliefAccess(config: JavalinConfig) {
         config.routes.get(ApiRoutes.RELIEF_ACCESS) { context ->
-            val callerId = context.callerUuid()
-            val branchDayParam =
-                context.queryParam("branchDayId") ?: throw BadRequestResponse("branchDayId is required")
-            val branchDayId =
-                runCatching { UUID.fromString(branchDayParam) }.getOrElse {
-                    throw BadRequestResponse("Invalid branchDayId")
-                }
-
-            val requests = ReliefAccessService.listForCaller(callerId, branchDayId)
-
             context.status(HttpStatus.OK)
-            context.json(requests.map { it.toResponse() })
+            // #358 — two addressing forms: branchDayId directly, or the notification
+            // deep-link pair (branchId + date). Each leg keeps the single-val service-call
+            // shape the OpenAPI response-inference pass resolves.
+            if (context.queryParam("branchDayId") != null) {
+                val callerId = context.callerUuid()
+                val branchDayId =
+                    runCatching { UUID.fromString(context.queryParam("branchDayId")) }.getOrElse {
+                        throw BadRequestResponse("Invalid branchDayId")
+                    }
+                val requests = ReliefAccessService.listForCaller(callerId, branchDayId)
+                context.json(requests.toNamedResponses())
+            } else {
+                val callerId = context.callerUuid()
+                val branchParam =
+                    context.queryParam("branchId") ?: throw BadRequestResponse("branchDayId or branchId is required")
+                val dateParam = context.queryParam("date") ?: throw BadRequestResponse("date is required")
+                val branchId =
+                    runCatching {
+                        UUID.fromString(
+                            branchParam,
+                        )
+                    }.getOrElse { throw BadRequestResponse("Invalid branchId") }
+                val date =
+                    runCatching { LocalDate.parse(dateParam) }.getOrElse {
+                        throw BadRequestResponse("Invalid date (expected ISO yyyy-MM-dd)")
+                    }
+                val dayRequests = ReliefAccessService.listForCallerByDay(callerId, branchId, date)
+                context.json(dayRequests.toNamedResponses())
+            }
         }
     }
 

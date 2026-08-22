@@ -43,6 +43,7 @@ import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
 import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
@@ -58,6 +59,7 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
+import com.companyb.companyapp.viewmodel.ReliefDayViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
@@ -172,7 +174,7 @@ actual fun AppNavHost(
                             // start destination (empty back stack below) — popUpTo(Login)
                             // would no-op there and leave a dead-end BranchSelect reachable
                             // via back (clocked in, no clock-out — #97-grad fog).
-                            navController.navigate(Route.Dashboard) {
+                            navController.navigate(Route.Dashboard()) {
                                 popUpTo(0) { inclusive = true }
                             }
                         },
@@ -182,7 +184,20 @@ actual fun AppNavHost(
                 // SessionDetail pane inline. #152 (the #151 Q6 scoped revision): desktop gained
                 // a pushed `Route.SessionDetail` for the NOTIFICATION entry point only — the
                 // dashboard pane below stays untouched.
-                composable<Route.Dashboard> {
+                composable<Route.Dashboard> { entry ->
+                    // #358 — relief deep link: (branchId, date) renders the branch-day panel
+                    // in place of the master-detail live dashboard.
+                    val deepLink = entry.toRoute<Route.Dashboard>()
+                    if (deepLink.branchId != null && deepLink.date != null) {
+                        val reliefDayViewModel: ReliefDayViewModel =
+                            viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
+                        ReliefDayScreen(
+                            viewModel = reliefDayViewModel,
+                            branchName = null,
+                            date = deepLink.date,
+                        )
+                        return@composable
+                    }
                     val dashboardViewModel: SessionDashboardViewModel =
                         viewModel { SessionDashboardViewModel(apiClient) }
                     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
@@ -300,11 +315,23 @@ actual fun AppNavHost(
                             // platform). The pushed route exists ONLY for this entry point — the
                             // dashboard keeps its inline master-detail pane. The markRead PATCH is
                             // fire-and-forget; the detail GET's bearer check accepts read or unread
-                            // rows, so there is no markRead/GET race (#151 Q7). #356: non-session
-                            // rows carry no destination yet (#358 lands relief tap targets).
+                            // rows, so there is no markRead/GET race (#151 Q7). #358: relief rows
+                            // deep-link to the branch+date panel.
                             notificationsViewModel.markRead(notification.id)
-                            notification.sessionId?.let {
-                                navController.navigate(Route.SessionDetail(it))
+                            val sessionId = notification.sessionId
+                            when {
+                                sessionId != null -> {
+                                    navController.navigate(Route.SessionDetail(sessionId))
+                                }
+
+                                notification.targetDate != null -> {
+                                    navController.navigate(
+                                        Route.Dashboard(
+                                            branchId = notification.branchId,
+                                            date = notification.targetDate,
+                                        ),
+                                    )
+                                }
                             }
                         },
                     )
@@ -377,7 +404,7 @@ actual fun AppNavHost(
                             onBack = { navController.popBackStack() },
                             onSessionCreated = { id ->
                                 navController.navigate(Route.SessionDetail(id)) {
-                                    popUpTo(Route.Dashboard)
+                                    popUpTo(Route.Dashboard())
                                 }
                             },
                         )

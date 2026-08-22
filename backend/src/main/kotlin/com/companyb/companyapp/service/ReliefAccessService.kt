@@ -57,6 +57,20 @@ object ReliefAccessService {
     fun listMine(callerId: UUID): List<ReliefRequestWithBranch> = ReliefAccessRepository.findMine(callerId)
 
     /**
+     * #358 deep-link read: a notification tap carries (branchId, date), not a branch-day id.
+     * Find-only day resolution — a stale link never materializes a missing day; empty list
+     * when no such day exists. Same audience rules as [listForCaller].
+     */
+    fun listForCallerByDay(
+        callerId: UUID,
+        branchId: UUID,
+        date: LocalDate,
+    ): List<ReliefAccess> {
+        val branchDay = BranchDayService.findByBranchAndDate(branchId, date) ?: return emptyList()
+        return listForCaller(callerId, branchDay.id)
+    }
+
+    /**
      * Active branches for the pre-clock-in request picker (#357). Bearer-only: the
      * requester holds no capabilities by definition (the dashboard universal-read
      * precedent — a capability gate would 403 the primary flow).
@@ -97,6 +111,16 @@ object ReliefAccessService {
                         AuditContext(callerId, branchDay.branchId, isRemitted, reason),
                         mutation.before,
                         mutation.after,
+                    )
+                    // #358 — outcome broadcast: everyone incl. who granted + the requester.
+                    ReliefNotifications.requestOutcome(
+                        eventType = ReliefNotifications.GRANTED,
+                        requestId = requestId,
+                        actorId = callerId,
+                        requesterId = request.requestedBy,
+                        branchId = branchDay.branchId,
+                        branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
+                        date = branchDay.date,
                     )
                 }
                 mutation.after
@@ -140,6 +164,16 @@ object ReliefAccessService {
                         AuditContext(callerId, branchDay.branchId, isRemitted, reason),
                         mutation.before,
                         mutation.after,
+                    )
+                    // #358 — outcome broadcast: everyone incl. who denied + the requester.
+                    ReliefNotifications.requestOutcome(
+                        eventType = ReliefNotifications.DENIED,
+                        requestId = requestId,
+                        actorId = callerId,
+                        requesterId = request.requestedBy,
+                        branchId = branchDay.branchId,
+                        branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
+                        date = branchDay.date,
                     )
                 }
                 mutation.after
@@ -225,9 +259,7 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        if (BranchRepository.findById(branchId) == null) {
-            throw NotFoundException("Branch not found")
-        }
+        val branch = BranchRepository.findById(branchId) ?: throw NotFoundException("Branch not found")
         if (!ReliefAccessRepository.isActiveUser(callerId)) {
             throw ForbiddenException("Inactive users cannot request relief duty")
         }
@@ -265,6 +297,14 @@ object ReliefAccessService {
                     ReliefAccessAudit.inserted(
                         AuditContext(callerId, branchDay.branchId, isRemitted, reason),
                         checkNotNull(pair.first),
+                    )
+                    // #358 — the branch-wide ping commits with the request it announces.
+                    ReliefNotifications.requestCreated(
+                        requestId = requestId,
+                        requesterId = callerId,
+                        branchId = branchId,
+                        branchName = branch.name,
+                        date = operationalDate,
                     )
                 }
                 pair

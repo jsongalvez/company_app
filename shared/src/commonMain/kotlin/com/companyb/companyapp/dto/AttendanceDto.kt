@@ -68,6 +68,11 @@ data class ReliefAccessResponse(
     val branchId: String? = null,
     val branchName: String? = null,
     val date: String? = null,
+    /**
+     * #358 — requester display name; populated on the per-day read (the deep-link panel
+     * labels rows with it). Null on the mine list (the caller is the requester).
+     */
+    val requesterName: String? = null,
 )
 
 @Serializable

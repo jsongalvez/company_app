@@ -13,15 +13,21 @@ class SchedulerLifecycle(
     private val executorFactory: () -> ScheduledExecutorService = ::createExecutor,
     private val now: () -> ZonedDateTime = { ZonedDateTime.now(BranchDayService.manilaZone) },
     private val task: () -> Unit = { NextAppointmentScheduler.run(Clock.system(BranchDayService.manilaZone)) },
+    // #358 — expired relief requests announce themselves just after the 04:00 Manila
+    // day boundary; same executor, own schedule.
+    private val expiryTask: () -> Unit = { ReliefRequestExpiryJob.run(Clock.system(BranchDayService.manilaZone)) },
 ) {
     private var executor: ScheduledExecutorService? = null
 
     @Suppress("TooGenericExceptionCaught")
-    private fun runTask() {
+    private fun runTask(
+        name: String,
+        block: () -> Unit,
+    ) {
         try {
-            task()
+            block()
         } catch (e: RuntimeException) {
-            logger.error(e) { "[SCHEDULER] Notification task failed" }
+            logger.error(e) { "[SCHEDULER] $name task failed" }
         }
     }
 
@@ -33,8 +39,14 @@ class SchedulerLifecycle(
         val candidate = executorFactory()
         try {
             candidate.scheduleAtFixedRate(
-                ::runTask,
+                { runTask("Notification", task) },
                 NextAppointmentScheduler.nextRunDelayMs(now()),
+                PERIOD_HOURS,
+                TimeUnit.HOURS,
+            )
+            candidate.scheduleAtFixedRate(
+                { runTask("Relief-expiry", expiryTask) },
+                ReliefRequestExpiryJob.nextRunDelayMs(now()),
                 PERIOD_HOURS,
                 TimeUnit.HOURS,
             )

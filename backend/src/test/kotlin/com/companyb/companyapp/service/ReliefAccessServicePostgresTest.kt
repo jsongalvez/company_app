@@ -16,6 +16,7 @@ import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -74,6 +75,9 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         // Member-authored grants/denies/cancels write audit rows too (#357 membership authority).
         trackOwned(AuditLogTable, AuditLogTable.changedBy, memberId)
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.branchDayId, branchDayId)
+        // #358 — broadcast writes land in the notification table; every recipient's row
+        // carries this branch id, so one column key tracks them all.
+        trackOwned(NotificationTable, NotificationTable.branchId, branchId)
     }
 
     // ──────────────────────────────────────────────
@@ -565,6 +569,166 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     private val inactiveRequester = TestFixtures.uuid()
+
+    // ──────────────────────────────────────────────
+    // #358 notification events (broadcast writes commit with the causing command)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `request creation broadcasts one message per member naming today`() {
+        val requestId = TestFixtures.uuid()
+
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        trackRequest(requestId)
+
+        val notices = notificationsFor(memberId)
+        assertEquals(1, notices.size)
+        val notice = notices.single()
+        assertEquals(ReliefNotifications.REQUESTED, notice.eventType)
+        assertEquals(requestId, notice.sourceId)
+        assertEquals(branchId, notice.branchId)
+        assertEquals(TestFixtures.today, notice.targetDate)
+        assertTrue(notice.message.contains("requested relief duty at $branchName for today"))
+        assertTrue(notice.message.contains("relief"))
+        // The requester raised it — no self-ping.
+        assertTrue(notificationsFor(reliefUserId).isEmpty())
+    }
+
+    @Test
+    fun `future-dated request copy names the date instead of today`() {
+        val futureDate = TestFixtures.today.plusDays(FUTURE_DAYS)
+        val requestId = TestFixtures.uuid()
+
+        ReliefAccessService.requestReliefAccess(requestId, branchId, futureDate, reliefUserId)
+        trackRequest(requestId)
+
+        val notice = notificationsFor(memberId).single()
+        assertTrue(notice.message.endsWith("on $futureDate"))
+        assertEquals(futureDate, notice.targetDate)
+    }
+
+    @Test
+    fun `grant broadcasts the outcome to members and the requester`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        trackRequest(requestId)
+
+        ReliefAccessService.grantAccess(requestId, memberId)
+
+        val memberNotices = notificationsFor(memberId).filter { it.eventType == ReliefNotifications.GRANTED }
+        val requesterNotices = notificationsFor(reliefUserId).filter { it.eventType == ReliefNotifications.GRANTED }
+        assertEquals(1, memberNotices.size)
+        assertEquals(1, requesterNotices.size)
+        val message = memberNotices.single().message
+        assertTrue(message.contains("granted"))
+        assertTrue(message.contains("member"))
+        assertTrue(message.contains("relief"))
+    }
+
+    @Test
+    fun `deny broadcasts the outcome to members and the requester`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        trackRequest(requestId)
+
+        ReliefAccessService.denyAccess(requestId, memberId)
+
+        val requesterNotice = notificationsFor(reliefUserId).single { it.eventType == ReliefNotifications.DENIED }
+        assertTrue(requesterNotice.message.contains("denied"))
+    }
+
+    @Test
+    fun `idempotent grant replay does not duplicate the outcome broadcast`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        trackRequest(requestId)
+
+        ReliefAccessService.grantAccess(requestId, memberId)
+        ReliefAccessService.grantAccess(requestId, memberId)
+
+        assertEquals(
+            1,
+            notificationsFor(memberId).count { it.eventType == ReliefNotifications.GRANTED },
+        )
+    }
+
+    @Test
+    fun `expiry job announces past-day pending requests to the original ping list`() {
+        // A live request whose day silently slides into the past: create for a future
+        // date, then rewind the day row — requestReliefAccess itself rejects past dates.
+        val expiredDate = TestFixtures.today.minusDays(1)
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(
+            requestId,
+            branchId,
+            TestFixtures.today.plusDays(FUTURE_DAYS),
+            reliefUserId,
+        )
+        trackRequest(requestId)
+        transaction {
+            BranchDayTable.update({ BranchDayTable.id eq ReliefAccessRepository.findById(requestId)!!.branchDayId }) {
+                it[BranchDayTable.date] = expiredDate
+            }
+        }
+
+        val announced = ReliefRequestExpiryJob.run()
+
+        assertEquals(1, announced)
+        val memberNotice = notificationsFor(memberId).single { it.eventType == ReliefNotifications.EXPIRED }
+        assertEquals(requestId, memberNotice.sourceId)
+        assertTrue(memberNotice.message.contains("expired unanswered"))
+
+        // Idempotent: the stored notice is the marker — re-runs announce nothing.
+        assertEquals(0, ReliefRequestExpiryJob.run())
+    }
+
+    @Test
+    fun `invite acceptance broadcasts to the branch members`() {
+        val inviteeId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(inviteeId, "relief-invitee")
+        trackOwned(AppUserTable, AppUserTable.id, inviteeId)
+        // The acceptance audit row is authored by the invitee; the capability by grant.
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, inviteeId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, inviteeId)
+
+        // Mint through the service: the invite lands on the pre-seeded today day row.
+        val invite = ReliefInviteService.createInvite(memberId, branchId, inviteeId, TestFixtures.today)
+        trackOwned(
+            com.companyb.companyapp.repository.model.ReliefInviteTable,
+            com.companyb.companyapp.repository.model.ReliefInviteTable.id,
+            invite.id,
+        )
+
+        ReliefInviteService.acceptInvite(inviteeId, invite.id)
+
+        val notice = notificationsFor(memberId).single { it.eventType == ReliefNotifications.INVITE_ACCEPTED }
+        assertEquals(invite.id, notice.sourceId)
+        assertTrue(notice.message.contains("accepted the relief invite"))
+        assertTrue(notice.message.contains("relief-invitee"))
+    }
+
+    /** Unread-or-read notification rows owned by [userId] (#358 broadcast assertions). */
+    private fun notificationsFor(userId: UUID): List<com.companyb.companyapp.repository.model.Notification> =
+        transaction {
+            NotificationTable
+                .selectAll()
+                .where { NotificationTable.userId eq userId }
+                .map { row ->
+                    com.companyb.companyapp.repository.model.Notification(
+                        id = row[NotificationTable.id],
+                        sessionId = row[NotificationTable.sessionId],
+                        userId = row[NotificationTable.userId],
+                        branchId = row[NotificationTable.branchId],
+                        message = row[NotificationTable.message],
+                        isRead = row[NotificationTable.isRead],
+                        readAt = row[NotificationTable.readAt],
+                        createdAt = row[NotificationTable.createdAt],
+                        eventType = row[NotificationTable.eventType],
+                        sourceId = row[NotificationTable.sourceId],
+                        targetDate = row[NotificationTable.targetDate],
+                    )
+                }
+        }
 
     /** Track a service-created request row and its (possibly fresh) branch day for teardown. */
     private fun trackRequest(requestId: UUID) {

@@ -20,7 +20,12 @@ sealed class Route {
     data object BranchSelect : Route()
 
     @Serializable
-    data object Dashboard : Route()
+    data class Dashboard(
+        // #358 — relief deep link: dashboard scoped to branch+date. Null = today at the
+        // selected branch (every pre-#358 call site).
+        val branchId: String? = null,
+        val date: String? = null,
+    ) : Route()
 
     @Serializable
     data object Clients : Route()

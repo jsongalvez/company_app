@@ -259,6 +259,64 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         assertTrue(NotificationRepository.existsForSessionAndUser(sessionId, callerId).not())
     }
 
+    // #358 — event rows (null session) are identified by (event, source, user) within a
+    // batch: two different relief events for the same person in one command's broadcast
+    // must both land; a repeated identical event must not.
+    @Test
+    fun `insertBatch keeps distinct event rows per person and drops in-batch event duplicates`() {
+        val created =
+            NotificationRepository.insertBatch(
+                listOf(
+                    NotificationCreateParams(
+                        sessionId = null,
+                        userId = callerId,
+                        branchId = branchId,
+                        message = "requested",
+                        eventType = "RELIEF_REQUESTED",
+                        sourceId = TestFixtures.uuid(),
+                        targetDate = TestFixtures.today,
+                    ),
+                    NotificationCreateParams(
+                        sessionId = null,
+                        userId = callerId,
+                        branchId = branchId,
+                        message = "granted",
+                        eventType = "RELIEF_REQUEST_GRANTED",
+                        sourceId = TestFixtures.uuid(),
+                        targetDate = TestFixtures.today,
+                    ),
+                ),
+            )
+        trackOwned(NotificationTable, NotificationTable.userId, callerId)
+        assertEquals(2, created)
+
+        val repeatSource = TestFixtures.uuid()
+        val repeatCreated =
+            NotificationRepository.insertBatch(
+                listOf(
+                    NotificationCreateParams(
+                        sessionId = null,
+                        userId = callerId,
+                        branchId = branchId,
+                        message = "same event twice",
+                        eventType = "RELIEF_INVITE_ACCEPTED",
+                        sourceId = repeatSource,
+                        targetDate = TestFixtures.today,
+                    ),
+                    NotificationCreateParams(
+                        sessionId = null,
+                        userId = callerId,
+                        branchId = branchId,
+                        message = "same event twice",
+                        eventType = "RELIEF_INVITE_ACCEPTED",
+                        sourceId = repeatSource,
+                        targetDate = TestFixtures.today,
+                    ),
+                ),
+            )
+        assertEquals(1, repeatCreated)
+    }
+
     @Test
     fun `insertBatch deduplicates repeated session-user pairs across and within batches`() {
         val existing = insertNotification(sessionId, callerId, branchId)

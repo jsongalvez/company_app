@@ -97,8 +97,8 @@ A cosmetic ordering number (1 = senior) per user per branch assignment. Controls
 _Avoid_: Rank, seniority number
 
 **Notification**:
-An in-app alert about an upcoming appointment, delivered to the coordinator(s) assigned to the session's branch. Contains a human-readable `message`, the originating `session_id`, and a read/unread status.
-_Avoid_: Alert, reminder, push notification
+An in-app alert delivered to a user's mailbox. Appointment reminders point at one session; relief events (#358) name the branch and the day they concern, are written in the same transaction as the change that causes them, and tap through to that branch day. Every message is stored per recipient with a read/unread status; read rows are kept forever (history).
+_Avoid_: Alert, reminder (the reminder is one event type), push notification
 
 **Audit Log**:
 An immutable record of every mutation in the system — who changed what, when, and (optionally) why. Each entry captures the table name, record id, action (INSERT/UPDATE/DELETE), caller, and before-and-after field snapshots.

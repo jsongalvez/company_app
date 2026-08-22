@@ -112,6 +112,9 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 - All retraction locks once the requester clocks in as relief at that branch — the request then stands or falls with its grant decision
 - **Multiple relief workers may hold edit access at one branch on the same day** — grants do not compete
 - The whole branch hears every request and outcome via notifications with explicit **Grant / Deny** choices
+- **Relief notification events** (#358): request raised, request granted/denied (naming who acted), and invite accepted/declined are broadcast to **every active member of the branch** — clocked in or not — and outcome notices also reach the requester; cancellation is silent. Same-day messages say "today", future ones name the date.
+- An unanswered request announces its own **expiry**: when its Branch Day ends, a notice goes to everyone who received the original ping (the request itself stays pending — the day-state is the expiry)
+- Tapping a relief notification opens the dashboard scoped to that branch **and date**; appointment reminders keep opening the session
 - Once granted, edit access is active until **04:00 AM Asia/Manila** of the following day and is scoped to that one day only
 - If relief duty spans multiple days, a new access request must be made each day
 - Edit access allows: signing in clients for sessions, adding practitioners to sessions, adding product sales, and receiving commission pool splits

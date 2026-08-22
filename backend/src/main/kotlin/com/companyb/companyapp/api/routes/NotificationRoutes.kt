@@ -90,5 +90,6 @@ object NotificationRoutes {
             isRead = isRead,
             readAt = readAt?.toString(),
             createdAt = createdAt.toString(),
+            targetDate = targetDate?.toString(),
         )
 }

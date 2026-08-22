@@ -8,6 +8,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -147,6 +148,15 @@ object ReliefInviteService {
                     ReliefInviteRepository.acceptInTransaction(id = inviteId, invitee = callerId, validTo = validTo)
                         ?: throw ConflictException("This invite was already responded to")
                 ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
+                // #358 — "everyone is notified when the person accepts or not".
+                ReliefNotifications.inviteResponded(
+                    eventType = ReliefNotifications.INVITE_ACCEPTED,
+                    inviteId = inviteId,
+                    inviteeId = callerId,
+                    branchId = branchDay.branchId,
+                    branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
+                    date = branchDay.date,
+                )
                 mutation.after
             }
 
@@ -168,6 +178,15 @@ object ReliefInviteService {
                     ReliefInviteRepository.respondInTransaction(inviteId, ReliefInviteStatus.DECLINED)
                         ?: throw ConflictException("This invite was already responded to")
                 ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
+                // #358 — decline broadcast, same audience as accept.
+                ReliefNotifications.inviteResponded(
+                    eventType = ReliefNotifications.INVITE_DECLINED,
+                    inviteId = inviteId,
+                    inviteeId = callerId,
+                    branchId = branchDay.branchId,
+                    branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
+                    date = branchDay.date,
+                )
                 mutation.after
             }
         return result

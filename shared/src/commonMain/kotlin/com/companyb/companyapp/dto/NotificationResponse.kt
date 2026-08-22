@@ -12,4 +12,7 @@ data class NotificationResponse(
     val isRead: Boolean,
     val readAt: String?,
     val createdAt: String,
+    // #358 — the branch day a relief notification points at; the tap destination is the
+    // dashboard scoped to (branchId, targetDate). Appointment reminders leave it null.
+    val targetDate: String? = null,
 )
