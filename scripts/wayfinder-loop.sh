@@ -72,7 +72,7 @@ worktree_dirty() {
 # packet is gitignored runtime state (map #329 ticket #336). A dirty tree
 # pauses the chain with a notification until the owning agent cleans up.
 wait_for_clean_handoff() {
-  local dirty notified=0
+  local dirty notified=0 pauses=0
   while :; do
     dirty="$(worktree_dirty)"
     if [ -z "$dirty" ]; then
@@ -85,6 +85,14 @@ wait_for_clean_handoff() {
       notified=1
     fi
     sleep 60
+    # Re-ping periodically: a one-shot notification is how an unattended chain
+    # dies silently (the 2026-08-22 double-pause class — nobody saw the first
+    # ping, the gate looked like a hang).
+    pauses=$((pauses + 1))
+    if [ $((pauses % 10)) -eq 0 ]; then
+      dirty="$(worktree_dirty)"
+      [ -n "$dirty" ] && notify "wayfinder still paused" "dirty worktree ($((pauses / 10))0+ min): $(echo "$dirty" | head -3 | tr '\n' ' ')"
+    fi
   done
 }
 
@@ -315,6 +323,12 @@ spawn_session() {
   local prompt
   prompt="/wayfinder .wayfinder/handoffs/$doc"
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
+  # Fingerprint the doc AS SPAWNED: a later edit to the same filename must not
+  # re-queue it. The 2026-08-22 double-spawn class: a packet corrected between
+  # detection and spawn re-fired newest_unprocessed, chaining the same ticket
+  # twice. Successor links signal via NEW filenames — never edit a queued one.
+  mark_seen "$doc"
+  save_state
   log "spawned $sid reading $doc"
   notify "wayfinder session started" "session $sid — reading $doc"
 }
