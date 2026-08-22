@@ -88,7 +88,8 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | When you need... | Read this |
 |-----------------|-----------|
 | Domain terms and glossary | `CONTEXT.md` |
-| Architecture, tech stack, layering, deep module map | `docs/architecture.md` |
+| Architecture, tech stack, layering | `docs/architecture.md` |
+| Deep module map (where new backend logic belongs) | `docs/deep-modules.md` |
 | Business rules and domain terminology (detailed) | `docs/business-requirements.md` |
 | Engine pseudocode (commission, delegate, remittance) | `docs/engines.md` |
 | Architecture decisions | `docs/adr/` (authoritative directory; inspect each relevant ADR's status, supersedes, and amends fields) |

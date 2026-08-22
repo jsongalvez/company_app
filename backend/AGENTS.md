@@ -6,7 +6,8 @@ Before coding, read the relevant doc(s):
 
 | File | Use when |
 |------|----------|
-| `docs/architecture.md` | Architecture decisions, module map, tech stack, backend layering |
+| `docs/architecture.md` | Architecture decisions, tech stack, backend layering |
+| `docs/deep-modules.md` | The deep module map — where new backend logic belongs (BranchDay, Finance, Capability, Audit, …) |
 | `docs/engines.md` | Exact pseudocode or SQL for the commission, delegate, or remittance engines |
 | `docs/business-requirements.md` | Domain terminology, business rules, or constraints |
 | `docs/javalin-framework.md` (at `backend/docs/javalin-framework.md`) | Before writing Javalin routes, handlers, or tests — Javalin 7.x API reference |
