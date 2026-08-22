@@ -7,8 +7,10 @@ import com.companyb.companyapp.dto.DenyReliefAccessRequest
 import com.companyb.companyapp.dto.GrantReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.service.ReliefAccessService
+import com.companyb.companyapp.service.ReliefGrantOutcome
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
 import io.javalin.http.Context
@@ -106,10 +108,20 @@ object ReliefAccessRoutes {
             val requestId = context.pathParamAsUuid("requestId")
             val reason = context.bodyIfPresent<GrantReliefAccessRequest>()?.reason
 
-            val result = ReliefAccessService.grantAccess(requestId, callerId, reason)
+            when (val outcome = ReliefAccessService.grantAccess(requestId, callerId, reason)) {
+                is ReliefGrantOutcome.Granted -> {
+                    context.status(HttpStatus.OK)
+                    context.json(outcome.reliefAccess.toResponse())
+                }
 
-            context.status(HttpStatus.OK)
-            context.json(result.toResponse())
+                is ReliefGrantOutcome.Superseded -> {
+                    // #354 edge 3: a losing decision must not read as success (200 with the
+                    // winner's row); the conflict carries the surviving request id instead.
+                    throw ConflictException(
+                        "This relief request was already decided — granted request ${outcome.reliefAccess.id} stands",
+                    )
+                }
+            }
         }
     }
 

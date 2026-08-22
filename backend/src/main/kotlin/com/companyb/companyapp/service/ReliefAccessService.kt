@@ -59,7 +59,7 @@ object ReliefAccessService {
         requestId: UUID,
         callerId: UUID,
         reason: String? = null,
-    ): ReliefAccess {
+    ): ReliefGrantOutcome {
         val request =
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
@@ -69,13 +69,19 @@ object ReliefAccessService {
         }
 
         if (request.requestStatus == ReliefAccessStatus.GRANTED) {
-            return request
+            return ReliefGrantOutcome.Granted(request)
         }
 
         val result =
             transaction {
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+
+                // #354 edge 2: presence was checked when the request was created; recheck it
+                // atomically here so a target who clocked out cannot grant afterwards.
+                if (!ReliefAccessRepository.hasActiveClockInInTransaction(request.targetUser, request.branchDayId)) {
+                    throw ValidationException("Target user does not have an active clock-in on this branch day")
+                }
 
                 val mutation =
                     ReliefAccessRepository.grantInTransaction(
@@ -100,18 +106,22 @@ object ReliefAccessService {
                 mutation.after
             }
 
-        if (result.requestStatus == ReliefAccessStatus.DENIED) {
-            logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId was already denied" }
-        } else if (result.id == requestId) {
-            logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
-        } else {
-            logger.info {
-                "[RELIEF-ACCESS-GRANT] Duplicate grant: " +
-                    "returning existing ${result.id} for request $requestId"
+        return when {
+            result.id == requestId && result.requestStatus == ReliefAccessStatus.GRANTED -> {
+                logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
+                ReliefGrantOutcome.Granted(result)
+            }
+
+            else -> {
+                // #354 edge 3: another decision won the day-row lock (a different request of
+                // the same requester got granted, or this one was denied concurrently).
+                logger.info {
+                    "[RELIEF-ACCESS-GRANT] Request $requestId superseded — returning winner ${result.id} " +
+                        "(${result.requestStatus}) to caller $callerId"
+                }
+                ReliefGrantOutcome.Superseded(result)
             }
         }
-
-        return result
     }
 
     @Suppress("ThrowsCount")
@@ -169,19 +179,27 @@ object ReliefAccessService {
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        val targetHasClockIn = ReliefAccessRepository.hasActiveClockIn(targetUserId, branchDayId)
-        if (!targetHasClockIn) {
-            throw ValidationException("Target user does not have an active clock-in on this branch day")
-        }
-
-        val requesterIsRelief = ReliefAccessRepository.isReliefUser(callerId, branchDayId)
-        if (!requesterIsRelief) {
-            throw ForbiddenException("Only relief users can request relief access")
+        if (targetUserId == callerId) {
+            // #354 edge 1: the candidate listing excludes the caller; this guard closes the
+            // direct-API hole so a relief user cannot request access through themselves.
+            throw ValidationException("Cannot request relief access from yourself")
         }
 
         val (reliefAccess, wasCreated) =
             transaction {
                 val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
+
+                // #354 edges 2+4: eligibility rechecked atomically at write time — presence
+                // and account status can change between listing and request.
+                if (!ReliefAccessRepository.hasActiveClockInInTransaction(targetUserId, branchDayId)) {
+                    throw ValidationException("Target user does not have an active clock-in on this branch day")
+                }
+                if (!ReliefAccessRepository.isActiveUserInTransaction(targetUserId)) {
+                    throw ValidationException("Target user is not active")
+                }
+                if (!ReliefAccessRepository.isReliefUserInTransaction(callerId, branchDayId)) {
+                    throw ForbiddenException("Only relief users can request relief access")
+                }
 
                 val pair =
                     ReliefAccessRepository.insertRequestInTransaction(
@@ -206,6 +224,24 @@ object ReliefAccessService {
 
         return reliefAccess
     }
+}
+
+/**
+ * Grant outcome (#354 edge 3): a caller whose grant lost a race must be able to tell that
+ * apart from success — [Superseded] carries the row that actually won the day (another
+ * granted request, or this request denied concurrently). Top-level so routes and tests can
+ * pattern-match without nesting.
+ */
+sealed interface ReliefGrantOutcome {
+    /** The caller's grant won; includes idempotent replays of an already-granted request. */
+    data class Granted(
+        val reliefAccess: ReliefAccess,
+    ) : ReliefGrantOutcome
+
+    /** This decision did not win — [reliefAccess] is the surviving row, not the caller's request. */
+    data class Superseded(
+        val reliefAccess: ReliefAccess,
+    ) : ReliefGrantOutcome
 }
 
 /**

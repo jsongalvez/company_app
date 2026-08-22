@@ -4,7 +4,11 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.repository.CapabilityRepository
+import com.companyb.companyapp.repository.model.AppUserTable
+import com.companyb.companyapp.repository.model.AttendanceTable
+import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
@@ -264,38 +268,59 @@ object ReliefAccessRepository {
         return row to isNew
     }
 
+    /** Read wrapper — see [hasActiveClockInInTransaction] (#354 edge 2). */
     fun hasActiveClockIn(
         targetUser: UUID,
         branchDayId: UUID,
-    ): Boolean =
-        transaction {
-            com.companyb.companyapp.repository.model.AttendanceTable
-                .selectAll()
-                .where {
-                    (com.companyb.companyapp.repository.model.AttendanceTable.userId eq targetUser) and
-                        (com.companyb.companyapp.repository.model.AttendanceTable.branchDayId eq branchDayId) and
-                        (
-                            com.companyb.companyapp.repository.model.AttendanceTable.clockOut
-                                .isNull()
-                        )
-                }.empty()
-                .not()
-        }
+    ): Boolean = transaction { hasActiveClockInInTransaction(targetUser, branchDayId) }
 
+    /**
+     * In-transaction presence read (#354 edges 2+4) — runs on the caller's command
+     * transaction so eligibility rechecks commit atomically with the write they gate.
+     */
+    fun hasActiveClockInInTransaction(
+        targetUser: UUID,
+        branchDayId: UUID,
+    ): Boolean =
+        AttendanceTable
+            .selectAll()
+            .where {
+                (AttendanceTable.userId eq targetUser) and
+                    (AttendanceTable.branchDayId eq branchDayId) and
+                    (AttendanceTable.clockOut.isNull())
+            }.empty()
+            .not()
+
+    /**
+     * In-transaction status read (#354 edge 4) — a deactivated user must not remain a live
+     * request target; runs on the caller's command transaction.
+     */
+    fun isActiveUserInTransaction(userId: UUID): Boolean =
+        AppUserTable
+            .selectAll()
+            .where { (AppUserTable.id eq userId) and (AppUserTable.status eq UserStatus.ACTIVE) }
+            .empty()
+            .not()
+
+    /** Read wrapper — see [isReliefUserInTransaction]. */
     fun isReliefUser(
         userId: UUID,
         branchDayId: UUID,
+    ): Boolean = transaction { isReliefUserInTransaction(userId, branchDayId) }
+
+    /** In-transaction relief-eligibility read — runs on the caller's command transaction. */
+    fun isReliefUserInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
     ): Boolean =
-        transaction {
-            com.companyb.companyapp.repository.model.BranchDayAssignmentTable
-                .selectAll()
-                .where {
-                    (com.companyb.companyapp.repository.model.BranchDayAssignmentTable.userId eq userId) and
-                        (com.companyb.companyapp.repository.model.BranchDayAssignmentTable.branchDayId eq branchDayId)
-                }.singleOrNull()
-                ?.let { it[com.companyb.companyapp.repository.model.BranchDayAssignmentTable.isRelief] }
-                ?: false
-        }
+        BranchDayAssignmentTable
+            .selectAll()
+            .where {
+                (BranchDayAssignmentTable.userId eq userId) and
+                    (BranchDayAssignmentTable.branchDayId eq branchDayId)
+            }.singleOrNull()
+            ?.let { it[BranchDayAssignmentTable.isRelief] }
+            ?: false
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toReliefAccess(): ReliefAccess =
         ReliefAccess(

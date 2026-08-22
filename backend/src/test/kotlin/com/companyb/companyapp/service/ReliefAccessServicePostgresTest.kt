@@ -3,6 +3,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -16,6 +17,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import com.companyb.companyapp.service.ReliefGrantOutcome
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -28,6 +30,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -127,7 +130,11 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
 
-        val result = ReliefAccessService.grantAccess(requestId, targetUserId)
+        val result =
+            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId)) {
+                is ReliefGrantOutcome.Granted -> outcome.reliefAccess
+                is ReliefGrantOutcome.Superseded -> error("first grant must win, got superseded")
+            }
 
         assertEquals(requestId, result.id)
         assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
@@ -150,7 +157,11 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
         ReliefAccessService.grantAccess(requestId, targetUserId)
 
-        val duplicate = ReliefAccessService.grantAccess(requestId, targetUserId)
+        val duplicate =
+            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId)) {
+                is ReliefGrantOutcome.Granted -> outcome.reliefAccess
+                is ReliefGrantOutcome.Superseded -> error("replay of the granted request must stay Granted")
+            }
 
         assertEquals(requestId, duplicate.id)
         assertEquals(ReliefAccessStatus.GRANTED, duplicate.requestStatus)
@@ -192,17 +203,23 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `duplicate grant for same requestedBy and branchDayId returns existing grant`() {
+    fun `losing duplicate grant returns explicit superseded outcome carrying the winner`() {
         val requestId1 = TestFixtures.uuid()
         val requestId2 = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId1, branchDayId, targetUserId, reliefUserId)
         ReliefAccessService.requestReliefAccess(requestId2, branchDayId, targetUserId, reliefUserId)
         ReliefAccessService.grantAccess(requestId1, targetUserId)
 
-        val result = ReliefAccessService.grantAccess(requestId2, targetUserId)
+        val superseded =
+            when (val outcome = ReliefAccessService.grantAccess(requestId2, targetUserId)) {
+                is ReliefGrantOutcome.Granted -> error("second grant must lose: $outcome")
+                is ReliefGrantOutcome.Superseded -> outcome.reliefAccess
+            }
 
-        assertEquals(requestId1, result.id)
-        assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
+        // The losing caller sees the row that actually won — never a success-shaped echo
+        // of its own request (#354 edge 3).
+        assertEquals(requestId1, superseded.id)
+        assertEquals(ReliefAccessStatus.GRANTED, superseded.requestStatus)
     }
 
     @Test
@@ -230,14 +247,18 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `grant after deny returns denied request without capability`() {
+    fun `grant after deny returns superseded outcome with the denied row and no capability`() {
         val requestId = TestFixtures.uuid()
         ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
         ReliefAccessService.denyAccess(requestId, targetUserId)
 
-        val result = ReliefAccessService.grantAccess(requestId, targetUserId)
+        val superseded =
+            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId)) {
+                is ReliefGrantOutcome.Granted -> error("grant after deny must not read as granted: $outcome")
+                is ReliefGrantOutcome.Superseded -> outcome.reliefAccess
+            }
 
-        assertEquals(ReliefAccessStatus.DENIED, result.requestStatus)
+        assertEquals(ReliefAccessStatus.DENIED, superseded.requestStatus)
         assertFalse(
             CapabilityService.hasCapability(
                 userId = reliefUserId,
@@ -301,7 +322,7 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
 
         try {
             listOf(
-                executor.submit<Result<ReliefAccess>> {
+                executor.submit<Result<ReliefGrantOutcome>> {
                     runCatching { ReliefAccessService.grantAccess(requestId, targetUserId) }
                 },
                 executor.submit<Result<ReliefAccess>> {
@@ -368,7 +389,11 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         DatabaseTestHelper.grantEditPastDay(targetUserId, branchId, TestFixtures.uuid())
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
 
-        val result = ReliefAccessService.grantAccess(requestId, targetUserId, "Coordinator correction")
+        val result =
+            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId, "Coordinator correction")) {
+                is ReliefGrantOutcome.Granted -> outcome.reliefAccess
+                is ReliefGrantOutcome.Superseded -> error("flagged-day grant must win: $outcome")
+            }
 
         assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
         val audit =
@@ -432,6 +457,106 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ForbiddenException> {
             ReliefAccessService.denyAccess(requestId, targetUserId)
         }
+    }
+
+    // ──────────────────────────────────────────────
+    // #354 correctness edges
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `request fails with 400 when the target is the caller (#354 edge 1)`() {
+        val requestId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ReliefAccessService.requestReliefAccess(requestId, branchDayId, reliefUserId, reliefUserId)
+        }
+        assertFalse(requestExists(requestId))
+    }
+
+    @Test
+    fun `grant fails with 400 when target lost presence after request (#354 edge 2)`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        transaction {
+            AttendanceTable.update({ AttendanceTable.id eq attendanceId }) {
+                it[AttendanceTable.clockOut] = OffsetDateTime.now(ZoneOffset.UTC)
+            }
+        }
+
+        assertFailsWith<ValidationException> {
+            ReliefAccessService.grantAccess(requestId, targetUserId)
+        }
+        assertEquals(ReliefAccessStatus.PENDING, ReliefAccessRepository.findById(requestId)?.requestStatus)
+        assertFalse(
+            CapabilityService.hasCapability(
+                userId = reliefUserId,
+                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.BRANCH_DAY,
+                contextId = branchDayId,
+            ),
+        )
+    }
+
+    @Test
+    fun `concurrent grants leave one winner and one explicit superseded outcome (#354 edge 3)`() {
+        val secondTarget = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(secondTarget, "target-2")
+        trackOwned(AppUserTable, AppUserTable.id, secondTarget)
+        insertAttendance(TestFixtures.uuid(), secondTarget, branchDayId)
+        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
+        val request1 = TestFixtures.uuid()
+        val request2 = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(request1, branchDayId, targetUserId, reliefUserId)
+        ReliefAccessService.requestReliefAccess(request2, branchDayId, secondTarget, reliefUserId)
+
+        val executor = Executors.newFixedThreadPool(CONCURRENT_OPERATIONS)
+        try {
+            val outcomes =
+                listOf(
+                    executor.submit<Result<ReliefGrantOutcome>> {
+                        runCatching { ReliefAccessService.grantAccess(request1, targetUserId) }
+                    },
+                    executor.submit<Result<ReliefGrantOutcome>> {
+                        runCatching { ReliefAccessService.grantAccess(request2, secondTarget) }
+                    },
+                ).map { it.get(CONCURRENT_TIMEOUT_SECONDS, TimeUnit.SECONDS) }
+
+            outcomes.forEach { result ->
+                assertTrue(result.isSuccess, "neither leg may error: ${result.exceptionOrNull()}")
+            }
+            val decided = outcomes.mapNotNull { it.getOrNull() }
+            val granted = decided.filterIsInstance<ReliefGrantOutcome.Granted>()
+            val superseded = decided.filterIsInstance<ReliefGrantOutcome.Superseded>()
+            assertEquals(1, granted.size)
+            assertEquals(1, superseded.size)
+
+            val winner = granted.single().reliefAccess
+            val loserRow = superseded.single().reliefAccess
+            assertEquals(winner.id, loserRow.id, "the superseded outcome must carry the winning row")
+            assertTrue(winner.id == request1 || winner.id == request2)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `request fails with 400 when target user is deactivated (#354 edge 4)`() {
+        val inactiveTarget = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(inactiveTarget, "inactive")
+        trackOwned(AppUserTable, AppUserTable.id, inactiveTarget)
+        transaction {
+            AppUserTable.update({ AppUserTable.id eq inactiveTarget }) {
+                it[AppUserTable.status] = UserStatus.INACTIVE
+            }
+        }
+        insertAttendance(TestFixtures.uuid(), inactiveTarget, branchDayId)
+        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
+        val requestId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ReliefAccessService.requestReliefAccess(requestId, branchDayId, inactiveTarget, reliefUserId)
+        }
+        assertFalse(requestExists(requestId))
     }
 
     private fun insertBranchDay(
