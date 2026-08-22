@@ -78,6 +78,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Frontend conventions (logging, ViewModels, design tokens) | `composeApp/AGENTS.md` |
 | Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
 | Issue tracking | `docs/agents/issue-tracker.md` |
+| Wayfinding chain daemon — stalls, duplicates, restarts, packet rules | `docs/agents/wayfinder-loop.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
 | Decision-loop lenses + deferred human-review frame | `docs/agents/decision-loop.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
