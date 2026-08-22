@@ -463,9 +463,10 @@ supervise_session() {
     # Assistant errors split by recoverability. provider.invalid-output is the truncated-
     # stream class (the free model ending a turn mid-stream): a canonical NUDGE resumes it —
     # manual continuations after every 2026-08-22 truncation worked, while each pause took
-    # the whole chain down. Deduped per message id (one nudge per failed turn), within the
-    # shared retries budget; exhaustion pauses like any other stall. Every other error
-    # class stays terminal: prompting cannot repair auth/quota-style failures.
+    # the whole chain down. Deduped per message id (one nudge per failed turn) and UNBOUNDED:
+    # this class never exhausts a retry budget and never pauses the chain — the daemon keeps
+    # nudging for as long as the provider keeps truncating. Every other error class stays
+    # terminal: prompting cannot repair auth/quota-style failures.
     assistant_failure="$(assistant_error "$session_id")"
     if [ -n "$assistant_failure" ]; then
       err_id="${assistant_failure%%$'\t'*}"
@@ -473,19 +474,12 @@ supervise_session() {
       case "$err_text" in
         provider.invalid-output:*)
           if [ "$err_id" != "$last_err_id" ]; then
-            if [ "${retries:-0}" -ge 2 ]; then
-              log "chain paused: $session_id kept failing after $retries resume attempts: $err_text"
-              notify "wayfinder chain paused" "session $session_id failed repeatedly after resumes: $err_text"
-              exit 0
-            fi
-            retries=$(( ${retries:-0} + 1 ))
-            save_state
-            last_err_id="$err_id"
             if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
-              log "session $session_id hit a transient provider error — sent recovery prompt ($retries/2): $err_text"
+              last_err_id="$err_id"
+              log "session $session_id hit a transient provider error — sent recovery prompt: $err_text"
               notify "wayfinder continuing" "session $session_id hit a truncated provider response — recovery sent"
             else
-              log "recovery prompt failed for $session_id — retrying next tick ($retries/2 spent)"
+              log "recovery prompt failed for $session_id — retrying next tick"
             fi
           fi
           continue
@@ -561,18 +555,14 @@ supervise_session() {
 }
 
 session_dead() {
-  # resume: the session still exists but stalled/interrupted — ask it to continue in place
-  # fresh: session gone (404) — spawn a new one from the handoff doc
+  # resume: the session still exists but stalled/interrupted — ask it to continue in place.
+  # Unbounded: the daemon is an AFK orchestrator — every stall gets THE canonical recovery
+  # prompt, forever; a wedged session is the operator's call, never a silent chain death.
   local mode="${1:-fresh}"
   if [ "$mode" = "resume" ]; then
-    if [ "${retries:-0}" -ge 2 ]; then
-      log "chain paused: $session_id stalled after $retries resume attempts"
-      notify "wayfinder chain paused" "session $session_id stalled after 2 resume attempts — attach TUI to check it, kill it if wedged, then run: ./scripts/wayfinder-loop.sh --retry"
-      exit 0
-    fi
     retries=$(( ${retries:-0} + 1 ))
     save_state
-    log "resuming stalled session $session_id (attempt $retries/2)"
+    log "resuming stalled session $session_id (attempt $retries)"
     notify "wayfinder resuming" "session $session_id stalled — asking it to continue where it left off"
     if ! api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
       log "resume prompt failed for $session_id — falling back to fresh spawn"
@@ -580,16 +570,13 @@ session_dead() {
     fi
     return 0
   fi
-  if [ "${retries:-0}" -ge 2 ]; then
-    log "chain paused: $session_id died without handoff (retries=$retries)"
-    notify "wayfinder chain paused" "session $session_id died without writing a handoff. Run: ./scripts/wayfinder-loop.sh --retry"
-    exit 0
-  fi
+  # Unbounded like resume: a dead session gets a fresh worker for the same packet,
+  # forever — notification spam on a poison packet IS the operator signal.
   retries=$(( ${retries:-0} + 1 ))
   session_id=""
   save_state
-  log "session died without handoff — respawn for $last_doc (retry $retries/2)"
-  notify "wayfinder retrying" "session died — spawning a fresh session for $last_doc (retry $retries/2)"
+  log "session died without handoff — respawn for $last_doc (retry $retries)"
+  notify "wayfinder retrying" "session died — spawning a fresh session for $last_doc (retry $retries)"
   spawn_session "$last_doc" || { log "dry-run retry"; exit 0; }
 }
 
