@@ -2,6 +2,7 @@
 
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,14 +44,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.InviteMintRequest
+import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
-import com.companyb.companyapp.dto.UserCreateRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -103,8 +107,8 @@ fun UserManagementScreen(
     val branches by viewModel.branches.collectAsState()
     val inFlight by viewModel.inFlight.collectAsState()
     val actionErrors by viewModel.actionErrors.collectAsState()
-    // #345 — create-user + role-picker state.
-    val createState by viewModel.createUserResult.collectAsState()
+    // #350 — invite-mint + role-picker state.
+    val mintState by viewModel.mintInviteResult.collectAsState()
     val rolesState by viewModel.roles.collectAsState()
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -120,12 +124,6 @@ fun UserManagementScreen(
         viewModel.loadUsers()
         viewModel.loadBranches()
         viewModel.loadRoles()
-    }
-
-    // Create-user dialog lifecycle (the RemittanceListScreen create-draft shape): a Success
-    // closes the popup — the created row is already appended to the list in place.
-    LaunchedEffect(createState) {
-        if (createState is UiState.Success) showCreateUserDialog = false
     }
 
     val loadedUsers = heldList.orEmpty()
@@ -165,7 +163,7 @@ fun UserManagementScreen(
                     // retry path instead (pass-4 P4).
                     enabled = !mutationsDisabled && heldList != null,
                 ) {
-                    Text("Create user")
+                    Text("Invite user")
                 }
                 TextButton(
                     onClick = {
@@ -350,13 +348,17 @@ fun UserManagementScreen(
     }
 
     if (showCreateUserDialog) {
-        CreateUserDialog(
-            createState = createState,
-            onCreate = viewModel::createUser,
+        InviteMintDialog(
+            mintState = mintState,
+            onMint = viewModel::mintInvite,
             onDismiss = {
                 // A mid-flight dismiss would orphan the in-flight POST (the RemittanceList
-                // create-draft guard) — stay open while loading.
-                if (createState !is UiState.Loading) showCreateUserDialog = false
+                // create-draft guard) — stay open while loading. A Success stays open too:
+                // the admin needs the code until they explicitly close (closing resets).
+                if (mintState !is UiState.Loading) {
+                    viewModel.dismissInviteResult()
+                    showCreateUserDialog = false
+                }
             },
         )
     }
@@ -844,102 +846,140 @@ private fun EditSlotDialog(
 }
 
 /**
- * #345 — create staff account. Four fields; the backend owns password/email policy and
- * duplicate detection, so client validation is presence-only and 400/409 bodies render inline.
- * Dismissal is blocked mid-flight (an orphaned POST would still create the account).
+ * #350 — invite-mint dialog (the #345 create-user shape minus the password field): username,
+ * email, display name; the backend owns email policy and duplicate detection so client
+ * validation stays presence-only and 400/409 bodies render inline.
+ *
+ * A Success does NOT auto-close — the single-use code is the only deliverable, so the dialog
+ * flips to a result panel (code + expiry + copy) until the admin explicitly closes it
+ * ([UserViewModel.dismissInviteResult] resets the flow for the next open). Mid-flight dismissal
+ * stays blocked (an orphaned POST would still mint the account).
  */
 @Composable
-private fun CreateUserDialog(
-    createState: UiState<UserSummaryResponse>,
-    onCreate: (UserCreateRequest) -> Unit,
+private fun InviteMintDialog(
+    mintState: UiState<InviteMintResponse>,
+    onMint: (InviteMintRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var username by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
 
-    val inFlight = createState is UiState.Loading
-    val complete = listOf(username, email, displayName, password).all { it.isNotBlank() }
+    val inFlight = mintState is UiState.Loading
+    val complete = listOf(username, email, displayName).all { it.isNotBlank() }
+    val clipboard = LocalClipboardManager.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create user") },
+        title = { Text("Invite user") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Username") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = displayName,
-                    onValueChange = { displayName = it },
-                    label = { Text("Display name") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Initial password") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                (createState as? UiState.Error)?.let { state ->
-                    LaunchedEffect(state) {
-                        // Sticky branch — log once per state, not per recomposition (the
-                        // usersState=Error guard shape).
-                        logWarn("UserManagementScreen", "createState=Error: ${state.message}")
+                when (val state = mintState) {
+                    is UiState.Success -> {
+                        LaunchedEffect(state) {
+                            logInfo("UserManagementScreen", "mintState=Success; code ready to copy")
+                        }
+                        Text(
+                            text = "Share this single-use code. It expires ${state.data.expiresAt}.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.size(Spacing.sm))
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = state.data.inviteCode,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(Spacing.md),
+                            )
+                        }
+                        Spacer(Modifier.size(Spacing.sm))
+                        TextButton(onClick = {
+                            clipboard.setText(AnnotatedString(state.data.inviteCode))
+                        }) {
+                            Text("Copy code")
+                        }
                     }
-                    Text(
-                        text = state.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = Spacing.sm),
-                    )
+
+                    else -> {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = { Text("Username") },
+                            singleLine = true,
+                            enabled = !inFlight,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.size(Spacing.sm))
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email") },
+                            singleLine = true,
+                            enabled = !inFlight,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.size(Spacing.sm))
+                        OutlinedTextField(
+                            value = displayName,
+                            onValueChange = { displayName = it },
+                            label = { Text("Display name") },
+                            singleLine = true,
+                            enabled = !inFlight,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        (state as? UiState.Error)?.let { errorState ->
+                            LaunchedEffect(errorState) {
+                                // Sticky branch — log once per state, not per recomposition (the
+                                // usersState=Error guard shape).
+                                logWarn("UserManagementScreen", "mintState=Error: ${errorState.message}")
+                            }
+                            Text(
+                                text = errorState.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = Spacing.sm),
+                            )
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    onCreate(
-                        UserCreateRequest(
-                            username = username.trim(),
-                            email = email.trim(),
-                            displayName = displayName.trim(),
-                            password = password,
-                        ),
-                    )
-                },
-                enabled = complete && !inFlight,
-            ) {
-                Text(if (inFlight) "Creating…" else "Create")
+            when (mintState) {
+                is UiState.Success -> {
+                    TextButton(onClick = onDismiss) { Text("Done") }
+                }
+
+                else -> {
+                    TextButton(
+                        onClick = {
+                            onMint(
+                                InviteMintRequest(
+                                    username = username.trim(),
+                                    email = email.trim(),
+                                    displayName = displayName.trim(),
+                                ),
+                            )
+                        },
+                        enabled = complete && !inFlight,
+                    ) {
+                        Text(if (inFlight) "Minting…" else "Mint invite")
+                    }
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !inFlight) {
-                Text("Cancel")
+            if (mintState is UiState.Success) {
+                Unit
+            } else {
+                TextButton(onClick = onDismiss, enabled = !inFlight) {
+                    Text("Cancel")
+                }
             }
         },
     )

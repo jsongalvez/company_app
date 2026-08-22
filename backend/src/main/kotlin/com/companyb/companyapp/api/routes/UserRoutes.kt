@@ -4,7 +4,8 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.middleware.CapabilityFilter
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.domain.CapabilityCodes
-import com.companyb.companyapp.dto.UserCreateRequest
+import com.companyb.companyapp.dto.InviteMintRequest
+import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.UserRoleReplaceRequest
 import com.companyb.companyapp.service.UserService
 import io.javalin.config.JavalinConfig
@@ -26,19 +27,6 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
-    path = ApiRoutes.USERS,
-    methods = [HttpMethod.POST],
-    operationId = "user_create",
-    security = [OpenApiSecurity(name = "BearerAuth")],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = UserCreateRequest::class)]),
-    responses = [
-        OpenApiResponse(
-            status = "201",
-            content = [OpenApiContent(from = com.companyb.companyapp.dto.UserSummaryResponse::class)],
-        ), OpenApiResponse(status = "400"), OpenApiResponse(status = "409"),
-    ],
-)
-@OpenApi(
     path = ApiRoutes.ROLES,
     methods = [HttpMethod.GET],
     operationId = "roles_list",
@@ -48,6 +36,19 @@ import java.util.UUID
             status = "200",
             content = [OpenApiContent(from = com.companyb.companyapp.dto.RoleResponse::class)],
         ),
+    ],
+)
+@OpenApi(
+    path = ApiRoutes.INVITES,
+    methods = [HttpMethod.POST],
+    operationId = "invite_mint",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = InviteMintRequest::class)]),
+    responses = [
+        OpenApiResponse(
+            status = "201",
+            content = [OpenApiContent(from = InviteMintResponse::class)],
+        ), OpenApiResponse(status = "400"), OpenApiResponse(status = "409"),
     ],
 )
 @OpenApi(
@@ -81,7 +82,7 @@ object UserRoutes {
         deactivate(config)
         list(config)
         reactivate(config)
-        create(config)
+        mintInvite(config)
         roles(config)
         replaceRoles(config)
     }
@@ -137,13 +138,26 @@ object UserRoutes {
         }
     }
 
-    private fun create(config: JavalinConfig) {
-        config.routes.post(ApiRoutes.USERS) { context ->
+    /**
+     * #350 — mint a single-use invite link (GLOBAL MANAGE_USERS per ADR-0007; service
+     * commands stay capability-free). Public account creation itself happens at
+     * /auth/accept-invite with the code, outside this gate.
+     */
+    private fun mintInvite(config: JavalinConfig) {
+        config.routes.before(ApiRoutes.INVITES) { context ->
+            CapabilityFilter.requireGlobalCapability(
+                context,
+                CapabilityCodes.MANAGE_USERS,
+                MANAGE_USERS_MESSAGE,
+            )
+        }
+
+        config.routes.post(ApiRoutes.INVITES) { context ->
             val callerId = context.callerUuid()
-            val request = context.bodyAsClass<UserCreateRequest>()
+            val request = context.bodyAsClass<InviteMintRequest>()
 
             context.status(HttpStatus.CREATED)
-            context.json(UserService.create(callerId, request))
+            context.json(UserService.mintInvite(callerId, request))
         }
     }
 

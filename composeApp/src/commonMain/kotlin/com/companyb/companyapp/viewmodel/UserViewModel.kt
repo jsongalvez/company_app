@@ -4,10 +4,11 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.InviteMintRequest
+import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
-import com.companyb.companyapp.dto.UserCreateRequest
 import com.companyb.companyapp.dto.UserRoleReplaceRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.network.ApiClient
@@ -144,14 +145,14 @@ class UserViewModel(
     private val _roles = MutableStateFlow<UiState<List<RoleResponse>>>(UiState.Idle)
     val roles: StateFlow<UiState<List<RoleResponse>>> = _roles.asStateFlow()
 
-    // #345 — create-user result: Success closes the screen's dialog (the RemittanceListScreen
-    // create-draft shape); Error carries the backend's policy/conflict message inline.
-    private val _createUserResult = MutableStateFlow<UiState<UserSummaryResponse>>(UiState.Idle)
-    val createUserResult: StateFlow<UiState<UserSummaryResponse>> = _createUserResult.asStateFlow()
+    // #345/#350 — invite-mint result: Success carries the single-use code (the dialog stays
+    // open so the admin can copy it); Error carries the backend's policy/conflict message inline.
+    private val _mintInviteResult = MutableStateFlow<UiState<InviteMintResponse>>(UiState.Idle)
+    val mintInviteResult: StateFlow<UiState<InviteMintResponse>> = _mintInviteResult.asStateFlow()
 
     // Per-action in-flight guard + inline errors (ADR-0022 pessimistic axis). Keys:
     // "deactivate:$userId", "reactivate:$userId", "swap:$branchId:$userIdA:$userIdB",
-    // "slot:$branchId:$userId", "roles:$userId", "create-user".
+    // "slot:$branchId:$userId", "roles:$userId", "mint-invite".
     private val actionTracker = ActionTracker<String>()
     val inFlight: StateFlow<Set<String>> = actionTracker.inFlight
     val actionErrors: StateFlow<Map<String, String>> = actionTracker.errors
@@ -224,45 +225,57 @@ class UserViewModel(
         )
     }
 
-    // #345 — create staff account (GLOBAL MANAGE_USERS, ADR-0007 route gate). On 201 the
-    // returned row appends to the held list in place (the keep-last mutate; a list that never
-    // loaded simply skips the append — the dialog still closes via the Success state). 400
-    // (password/email policy) and 409 (duplicate) surface the backend's `error` message.
-    //
-    // Tracked like every other mutation (key "create-user"): while the POST is in flight
-    // loadUsers SKIPS (a landing reload's pre-create snapshot would clobber the appended row —
-    // the same interleave the swap/slot mutations guard) and the screen disables the row
-    // actions + Refresh via [inFlight]. The users-Loading belt mirrors runMutation's guard for
-    // the same-frame tap that slips past the disabled submit button.
-    fun createUser(request: UserCreateRequest) {
-        if (_createUserResult.value is UiState.Loading) return
+    // #350 — mint a single-use invite link (GLOBAL MANAGE_USERS, ADR-0007 route gate; the
+    // admin never knows a credential). On 201 the code surfaces in the dialog; a NEW account
+    // appends to the held list in place (a re-invite targets an already-listed row — skip).
+    // 400 (email policy) and 409 (duplicate without an outstanding link) surface the backend's
+    // `error` message. Tracked as "mint-invite" with the same guards as the old create path.
+    fun mintInvite(request: InviteMintRequest) {
+        if (_mintInviteResult.value is UiState.Loading) return
         if (keptUsers.state.value is UiState.Loading) return
-        if (!actionTracker.tryBegin("create-user")) return
-        _createUserResult.value = UiState.Loading
+        if (!actionTracker.tryBegin("mint-invite")) return
+        _mintInviteResult.value = UiState.Loading
         handler.launch(
-            state = _createUserResult,
-            operation = "createUser",
-            endpoint = "POST /api/users",
-            block = { apiClient.httpClient.post(ApiRoutes.USERS) { setBody(request) } },
+            state = _mintInviteResult,
+            operation = "mintInvite",
+            endpoint = "POST ${ApiRoutes.INVITES}",
+            block = { apiClient.httpClient.post(ApiRoutes.INVITES) { setBody(request) } },
             transform = { response ->
-                actionTracker.finish("create-user")
-                val created = response.body<UserSummaryResponse>()
-                keptUsers.mutate { users -> users + created }
-                created
+                actionTracker.finish("mint-invite")
+                val minted = response.body<InviteMintResponse>()
+                keptUsers.mutate { users ->
+                    if (users.any { it.id == minted.userId }) {
+                        users
+                    } else {
+                        users +
+                            UserSummaryResponse(
+                                id = minted.userId,
+                                username = request.username,
+                                displayName = request.displayName,
+                                status = UserStatus.ACTIVE,
+                                roles = request.roles,
+                            )
+                    }
+                }
+                minted
             },
             onNonSuccess = { response ->
-                actionTracker.finish("create-user")
+                actionTracker.finish("mint-invite")
                 val detail =
                     extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
-                _createUserResult.value =
-                    UiState.Error(detail ?: "Create user failed: ${response.status.value}")
+                _mintInviteResult.value =
+                    UiState.Error(detail ?: "Mint invite failed: ${response.status.value}")
                 true
             },
-            // Network/deserialize failure: the handler writes the Error onto the state flow
-            // itself; clearing the tracked marker re-enables the gated surface (ADR-0022 — no
-            // frozen in-flight state).
-            onError = { actionTracker.finish("create-user") },
+            onError = { actionTracker.finish("mint-invite") },
         )
+    }
+
+    // Dialog close (#350): reset the result so reopening starts from Idle, never mid-flight.
+    fun dismissInviteResult() {
+        if (_mintInviteResult.value !is UiState.Loading) {
+            _mintInviteResult.value = UiState.Idle
+        }
     }
 
     // D3 — deactivate (confirmation dialog shown by the screen) → existing PATCH; the row flips

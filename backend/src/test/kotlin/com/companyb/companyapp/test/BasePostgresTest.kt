@@ -17,6 +17,7 @@ import com.companyb.companyapp.repository.model.CommissionManualInclusionTable
 import com.companyb.companyapp.repository.model.CommissionSplitTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ConcernTable
+import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.InventoryMovementTable
@@ -140,6 +141,7 @@ abstract class BasePostgresTest {
                 UserBranchAssignmentTable to setOf(AppUserTable, BranchTable),
                 UserCapabilityTable to setOf(AppUserTable, CapabilityTable),
                 UserRoleTable to setOf(AppUserTable, RoleTable),
+                CredentialTokenTable to setOf(AppUserTable),
                 ProductSaleTable to setOf(BranchDayTable, SessionTable, ProductTable, AppUserTable, ClientTable),
                 ProductTable to setOf(ProductCategoryTable),
                 ReliefInviteTable to setOf(AppUserTable, BranchDayTable),

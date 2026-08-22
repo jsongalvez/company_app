@@ -2,12 +2,14 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
+import com.companyb.companyapp.dto.AcceptInviteRequest
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +25,10 @@ class AuthViewModel(
 
     private val _logoutState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val logoutState: StateFlow<UiState<Unit>> = _logoutState.asStateFlow()
+
+    // #350 — accept-invite result; Success means the password is set and the code consumed.
+    private val _acceptInviteState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val acceptInviteState: StateFlow<UiState<Unit>> = _acceptInviteState.asStateFlow()
 
     fun login(
         username: String,
@@ -51,4 +57,33 @@ class AuthViewModel(
             block = { apiClient.httpClient.post(ApiRoutes.AUTH_LOGOUT) },
         )
     }
+
+    /**
+     * #350 — public single-use invite redemption. 204 (no body) lands Success; the backend's
+     * 400 `{"error": ...}` body names the failure class (invalid / used / expired / weak
+     * password) and renders inline.
+     */
+    fun acceptInvite(
+        token: String,
+        newPassword: String,
+    ): Job =
+        handler.launch(
+            state = _acceptInviteState,
+            operation = "acceptInvite",
+            endpoint = "POST ${ApiRoutes.AUTH_ACCEPT_INVITE}",
+            block = {
+                apiClient.httpClient.post(ApiRoutes.AUTH_ACCEPT_INVITE) {
+                    setBody(AcceptInviteRequest(token, newPassword))
+                }
+            },
+            transform = { Unit },
+            onNonSuccess = { response ->
+                // The backend's 400 body names the failure class (invalid / already used /
+                // expired / weak password) — surface it instead of a bare status.
+                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                _acceptInviteState.value =
+                    UiState.Error(detail ?: "Accept invite failed: ${response.status.value}")
+                true
+            },
+        )
 }

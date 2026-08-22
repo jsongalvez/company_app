@@ -16,6 +16,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
@@ -125,6 +126,36 @@ object UserRepository {
                 .empty()
                 .not()
         }
+
+    /**
+     * In-transaction duplicate lookup for the invite-mint re-invite path (#350): matches on
+     * username OR email so either conflict field can resolve to a recoverable account.
+     */
+    fun findByUsernameOrEmailInTransaction(
+        username: String,
+        email: String,
+    ): ExistingUser? =
+        AppUserTable
+            .selectAll()
+            .where {
+                (AppUserTable.username eq username) or (AppUserTable.email eq email)
+            }.singleOrNull()
+            ?.let { ExistingUser(it[AppUserTable.id]) }
+
+    /** Minimal projection for existence/re-invite checks — no credential material. */
+    data class ExistingUser(
+        val id: UUID,
+    )
+
+    /** Store half of the accept-invite password set (#350). Runs on the caller's command transaction. */
+    fun setPasswordHashInTransaction(
+        userId: UUID,
+        passwordHash: String,
+    ) {
+        AppUserTable.update({ AppUserTable.id eq userId }) {
+            it[AppUserTable.passwordHash] = passwordHash
+        }
+    }
 
     fun findJwtRevocationBoundaries(): Map<UUID, Instant> =
         transaction {

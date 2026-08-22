@@ -2,9 +2,10 @@ package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
+import com.companyb.companyapp.dto.InviteMintRequest
+import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
-import com.companyb.companyapp.dto.UserCreateRequest
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -709,119 +710,112 @@ class UserManagementViewModelTest {
         }
 
     @Test
-    fun createUser_success_appends_row_to_held_list() =
+    fun mintInvite_success_appends_new_row_to_held_list() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
             vm.loadUsers()
             advanceUntilIdle()
 
-            vm.createUser(
-                UserCreateRequest(
-                    username = "new",
-                    email = "new@x.com",
-                    displayName = "New Staff",
-                    password = "password123",
-                ),
-            )
+            vm.mintInvite(InviteMintRequest(username = "new", email = "new@x.com", displayName = "New Staff"))
             advanceUntilIdle()
 
-            val created = assertIs<UiState.Success<UserSummaryResponse>>(vm.createUserResult.value)
-            assertEquals(expected = "u9", actual = created.data.id)
+            val minted = assertIs<UiState.Success<InviteMintResponse>>(vm.mintInviteResult.value)
+            assertEquals(expected = "u9", actual = minted.data.userId)
+            assertEquals(expected = "single-use-code", actual = minted.data.inviteCode)
             val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(expected = listOf("u1", "u2", "u3", "u9"), actual = users.data.map { it.id })
             assertTrue(
-                "\"username\":\"new\"" in harness.createBodies.single(),
-                "the request must carry the form payload, got ${harness.createBodies.single()}",
+                "\"username\":\"new\"" in harness.mintBodies.single(),
+                "the request must carry the form payload, got ${harness.mintBodies.single()}",
             )
         }
 
     @Test
-    fun createUser_duplicate_conflict_surfaces_backend_error() =
+    fun mintInvite_reinvite_of_listed_row_does_not_append_duplicate() =
+        runTest(testScheduler) {
+            // A re-invite targets an existing account (here u1): the code surfaces but the
+            // held list must not grow a second row for the same id (#350).
+            val harness = UserHarness()
+            val vm = UserViewModel(mockApiClient(harness.handler()))
+            vm.loadUsers()
+            advanceUntilIdle()
+            harness.reinvitedUserId = "u1"
+
+            vm.mintInvite(InviteMintRequest(username = "ana", email = "a@x.com", displayName = "Ana Cruz"))
+            advanceUntilIdle()
+
+            assertIs<UiState.Success<InviteMintResponse>>(vm.mintInviteResult.value)
+            val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
+            assertEquals(expected = listOf("u1", "u2", "u3"), actual = users.data.map { it.id })
+        }
+
+    @Test
+    fun mintInvite_duplicate_conflict_surfaces_backend_error() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
             vm.loadUsers()
             advanceUntilIdle()
-            harness.createStatus = HttpStatusCode.Conflict
+            harness.mintStatus = HttpStatusCode.Conflict
             harness.errorBody = """{"error":"Username already exists"}"""
 
-            vm.createUser(UserCreateRequest("ana", "a@x.com", "Ana Cruz", "password123"))
+            vm.mintInvite(InviteMintRequest("ana", "a@x.com", "Ana Cruz"))
             advanceUntilIdle()
 
             // The 409 body names the fix — surfaced verbatim (not the generic status text).
-            val error = assertIs<UiState.Error>(vm.createUserResult.value)
+            val error = assertIs<UiState.Error>(vm.mintInviteResult.value)
             assertEquals(expected = "Username already exists", actual = error.message)
-            // The held list is untouched by a failed create.
+            // The held list is untouched by a failed mint.
             val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(expected = 3, actual = users.data.size)
         }
 
     @Test
-    fun createUser_weak_password_surfaces_policy_error() =
+    fun mintInvite_forbidden_surfaces_status_error() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
             vm.loadUsers()
             advanceUntilIdle()
-            harness.createStatus = HttpStatusCode.BadRequest
-            harness.errorBody = """{"error":"Password must be at least 8 characters"}"""
+            harness.mintStatus = HttpStatusCode.Forbidden
 
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "short"))
-            advanceUntilIdle()
-
-            val error = assertIs<UiState.Error>(vm.createUserResult.value)
-            assertEquals(
-                expected = "Password must be at least 8 characters",
-                actual = error.message,
-            )
-        }
-
-    @Test
-    fun createUser_forbidden_surfaces_status_error() =
-        runTest(testScheduler) {
-            val harness = UserHarness()
-            val vm = UserViewModel(mockApiClient(harness.handler()))
-            vm.loadUsers()
-            advanceUntilIdle()
-            harness.createStatus = HttpStatusCode.Forbidden
-
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            vm.mintInvite(InviteMintRequest("new", "n@x.com", "New Staff"))
             advanceUntilIdle()
 
             // No error body on the route-filter 403 — the status fallback still renders.
-            val error = assertIs<UiState.Error>(vm.createUserResult.value)
+            val error = assertIs<UiState.Error>(vm.mintInviteResult.value)
             assertTrue("403" in error.message)
         }
 
     @Test
-    fun createUser_network_failure_surfaces_error() =
+    fun mintInvite_network_failure_surfaces_error() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
             vm.loadUsers()
             advanceUntilIdle()
-            harness.createFailure = true
+            harness.mintFailure = true
 
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            vm.mintInvite(InviteMintRequest("new", "n@x.com", "New Staff"))
             advanceUntilIdle()
 
-            assertIs<UiState.Error>(vm.createUserResult.value)
+            assertIs<UiState.Error>(vm.mintInviteResult.value)
         }
 
     @Test
-    fun createUser_double_tap_fires_single_request() =
+    fun mintInvite_double_tap_fires_single_request() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
 
             // The synchronous Loading pre-set closes the same-frame double-fire — no two
             // accounts for one submit.
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            vm.mintInvite(InviteMintRequest("new", "n@x.com", "New Staff"))
+            vm.mintInvite(InviteMintRequest("new", "n@x.com", "New Staff"))
             advanceUntilIdle()
 
-            assertEquals(expected = 1, actual = harness.createCount)
+            assertEquals(expected = 1, actual = harness.mintCount)
         }
 
     @Test
@@ -896,7 +890,7 @@ class UserManagementViewModelTest {
         }
 
     @Test
-    fun loadUsers_during_inflight_create_is_skipped() =
+    fun loadUsers_during_inflight_mint_is_skipped() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
@@ -904,11 +898,11 @@ class UserManagementViewModelTest {
             advanceUntilIdle()
             assertEquals(expected = 1, actual = harness.usersGetCount)
 
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            vm.mintInvite(InviteMintRequest("new", "n@x.com", "New Staff"))
             assertTrue(vm.inFlight.value.isNotEmpty())
-            // A reload landing mid-create would clobber the appended row with its pre-create
-            // snapshot — the tracked create marker makes the reload skip (the swap variant of
-            // this guard, now covering create too).
+            // A reload landing mid-mint would clobber the appended row with its pre-mint
+            // snapshot — the tracked mint marker makes the reload skip (the swap variant of
+            // this guard, now covering the invite mint too).
             vm.loadUsers()
             advanceUntilIdle()
 
@@ -922,18 +916,18 @@ class UserManagementViewModelTest {
         }
 
     @Test
-    fun createUser_skipped_while_users_reload_in_flight() =
+    fun mintInvite_skipped_while_users_reload_in_flight() =
         runTest(testScheduler) {
             val harness = UserHarness()
             val vm = UserViewModel(mockApiClient(harness.handler()))
             vm.loadUsers()
             // Reload still Loading (synchronous pre-set) — the same-frame submit must not
             // dispatch a POST whose append would be overwritten by the load's snapshot.
-            vm.createUser(UserCreateRequest("new", "n@x.com", "New Staff", "password123"))
+            vm.mintInvite(InviteMintRequest("new", "n@x.com", "New Staff"))
             advanceUntilIdle()
 
-            assertEquals(expected = 0, actual = harness.createCount)
-            assertIs<UiState.Idle>(vm.createUserResult.value)
+            assertEquals(expected = 0, actual = harness.mintCount)
+            assertIs<UiState.Idle>(vm.mintInviteResult.value)
             // The reload itself completes normally.
             val users = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
             assertEquals(expected = 3, actual = users.data.size)
@@ -984,23 +978,27 @@ class UserManagementViewModelTest {
         var swapStatus: HttpStatusCode = HttpStatusCode.OK,
         var updateSlotStatus: HttpStatusCode = HttpStatusCode.OK,
         var rolesStatus: HttpStatusCode = HttpStatusCode.OK,
-        var createStatus: HttpStatusCode = HttpStatusCode.Created,
+        var mintStatus: HttpStatusCode = HttpStatusCode.Created,
         var replaceRolesStatus: HttpStatusCode = HttpStatusCode.NoContent,
     ) {
         var deactivateCount: Int = 0
         var usersGetCount: Int = 0
         var rolesGetCount: Int = 0
-        var createCount: Int = 0
+        var mintCount: Int = 0
         val swapBodies = mutableListOf<String>()
         val updateSlotBodies = mutableListOf<String>()
-        val createBodies = mutableListOf<String>()
+        val mintBodies = mutableListOf<String>()
         val replaceRolesBodies = mutableListOf<String>()
 
         // When true the deactivate handler throws — a network failure before any response.
         var deactivateFailure: Boolean = false
 
-        // When true the create-user handler throws — a network failure before any response.
-        var createFailure: Boolean = false
+        // When true the invite-mint handler throws — a network failure before any response.
+        var mintFailure: Boolean = false
+
+        // When set, the mint response carries this userId (the re-invite shape: an already
+        // listed account gets a fresh code instead of a new row).
+        var reinvitedUserId: String? = null
 
         // Response body for create/role-replace failures (the backend's `{"error": ...}` shape).
         var errorBody: String? = null
@@ -1022,15 +1020,23 @@ class UserManagementViewModelTest {
                         jsonResponse(rolesStatus, ROLES_JSON)
                     }
 
-                    request.method == HttpMethod.Post && request.url.encodedPath == "/api/users" -> {
-                        createCount++
-                        createBodies += (request.body as? TextContent)?.text.orEmpty()
-                        if (createFailure) {
+                    request.method == HttpMethod.Post && request.url.encodedPath == "/api/invites" -> {
+                        mintCount++
+                        mintBodies += (request.body as? TextContent)?.text.orEmpty()
+                        if (mintFailure) {
                             throw IOException("connection reset")
                         }
                         jsonResponse(
-                            createStatus,
-                            if (createStatus.isSuccess()) CREATED_USER_JSON else errorBody.orEmpty(),
+                            mintStatus,
+                            if (mintStatus.isSuccess()) {
+                                if (reinvitedUserId != null) {
+                                    MINTED_JSON.replace("\"userId\":\"u9\"", "\"userId\":\"$reinvitedUserId\"")
+                                } else {
+                                    MINTED_JSON
+                                }
+                            } else {
+                                errorBody.orEmpty()
+                            },
                         )
                     }
 
@@ -1087,8 +1093,8 @@ class UserManagementViewModelTest {
                 {"name":"CASHIER","capabilities":["SELL_PRODUCTS"]}
             ]"""
 
-        const val CREATED_USER_JSON =
-            """{"id":"u9","username":"new","displayName":"New Staff","status":"ACTIVE","deactivatedAt":null}"""
+        const val MINTED_JSON =
+            """{"userId":"u9","inviteCode":"single-use-code","expiresAt":"2026-08-29T00:00:00+00:00"}"""
 
         const val BRANCHES_JSON =
             """[

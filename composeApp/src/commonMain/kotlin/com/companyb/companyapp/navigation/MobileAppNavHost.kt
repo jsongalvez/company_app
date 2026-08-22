@@ -34,6 +34,7 @@ import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.drawer.HamburgerWithBadge
+import com.companyb.companyapp.ui.screen.AcceptInviteScreen
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
 import com.companyb.companyapp.ui.screen.BranchSelectScreen
@@ -152,6 +153,18 @@ internal fun MobileAppNavHost(
                                     popUpTo(Route.Login) { inclusive = true }
                                 }
                             },
+                            // #350 — invite redemption entry point.
+                            onAcceptInviteClick = { navController.navigate(Route.AcceptInvite) },
+                        )
+                    }
+                    composable<Route.AcceptInvite> {
+                        // Entry-scoped VM (the #112 shape): a resolved or abandoned invite
+                        // self-cleans — back to Login starts a fresh one.
+                        val acceptInviteViewModel: AuthViewModel = viewModel { AuthViewModel(apiClient) }
+                        AcceptInviteScreen(
+                            authViewModel = acceptInviteViewModel,
+                            tokenStore = tokenStore,
+                            onDone = { navController.popBackStack() },
                         )
                     }
                     composable<Route.BranchSelect> {

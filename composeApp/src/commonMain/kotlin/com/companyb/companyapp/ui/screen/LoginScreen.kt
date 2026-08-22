@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,6 +57,9 @@ fun LoginScreen(
     bootstrapViewModel: SessionBootstrapViewModel,
     tokenStore: TokenStore,
     onLoginSuccess: () -> Unit,
+    // #350 — entry into the public invite-redemption flow (optional: nav hosts without the
+    // route registered keep the plain form).
+    onAcceptInviteClick: () -> Unit = {},
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -235,6 +239,12 @@ fun LoginScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        TextButton(onClick = onAcceptInviteClick) {
+            Text("Have an invite code? Set up your account")
         }
     }
 }

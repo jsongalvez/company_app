@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.domain.LoginResult
+import com.companyb.companyapp.dto.AcceptInviteRequest
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
 import com.companyb.companyapp.service.AuthService
@@ -24,6 +25,14 @@ import java.util.UUID
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = LoginRequest::class)]),
     responses = [OpenApiResponse(status = "200"), OpenApiResponse(status = "401"), OpenApiResponse(status = "429")],
+)
+@OpenApi(
+    path = ApiRoutes.AUTH_ACCEPT_INVITE,
+    methods = [HttpMethod.POST],
+    operationId = "auth_accept_invite",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AcceptInviteRequest::class)]),
+    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "400")],
 )
 @OpenApi(
     path = ApiRoutes.AUTH_LOGOUT,
@@ -57,6 +66,19 @@ object AuthRoutes {
                     context.status(HttpStatus.UNAUTHORIZED)
                 }
             }
+        }
+    }
+
+    /**
+     * #350 — public invite redemption: the code IS the authorization. Registered directly
+     * outside the authenticated api prefix, like login; failures are domain 400s with
+     * distinct messages.
+     */
+    fun acceptInvite(config: JavalinConfig) {
+        config.routes.post(ApiRoutes.AUTH_ACCEPT_INVITE) { context ->
+            val request = context.bodyAsClass<AcceptInviteRequest>()
+            AuthService.acceptInvite(request.token, request.newPassword)
+            context.status(HttpStatus.NO_CONTENT)
         }
     }
 

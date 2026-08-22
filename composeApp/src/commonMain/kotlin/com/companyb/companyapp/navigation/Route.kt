@@ -8,6 +8,10 @@ sealed class Route {
     @Serializable
     data object Login : Route()
 
+    // #350 — public invite redemption: paste the minted code, set the account password.
+    @Serializable
+    data object AcceptInvite : Route()
+
     @Serializable
     data object BranchSelect : Route()
 

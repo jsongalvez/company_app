@@ -4,8 +4,6 @@ import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.dto.UserCreateRequest
-import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.CapabilityRepository
@@ -43,7 +41,6 @@ class UserServicePostgresTest : BasePostgresTest() {
     private val callerId = TestFixtures.uuid()
     private val targetUserId = TestFixtures.uuid()
     private val sourceId = TestFixtures.uuid()
-    private val targetId = TestFixtures.uuid()
 
     override fun initTestData() {
         DenyList.clear()
@@ -258,88 +255,9 @@ class UserServicePostgresTest : BasePostgresTest() {
     }
 
     // ──────────────────────────────────────────────
-    // #344 — admin user creation + role assignment
+    // #344 — role assignment (creation moved to the
+    // invite flow, #350 — see InviteFlowPostgresTest)
     // ──────────────────────────────────────────────
-
-    @Test
-    fun `create makes an active roleless user and writes an audit row`() {
-        val created =
-            UserService.create(
-                callerId,
-                UserCreateRequest(
-                    username = "created-$targetId",
-                    email = "$targetId@created.st",
-                    displayName = "Created User",
-                    password = "valid-password",
-                ),
-            )
-
-        assertEquals(UserStatus.ACTIVE, created.status)
-        assertTrue(created.roles.isEmpty())
-        assertTrue(created.assignments.isEmpty())
-
-        val createdUserId = UUID.fromString(created.id)
-        trackOwned(AppUserTable, AppUserTable.id, createdUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        assertTrue(
-            RoleRepository.findRoleNamesByUser(listOf(createdUserId))[createdUserId].isNullOrEmpty(),
-            "freshly created admin user must hold no roles",
-        )
-        assertEquals(1L, auditActionCount("app_user", AuditAction.INSERT, createdUserId))
-    }
-
-    @Test
-    fun `create rejects weak password and invalid email without writing rows`() {
-        assertFailsWith<ValidationException> {
-            UserService.create(
-                callerId,
-                UserCreateRequest(
-                    username = "weak-$targetId",
-                    email = "$targetId@weak.st",
-                    displayName = "Weak",
-                    password = "short",
-                ),
-            )
-        }
-        assertFailsWith<ValidationException> {
-            UserService.create(
-                callerId,
-                UserCreateRequest(
-                    username = "badmail-$targetId",
-                    email = "not-an-email",
-                    displayName = "Bad Mail",
-                    password = "valid-password",
-                ),
-            )
-        }
-        assertNull(UserRepository.findByUsername("weak-$targetId"))
-    }
-
-    @Test
-    fun `create duplicate username or email conflicts with 409 semantics`() {
-        assertFailsWith<ConflictException> {
-            UserService.create(
-                callerId,
-                UserCreateRequest(
-                    username = "target-${targetUserId.toString().take(8)}",
-                    email = "fresh-${targetUserId.toString().take(8)}@c.st",
-                    displayName = "Dup Username",
-                    password = "valid-password",
-                ),
-            )
-        }
-        assertFailsWith<ConflictException> {
-            UserService.create(
-                callerId,
-                UserCreateRequest(
-                    username = "fresh-$targetUserId",
-                    email = "${targetUserId.toString().take(8)}@t.st",
-                    displayName = "Dup Email",
-                    password = "valid-password",
-                ),
-            )
-        }
-    }
 
     @Test
     fun `replaceRoles assigns seeded bundles whose capabilities derive through the view`() {

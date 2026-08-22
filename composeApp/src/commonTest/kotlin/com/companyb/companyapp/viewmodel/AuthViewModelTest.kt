@@ -69,6 +69,48 @@ class AuthViewModelTest {
             assertEquals("login failed: 401", error.message)
         }
 
+    // #350 — public accept-invite: Success on the body-less 204; the backend's 400
+    // `{"error": ...}` body (invalid / used / expired / weak password) surfaces verbatim.
+    @Test
+    fun acceptInviteSuccessTransitionsToSuccess() =
+        runTest {
+            val apiClient =
+                mockApiClient { request ->
+                    respond(
+                        content = ByteReadChannel(""),
+                        status =
+                            if (request.url.encodedPath == ApiRoutes.AUTH_ACCEPT_INVITE) {
+                                HttpStatusCode.NoContent
+                            } else {
+                                HttpStatusCode.NotFound
+                            },
+                        headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
+                    )
+                }
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.acceptInvite("single-use-code", "valid-password").join()
+
+            assertIs<UiState.Success<Unit>>(viewModel.acceptInviteState.value)
+        }
+
+    @Test
+    fun acceptInviteErrorSurfacesBackendMessage() =
+        runTest {
+            val apiClient =
+                mockApiClient(
+                    status = HttpStatusCode.BadRequest,
+                    body = """{"error": "This invite code has already been used"}""",
+                )
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.acceptInvite("spent-code", "valid-password").join()
+
+            val state = viewModel.acceptInviteState.value
+            val error = assertIs<UiState.Error>(state)
+            assertEquals("This invite code has already been used", error.message)
+        }
+
     @Test
     fun authRequestsUseSharedRouteConstants() =
         runTest {

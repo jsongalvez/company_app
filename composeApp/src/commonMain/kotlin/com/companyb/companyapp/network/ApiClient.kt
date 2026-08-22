@@ -73,7 +73,9 @@ class ApiClient(
                     }
                     sendWithoutRequest {
                         val url = it.url.toString()
-                        url.endsWith(ApiRoutes.AUTH_LOGIN)
+                        // #350 — accept-invite is public like login: no bearer, and its 401s
+                        // (if any) must not trip the global session-expiry flow.
+                        url.endsWith(ApiRoutes.AUTH_LOGIN) || url.endsWith(ApiRoutes.AUTH_ACCEPT_INVITE)
                     }
                 }
             }
