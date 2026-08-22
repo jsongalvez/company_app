@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
 import com.companyb.companyapp.repository.SessionCreateResult
@@ -354,6 +355,33 @@ object SessionService {
         reason = reason,
     )
 
+    // #348 — the read behind GET /api/sessions/{sessionId}/practitioners (add-self refresh).
+    fun getSessionPractitioners(
+        callerId: UUID,
+        sessionId: UUID,
+    ): List<SessionPractitioner> = SessionPractitionerService.getForSession(callerId, sessionId)
+
+    /**
+     * #348 — pre-create preview for the SessionCreate screen: the session type create WILL
+     * assign and the base rate that defaults the final price. Reads the exact same inputs as
+     * [create] (branch type, global non-medical-mission history, active branch rate) so the
+     * preview can never diverge from the created row. No transaction needed — three independent
+     * reads; a concurrent client session landing between them only makes the preview stale by
+     * one visit, and the server recomputes authoritatively at create.
+     */
+    fun previewSession(
+        branchId: UUID,
+        clientId: UUID,
+    ): SessionPreview {
+        val branchType =
+            SessionRepository.getBranchType(branchId)
+                ?: throw NotFoundException("Branch not found")
+        ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
+        val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
+        val sessionType = computeSessionType(branchType, priorCount)
+        return SessionPreview(sessionType, computeBasePrice(branchId, sessionType))
+    }
+
     // --- Base rate pass-throughs ---
 
     fun setRate(
@@ -402,6 +430,16 @@ object SessionService {
         reason: String? = null,
     ): Concern = SessionConcernService.promoteConcern(callerId, sessionId, concernId, label, reason)
 }
+
+/**
+ * #348 — pre-create preview result: the type create will assign and the rate that defaults the
+ * final price. Service-level (no persistence table behind it), mapped to `SessionPreviewResponse`
+ * at the route.
+ */
+data class SessionPreview(
+    val sessionType: SessionType,
+    val basePrice: BigDecimal,
+)
 
 /**
  * Session feature audit vocabulary (#323, ADR-0024 rule 3). Called by the commands inside their

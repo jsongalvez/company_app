@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.SessionPractitionerRepository
+import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.findSessionByIdInTransaction
 import com.companyb.companyapp.repository.model.BranchDay
@@ -25,6 +26,20 @@ internal object SessionPractitionerService {
     private val logger = KotlinLogging.logger {}
 
     private const val DEFAULT_SLOT: Short = 999
+
+    /**
+     * Practitioner list read (#348 — the route the frontend's add-self refresh calls; it was
+     * never registered). Mirrors [SessionConcernService.getForSession]: 404 for a missing
+     * session, then the day-state readability gate. Ordered by slot (display order, BR §206).
+     */
+    fun getForSession(
+        callerId: UUID,
+        sessionId: UUID,
+    ): List<SessionPractitioner> {
+        val session = SessionRepository.findById(sessionId) ?: throw NotFoundException("Session not found")
+        BranchDayService.checkBranchDayReadable(callerId, session.branchDayId)
+        return SessionPractitionerRepository.findBySessionId(sessionId)
+    }
 
     @Suppress("ReturnCount", "ThrowsCount", "LongParameterList")
     fun addPractitioner(

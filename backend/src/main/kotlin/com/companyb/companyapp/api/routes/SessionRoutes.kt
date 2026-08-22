@@ -12,6 +12,7 @@ import com.companyb.companyapp.dto.PromoteConcernRequest
 import com.companyb.companyapp.dto.RemovePractitionerRequest
 import com.companyb.companyapp.dto.RemoveSessionConcernRequest
 import com.companyb.companyapp.dto.SessionPractitionerResponse
+import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UnvoidSessionRequest
@@ -100,6 +101,20 @@ import java.util.UUID
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
     operationId = "session_practitioners",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.SESSION_PRACTITIONERS_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "sessionId", type = UUID::class, required = true)],
+    operationId = "session_practitioners_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.BRANCH_SESSION_PREVIEW_PATH,
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_session_preview",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
@@ -282,6 +297,10 @@ object SessionRoutes {
 
         config.routes.get(ApiRoutes.SESSION_PATH, ::handleGetSession)
         config.routes.post(ApiRoutes.SESSIONS, ::handleCreateSession)
+        // #348 — the practitioners list read (add-self refresh); the existing
+        // SESSION_PRACTITIONERS_PATH before-filter already gates GET on the same
+        // EDIT_BRANCH_DATA branch-or-branch-day check as the mutations.
+        config.routes.get(ApiRoutes.SESSION_PRACTITIONERS_PATH, ::handleGetPractitioners)
         config.routes.patch(ApiRoutes.SESSION_STATUS_PATH, ::handleUpdateStatus)
         config.routes.patch(ApiRoutes.SESSION_FINAL_PRICE_PATH, ::handleUpdateFinalPrice)
         config.routes.post(ApiRoutes.SESSION_VOID_PATH, ::handleVoidSession)
@@ -300,6 +319,44 @@ object SessionRoutes {
         config.routes.post(ApiRoutes.SESSION_CONCERNS_PATH, ::handleAddSessionConcern)
         config.routes.delete(ApiRoutes.SESSION_CONCERN_PATH, ::handleRemoveSessionConcern)
         config.routes.post(ApiRoutes.SESSION_PROMOTE_CONCERN_PATH, ::handlePromoteConcern)
+        config.routes.before(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH) { context ->
+            val branchId = context.pathParamAsUuid("branchId")
+            // Same find-only day shape as the create gate (#157): a BRANCH_DAY relief grant for
+            // today satisfies the preview exactly when it would satisfy the create it previews;
+            // a missing day row means no day grant can exist — the plain branch check covers it.
+            val todayBranchDay = BranchDayService.findToday(branchId)
+            if (todayBranchDay != null) {
+                CapabilityFilter.requireBranchOrBranchDayCapability(context, todayBranchDay.id)
+            } else {
+                CapabilityFilter.requireBranchCapabilityForBranchId(
+                    context,
+                    branchId,
+                    CapabilityCodes.EDIT_BRANCH_DATA,
+                )
+            }
+        }
+        config.routes.get(ApiRoutes.BRANCH_SESSION_PREVIEW_PATH, ::handleGetSessionPreview)
+    }
+
+    private fun handleGetPractitioners(context: Context) {
+        val callerId = context.callerUuid()
+        val sessionId = context.pathParamAsUuid("sessionId")
+
+        val practitioners = SessionService.getSessionPractitioners(callerId, sessionId)
+        context.json(practitioners.map { it.toResponse() })
+    }
+
+    private fun handleGetSessionPreview(context: Context) {
+        val branchId = context.pathParamAsUuid("branchId")
+        val clientId = context.uuidFromQuery("clientId")
+
+        val preview = SessionService.previewSession(branchId, clientId)
+        context.json(
+            SessionPreviewResponse(
+                sessionType = preview.sessionType,
+                basePrice = preview.basePrice.toPlainString(),
+            ),
+        )
     }
 
     private fun handleGetSession(context: Context) {

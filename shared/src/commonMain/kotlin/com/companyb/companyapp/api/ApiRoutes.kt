@@ -88,6 +88,9 @@ object ApiRoutes {
 
     fun branchRates(id: String) = "$BRANCHES/$id/rates"
 
+    // #348 — pre-create preview: predicted session type + base rate for a client at a branch.
+    fun branchSessionPreview(id: String) = "${branch(id)}/session-preview"
+
     fun branchInventory(id: String) = "$BRANCHES/$id/inventory"
 
     fun branchInventoryLowStock(id: String) = "${branchInventory(id)}/low-stock"
@@ -207,6 +210,9 @@ object ApiRoutes {
     const val REMITTANCE_UNDO_PATH = "$REMITTANCE_PATH/undo"
     const val BRANCH_PATH = "$BRANCHES/{branchId}"
     const val BRANCH_RATES_PATH = "$BRANCH_PATH/rates"
+
+    // #348 — pre-create preview (query param: clientId).
+    const val BRANCH_SESSION_PREVIEW_PATH = "$BRANCH_PATH/session-preview"
     const val BRANCH_RELIEF_INVITES_PATH = "$BRANCH_PATH/relief-invites"
     const val BRANCH_RELIEF_CANDIDATES_PATH = "$BRANCH_PATH/relief-candidates"
     const val BRANCH_ASSIGNMENTS_PATH = "$BRANCH_PATH/assignments"

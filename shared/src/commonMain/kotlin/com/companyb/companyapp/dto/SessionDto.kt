@@ -101,3 +101,15 @@ data class SessionPractitionerResponse(
     val remarks: String?,
     val slotAtTime: Int,
 )
+
+/**
+ * #348 — pre-create preview for the SessionCreate screen: the session type the server WILL
+ * assign (same [com.companyb.companyapp.domain.SessionType] algorithm as create) and the base
+ * rate that will default the final price. Server-authoritative — the frontend never replicates
+ * history counting or rate lookup.
+ */
+@Serializable
+data class SessionPreviewResponse(
+    val sessionType: SessionType,
+    val basePrice: String,
+)
