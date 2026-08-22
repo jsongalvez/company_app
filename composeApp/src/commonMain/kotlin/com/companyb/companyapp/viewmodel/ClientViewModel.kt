@@ -3,6 +3,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.UpdateClientRequest
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.ClientState
@@ -12,6 +13,7 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -59,6 +61,10 @@ class ClientViewModel(
 
     private val _anonymizeState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val anonymizeState: StateFlow<UiState<Unit>> = _anonymizeState.asStateFlow()
+
+    // #348 — create-client dialog state (the createUserResult shape).
+    private val _createClientResult = MutableStateFlow<UiState<ClientResponse>>(UiState.Idle)
+    val createClientResult: StateFlow<UiState<ClientResponse>> = _createClientResult.asStateFlow()
 
     // D4 — 409 "changed elsewhere" indication: the PATCH conflicted, the detail was reloaded,
     // and the screen shows a one-shot notice so the user knows their edit didn't win.
@@ -220,6 +226,34 @@ class ClientViewModel(
             transform = {
                 ClientState.setAnonymizeNotice("Client anonymized")
                 Unit
+            },
+        )
+    }
+
+    // #348 — client-create dialog result: Success closes the dialog (the create-user shape);
+    // Error carries the backend's 400 policy message inline via extractApiErrorMessage. The
+    // created row prepends to the keep-last search cache so it is visible without a re-search;
+    // a cache that never loaded simply skips the prepend. Double-submit is safe twice over:
+    // this Loading guard plus the client-generated UUID idempotency key (BR §390–392).
+    fun createClient(request: CreateClientRequest) {
+        if (_createClientResult.value is UiState.Loading) return
+        _createClientResult.value = UiState.Loading
+        handler.launch(
+            state = _createClientResult,
+            operation = "createClient",
+            endpoint = "POST /api/clients",
+            block = { apiClient.httpClient.post(ApiRoutes.CLIENTS) { setBody(request) } },
+            transform = { response ->
+                val created = response.body<ClientResponse>()
+                keptResults.mutate { clients -> listOf(created) + clients }
+                created
+            },
+            onNonSuccess = { response ->
+                val detail =
+                    extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                _createClientResult.value =
+                    UiState.Error(detail ?: "Create client failed: ${response.status.value}")
+                true
             },
         )
     }

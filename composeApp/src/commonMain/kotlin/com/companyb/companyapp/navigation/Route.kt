@@ -57,6 +57,11 @@ sealed class Route {
     @Serializable
     data object UserManagement : Route()
 
+    // #348 — start-a-session flow: pushed from the dashboard's "New session" button; the
+    // branch context comes from SessionState (entry-scoped VMs bake it in at construction).
+    @Serializable
+    data object SessionCreate : Route()
+
     @Serializable
     data class SessionDetail(
         val sessionId: String,

@@ -19,11 +19,14 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -65,9 +68,17 @@ fun ClientsScreen(
     // spinner is the only busy signal — no list flicker).
     val cachedResults by viewModel.freshestResults.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    // #348 — create-client dialog (the create-user shape: Success closes, dismiss blocked
+    // while Loading).
+    var showCreateDialog by remember { mutableStateOf(false) }
+    val createState by viewModel.createClientResult.collectAsState()
 
     LaunchedEffect(Unit) {
         logInfo("ClientsScreen", "composable entered (first composition)")
+    }
+
+    LaunchedEffect(createState) {
+        if (createState is UiState.Success) showCreateDialog = false
     }
 
     // D1 — the confirmation crosses the VM boundary via ClientState; consume-before-show, and
@@ -128,6 +139,10 @@ fun ClientsScreen(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                     )
+                }
+                Spacer(Modifier.width(Spacing.sm))
+                TextButton(onClick = { showCreateDialog = true }) {
+                    Text("New client")
                 }
             }
 
@@ -200,6 +215,16 @@ fun ClientsScreen(
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+
+    if (showCreateDialog) {
+        ClientCreateDialog(
+            createState = createState,
+            onCreate = viewModel::createClient,
+            onDismiss = {
+                if (createState !is UiState.Loading) showCreateDialog = false
+            },
         )
     }
 }

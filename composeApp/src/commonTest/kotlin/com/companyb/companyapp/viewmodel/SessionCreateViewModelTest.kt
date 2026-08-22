@@ -1,0 +1,343 @@
+package com.companyb.companyapp.viewmodel
+
+import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.dto.ClientResponse
+import com.companyb.companyapp.dto.SessionPreviewResponse
+import com.companyb.companyapp.dto.SessionResponse
+import com.companyb.companyapp.network.mockApiClient
+import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.MockRequestHandler
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.utils.io.ByteReadChannel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+
+/**
+ * #348 — the SessionCreate VM: the debounced client search (the ClientViewModel D2 port),
+ * the selectClient→preview read against the NEW branch session-preview endpoint, the walk-in
+ * create POST reaching Success, the Loading double-submit guard, and the inline 409 surfacing.
+ *
+ * MockEngine handler order: specific paths BEFORE generic endsWith branches; every arm asserts
+ * method + exact path else error() — a mis-routed call must fail loudly, not silently 404.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class SessionCreateViewModelTest {
+    private lateinit var testScheduler: TestCoroutineScheduler
+
+    @BeforeTest
+    fun setup() {
+        testScheduler = TestCoroutineScheduler()
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+    }
+
+    @AfterTest
+    fun teardown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun TestScope.advanceTimeByAndRun(millis: Long) {
+        testScheduler.advanceTimeBy(millis)
+        runCurrent()
+    }
+
+    @Test
+    fun onQueryChange_debounce_fires_search_with_query_parameter() =
+        runTest(testScheduler) {
+            val queries = mutableListOf<String>()
+            val vm = SessionCreateViewModel(mockApiClient(searchHandler(queries)), BRANCH_ID)
+
+            vm.onQueryChange("jo")
+            advanceTimeByAndRun(299)
+            assertEquals(expected = emptyList(), actual = queries)
+            advanceTimeByAndRun(1)
+
+            assertEquals(expected = listOf("jo"), actual = queries)
+            assertIs<UiState.Success<List<ClientResponse>>>(vm.searchResults.value)
+        }
+
+    @Test
+    fun selectClient_loads_branch_session_preview_for_the_selected_client() =
+        runTest(testScheduler) {
+            val previewQueries = mutableListOf<String>()
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient(
+                        handler(previewClientIds = previewQueries),
+                    ),
+                    BRANCH_ID,
+                )
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+
+            assertEquals(expected = listOf("c1"), actual = previewQueries)
+            val state = assertIs<UiState.Success<SessionPreviewResponse>>(vm.preview.value)
+            assertEquals(expected = "REGULAR", actual = state.data.sessionType.name)
+            assertEquals(expected = "250.00", actual = state.data.basePrice)
+        }
+
+    @Test
+    fun clearSelectedClient_resets_selection_and_preview_to_idle() =
+        runTest(testScheduler) {
+            val vm = SessionCreateViewModel(mockApiClient(handler()), BRANCH_ID)
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.clearSelectedClient()
+            runCurrent()
+
+            assertEquals(expected = null, actual = vm.selectedClient.value)
+            assertIs<UiState.Idle>(vm.preview.value)
+        }
+
+    @Test
+    fun createSession_posts_walkin_create_and_reaches_success() =
+        runTest(testScheduler) {
+            val bodies = mutableListOf<kotlin.Pair<String, Boolean>>()
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                val text = (request.body as io.ktor.http.content.TextContent).text
+                                // The idempotency key is a fresh UUID (BR §390–392); walk-ins
+                                // start PENDING (BR §129).
+                                bodies.add(text to text.contains("\"isWalkIn\":true"))
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+            vm.selectClient(client("c1"))
+            runCurrent()
+
+            vm.createSession(finalPrice = "300.00", remarks = " ok ", otherConcerns = null)
+            runCurrent()
+
+            assertEquals(expected = 1, actual = bodies.size)
+            assertTrue(bodies.single().second)
+            assertTrue(bodies.single().first.contains("\"finalPrice\":\"300.00\""))
+            assertTrue(bodies.single().first.contains("\"remarks\":\"ok\""))
+            val state = assertIs<UiState.Success<SessionResponse>>(vm.createResult.value)
+            assertEquals(expected = "s1", actual = state.data.id)
+        }
+
+    @Test
+    fun createSession_adds_selected_concerns_after_success() =
+        runTest(testScheduler) {
+            val concernPosts = mutableListOf<String>()
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            request.method == HttpMethod.Post &&
+                                request.url.encodedPath == "/api/sessions/s1/concerns" -> {
+                                concernPosts.add((request.body as io.ktor.http.content.TextContent).text)
+                                jsonRespond(status = HttpStatusCode.OK, body = "{}")
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.toggleConcern("con1")
+
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+
+            assertEquals(expected = 1, actual = concernPosts.size)
+            assertTrue(concernPosts.single().contains("\"concernId\":\"con1\""))
+            assertEquals(expected = 0, actual = vm.concernAddFailures.value)
+        }
+
+    @Test
+    fun createSession_double_submit_while_loading_fires_one_post() =
+        runTest(testScheduler) {
+            var posts = 0
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                posts++
+                                delay(10_000)
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+            vm.selectClient(client("c1"))
+            runCurrent()
+
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            advanceTimeByAndRun(20_000)
+
+            assertEquals(expected = 1, actual = posts)
+        }
+
+    @Test
+    fun createSession_409_one_active_message_surfaces_inline() =
+        runTest(testScheduler) {
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                jsonRespond(
+                                    status = HttpStatusCode.Conflict,
+                                    body = """{"error":"This client already has an active session"}""",
+                                )
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+            vm.selectClient(client("c1"))
+            runCurrent()
+
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+
+            val state = assertIs<UiState.Error>(vm.createResult.value)
+            assertEquals(
+                expected = "This client already has an active session",
+                actual = state.message,
+            )
+        }
+
+    // --- handlers ---
+
+    private fun searchHandler(queries: MutableList<String>): MockRequestHandler =
+        { request ->
+            when {
+                request.method == HttpMethod.Get && request.url.encodedPath == "/api/clients" -> {
+                    queries.add(request.url.parameters["q"].orEmpty())
+                    jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
+                }
+
+                else -> {
+                    error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                }
+            }
+        }
+
+    private fun handler(
+        previewStatus: HttpStatusCode = HttpStatusCode.OK,
+        previewClientIds: MutableList<String>? = null,
+    ): MockRequestHandler =
+        { request ->
+            when {
+                request.method == HttpMethod.Get &&
+                    request.url.encodedPath == "/api/branches/$BRANCH_ID/session-preview" -> {
+                    previewClientIds?.add(request.url.parameters["clientId"].orEmpty())
+                    jsonRespond(status = previewStatus, body = PREVIEW_JSON)
+                }
+
+                request.method == HttpMethod.Get && request.url.encodedPath == "/api/clients" -> {
+                    jsonRespond(status = HttpStatusCode.OK, body = SEARCH_JSON)
+                }
+
+                request.method == HttpMethod.Get && request.url.encodedPath == "/api/concerns" -> {
+                    jsonRespond(status = HttpStatusCode.OK, body = CONCERNS_JSON)
+                }
+
+                request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                    jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                }
+
+                request.method == HttpMethod.Post &&
+                    request.url.encodedPath.endsWith("/concerns") -> {
+                    jsonRespond(status = HttpStatusCode.OK, body = "{}")
+                }
+
+                else -> {
+                    error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                }
+            }
+        }
+
+    private fun MockRequestHandleScope.jsonRespond(
+        status: HttpStatusCode,
+        body: String,
+    ) = respond(
+        content = ByteReadChannel(body),
+        status = status,
+        headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()),
+    )
+
+    private fun client(id: String): ClientResponse =
+        ClientResponse(
+            id = id,
+            firstName = "John",
+            lastName = "Doe",
+            middleName = null,
+            suffix = null,
+            phoneNumber = null,
+            address = null,
+            gender = Gender.M,
+            age = 30,
+            systolicBp = null,
+            diastolicBp = null,
+            medicalConditions = null,
+        )
+
+    private companion object {
+        const val BRANCH_ID = "11111111-1111-1111-1111-111111111111"
+
+        const val SEARCH_JSON =
+            """[
+                {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}
+            ]"""
+
+        const val PREVIEW_JSON = """{"sessionType":"REGULAR","basePrice":"250.00"}"""
+
+        const val CONCERNS_JSON =
+            """[{"id":"con1","label":"Headache","createdBy":null,"createdAt":null}]"""
+
+        const val SESSION_JSON =
+            """{"id":"s1","clientId":"c1","branchDayId":"bd1","requestedPractitionerId":null,"sessionType":"REGULAR","isWalkIn":true,"sessionStatus":"PENDING","basePrice":"250.00","finalPrice":"250.00","remarks":null,"otherConcerns":null,"bookedAt":null,"nextAppointmentDate":null,"version":0,"concerns":[]}"""
+    }
+}

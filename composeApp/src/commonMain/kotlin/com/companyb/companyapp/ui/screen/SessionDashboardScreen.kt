@@ -19,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -132,6 +133,8 @@ fun SessionDashboardScreen(
     selectedBranchName: String?,
     selectedSessionId: String?,
     onSessionClick: (DashboardSessionResponse) -> Unit,
+    // #348 — the dashboard's entry into the start-a-session flow (both platforms).
+    onSessionCreateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.dashboardState.collectAsState()
@@ -198,7 +201,11 @@ fun SessionDashboardScreen(
                             commissionCents = moneyToCents(data.commission.amount),
                             productSalesCount = data.commission.productSalesCount,
                         )
-                        LastUpdatedRow(lastUpdatedAt)
+                        LastUpdatedRow(
+                            lastUpdatedAt,
+                            // #348 — "New session" lives beside the timestamp row (trailing).
+                            onSessionCreateClick = onSessionCreateClick,
+                        )
                         if (pollStatus == DashboardPollStatus.STALE) {
                             StaleBanner()
                         }
@@ -326,7 +333,10 @@ private fun SummaryCard(
 }
 
 @Composable
-private fun LastUpdatedRow(lastUpdatedAt: Instant?) {
+private fun LastUpdatedRow(
+    lastUpdatedAt: Instant?,
+    onSessionCreateClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
@@ -336,7 +346,12 @@ private fun LastUpdatedRow(lastUpdatedAt: Instant?) {
             text = if (lastUpdatedAt == null) "" else "Updated ${formatTimeOfDay(lastUpdatedAt)}",
             style = MaterialTheme.typography.bodySmall,
             color = InkSubtle,
+            modifier = Modifier.weight(1f),
         )
+        // #348 — the flow's entry point sits in the dashboard chrome row.
+        TextButton(onClick = onSessionCreateClick) {
+            Text("New session")
+        }
     }
 }
 

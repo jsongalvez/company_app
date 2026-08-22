@@ -45,6 +45,7 @@ import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
+import com.companyb.companyapp.ui.screen.SessionCreateScreen
 import com.companyb.companyapp.ui.screen.SessionDashboardScreen
 import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.ui.screen.UserManagementScreen
@@ -57,6 +58,7 @@ import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
+import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.viewmodel.SessionDashboardViewModel
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
 import com.companyb.companyapp.viewmodel.UserViewModel
@@ -188,6 +190,8 @@ internal fun MobileAppNavHost(
                                 // notifications path fetches on null-row).
                                 navController.navigate(Route.SessionDetail(row.id, row))
                             },
+                            // #348 — the dashboard's entry into the start-a-session flow.
+                            onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
                         )
                     }
                     composable<Route.Clients> {
@@ -337,6 +341,34 @@ internal fun MobileAppNavHost(
                             RouteGateCard(label = "User Management")
                         }
                     }
+                    composable<Route.SessionCreate> {
+                        // #348 — code-only route gate (the Clients #156 shape); the backend's
+                        // branch-day create gate stays authoritative. No clocked-in branch →
+                        // gate card: sessions belong to a branch day.
+                        val capabilities by SessionState.capabilities.collectAsState()
+                        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+                        val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+                        if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA) &&
+                            selectedBranchId != null
+                        ) {
+                            val sessionCreateViewModel: SessionCreateViewModel =
+                                viewModel { SessionCreateViewModel(apiClient, selectedBranchId!!) }
+                            val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+                            SessionCreateScreen(
+                                viewModel = sessionCreateViewModel,
+                                clientViewModel = clientViewModel,
+                                branchName = selectedBranchName,
+                                onBack = { navController.popBackStack() },
+                                onSessionCreated = { id ->
+                                    navController.navigate(Route.SessionDetail(id)) {
+                                        popUpTo(Route.Dashboard)
+                                    }
+                                },
+                            )
+                        } else {
+                            RouteGateCard(label = "New session")
+                        }
+                    }
                     composable<Route.SessionDetail> { entry ->
                         val route = entry.toRoute<Route.SessionDetail>()
                         // Entry-scoped (#112): fresh VM per detail entry — the one-shot fetch
@@ -348,6 +380,7 @@ internal fun MobileAppNavHost(
                         SessionDetailScreen(
                             sessionId = route.sessionId,
                             viewModel = sessionDetailViewModel,
+                            apiClient = apiClient,
                             onBack = { navController.popBackStack() },
                         )
                     }
