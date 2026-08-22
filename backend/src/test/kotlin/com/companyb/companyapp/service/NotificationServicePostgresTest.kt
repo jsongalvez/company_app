@@ -2,10 +2,12 @@ package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
+import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.test.BasePostgresTest
@@ -203,6 +205,87 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         assertTrue(NotificationService.listUnread(callerId).isEmpty())
     }
 
+    // #356 — storage widened (V25 dropped idx_notification_unique): a repeat event inserts a
+    // new row rather than vanishing, and history lists read + unread indefinitely.
+    @Test
+    fun `repeat event inserts a new row rather than vanishing`() {
+        val first = insertNotification(sessionId, callerId, branchId, "First ping")
+        trackOwned(NotificationTable, NotificationTable.id, first.id)
+        val second = insertNotification(sessionId, callerId, branchId, "Second ping")
+        trackOwned(NotificationTable, NotificationTable.id, second.id)
+
+        assertEquals(2, NotificationService.listHistory(callerId).size)
+        assertTrue(NotificationService.listUnread(callerId).size == 2)
+    }
+
+    @Test
+    fun `listHistory returns read and unread newest first for caller only`() {
+        val older = insertNotificationForNewSession(callerId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, older.id)
+        NotificationService.markRead(callerId, older.id)
+
+        val newer = insertNotificationForNewSession(callerId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, newer.id)
+        insertNotificationForNewSession(otherUserId, branchId).let {
+            trackOwned(NotificationTable, NotificationTable.id, it.id)
+        }
+
+        val history = NotificationService.listHistory(callerId)
+
+        assertEquals(listOf(newer.id, older.id), history.map { it.id })
+        assertTrue(history.any { it.isRead } && history.any { !it.isRead })
+    }
+
+    @Test
+    fun `null-session notification stores and reads without affecting session access`() {
+        // Locals, not class properties: inside insert{} the table receiver shadows same-named
+        // members, so `it[NotificationTable.branchId] = branchId` would inline the COLUMN as
+        // the value (the documented Exposed insert{} receiver trap).
+        val userId = callerId
+        val ownerBranchId = branchId
+        val reliefNotificationId = TestFixtures.uuid()
+        trackOwned(NotificationTable, NotificationTable.id, reliefNotificationId)
+        transaction {
+            NotificationTable.insert {
+                it[NotificationTable.id] = reliefNotificationId
+                it[NotificationTable.sessionId] = null
+                it[NotificationTable.userId] = userId
+                it[NotificationTable.branchId] = ownerBranchId
+                it[NotificationTable.message] = "Relief event"
+            }
+        }
+
+        assertTrue(NotificationService.listUnread(callerId).any { it.message == "Relief event" })
+        assertTrue(NotificationRepository.existsForSessionAndUser(sessionId, callerId).not())
+    }
+
+    @Test
+    fun `insertBatch deduplicates repeated session-user pairs across and within batches`() {
+        val existing = insertNotification(sessionId, callerId, branchId)
+        trackOwned(NotificationTable, NotificationTable.id, existing.id)
+        val duplicate =
+            NotificationCreateParams(
+                sessionId = sessionId,
+                userId = callerId,
+                branchId = branchId,
+                message = "duplicate of the existing row",
+            )
+
+        val created = NotificationRepository.insertBatch(listOf(duplicate, duplicate))
+
+        assertEquals(0, created)
+        assertEquals(
+            1,
+            transaction {
+                NotificationTable
+                    .selectAll()
+                    .where { NotificationTable.sessionId eq sessionId }
+                    .count()
+                    .toInt()
+            },
+        )
+    }
+
     private fun insertNotificationForNewSession(
         userId: UUID,
         branchId: UUID,
@@ -229,6 +312,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
         sessionId: UUID,
         userId: UUID,
         branchId: UUID,
+        message: String = "Test notification",
     ): com.companyb.companyapp.repository.model.Notification {
         val id = TestFixtures.uuid()
         transaction {
@@ -237,7 +321,7 @@ class NotificationServicePostgresTest : BasePostgresTest() {
                 it[NotificationTable.sessionId] = sessionId
                 it[NotificationTable.userId] = userId
                 it[NotificationTable.branchId] = branchId
-                it[NotificationTable.message] = "Test notification"
+                it[NotificationTable.message] = message
             }
         }
         return transaction {

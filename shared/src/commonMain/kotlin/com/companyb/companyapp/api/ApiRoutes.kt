@@ -140,6 +140,7 @@ object ApiRoutes {
     fun notificationRead(id: String) = "${notification(id)}/read"
 
     const val NOTIFICATIONS_READ_ALL = "$NOTIFICATIONS/read-all"
+    const val NOTIFICATIONS_HISTORY = "$NOTIFICATIONS/history"
 
     fun reliefInvite(id: String) = "$RELIEF_INVITES/$id"
 

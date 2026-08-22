@@ -55,6 +55,7 @@ fun NotificationsScreen(
     val notificationsState by viewModel.notifications.collectAsState()
     val freshestUnread by viewModel.freshestNotifications.collectAsState()
     val readThisSession by viewModel.readThisSession.collectAsState()
+    val historyState by viewModel.history.collectAsState()
     val markReadState by viewModel.markReadResult.collectAsState()
     val markAllState by viewModel.markAllResult.collectAsState()
 
@@ -66,6 +67,7 @@ fun NotificationsScreen(
     LaunchedEffect(Unit) {
         logInfo("NotificationsScreen", "composable entered (first composition)")
         viewModel.loadUnreadNotifications()
+        viewModel.loadHistory()
         reliefInviteViewModel.loadReceived()
     }
 
@@ -84,6 +86,7 @@ fun NotificationsScreen(
     val markAllError = (markAllState as? UiState.Error)?.message
     val acceptError = (acceptState as? UiState.Error)?.message
     val declineError = (declineState as? UiState.Error)?.message
+    val historyError = (historyState as? UiState.Error)?.message
     LaunchedEffect(markReadError) {
         markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
     }
@@ -96,6 +99,9 @@ fun NotificationsScreen(
     LaunchedEffect(declineError) {
         declineError?.let { logWarn("NotificationsScreen", "inviteDecline=Error: $it") }
     }
+    LaunchedEffect(historyError) {
+        historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
+    }
 
     // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
     // list has content, a reload (re-entry, post-markAll arrival) must not flash a spinner over
@@ -105,7 +111,15 @@ fun NotificationsScreen(
     // empty-list reload case (All caught up → re-entry → reload) still flashes the spinner —
     // nothing is on screen, so D5's "nothing to show → spinner" clause covers it.
     val unread = freshestUnread.orEmpty()
-    val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty()
+    // #356 — server-backed history: every past row, read + unread, newest first. Rows the live
+    // sections already render are filtered out so nothing appears twice; what remains is
+    // display-only (tap-to-read stays the unread queue's job).
+    val historyRows = (historyState as? UiState.Success)?.data.orEmpty()
+    val visibleHistory =
+        historyRows.filterNot { row ->
+            unread.any { it.id == row.id } || readThisSession.any { it.id == row.id }
+        }
+    val hasContent = unread.isNotEmpty() || readThisSession.isNotEmpty() || visibleHistory.isNotEmpty()
 
     Column(
         modifier =
@@ -148,6 +162,21 @@ fun NotificationsScreen(
             }
         }
 
+        // #356 — history load failure is its own inline line with its own retry; it must not
+        // masquerade as an unread-queue failure (that queue has the full ErrorCard path).
+        if (historyError != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ActionErrorLine(historyError)
+                TextButton(onClick = { viewModel.loadHistory() }) {
+                    Text("Retry")
+                }
+            }
+        }
+
         // #160 — the invites section renders above the unread list: invites are time-bound
         // actions (Accept/Decline), the unread queue is reading material. Keep-last (VM-side,
         // the #143 shape): the section survives reloads; resolved rows leave it (the row
@@ -180,6 +209,7 @@ fun NotificationsScreen(
                     NotificationList(
                         unread = unread,
                         readThisSession = readThisSession,
+                        history = visibleHistory,
                         onNotificationClick = onNotificationClick,
                     )
                 } else {
@@ -194,6 +224,7 @@ fun NotificationsScreen(
                     NotificationList(
                         unread = unread,
                         readThisSession = readThisSession,
+                        history = visibleHistory,
                         onNotificationClick = onNotificationClick,
                     )
                 } else {
@@ -206,11 +237,13 @@ fun NotificationsScreen(
             }
 
             is UiState.Success -> {
-                // D4: zero-state when nothing unread and nothing marked read this session.
+                // D4: zero-state when nothing unread, nothing marked read this session, and no
+                // history rows — "All caught up" must not hide a populated history (#356).
                 if (hasContent) {
                     NotificationList(
                         unread = state.data,
                         readThisSession = readThisSession,
+                        history = visibleHistory,
                         onNotificationClick = onNotificationClick,
                     )
                 } else {
@@ -231,6 +264,7 @@ fun NotificationsScreen(
 private fun NotificationList(
     unread: List<NotificationResponse>,
     readThisSession: List<NotificationResponse>,
+    history: List<NotificationResponse>,
     onNotificationClick: (NotificationResponse) -> Unit,
 ) {
     Column(
@@ -252,6 +286,18 @@ private fun NotificationList(
         if (readThisSession.isNotEmpty()) {
             SectionLabel("Read (${readThisSession.size})")
             readThisSession.forEach { notification ->
+                NotificationRow(
+                    notification = notification,
+                    dimmed = true,
+                    onClick = null,
+                )
+            }
+        }
+        // #356 — earlier rows stay findable indefinitely (read rows are never deleted server-
+        // side; they carry session access). Display-only: dimmed, no tap target.
+        if (history.isNotEmpty()) {
+            SectionLabel("Earlier (${history.size})")
+            history.forEach { notification ->
                 NotificationRow(
                     notification = notification,
                     dimmed = true,

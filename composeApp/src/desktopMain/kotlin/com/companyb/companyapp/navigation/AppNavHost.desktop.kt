@@ -295,9 +295,12 @@ actual fun AppNavHost(
                             // platform). The pushed route exists ONLY for this entry point — the
                             // dashboard keeps its inline master-detail pane. The markRead PATCH is
                             // fire-and-forget; the detail GET's bearer check accepts read or unread
-                            // rows, so there is no markRead/GET race (#151 Q7).
+                            // rows, so there is no markRead/GET race (#151 Q7). #356: non-session
+                            // rows carry no destination yet (#358 lands relief tap targets).
                             notificationsViewModel.markRead(notification.id)
-                            navController.navigate(Route.SessionDetail(notification.sessionId))
+                            notification.sessionId?.let {
+                                navController.navigate(Route.SessionDetail(it))
+                            }
                         },
                     )
                 }

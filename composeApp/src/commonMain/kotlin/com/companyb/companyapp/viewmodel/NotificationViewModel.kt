@@ -41,6 +41,11 @@ class NotificationViewModel(
     private val _readThisSession = MutableStateFlow<List<NotificationResponse>>(emptyList())
     val readThisSession: StateFlow<List<NotificationResponse>> = _readThisSession.asStateFlow()
 
+    // #356 — server-backed history (read + unread, newest first). No stamp machinery: no
+    // action mutates the history list, so a plain UiState flow carries load/reload.
+    private val _history = MutableStateFlow<UiState<List<NotificationResponse>>>(UiState.Idle)
+    val history: StateFlow<UiState<List<NotificationResponse>>> = _history.asStateFlow()
+
     // Bumped on every successful action (markRead/markAll): loads capture it at launch, and a
     // landing with a mismatched stamp is a stale pre-action snapshot — see loadUnreadNotifications.
     private var actionStamp = 0L
@@ -67,6 +72,16 @@ class NotificationViewModel(
                 loadUnreadNotifications()
                 currentUnreadList() ?: emptyList()
             },
+        )
+
+    // #356 — history load; runs alongside the unread fetch on screen entry and on retry.
+    fun loadHistory(): Job =
+        handler.launch(
+            state = _history,
+            operation = "loadHistory",
+            endpoint = "GET /api/notifications/history",
+            block = { apiClient.httpClient.get(ApiRoutes.NOTIFICATIONS_HISTORY) },
+            transform = { it.body<List<NotificationResponse>>() },
         )
 
     fun markRead(notificationId: String): Job =

@@ -29,6 +29,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -467,6 +468,38 @@ class NotificationViewModelTest {
             assertEquals(expected = 0, actual = NotificationState.unreadCount.value)
         }
 
+    @Test
+    fun loadHistory_success_emits_server_order_read_and_unread() =
+        runTest(testScheduler) {
+            val vm = NotificationViewModel(mockApiClient(notificationsHandler(historyBody = HISTORY_JSON)))
+
+            vm.loadHistory()
+            runCurrent()
+
+            // Server order preserved (newest first); a null sessionId row (relief event, #356)
+            // deserializes alongside session rows.
+            val state = assertIs<UiState.Success<List<NotificationResponse>>>(vm.history.value)
+            assertEquals(expected = listOf("h1", "h2"), actual = state.data.map { it.id })
+            assertEquals(expected = listOf(true, false), actual = state.data.map { it.isRead })
+            assertNull(state.data.first().sessionId)
+        }
+
+    @Test
+    fun loadHistory_failure_emits_error_without_touching_unread_queue() =
+        runTest(testScheduler) {
+            val vm =
+                NotificationViewModel(
+                    mockApiClient(notificationsHandler(historyStatus = HttpStatusCode.InternalServerError)),
+                )
+
+            val job = vm.loadHistory()
+            runCurrent()
+            job.join()
+
+            assertIs<UiState.Error>(vm.history.value)
+            assertIs<UiState.Idle>(vm.notifications.value)
+        }
+
     private fun notificationsHandler(
         listStatus: HttpStatusCode = HttpStatusCode.OK,
         markStatus: HttpStatusCode = HttpStatusCode.OK,
@@ -476,6 +509,8 @@ class NotificationViewModelTest {
         secondGetStatus: HttpStatusCode = HttpStatusCode.OK,
         secondGetBody: String = ARRIVAL_JSON,
         thirdGetBody: String = ARRIVAL_JSON,
+        historyStatus: HttpStatusCode = HttpStatusCode.OK,
+        historyBody: String = EMPTY_JSON,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MockRequestHandler {
         // First GET serves the two known rows; a reload GET (post-markAllRead with a nonzero
@@ -508,6 +543,12 @@ class NotificationViewModelTest {
                     jsonRespond(status = markStatus, body = READ_JSON)
                 }
 
+                // #356 — the screen entry now also fetches history; existing tests default it
+                // to an empty list so their unread-queue assertions stay untouched.
+                request.method == HttpMethod.Get && request.url.encodedPath == "/api/notifications/history" -> {
+                    jsonRespond(status = historyStatus, body = historyBody)
+                }
+
                 request.method == HttpMethod.Post && request.url.encodedPath == "/api/notifications/read-all" -> {
                     jsonRespond(status = markAllStatus, body = markAllBody)
                 }
@@ -533,6 +574,14 @@ class NotificationViewModelTest {
             """[
                 {"id":"n1","sessionId":"s1","branchId":"b1","message":"Session at 2:00 PM — John Doe","isRead":false,"readAt":null,"createdAt":"2026-08-05T06:00:00+08:00"},
                 {"id":"n2","sessionId":"s2","branchId":"b2","message":"Session at 10:00 AM — Maria Santos","isRead":false,"readAt":null,"createdAt":"2026-08-05T02:00:00+08:00"}
+            ]"""
+
+        // #356 — history serves read + unread, newest first; h1 has no session (non-session
+        // event shape).
+        const val HISTORY_JSON =
+            """[
+                {"id":"h1","sessionId":null,"branchId":"b1","message":"Relief request expired","isRead":true,"readAt":"2026-08-04T22:00:00+08:00","createdAt":"2026-08-04T21:00:00+08:00"},
+                {"id":"h2","sessionId":"s9","branchId":"b9","message":"Session at 3:00 PM — Old Row","isRead":false,"readAt":null,"createdAt":"2026-08-01T06:00:00+08:00"}
             ]"""
 
         const val READ_JSON =

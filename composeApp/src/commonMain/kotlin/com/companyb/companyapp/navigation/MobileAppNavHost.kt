@@ -341,8 +341,12 @@ internal fun MobileAppNavHost(
                                 // D3 (mobile): mark-read + navigate to the session detail. The
                                 // route carries only the sessionId — row = null → the detail
                                 // screen fetches once via GET /api/sessions/{sessionId} (#152).
+                                // #356: non-session rows (relief events) carry no destination
+                                // yet — the tap marks read and stays put until #358 lands.
                                 notificationsViewModel.markRead(notification.id)
-                                navController.navigate(Route.SessionDetail(notification.sessionId))
+                                notification.sessionId?.let {
+                                    navController.navigate(Route.SessionDetail(it))
+                                }
                             },
                         )
                     }

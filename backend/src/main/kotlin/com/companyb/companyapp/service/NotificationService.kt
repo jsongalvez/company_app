@@ -16,6 +16,12 @@ object NotificationService {
         return NotificationRepository.findUnreadByUserId(callerId)
     }
 
+    // #356 — read + unread, newest first; ownership is the WHERE clause (userId eq caller).
+    fun listHistory(callerId: UUID): List<Notification> {
+        logger.info { "[LIST-HISTORY] Fetching notification history for user ${callerId.toString().maskUUID()}" }
+        return NotificationRepository.findHistoryByUserId(callerId)
+    }
+
     fun markAllRead(callerId: UUID): Int =
         transaction {
             NotificationRepository.markAllReadInTransaction(callerId)

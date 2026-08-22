@@ -5,7 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class NotificationResponse(
     val id: String,
-    val sessionId: String,
+    // Nullable from #356: non-session events (relief) have no session to open.
+    val sessionId: String?,
     val branchId: String,
     val message: String,
     val isRead: Boolean,

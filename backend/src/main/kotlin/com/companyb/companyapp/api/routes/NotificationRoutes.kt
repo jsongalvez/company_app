@@ -28,6 +28,12 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
+    path = ApiRoutes.NOTIFICATIONS_HISTORY,
+    methods = [HttpMethod.GET],
+    operationId = "notifications_history",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
     path = ApiRoutes.NOTIFICATION_READ_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "notificationId", type = UUID::class, required = true)],
@@ -40,6 +46,16 @@ object NotificationRoutes {
             val callerId = context.callerUuid()
 
             val notifications = NotificationService.listUnread(callerId)
+
+            context.status(HttpStatus.OK)
+            context.json(notifications.map { it.toResponse() })
+        }
+
+        // #356 — history: every row the caller owns, read + unread, newest first.
+        config.routes.get(ApiRoutes.NOTIFICATIONS_HISTORY) { context ->
+            val callerId = context.callerUuid()
+
+            val notifications = NotificationService.listHistory(callerId)
 
             context.status(HttpStatus.OK)
             context.json(notifications.map { it.toResponse() })
@@ -68,7 +84,7 @@ object NotificationRoutes {
     private fun Notification.toResponse(): NotificationResponse =
         NotificationResponse(
             id = id.toString(),
-            sessionId = sessionId.toString(),
+            sessionId = sessionId?.toString(),
             branchId = branchId.toString(),
             message = message,
             isRead = isRead,

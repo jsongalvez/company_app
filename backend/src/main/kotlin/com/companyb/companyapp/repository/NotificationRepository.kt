@@ -8,6 +8,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -19,25 +20,55 @@ import java.util.UUID
 private val logger = KotlinLogging.logger {}
 
 object NotificationRepository {
+    // #356 — storage widening moved uniqueness out of the schema (V25 dropped
+    // idx_notification_unique), so the write path owns event identity instead: appointment
+    // reminders stay one-per-(session,user) — a scheduler re-run or an in-batch duplicate
+    // updates nothing — while null-session events (relief, #358) bypass pair identity and
+    // always insert. Returns the number of rows actually created.
     fun insertBatch(params: List<NotificationCreateParams>): Int {
         if (params.isEmpty()) return 0
 
         return transaction {
-            val statement =
-                BatchInsertStatement(
-                    table = NotificationTable,
-                    ignore = true,
-                    shouldReturnGeneratedValues = false,
-                )
-            params.forEach { params ->
-                statement.addBatch()
-                statement[NotificationTable.sessionId] = params.sessionId
-                statement[NotificationTable.userId] = params.userId
-                statement[NotificationTable.branchId] = params.branchId
-                statement[NotificationTable.message] = params.message
-                statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
+            val sessionIds = params.mapNotNull { it.sessionId }
+            val userIds = params.map { it.userId }.toSet()
+            val existingPairs =
+                if (sessionIds.isEmpty()) {
+                    emptySet<Pair<UUID, UUID>>()
+                } else {
+                    NotificationTable
+                        .selectAll()
+                        .where {
+                            (NotificationTable.sessionId inList sessionIds) and
+                                (NotificationTable.userId inList userIds)
+                        }.map { it[NotificationTable.sessionId] to it[NotificationTable.userId] }
+                        .toSet()
+                }
+
+            val seen = HashSet<Pair<UUID?, UUID>>()
+            val fresh =
+                params.filter { candidate ->
+                    val key = candidate.sessionId to candidate.userId
+                    (candidate.sessionId == null || key !in existingPairs) && seen.add(key)
+                }
+            if (fresh.isEmpty()) {
+                0
+            } else {
+                val statement =
+                    BatchInsertStatement(
+                        table = NotificationTable,
+                        ignore = true,
+                        shouldReturnGeneratedValues = false,
+                    )
+                fresh.forEach { params ->
+                    statement.addBatch()
+                    statement[NotificationTable.sessionId] = params.sessionId
+                    statement[NotificationTable.userId] = params.userId
+                    statement[NotificationTable.branchId] = params.branchId
+                    statement[NotificationTable.message] = params.message
+                    statement[NotificationTable.createdAt] = CurrentTimestampWithTimeZone
+                }
+                BatchInsertBlockingExecutable(statement).execute(this) ?: 0
             }
-            BatchInsertBlockingExecutable(statement).execute(this) ?: 0
         }.also {
             logger.info { "[INSERT-NOTIFICATIONS] created=$it candidates=${params.size}" }
         }
@@ -52,6 +83,17 @@ object NotificationRepository {
                 .map { it.toNotification() }
         }.also {
             logger.info { "[FIND-UNREAD] ${it.size} unread notifications for user ${userId.toString().maskUUID()}" }
+        }
+
+    // #356 — history: every row the caller owns, read + unread, newest first. Read rows are
+    // never deleted (they carry session access), so the list is stable indefinitely.
+    fun findHistoryByUserId(userId: UUID): List<Notification> =
+        transaction {
+            NotificationTable
+                .selectAll()
+                .where { NotificationTable.userId eq userId }
+                .orderBy(NotificationTable.createdAt, SortOrder.DESC)
+                .map { it.toNotification() }
         }
 
     // #152 bearer check for the session-detail read (#151 Q1): the notification row IS the
