@@ -78,13 +78,18 @@ tmux new-session -d -s wayfinder-loop './scripts/wayfinder-loop.sh 2>&1 | tee -a
 
 ### When the agent needs you
 
-The agent asks via the question tool, parks, and you get a notification. To answer:
+The normal path for human decisions is the **issue tracker, not a chat question**: the agent creates a `needs-info` or `ready-for-human` issue with the verified facts, exact decision, blocker, and smallest safe next action, then continues other safe work or parks the chain — you get a notification either way. Answer on GitHub; an agent consumes the answer and keeps going. See `docs/agents/wayfinder-lifecycle.md` ("Human decisions") and root `AGENTS.md` ("Human Decisions").
+
+Two things still page you to the TUI:
+
+- **Permission requests** — attach and approve them in place.
+- **An open question form** — defensive tripwire only: a session that violated policy by asking instead of deferring. If one appears, attach, answer, and note it as a policy miss.
 
 ```bash
 opencode2   # in the repo — pick the "wayfinder-loop" session from the session list
 ```
 
-Type your answer; the agent resumes and the daemon keeps supervising. If the agent blocks on a permission request instead of a question, attach the TUI and approve it the same way.
+The daemon keeps supervising while you are attached.
 
 ### Phone push (ntfy)
 
@@ -111,6 +116,7 @@ Env overrides: `WAYFINDER_NTFY_TOPIC` (phone push topic), `WAYFINDER_POLL_SECS` 
 - **Dead session**: if a session is deleted without writing a handoff, the daemon spawns a fresh session from the last handoff doc — up to 2 attempts, then pauses and notifies. Resume manually with `./scripts/wayfinder-loop.sh --retry`.
 - **opencode2 API outage**: daemon keeps retrying and notifies once if the service is unreachable (`opencode2 service status` to check).
 - **Dirty worktree gate**: a fresh session never spawns into a dirty worktree (killed-session leftovers or uncommitted infra would get swept into its commits). The daemon **never stages or commits** — the owning agent cleans up its own work; a dirty tree pauses the chain with a notification until it's clean. In-place session resumes bypass this gate — they continue their own uncommitted work.
+- **One recovery contract**: every in-place resume (immediate-stop nudge, stall resume, manual `--resume`) posts the same canonical recovery prompt, and `--retry` fresh-spawns only after the prior session is confirmed gone. Session-side semantics live in `docs/agents/wayfinder-lifecycle.md`.
 - **Crash-safe state**: `.wayfinder-loop.state` records the active session id + retry counters; any restart resumes supervision in place.
 
 ### Runtime files

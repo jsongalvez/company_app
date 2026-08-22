@@ -20,17 +20,17 @@ Move the unattended wayfinder chain (tmux daemon + opencode sessions) from the l
 | `.wayfinder-loop.env` (gitignored) | ntfy topic + `WAYFINDER_MODEL` | copy |
 | `bash scripts/setup-hooks.sh` | `.githooks` + ktlint CLI | run once after clone |
 | k6 (optional) | manual load-test runs | skip OK; or install aarch64 binary |
-| git + GitHub push auth | sessions commit; you push | `gh auth git-credential` (from `gh auth login`) |
+| git + GitHub push auth | sessions commit to `master` and push immediately | `gh auth git-credential` (from `gh auth login`) |
 
 All components have aarch64 builds (JDK 21, Postgres 18 image, Gradle, ktlint jar). The one x86_64-only toolchain piece is AGP's `aapt2` (no `linux-arm64` on the Maven repo) — handled by qemu-user-static binfmt + amd64 multiarch libs in the SDK step below. 2 OCPU / 12 GB is sufficient — the local box runs the same gates.
 
 ## Phase 0 — pre-flight (this machine)
 
-1. Note the current session number and branch state:
+1. Note the current session number and repo state:
    ```bash
-   git log --oneline -1 && git status --short && gh issue list --state open
+   git log --oneline -1 && git status --short && git fetch origin && git status -sb && gh issue list --state open
    ```
-2. The branch `ralph/company-app-full-build` is ~280 commits ahead of origin — it must be pushed before the VPS can see it. **Push at the boundary (Phase 3), after session N's handoff lands** — that one push carries the handoff too. (Pushing now is safe if you want it out of the way: sessions commit locally, they don't push. The wizard's Phase 3 pushes kill-first-then-push, so the boundary push carries everything.)
+2. Sessions integrate **directly to `master` and push immediately** — unpushed work should be rare. Push anything local now (`git push`); at a session boundary the worktree is clean by contract. The handoff packet is gitignored and travels by scp in Phase 3, never by push.
 
 ## Phase 1 — Oracle console (human steps)
 
@@ -76,11 +76,9 @@ opencode2 --version    # expect v0.0.0-next-17444
 # 6. Start the opencode service (the daemon's `api` endpoint)
 opencode2 serve --service          # daemonizes; check: opencode2 api get /api/model
 
-# 7. Repo
+# 7. Repo (default branch = master; sessions commit to master and push immediately)
 git clone https://github.com/jsongalvez/company_app.git
 cd company_app
-git checkout ralph/company-app-full-build
-git pull                            # at boundary time, picks up the handoff push
 
 # 8. Secrets: copy the real files from the local box
 #    scp jayson@<local>:~/.../company-app/.env .env
@@ -129,7 +127,7 @@ echo "sdk.dir=$HOME/android-sdk" >> ~/company_app/local.properties
 ./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid :composeApp:testDebugUnitTest
 ```
 
-Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#110/#139.
+Verify: `git push --dry-run` reports master up to date; `gh issue list` shows the live tracker.
 
 ## Phase 3 — the session-boundary switch (CRITICAL — never two daemons)
 
@@ -141,9 +139,10 @@ Verify: `git push --dry-run` shows only the branch; `gh issue list` lists #89/#1
    tmux kill-session -t wayfinder-loop
    ```
    Confirm: `tmux ls` shows no `wayfinder-loop`; `ps aux | grep wayfinder-loop.sh` is empty. (The wizard confirm-gates this and aborts if declined.)
-3. On **this machine**: push the branch (committed work only — the handoff packet is gitignored and travels by scp in step 4):
+3. On **this machine**: push any residual local commits (direct-to-master sessions
+   push immediately, so this is normally a no-op — belt and braces before the switch):
    ```bash
-   git push origin ralph/company-app-full-build        # hooks are bookkeeping; push is network-only
+   git push origin master        # hooks are bookkeeping; push is network-only
    ```
 4. On the **VPS**: pull, copy the packet by scp, then bootstrap the daemon on it.
    ```bash
@@ -190,4 +189,4 @@ tmux new -s wayfinder-loop
 ./scripts/wayfinder-loop.sh        # resumes from .wayfinder-loop.state
 ```
 
-The VPS daemon must NOT be started until the local one is dead (Phase 3 step 2 — the wizard kills first, then pushes in step 3). The branch is the shared artifact — whichever box hosts the daemon, commits flow to the same branch and GitHub issues.
+The VPS daemon must NOT be started until the local one is dead (Phase 3 step 2 — the wizard kills first, then pushes in step 3). Master is the shared artifact — whichever box hosts the daemon, commits land on `master` and GitHub issues.

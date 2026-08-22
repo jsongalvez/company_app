@@ -350,8 +350,8 @@ pause "Noted the session number + branch state"
 
 stage "Push the branch now?" 4
 if [[ "$MODE" == "full" ]]; then
-  say "The VPS needs $DEPLOY_BRANCH on GitHub to clone it (and Coolify pulls it too)."
-  say "Pushing now is safe — sessions commit locally, they don't push."
+  say "The VPS needs the repo on GitHub to clone it; Coolify pulls $DEPLOY_BRANCH."
+  say "Sessions commit directly to master and push immediately, so unpushed work should be rare."
 else
   say "Coolify pulls $DEPLOY_BRANCH from GitHub — push the branch now so the deploy sees it."
 fi
@@ -577,9 +577,9 @@ else
   vps "git clone '$REPO_URL' ~/company_app"
 fi
 if vps "git -C ~/company_app switch '$DEPLOY_BRANCH'"; then
-  note "branch checked out"
+  note "branch checked out (keep DEPLOY_BRANCH = master for ordinary work — sessions commit to the checked-out branch and push immediately)"
 else
-  warn "branch not on origin yet — it lands at the switch push; the switch stage checks it out"
+  warn "DEPLOY_BRANCH not on origin yet — push it from this machine before the switch stage"
   vps 'git -C ~/company_app switch master 2>/dev/null || true'
 fi
 vps 'git -C ~/company_app log --oneline -1'
@@ -913,8 +913,9 @@ else
 fi
 
 stage "Push the branch (carries committed work)" 4
-# Push AFTER the kill: anything a session committed up to the boundary lands in this push.
-# The handoff packet does NOT ride the push — it is gitignored and travels by scp below.
+# Belt and braces: direct-to-master sessions push immediately, so this is normally a
+# no-op before the switch. The handoff packet does NOT ride the push — it is
+# gitignored and travels by scp below.
 git -C "$REPO" fetch origin --quiet || true
 if git -C "$REPO" rev-parse --verify -q "origin/$DEPLOY_BRANCH" >/dev/null 2>&1; then
   if [[ -n "$(git -C "$REPO" log --oneline "origin/$DEPLOY_BRANCH..HEAD" 2>/dev/null)" ]]; then
@@ -976,7 +977,7 @@ else
 fi
 note "hooks are bookkeeping on the VPS too — validation is targeted/on-demand plus asynchronous CI"
 note "k6 optional: install it only for manual load-test runs"
-note "next session on the VPS works the map as usual — same branch, same issues"
+note "next session on the VPS works the map as usual — same master, same issues"
 
 else
   note "switch phase skipped (app-only mode) — nothing to move; the VPS is the app host only"

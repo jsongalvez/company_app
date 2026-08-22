@@ -24,6 +24,24 @@ seen-doc fingerprints, retries), `.wayfinder-loop.log`, `.wayfinder-loop.lock`.
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
 
+## Recovery semantics (#355)
+
+All in-place recovery paths — the immediate-stop nudge, the stall/zombie
+resume, and manual `--resume` — post the **same canonical recovery prompt**
+(the script's `NUDGE`); no path keeps independent wording. It rehydrates
+GitHub authority, excludes session-start-only CI reconciliation, preserves
+the current claim and phase, allows required derivative-issue creation, and
+routes human decisions through tracker issues (`needs-info` /
+`ready-for-human`) — never the question tool.
+
+- **Existing session → resume in place** (`--resume <session-id>`). Never a
+  fresh spawn while the recorded session may still be alive.
+- **Confirmed-gone session → fresh respawn** (`--retry`). It refuses to run
+  while the recorded session (or its sub-agents) is still in the active set,
+  so a stalled worker can never be silently duplicated.
+- Session-side duties on receiving a recovery prompt are specified in
+  `docs/agents/wayfinder-lifecycle.md`.
+
 ## Playbook
 
 **Chain looks stalled** — diagnose from `.wayfinder-loop.log` + `git status --porcelain`:

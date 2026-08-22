@@ -29,6 +29,24 @@ separate issue with `needs-info` or `ready-for-human`, record verified facts and
 blocking decision, and continue unrelated AFK work. If no safe continuation exists,
 record the blocker in the handoff and stop. Never guess.
 
+## Wayfinder session lifecycle
+
+Full state machine: `docs/agents/wayfinder-lifecycle.md`. Load-bearing invariants:
+
+- Hydrate mutable GitHub authority (claimed issue body + comments chronologically,
+  map, blockers/human-decisions) on every start **and** resume; GitHub outranks
+  stale handoff text.
+- Check-run reconciliation is session-start-only: a recovery nudge never reruns it,
+  and the active agent never polls asynchronous CI.
+- Recovery prompts are automatic and semantically neutral — repetition carries no
+  signal about time/context/budget; preserve claim and phase; one frontier ticket
+  per session; required derivative-issue creation stays legal.
+- A claimed unfinished ticket survives interruption: resume the same child (crash
+  after claim = reconstruct from GitHub assignment; intentional handoff = successor
+  continues the assigned child). Never skip an assigned child to claim a second.
+- Handoffs are compact pointer packets; park with `scripts/wayfinder-park.sh` and
+  record the stash ref before exiting on unfinished work.
+
 ## Code review — risk-based graph
 
 Implementation work uses a review profile matched to blast radius. Review work is a dependency graph, not fixed ceremony: independent read-only lanes run in parallel, one writer applies a coherent fix batch, and only affected checks rerun.
@@ -79,6 +97,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
 | Issue tracking | `docs/agents/issue-tracker.md` |
 | Wayfinding chain daemon — stalls, duplicates, restarts, packet rules | `docs/agents/wayfinder-loop.md` |
+| Wayfinder session lifecycle — hydration, recovery, claims, handoffs | `docs/agents/wayfinder-lifecycle.md` |
 | Triage labels | `docs/agents/triage-labels.md` |
 | Decision-loop lenses + deferred human-review frame | `docs/agents/decision-loop.md` |
 | Performance baselines | `backend/jmh-baselines.md` |
