@@ -348,6 +348,17 @@ supervise_session() {
     # completion first: a finished session writes its handoff doc as its final act
     d="$(newest_unprocessed || true)"
     if [ -n "$d" ]; then
+      if [ "$d" = "$last_doc" ]; then
+        # In-place revision of the CURRENT link's own packet (operator correction
+        # or self-edit): absorb the new fingerprint, never chain. The 2026-08-22
+        # triple-spawn class: content-hash tracking re-fired the same ticket for
+        # ANY post-spawn edit of the queued filename. Successor links signal via
+        # NEW filenames — same-name changes are revisions, not completions.
+        log "handoff $d revised in place after spawn — absorbed, not chaining"
+        mark_seen "$d"
+        save_state
+        continue
+      fi
       pending_doc="$d"
       retries=0
       save_state
