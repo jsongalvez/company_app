@@ -38,6 +38,7 @@ import com.companyb.companyapp.ui.screen.BranchSelectScreen
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.FinanceReportsScreen
+import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
@@ -123,6 +124,8 @@ actual fun AppNavHost(
                         },
                         // #350 — invite redemption entry point.
                         onAcceptInviteClick = { navController.navigate(Route.AcceptInvite) },
+                        // #353 — forgot-password entry point.
+                        onForgotPasswordClick = { navController.navigate(Route.ForgotPassword) },
                     )
                 }
                 composable<Route.AcceptInvite> {
@@ -131,6 +134,15 @@ actual fun AppNavHost(
                     val acceptInviteViewModel: AuthViewModel = viewModel { AuthViewModel(apiClient) }
                     AcceptInviteScreen(
                         authViewModel = acceptInviteViewModel,
+                        tokenStore = tokenStore,
+                        onDone = { navController.popBackStack() },
+                    )
+                }
+                composable<Route.ForgotPassword> {
+                    // Entry-scoped VM (#112 shape, same as AcceptInvite).
+                    val forgotPasswordViewModel: AuthViewModel = viewModel { AuthViewModel(apiClient) }
+                    ForgotPasswordScreen(
+                        authViewModel = forgotPasswordViewModel,
                         tokenStore = tokenStore,
                         onDone = { navController.popBackStack() },
                     )

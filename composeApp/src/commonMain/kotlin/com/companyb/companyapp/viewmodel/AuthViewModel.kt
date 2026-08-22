@@ -3,8 +3,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AcceptInviteRequest
+import com.companyb.companyapp.dto.ForgotPasswordRequest
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.dto.ResetPasswordRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
@@ -83,6 +85,57 @@ class AuthViewModel(
                 val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
                 _acceptInviteState.value =
                     UiState.Error(detail ?: "Accept invite failed: ${response.status.value}")
+                true
+            },
+        )
+
+    // #353 — forgot-password request leg. 204 is uniform by design (enumeration resistance):
+    // Success never implies the account exists, and the screen copy must not claim it does.
+    private val _requestResetState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val requestResetState: StateFlow<UiState<Unit>> = _requestResetState.asStateFlow()
+
+    fun requestPasswordReset(identifier: String): Job =
+        handler.launch(
+            state = _requestResetState,
+            operation = "requestPasswordReset",
+            endpoint = "POST ${ApiRoutes.AUTH_FORGOT_PASSWORD}",
+            block = {
+                apiClient.httpClient.post(ApiRoutes.AUTH_FORGOT_PASSWORD) {
+                    setBody(ForgotPasswordRequest(identifier))
+                }
+            },
+            transform = { Unit },
+            onNonSuccess = { response ->
+                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                _requestResetState.value =
+                    UiState.Error(detail ?: "Reset request failed: ${response.status.value}")
+                true
+            },
+        )
+
+    // #353 — reset redemption leg; the backend's 400 body names the failure class
+    // (invalid / used / expired / weak password) and renders inline.
+    private val _resetPasswordState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val resetPasswordState: StateFlow<UiState<Unit>> = _resetPasswordState.asStateFlow()
+
+    fun resetPassword(
+        token: String,
+        newPassword: String,
+    ): Job =
+        handler.launch(
+            state = _resetPasswordState,
+            operation = "resetPassword",
+            endpoint = "POST ${ApiRoutes.AUTH_RESET_PASSWORD}",
+            block = {
+                apiClient.httpClient.post(ApiRoutes.AUTH_RESET_PASSWORD) {
+                    setBody(ResetPasswordRequest(token, newPassword))
+                }
+            },
+            transform = { Unit },
+            onNonSuccess = { response ->
+                val detail = extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
+                _resetPasswordState.value =
+                    UiState.Error(detail ?: "Password reset failed: ${response.status.value}")
                 true
             },
         )

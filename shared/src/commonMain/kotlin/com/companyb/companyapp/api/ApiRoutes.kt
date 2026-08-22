@@ -7,6 +7,8 @@ object ApiRoutes {
     private const val API_ROOT = "/api"
     const val AUTH_LOGIN = "/auth/login"
     const val AUTH_ACCEPT_INVITE = "/auth/accept-invite"
+    const val AUTH_FORGOT_PASSWORD = "/auth/forgot-password"
+    const val AUTH_RESET_PASSWORD = "/auth/reset-password"
     const val AUTH_LOGOUT = "$API_ROOT/auth/logout"
     const val ME = "$API_ROOT/me"
     const val ME_BRANCHES = "$ME/branches"

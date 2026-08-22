@@ -60,6 +60,8 @@ fun LoginScreen(
     // #350 — entry into the public invite-redemption flow (optional: nav hosts without the
     // route registered keep the plain form).
     onAcceptInviteClick: () -> Unit = {},
+    // #353 — entry into the public forgot-password flow.
+    onForgotPasswordClick: () -> Unit = {},
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -245,6 +247,10 @@ fun LoginScreen(
 
         TextButton(onClick = onAcceptInviteClick) {
             Text("Have an invite code? Set up your account")
+        }
+
+        TextButton(onClick = onForgotPasswordClick) {
+            Text("Forgot password?")
         }
     }
 }

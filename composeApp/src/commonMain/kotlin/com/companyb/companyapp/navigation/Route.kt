@@ -12,6 +12,10 @@ sealed class Route {
     @Serializable
     data object AcceptInvite : Route()
 
+    // #353 — public forgot-password flow: request a reset code, then redeem it.
+    @Serializable
+    data object ForgotPassword : Route()
+
     @Serializable
     data object BranchSelect : Route()
 

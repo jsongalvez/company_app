@@ -1,6 +1,7 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.auth.CredentialTokens
+import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.RateLimiter
@@ -17,6 +18,8 @@ import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 object AuthService {
@@ -29,6 +32,19 @@ object AuthService {
         "This invite code has already been used. Ask an administrator for a new one."
     private const val INVITE_EXPIRED_MESSAGE =
         "This invite code has expired. Ask an administrator for a new one."
+    private const val RESET_INVALID_MESSAGE = "This reset code is invalid"
+    private const val RESET_USED_MESSAGE =
+        "This reset code has already been used. Request a new one."
+    private const val RESET_EXPIRED_MESSAGE =
+        "This reset code has expired. Request a new one."
+
+    // #353 — reset codes live 24h, shorter than invites' 7 days: the reset surface is
+    // unauthenticated self-service reachable by anyone who knows an identifier.
+    private const val RESET_VALID_HOURS = 24L
+
+    // Independent rate-limit budget per IP — login hammering must not starve resets and vice
+    // versa (RateLimiter keys on the exact string).
+    private const val RESET_RATE_KEY_PREFIX = "reset:"
 
     fun login(
         username: String,
@@ -109,5 +125,131 @@ object AuthService {
                 userId
             }
         logger.info { "[INVITE-ACCEPT] Invite redeemed for ${consumedUserId.toString().maskUUID()}" }
+    }
+
+    /**
+     * #353 — public reset request. The response is uniform whether or not [identifier] matches
+     * an account (true either way): enumeration resistance. A matching account gets a fresh
+     * 24h PASSWORD_RESET token; any of its outstanding reset codes are invalidated first
+     * (#350 re-invite pattern). False means the caller's IP exceeded its rate budget.
+     *
+     * Delivery interim decision (#353, no mail infra exists): the raw code is logged
+     * server-side for operator relay; a real delivery channel is separate discovery.
+     */
+    fun requestPasswordReset(
+        identifier: String,
+        ip: String,
+    ): Boolean {
+        if (!RateLimiter.isAllowed(RESET_RATE_KEY_PREFIX + ip)) {
+            logger.warn { "[PASSWORD-RESET] Rate limiting reset requests from $ip" }
+            return false
+        }
+        val trimmed = identifier.trim()
+        if (trimmed.isEmpty()) {
+            return true
+        }
+        val rawCode = mintResetCode(trimmed)
+        // The only copy leaves the transaction here — into the server log for operator relay.
+        if (rawCode != null) {
+            logger.warn { "[PASSWORD-RESET] Reset code for '$trimmed': $rawCode (valid ${RESET_VALID_HOURS}h)" }
+        }
+        return true
+    }
+
+    /**
+     * The request leg's write half, split so tests can obtain the raw code without parsing
+     * logs (#353): production callers go through [requestPasswordReset], whose uniform true
+     * response carries the enumeration resistance. Null when no account matches.
+     */
+    internal fun mintResetCode(identifier: String): String? =
+        transaction {
+            val existing =
+                UserRepository.findByUsernameOrEmailInTransaction(identifier, identifier) ?: return@transaction null
+            CredentialTokenRepository
+                .findUnconsumedIdsInTransaction(existing.id, CredentialTokenPurpose.PASSWORD_RESET)
+                .forEach { tokenId ->
+                    CredentialTokenRepository.invalidateInTransaction(tokenId)
+                    AuditLogRepository.recordUpdate(
+                        tableName = TOKEN_TABLE_NAME,
+                        recordId = tokenId,
+                        changedBy = existing.id,
+                        oldFields = mapOf("consumed" to "false"),
+                        newFields = mapOf("consumed" to "true"),
+                    )
+                }
+            val rawCode = CredentialTokens.generate()
+            val tokenId =
+                CredentialTokenRepository.insertInTransaction(
+                    tokenHash = CredentialTokens.hash(rawCode),
+                    purpose = CredentialTokenPurpose.PASSWORD_RESET,
+                    userId = existing.id,
+                    expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusHours(RESET_VALID_HOURS),
+                    createdBy = null,
+                )
+            AuditLogRepository.recordInsert(
+                tableName = TOKEN_TABLE_NAME,
+                recordId = tokenId,
+                changedBy = existing.id,
+                fields =
+                    mapOf(
+                        "purpose" to CredentialTokenPurpose.PASSWORD_RESET.name,
+                        "createdBy" to "(self-requested)",
+                    ),
+            )
+            rawCode
+        }
+
+    /**
+     * #353 — public single-use reset redemption: same atomic consume as [acceptInvite]
+     * (single-use + expiry in one UPDATE predicate, DB clock), purpose-scoped to
+     * PASSWORD_RESET. Replaces the password hash (the prior credential stops working) and
+     * denies the user's live JWTs so an attacker holding a session cannot outlive the reset.
+     * changedBy is the requesting user themself.
+     */
+    fun resetPassword(
+        rawCode: String,
+        newPassword: String,
+    ) {
+        if (!PasswordPolicy.isValid(newPassword)) {
+            throw ValidationException(WEAK_PASSWORD_MESSAGE)
+        }
+        val resetUserId: UUID =
+            transaction {
+                val row =
+                    CredentialTokenRepository.findByHashAndPurposeInTransaction(
+                        CredentialTokens.hash(rawCode),
+                        CredentialTokenPurpose.PASSWORD_RESET,
+                    ) ?: throw ValidationException(RESET_INVALID_MESSAGE)
+                if (row.consumedAt != null) {
+                    throw ValidationException(RESET_USED_MESSAGE)
+                }
+                val userId = row.userId
+                if (!CredentialTokenRepository.consumeIfLiveInTransaction(row.id)) {
+                    val reread =
+                        CredentialTokenRepository.findByIdInTransaction(row.id)
+                            ?: throw ValidationException(RESET_INVALID_MESSAGE)
+                    throw ValidationException(
+                        if (reread.consumedAt != null) RESET_USED_MESSAGE else RESET_EXPIRED_MESSAGE,
+                    )
+                }
+                UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
+                AuditLogRepository.recordUpdate(
+                    tableName = AppUserTable.tableName,
+                    recordId = userId,
+                    changedBy = userId,
+                    oldFields = mapOf("password" to "(previous)"),
+                    newFields = mapOf("password" to "(set via password reset)"),
+                )
+                AuditLogRepository.recordUpdate(
+                    tableName = TOKEN_TABLE_NAME,
+                    recordId = row.id,
+                    changedBy = userId,
+                    oldFields = mapOf("consumed" to "false"),
+                    newFields = mapOf("consumed" to "true"),
+                )
+                userId
+            }
+        DenyList.deny(resetUserId)
+        logger.info { "[PASSWORD-RESET] Password reset completed for ${resetUserId.toString().maskUUID()}" }
     }
 }

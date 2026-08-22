@@ -124,6 +124,8 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     HealthRoutes.register(config)
     AuthRoutes.login(config)
     AuthRoutes.acceptInvite(config)
+    AuthRoutes.forgotPassword(config)
+    AuthRoutes.resetPassword(config)
     AuthRoutes.logout(config)
     MeRoutes.getMe(config)
     MeRoutes.getCapabilities(config)

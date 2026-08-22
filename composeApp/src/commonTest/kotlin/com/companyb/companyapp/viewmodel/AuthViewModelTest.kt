@@ -137,4 +137,82 @@ class AuthViewModelTest {
 
             assertEquals(listOf(ApiRoutes.AUTH_LOGIN), paths)
         }
+
+    // #353 — forgot-password request leg: Success on the uniform body-less 204; a 429 carries
+    // no body, so the fallback status copy renders.
+    @Test
+    fun requestResetSuccessTransitionsToSuccess() =
+        runTest {
+            val apiClient =
+                mockApiClient { request ->
+                    if (request.method == io.ktor.http.HttpMethod.Post &&
+                        request.url.encodedPath == ApiRoutes.AUTH_FORGOT_PASSWORD
+                    ) {
+                        respond(content = ByteReadChannel(""), status = HttpStatusCode.NoContent)
+                    } else {
+                        error("unexpected ${request.method} ${request.url.encodedPath}")
+                    }
+                }
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.requestPasswordReset("someone").join()
+
+            assertIs<UiState.Success<Unit>>(viewModel.requestResetState.value)
+        }
+
+    @Test
+    fun requestResetRateLimitFallsBackToStatusCopy() =
+        runTest {
+            val apiClient =
+                mockApiClient(
+                    status = HttpStatusCode.TooManyRequests,
+                    body = "",
+                )
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.requestPasswordReset("someone").join()
+
+            val state = viewModel.requestResetState.value
+            val error = assertIs<UiState.Error>(state)
+            assertEquals("Reset request failed: 429", error.message)
+        }
+
+    // #353 — reset redemption leg mirrors accept-invite: the backend's 400 `{"error": ...}`
+    // body (invalid / used / expired / weak password) surfaces verbatim.
+    @Test
+    fun resetPasswordSuccessTransitionsToSuccess() =
+        runTest {
+            val apiClient =
+                mockApiClient { request ->
+                    if (request.method == io.ktor.http.HttpMethod.Post &&
+                        request.url.encodedPath == ApiRoutes.AUTH_RESET_PASSWORD
+                    ) {
+                        respond(content = ByteReadChannel(""), status = HttpStatusCode.NoContent)
+                    } else {
+                        error("unexpected ${request.method} ${request.url.encodedPath}")
+                    }
+                }
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.resetPassword("single-use-code", "valid-password").join()
+
+            assertIs<UiState.Success<Unit>>(viewModel.resetPasswordState.value)
+        }
+
+    @Test
+    fun resetPasswordErrorSurfacesBackendMessage() =
+        runTest {
+            val apiClient =
+                mockApiClient(
+                    status = HttpStatusCode.BadRequest,
+                    body = """{"error": "This reset code has expired. Request a new one."}""",
+                )
+            val viewModel = AuthViewModel(apiClient)
+
+            viewModel.resetPassword("stale-code", "valid-password").join()
+
+            val state = viewModel.resetPasswordState.value
+            val error = assertIs<UiState.Error>(state)
+            assertEquals("This reset code has expired. Request a new one.", error.message)
+        }
 }

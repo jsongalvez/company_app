@@ -71,51 +71,7 @@ object UserService {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
         }
         val expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusDays(INVITE_VALID_DAYS)
-        val minted: MintedInvite =
-            transaction {
-                val existing = UserRepository.findByUsernameOrEmailInTransaction(request.username, request.email)
-                val reinvite =
-                    existing != null &&
-                        CredentialTokenRepository.hasOutstandingInTransaction(
-                            existing.id,
-                            CredentialTokenPurpose.INVITE,
-                        )
-                var createdNew = false
-                val targetId: UUID
-                if (reinvite) {
-                    targetId = invalidateOutstandingInvites(callerId, existing.id)
-                } else {
-                    createdNew = true
-                    // A hash of a random secret: the account cannot be logged into until the
-                    // invitee accepts and sets their own password.
-                    targetId =
-                        UserRepository.createUserInTransaction(
-                            UserCreateParams(
-                                username = request.username,
-                                passwordHash = Password.create(CredentialTokens.generate()),
-                                email = request.email,
-                                displayName = request.displayName,
-                            ),
-                        )
-                }
-                val beforeRoles =
-                    if (createdNew) {
-                        emptyList()
-                    } else {
-                        RoleRepository.findRoleNamesForUserInTransaction(targetId)
-                    }
-                replaceMembershipsInTransaction(callerId, targetId, request.roles, beforeRoles)
-                if (createdNew) {
-                    UserAudit.userInserted(
-                        recordId = targetId,
-                        changedBy = callerId,
-                        username = request.username,
-                        displayName = request.displayName,
-                    )
-                }
-                val rawCode = insertInviteToken(targetId, callerId, expiresAt)
-                MintedInvite(targetId, rawCode, createdNew)
-            }
+        val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, expiresAt) }
         logger.info {
             val action = if (minted.createdNew) "Created user" else "Re-invited existing user"
             "[INVITE-MINT] $action ${minted.userId.toString().maskUUID()}"
@@ -125,6 +81,56 @@ object UserService {
             inviteCode = minted.rawCode,
             expiresAt = expiresAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
         )
+    }
+
+    /** The mint command's transaction body (ADR-0024): one transaction, audit rows inside. */
+    private fun mintInviteInTransaction(
+        callerId: UUID,
+        request: InviteMintRequest,
+        expiresAt: OffsetDateTime,
+    ): MintedInvite {
+        val existing = UserRepository.findByUsernameOrEmailInTransaction(request.username, request.email)
+        val reinvite =
+            existing != null &&
+                CredentialTokenRepository.hasOutstandingInTransaction(
+                    existing.id,
+                    CredentialTokenPurpose.INVITE,
+                )
+        var createdNew = false
+        val targetId: UUID
+        if (reinvite) {
+            targetId = invalidateOutstandingInvites(callerId, existing.id)
+        } else {
+            createdNew = true
+            // A hash of a random secret: the account cannot be logged into until the
+            // invitee accepts and sets their own password.
+            targetId =
+                UserRepository.createUserInTransaction(
+                    UserCreateParams(
+                        username = request.username,
+                        passwordHash = Password.create(CredentialTokens.generate()),
+                        email = request.email,
+                        displayName = request.displayName,
+                    ),
+                )
+        }
+        val beforeRoles =
+            if (createdNew) {
+                emptyList()
+            } else {
+                RoleRepository.findRoleNamesForUserInTransaction(targetId)
+            }
+        replaceMembershipsInTransaction(callerId, targetId, request.roles, beforeRoles)
+        if (createdNew) {
+            UserAudit.userInserted(
+                recordId = targetId,
+                changedBy = callerId,
+                username = request.username,
+                displayName = request.displayName,
+            )
+        }
+        val rawCode = insertInviteToken(targetId, callerId, expiresAt)
+        return MintedInvite(targetId, rawCode, createdNew)
     }
 
     /** Re-invite leg (#350): kill every outstanding code, one audit row each; returns the account id. */

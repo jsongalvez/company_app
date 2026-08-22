@@ -4,8 +4,10 @@ import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.domain.LoginResult
 import com.companyb.companyapp.dto.AcceptInviteRequest
+import com.companyb.companyapp.dto.ForgotPasswordRequest
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
+import com.companyb.companyapp.dto.ResetPasswordRequest
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
@@ -32,6 +34,23 @@ import java.util.UUID
     operationId = "auth_accept_invite",
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = AcceptInviteRequest::class)]),
+    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "400")],
+)
+@OpenApi(
+    path = ApiRoutes.AUTH_FORGOT_PASSWORD,
+    methods = [HttpMethod.POST],
+    operationId = "auth_forgot_password",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ForgotPasswordRequest::class)]),
+    // 204 regardless of whether the identifier matched — enumeration resistance (#353).
+    responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "429")],
+)
+@OpenApi(
+    path = ApiRoutes.AUTH_RESET_PASSWORD,
+    methods = [HttpMethod.POST],
+    operationId = "auth_reset_password",
+    security = [],
+    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = ResetPasswordRequest::class)]),
     responses = [OpenApiResponse(status = "204"), OpenApiResponse(status = "400")],
 )
 @OpenApi(
@@ -78,6 +97,34 @@ object AuthRoutes {
         config.routes.post(ApiRoutes.AUTH_ACCEPT_INVITE) { context ->
             val request = context.bodyAsClass<AcceptInviteRequest>()
             AuthService.acceptInvite(request.token, request.newPassword)
+            context.status(HttpStatus.NO_CONTENT)
+        }
+    }
+
+    /**
+     * #353 — public forgot-password request leg. Always 204 on success (the body reveals
+     * nothing about identifier existence); 429 when the caller's IP exceeds its budget.
+     */
+    fun forgotPassword(config: JavalinConfig) {
+        config.routes.post(ApiRoutes.AUTH_FORGOT_PASSWORD) { context ->
+            val request = context.bodyAsClass<ForgotPasswordRequest>()
+            val accepted = AuthService.requestPasswordReset(request.identifier, context.ip())
+            if (accepted) {
+                context.status(HttpStatus.NO_CONTENT)
+            } else {
+                context.status(HttpStatus.TOO_MANY_REQUESTS)
+            }
+        }
+    }
+
+    /**
+     * #353 — public reset redemption leg; the code IS the authorization, exactly like
+     * [acceptInvite]. Failures are domain 400s with distinct messages.
+     */
+    fun resetPassword(config: JavalinConfig) {
+        config.routes.post(ApiRoutes.AUTH_RESET_PASSWORD) { context ->
+            val request = context.bodyAsClass<ResetPasswordRequest>()
+            AuthService.resetPassword(request.token, request.newPassword)
             context.status(HttpStatus.NO_CONTENT)
         }
     }
