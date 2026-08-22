@@ -85,8 +85,9 @@ needs human input, create a separate issue instead. Label it `needs-info` when f
 requirements are missing, or `ready-for-human` when facts are complete and only an
 explicit preference or approval is needed. Include verified facts, the exact decision,
 why execution is blocked, and the smallest safe next action. Leave it unassigned unless
- the tracker requires an owner. Continue unrelated AFK work; if none exists, write the
- handoff and stop.
+the tracker requires an owner. Unclaim the blocked ticket so it stays deferred until
+answered, then write the handoff and stop — a deferred ticket waits on GitHub, never in
+a live session.
 
 ### Decision handoff lifecycle
 

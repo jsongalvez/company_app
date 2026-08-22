@@ -86,12 +86,15 @@ ledger: GitHub assignment is the claim record.
 
 One contract everywhere: deferred through the tracker, never the question
 tool (root `AGENTS.md`, "Human Decisions"; `docs/agents/issue-tracker.md`,
-"Human decision deferral"). Create/update the `needs-info` or
-`ready-for-human` issue with verified facts, exact decision, blocker, and
-smallest safe next action; continue safe unrelated AFK work; if none exists,
-write the handoff and stop. The daemon's question-form detection is a
-defensive tripwire for an unexpected policy-violating session — it is not
-the normal HITL path and must not be documented as one.
+"Human decision deferral"). Record verified facts, the exact decision, why
+execution is blocked, and the smallest safe next action on a `needs-info` or
+`ready-for-human` issue; unclaim the blocked ticket so it stays deferred until
+answered; then write the successor handoff naming that issue as the exact next
+action and stop. The chain is fully AFK: a deferred ticket waits on GitHub,
+never in a live session, and no session state exists for holding work open on
+a human answer. The daemon's question-form detection is a defensive tripwire
+for an unexpected policy-violating session — it is not the normal HITL path
+and must not be documented as one.
 
 ## Handoffs and parking
 

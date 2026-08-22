@@ -51,7 +51,7 @@ Before further lifecycle-changing action, refresh the mutable GitHub authority: 
 
 If this session has a currently claimed unfinished ticket, continue that ticket only. Do not claim or resolve another frontier ticket in this session. Normal lifecycle tracker writes remain allowed: create required blocker, needs-info, ready-for-human, correctness, architecture, or follow-up issues when the current ticket's workflow requires them, but do not switch execution to those issues.
 
-If human input is required, follow the repository's deferred-human-decision lifecycle: never ask the user or invoke the question tool. Create or update the appropriate needs-info or ready-for-human issue with verified facts, the exact decision, blocker, and smallest safe next action; continue safe unrelated work permitted by the current ticket if any exists.
+If human input is required, never ask the user or invoke the question tool: record verified facts, the exact decision, why execution is blocked, and the smallest safe next action on a needs-info or ready-for-human issue, unclaim the blocked ticket so it stays deferred until answered, then write the successor handoff naming that issue as the exact next action and stop. The chain never holds a live session open waiting on a human answer.
 
 If the claimed ticket has already been resolved, complete any remaining resolution comment, tracker reconciliation, map update, or durable decision pointer, then write the successor handoff as the session's final action. Do not claim another frontier ticket in this session.
 
@@ -401,13 +401,7 @@ supervise_session() {
   # produced no ping). Every tick checks completion/forms/perms fresh, so a
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
-  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id=""
-  # Progress guard: a worker that answers every recovery prompt with zero token
-  # growth (the "Stopped."-zombie class) is finished or wedged, not recoverable
-  # by repetition. After 3 fruitless prompts the daemon abandons in-place
-  # recovery and respawns fresh for the newest unprocessed packet — the chain
-  # keeps going without burning tokens on a done worker.
-  local fruitless=0 last_nudge_tokens=-1 total=""
+  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id="" stop_nudges=0
   while :; do
     sleep "$TICK_SECS"
     # completion first: a finished session writes its handoff doc as its final act
@@ -442,7 +436,7 @@ supervise_session() {
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
-       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""
+       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""; stop_nudges=0
       continue
     fi
 
@@ -537,26 +531,18 @@ supervise_session() {
 
     # Immediate stop detector: a final assistant turn without a handoff is not a healthy
     # parked state. Send the same continuation prompt used by the slower zombie path as soon
-    # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
+    # as the completed message appears; the stop_nudges cap bounds the cycle.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
-      total="$(printf '%s' "$sess" | jq -r '(.data.tokens.input // 0) + (.data.tokens.output // 0) + (.data.tokens.reasoning // 0)' 2>/dev/null || echo -1)"
-      if [ "$last_nudge_tokens" -ge 0 ] && [ "$total" -eq "$last_nudge_tokens" ]; then
-        fruitless=$((fruitless + 1))
-      else
-        fruitless=0
+      # Bounded: each nudge mints a NEW stopped message (new id), so message-id dedupe
+      # alone cannot stop a parked-state cycle — the 2026-08-23 loop ran 570 nudges.
+      # After 2 fruitless continuations, pause the chain and page the operator.
+      if [ "$stop_nudges" -ge 2 ]; then
+        log "chain paused: $session_id stopped without handoff after $stop_nudges continuation prompts"
+        notify "wayfinder chain paused" "session $session_id keeps stopping without a handoff — attach TUI to check, then run: ./scripts/wayfinder-loop.sh --retry"
+        exit 0
       fi
-      last_nudge_tokens="$total"
-      if [ "$fruitless" -ge 3 ]; then
-        log "session $session_id gave no progress across $fruitless recovery prompts — respawning fresh"
-        notify "wayfinder respawning" "session $session_id wedged or already finished — spawning a fresh worker"
-        session_id=""
-        retries=0
-        save_state
-       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""; fruitless=0; last_nudge_tokens=-1; fruitless=0; last_nudge_tokens=-1
-        wait_for_doc
-        continue
-      fi
+      stop_nudges=$((stop_nudges + 1))
       if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
@@ -615,14 +601,21 @@ supervise_session() {
 }
 
 session_dead() {
-  # resume: the session still exists but stalled/interrupted — ask it to continue in place.
-  # Unbounded: the daemon is an AFK orchestrator — every stall gets THE canonical recovery
-  # prompt, forever; a wedged session is the operator's call, never a silent chain death.
+  # resume: the session still exists but stalled/interrupted — ask it to continue in place
+  # fresh: session gone (404) — spawn a new one from the handoff doc
+  # Bounded at 2 attempts each: a session that keeps stalling or dying is wedged or the
+  # packet is poison — pause the chain and page the operator instead of nudging forever
+  # (the 2026-08-23 parked-ticket nudge loop ran 570 cycles before a human noticed).
   local mode="${1:-fresh}"
   if [ "$mode" = "resume" ]; then
+    if [ "${retries:-0}" -ge 2 ]; then
+      log "chain paused: $session_id stalled after $retries resume attempts"
+      notify "wayfinder chain paused" "session $session_id stalled after 2 resume attempts — attach TUI to check it, kill it if wedged, then run: ./scripts/wayfinder-loop.sh --retry"
+      exit 0
+    fi
     retries=$(( ${retries:-0} + 1 ))
     save_state
-    log "resuming stalled session $session_id (attempt $retries)"
+    log "resuming stalled session $session_id (attempt $retries/2)"
     notify "wayfinder resuming" "session $session_id stalled — asking it to continue where it left off"
     if ! api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
       log "resume prompt failed for $session_id — falling back to fresh spawn"
@@ -630,13 +623,16 @@ session_dead() {
     fi
     return 0
   fi
-  # Unbounded like resume: a dead session gets a fresh worker for the same packet,
-  # forever — notification spam on a poison packet IS the operator signal.
+  if [ "${retries:-0}" -ge 2 ]; then
+    log "chain paused: $session_id died without handoff (retries=$retries)"
+    notify "wayfinder chain paused" "session $session_id died without writing a handoff. Run: ./scripts/wayfinder-loop.sh --retry"
+    exit 0
+  fi
   retries=$(( ${retries:-0} + 1 ))
   session_id=""
   save_state
-  log "session died without handoff — respawn for $last_doc (retry $retries)"
-  notify "wayfinder retrying" "session died — spawning a fresh session for $last_doc (retry $retries)"
+  log "session died without handoff — respawn for $last_doc (retry $retries/2)"
+  notify "wayfinder retrying" "session died — spawning a fresh session for $last_doc (retry $retries/2)"
   spawn_session "$last_doc" || { log "dry-run retry"; exit 0; }
 }
 

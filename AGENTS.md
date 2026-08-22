@@ -26,8 +26,9 @@ When a fresh agent opens a GitHub issue to work on:
 Never ask the user a question or invoke the question tool. When business behavior,
 scope, safety, external authorization, or preference needs human input, create a
 separate issue with `needs-info` or `ready-for-human`, record verified facts and the
-blocking decision, and continue unrelated AFK work. If no safe continuation exists,
-record the blocker in the handoff and stop. Never guess.
+blocking decision, unclaim the blocked ticket so it stays deferred until answered,
+then write the handoff and stop — the chain never waits on a human answer in a live
+session. Never guess.
 
 ## Wayfinder session lifecycle
 
