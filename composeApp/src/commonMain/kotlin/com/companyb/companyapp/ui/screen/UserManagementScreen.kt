@@ -982,7 +982,7 @@ private fun RoleEditDialog(
             Column {
                 when {
                     rolesState is UiState.Error -> {
-                        val errorState = rolesState as UiState.Error
+                        val errorState = rolesState
                         LaunchedEffect(errorState) {
                             logWarn("UserManagementScreen", "rolesState=Error: ${errorState.message}")
                         }
