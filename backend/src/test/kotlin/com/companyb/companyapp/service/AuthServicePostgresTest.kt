@@ -3,15 +3,12 @@ import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.domain.LoginResult
-import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.RegistrationConflictException
-import com.companyb.companyapp.repository.RoleRepository
 import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
-import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -22,8 +19,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -94,27 +89,6 @@ class AuthServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `registration collision returns existing result for username and email`() {
-        val usernameResult =
-            AuthService.register(
-                username = "logout-test-$userId",
-                password = "test-password",
-                email = "new-$userId@example.test",
-                displayName = "Duplicate Username",
-            )
-        val emailResult =
-            AuthService.register(
-                username = "new-$userId",
-                password = "test-password",
-                email = "${userId.toString().take(8)}@logout-test.st",
-                displayName = "Duplicate Email",
-            )
-
-        assertEquals(RegisterResult.UsernameTaken, usernameResult)
-        assertEquals(RegisterResult.EmailTaken, emailResult)
-    }
-
-    @Test
     fun `registration conflict writes no audit row`() {
         val conflictingUserId = TestFixtures.uuid()
 
@@ -135,92 +109,6 @@ class AuthServicePostgresTest : BasePostgresTest() {
         assertNotNull(UserRepository.findByUsername("logout-test-$userId"))
     }
 
-    @Test
-    fun `concurrent registration with same username returns one success and one conflict`() {
-        val username = "race-user-$userId"
-        val executor = Executors.newFixedThreadPool(CONCURRENT_REGISTRATIONS)
-        val ready = CountDownLatch(CONCURRENT_REGISTRATIONS)
-        val start = CountDownLatch(1)
-        val futures =
-            (1..CONCURRENT_REGISTRATIONS).map { index ->
-                executor.submit<RegisterResult> {
-                    ready.countDown()
-                    start.await()
-                    AuthService.register(
-                        username = username,
-                        password = "test-password",
-                        email = "race-$index-${userId.toString().take(8)}@example.test",
-                        displayName = "Race User $index",
-                    )
-                }
-            }
-        ready.await()
-        start.countDown()
-        val results = futures.map { it.get() }
-        executor.shutdown()
-
-        assertEquals(1, results.count { it == RegisterResult.Success })
-        assertEquals(1, results.count { it == RegisterResult.UsernameTaken })
-        val created = UserRepository.findByUsername(username)
-        assertNotNull(created)
-        trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
-        trackOwned(UserRoleTable, UserRoleTable.userId, UUID.fromString(created.id))
-    }
-
-    @Test
-    fun `concurrent registration with same email returns one success and one conflict`() {
-        val email = "race-${userId.toString().take(8)}@example.test"
-        val executor = Executors.newFixedThreadPool(CONCURRENT_REGISTRATIONS)
-        val ready = CountDownLatch(CONCURRENT_REGISTRATIONS)
-        val start = CountDownLatch(1)
-        val futures =
-            (1..CONCURRENT_REGISTRATIONS).map { index ->
-                executor.submit<RegisterResult> {
-                    ready.countDown()
-                    start.await()
-                    AuthService.register(
-                        username = "race-user-$index-$userId",
-                        password = "test-password",
-                        email = email,
-                        displayName = "Race User $index",
-                    )
-                }
-            }
-        ready.await()
-        start.countDown()
-        val results = futures.map { it.get() }
-        executor.shutdown()
-
-        assertEquals(1, results.count { it == RegisterResult.Success })
-        assertEquals(1, results.count { it == RegisterResult.EmailTaken })
-        val successfulIndex = results.indexOf(RegisterResult.Success) + 1
-        val created = UserRepository.findByUsername("race-user-$successfulIndex-$userId")
-        assertNotNull(created)
-        trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
-        trackOwned(UserRoleTable, UserRoleTable.userId, UUID.fromString(created.id))
-    }
-
-    @Test
-    fun `registration assigns the ONBOARDING role in the creation transaction`() {
-        val username = "onboarding-$userId"
-        val result =
-            AuthService.register(
-                username = username,
-                password = "test-password",
-                email = "onboarding-${userId.toString().take(8)}@example.test",
-                displayName = "Onboarding User",
-            )
-
-        assertEquals(RegisterResult.Success, result)
-        val created = UserRepository.findByUsername(username)
-        assertNotNull(created)
-        trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(created.id))
-        trackOwned(UserRoleTable, UserRoleTable.userId, UUID.fromString(created.id))
-
-        val roles = RoleRepository.findRoleNamesByUser(listOf(UUID.fromString(created.id)))[UUID.fromString(created.id)]
-        assertEquals(listOf("ONBOARDING"), roles)
-    }
-
     private fun auditEntryCount(recordId: UUID): Long =
         transaction {
             AuditLogTable
@@ -229,8 +117,4 @@ class AuthServicePostgresTest : BasePostgresTest() {
                     (AuditLogTable.auditTableName eq "app_user") and (AuditLogTable.recordId eq recordId)
                 }.count()
         }
-
-    private companion object {
-        const val CONCURRENT_REGISTRATIONS = 2
-    }
 }

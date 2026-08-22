@@ -123,7 +123,6 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     registerExceptionHandlers(config)
     HealthRoutes.register(config)
     AuthRoutes.login(config)
-    AuthRoutes.register(config)
     AuthRoutes.logout(config)
     MeRoutes.getMe(config)
     MeRoutes.getCapabilities(config)

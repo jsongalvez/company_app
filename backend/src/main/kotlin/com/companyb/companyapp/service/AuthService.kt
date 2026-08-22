@@ -4,25 +4,13 @@ import com.companyb.companyapp.auth.JwtService
 import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.auth.RateLimiter
 import com.companyb.companyapp.domain.LoginResult
-import com.companyb.companyapp.domain.RegisterResult
-import com.companyb.companyapp.exception.RegistrationConflictException
-import com.companyb.companyapp.exception.RegistrationConflictField
-import com.companyb.companyapp.logging.maskUUID
-import com.companyb.companyapp.repository.RoleRepository
-import com.companyb.companyapp.repository.UserCreateParams
 import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUser
-import com.companyb.companyapp.validation.EmailPolicy
-import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
 
 object AuthService {
     private val logger = KotlinLogging.logger { }
-    private const val ONBOARDING_ROLE = "ONBOARDING"
 
-    @Suppress("ReturnCount")
     fun login(
         username: String,
         password: String,
@@ -48,61 +36,5 @@ object AuthService {
         val token: String = JwtService.generateToken(appUser.id)
         logger.info { "[LOGIN] User has logged in successfully " }
         return LoginResult.Success(token)
-    }
-
-    @Suppress("ReturnCount")
-    fun register(
-        username: String,
-        password: String,
-        email: String,
-        displayName: String,
-    ): RegisterResult {
-        logger.info { "[REGISTER] User attempts to register" }
-        val appUser: AppUser? = UserRepository.findByUsername(username)
-        if (appUser != null) {
-            logger.info { "[REGISTER] Username $username is taken" }
-            return RegisterResult.UsernameTaken
-        }
-
-        if (!PasswordPolicy.isValid(password)) {
-            return RegisterResult.WeakPassword(PasswordPolicy.MIN_LENGTH)
-        }
-
-        if (!EmailPolicy.isValid(email)) {
-            return RegisterResult.InvalidEmail
-        }
-
-        if (UserRepository.isEmailTaken(email)) {
-            return RegisterResult.EmailTaken
-        }
-
-        val passwordHash = Password.create(password)
-
-        val userID: UUID =
-            try {
-                transaction {
-                    val id: UUID =
-                        UserRepository.createUserInTransaction(
-                            UserCreateParams(
-                                username = username,
-                                passwordHash = passwordHash,
-                                email = email,
-                                displayName = displayName,
-                            ),
-                        )
-                    val onboardingRoleId =
-                        RoleRepository.findIdByNameInTransaction(ONBOARDING_ROLE)
-                            ?: error("ONBOARDING role missing from seed data")
-                    RoleRepository.assignRoleInTransaction(id, onboardingRoleId)
-                    id
-                }
-            } catch (exception: RegistrationConflictException) {
-                return when (exception.field) {
-                    RegistrationConflictField.USERNAME -> RegisterResult.UsernameTaken
-                    RegistrationConflictField.EMAIL -> RegisterResult.EmailTaken
-                }
-            }
-        logger.info { "[REGISTER] Registered user ${userID.toString().maskUUID()} successfully" }
-        return RegisterResult.Success
     }
 }

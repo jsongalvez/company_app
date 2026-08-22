@@ -92,8 +92,7 @@ class AuthViewModelTest {
             val viewModel = AuthViewModel(apiClient)
 
             viewModel.login("test", "pass").join()
-            viewModel.register("test", "pass", "test@example.com", "Test User").join()
 
-            assertEquals(listOf(ApiRoutes.AUTH_LOGIN, ApiRoutes.AUTH_REGISTER), paths)
+            assertEquals(listOf(ApiRoutes.AUTH_LOGIN), paths)
         }
 }

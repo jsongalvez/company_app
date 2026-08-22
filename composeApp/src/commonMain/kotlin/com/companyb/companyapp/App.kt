@@ -98,14 +98,14 @@ fun App() {
     }
 
     LaunchedEffect(apiClient) {
-        // #94 Q3 — the 401'd path discriminates credential 401s (login/register → inline
+        // #94 Q3 — the 401'd path discriminates credential 401s (login → inline
         // form error, no global reaction) from session 401s (clear token → Login). Mid-session
         // 401s carry the "session expired" notice (Q3c(ii)); launch-validation 401s stay
         // silent (Q3c(i)) — the splash derives from hasToken, so clearing is enough. The
         // navigate is skipped while launch validation is active: no NavHost graph is composed
         // yet (pre-NavHost navigate would throw).
         apiClient.onUnauthorized.collectLatest { path ->
-            if (path.endsWith(ApiRoutes.AUTH_LOGIN) || path.endsWith(ApiRoutes.AUTH_REGISTER)) {
+            if (path.endsWith(ApiRoutes.AUTH_LOGIN)) {
                 return@collectLatest
             }
             logInfo("App", "onUnauthorized on $path, clearing token + SessionState")

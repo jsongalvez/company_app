@@ -31,7 +31,7 @@ class ApiClient(
     engine: HttpClientEngine = httpClientEngine(),
 ) {
     // #94 Q3 — carries the 401'd request path so the App handler can discriminate credential
-    // 401s (POST /auth/login, /auth/register → inline form error, no global reaction) from
+    // 401s (POST /auth/login → inline form error, no global reaction) from
     // session 401s (clear token → Login, "session expired" mid-session, silent at launch).
     val onUnauthorized: MutableSharedFlow<String> = MutableSharedFlow(extraBufferCapacity = 1)
 
@@ -73,7 +73,7 @@ class ApiClient(
                     }
                     sendWithoutRequest {
                         val url = it.url.toString()
-                        url.endsWith(ApiRoutes.AUTH_LOGIN) || url.endsWith(ApiRoutes.AUTH_REGISTER)
+                        url.endsWith(ApiRoutes.AUTH_LOGIN)
                     }
                 }
             }

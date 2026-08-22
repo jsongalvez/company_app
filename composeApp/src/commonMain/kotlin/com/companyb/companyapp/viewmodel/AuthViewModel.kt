@@ -4,7 +4,6 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
-import com.companyb.companyapp.dto.RegisterRequest
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
@@ -21,9 +20,6 @@ class AuthViewModel(
 
     private val _loginState = MutableStateFlow<UiState<LoginResponse>>(UiState.Idle)
     val loginState: StateFlow<UiState<LoginResponse>> = _loginState.asStateFlow()
-
-    private val _registerState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val registerState: StateFlow<UiState<Unit>> = _registerState.asStateFlow()
 
     private val _logoutState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val logoutState: StateFlow<UiState<Unit>> = _logoutState.asStateFlow()
@@ -43,24 +39,6 @@ class AuthViewModel(
                 }
             },
             transform = { it.body() },
-        )
-
-    fun register(
-        username: String,
-        password: String,
-        email: String,
-        displayName: String,
-    ): Job =
-        handler.launchUnit(
-            state = _registerState,
-            operation = "register",
-            endpoint = "POST ${ApiRoutes.AUTH_REGISTER}",
-            entryMessage = "register attempt for username=$username",
-            block = {
-                apiClient.httpClient.post(ApiRoutes.AUTH_REGISTER) {
-                    setBody(RegisterRequest(username, password, email, displayName))
-                }
-            },
         )
 
     fun logout() {

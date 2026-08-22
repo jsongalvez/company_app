@@ -6,7 +6,6 @@ object ApiRoutes {
     const val API_PREFIX = "/api/"
     private const val API_ROOT = "/api"
     const val AUTH_LOGIN = "/auth/login"
-    const val AUTH_REGISTER = "/auth/register"
     const val AUTH_LOGOUT = "$API_ROOT/auth/logout"
     const val ME = "$API_ROOT/me"
     const val ME_BRANCHES = "$ME/branches"

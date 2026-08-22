@@ -63,24 +63,6 @@
               "path": ["auth", "login"]
             }
           }
-        },
-        {
-          "name": "Register",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"username\": \"newuser\",\n    \"password\": \"SecurePass123!\",\n    \"email\": \"newuser@example.com\",\n    \"displayName\": \"New User\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/auth/register",
-              "host": ["{{base_url}}"],
-              "path": ["auth", "register"]
-            }
-          }
         }
       ]
     },

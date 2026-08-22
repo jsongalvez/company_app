@@ -15,7 +15,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,7 +56,6 @@ fun LoginScreen(
     bootstrapViewModel: SessionBootstrapViewModel,
     tokenStore: TokenStore,
     onLoginSuccess: () -> Unit,
-    onRegisterClick: () -> Unit,
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -237,12 +235,6 @@ fun LoginScreen(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        TextButton(onClick = onRegisterClick) {
-            Text("Don't have an account? Register")
         }
     }
 }

@@ -152,7 +152,6 @@ internal fun MobileAppNavHost(
                                     popUpTo(Route.Login) { inclusive = true }
                                 }
                             },
-                            onRegisterClick = { /* register route — out of scope, pending #94-grad */ },
                         )
                     }
                     composable<Route.BranchSelect> {

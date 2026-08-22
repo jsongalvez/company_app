@@ -1,13 +1,10 @@
 package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
-import com.companyb.companyapp.api.mapping.toErrorResponse
 import com.companyb.companyapp.auth.DenyList
 import com.companyb.companyapp.domain.LoginResult
-import com.companyb.companyapp.domain.RegisterResult
 import com.companyb.companyapp.dto.LoginRequest
 import com.companyb.companyapp.dto.LoginResponse
-import com.companyb.companyapp.dto.RegisterRequest
 import com.companyb.companyapp.service.AuthService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.HttpStatus
@@ -27,14 +24,6 @@ import java.util.UUID
     security = [],
     requestBody = OpenApiRequestBody(content = [OpenApiContent(from = LoginRequest::class)]),
     responses = [OpenApiResponse(status = "200"), OpenApiResponse(status = "401"), OpenApiResponse(status = "429")],
-)
-@OpenApi(
-    path = ApiRoutes.AUTH_REGISTER,
-    methods = [HttpMethod.POST],
-    operationId = "auth_register",
-    security = [],
-    requestBody = OpenApiRequestBody(content = [OpenApiContent(from = RegisterRequest::class)]),
-    responses = [OpenApiResponse(status = "201"), OpenApiResponse(status = "409"), OpenApiResponse(status = "422")],
 )
 @OpenApi(
     path = ApiRoutes.AUTH_LOGOUT,
@@ -76,36 +65,6 @@ object AuthRoutes {
             val callerId = context.callerUuid()
             DenyList.deny(callerId)
             context.status(HttpStatus.OK)
-        }
-    }
-
-    fun register(context: JavalinConfig) {
-        context.routes.post(ApiRoutes.AUTH_REGISTER) { context ->
-            val registerRequest = context.bodyAsClass<RegisterRequest>()
-            val registerResult: RegisterResult =
-                AuthService.register(
-                    registerRequest.username,
-                    registerRequest.password,
-                    registerRequest.email,
-                    registerRequest.displayName,
-                )
-
-            when (registerResult) {
-                RegisterResult.Success -> {
-                    context.status(HttpStatus.CREATED)
-                    return@post
-                }
-
-                RegisterResult.UsernameTaken, RegisterResult.EmailTaken -> {
-                    context.status(HttpStatus.CONFLICT)
-                    context.json(registerResult.toErrorResponse())
-                }
-
-                is RegisterResult.WeakPassword, RegisterResult.InvalidEmail -> {
-                    context.status(HttpStatus.UNPROCESSABLE_CONTENT)
-                    context.json(registerResult.toErrorResponse())
-                }
-            }
         }
     }
 }

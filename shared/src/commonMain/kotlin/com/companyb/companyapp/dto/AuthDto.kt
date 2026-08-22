@@ -12,18 +12,3 @@ data class LoginRequest(
 data class LoginResponse(
     val token: String,
 )
-
-@Serializable
-data class RegisterRequest(
-    val username: String,
-    val password: String,
-    val email: String,
-    val displayName: String,
-)
-
-@Serializable
-data class RegisterErrorResponse(
-    val code: String,
-    val label: String,
-    val detail: String,
-)
