@@ -278,31 +278,36 @@ class UserViewModel(
         }
     }
 
-    // D3 — deactivate (confirmation dialog shown by the screen) → existing PATCH; the row flips
-    // to INACTIVE in place. Self-deactivate is hidden on the own row; a backend 400 would surface
-    // the inline error.
-    fun deactivateUser(userId: String) {
-        runMutation(
-            key = "deactivate:$userId",
-            operation = "deactivateUser",
-            endpoint = "PATCH /api/users/$userId/deactivate",
-            block = { apiClient.httpClient.patch(ApiRoutes.userDeactivate(userId)) },
-            onSuccess = { mutateUser(userId) { it.withStatus(UserStatus.INACTIVE) } },
-            statusMessage = { "Deactivate failed: ${it.value}" },
-        )
-    }
+    // D3 — status flip (deactivate shows a confirmation dialog; reactivate is a direct row
+    // action) → the existing PATCHes; the row flips in place. Self-deactivate is hidden on the
+    // own row; a backend 400 would surface the inline error. Mirrors #133's idempotent pair.
+    fun setUserStatus(
+        userId: String,
+        status: UserStatus,
+    ) {
+        when (status) {
+            UserStatus.INACTIVE -> {
+                runMutation(
+                    key = "deactivate:$userId",
+                    operation = "deactivateUser",
+                    endpoint = "PATCH /api/users/$userId/deactivate",
+                    block = { apiClient.httpClient.patch(ApiRoutes.userDeactivate(userId)) },
+                    onSuccess = { keptUsers.mutateUser(userId) { it.withStatus(UserStatus.INACTIVE) } },
+                    statusMessage = { "Deactivate failed: ${it.value}" },
+                )
+            }
 
-    // D3 — reactivate (direct row action) → symmetric PATCH; row flips to ACTIVE, deactivated_at
-    // cleared (mirrors #133's idempotent pair semantics).
-    fun reactivateUser(userId: String) {
-        runMutation(
-            key = "reactivate:$userId",
-            operation = "reactivateUser",
-            endpoint = "PATCH /api/users/$userId/reactivate",
-            block = { apiClient.httpClient.patch(ApiRoutes.userReactivate(userId)) },
-            onSuccess = { mutateUser(userId) { it.withStatus(UserStatus.ACTIVE) } },
-            statusMessage = { "Reactivate failed: ${it.value}" },
-        )
+            UserStatus.ACTIVE -> {
+                runMutation(
+                    key = "reactivate:$userId",
+                    operation = "reactivateUser",
+                    endpoint = "PATCH /api/users/$userId/reactivate",
+                    block = { apiClient.httpClient.patch(ApiRoutes.userReactivate(userId)) },
+                    onSuccess = { keptUsers.mutateUser(userId) { it.withStatus(UserStatus.ACTIVE) } },
+                    statusMessage = { "Reactivate failed: ${it.value}" },
+                )
+            }
+        }
     }
 
     // D4 — pairwise swap (desktop up/down arrows; one move = one swap with the neighbor).
@@ -324,7 +329,7 @@ class UserViewModel(
                     setBody(SwapSlotsRequest(userIdA, userIdB))
                 }
             },
-            onSuccess = { swapSlotsInPlace(branchId, userIdA, userIdB) },
+            onSuccess = { keptUsers.swapSlotsInPlace(branchId, userIdA, userIdB) },
             statusMessage = { "Swap failed: ${it.value}" },
         )
     }
@@ -344,7 +349,7 @@ class UserViewModel(
                     setBody(UpdateSlotRequest(slot))
                 }
             },
-            onSuccess = { mutateAssignmentSlot(branchId, userId, slot) },
+            onSuccess = { keptUsers.mutateUser(userId) { it.withSlot(branchId, slot) } },
             statusMessage = { "Slot update failed: ${it.value}" },
         )
     }
@@ -365,7 +370,7 @@ class UserViewModel(
                     setBody(UserRoleReplaceRequest(roleNames))
                 }
             },
-            onSuccess = { mutateUser(userId) { it.copy(roles = roleNames) } },
+            onSuccess = { keptUsers.mutateUser(userId) { it.copy(roles = roleNames) } },
             responseMessage = { response ->
                 extractApiErrorMessage(runCatching { response.bodyAsText() }.getOrNull())
             },
@@ -417,67 +422,11 @@ class UserViewModel(
             },
         )
     }
-
-    private fun mutateUser(
-        userId: String,
-        transform: (UserSummaryResponse) -> UserSummaryResponse,
-    ) {
-        // mutate (#163): the exact-sync-read + Success-write discipline in one call. A failed
-        // reload leaves the state Error while the freshest flow still renders the rows — the
-        // action must not dead-tap against a rendered list (#161 port; the NotificationViewModel
-        // currentUnreadList precedent). The success writes Success over Error, which is the
-        // freshest truth for the mutated row.
-        keptUsers.mutate { users ->
-            users.map { if (it.id == userId) transform(it) else it }
-        }
-    }
-
-    private fun mutateAssignmentSlot(
-        branchId: String,
-        userId: String,
-        slot: Short,
-    ) {
-        mutateUser(userId) { user -> user.withSlot(branchId, slot) }
-    }
-
-    private fun swapSlotsInPlace(
-        branchId: String,
-        userIdA: String,
-        userIdB: String,
-    ) {
-        // One mutate instead of the old two sequential writes: the old intermediate frame (A
-        // with B's slot) never reached a screen — both writes ran synchronously in the
-        // caller's frame, and deferred composition conflated them into the final swapped
-        // list. The single write is the final swapped list; the null returns (either user
-        // missing, or no assignment at the branch) map to no-write, the old `?: return`
-        // paths.
-        keptUsers.mutate { users ->
-            val slotA =
-                users
-                    .firstOrNull { it.id == userIdA }
-                    ?.assignments
-                    ?.firstOrNull { it.branchId == branchId }
-                    ?.slot
-                    ?: return@mutate null
-            val slotB =
-                users
-                    .firstOrNull { it.id == userIdB }
-                    ?.assignments
-                    ?.firstOrNull { it.branchId == branchId }
-                    ?.slot
-                    ?: return@mutate null
-            users.map { user ->
-                when (user.id) {
-                    userIdA -> user.withSlot(branchId, slotB)
-                    userIdB -> user.withSlot(branchId, slotA)
-                    else -> user
-                }
-            }
-        }
-    }
 }
 
-/** The slot-copy shape shared by the D4 slot edit and the swap's two rows. */
+/**
+ * The slot-copy shape shared by the D4 slot edit and the swap's two rows.
+ */
 private fun UserSummaryResponse.withSlot(
     branchId: String,
     slot: Short,
@@ -503,3 +452,55 @@ private fun UserSummaryResponse.withStatus(status: UserStatus): UserSummaryRespo
             copy(status = UserStatus.ACTIVE, deactivatedAt = null)
         }
     }
+
+/**
+ * In-place row mutation (#163): the exact-sync-read + Success-write discipline in one call. A
+ * failed reload leaves the state Error while the freshest flow still renders the rows — the
+ * action must not dead-tap against a rendered list (#161 port; the NotificationViewModel
+ * currentUnreadList precedent). The success writes Success over Error, which is the freshest
+ * truth for the mutated row.
+ */
+private fun KeepLast<List<UserSummaryResponse>>.mutateUser(
+    userId: String,
+    transform: (UserSummaryResponse) -> UserSummaryResponse,
+) {
+    mutate { users ->
+        users.map { if (it.id == userId) transform(it) else it }
+    }
+}
+
+/**
+ * One mutate instead of two sequential writes: an intermediate frame (A with B's slot) never
+ * reaches a screen — deferred composition conflates sequential writes into the final swapped
+ * list. The single write IS the final swapped list; the null returns (either user missing, or
+ * no assignment at the branch) map to no-write.
+ */
+private fun KeepLast<List<UserSummaryResponse>>.swapSlotsInPlace(
+    branchId: String,
+    userIdA: String,
+    userIdB: String,
+) {
+    mutate { users ->
+        val slotA =
+            users
+                .firstOrNull { it.id == userIdA }
+                ?.assignments
+                ?.firstOrNull { it.branchId == branchId }
+                ?.slot
+                ?: return@mutate null
+        val slotB =
+            users
+                .firstOrNull { it.id == userIdB }
+                ?.assignments
+                ?.firstOrNull { it.branchId == branchId }
+                ?.slot
+                ?: return@mutate null
+        users.map { user ->
+            when (user.id) {
+                userIdA -> user.withSlot(branchId, slotB)
+                userIdB -> user.withSlot(branchId, slotA)
+                else -> user
+            }
+        }
+    }
+}

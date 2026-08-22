@@ -38,7 +38,8 @@ function kotlinSources(directory) {
 }
 const serviceSources = kotlinSources(new URL("../backend/src/main/kotlin/com/companyb/companyapp/service/", import.meta.url));
 const mappingDir = new URL("../backend/src/main/kotlin/com/companyb/companyapp/api/mapping/", import.meta.url);
-const mappingSources = fs.readdirSync(mappingDir).filter((name) => name.endsWith(".kt")).map((name) => ({ name, source: fs.readFileSync(new URL(name, mappingDir), "utf8") }));
+// The mapping package is optional (#386e7795 removed it); an absent dir contributes no sources.
+const mappingSources = fs.existsSync(mappingDir) ? fs.readdirSync(mappingDir).filter((name) => name.endsWith(".kt")).map((name) => ({ name, source: fs.readFileSync(new URL(name, mappingDir), "utf8") })) : [];
 const responseExtensions = new Map();
 function responseExtension(type, method) {
   const key = `${type}.${method}`;

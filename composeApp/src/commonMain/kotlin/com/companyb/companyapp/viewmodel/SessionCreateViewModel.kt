@@ -171,14 +171,12 @@ class SessionCreateViewModel(
         )
     }
 
-    private val _selectedConcernIds = MutableStateFlow<Set<String>>(emptySet())
-    val selectedConcernIds: StateFlow<Set<String>> = _selectedConcernIds.asStateFlow()
+    // Concern selection + add-posting live in [ConcernPoster]; the flows surface as properties
+    // (the detekt function budget — #348's VM grew past the class threshold).
+    private val concernPoster = ConcernPoster(apiClient)
+    val selectedConcernIds: StateFlow<Set<String>> = concernPoster.selectedIds
 
-    fun toggleConcern(concernId: String) {
-        _selectedConcernIds.update { selected ->
-            if (concernId in selected) selected - concernId else selected + concernId
-        }
-    }
+    val toggleConcern: (String) -> Unit = concernPoster::toggle
 
     // --- Submit ---
 
@@ -190,8 +188,7 @@ class SessionCreateViewModel(
      * that point — navigation proceeds and the detail screen shows server truth; failures are
      * surfaced inline rather than pretending the whole submit failed.
      */
-    private val _concernAddFailures = MutableStateFlow(0)
-    val concernAddFailures: StateFlow<Int> = _concernAddFailures.asStateFlow()
+    val concernAddFailures: StateFlow<Int> = concernPoster.failures.asStateFlow()
 
     fun createSession(
         finalPrice: String,
@@ -224,7 +221,7 @@ class SessionCreateViewModel(
             },
             transform = { response ->
                 val session = response.body<SessionResponse>()
-                addSelectedConcerns(session.id)
+                concernPoster.postSelected(session.id)
                 session
             },
             onNonSuccess = { response ->
@@ -238,26 +235,46 @@ class SessionCreateViewModel(
         )
     }
 
-    private suspend fun addSelectedConcerns(sessionId: String) {
-        val ids = _selectedConcernIds.value
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 300L
+        const val MIN_SEARCH_CHARS = 2
+    }
+}
+
+/**
+ * Owns the concern multi-select (#348): the picked ids and the posts onto the created session.
+ * Failures only count — the session itself exists by then, so navigation proceeds and the
+ * screen surfaces [failures] inline.
+ */
+private class ConcernPoster(
+    private val apiClient: ApiClient,
+) {
+    val failures = MutableStateFlow(0)
+
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedIds: StateFlow<Set<String>> = _selectedIds.asStateFlow()
+
+    fun toggle(concernId: String) {
+        _selectedIds.update { selected ->
+            if (concernId in selected) selected - concernId else selected + concernId
+        }
+    }
+
+    suspend fun postSelected(sessionId: String) {
+        val ids = _selectedIds.value
         if (ids.isEmpty()) return
-        var failures = 0
+        var failed = 0
         ids.forEach { concernId ->
             runCatching {
                 val response =
                     apiClient.httpClient.post(ApiRoutes.sessionConcerns(sessionId)) {
                         setBody(AddSessionConcernRequest(concernId = concernId))
                     }
-                if (!response.status.isSuccess()) failures++
+                if (!response.status.isSuccess()) failed++
             }.onFailure {
-                failures++
+                failed++
             }
         }
-        _concernAddFailures.value = failures
-    }
-
-    private companion object {
-        const val SEARCH_DEBOUNCE_MS = 300L
-        const val MIN_SEARCH_CHARS = 2
+        failures.value = failed
     }
 }

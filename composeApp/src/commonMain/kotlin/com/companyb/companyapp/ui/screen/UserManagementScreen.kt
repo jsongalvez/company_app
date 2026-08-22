@@ -2,7 +2,6 @@
 
 package com.companyb.companyapp.ui.screen
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,9 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,16 +40,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.dto.BranchResponse
 import com.companyb.companyapp.dto.InviteMintRequest
 import com.companyb.companyapp.dto.InviteMintResponse
-import com.companyb.companyapp.dto.RoleResponse
 import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
@@ -277,7 +269,7 @@ fun UserManagementScreen(
                                 },
                                 mutationsDisabled = mutationsDisabled,
                                 onDeactivate = { deactivateTarget = user },
-                                onReactivate = { viewModel.reactivateUser(user.id) },
+                                onReactivate = { viewModel.setUserStatus(user.id, UserStatus.ACTIVE) },
                                 onEditRoles = { roleEditTarget = user },
                                 onEditSlot = { assignment ->
                                     slotEditTarget =
@@ -330,7 +322,7 @@ fun UserManagementScreen(
             onDismiss = { deactivateTarget = null },
             onConfirm = {
                 deactivateTarget = null
-                viewModel.deactivateUser(target.id)
+                viewModel.setUserStatus(target.id, UserStatus.INACTIVE)
             },
         )
     }
@@ -370,12 +362,15 @@ fun UserManagementScreen(
             user = target,
             rolesState = rolesState,
             mutationsDisabled = mutationsDisabled,
-            onRetryRoles = viewModel::loadRoles,
-            onDismiss = { roleEditTarget = null },
-            onSave = { selected ->
-                roleEditTarget = null
-                viewModel.replaceRoles(target.id, selected)
-            },
+            actions =
+                RoleEditActions(
+                    onRetryRoles = viewModel::loadRoles,
+                    onDismiss = { roleEditTarget = null },
+                    onSave = { selected ->
+                        roleEditTarget = null
+                        viewModel.replaceRoles(target.id, selected)
+                    },
+                ),
         )
     }
 }
@@ -720,389 +715,6 @@ private fun StatusBadge(status: UserStatus) {
             modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xxs),
         )
     }
-}
-
-/** D3 — deactivate confirmation stating the consequences; reactivate stays a direct action. */
-@Composable
-private fun DeactivateConfirmDialog(
-    user: UserSummaryResponse,
-    mutationsDisabled: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Deactivate ${user.displayName}?") },
-        text = {
-            Column {
-                Text(
-                    text =
-                        "Their login is blocked immediately (active tokens are killed) and " +
-                            "all capabilities are removed. Records and branch assignments are kept. " +
-                            "This can be undone with Reactivate.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        },
-        confirmButton = {
-            // Gated like the row actions (pass-2 HARD): the dialog can be open when a load is in
-            // flight (same-frame refresh-tap + row-tap slip), and the VM guard would swallow the
-            // confirm silently — the gate makes the window visible instead. The explicit error
-            // color must yield while disabled or the button wouldn't look dead (pass-3 SOFT).
-            TextButton(
-                onClick = onConfirm,
-                enabled = !mutationsDisabled,
-            ) {
-                Text(
-                    text = "Deactivate",
-                    color =
-                        if (mutationsDisabled) {
-                            // M3's disabledContentColor (dimmed) — an explicit error color would
-                            // keep the dead button vivid red (pass-4 SOFT).
-                            Color.Unspecified
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        },
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-    )
-}
-
-data class SlotEditTarget(
-    val branchId: String,
-    val branchName: String,
-    val userId: String,
-    val displayName: String,
-    val currentSlot: Short,
-)
-
-/**
- * D4 — tap-to-edit slot number (mobile primary; manual number fallback on desktop). Client-side
- * validation mirrors the backend's 400 ("Slot must be 1 or greater") so an invalid input never
- * leaves the dialog.
- */
-@Composable
-private fun EditSlotDialog(
-    target: SlotEditTarget,
-    mutationsDisabled: Boolean,
-    onDismiss: () -> Unit,
-    onSave: (Short) -> Unit,
-) {
-    var input by remember { mutableStateOf(target.currentSlot.toString()) }
-    var inputError by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit slot — ${target.displayName}") },
-        text = {
-            Column {
-                Text(
-                    text = target.branchName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    label = { Text("Slot number") },
-                    singleLine = true,
-                    isError = inputError != null,
-                    supportingText = { inputError?.let { Text(it) } },
-                    // Gated with the Save button (pass-3 SOFT): typing into a field whose action
-                    // is dead mid-load has no affordance — the field goes inert with it.
-                    enabled = !mutationsDisabled,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val error = slotInputError(input)
-                    if (error == null) {
-                        onSave(parseSlotInput(input)!!)
-                    } else {
-                        inputError = error
-                    }
-                },
-                // Gated like the row actions (pass-2 HARD — see DeactivateConfirmDialog).
-                enabled = !mutationsDisabled,
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-    )
-}
-
-/**
- * #350 — invite-mint dialog (the #345 create-user shape minus the password field): username,
- * email, display name; the backend owns email policy and duplicate detection so client
- * validation stays presence-only and 400/409 bodies render inline.
- *
- * A Success does NOT auto-close — the single-use code is the only deliverable, so the dialog
- * flips to a result panel (code + expiry + copy) until the admin explicitly closes it
- * ([UserViewModel.dismissInviteResult] resets the flow for the next open). Mid-flight dismissal
- * stays blocked (an orphaned POST would still mint the account).
- */
-@Composable
-private fun InviteMintDialog(
-    mintState: UiState<InviteMintResponse>,
-    onMint: (InviteMintRequest) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var username by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var displayName by remember { mutableStateOf("") }
-
-    val inFlight = mintState is UiState.Loading
-    val complete = listOf(username, email, displayName).all { it.isNotBlank() }
-    val clipboard = LocalClipboardManager.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Invite user") },
-        text = {
-            Column {
-                when (val state = mintState) {
-                    is UiState.Success -> {
-                        LaunchedEffect(state) {
-                            logInfo("UserManagementScreen", "mintState=Success; code ready to copy")
-                        }
-                        Text(
-                            text = "Share this single-use code. It expires ${state.data.expiresAt}.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Spacer(Modifier.size(Spacing.sm))
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = state.data.inviteCode,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(Spacing.md),
-                            )
-                        }
-                        Spacer(Modifier.size(Spacing.sm))
-                        TextButton(onClick = {
-                            clipboard.setText(AnnotatedString(state.data.inviteCode))
-                        }) {
-                            Text("Copy code")
-                        }
-                    }
-
-                    else -> {
-                        OutlinedTextField(
-                            value = username,
-                            onValueChange = { username = it },
-                            label = { Text("Username") },
-                            singleLine = true,
-                            enabled = !inFlight,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.size(Spacing.sm))
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
-                            label = { Text("Email") },
-                            singleLine = true,
-                            enabled = !inFlight,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.size(Spacing.sm))
-                        OutlinedTextField(
-                            value = displayName,
-                            onValueChange = { displayName = it },
-                            label = { Text("Display name") },
-                            singleLine = true,
-                            enabled = !inFlight,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        (state as? UiState.Error)?.let { errorState ->
-                            LaunchedEffect(errorState) {
-                                // Sticky branch — log once per state, not per recomposition (the
-                                // usersState=Error guard shape).
-                                logWarn("UserManagementScreen", "mintState=Error: ${errorState.message}")
-                            }
-                            Text(
-                                text = errorState.message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(top = Spacing.sm),
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            when (mintState) {
-                is UiState.Success -> {
-                    TextButton(onClick = onDismiss) { Text("Done") }
-                }
-
-                else -> {
-                    TextButton(
-                        onClick = {
-                            onMint(
-                                InviteMintRequest(
-                                    username = username.trim(),
-                                    email = email.trim(),
-                                    displayName = displayName.trim(),
-                                ),
-                            )
-                        },
-                        enabled = complete && !inFlight,
-                    ) {
-                        Text(if (inFlight) "Minting…" else "Mint invite")
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            if (mintState is UiState.Success) {
-                Unit
-            } else {
-                TextButton(onClick = onDismiss, enabled = !inFlight) {
-                    Text("Cancel")
-                }
-            }
-        },
-    )
-}
-
-/**
- * #345 — full-replace role editor backed by `GET /api/roles` (seeded bundles only — SUPERUSER
- * absent by design). Loading/error render in place with tap-to-retry (the BranchPicker shape);
- * Save issues the PUT only over a loaded bundle list. The checkbox set starts from the row's
- * current roles intersected with what the picker offers.
- */
-@Composable
-private fun RoleEditDialog(
-    user: UserSummaryResponse,
-    rolesState: UiState<List<RoleResponse>>,
-    mutationsDisabled: Boolean,
-    onRetryRoles: () -> Unit,
-    onDismiss: () -> Unit,
-    onSave: (List<String>) -> Unit,
-) {
-    val options = (rolesState as? UiState.Success<List<RoleResponse>>)?.data.orEmpty()
-    var selected by remember(user.id, rolesState) {
-        mutableStateOf(
-            user.roles.filter { name -> options.any { it.name == name } }.toSet(),
-        )
-    }
-    // Re-arm ONLY an untouched source: Idle means never loaded (first open). Auto-refiring on
-    // Loading/Error would loop requests (this effect restarts on every state change); Error
-    // retries through the manual tap-to-retry affordance instead.
-    LaunchedEffect(rolesState) {
-        if (rolesState is UiState.Idle) onRetryRoles()
-    }
-
-    val rolesLoading = rolesState is UiState.Loading || rolesState is UiState.Idle
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit roles — ${user.displayName}") },
-        text = {
-            Column {
-                when {
-                    rolesState is UiState.Error -> {
-                        val errorState = rolesState
-                        LaunchedEffect(errorState) {
-                            logWarn("UserManagementScreen", "rolesState=Error: ${errorState.message}")
-                        }
-                        Text(
-                            text = "Roles unavailable — tap to retry",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable(onClick = onRetryRoles)
-                                    .padding(vertical = Spacing.sm),
-                        )
-                    }
-
-                    rolesLoading -> {
-                        Text(
-                            text = "Loading roles…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = Spacing.sm),
-                        )
-                    }
-
-                    options.isEmpty() -> {
-                        Text(
-                            text = "No roles configured",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    else -> {
-                        options.forEach { role ->
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable(enabled = !mutationsDisabled) {
-                                            selected =
-                                                if (role.name in selected) {
-                                                    selected - role.name
-                                                } else {
-                                                    selected + role.name
-                                                }
-                                        },
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Checkbox(
-                                    checked = role.name in selected,
-                                    onCheckedChange = null,
-                                    enabled = !mutationsDisabled,
-                                )
-                                Text(
-                                    text = role.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(selected.toList()) },
-                enabled = !mutationsDisabled && options.isNotEmpty(),
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-    )
 }
 
 // Shared across common + both platform actuals (#135 D2 dimmed-rows treatment).

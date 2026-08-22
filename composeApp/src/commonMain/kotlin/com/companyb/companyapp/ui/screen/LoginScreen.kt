@@ -56,12 +56,7 @@ fun LoginScreen(
     authViewModel: AuthViewModel,
     bootstrapViewModel: SessionBootstrapViewModel,
     tokenStore: TokenStore,
-    onLoginSuccess: () -> Unit,
-    // #350 — entry into the public invite-redemption flow (optional: nav hosts without the
-    // route registered keep the plain form).
-    onAcceptInviteClick: () -> Unit = {},
-    // #353 — entry into the public forgot-password flow.
-    onForgotPasswordClick: () -> Unit = {},
+    actions: LoginNavActions,
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -109,7 +104,7 @@ fun LoginScreen(
                 // race it. The token is the real discriminator for "session validated".
                 if (tokenStore.getToken() != null) {
                     logInfo("LoginScreen", "bootstrapState=Success, calling onLoginSuccess")
-                    onLoginSuccess()
+                    actions.onLoginSuccess()
                 }
             }
 
@@ -245,11 +240,11 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        TextButton(onClick = onAcceptInviteClick) {
+        TextButton(onClick = actions.onAcceptInviteClick) {
             Text("Have an invite code? Set up your account")
         }
 
-        TextButton(onClick = onForgotPasswordClick) {
+        TextButton(onClick = actions.onForgotPasswordClick) {
             Text("Forgot password?")
         }
     }

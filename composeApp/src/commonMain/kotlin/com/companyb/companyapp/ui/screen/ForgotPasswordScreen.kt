@@ -50,10 +50,7 @@ fun ForgotPasswordScreen(
     tokenStore: TokenStore,
     onDone: () -> Unit,
 ) {
-    var identifier by remember { mutableStateOf("") }
-    var resetCode by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var policyError by remember { mutableStateOf(false) }
+    val form = remember { ForgotPasswordForm() }
     val requestState by authViewModel.requestResetState.collectAsState()
     val resetState by authViewModel.resetPasswordState.collectAsState()
 
@@ -106,55 +103,7 @@ fun ForgotPasswordScreen(
 
         Spacer(modifier = Modifier.height(Spacing.xxl))
 
-        OutlinedTextField(
-            value = identifier,
-            onValueChange = { identifier = it },
-            label = { Text("Username or email") },
-            singleLine = true,
-            enabled = !isRequesting,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        Button(
-            onClick = { authViewModel.requestPasswordReset(identifier.trim()) },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = identifier.isNotBlank() && !isRequesting,
-        ) {
-            if (isRequesting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("Request reset code")
-            }
-        }
-
-        when (val state = requestState) {
-            is UiState.Success -> {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text =
-                        "Request received. If a reset code was created for you, " +
-                            "get it from the operator and enter it below.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            is UiState.Error -> {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = state.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            else -> {}
-        }
+        RequestLeg(authViewModel, form)
 
         Spacer(modifier = Modifier.height(Spacing.xl))
 
@@ -162,69 +111,7 @@ fun ForgotPasswordScreen(
 
         Spacer(modifier = Modifier.height(Spacing.xl))
 
-        OutlinedTextField(
-            value = resetCode,
-            onValueChange = { resetCode = it },
-            label = { Text("Reset code") },
-            singleLine = true,
-            enabled = !isResetting,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        OutlinedTextField(
-            value = newPassword,
-            onValueChange = {
-                newPassword = it
-                policyError = false
-            },
-            label = { Text("New password") },
-            supportingText = { Text("At least ${PasswordPolicy.MIN_LENGTH} characters.") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            isError = policyError,
-            enabled = !isResetting,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.lg))
-
-        Button(
-            onClick = {
-                if (!PasswordPolicy.isValid(newPassword)) {
-                    policyError = true
-                    return@Button
-                }
-                authViewModel.resetPassword(resetCode.trim(), newPassword)
-            },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = resetCode.isNotBlank() && newPassword.isNotBlank() && !isResetting,
-        ) {
-            if (isResetting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("Set new password")
-            }
-        }
-
-        when (val state = resetState) {
-            is UiState.Error -> {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = state.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            else -> {}
-        }
+        ResetLeg(authViewModel, form)
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
@@ -232,4 +119,153 @@ fun ForgotPasswordScreen(
             Text("Back to login")
         }
     }
+}
+
+/** The screen's three fields plus the policy-error flag; one holder per leg param. */
+private class ForgotPasswordForm {
+    var identifier by mutableStateOf("")
+    var resetCode by mutableStateOf("")
+    var newPassword by mutableStateOf("")
+    var policyError by mutableStateOf(false)
+}
+
+/** Leg 1: request the reset code (the response is uniform — enumeration resistance). */
+@Composable
+private fun RequestLeg(
+    authViewModel: AuthViewModel,
+    form: ForgotPasswordForm,
+) {
+    val requestState by authViewModel.requestResetState.collectAsState()
+    val isRequesting = requestState is UiState.Loading
+
+    OutlinedTextField(
+        value = form.identifier,
+        onValueChange = { form.identifier = it },
+        label = { Text("Username or email") },
+        singleLine = true,
+        enabled = !isRequesting,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.lg))
+
+    BusySubmitButton(
+        label = "Request reset code",
+        enabled = form.identifier.isNotBlank() && !isRequesting,
+        isBusy = isRequesting,
+        onClick = { authViewModel.requestPasswordReset(form.identifier.trim()) },
+    )
+
+    when (val state = requestState) {
+        is UiState.Success -> {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Text(
+                text =
+                    "Request received. If a reset code was created for you, " +
+                        "get it from the operator and enter it below.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        is UiState.Error -> {
+            InlineError(state.message)
+        }
+
+        else -> {}
+    }
+}
+
+/** Leg 2: redeem the code with a new password (client-side policy pre-check). */
+@Composable
+private fun ResetLeg(
+    authViewModel: AuthViewModel,
+    form: ForgotPasswordForm,
+) {
+    val resetState by authViewModel.resetPasswordState.collectAsState()
+    val isResetting = resetState is UiState.Loading
+
+    OutlinedTextField(
+        value = form.resetCode,
+        onValueChange = { form.resetCode = it },
+        label = { Text("Reset code") },
+        singleLine = true,
+        enabled = !isResetting,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.md))
+
+    OutlinedTextField(
+        value = form.newPassword,
+        onValueChange = {
+            form.newPassword = it
+            form.policyError = false
+        },
+        label = { Text("New password") },
+        supportingText = { Text("At least ${PasswordPolicy.MIN_LENGTH} characters.") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        isError = form.policyError,
+        enabled = !isResetting,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.lg))
+
+    BusySubmitButton(
+        label = "Set new password",
+        enabled = form.resetCode.isNotBlank() && form.newPassword.isNotBlank() && !isResetting,
+        isBusy = isResetting,
+        onClick = {
+            if (PasswordPolicy.isValid(form.newPassword)) {
+                authViewModel.resetPassword(form.resetCode.trim(), form.newPassword)
+            } else {
+                form.policyError = true
+            }
+        },
+    )
+
+    when (val state = resetState) {
+        is UiState.Error -> {
+            InlineError(state.message)
+        }
+
+        else -> {}
+    }
+}
+
+/** The shared full-width submit button with its inline busy spinner (auth flow screens). */
+@Composable
+internal fun BusySubmitButton(
+    label: String,
+    enabled: Boolean,
+    isBusy: Boolean,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(50.dp),
+        enabled = enabled,
+    ) {
+        if (isBusy) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.onPrimary,
+                strokeWidth = 2.dp,
+            )
+        } else {
+            Text(label)
+        }
+    }
+}
+
+@Composable
+internal fun InlineError(message: String) {
+    Spacer(modifier = Modifier.height(Spacing.md))
+    Text(
+        text = message,
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodyMedium,
+    )
 }

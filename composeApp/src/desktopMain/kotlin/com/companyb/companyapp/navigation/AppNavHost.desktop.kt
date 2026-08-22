@@ -37,8 +37,10 @@ import com.companyb.companyapp.ui.screen.AuditLogScreen
 import com.companyb.companyapp.ui.screen.BranchSelectScreen
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
+import com.companyb.companyapp.ui.screen.DashboardSelection
 import com.companyb.companyapp.ui.screen.FinanceReportsScreen
 import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
+import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
@@ -116,16 +118,19 @@ actual fun AppNavHost(
                         authViewModel = viewModel { AuthViewModel(apiClient) },
                         bootstrapViewModel = viewModel { SessionBootstrapViewModel(apiClient) },
                         tokenStore = tokenStore,
-                        onLoginSuccess = {
-                            // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
-                            navController.navigate(Route.BranchSelect) {
-                                popUpTo(Route.Login) { inclusive = true }
-                            }
-                        },
-                        // #350 — invite redemption entry point.
-                        onAcceptInviteClick = { navController.navigate(Route.AcceptInvite) },
-                        // #353 — forgot-password entry point.
-                        onForgotPasswordClick = { navController.navigate(Route.ForgotPassword) },
+                        actions =
+                            LoginNavActions(
+                                onLoginSuccess = {
+                                    // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
+                                    navController.navigate(Route.BranchSelect) {
+                                        popUpTo(Route.Login) { inclusive = true }
+                                    }
+                                },
+                                // #350 — invite redemption entry point.
+                                onAcceptInviteClick = { navController.navigate(Route.AcceptInvite) },
+                                // #353 — forgot-password entry point.
+                                onForgotPasswordClick = { navController.navigate(Route.ForgotPassword) },
+                            ),
                     )
                 }
                 composable<Route.AcceptInvite> {
@@ -182,8 +187,11 @@ actual fun AppNavHost(
                         Box(modifier = Modifier.weight(DESKTOP_MASTER_WEIGHT).fillMaxSize()) {
                             SessionDashboardScreen(
                                 viewModel = dashboardViewModel,
-                                selectedBranchName = selectedBranchName,
-                                selectedSessionId = selectedSessionId,
+                                selection =
+                                    DashboardSelection(
+                                        branchName = selectedBranchName,
+                                        sessionId = selectedSessionId,
+                                    ),
                                 onSessionClick = { session -> selectedSessionId = session.id },
                                 // #348 — the dashboard's entry into the start-a-session flow.
                                 onSessionCreateClick = { navController.navigate(Route.SessionCreate) },

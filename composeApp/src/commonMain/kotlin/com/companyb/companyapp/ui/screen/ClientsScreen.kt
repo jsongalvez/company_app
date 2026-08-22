@@ -146,70 +146,13 @@ fun ClientsScreen(
                 }
             }
 
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .padding(top = Spacing.sm),
-            ) {
-                when {
-                    // D2 empty state (never searched / query below 2 chars → VM Idle).
-                    searchState is UiState.Idle -> {
-                        CenteredHint("Search clients by name or phone")
-                    }
-
-                    // D2 no-results.
-                    searchState is UiState.Success && cachedResults?.isEmpty() == true -> {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Text(
-                                text = "No clients found for \"$lastFiredQuery\"",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Spacer(Modifier.size(Spacing.xs))
-                            Text(
-                                text = "Try a different name or phone",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    // D2 error state. The empty-cache case is included: after a successful
-                    // no-results search the cache holds an empty list, and a RE-search failure
-                    // with nothing to keep must surface the error + retry — a blank list would
-                    // be a silent failure with no affordance (keep-last only applies when there
-                    // is content to keep).
-                    errorMessage != null && cachedResults.isNullOrEmpty() -> {
-                        ErrorCard(
-                            message = errorMessage,
-                            onRetry = { viewModel.retrySearch() },
-                        )
-                    }
-
-                    else -> {
-                        val results = cachedResults
-                        if (results == null) {
-                            // Loading with nothing cached yet.
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        } else {
-                            // keep-last-results (D2 / #97 Q5 silent-refresh axis): Loading/Error with
-                            // a cache keeps rendering the last list — the in-field spinner is the
-                            // only busy signal.
-                            ClientResultList(
-                                results = results,
-                                onClientClick = onClientClick,
-                            )
-                        }
-                    }
-                }
-            }
+            ClientResultsArea(
+                viewModel = viewModel,
+                searchState = searchState,
+                cachedResults = cachedResults,
+                lastFiredQuery = lastFiredQuery,
+                onClientClick = onClientClick,
+            )
         }
 
         SnackbarHost(
@@ -226,6 +169,81 @@ fun ClientsScreen(
                 if (createState !is UiState.Loading) showCreateDialog = false
             },
         )
+    }
+}
+
+@Composable
+private fun ClientResultsArea(
+    viewModel: ClientViewModel,
+    searchState: UiState<List<ClientResponse>>,
+    cachedResults: List<ClientResponse>?,
+    lastFiredQuery: String,
+    onClientClick: (ClientResponse) -> Unit,
+) {
+    val errorMessage = (searchState as? UiState.Error)?.message
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(top = Spacing.sm),
+    ) {
+        when {
+            // D2 empty state (never searched / query below 2 chars → VM Idle).
+            searchState is UiState.Idle -> {
+                CenteredHint("Search clients by name or phone")
+            }
+
+            // D2 no-results.
+            searchState is UiState.Success && cachedResults?.isEmpty() == true -> {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = "No clients found for \"$lastFiredQuery\"",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.size(Spacing.xs))
+                    Text(
+                        text = "Try a different name or phone",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // D2 error state. The empty-cache case is included: after a successful
+            // no-results search the cache holds an empty list, and a RE-search failure
+            // with nothing to keep must surface the error + retry — a blank list would
+            // be a silent failure with no affordance (keep-last only applies when there
+            // is content to keep).
+            errorMessage != null && cachedResults.isNullOrEmpty() -> {
+                ErrorCard(
+                    message = errorMessage,
+                    onRetry = { viewModel.retrySearch() },
+                )
+            }
+
+            else -> {
+                val results = cachedResults
+                if (results == null) {
+                    // Loading with nothing cached yet.
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    // keep-last-results (D2 / #97 Q5 silent-refresh axis): Loading/Error with
+                    // a cache keeps rendering the last list — the in-field spinner is the
+                    // only busy signal.
+                    ClientResultList(
+                        results = results,
+                        onClientClick = onClientClick,
+                    )
+                }
+            }
+        }
     }
 }
 

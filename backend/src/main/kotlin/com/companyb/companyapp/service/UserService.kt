@@ -25,9 +25,11 @@ import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.validation.EmailPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /**
@@ -70,7 +72,12 @@ object UserService {
         if (request.roles.contains(SUPERUSER_ROLE)) {
             throw ValidationException(SUPERUSER_GUARD_MESSAGE)
         }
-        val expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusDays(INVITE_VALID_DAYS)
+        // Invite validity is credential lifecycle (#322): the auth cluster owns JVM-clock reads.
+        val expiresAt =
+            OffsetDateTime.ofInstant(
+                Instant.now().plus(INVITE_VALID_DAYS.toLong(), ChronoUnit.DAYS),
+                ZoneOffset.UTC,
+            )
         val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, expiresAt) }
         logger.info {
             val action = if (minted.createdNew) "Created user" else "Re-invited existing user"

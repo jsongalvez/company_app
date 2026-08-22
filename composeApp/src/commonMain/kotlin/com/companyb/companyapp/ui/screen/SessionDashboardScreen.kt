@@ -121,6 +121,15 @@ internal fun EmptyStateContent(
 }
 
 /**
+ * The dashboard's selection inputs (#97/#348/#351): the branch label rendered in the header
+ * and the optional session id the list highlights — bundled to keep the signature lean.
+ */
+data class DashboardSelection(
+    val branchName: String?,
+    val sessionId: String?,
+)
+
+/**
  * #97 session dashboard — summary cards + session list, both backed by the single dashboard
  * fetch (Q6c's "no impossible states if they share an endpoint"). Poll lifecycle: resumed
  * while this screen is composed, paused on leave (mobile detail push; desktop inline pane
@@ -130,16 +139,16 @@ internal fun EmptyStateContent(
 @Composable
 fun SessionDashboardScreen(
     viewModel: SessionDashboardViewModel,
-    selectedBranchName: String?,
-    selectedSessionId: String?,
+    selection: DashboardSelection,
     onSessionClick: (DashboardSessionResponse) -> Unit,
     // #348 — the dashboard's entry into the start-a-session flow (both platforms).
     onSessionCreateClick: () -> Unit,
     // #351 — the relief-access surface (requester entry + incoming Grant/Deny), slotted so
     // this screen stays agnostic of the feature's VM/state sources.
     reliefAccessContent: @Composable () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
+    val selectedBranchName = selection.branchName
+    val selectedSessionId = selection.sessionId
     val state by viewModel.dashboardState.collectAsState()
     val lastData by viewModel.lastData.collectAsState()
     val lastUpdatedAt by viewModel.lastUpdatedAt.collectAsState()
@@ -167,7 +176,7 @@ fun SessionDashboardScreen(
         onDispose { viewModel.pause() }
     }
 
-    Box(modifier = modifier) {
+    Box {
         when {
             isForbidden -> {
                 InPlaceCard(

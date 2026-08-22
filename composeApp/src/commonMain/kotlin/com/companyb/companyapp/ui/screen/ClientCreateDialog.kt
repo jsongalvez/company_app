@@ -46,109 +46,26 @@ fun ClientCreateDialog(
     onCreate: (CreateClientRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var firstName by remember { mutableStateOf("") }
-    var lastName by remember { mutableStateOf("") }
-    var middleName by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf(Gender.M) }
-    var ageText by remember { mutableStateOf("") }
-    var systolicText by remember { mutableStateOf("") }
-    var diastolicText by remember { mutableStateOf("") }
+    val form = remember { ClientFormState() }
 
     val inFlight = createState is UiState.Loading
-    val age = ageText.toIntOrNull()
-    val systolic = systolicText.toShortOrNull()
-    val diastolic = diastolicText.toShortOrNull()
+    val age = form.ageText.toIntOrNull()
+    val systolic = form.systolicText.toShortOrNull()
+    val diastolic = form.diastolicText.toShortOrNull()
     // BR: blood-pressure pair supplied together — one value alone is invalid.
     val bpPairValid =
-        (systolicText.isBlank() && diastolicText.isBlank()) || (systolic != null && diastolic != null)
+        (form.systolicText.isBlank() && form.diastolicText.isBlank()) || (systolic != null && diastolic != null)
     val complete =
-        firstName.isNotBlank() && lastName.isNotBlank() && age != null && age > 0 && bpPairValid
+        form.firstName.isNotBlank() && form.lastName.isNotBlank() && age != null && age > 0 && bpPairValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("New client") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = firstName,
-                    onValueChange = { firstName = it },
-                    label = { Text("First name") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                ClientIdentityFields(form, inFlight)
                 Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = lastName,
-                    onValueChange = { lastName = it },
-                    label = { Text("Last name") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = middleName,
-                    onValueChange = { middleName = it },
-                    label = { Text("Middle name (optional)") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    FilterChip(
-                        selected = gender == Gender.M,
-                        onClick = { gender = Gender.M },
-                        label = { Text("Male") },
-                        enabled = !inFlight,
-                    )
-                    FilterChip(
-                        selected = gender == Gender.F,
-                        onClick = { gender = Gender.F },
-                        label = { Text("Female") },
-                        enabled = !inFlight,
-                    )
-                }
-                Spacer(Modifier.size(Spacing.sm))
-                OutlinedTextField(
-                    value = ageText,
-                    onValueChange = { ageText = it },
-                    label = { Text("Age") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.size(Spacing.sm))
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    OutlinedTextField(
-                        value = systolicText,
-                        onValueChange = { systolicText = it },
-                        label = { Text("Systolic BP") },
-                        singleLine = true,
-                        enabled = !inFlight,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = diastolicText,
-                        onValueChange = { diastolicText = it },
-                        label = { Text("Diastolic BP") },
-                        singleLine = true,
-                        enabled = !inFlight,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (!bpPairValid) {
-                    Text(
-                        text = "Blood pressure needs both values",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = Spacing.xs),
-                    )
-                }
+                ClientVitalsFields(form, inFlight, bpPairValid)
                 (createState as? UiState.Error)?.let { state ->
                     LaunchedEffect(state) {
                         // Sticky branch — log once per state, not per recomposition.
@@ -169,10 +86,10 @@ fun ClientCreateDialog(
                     onCreate(
                         CreateClientRequest(
                             id = Uuid.random().toString(),
-                            firstName = firstName.trim(),
-                            lastName = lastName.trim(),
-                            middleName = middleName.trim().ifBlank { null },
-                            gender = gender,
+                            firstName = form.firstName.trim(),
+                            lastName = form.lastName.trim(),
+                            middleName = form.middleName.trim().ifBlank { null },
+                            gender = form.gender,
                             age = age ?: 0,
                             systolicBp = systolic,
                             diastolicBp = diastolic,
@@ -190,4 +107,109 @@ fun ClientCreateDialog(
             }
         },
     )
+}
+
+/** The dialog's text/chip fields; one holder so the field groups share a single param. */
+private class ClientFormState {
+    var firstName by mutableStateOf("")
+    var lastName by mutableStateOf("")
+    var middleName by mutableStateOf("")
+    var gender by mutableStateOf(Gender.M)
+    var ageText by mutableStateOf("")
+    var systolicText by mutableStateOf("")
+    var diastolicText by mutableStateOf("")
+}
+
+@Composable
+private fun ClientIdentityFields(
+    form: ClientFormState,
+    inFlight: Boolean,
+) {
+    OutlinedTextField(
+        value = form.firstName,
+        onValueChange = { form.firstName = it },
+        label = { Text("First name") },
+        singleLine = true,
+        enabled = !inFlight,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.size(Spacing.sm))
+    OutlinedTextField(
+        value = form.lastName,
+        onValueChange = { form.lastName = it },
+        label = { Text("Last name") },
+        singleLine = true,
+        enabled = !inFlight,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.size(Spacing.sm))
+    OutlinedTextField(
+        value = form.middleName,
+        onValueChange = { form.middleName = it },
+        label = { Text("Middle name (optional)") },
+        singleLine = true,
+        enabled = !inFlight,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.size(Spacing.sm))
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        FilterChip(
+            selected = form.gender == Gender.M,
+            onClick = { form.gender = Gender.M },
+            label = { Text("Male") },
+            enabled = !inFlight,
+        )
+        FilterChip(
+            selected = form.gender == Gender.F,
+            onClick = { form.gender = Gender.F },
+            label = { Text("Female") },
+            enabled = !inFlight,
+        )
+    }
+}
+
+@Composable
+private fun ClientVitalsFields(
+    form: ClientFormState,
+    inFlight: Boolean,
+    bpPairValid: Boolean,
+) {
+    OutlinedTextField(
+        value = form.ageText,
+        onValueChange = { form.ageText = it },
+        label = { Text("Age") },
+        singleLine = true,
+        enabled = !inFlight,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(Modifier.size(Spacing.sm))
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        OutlinedTextField(
+            value = form.systolicText,
+            onValueChange = { form.systolicText = it },
+            label = { Text("Systolic BP") },
+            singleLine = true,
+            enabled = !inFlight,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = form.diastolicText,
+            onValueChange = { form.diastolicText = it },
+            label = { Text("Diastolic BP") },
+            singleLine = true,
+            enabled = !inFlight,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+    }
+    if (!bpPairValid) {
+        Text(
+            text = "Blood pressure needs both values",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = Spacing.xs),
+        )
+    }
 }

@@ -4,15 +4,16 @@ import com.companyb.companyapp.auth.Password
 import com.companyb.companyapp.config.AppConfig
 import com.companyb.companyapp.config.KotlinxSerializationMapper
 import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.dto.InviteMintResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
-import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
@@ -195,30 +196,31 @@ class UserManagementAuthzTest : BasePostgresTest() {
     }
 
     // ──────────────────────────────────────────────
-    // #344 — create-user + role-assignment routes
+    // #344 — write-surface authz; #350 replaced direct user creation with
+    // invite minting, so the gate proof rides POST /api/invites now.
     // ──────────────────────────────────────────────
 
     @Test
-    fun `POST users creates for MANAGE_USERS holder and is forbidden without it`() {
+    fun `POST invites mints for MANAGE_USERS holder and is forbidden without it`() {
         val newUserId = TestFixtures.uuid()
         val body =
             mapOf(
-                "username" to "api-created-$newUserId",
+                "username" to "api-invited-$newUserId",
                 "email" to "$newUserId@api.st",
-                "displayName" to "API Created",
-                "password" to "valid-password",
+                "displayName" to "API Invited",
             )
         testServer.client.let { client ->
-            assertEquals(403, client.post("/api/users", body, asUser(noGrantUser)).code)
-            val response = client.post("/api/users", body, asUser(managerUser))
+            assertEquals(403, client.post("/api/invites", body, asUser(noGrantUser)).code)
+            val response = client.post("/api/invites", body, asUser(managerUser))
             assertEquals(201, response.code)
-            assertTrue(
-                response.body.string().contains("\"username\":\"api-created-$newUserId\""),
-                "created user payload must round-trip",
-            )
+            val minted = json.decodeFromString<InviteMintResponse>(response.body.string())
+            assertTrue(minted.inviteCode.isNotBlank(), "minted payload must carry the raw invite code")
+            val createdUserId = UUID.fromString(minted.userId)
+            trackOwned(AppUserTable, AppUserTable.id, createdUserId)
+            // The mint wrote a credential_token for the new account; without this row the
+            // teardown's user delete violates credential_token_created_by/user_id FKs.
+            trackOwned(CredentialTokenTable, CredentialTokenTable.userId, createdUserId)
         }
-        val apiCreated = UserRepository.findByUsername("api-created-$newUserId")
-        trackOwned(AppUserTable, AppUserTable.id, UUID.fromString(apiCreated?.id ?: error("created user must exist")))
     }
 
     @Test

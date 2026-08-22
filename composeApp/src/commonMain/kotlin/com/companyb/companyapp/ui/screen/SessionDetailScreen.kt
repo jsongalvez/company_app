@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
+import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
@@ -63,6 +64,57 @@ fun SessionDetailScreen(
     val practitionerResult by sessionVm.practitionerResult.collectAsState()
     val currentUser by SessionState.currentUser.collectAsState()
 
+    SessionDetailEffects(sessionId, viewModel, sessionVm, detailState, practitionerResult)
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // #113 content-level Back precedent (pushed-route topbar pattern stays fog).
+        TextButton(onClick = onBack) {
+            Text("‹ Back")
+        }
+        when (val state = detailState) {
+            // Idle is unreachable for this VM (init is Loading|Success) but keeps the when
+            // exhaustive over the sealed UiState (the ClientDetailScreen pattern).
+            is UiState.Idle, is UiState.Loading -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            is UiState.Error -> {
+                DetailErrorPane(viewModel, state.message)
+            }
+
+            is UiState.Success -> {
+                val displaySession =
+                    mergeRosterNames(state.data, (practitionersState as? UiState.Success)?.data)
+                SessionDetailContent(session = displaySession)
+                AddSelfSection(
+                    sessionStatus = state.data.sessionStatus,
+                    practitionersState = practitionersState,
+                    practitionerResult = practitionerResult,
+                    currentUserId = currentUser?.id,
+                    onAddSelf = {
+                        sessionVm.addPractitioner(
+                            sessionId,
+                            // Idempotency key minted at submit (BR §390–392); duplicate adds
+                            // are idempotent server-side anyway.
+                            AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = currentUser!!.id),
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionDetailEffects(
+    sessionId: String,
+    viewModel: SessionDetailViewModel,
+    sessionVm: SessionViewModel,
+    detailState: UiState<DashboardSessionResponse>,
+    practitionerResult: UiState<SessionPractitionerResponse>,
+) {
     LaunchedEffect(Unit) {
         logInfo("SessionDetailScreen", "composable entered: sessionId=$sessionId")
         viewModel.loadIfNeeded()
@@ -84,77 +136,50 @@ fun SessionDetailScreen(
             else -> Unit
         }
     }
+}
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // #113 content-level Back precedent (pushed-route topbar pattern stays fog).
-        TextButton(onClick = onBack) {
-            Text("‹ Back")
-        }
-        when (val state = detailState) {
-            // Idle is unreachable for this VM (init is Loading|Success) but keeps the when
-            // exhaustive over the sealed UiState (the ClientDetailScreen pattern).
-            is UiState.Idle, is UiState.Loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            is UiState.Error -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Column(modifier = Modifier.padding(Spacing.md)) {
-                            Text(
-                                text = state.message,
-                                color = InkSubtle,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            TextButton(onClick = { viewModel.retry() }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
-            }
-
-            is UiState.Success -> {
-                val freshRows = (practitionersState as? UiState.Success)?.data
-                // The GET's rows carry no display names — keep each id's name from the
-                // enriched row when it has one, so only genuinely NEW practitioners fall back.
-                val displaySession =
-                    if (freshRows != null) {
-                        val namesById = state.data.practitioners.associate { it.practitionerId to it.displayName }
-                        state.data.copy(
-                            practitioners =
-                                freshRows.map { row ->
-                                    DashboardPractitionerResponse(
-                                        practitionerId = row.practitionerId,
-                                        displayName = namesById[row.practitionerId] ?: FALLBACK_PRACTITIONER_NAME,
-                                        remarks = row.remarks,
-                                        slotAtTime = row.slotAtTime,
-                                    )
-                                },
-                        )
-                    } else {
-                        state.data
-                    }
-                SessionDetailContent(session = displaySession)
-                AddSelfSection(
-                    sessionStatus = state.data.sessionStatus,
-                    practitionersState = practitionersState,
-                    practitionerResult = practitionerResult,
-                    currentUserId = currentUser?.id,
-                    onAddSelf = {
-                        sessionVm.addPractitioner(
-                            sessionId,
-                            // Idempotency key minted at submit (BR §390–392); duplicate adds
-                            // are idempotent server-side anyway.
-                            AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = currentUser!!.id),
-                        )
-                    },
+@Composable
+private fun DetailErrorPane(
+    viewModel: SessionDetailViewModel,
+    message: String,
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+            Column(modifier = Modifier.padding(Spacing.md)) {
+                Text(
+                    text = message,
+                    color = InkSubtle,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
+                TextButton(onClick = { viewModel.retry() }) {
+                    Text("Retry")
+                }
             }
         }
     }
+}
+
+/**
+ * The GET's rows carry no display names — keep each id's name from the enriched row when it has
+ * one, so only genuinely NEW practitioners fall back to [FALLBACK_PRACTITIONER_NAME].
+ */
+private fun mergeRosterNames(
+    session: DashboardSessionResponse,
+    freshRows: List<SessionPractitionerResponse>?,
+): DashboardSessionResponse {
+    if (freshRows == null) return session
+    val namesById = session.practitioners.associate { it.practitionerId to it.displayName }
+    return session.copy(
+        practitioners =
+            freshRows.map { row ->
+                DashboardPractitionerResponse(
+                    practitionerId = row.practitionerId,
+                    displayName = namesById[row.practitionerId] ?: FALLBACK_PRACTITIONER_NAME,
+                    remarks = row.remarks,
+                    slotAtTime = row.slotAtTime,
+                )
+            },
+    )
 }
 
 @Composable

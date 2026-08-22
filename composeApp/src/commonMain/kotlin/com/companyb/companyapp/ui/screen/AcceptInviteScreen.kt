@@ -7,10 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.network.TokenStore
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
@@ -49,33 +45,10 @@ fun AcceptInviteScreen(
     tokenStore: TokenStore,
     onDone: () -> Unit,
 ) {
-    var inviteCode by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var policyError by remember { mutableStateOf(false) }
+    val form = remember { AcceptInviteForm() }
     val acceptState by authViewModel.acceptInviteState.collectAsState()
 
-    LaunchedEffect(Unit) {
-        logInfo("AcceptInviteScreen", "composable entered (first composition)")
-    }
-
-    // A stale token in storage must not survive into a fresh session started from here.
-    val hasToken = tokenStore.getToken() != null
-
-    LaunchedEffect(acceptState) {
-        when (val state = acceptState) {
-            is UiState.Success -> {
-                logInfo("AcceptInviteScreen", "invite accepted; returning to Login")
-                if (hasToken) tokenStore.clearToken()
-                onDone()
-            }
-
-            is UiState.Error -> {
-                logWarn("AcceptInviteScreen", "acceptState=Error: ${state.message}")
-            }
-
-            else -> {}
-        }
-    }
+    AcceptInviteEffects(authViewModel, tokenStore, onDone)
 
     val isLoading = acceptState is UiState.Loading
 
@@ -102,65 +75,26 @@ fun AcceptInviteScreen(
 
         Spacer(modifier = Modifier.height(Spacing.xxl))
 
-        OutlinedTextField(
-            value = inviteCode,
-            onValueChange = { inviteCode = it },
-            label = { Text("Invite code") },
-            singleLine = true,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = {
-                password = it
-                policyError = false
-            },
-            label = { Text("New password") },
-            supportingText = { Text("At least ${PasswordPolicy.MIN_LENGTH} characters.") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            isError = policyError,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        AcceptInviteFields(form, isLoading)
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        Button(
+        BusySubmitButton(
+            label = "Set password",
+            enabled = form.inviteCode.isNotBlank() && form.password.isNotBlank() && !isLoading,
+            isBusy = isLoading,
             onClick = {
-                if (!PasswordPolicy.isValid(password)) {
-                    policyError = true
-                    return@Button
+                if (PasswordPolicy.isValid(form.password)) {
+                    authViewModel.acceptInvite(form.inviteCode.trim(), form.password)
+                } else {
+                    form.policyError = true
                 }
-                authViewModel.acceptInvite(inviteCode.trim(), password)
             },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            enabled = inviteCode.isNotBlank() && password.isNotBlank() && !isLoading,
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Text("Set password")
-            }
-        }
+        )
 
         when (val state = acceptState) {
             is UiState.Error -> {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                Text(
-                    text = state.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                InlineError(state.message)
             }
 
             else -> {}
@@ -172,4 +106,76 @@ fun AcceptInviteScreen(
             Text("Back to login")
         }
     }
+}
+
+/** Entry log + the success landing (stale-token clear, return to Login) + error logging. */
+@Composable
+private fun AcceptInviteEffects(
+    authViewModel: AuthViewModel,
+    tokenStore: TokenStore,
+    onDone: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("AcceptInviteScreen", "composable entered (first composition)")
+    }
+
+    // A stale token in storage must not survive into a fresh session started from here.
+    val hasToken = tokenStore.getToken() != null
+
+    val acceptState by authViewModel.acceptInviteState.collectAsState()
+    LaunchedEffect(acceptState) {
+        when (val state = acceptState) {
+            is UiState.Success -> {
+                logInfo("AcceptInviteScreen", "invite accepted; returning to Login")
+                if (hasToken) tokenStore.clearToken()
+                onDone()
+            }
+
+            is UiState.Error -> {
+                logWarn("AcceptInviteScreen", "acceptState=Error: ${state.message}")
+            }
+
+            else -> {}
+        }
+    }
+}
+
+/** The screen's fields plus the policy-error flag; one holder for the field group. */
+private class AcceptInviteForm {
+    var inviteCode by mutableStateOf("")
+    var password by mutableStateOf("")
+    var policyError by mutableStateOf(false)
+}
+
+@Composable
+private fun AcceptInviteFields(
+    form: AcceptInviteForm,
+    isLoading: Boolean,
+) {
+    OutlinedTextField(
+        value = form.inviteCode,
+        onValueChange = { form.inviteCode = it },
+        label = { Text("Invite code") },
+        singleLine = true,
+        enabled = !isLoading,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    Spacer(modifier = Modifier.height(Spacing.md))
+
+    OutlinedTextField(
+        value = form.password,
+        onValueChange = {
+            form.password = it
+            form.policyError = false
+        },
+        label = { Text("New password") },
+        supportingText = { Text("At least ${PasswordPolicy.MIN_LENGTH} characters.") },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        isError = form.policyError,
+        enabled = !isLoading,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

@@ -14,7 +14,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -24,10 +23,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
@@ -82,36 +79,11 @@ fun ReliefAccessCard(
         SectionTitle("Relief access")
 
         if (incomingPending.isNotEmpty()) {
-            CardSection {
-                incomingPending.forEach { row ->
-                    IncomingRequestRow(
-                        row = row,
-                        busy = grantState is UiState.Loading || denyState is UiState.Loading,
-                        onGrant = { viewModel.grantAccess(row.id, branchDayId) },
-                        onDeny = { viewModel.denyAccess(row.id, branchDayId) },
-                    )
-                }
-            }
+            IncomingSection(viewModel, branchDayId, incomingPending, grantState, denyState)
         }
 
         if (isReliefUser) {
-            CardSection {
-                outgoing.forEach { row -> OutgoingRequestRow(row) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    Button(
-                        onClick = { showPicker = true },
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                            ),
-                    ) {
-                        Text(if (outgoing.isEmpty()) "Request edit access" else "Request again")
-                    }
-                }
-            }
+            OutgoingSection(outgoing, onShowPicker = { showPicker = true })
         }
     }
 
@@ -131,6 +103,50 @@ fun ReliefAccessCard(
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs),
         )
+    }
+}
+
+@Composable
+private fun IncomingSection(
+    viewModel: ReliefAccessViewModel,
+    branchDayId: String,
+    incomingPending: List<ReliefAccessResponse>,
+    grantState: UiState<Unit>,
+    denyState: UiState<Unit>,
+) {
+    CardSection {
+        incomingPending.forEach { row ->
+            IncomingRequestRow(
+                row = row,
+                busy = grantState is UiState.Loading || denyState is UiState.Loading,
+                onGrant = { viewModel.grantAccess(row.id, branchDayId) },
+                onDeny = { viewModel.denyAccess(row.id, branchDayId) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun OutgoingSection(
+    outgoing: List<ReliefAccessResponse>,
+    onShowPicker: () -> Unit,
+) {
+    CardSection {
+        outgoing.forEach { row -> OutgoingRequestRow(row) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Button(
+                onClick = onShowPicker,
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                    ),
+            ) {
+                Text(if (outgoing.isEmpty()) "Request edit access" else "Request again")
+            }
+        }
     }
 }
 
@@ -156,74 +172,6 @@ private fun CardSection(content: @Composable () -> Unit) {
             content()
         }
     }
-}
-
-/** A pending request targeting the caller — explicit Grant / Deny choices (BR). */
-@Composable
-private fun IncomingRequestRow(
-    row: ReliefAccessResponse,
-    busy: Boolean,
-    onGrant: () -> Unit,
-    onDeny: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = "Edit access requested",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text =
-                    "From ${shortId(row.requestedBy)} — they could sign in clients, add practitioners, " +
-                        "add product sales, and receive commission splits until 04:00.",
-                style = MaterialTheme.typography.bodySmall,
-                color = InkSubtle,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            OutlinedButton(onClick = onDeny, enabled = !busy) { Text("Deny") }
-            Button(onClick = onGrant, enabled = !busy) { Text("Grant") }
-        }
-    }
-}
-
-/** The relief requester's own row — outcome per BR: waits, active-until-04:00, or informed denial. */
-@Composable
-private fun OutgoingRequestRow(row: ReliefAccessResponse) {
-    val targetName = shortId(row.targetUser)
-    when (row.requestStatus) {
-        ReliefAccessStatus.PENDING -> {
-            RequestLine("Waiting for $targetName's response", InkSubtle)
-        }
-
-        ReliefAccessStatus.GRANTED -> {
-            RequestLine(
-                "Edit access granted — active until 04:00 (Asia/Manila). A new day needs a new request.",
-                MaterialTheme.colorScheme.primary,
-            )
-        }
-
-        ReliefAccessStatus.DENIED -> {
-            RequestLine("Denied. You can ask another checked-in user.", MaterialTheme.colorScheme.error)
-        }
-    }
-}
-
-@Composable
-private fun RequestLine(
-    text: String,
-    color: androidx.compose.ui.graphics.Color,
-) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = color,
-    )
 }
 
 /** Checked-in-user picker (BR: the relief user selects a currently checked-in user). */
@@ -284,13 +232,6 @@ private fun CandidatePickerDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
-
-private fun List<ReliefAccessResponse>.incomingPending(currentUserId: String?) =
-    filter { it.targetUser == currentUserId && it.requestStatus == ReliefAccessStatus.PENDING }
-
-private fun List<ReliefAccessResponse>.outgoing(currentUserId: String?) = filter { it.requestedBy == currentUserId }
-
-private fun shortId(id: String): String = id.take(8)
 
 @OptIn(ExperimentalUuidApi::class)
 private fun newRequestId(): String = Uuid.random().toString()

@@ -1,6 +1,5 @@
 package com.companyb.companyapp.ui.screen
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.ConcernResponse
+import com.companyb.companyapp.dto.CreateClientRequest
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.dto.SessionResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
@@ -66,63 +66,19 @@ fun SessionCreateScreen(
     val searchState by viewModel.searchResults.collectAsState()
     val cachedResults by viewModel.freshestResults.collectAsState()
     val selectedClient by viewModel.selectedClient.collectAsState()
-    val preview by viewModel.preview.collectAsState()
-    val concernsState by viewModel.concerns.collectAsState()
-    val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
-    val createResult by viewModel.createResult.collectAsState()
-    val concernAddFailures by viewModel.concernAddFailures.collectAsState()
     // The dialog's create path lives in the caller-provided ClientViewModel (entry-scoped).
     val createState by clientViewModel.createClientResult.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
-    var priceText by remember { mutableStateOf("") }
-    var otherConcerns by remember { mutableStateOf("") }
-    var remarks by remember { mutableStateOf("") }
+    val form = remember { SessionFormState() }
 
-    LaunchedEffect(Unit) {
-        logInfo("SessionCreateScreen", "composable entered (first composition)")
-        // Retry-loop lesson: Idle-only load fires once per entry; Error gets a manual retry.
-        viewModel.loadConcerns()
-    }
-
-    // Created-on-the-spot client: select it (drives the preview load) and close the dialog —
-    // the create-user shape's "Success closes through the caller's UiState effect".
-    LaunchedEffect(createState) {
-        (createState as? UiState.Success)?.data?.let { created ->
-            viewModel.selectClient(created)
-            showCreateDialog = false
-        }
-    }
-
-    // Price defaults from the preview's base rate while the field is blank (untouched);
-    // an explicit user value always wins.
-    val previewData = (preview as? UiState.Success)?.data
-    LaunchedEffect(previewData) {
-        val basePrice = previewData?.basePrice
-        if (basePrice != null && priceText.isBlank()) priceText = basePrice
-    }
-
-    LaunchedEffect(createResult) {
-        when (val state = createResult) {
-            is UiState.Success -> {
-                if (concernAddFailures > 0) {
-                    logWarn(
-                        "SessionCreateScreen",
-                        "session ${state.data.id} created; $concernAddFailures concern add(s) failed",
-                    )
-                }
-                onSessionCreated(state.data.id)
-            }
-
-            is UiState.Error -> {
-                logWarn("SessionCreateScreen", "createResult=Error: ${state.message}")
-            }
-
-            else -> {
-                Unit
-            }
-        }
-    }
+    SessionCreateEffects(
+        viewModel = viewModel,
+        createState = createState,
+        form = form,
+        onClientCreated = { showCreateDialog = false },
+        onSessionCreated = onSessionCreated,
+    )
 
     Column(
         modifier =
@@ -155,138 +111,100 @@ fun SessionCreateScreen(
             SessionFormSection(
                 viewModel = viewModel,
                 client = client,
-                preview = preview,
-                concernsState = concernsState,
-                selectedConcernIds = selectedConcernIds,
-                createResult = createResult,
-                priceText = priceText,
-                onPriceChange = { priceText = it },
-                otherConcerns = otherConcerns,
-                onOtherConcernsChange = { otherConcerns = it },
-                remarks = remarks,
-                onRemarksChange = { remarks = it },
+                form = form,
                 onChangeClient = {
-                    priceText = ""
+                    form.price = ""
                     viewModel.clearSelectedClient()
                 },
             )
         }
     }
 
-    if (showCreateDialog) {
-        ClientCreateDialog(
-            createState = createState,
-            onCreate = clientViewModel::createClient,
-            onDismiss = {
-                if (createState !is UiState.Loading) showCreateDialog = false
-            },
-        )
+    CreateClientDialogHost(showCreateDialog, createState, clientViewModel::createClient) {
+        showCreateDialog = false
     }
 }
 
-/** The find-or-create client half of the flow (no selection yet). */
+/** The on-the-spot create-client dialog host (#348): dismiss stays blocked mid-flight. */
 @Composable
-private fun ClientPickerSection(
-    viewModel: SessionCreateViewModel,
-    query: String,
-    searchState: UiState<List<ClientResponse>>,
-    cachedResults: List<ClientResponse>?,
-    onCreateNewClick: () -> Unit,
+private fun CreateClientDialogHost(
+    showDialog: Boolean,
+    createState: UiState<ClientResponse>,
+    onCreate: (CreateClientRequest) -> Unit,
+    onDismiss: () -> Unit,
 ) {
-    val isLoading = searchState is UiState.Loading
-    val errorMessage = (searchState as? UiState.Error)?.message
-
-    OutlinedTextField(
-        value = query,
-        onValueChange = { viewModel.onQueryChange(it) },
-        label = { Text("Search clients by name or phone") },
-        singleLine = true,
-        trailingIcon = {
-            if (query.isNotBlank()) {
-                Text(
-                    text = "×",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier =
-                        Modifier
-                            .clickable { viewModel.onQueryChange("") }
-                            .padding(Spacing.xs),
-                )
-            }
-        },
-        modifier = Modifier.fillMaxWidth(),
+    if (!showDialog) return
+    ClientCreateDialog(
+        createState = createState,
+        onCreate = onCreate,
+        onDismiss = { if (createState !is UiState.Loading) onDismiss() },
     )
+}
 
-    Box(modifier = Modifier.fillMaxSize().padding(top = Spacing.sm)) {
-        when {
-            searchState is UiState.Idle -> {
-                CenteredHint("Search clients by name or phone")
-            }
+/** The form's text fields; one holder so the section reads/writes them through a single param. */
+private class SessionFormState {
+    var price by mutableStateOf("")
+    var otherConcerns by mutableStateOf("")
+    var remarks by mutableStateOf("")
+}
 
-            searchState is UiState.Success && cachedResults?.isEmpty() == true -> {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = "No clients found",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+/**
+ * Entry + landing effects for the create flow: the Idle-only concern load, the created-client
+ * select-and-close, the preview-driven price default (blank field only), and success navigation.
+ */
+@Composable
+private fun SessionCreateEffects(
+    viewModel: SessionCreateViewModel,
+    createState: UiState<ClientResponse>,
+    form: SessionFormState,
+    onClientCreated: () -> Unit,
+    onSessionCreated: (String) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        logInfo("SessionCreateScreen", "composable entered (first composition)")
+        // Retry-loop lesson: Idle-only load fires once per entry; Error gets a manual retry.
+        viewModel.loadConcerns()
+    }
+
+    // Created-on-the-spot client: select it (drives the preview load) and close the dialog —
+    // the create-user shape's "Success closes through the caller's UiState effect".
+    LaunchedEffect(createState) {
+        (createState as? UiState.Success)?.data?.let { created ->
+            viewModel.selectClient(created)
+            onClientCreated()
+        }
+    }
+
+    // Price defaults from the preview's base rate while the field is blank (untouched);
+    // an explicit user value always wins.
+    val previewData = (viewModel.preview.collectAsState().value as? UiState.Success)?.data
+    LaunchedEffect(previewData) {
+        val basePrice = previewData?.basePrice
+        if (basePrice != null && form.price.isBlank()) form.price = basePrice
+    }
+
+    val createResult by viewModel.createResult.collectAsState()
+    val concernAddFailures by viewModel.concernAddFailures.collectAsState()
+    LaunchedEffect(createResult) {
+        when (val state = createResult) {
+            is UiState.Success -> {
+                if (concernAddFailures > 0) {
+                    logWarn(
+                        "SessionCreateScreen",
+                        "session ${state.data.id} created; $concernAddFailures concern add(s) failed",
                     )
-                    Spacer(Modifier.size(Spacing.sm))
-                    Button(onClick = onCreateNewClick) {
-                        Text("Create new client")
-                    }
                 }
+                onSessionCreated(state.data.id)
             }
 
-            errorMessage != null && cachedResults.isNullOrEmpty() -> {
-                ErrorCard(
-                    message = errorMessage,
-                    onRetry = { viewModel.retrySearch() },
-                )
+            is UiState.Error -> {
+                logWarn("SessionCreateScreen", "createResult=Error: ${state.message}")
             }
 
             else -> {
-                val results = cachedResults
-                if (results == null) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        results.forEach { client ->
-                            SearchResultRow(client) { viewModel.selectClient(client) }
-                        }
-                    }
-                }
+                Unit
             }
         }
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.TopCenter).size(18.dp),
-                strokeWidth = 2.dp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SearchResultRow(
-    client: ClientResponse,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(CornerRadius.sm),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = listOfNotNull(client.firstName, client.lastName).joinToString(" "),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(Spacing.sm),
-        )
     }
 }
 
@@ -295,16 +213,7 @@ private fun SearchResultRow(
 private fun SessionFormSection(
     viewModel: SessionCreateViewModel,
     client: ClientResponse,
-    preview: UiState<SessionPreviewResponse>,
-    concernsState: UiState<List<ConcernResponse>>,
-    selectedConcernIds: Set<String>,
-    createResult: UiState<SessionResponse>,
-    priceText: String,
-    onPriceChange: (String) -> Unit,
-    otherConcerns: String,
-    onOtherConcernsChange: (String) -> Unit,
-    remarks: String,
-    onRemarksChange: (String) -> Unit,
+    form: SessionFormState,
     onChangeClient: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -319,7 +228,44 @@ private fun SessionFormSection(
         }
     }
 
-    when (val p = preview) {
+    val preview by viewModel.preview.collectAsState()
+    PreviewCard(viewModel, preview)
+
+    OutlinedTextField(
+        value = form.price,
+        onValueChange = { form.price = it },
+        label = { Text("Final price (₱)") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    val concernsState by viewModel.concerns.collectAsState()
+    val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
+    ConcernsBlock(viewModel, concernsState, selectedConcernIds)
+
+    OutlinedTextField(
+        value = form.otherConcerns,
+        onValueChange = { form.otherConcerns = it },
+        label = { Text("Other concerns (optional)") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+    OutlinedTextField(
+        value = form.remarks,
+        onValueChange = { form.remarks = it },
+        label = { Text("Remarks (optional)") },
+        modifier = Modifier.fillMaxWidth(),
+    )
+
+    SubmitArea(viewModel, form)
+}
+
+@Composable
+private fun PreviewCard(
+    viewModel: SessionCreateViewModel,
+    preview: UiState<SessionPreviewResponse>,
+) {
+    when (preview) {
         is UiState.Idle, is UiState.Loading -> {
             Box(Modifier.fillMaxWidth().padding(Spacing.md), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -327,7 +273,7 @@ private fun SessionFormSection(
         }
 
         is UiState.Error -> {
-            ErrorCard(message = p.message, onRetry = { viewModel.retryPreview() })
+            ErrorCard(message = preview.message, onRetry = { viewModel.retryPreview() })
         }
 
         is UiState.Success -> {
@@ -343,12 +289,12 @@ private fun SessionFormSection(
                         color = InkSubtle,
                     )
                     Text(
-                        text = p.data.sessionType.name,
+                        text = preview.data.sessionType.name,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Base rate ₱${p.data.basePrice} — final price defaults to it",
+                        text = "Base rate ₱${preview.data.basePrice} — final price defaults to it",
                         style = MaterialTheme.typography.bodySmall,
                         color = InkSubtle,
                     )
@@ -356,17 +302,15 @@ private fun SessionFormSection(
             }
         }
     }
+}
 
-    OutlinedTextField(
-        value = priceText,
-        onValueChange = onPriceChange,
-        label = { Text("Final price (₱)") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(),
-    )
-
-    when (val c = concernsState) {
+@Composable
+private fun ConcernsBlock(
+    viewModel: SessionCreateViewModel,
+    concernsState: UiState<List<ConcernResponse>>,
+    selectedConcernIds: Set<String>,
+) {
+    when (concernsState) {
         is UiState.Idle -> {
             Unit
         }
@@ -380,7 +324,7 @@ private fun SessionFormSection(
         is UiState.Error -> {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = c.message,
+                    text = concernsState.message,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.weight(1f),
@@ -398,7 +342,7 @@ private fun SessionFormSection(
                 style = MaterialTheme.typography.labelSmall,
                 color = InkSubtle,
             )
-            c.data.forEach { concern ->
+            concernsState.data.forEach { concern ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
@@ -416,26 +360,22 @@ private fun SessionFormSection(
             }
         }
     }
+}
 
-    OutlinedTextField(
-        value = otherConcerns,
-        onValueChange = onOtherConcernsChange,
-        label = { Text("Other concerns (optional)") },
-        modifier = Modifier.fillMaxWidth(),
-    )
-    OutlinedTextField(
-        value = remarks,
-        onValueChange = onRemarksChange,
-        label = { Text("Remarks (optional)") },
-        modifier = Modifier.fillMaxWidth(),
-    )
+@Composable
+private fun SubmitArea(
+    viewModel: SessionCreateViewModel,
+    form: SessionFormState,
+) {
+    val preview by viewModel.preview.collectAsState()
+    val createResult by viewModel.createResult.collectAsState()
 
-    val priceValue = priceText.trim().toDoubleOrNull()
+    val priceValue = form.price.trim().toDoubleOrNull()
     val canSubmit =
         preview is UiState.Success && priceValue != null && priceValue >= 0 &&
             createResult !is UiState.Loading
     Button(
-        onClick = { viewModel.createSession(priceText.trim(), remarks, otherConcerns) },
+        onClick = { viewModel.createSession(form.price.trim(), form.remarks, form.otherConcerns) },
         enabled = canSubmit,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -446,17 +386,6 @@ private fun SessionFormSection(
             text = state.message,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
-        )
-    }
-}
-
-@Composable
-private fun CenteredHint(text: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

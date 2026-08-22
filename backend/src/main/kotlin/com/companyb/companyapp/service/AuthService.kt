@@ -18,8 +18,10 @@ import com.companyb.companyapp.repository.model.CredentialTokenTable
 import com.companyb.companyapp.validation.PasswordPolicy
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 object AuthService {
@@ -108,12 +110,10 @@ object AuthService {
                     )
                 }
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
-                AuditLogRepository.recordUpdate(
-                    tableName = AppUserTable.tableName,
+                AuthAudit.passwordSet(
                     recordId = userId,
-                    changedBy = userId,
-                    oldFields = mapOf("password" to "(pending invite)"),
-                    newFields = mapOf("password" to "(set by invitee)"),
+                    oldLabel = "(pending invite)",
+                    newLabel = "(set by invitee)",
                 )
                 AuditLogRepository.recordUpdate(
                     tableName = TOKEN_TABLE_NAME,
@@ -183,7 +183,12 @@ object AuthService {
                     tokenHash = CredentialTokens.hash(rawCode),
                     purpose = CredentialTokenPurpose.PASSWORD_RESET,
                     userId = existing.id,
-                    expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusHours(RESET_VALID_HOURS),
+                    // Reset-token validity is credential lifecycle (#322): auth owns JVM-clock reads.
+                    expiresAt =
+                        OffsetDateTime.ofInstant(
+                            Instant.now().plus(RESET_VALID_HOURS.toLong(), ChronoUnit.HOURS),
+                            ZoneOffset.UTC,
+                        ),
                     createdBy = null,
                 )
             AuditLogRepository.recordInsert(
@@ -233,12 +238,10 @@ object AuthService {
                     )
                 }
                 UserRepository.setPasswordHashInTransaction(userId, Password.create(newPassword))
-                AuditLogRepository.recordUpdate(
-                    tableName = AppUserTable.tableName,
+                AuthAudit.passwordSet(
                     recordId = userId,
-                    changedBy = userId,
-                    oldFields = mapOf("password" to "(previous)"),
-                    newFields = mapOf("password" to "(set via password reset)"),
+                    oldLabel = "(previous)",
+                    newLabel = "(set via password reset)",
                 )
                 AuditLogRepository.recordUpdate(
                     tableName = TOKEN_TABLE_NAME,
@@ -252,4 +255,19 @@ object AuthService {
         DenyList.deny(resetUserId)
         logger.info { "[PASSWORD-RESET] Password reset completed for ${resetUserId.toString().maskUUID()}" }
     }
+}
+
+/** Audit seam for the public auth commands (#324): the user-row table name stays behind it. */
+internal object AuthAudit {
+    fun passwordSet(
+        recordId: UUID,
+        oldLabel: String,
+        newLabel: String,
+    ) = AuditLogRepository.recordUpdate(
+        tableName = AppUserTable.tableName,
+        recordId = recordId,
+        changedBy = recordId,
+        oldFields = mapOf("password" to oldLabel),
+        newFields = mapOf("password" to newLabel),
+    )
 }
