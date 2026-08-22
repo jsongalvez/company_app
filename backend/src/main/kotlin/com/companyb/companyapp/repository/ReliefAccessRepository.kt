@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.model.UserCapabilityTable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
@@ -94,6 +95,23 @@ object ReliefAccessRepository {
                 .where { GrantReliefAccessTable.id eq id }
                 .singleOrNull()
                 ?.toReliefAccess()
+        }
+
+    /** Caller-relative discovery (#351): rows where the caller is target or requester on one branch day. */
+    fun findInvolving(
+        userId: UUID,
+        branchDayId: UUID,
+    ): List<ReliefAccess> =
+        transaction {
+            GrantReliefAccessTable
+                .selectAll()
+                .where {
+                    (GrantReliefAccessTable.branchDayId eq branchDayId) and
+                        (
+                            (GrantReliefAccessTable.targetUser eq userId) or
+                                (GrantReliefAccessTable.requestedBy eq userId)
+                        )
+                }.map { it.toReliefAccess() }
         }
 
     fun findByRequestedByAndBranchDayId(

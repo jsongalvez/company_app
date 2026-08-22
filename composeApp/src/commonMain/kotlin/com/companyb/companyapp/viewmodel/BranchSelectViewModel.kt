@@ -91,7 +91,12 @@ class BranchSelectViewModel(
                     SessionState.setSelectedBranch(branch.branchId, branch.branchName)
                     // #147 — persist the clock-state slots (attendance id + branchDayId) at
                     // clock-in: the drawer's clock-out request sources the attendance id here.
-                    SessionState.setClockState(clockInState.data.id, clockInState.data.branchDayId)
+                    // #351 — isRelief rides the same write (requester-surface gate).
+                    SessionState.setClockState(
+                        clockInState.data.id,
+                        clockInState.data.branchDayId,
+                        clockInState.data.isRelief,
+                    )
                     refreshCapabilities().join()
                 }
             } finally {

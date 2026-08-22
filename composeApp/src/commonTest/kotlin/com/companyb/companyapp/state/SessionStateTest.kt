@@ -50,7 +50,7 @@ class SessionStateTest {
         SessionState.setUser(user)
         SessionState.setCapabilities(rows)
         SessionState.setSelectedBranch("b1", "Main Branch")
-        SessionState.setClockState("a1", "d1")
+        SessionState.setClockState("a1", "d1", isRelief = false)
 
         assertEquals(user, SessionState.currentUser.value)
         assertEquals(rows, SessionState.capabilities.value)
@@ -58,6 +58,8 @@ class SessionStateTest {
         assertEquals("Main Branch", SessionState.selectedBranchName.value)
         assertEquals("a1", SessionState.attendanceId.value)
         assertEquals("d1", SessionState.branchDayId.value)
+        // #351 — the relief flag rides the same clock-state write; default false.
+        assertEquals(false, SessionState.isRelief.value)
     }
 
     @Test
@@ -77,7 +79,7 @@ class SessionStateTest {
         SessionState.setUser(user)
         SessionState.setCapabilities(rows)
         SessionState.setSelectedBranch("b1", "Main Branch")
-        SessionState.setClockState("a1", "d1")
+        SessionState.setClockState("a1", "d1", isRelief = false)
 
         SessionState.clearClockState()
 
@@ -94,7 +96,7 @@ class SessionStateTest {
         SessionState.setUser(user)
         SessionState.setCapabilities(rows)
         SessionState.setSelectedBranch("b1", "Main Branch")
-        SessionState.setClockState("a1", "d1")
+        SessionState.setClockState("a1", "d1", isRelief = false)
         SessionState.setExpiredNotice(true)
 
         SessionState.clear()

@@ -33,6 +33,12 @@ object SessionState {
     private val _branchDayId = MutableStateFlow<String?>(null)
     val branchDayId: StateFlow<String?> = _branchDayId.asStateFlow()
 
+    // #351 — whether the current clock-in is a relief check-in (ClockInResponse.isRelief):
+    // gates the relief-access requester surface (request entry point + outcome view).
+    // Users clocked into home branches never see it.
+    private val _isRelief = MutableStateFlow(false)
+    val isRelief: StateFlow<Boolean> = _isRelief.asStateFlow()
+
     // #94 Q3c(ii) — mid-session 401 surfaces "session expired" once on the Login screen
     // (launch-validation 401 stays silent). App.kt sets it; LoginScreen consumes + clears.
     private val _expiredNotice = MutableStateFlow(false)
@@ -66,9 +72,11 @@ object SessionState {
     fun setClockState(
         attendanceId: String,
         branchDayId: String,
+        isRelief: Boolean,
     ) {
         _attendanceId.value = attendanceId
         _branchDayId.value = branchDayId
+        _isRelief.value = isRelief
     }
 
     /**
@@ -83,6 +91,7 @@ object SessionState {
         _selectedBranchId.value = null
         _selectedBranchName.value = null
         _capabilities.value = emptyList()
+        _isRelief.value = false
     }
 
     fun setExpiredNotice(value: Boolean) {
@@ -96,6 +105,7 @@ object SessionState {
         _selectedBranchName.value = null
         _attendanceId.value = null
         _branchDayId.value = null
+        _isRelief.value = false
     }
 }
 

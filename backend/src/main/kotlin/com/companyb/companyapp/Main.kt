@@ -138,6 +138,8 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     ReliefAccessRoutes.requestReliefAccess(config)
     ReliefAccessRoutes.grantReliefAccess(config)
     ReliefAccessRoutes.denyReliefAccess(config)
+    ReliefAccessRoutes.listReliefAccess(config)
+    ReliefAccessRoutes.listReliefCandidates(config)
     ReliefInviteRoutes.register(config)
     MedicalMissionDelegateRoutes.assignDelegate(config)
     MedicalMissionDelegateRoutes.revokeDelegate(config)

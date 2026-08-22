@@ -10,6 +10,8 @@ import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
+import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.attendance.BranchDayUser
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -23,6 +25,34 @@ import java.util.UUID
  */
 object ReliefAccessService {
     private val logger = KotlinLogging.logger {}
+
+    /**
+     * Caller-relative discovery (#351): pending requests targeting the caller (the grant
+     * surface) plus the caller's own outgoing requests (the outcome view) for one branch
+     * day. Authorization is row ownership — the query only returns rows involving the
+     * caller, so bearer auth suffices (the #141 notification-as-authorization precedent);
+     * no capability gate exists on this read by design.
+     */
+    fun listForCaller(
+        callerId: UUID,
+        branchDayId: UUID,
+    ): List<ReliefAccess> = ReliefAccessRepository.findInvolving(callerId, branchDayId)
+
+    /**
+     * Checked-in users a relief user may target for an access request (#351), caller
+     * excluded. Gated on the caller's own active clock-in at the branch day — the
+     * dashboard universal-post-clock-in precedent: pre-grant relief users hold no
+     * capabilities, so a capability gate would 403 the primary flow.
+     */
+    fun listCandidates(
+        callerId: UUID,
+        branchDayId: UUID,
+    ): List<BranchDayUser> {
+        if (!AttendanceService.hasActiveClockIn(callerId, branchDayId)) {
+            throw ForbiddenException("Only users with an active clock-in can list relief candidates")
+        }
+        return AttendanceService.findUsersByBranchDayId(branchDayId).filterNot { it.userId == callerId }
+    }
 
     @Suppress("ThrowsCount", "ReturnCount")
     fun grantAccess(

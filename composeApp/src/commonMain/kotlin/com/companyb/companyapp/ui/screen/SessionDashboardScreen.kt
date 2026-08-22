@@ -135,6 +135,9 @@ fun SessionDashboardScreen(
     onSessionClick: (DashboardSessionResponse) -> Unit,
     // #348 — the dashboard's entry into the start-a-session flow (both platforms).
     onSessionCreateClick: () -> Unit,
+    // #351 — the relief-access surface (requester entry + incoming Grant/Deny), slotted so
+    // this screen stays agnostic of the feature's VM/state sources.
+    reliefAccessContent: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.dashboardState.collectAsState()
@@ -201,6 +204,7 @@ fun SessionDashboardScreen(
                             commissionCents = moneyToCents(data.commission.amount),
                             productSalesCount = data.commission.productSalesCount,
                         )
+                        reliefAccessContent()
                         LastUpdatedRow(
                             lastUpdatedAt,
                             // #348 — "New session" lives beside the timestamp row (trailing).

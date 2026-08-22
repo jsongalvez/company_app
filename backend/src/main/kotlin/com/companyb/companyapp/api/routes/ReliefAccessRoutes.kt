@@ -2,10 +2,12 @@ package com.companyb.companyapp.api.routes
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
+import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.DenyReliefAccessRequest
 import com.companyb.companyapp.dto.GrantReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.service.ReliefAccessService
 import io.javalin.config.JavalinConfig
 import io.javalin.http.BadRequestResponse
@@ -25,6 +27,18 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
+    path = ApiRoutes.RELIEF_ACCESS,
+    methods = [HttpMethod.GET],
+    operationId = "relief_access_list",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
+    path = ApiRoutes.RELIEF_ACCESS_CANDIDATES,
+    methods = [HttpMethod.GET],
+    operationId = "relief_access_candidates",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
     path = ApiRoutes.RELIEF_ACCESS_DENY_PATH,
     methods = [HttpMethod.PATCH],
     pathParams = [OpenApiParam(name = "requestId", type = UUID::class, required = true)],
@@ -39,6 +53,52 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 object ReliefAccessRoutes {
+    /** Shared response mapper — the three write commands and the list read all project the same shape. */
+    private fun ReliefAccess.toResponse(): ReliefAccessResponse =
+        ReliefAccessResponse(
+            id = id.toString(),
+            branchDayId = branchDayId.toString(),
+            requestedBy = requestedBy.toString(),
+            requestStatus = requestStatus,
+            targetUser = targetUser.toString(),
+            grantedBy = grantedBy?.toString(),
+            grantedAt = grantedAt?.toString(),
+        )
+
+    fun listReliefAccess(config: JavalinConfig) {
+        config.routes.get(ApiRoutes.RELIEF_ACCESS) { context ->
+            val callerId = context.callerUuid()
+            val branchDayParam =
+                context.queryParam("branchDayId") ?: throw BadRequestResponse("branchDayId is required")
+            val branchDayId =
+                runCatching { UUID.fromString(branchDayParam) }.getOrElse {
+                    throw BadRequestResponse("Invalid branchDayId")
+                }
+
+            val requests = ReliefAccessService.listForCaller(callerId, branchDayId)
+
+            context.status(HttpStatus.OK)
+            context.json(requests.map { it.toResponse() })
+        }
+    }
+
+    fun listReliefCandidates(config: JavalinConfig) {
+        config.routes.get(ApiRoutes.RELIEF_ACCESS_CANDIDATES) { context ->
+            val callerId = context.callerUuid()
+            val branchDayParam =
+                context.queryParam("branchDayId") ?: throw BadRequestResponse("branchDayId is required")
+            val branchDayId =
+                runCatching { UUID.fromString(branchDayParam) }.getOrElse {
+                    throw BadRequestResponse("Invalid branchDayId")
+                }
+
+            val candidates = ReliefAccessService.listCandidates(callerId, branchDayId)
+
+            context.status(HttpStatus.OK)
+            context.json(candidates.map { BranchDayUserResponse(it.userId.toString(), it.displayName) })
+        }
+    }
+
     @Suppress("ThrowsCount")
     fun grantReliefAccess(config: JavalinConfig) {
         config.routes.patch(ApiRoutes.RELIEF_ACCESS_GRANT_PATH) { context ->
@@ -49,17 +109,7 @@ object ReliefAccessRoutes {
             val result = ReliefAccessService.grantAccess(requestId, callerId, reason)
 
             context.status(HttpStatus.OK)
-            context.json(
-                ReliefAccessResponse(
-                    id = result.id.toString(),
-                    branchDayId = result.branchDayId.toString(),
-                    requestedBy = result.requestedBy.toString(),
-                    requestStatus = result.requestStatus,
-                    targetUser = result.targetUser.toString(),
-                    grantedBy = result.grantedBy?.toString(),
-                    grantedAt = result.grantedAt?.toString(),
-                ),
-            )
+            context.json(result.toResponse())
         }
     }
 
@@ -73,17 +123,7 @@ object ReliefAccessRoutes {
             val result = ReliefAccessService.denyAccess(requestId, callerId, reason)
 
             context.status(HttpStatus.OK)
-            context.json(
-                ReliefAccessResponse(
-                    id = result.id.toString(),
-                    branchDayId = result.branchDayId.toString(),
-                    requestedBy = result.requestedBy.toString(),
-                    requestStatus = result.requestStatus,
-                    targetUser = result.targetUser.toString(),
-                    grantedBy = result.grantedBy?.toString(),
-                    grantedAt = result.grantedAt?.toString(),
-                ),
-            )
+            context.json(result.toResponse())
         }
     }
 
@@ -107,17 +147,7 @@ object ReliefAccessRoutes {
                 )
 
             context.status(HttpStatus.CREATED)
-            context.json(
-                ReliefAccessResponse(
-                    id = result.id.toString(),
-                    branchDayId = result.branchDayId.toString(),
-                    requestedBy = result.requestedBy.toString(),
-                    requestStatus = result.requestStatus,
-                    targetUser = result.targetUser.toString(),
-                    grantedBy = result.grantedBy?.toString(),
-                    grantedAt = result.grantedAt?.toString(),
-                ),
-            )
+            context.json(result.toResponse())
         }
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import com.companyb.companyapp.ui.screen.FinanceReportsScreen
 import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.ReliefAccessCard
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
@@ -57,6 +59,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
@@ -203,7 +206,13 @@ internal fun MobileAppNavHost(
                     composable<Route.Dashboard> {
                         val dashboardViewModel: SessionDashboardViewModel =
                             viewModel { SessionDashboardViewModel(apiClient) }
+                        // #351 — entry-scoped relief-access VM (the #112 self-cleaning shape).
+                        val reliefAccessViewModel: ReliefAccessViewModel =
+                            viewModel { ReliefAccessViewModel(apiClient) }
                         val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+                        val branchDayId by SessionState.branchDayId.collectAsState()
+                        val currentUserId by SessionState.currentUser.collectAsState()
+                        val isRelief by SessionState.isRelief.collectAsState()
                         SessionDashboardScreen(
                             viewModel = dashboardViewModel,
                             selectedBranchName = selectedBranchName,
@@ -216,6 +225,21 @@ internal fun MobileAppNavHost(
                             },
                             // #348 — the dashboard's entry into the start-a-session flow.
                             onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
+                            reliefAccessContent = {
+                                val dayId = branchDayId
+                                if (dayId != null) {
+                                    LaunchedEffect(dayId) {
+                                        reliefAccessViewModel.resetActionStates()
+                                        reliefAccessViewModel.loadRequests(dayId)
+                                    }
+                                    ReliefAccessCard(
+                                        viewModel = reliefAccessViewModel,
+                                        branchDayId = dayId,
+                                        currentUserId = currentUserId?.id,
+                                        isReliefUser = isRelief,
+                                    )
+                                }
+                            },
                         )
                     }
                     composable<Route.Clients> {
