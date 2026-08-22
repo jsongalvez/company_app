@@ -402,6 +402,12 @@ supervise_session() {
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
   local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id=""
+  # Progress guard: a worker that answers every recovery prompt with zero token
+  # growth (the "Stopped."-zombie class) is finished or wedged, not recoverable
+  # by repetition. After 3 fruitless prompts the daemon abandons in-place
+  # recovery and respawns fresh for the newest unprocessed packet — the chain
+  # keeps going without burning tokens on a done worker.
+  local fruitless=0 last_nudge_tokens=-1 total=""
   while :; do
     sleep "$TICK_SECS"
     # completion first: a finished session writes its handoff doc as its final act
@@ -425,8 +431,11 @@ supervise_session() {
       [ -f "$HANDOFF_DIR/$pending_doc" ] || die "pending handoff disappeared: $pending_doc"
       log "session $session_id completed; next handoff: $pending_doc"
       notify "wayfinder session done" "handoff written: $pending_doc — starting next"
+      # NOT marked seen here: spawn_session marks the doc AS SPAWNED, after its
+      # prompt lands. Marking earlier opened a crash window (2026-08-22: daemon
+      # killed while the dirty-tree gate held the spawn — packet swallowed,
+      # never requeued, supervisor resumed a finished session instead).
       last_doc="$pending_doc"
-      mark_seen "$pending_doc"
       pending_doc=""
       save_state
       spawn_session "$last_doc" || { log "dry-run: chain would continue"; exit 0; }
@@ -531,6 +540,23 @@ supervise_session() {
     # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
+      total="$(printf '%s' "$sess" | jq -r '(.data.tokens.input // 0) + (.data.tokens.output // 0) + (.data.tokens.reasoning // 0)' 2>/dev/null || echo -1)"
+      if [ "$last_nudge_tokens" -ge 0 ] && [ "$total" -eq "$last_nudge_tokens" ]; then
+        fruitless=$((fruitless + 1))
+      else
+        fruitless=0
+      fi
+      last_nudge_tokens="$total"
+      if [ "$fruitless" -ge 3 ]; then
+        log "session $session_id gave no progress across $fruitless recovery prompts — respawning fresh"
+        notify "wayfinder respawning" "session $session_id wedged or already finished — spawning a fresh worker"
+        session_id=""
+        retries=0
+        save_state
+       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""; fruitless=0; last_nudge_tokens=-1; fruitless=0; last_nudge_tokens=-1
+        wait_for_doc
+        continue
+      fi
       if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
