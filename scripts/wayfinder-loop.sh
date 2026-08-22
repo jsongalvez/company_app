@@ -37,6 +37,24 @@ DISK_FLOOR_GB="${WAYFINDER_DISK_FLOOR_GB:-5}"
 DRY_RUN="${WAYFINDER_DRY_RUN:-}"
 OC_BIN="${OPENCODE_BIN:-$(command -v opencode2 || command -v opencode || true)}"
 
+# Canonical nudge for the two automatic recovery paths (immediate-stop detector and
+# stall/interruption resume). One shared message: it must be safe to receive at any
+# lifecycle point and any number of times, so the session re-derives its next action
+# from its own state instead of from this message's arrival or repetition.
+NUDGE="Your previous execution ended before this session reached its required lifecycle endpoint. This is an automatic recovery message, not a user instruction and not a signal to wrap up, reduce scope, or stop. Do not infer from this message, or from receiving it repeatedly, that time, context, or execution budget is running out.
+
+Resume the session from its existing Wayfinder lifecycle state. Do not treat this recovery message itself as a reason to change phase, abandon work, or write a handoff.
+
+If this session has a currently claimed unfinished ticket, continue only that ticket. Do not claim, create, or resolve a different ticket. Continue through the normal required implementation, verification, tracker, and map-update lifecycle.
+
+If the claimed ticket has already been resolved, complete any remaining required tracker or map updates, then write the successor handoff as the session's final action. Do not claim another ticket in this session.
+
+If no ticket has yet been claimed, resume the normal Wayfinder lifecycle from the map and incoming handoff; do not create a checkpoint-only handoff merely because this interruption occurred.
+
+A legitimate lifecycle handoff is still allowed when required by the existing session instructions, including approaching the context limit or reaching a concrete blocker with no safe continuation. If stopping with unfinished work, leave the worktree clean: park unfinished changes as required and record the stash reference in the handoff.
+
+When writing the successor handoff, record the claimed ticket, phase, completed work, verification and evidence, tracker/map state, blockers, last verified commit where applicable, and exact next action; then stop."
+
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; echo "$(date '+%T') $*"; }
 die() { log "FATAL: $*"; notify "wayfinder-loop FAILED" "$*"; exit 1; }
 
@@ -449,7 +467,7 @@ supervise_session() {
     # as the completed message appears; message-id dedupe prevents a 5-second prompt loop.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
-      if api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You stopped without writing the required handoff. Do not claim, create, or resolve another ticket in this session. Continue only the currently claimed ticket if it is unfinished. If current work is finished, or no ticket is claimed, write the successor handoff now as your final action. Record completed work, verification, tracker state, and next frontier; then stop."}')" >/dev/null 2>&1; then
+      if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
         notify "wayfinder continuing" "session $session_id stopped without handoff — continuation sent"
@@ -520,7 +538,7 @@ session_dead() {
     save_state
     log "resuming stalled session $session_id (attempt $retries/2)"
     notify "wayfinder resuming" "session $session_id stalled — asking it to continue where it left off"
-    if ! api post "/api/session/$session_id/prompt" --data "$(jq -nc '{text: "You were interrupted mid-session. Continue exactly where you left off, per your session instructions. Do not claim, create, or resolve another ticket. Finish only currently claimed ticket; if finished, write successor handoff as final action."}')" >/dev/null 2>&1; then
+    if ! api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
       log "resume prompt failed for $session_id — falling back to fresh spawn"
       session_dead fresh
     fi
