@@ -1,12 +1,30 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.NotificationRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.findDisplayNamesByIds
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.NotificationCreateParams
 import com.companyb.companyapp.service.branchday.BranchDayService
 import java.time.LocalDate
 import java.util.UUID
+
+/** Where + when a relief event happened; every broadcast names the branch and day. */
+data class ReliefEventContext(
+    val branchId: UUID,
+    val branchName: String,
+    val date: LocalDate,
+) {
+    companion object {
+        fun of(branchDay: BranchDay): ReliefEventContext =
+            ReliefEventContext(
+                branchId = branchDay.branchId,
+                branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
+                date = branchDay.date,
+            )
+    }
+}
 
 /**
  * Relief notification events (#358, rules from the #352 resolution). Every function runs
@@ -30,19 +48,16 @@ internal object ReliefNotifications {
     fun requestCreated(
         requestId: UUID,
         requesterId: UUID,
-        branchId: UUID,
-        branchName: String,
-        date: LocalDate,
+        context: ReliefEventContext,
     ) {
         val names = findDisplayNamesByIds(listOf(requesterId))
         val requesterName = names[requesterId] ?: "A user"
         broadcast(
             eventType = REQUESTED,
             sourceId = requestId,
-            branchId = branchId,
-            date = date,
-            recipients = members(branchId),
-            message = "$requesterName requested relief duty at $branchName ${dayPhrase(date)}",
+            recipients = members(context.branchId),
+            message = "$requesterName requested relief duty at ${context.branchName} ${dayPhrase(context.date)}",
+            context = context,
         )
     }
 
@@ -52,9 +67,7 @@ internal object ReliefNotifications {
         requestId: UUID,
         actorId: UUID,
         requesterId: UUID,
-        branchId: UUID,
-        branchName: String,
-        date: LocalDate,
+        context: ReliefEventContext,
     ) {
         val names = findDisplayNamesByIds(listOf(actorId, requesterId))
         val actorName = names[actorId] ?: "A member"
@@ -63,12 +76,11 @@ internal object ReliefNotifications {
         broadcast(
             eventType = eventType,
             sourceId = requestId,
-            branchId = branchId,
-            date = date,
-            recipients = members(branchId) + requesterId,
+            recipients = members(context.branchId) + requesterId,
             message =
                 "$actorName $verb $requesterName's relief duty request " +
-                    "at $branchName ${dayPhrase(date)}",
+                    "at ${context.branchName} ${dayPhrase(context.date)}",
+            context = context,
         )
     }
 
@@ -77,19 +89,16 @@ internal object ReliefNotifications {
         eventType: String,
         inviteId: UUID,
         inviteeId: UUID,
-        branchId: UUID,
-        branchName: String,
-        date: LocalDate,
+        context: ReliefEventContext,
     ) {
         val inviteeName = findDisplayNamesByIds(listOf(inviteeId))[inviteeId] ?: "A user"
         val verb = if (eventType == INVITE_ACCEPTED) "accepted" else "declined"
         broadcast(
             eventType = eventType,
             sourceId = inviteId,
-            branchId = branchId,
-            date = date,
-            recipients = members(branchId),
-            message = "$inviteeName $verb the relief invite at $branchName ${dayPhrase(date)}",
+            recipients = members(context.branchId),
+            message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
+            context = context,
         )
     }
 
@@ -100,9 +109,7 @@ internal object ReliefNotifications {
     fun requestExpired(
         requestId: UUID,
         requesterId: UUID,
-        branchId: UUID,
-        branchName: String,
-        date: LocalDate,
+        context: ReliefEventContext,
     ): Int {
         val originalPingList = NotificationRepository.findUsersBySource(REQUESTED, requestId)
         if (originalPingList.isEmpty()) return 0
@@ -111,12 +118,11 @@ internal object ReliefNotifications {
         return broadcast(
             eventType = EXPIRED,
             sourceId = requestId,
-            branchId = branchId,
-            date = date,
             recipients = originalPingList,
             message =
-                "$requesterName's relief duty request at $branchName on $date " +
+                "$requesterName's relief duty request at ${context.branchName} on ${context.date} " +
                     "expired unanswered",
+            context = context,
         )
     }
 
@@ -130,21 +136,20 @@ internal object ReliefNotifications {
     private fun broadcast(
         eventType: String,
         sourceId: UUID,
-        branchId: UUID,
-        date: LocalDate,
         recipients: Collection<UUID>,
         message: String,
+        context: ReliefEventContext,
     ): Int =
         NotificationRepository.insertBatch(
             recipients.distinct().map { recipient ->
                 NotificationCreateParams(
                     sessionId = null,
                     userId = recipient,
-                    branchId = branchId,
+                    branchId = context.branchId,
                     message = message,
                     eventType = eventType,
                     sourceId = sourceId,
-                    targetDate = date,
+                    targetDate = context.date,
                 )
             },
         )

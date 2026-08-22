@@ -8,7 +8,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -153,9 +152,7 @@ object ReliefInviteService {
                     eventType = ReliefNotifications.INVITE_ACCEPTED,
                     inviteId = inviteId,
                     inviteeId = callerId,
-                    branchId = branchDay.branchId,
-                    branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
-                    date = branchDay.date,
+                    context = ReliefEventContext.of(branchDay),
                 )
                 mutation.after
             }
@@ -183,9 +180,7 @@ object ReliefInviteService {
                     eventType = ReliefNotifications.INVITE_DECLINED,
                     inviteId = inviteId,
                     inviteeId = callerId,
-                    branchId = branchDay.branchId,
-                    branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
-                    date = branchDay.date,
+                    context = ReliefEventContext.of(branchDay),
                 )
                 mutation.after
             }

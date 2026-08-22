@@ -118,9 +118,7 @@ object ReliefAccessService {
                         requestId = requestId,
                         actorId = callerId,
                         requesterId = request.requestedBy,
-                        branchId = branchDay.branchId,
-                        branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
-                        date = branchDay.date,
+                        context = ReliefEventContext.of(branchDay),
                     )
                 }
                 mutation.after
@@ -171,9 +169,7 @@ object ReliefAccessService {
                         requestId = requestId,
                         actorId = callerId,
                         requesterId = request.requestedBy,
-                        branchId = branchDay.branchId,
-                        branchName = BranchRepository.findById(branchDay.branchId)?.name ?: "branch",
-                        date = branchDay.date,
+                        context = ReliefEventContext.of(branchDay),
                     )
                 }
                 mutation.after
@@ -302,9 +298,12 @@ object ReliefAccessService {
                     ReliefNotifications.requestCreated(
                         requestId = requestId,
                         requesterId = callerId,
-                        branchId = branchId,
-                        branchName = branch.name,
-                        date = operationalDate,
+                        context =
+                            ReliefEventContext(
+                                branchId = branchId,
+                                branchName = branch.name,
+                                date = operationalDate,
+                            ),
                     )
                 }
                 pair

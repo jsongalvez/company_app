@@ -86,6 +86,7 @@ import java.util.UUID
     operationId = "relief_access_grant",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
+@Suppress("TooManyFunctions")
 object ReliefAccessRoutes {
     /**
      * Shared response mapper — every command and read projects the same shape. Branch
@@ -124,6 +125,7 @@ object ReliefAccessRoutes {
         return map { it.toResponse(requesterName = names[it.requestedBy]) }
     }
 
+    @Suppress("ThrowsCount")
     fun listReliefAccess(config: JavalinConfig) {
         config.routes.get(ApiRoutes.RELIEF_ACCESS) { context ->
             context.status(HttpStatus.OK)

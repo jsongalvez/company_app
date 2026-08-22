@@ -29,9 +29,12 @@ object ReliefRequestExpiryJob {
                 ReliefNotifications.requestExpired(
                     requestId = request.access.id,
                     requesterId = request.access.requestedBy,
-                    branchId = request.branchId,
-                    branchName = request.branchName,
-                    date = request.date,
+                    context =
+                        ReliefEventContext(
+                            branchId = request.branchId,
+                            branchName = request.branchName,
+                            date = request.date,
+                        ),
                 )
         }
         logger.info { "[RELIEF-EXPIRY] operationalDate=$today requests-announced=$announced" }
