@@ -105,11 +105,14 @@ Relief duty applies when any user — Practitioner or Coordinator — checks int
 ### Access
 
 - On check-in to a non-home branch, the user automatically has **view-only access** to all branch data for that day
-- To gain edit access, the relief user selects a specific currently checked-in user at that branch and sends an access request
-- Multiple concurrent requests targeting different users are allowed; first grant wins
-- Selected user(s) receive in-app notifications with explicit **Grant / Deny** choices
-- Any currently checked-in user at the branch can grant access — Coordinator presence is not required
-- Once granted, edit access is active until **04:00 AM Asia/Manila** of the following day
+- To gain edit access, the relief user raises **one broadcast request for the whole branch** — no specific recipient is selected
+- Requests name a branch and a date (**today by default, or any future date**); past dates are rejected
+- **Flood control:** one live request per requester per branch per date; after a denial, expiry, or cancellation they may ask again
+- Any active member of that branch can **grant**, **deny**, or **cancel** a pending request; the requester may **withdraw** their own while it is pending
+- All retraction locks once the requester clocks in as relief at that branch — the request then stands or falls with its grant decision
+- **Multiple relief workers may hold edit access at one branch on the same day** — grants do not compete
+- The whole branch hears every request and outcome via notifications with explicit **Grant / Deny** choices
+- Once granted, edit access is active until **04:00 AM Asia/Manila** of the following day and is scoped to that one day only
 - If relief duty spans multiple days, a new access request must be made each day
 - Edit access allows: signing in clients for sessions, adding practitioners to sessions, adding product sales, and receiving commission pool splits
 

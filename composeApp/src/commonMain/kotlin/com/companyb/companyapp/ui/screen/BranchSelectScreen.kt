@@ -43,6 +43,7 @@ import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
+import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import kotlinx.datetime.plus
@@ -65,6 +66,7 @@ import kotlinx.datetime.plus
 fun BranchSelectScreen(
     viewModel: BranchSelectViewModel,
     reliefInviteViewModel: ReliefInviteViewModel,
+    reliefAccessViewModel: ReliefAccessViewModel,
     onClockInComplete: () -> Unit,
 ) {
     val branchesState by viewModel.branches.collectAsState()
@@ -132,7 +134,13 @@ fun BranchSelectScreen(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(modifier = Modifier.height(Spacing.md))
+        Spacer(modifier = Modifier.height(Spacing.sm))
+
+        // #357 — the outsider's pre-clock-in relief request (collapsed by default so the
+        // clock-in flow stays primary).
+        ReliefRequestPanel(viewModel = reliefAccessViewModel)
+
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
         when (val state = branchesState) {
             is UiState.Loading -> {

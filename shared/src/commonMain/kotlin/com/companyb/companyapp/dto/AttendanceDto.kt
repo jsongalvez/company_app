@@ -1,5 +1,6 @@
 package com.companyb.companyapp.dto
 
+import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import kotlinx.serialization.Serializable
 
@@ -39,8 +40,9 @@ data class ClockOutResponse(
 @Serializable
 data class ReliefAccessRequest(
     val requestId: String,
-    val branchDayId: String,
-    val targetUserId: String,
+    val branchId: String,
+    /** ISO yyyy-MM-dd; null = the current operational day (Asia/Manila). Future dates allowed. */
+    val date: String? = null,
     val reason: String? = null,
 )
 
@@ -60,7 +62,17 @@ data class ReliefAccessResponse(
     val branchDayId: String,
     val requestedBy: String,
     val requestStatus: ReliefAccessStatus,
-    val targetUser: String,
     val grantedBy: String? = null,
     val grantedAt: String? = null,
+    /** Branch context — populated on the mine list only (the per-day read implies it). */
+    val branchId: String? = null,
+    val branchName: String? = null,
+    val date: String? = null,
+)
+
+@Serializable
+data class ReliefBranchOptionResponse(
+    val branchId: String,
+    val branchName: String,
+    val branchType: BranchType,
 )

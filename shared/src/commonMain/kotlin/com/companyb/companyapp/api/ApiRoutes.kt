@@ -296,9 +296,9 @@ object ApiRoutes {
     fun reliefAccessRequest(id: String) = "$RELIEF_ACCESS/$id"
 
     const val RELIEF_ACCESS_REQUEST = "$RELIEF_ACCESS/request"
-    const val RELIEF_ACCESS_CANDIDATES = "$RELIEF_ACCESS/candidates"
-
-    fun reliefAccessCandidates(branchDayId: String) = "$RELIEF_ACCESS_CANDIDATES?branchDayId=$branchDayId"
+    const val RELIEF_ACCESS_MINE = "$RELIEF_ACCESS/mine"
+    const val RELIEF_ACCESS_BRANCH_OPTIONS = "$RELIEF_ACCESS/branch-options"
+    const val RELIEF_ACCESS_CANCEL_PATH = "$RELIEF_ACCESS/{requestId}/cancel"
 
     fun reliefAccessList(branchDayId: String) = "$RELIEF_ACCESS?branchDayId=$branchDayId"
 

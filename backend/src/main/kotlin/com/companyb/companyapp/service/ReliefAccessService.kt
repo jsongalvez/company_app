@@ -1,20 +1,24 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.domain.ReliefAccessStatus
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.GrantWithCapabilityParams
 import com.companyb.companyapp.repository.ReliefAccessRepository
+import com.companyb.companyapp.repository.ReliefRequestWithBranch
+import com.companyb.companyapp.repository.UserBranchAssignmentRepository
+import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
-import com.companyb.companyapp.service.attendance.AttendanceService
-import com.companyb.companyapp.service.attendance.BranchDayUser
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -22,66 +26,59 @@ import java.util.UUID
  * transaction: the Branch Day gate runs inside it, persistence runs via
  * `ReliefAccessRepository.*InTransaction` store operations, and the audit row is inserted
  * into the same transaction — so mutation + audit commit atomically or not at all.
+ *
+ * #357 broadcast model: a request names no target user (the #352 rules change) and is
+ * branch-day-scoped; any ACTIVE user without a home assignment at the branch may raise
+ * one for today or a future date, every branch member can grant/deny/cancel it, and all
+ * retraction locks once the requester clocks in. The #354 supersede machinery is retired:
+ * multiple relief workers per branch-day are allowed, so there is no cross-request race
+ * to arbitrate.
  */
 object ReliefAccessService {
     private val logger = KotlinLogging.logger {}
 
     /**
-     * Caller-relative discovery (#351): pending requests targeting the caller (the grant
-     * surface) plus the caller's own outgoing requests (the outcome view) for one branch
-     * day. Authorization is row ownership — the query only returns rows involving the
-     * caller, so bearer auth suffices (the #141 notification-as-authorization precedent);
-     * no capability gate exists on this read by design.
+     * Per-day request surface (#357): branch members see every request on the day (the
+     * broadcast audience); non-members see only their own rows. Authorization is bearer +
+     * row scoping (the #141 notification-as-authorization precedent); no capability gate.
      */
     fun listForCaller(
         callerId: UUID,
         branchDayId: UUID,
-    ): List<ReliefAccess> = ReliefAccessRepository.findInvolving(callerId, branchDayId)
-
-    /**
-     * Checked-in users a relief user may target for an access request (#351), caller
-     * excluded. Gated on the caller's own active clock-in at the branch day — the
-     * dashboard universal-post-clock-in precedent: pre-grant relief users hold no
-     * capabilities, so a capability gate would 403 the primary flow.
-     */
-    fun listCandidates(
-        callerId: UUID,
-        branchDayId: UUID,
-    ): List<BranchDayUser> {
-        if (!AttendanceService.hasActiveClockIn(callerId, branchDayId)) {
-            throw ForbiddenException("Only users with an active clock-in can list relief candidates")
-        }
-        return AttendanceService.findUsersByBranchDayId(branchDayId).filterNot { it.userId == callerId }
+    ): List<ReliefAccess> {
+        val requests = ReliefAccessRepository.findByBranchDayId(branchDayId)
+        if (requests.isEmpty()) return requests
+        val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
+        val isMember = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null
+        return if (isMember) requests else requests.filter { it.requestedBy == callerId }
     }
 
-    @Suppress("ThrowsCount", "ReturnCount")
+    /** The caller's own requests across branches/days with branch context (#357). */
+    fun listMine(callerId: UUID): List<ReliefRequestWithBranch> = ReliefAccessRepository.findMine(callerId)
+
+    /**
+     * Active branches for the pre-clock-in request picker (#357). Bearer-only: the
+     * requester holds no capabilities by definition (the dashboard universal-read
+     * precedent — a capability gate would 403 the primary flow).
+     */
+    fun listBranchOptions(): List<Branch> = BranchRepository.findAll()
+
+    @Suppress("ThrowsCount")
     fun grantAccess(
         requestId: UUID,
         callerId: UUID,
         reason: String? = null,
-    ): ReliefGrantOutcome {
+    ): ReliefAccess {
         val request =
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
 
-        if (callerId != request.targetUser) {
-            throw ForbiddenException("Only the target user can grant this request")
-        }
-
-        if (request.requestStatus == ReliefAccessStatus.GRANTED) {
-            return ReliefGrantOutcome.Granted(request)
-        }
+        requireBranchMembership(callerId, request.branchDayId)
 
         val result =
             transaction {
                 val (branchDay, isRemitted) =
                     BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
-
-                // #354 edge 2: presence was checked when the request was created; recheck it
-                // atomically here so a target who clocked out cannot grant afterwards.
-                if (!ReliefAccessRepository.hasActiveClockInInTransaction(request.targetUser, request.branchDayId)) {
-                    throw ValidationException("Target user does not have an active clock-in on this branch day")
-                }
 
                 val mutation =
                     ReliefAccessRepository.grantInTransaction(
@@ -92,7 +89,6 @@ object ReliefAccessService {
                             branchDayId = request.branchDayId,
                             sourceId = requestId,
                             validTo = BranchDayService.expirationUtc(branchDay.date),
-                            requestedBy = request.requestedBy,
                         ),
                     ) ?: error("Grant failed: relief access request not found in transaction")
 
@@ -106,22 +102,11 @@ object ReliefAccessService {
                 mutation.after
             }
 
-        return when {
-            result.id == requestId && result.requestStatus == ReliefAccessStatus.GRANTED -> {
-                logger.info { "[RELIEF-ACCESS-GRANT] Request $requestId granted by $callerId" }
-                ReliefGrantOutcome.Granted(result)
-            }
-
-            else -> {
-                // #354 edge 3: another decision won the day-row lock (a different request of
-                // the same requester got granted, or this one was denied concurrently).
-                logger.info {
-                    "[RELIEF-ACCESS-GRANT] Request $requestId superseded — returning winner ${result.id} " +
-                        "(${result.requestStatus}) to caller $callerId"
-                }
-                ReliefGrantOutcome.Superseded(result)
-            }
+        logger.info {
+            "[RELIEF-ACCESS-GRANT] Request $requestId handled by $callerId " +
+                "(status=${result.requestStatus}, updated=${result.requestStatus == ReliefAccessStatus.GRANTED})"
         }
+        return result
     }
 
     @Suppress("ThrowsCount")
@@ -134,9 +119,7 @@ object ReliefAccessService {
             ReliefAccessRepository.findById(requestId)
                 ?: throw NotFoundException("Relief access request not found")
 
-        if (callerId != request.targetUser) {
-            throw ForbiddenException("Only the target user can deny this request")
-        }
+        requireBranchMembership(callerId, request.branchDayId)
 
         if (request.requestStatus == ReliefAccessStatus.DENIED) {
             return request
@@ -171,47 +154,117 @@ object ReliefAccessService {
         return result
     }
 
+    /**
+     * Withdraw/cancel (#357, owner rule "one rule for both"): the requester withdraws
+     * theirs, any active branch member cancels someone else's pending ask; both die once
+     * the requester has clocked in at the branch day.
+     */
     @Suppress("ThrowsCount")
-    fun requestReliefAccess(
+    fun cancelRequest(
         requestId: UUID,
-        branchDayId: UUID,
-        targetUserId: UUID,
         callerId: UUID,
         reason: String? = null,
     ): ReliefAccess {
-        if (targetUserId == callerId) {
-            // #354 edge 1: the candidate listing excludes the caller; this guard closes the
-            // direct-API hole so a relief user cannot request access through themselves.
-            throw ValidationException("Cannot request relief access from yourself")
+        val request =
+            ReliefAccessRepository.findById(requestId)
+                ?: throw NotFoundException("Relief access request not found")
+
+        val isRequester = request.requestedBy == callerId
+        if (!isRequester) {
+            requireBranchMembership(callerId, request.branchDayId)
+        }
+
+        val result =
+            transaction {
+                val (branchDay, isRemitted) =
+                    // The day gate only arbitrates edit authority for members; a withdrawing
+                    // requester acts on their own row regardless of day state (a scheduled
+                    // ask can be withdrawn before its day even opens).
+                    if (isRequester) {
+                        BranchDayService.requireBranchDayExists(request.branchDayId).let {
+                            it to false
+                        }
+                    } else {
+                        BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
+                    }
+
+                // Owner rule: ALL retraction stops once the requester clocks in as relief.
+                if (ReliefAccessRepository.hasActiveClockInInTransaction(request.requestedBy, request.branchDayId)) {
+                    throw ValidationException(
+                        "Relief duty has already started — this request can no longer be cancelled",
+                    )
+                }
+
+                val mutation = ReliefAccessRepository.cancelInTransaction(requestId)
+                if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.CANCELLED) {
+                    throw ConflictException(
+                        "This relief request was already decided (${mutation.after.requestStatus})",
+                    )
+                }
+                if (mutation.updated) {
+                    ReliefAccessAudit.updated(
+                        AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                        mutation.before,
+                        mutation.after,
+                    )
+                }
+                mutation.after
+            }
+
+        logger.info {
+            "[RELIEF-ACCESS-CANCEL] Request $requestId cancelled by $callerId (requester=$isRequester)"
+        }
+        return result
+    }
+
+    @Suppress("ThrowsCount")
+    fun requestReliefAccess(
+        requestId: UUID,
+        branchId: UUID,
+        date: LocalDate?,
+        callerId: UUID,
+        reason: String? = null,
+    ): ReliefAccess {
+        if (BranchRepository.findById(branchId) == null) {
+            throw NotFoundException("Branch not found")
+        }
+        if (!ReliefAccessRepository.isActiveUser(callerId)) {
+            throw ForbiddenException("Inactive users cannot request relief duty")
+        }
+        if (UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null) {
+            throw ValidationException("You are already assigned to this branch — relief duty does not apply")
+        }
+
+        val operationalDate = date ?: BranchDayService.currentOperationalDate()
+        if (operationalDate < BranchDayService.currentOperationalDate()) {
+            throw ValidationException("Relief duty cannot be requested for a past date")
         }
 
         val (reliefAccess, wasCreated) =
             transaction {
-                val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, branchDayId, reason)
-
-                // #354 edges 2+4: eligibility rechecked atomically at write time — presence
-                // and account status can change between listing and request.
-                if (!ReliefAccessRepository.hasActiveClockInInTransaction(targetUserId, branchDayId)) {
-                    throw ValidationException("Target user does not have an active clock-in on this branch day")
-                }
-                if (!ReliefAccessRepository.isActiveUserInTransaction(targetUserId)) {
-                    throw ValidationException("Target user is not active")
-                }
-                if (!ReliefAccessRepository.isReliefUserInTransaction(callerId, branchDayId)) {
-                    throw ForbiddenException("Only relief users can request relief access")
-                }
+                val (branchDay, isRemitted) =
+                    BranchDayService.checkBranchDayEditable(
+                        callerId,
+                        BranchDayService.resolveOrCreate(branchId, operationalDate).id,
+                        reason,
+                    )
 
                 val pair =
                     ReliefAccessRepository.insertRequestInTransaction(
                         id = requestId,
-                        branchDayId = branchDayId,
+                        branchDayId = branchDay.id,
                         requestedBy = callerId,
-                        targetUser = targetUserId,
                     )
+                if (pair.first == null) {
+                    // A different live request stands for this branch day — the #352 Q4
+                    // flood rule. Throw inside the transaction so the swallowed insert
+                    // and the conflict commit atomically as nothing.
+                    throw ConflictException("You already have a live relief request for this branch day")
+                }
                 if (pair.second) {
                     ReliefAccessAudit.inserted(
                         AuditContext(callerId, branchDay.branchId, isRemitted, reason),
-                        pair.first,
+                        checkNotNull(pair.first),
                     )
                 }
                 pair
@@ -219,29 +272,22 @@ object ReliefAccessService {
 
         logger.info {
             "[RELIEF-ACCESS-REQUEST] Request $requestId created " +
-                "(relief=$callerId, target=$targetUserId, new=$wasCreated)"
+                "(relief=$callerId, branch=$branchId, date=$operationalDate, replay=${!wasCreated})"
         }
 
-        return reliefAccess
+        return checkNotNull(reliefAccess) { "conflict path already threw" }
     }
-}
 
-/**
- * Grant outcome (#354 edge 3): a caller whose grant lost a race must be able to tell that
- * apart from success — [Superseded] carries the row that actually won the day (another
- * granted request, or this request denied concurrently). Top-level so routes and tests can
- * pattern-match without nesting.
- */
-sealed interface ReliefGrantOutcome {
-    /** The caller's grant won; includes idempotent replays of an already-granted request. */
-    data class Granted(
-        val reliefAccess: ReliefAccess,
-    ) : ReliefGrantOutcome
-
-    /** This decision did not win — [reliefAccess] is the surviving row, not the caller's request. */
-    data class Superseded(
-        val reliefAccess: ReliefAccess,
-    ) : ReliefGrantOutcome
+    /** Grant/deny/cancel authority: an ACTIVE home assignment at the branch (invite precedent). */
+    private fun requireBranchMembership(
+        callerId: UUID,
+        branchDayId: UUID,
+    ) {
+        val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
+        if (UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) == null) {
+            throw ForbiddenException("An active assignment at this branch is required")
+        }
+    }
 }
 
 /**

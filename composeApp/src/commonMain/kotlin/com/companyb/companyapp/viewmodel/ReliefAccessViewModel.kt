@@ -3,9 +3,9 @@ package com.companyb.companyapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
-import com.companyb.companyapp.dto.BranchDayUserResponse
 import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.dto.ReliefBranchOptionResponse
 import com.companyb.companyapp.network.ApiClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -16,19 +16,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
- * Relief access flow (#351) — both BR surfaces in one VM:
+ * Relief access flow (#357 broadcast model):
  *
- * - **Target** (a checked-in user others asked for): [loadRequests] returns PENDING rows
- *   targeting the caller; Grant/Deny act on those and reload.
- * - **Requester** (a relief user): the same list carries their outgoing requests' outcome
- *   (PENDING/GRANTED/DENIED); [requestAccess] creates one, [loadCandidates] feeds the
- *   checked-in-user picker.
+ * - **Member** (assigned at the branch): [loadRequests] returns every pending/decided
+ *   request on the day; Grant/Deny act on them and reload.
+ * - **Requester** (outsider): [requestAccess] raises one branch-day-scoped ask (today or
+ *   a future date); [loadMine] carries their outcome view across branches; [cancel]
+ *   withdraws while the day has not started.
  *
- * The server scopes every row to caller involvement (target or requester), so one GET
- * serves both surfaces. The VM is entry-scoped at its call site (the #112 self-cleaning
- * pattern).
+ * Entry-scoped at each call site (the #112 self-cleaning pattern).
  */
 class ReliefAccessViewModel(
     private val apiClient: ApiClient,
@@ -41,8 +41,12 @@ class ReliefAccessViewModel(
     val requests: StateFlow<UiState<List<ReliefAccessResponse>>> = keptRequests.state
     val freshestRequests: StateFlow<List<ReliefAccessResponse>?> = keptRequests.freshest
 
-    private val _candidates = MutableStateFlow<UiState<List<BranchDayUserResponse>>>(UiState.Idle)
-    val candidates: StateFlow<UiState<List<BranchDayUserResponse>>> = _candidates.asStateFlow()
+    private val keptMine = KeepLast<List<ReliefAccessResponse>>(viewModelScope)
+    val mine: StateFlow<UiState<List<ReliefAccessResponse>>> = keptMine.state
+    val freshestMine: StateFlow<List<ReliefAccessResponse>?> = keptMine.freshest
+
+    private val _branchOptions = MutableStateFlow<UiState<List<ReliefBranchOptionResponse>>>(UiState.Idle)
+    val branchOptions: StateFlow<UiState<List<ReliefBranchOptionResponse>>> = _branchOptions.asStateFlow()
 
     private val _requestResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val requestResult: StateFlow<UiState<Unit>> = _requestResult.asStateFlow()
@@ -52,6 +56,9 @@ class ReliefAccessViewModel(
 
     private val _denyResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val denyResult: StateFlow<UiState<Unit>> = _denyResult.asStateFlow()
+
+    private val _cancelResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val cancelResult: StateFlow<UiState<Unit>> = _cancelResult.asStateFlow()
 
     // Bumped on every successful action: a load landing with a mismatched stamp predates the
     // action and must not commit its pre-action snapshot (the #141/#165 stamp pattern).
@@ -84,18 +91,33 @@ class ReliefAccessViewModel(
             },
         )
 
-    fun loadCandidates(branchDayId: String): Job =
+    /** The caller's own asks across branches/days — the pre-clock-in outcome view (#357). */
+    fun loadMine(): Job =
         handler.launch(
-            state = _candidates,
-            operation = "loadCandidates",
-            endpoint = "GET /api/relief-access/candidates?branchDayId=$branchDayId",
-            block = { apiClient.httpClient.get(ApiRoutes.reliefAccessCandidates(branchDayId)) },
+            state = keptMine.stateFlow,
+            operation = "loadMine",
+            endpoint = "GET ${ApiRoutes.RELIEF_ACCESS_MINE}",
+            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_ACCESS_MINE) },
+            transform = { it.body<List<ReliefAccessResponse>>() },
+            stamp = { actionStamp },
+            fallback = {
+                loadMine()
+                keptMine.freshestValue() ?: emptyList()
+            },
+        )
+
+    fun loadBranchOptions(): Job =
+        handler.launch(
+            state = _branchOptions,
+            operation = "loadBranchOptions",
+            endpoint = "GET ${ApiRoutes.RELIEF_ACCESS_BRANCH_OPTIONS}",
+            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_ACCESS_BRANCH_OPTIONS) },
             transform = { it.body() },
         )
 
     fun requestAccess(
-        request: ReliefAccessRequest,
-        branchDayId: String,
+        branchId: String,
+        date: String?,
     ): Job =
         handler.launch(
             state = _requestResult,
@@ -103,12 +125,12 @@ class ReliefAccessViewModel(
             endpoint = "POST ${ApiRoutes.RELIEF_ACCESS_REQUEST}",
             block = {
                 apiClient.httpClient.post(ApiRoutes.RELIEF_ACCESS_REQUEST) {
-                    setBody(request)
+                    setBody(ReliefAccessRequest(requestId = newRequestId(), branchId = branchId, date = date))
                 }
             },
             transform = {
                 actionStamp++
-                refreshRequests(branchDayId)
+                loadMine()
                 Unit
             },
         )
@@ -145,11 +167,33 @@ class ReliefAccessViewModel(
             },
         )
 
+    /** Withdraw (requester) or cancel (branch member) a pending ask (#357). */
+    fun cancel(
+        requestId: String,
+        branchDayId: String?,
+    ): Job =
+        handler.launch(
+            state = _cancelResult,
+            operation = "cancelRequest",
+            endpoint = "PATCH ${ApiRoutes.reliefAccessRequest(requestId)}/cancel",
+            block = { apiClient.httpClient.patch(ApiRoutes.reliefAccessRequest(requestId) + "/cancel") },
+            transform = {
+                actionStamp++
+                loadMine()
+                branchDayId?.let(::refreshRequests)
+                Unit
+            },
+        )
+
     fun resetActionStates() {
         _requestResult.value = UiState.Idle
         _grantResult.value = UiState.Idle
         _denyResult.value = UiState.Idle
+        _cancelResult.value = UiState.Idle
     }
 
     private fun currentRequests(): List<ReliefAccessResponse>? = keptRequests.freshestValue()
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun newRequestId(): String = Uuid.random().toString()
 }

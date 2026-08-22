@@ -1,6 +1,5 @@
 package com.companyb.companyapp.viewmodel
 
-import com.companyb.companyapp.dto.ReliefAccessRequest
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.network.mockApiClient
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -31,10 +30,11 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
- * #351 — ReliefAccessViewModel flows: caller-relative discovery load (keep-last), Grant/Deny/
- * request actions (stamp bump + reload), candidates fetch, and the #141/#165 stamp guard — a
- * pre-action load landing late must not resurrect the pre-action snapshot. Entry-scoped VM —
- * no poll loop, so plain runTest drains are safe.
+ * #357 — ReliefAccessViewModel flows under the broadcast model: per-day discovery load
+ * (keep-last), Grant/Deny actions (stamp bump + reload), the mine list + branch options +
+ * request/withdraw cycle for the pre-clock-in requester, and the #141/#165 stamp guard —
+ * a pre-action load landing late must not resurrect the pre-action snapshot.
+ * Entry-scoped VM — no poll loop, so plain runTest drains are safe.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReliefAccessViewModelTest {
@@ -63,11 +63,18 @@ class ReliefAccessViewModelTest {
     private fun requestJson(
         id: String,
         status: String,
-        targetUser: String = "target-1",
         requestedBy: String = "requester-1",
-    ): String =
-        """{"id":"$id","branchDayId":"day-1","requestedBy":"$requestedBy",""" +
-            """"requestStatus":"$status","targetUser":"$targetUser"}"""
+        branchName: String? = null,
+    ): String {
+        val tail =
+            if (branchName != null) {
+                ",\"branchId\":\"b-1\",\"branchName\":\"$branchName\",\"date\":\"2026-08-22\"}"
+            } else {
+                "}"
+            }
+        return "{\"id\":\"$id\",\"branchDayId\":\"day-1\",\"requestedBy\":\"$requestedBy\"," +
+            "\"requestStatus\":\"$status\"$tail"
+    }
 
     @Test
     fun `loadRequests commits success and mirrors keep last`() =
@@ -188,17 +195,66 @@ class ReliefAccessViewModelTest {
         }
 
     @Test
-    fun `requestAccess posts to the request endpoint and reloads`() =
+    fun `cancel patches the cancel endpoint and refreshes mine`() =
         runTest(testScheduler) {
-            var postCalls = 0
-            var getCalls = 0
+            var cancelCalls = 0
+            var mineCalls = 0
             val apiClient =
                 mockApiClient(
                     handler {
                         when {
-                            it.url.encodedPath == "/api/relief-access" && it.method == HttpMethod.Get -> {
-                                getCalls++
-                                ok("[${requestJson("r9", "PENDING")}]")
+                            it.url.encodedPath == "/api/relief-access/mine" && it.method == HttpMethod.Get -> {
+                                mineCalls++
+                                ok(
+                                    "[${requestJson(
+                                        "r9",
+                                        if (mineCalls == 1) "PENDING" else "CANCELLED",
+                                        branchName = "Branch",
+                                    )}]",
+                                )
+                            }
+
+                            it.url.encodedPath == "/api/relief-access/r9/cancel" &&
+                                it.method == HttpMethod.Patch -> {
+                                cancelCalls++
+                                ok(requestJson("r9", "CANCELLED"))
+                            }
+
+                            else -> {
+                                error("unexpected ${it.method.value} ${it.url}")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefAccessViewModel(apiClient)
+            vm.loadMine()
+            runCurrent()
+            vm.cancel("r9", branchDayId = null)
+            runCurrent()
+            assertEquals(1, cancelCalls)
+            assertEquals(2, mineCalls, "cancel must refresh the mine list")
+            val state = vm.mine.value
+            assertIs<UiState.Success<List<ReliefAccessResponse>>>(state)
+            assertEquals(
+                "CANCELLED",
+                state.data
+                    .single()
+                    .requestStatus.name,
+            )
+        }
+
+    @Test
+    fun `requestAccess posts branch and date then refreshes mine`() =
+        runTest(testScheduler) {
+            var postCalls = 0
+            var mineCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-access/mine" && it.method == HttpMethod.Get -> {
+                                mineCalls++
+                                ok("[${requestJson("r9", "PENDING", branchName = "Branch")}]")
                             }
 
                             it.url.encodedPath == "/api/relief-access/request" &&
@@ -214,29 +270,23 @@ class ReliefAccessViewModelTest {
                     },
                 )
             val vm = ReliefAccessViewModel(apiClient)
-            vm.requestAccess(
-                ReliefAccessRequest(requestId = "r9", branchDayId = "day-1", targetUserId = "target-1"),
-                "day-1",
-            )
+            vm.requestAccess(branchId = "b-1", date = null)
             runCurrent()
             assertEquals(1, postCalls)
-            assertEquals(1, getCalls, "a created request must trigger a reload")
-            assertIs<UiState<Unit>>(vm.requestResult.value).let { state ->
-                assertTrue(state is UiState.Success)
-            }
+            assertEquals(1, mineCalls, "a created request must refresh the mine list")
+            assertTrue(vm.requestResult.value is UiState.Success)
         }
 
     @Test
-    fun `loadCandidates fetches checked-in users for the branch day`() =
+    fun `loadBranchOptions fetches the picker list`() =
         runTest(testScheduler) {
             val apiClient =
                 mockApiClient(
                     handler {
                         when {
-                            it.url.encodedPath == "/api/relief-access/candidates" &&
-                                it.method == HttpMethod.Get &&
-                                it.url.parameters["branchDayId"] == "day-1" -> {
-                                ok("""[{"userId":"u1","displayName":"Ana"}]""")
+                            it.url.encodedPath == "/api/relief-access/branch-options" &&
+                                it.method == HttpMethod.Get -> {
+                                ok("""[{"branchId":"b-1","branchName":"Main","branchType":"CLINIC"}]""")
                             }
 
                             else -> {
@@ -246,9 +296,9 @@ class ReliefAccessViewModelTest {
                     },
                 )
             val vm = ReliefAccessViewModel(apiClient)
-            vm.loadCandidates("day-1")
+            vm.loadBranchOptions()
             runCurrent()
-            val state = vm.candidates.value
+            val state = vm.branchOptions.value
             assertIs<UiState.Success<List<*>>>(state)
             assertEquals(1, state.data.size)
         }

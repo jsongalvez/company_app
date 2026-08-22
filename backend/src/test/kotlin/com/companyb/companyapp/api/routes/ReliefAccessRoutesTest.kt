@@ -11,10 +11,10 @@ import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.model.AppUserTable
-import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.JavalinTestServerRule
@@ -33,33 +33,36 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * #351 — the relief-access discovery surface: `GET /api/relief-access?branchDayId=` (caller-relative:
- * rows targeting or requested by the caller — ownership is the authorization, no capability gate)
- * and `GET /api/relief-access/candidates?branchDayId=` (checked-in users minus caller, gated on the
- * caller's own active clock-in — the dashboard universal-post-clock-in precedent; pre-grant relief
- * users hold no capabilities).
+ * #357 — the relief-access discovery surface under the broadcast model:
+ * `GET /api/relief-access?branchDayId=` (branch members see every row on the day; outsiders
+ * only their own), `GET /api/relief-access/mine` (the caller's asks with branch context),
+ * and `GET /api/relief-access/branch-options` (bearer-only picker for the pre-clock-in
+ * request flow). The #351 candidates endpoint is retired with targeting.
  */
 class ReliefAccessRoutesTest : BasePostgresTest() {
     private val requester = TestFixtures.uuid()
-    private val targetUser = TestFixtures.uuid()
+    private val otherRequester = TestFixtures.uuid()
+    private val memberId = TestFixtures.uuid()
     private val outsider = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
+    private val branchName = "ReliefRoutes-${branchId.toString().take(8)}"
     private val branchDayId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(requester, "requester")
         trackOwned(AppUserTable, AppUserTable.id, requester)
-        DatabaseTestHelper.insertTestUser(targetUser, "target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUser)
+        DatabaseTestHelper.insertTestUser(otherRequester, "requester-2")
+        trackOwned(AppUserTable, AppUserTable.id, otherRequester)
+        DatabaseTestHelper.insertTestUser(memberId, "member")
+        trackOwned(AppUserTable, AppUserTable.id, memberId)
         DatabaseTestHelper.insertTestUser(outsider, "outsider")
         trackOwned(AppUserTable, AppUserTable.id, outsider)
-        DatabaseTestHelper.insertTestBranch(branchId, "ReliefRoutes-${branchId.toString().take(8)}")
+        DatabaseTestHelper.insertTestBranch(branchId, branchName)
         trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId)
         trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
-        insertAttendance(TestFixtures.uuid(), requester, branchDayId)
-        insertAttendance(TestFixtures.uuid(), targetUser, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
+        DatabaseTestHelper.insertTestAssignment(userId = memberId, branchId = branchId, slot = 1, assignedBy = memberId)
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, memberId)
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.branchDayId, branchDayId)
     }
 
@@ -99,7 +102,8 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
                     ctx.status(409).json(mapOf("error" to (e.message ?: "Conflict")))
                 }
                 ReliefAccessRoutes.listReliefAccess(cfg)
-                ReliefAccessRoutes.listReliefCandidates(cfg)
+                ReliefAccessRoutes.listMine(cfg)
+                ReliefAccessRoutes.listBranchOptions(cfg)
             }
         }
     }
@@ -107,96 +111,83 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
     private fun asUser(user: UUID): Consumer<Request.Builder> = Consumer { it.header("X-Test-User", user.toString()) }
 
     @Test
-    fun `target user and requester each see the pending request - outsider sees none`() {
-        val requestId = TestFixtures.uuid()
-        insertRequest(requestId, requester, targetUser, branchDayId)
+    fun `member sees every request on the day - requesters see only their own`() {
+        val firstId = TestFixtures.uuid()
+        val secondId = TestFixtures.uuid()
+        insertRequest(firstId, requester, branchDayId)
+        insertRequest(secondId, otherRequester, branchDayId)
 
         testServer.client.let { client ->
-            val asTarget =
-                client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=$branchDayId", asUser(targetUser))
-            assertEquals(200, asTarget.code)
-            val targetBody = asTarget.body.string()
-            assertTrue(targetBody.contains("\"id\":\"$requestId\""), targetBody)
-            assertTrue(targetBody.contains("\"requestStatus\":\"PENDING\""), targetBody)
+            val asMember = client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=$branchDayId", asUser(memberId))
+            assertEquals(200, asMember.code)
+            val memberBody = asMember.body.string()
+            assertTrue(memberBody.contains("\"id\":\"$firstId\""), memberBody)
+            assertTrue(memberBody.contains("\"id\":\"$secondId\""), memberBody)
 
             val asRequester =
                 client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=$branchDayId", asUser(requester))
             assertEquals(200, asRequester.code)
-            assertTrue(asRequester.body.string().contains("\"id\":\"$requestId\""))
-
-            val asOutsider =
-                client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=$branchDayId", asUser(outsider))
-            assertEquals(200, asOutsider.code)
-            assertEquals(
-                "[]",
-                asOutsider.body
-                    .string()
-                    .orEmpty()
-                    .trim(),
-            )
+            val body = asRequester.body.string()
+            assertTrue(body.contains("\"id\":\"$firstId\""))
+            assertTrue(!body.contains("\"id\":\"$secondId\""), body)
         }
     }
 
     @Test
-    fun `list is scoped to one branch day`() {
+    fun `list is scoped to one branch day and requires the query param`() {
         val requestId = TestFixtures.uuid()
-        insertRequest(requestId, requester, targetUser, branchDayId)
-        val otherDayId = TestFixtures.uuid()
+        insertRequest(requestId, requester, branchDayId)
 
         testServer.client.let { client ->
-            val response =
-                client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=$otherDayId", asUser(targetUser))
-            assertEquals(200, response.code)
+            val otherDay = client.get("${ApiRoutes.RELIEF_ACCESS}?branchDayId=${TestFixtures.uuid()}", asUser(memberId))
+            assertEquals(200, otherDay.code)
             assertEquals(
                 "[]",
-                response.body
+                otherDay.body
                     .string()
                     .orEmpty()
                     .trim(),
             )
+
+            val missing = client.get(ApiRoutes.RELIEF_ACCESS, asUser(memberId))
+            assertEquals(400, missing.code)
         }
     }
 
     @Test
-    fun `list without branchDayId fails with 400`() {
-        testServer.client.let { client ->
-            val response = client.get(ApiRoutes.RELIEF_ACCESS, asUser(targetUser))
-            assertEquals(400, response.code)
-        }
-    }
+    fun `mine returns only the caller's rows with branch context`() {
+        val firstId = TestFixtures.uuid()
+        val secondId = TestFixtures.uuid()
+        insertRequest(firstId, requester, branchDayId)
+        insertRequest(secondId, otherRequester, branchDayId)
 
-    @Test
-    fun `candidates exclude the caller and include other clocked-in users`() {
         testServer.client.let { client ->
-            val response =
-                client.get(
-                    "${ApiRoutes.RELIEF_ACCESS_CANDIDATES}?branchDayId=$branchDayId",
-                    asUser(requester),
-                )
+            val response = client.get(ApiRoutes.RELIEF_ACCESS_MINE, asUser(requester))
             assertEquals(200, response.code)
             val body = response.body.string()
-            assertTrue(body.contains("\"userId\":\"$targetUser\""), body)
-            assertTrue(!body.contains("\"userId\":\"$requester\""), body)
+            assertTrue(body.contains("\"id\":\"$firstId\""), body)
+            assertTrue(!body.contains("\"id\":\"$secondId\""), body)
+            assertTrue(body.contains("\"branchId\":\"$branchId\""), body)
+            assertTrue(body.contains(branchName), body)
         }
     }
 
     @Test
-    fun `candidates require an active clock-in for the caller`() {
+    fun `branch options list every branch bearer-authenticated`() {
         testServer.client.let { client ->
-            val response =
-                client.get(
-                    "${ApiRoutes.RELIEF_ACCESS_CANDIDATES}?branchDayId=$branchDayId",
-                    asUser(outsider),
-                )
-            assertEquals(403, response.code)
+            val response = client.get(ApiRoutes.RELIEF_ACCESS_BRANCH_OPTIONS, asUser(requester))
+            assertEquals(200, response.code)
+            val body = response.body.string()
+            assertTrue(body.contains("\"branchId\":\"$branchId\""), body)
+            assertTrue(body.contains(branchName), body)
         }
     }
 
     // Fixture inserts take the row values as PARAMETERS (the service-test convention): Exposed's
     // insert body is a `T.(...)` extension, so inside it a bare name colliding with a table column
-    // (branchId, branchDayId, targetUser...) resolves to the TABLE'S column — binding a column
-    // reference where a value belongs ("invalid reference to FROM-clause entry"). Parameters win
-    // resolution over implicit receivers.
+    // (branchId, branchDayId...) resolves to the TABLE'S column — binding a column reference where
+    // a value belongs ("invalid reference to FROM-clause entry"). Parameters win resolution over
+    // implicit receivers.
     private fun insertBranchDay(
         id: UUID,
         dayBranchId: UUID,
@@ -214,7 +205,6 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
     private fun insertRequest(
         requestId: UUID,
         requestRequester: UUID,
-        requestTargetUser: UUID,
         requestBranchDayId: UUID,
     ) {
         transaction {
@@ -222,24 +212,7 @@ class ReliefAccessRoutesTest : BasePostgresTest() {
                 it[GrantReliefAccessTable.id] = requestId
                 it[GrantReliefAccessTable.branchDayId] = requestBranchDayId
                 it[GrantReliefAccessTable.requestedBy] = requestRequester
-                it[GrantReliefAccessTable.targetUser] = requestTargetUser
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
-            }
-        }
-    }
-
-    private fun insertAttendance(
-        id: UUID,
-        attendanceUserId: UUID,
-        attendanceBranchDayId: UUID,
-    ) {
-        transaction {
-            AttendanceTable.insert {
-                it[AttendanceTable.id] = id
-                it[AttendanceTable.branchDayId] = attendanceBranchDayId
-                it[AttendanceTable.userId] = attendanceUserId
-                it[AttendanceTable.markedBy] = attendanceUserId
-                it[AttendanceTable.clockIn] = TestFixtures.now
             }
         }
     }

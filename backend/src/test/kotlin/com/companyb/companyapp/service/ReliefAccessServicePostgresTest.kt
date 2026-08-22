@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -15,14 +16,13 @@ import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
-import com.companyb.companyapp.repository.model.ReliefAccess
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
-import com.companyb.companyapp.service.ReliefGrantOutcome
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -32,8 +32,6 @@ import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -41,224 +39,245 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
+/**
+ * #357 broadcast model: a request names no target user and is branch-day-scoped (today or
+ * a future date); any ACTIVE outsider may raise it, any active branch member grants,
+ * denies, or cancels it; all retraction locks once the requester clocks in. The #354
+ * supersede machinery is retired — multiple relief workers per branch-day are allowed.
+ */
 class ReliefAccessServicePostgresTest : BasePostgresTest() {
-    private companion object {
-        const val CONCURRENT_OPERATIONS = 2
-        const val CONCURRENT_TIMEOUT_SECONDS = 10L
-    }
-
     private val reliefUserId = TestFixtures.uuid()
-    private val targetUserId = TestFixtures.uuid()
+    private val memberId = TestFixtures.uuid()
     private val branchId = TestFixtures.uuid()
     private val branchName = "ReliefTest-${branchId.toString().take(8)}"
     private val branchDayId = TestFixtures.uuid()
-    private val attendanceId = TestFixtures.uuid()
 
     override fun initTestData() {
         DatabaseTestHelper.insertTestUser(reliefUserId, "relief")
         trackOwned(AppUserTable, AppUserTable.id, reliefUserId)
-        DatabaseTestHelper.insertTestUser(targetUserId, "target")
-        trackOwned(AppUserTable, AppUserTable.id, targetUserId)
+        DatabaseTestHelper.insertTestUser(memberId, "member")
+        trackOwned(AppUserTable, AppUserTable.id, memberId)
         DatabaseTestHelper.insertTestBranch(branchId, branchName)
         trackOwned(BranchTable, BranchTable.id, branchId)
         insertBranchDay(branchDayId, branchId)
         trackOwned(BranchDayTable, BranchDayTable.id, branchDayId)
-        insertBranchDayAssignment(reliefUserId, branchDayId, isRelief = true)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, branchDayId)
-        insertAttendance(attendanceId, targetUserId, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
+        // The member's home assignment — grant/deny/cancel authority (#357).
+        DatabaseTestHelper.insertTestAssignment(
+            userId = memberId,
+            branchId = branchId,
+            slot = 1,
+            assignedBy = memberId,
+        )
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, memberId)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, reliefUserId)
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, reliefUserId)
-        trackOwned(AuditLogTable, AuditLogTable.changedBy, targetUserId)
+        // Member-authored grants/denies/cancels write audit rows too (#357 membership authority).
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, memberId)
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.branchDayId, branchDayId)
     }
 
+    // ──────────────────────────────────────────────
+    // Request lifecycle (#357: branch + date picker)
+    // ──────────────────────────────────────────────
+
     @Test
-    fun `successful relief request persists with PENDING status and writes audit`() {
+    fun `successful request persists with PENDING status and writes audit`() {
         val requestId = TestFixtures.uuid()
 
-        val result = ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        val result =
+            ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
         assertEquals(requestId, result.id)
         assertEquals(ReliefAccessStatus.PENDING, result.requestStatus)
         assertEquals(reliefUserId, result.requestedBy)
-        assertEquals(targetUserId, result.targetUser)
         assertTrue(requestExists(requestId))
         assertEquals(1L, auditReliefEntryCount(requestId))
     }
 
     @Test
-    fun `duplicate request id returns existing row (idempotent)`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+    fun `future-dated request resolves its own branch day and stays PENDING`() {
+        val futureDate = TestFixtures.today.plusDays(FUTURE_DAYS)
+        val futureRequestId = TestFixtures.uuid()
 
-        val duplicate = ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        val result = ReliefAccessService.requestReliefAccess(futureRequestId, branchId, futureDate, reliefUserId)
+        trackRequest(futureRequestId)
+
+        assertEquals(ReliefAccessStatus.PENDING, result.requestStatus)
+        val day = BranchDayService.requireBranchDayExists(result.branchDayId)
+        assertEquals(futureDate, day.date)
+    }
+
+    @Test
+    fun `null date defaults to the current operational day`() {
+        val requestId = TestFixtures.uuid()
+
+        val result = ReliefAccessService.requestReliefAccess(requestId, branchId, null, reliefUserId)
+
+        val day = BranchDayService.requireBranchDayExists(result.branchDayId)
+        assertEquals(TestFixtures.today, day.date)
+    }
+
+    @Test
+    fun `past-dated request fails with 400`() {
+        val requestId = TestFixtures.uuid()
+
+        assertFailsWith<ValidationException> {
+            ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today.minusDays(1), reliefUserId)
+        }
+        assertFalse(requestExists(requestId))
+    }
+
+    @Test
+    fun `request by an assigned member of the branch fails with 400`() {
+        val assignedMember = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(assignedMember, "home-member")
+        trackOwned(AppUserTable, AppUserTable.id, assignedMember)
+        DatabaseTestHelper.insertTestAssignment(
+            userId = assignedMember,
+            branchId = branchId,
+            slot = 2,
+            assignedBy = memberId,
+        )
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, assignedMember)
+
+        assertFailsWith<ValidationException> {
+            ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), branchId, null, assignedMember)
+        }
+    }
+
+    @Test
+    fun `request fails with 403 when requester is deactivated`() {
+        DatabaseTestHelper.insertTestUser(inactiveRequester, "inactive")
+        trackOwned(AppUserTable, AppUserTable.id, inactiveRequester)
+        transaction {
+            AppUserTable.update({ AppUserTable.id eq inactiveRequester }) {
+                it[AppUserTable.status] = UserStatus.INACTIVE
+            }
+        }
+
+        assertFailsWith<ForbiddenException> {
+            ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), branchId, null, inactiveRequester)
+        }
+    }
+
+    @Test
+    fun `request on non-existent branch fails with 404`() {
+        assertFailsWith<NotFoundException> {
+            ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), TestFixtures.uuid(), null, reliefUserId)
+        }
+    }
+
+    @Test
+    fun `duplicate live request id is an idempotent replay`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+
+        val duplicate =
+            ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
         assertEquals(requestId, duplicate.id)
         assertEquals(ReliefAccessStatus.PENDING, duplicate.requestStatus)
     }
 
-    @Test
-    fun `fails with 400 when target user has no active clock-in`() {
-        val noClockInTarget = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(noClockInTarget, "no-clock")
-        trackOwned(AppUserTable, AppUserTable.id, noClockInTarget)
-        val requestId = TestFixtures.uuid()
+    // ──────────────────────────────────────────────
+    // Flood control (#352 Q4: one live ask per branch day)
+    // ──────────────────────────────────────────────
 
-        assertFailsWith<ValidationException> {
-            ReliefAccessService.requestReliefAccess(requestId, branchDayId, noClockInTarget, reliefUserId)
+    @Test
+    fun `second live request for the same branch day fails with 409`() {
+        ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), branchId, TestFixtures.today, reliefUserId)
+
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.requestReliefAccess(TestFixtures.uuid(), branchId, TestFixtures.today, reliefUserId)
         }
     }
 
     @Test
-    fun `fails with 403 when requester is not a relief user`() {
-        val nonReliefUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(nonReliefUser, "non-relief")
-        trackOwned(AppUserTable, AppUserTable.id, nonReliefUser)
-        insertBranchDayAssignment(nonReliefUser, branchDayId, isRelief = false)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, branchDayId)
-        val requestId = TestFixtures.uuid()
+    fun `re-asking after denial is allowed (different day identity per flood rule)`() {
+        val firstId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(firstId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.denyAccess(firstId, memberId)
 
-        assertFailsWith<ForbiddenException> {
-            ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, nonReliefUser)
-        }
+        val secondId = TestFixtures.uuid()
+        val reAsk =
+            ReliefAccessService.requestReliefAccess(
+                secondId,
+                branchId,
+                TestFixtures.today.plusDays(1),
+                reliefUserId,
+            )
+        trackRequest(secondId)
+
+        assertEquals(ReliefAccessStatus.PENDING, reAsk.requestStatus)
+        assertTrue(
+            ReliefAccessRepository.findByRequestedByAndBranchDayId(
+                reliefUserId,
+                reAsk.branchDayId,
+                ReliefAccessStatus.PENDING,
+            ) !=
+                null,
+        )
     }
 
     @Test
-    fun `successful grant sets status to GRANTED and creates user_capability and writes audit`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+    fun `re-asking after cancellation is allowed on a different day`() {
+        val firstId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(firstId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.cancelRequest(firstId, reliefUserId)
 
-        val result =
-            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId)) {
-                is ReliefGrantOutcome.Granted -> outcome.reliefAccess
-                is ReliefGrantOutcome.Superseded -> error("first grant must win, got superseded")
-            }
+        val secondId = TestFixtures.uuid()
+        val reAsk =
+            ReliefAccessService.requestReliefAccess(secondId, branchId, TestFixtures.today.plusDays(1), reliefUserId)
+        trackRequest(secondId)
+
+        assertEquals(ReliefAccessStatus.PENDING, reAsk.requestStatus)
+    }
+
+    // ──────────────────────────────────────────────
+    // Grant / deny (membership authority, no targeting)
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `grant by a branch member sets GRANTED, writes capability and audit`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+
+        val result = ReliefAccessService.grantAccess(requestId, memberId)
 
         assertEquals(requestId, result.id)
         assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
-        assertEquals(targetUserId, result.grantedBy)
+        assertEquals(memberId, result.grantedBy)
         assertNotNull(result.grantedAt)
         assertTrue(
             CapabilityService.hasCapability(
                 userId = reliefUserId,
                 capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
                 contextType = CapabilityContextType.BRANCH_DAY,
-                contextId = branchDayId,
+                contextId = result.branchDayId,
             ),
         )
         assertEquals(2L, auditReliefEntryCount(requestId))
     }
 
     @Test
-    fun `grant on already granted request returns existing (idempotent)`() {
+    fun `future-dated grant yields edit access scoped to that day only`() {
+        val futureDate = TestFixtures.today.plusDays(FUTURE_DAYS)
         val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.grantAccess(requestId, targetUserId)
+        ReliefAccessService.requestReliefAccess(requestId, branchId, futureDate, reliefUserId)
+        trackRequest(requestId)
+        val futureDayId = ReliefAccessRepository.findById(requestId)!!.branchDayId
 
-        val duplicate =
-            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId)) {
-                is ReliefGrantOutcome.Granted -> outcome.reliefAccess
-                is ReliefGrantOutcome.Superseded -> error("replay of the granted request must stay Granted")
-            }
+        ReliefAccessService.grantAccess(requestId, memberId)
 
-        assertEquals(requestId, duplicate.id)
-        assertEquals(ReliefAccessStatus.GRANTED, duplicate.requestStatus)
-        assertEquals(targetUserId, duplicate.grantedBy)
-    }
-
-    @Test
-    fun `grant from non-target user fails with 403`() {
-        val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "other")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-
-        assertFailsWith<ForbiddenException> {
-            ReliefAccessService.grantAccess(requestId, otherUser)
-        }
-    }
-
-    @Test
-    fun `grant on already granted request rejects non-target user`() {
-        val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "other-grant-terminal")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.grantAccess(requestId, targetUserId)
-
-        assertFailsWith<ForbiddenException> {
-            ReliefAccessService.grantAccess(requestId, otherUser)
-        }
-    }
-
-    @Test
-    fun `grant on non-existent request fails with 404`() {
-        assertFailsWith<NotFoundException> {
-            ReliefAccessService.grantAccess(TestFixtures.uuid(), targetUserId)
-        }
-    }
-
-    @Test
-    fun `losing duplicate grant returns explicit superseded outcome carrying the winner`() {
-        val requestId1 = TestFixtures.uuid()
-        val requestId2 = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId1, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.requestReliefAccess(requestId2, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.grantAccess(requestId1, targetUserId)
-
-        val superseded =
-            when (val outcome = ReliefAccessService.grantAccess(requestId2, targetUserId)) {
-                is ReliefGrantOutcome.Granted -> error("second grant must lose: $outcome")
-                is ReliefGrantOutcome.Superseded -> outcome.reliefAccess
-            }
-
-        // The losing caller sees the row that actually won — never a success-shaped echo
-        // of its own request (#354 edge 3).
-        assertEquals(requestId1, superseded.id)
-        assertEquals(ReliefAccessStatus.GRANTED, superseded.requestStatus)
-    }
-
-    @Test
-    fun `successful deny sets status to DENIED and writes audit`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-
-        val result = ReliefAccessService.denyAccess(requestId, targetUserId)
-
-        assertEquals(requestId, result.id)
-        assertEquals(ReliefAccessStatus.DENIED, result.requestStatus)
-        assertEquals(2L, auditReliefEntryCount(requestId))
-    }
-
-    @Test
-    fun `deny on already denied request returns existing (idempotent)`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.denyAccess(requestId, targetUserId)
-
-        val duplicate = ReliefAccessService.denyAccess(requestId, targetUserId)
-
-        assertEquals(requestId, duplicate.id)
-        assertEquals(ReliefAccessStatus.DENIED, duplicate.requestStatus)
-    }
-
-    @Test
-    fun `grant after deny returns superseded outcome with the denied row and no capability`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.denyAccess(requestId, targetUserId)
-
-        val superseded =
-            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId)) {
-                is ReliefGrantOutcome.Granted -> error("grant after deny must not read as granted: $outcome")
-                is ReliefGrantOutcome.Superseded -> outcome.reliefAccess
-            }
-
-        assertEquals(ReliefAccessStatus.DENIED, superseded.requestStatus)
+        assertTrue(
+            CapabilityService.hasCapability(
+                userId = reliefUserId,
+                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.BRANCH_DAY,
+                contextId = futureDayId,
+            ),
+        )
+        // A different day gains nothing.
         assertFalse(
             CapabilityService.hasCapability(
                 userId = reliefUserId,
@@ -270,101 +289,110 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `deny from non-target user fails with 403`() {
-        val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "other")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
+    fun `grant by a non-member fails with 403`() {
+        val outsider = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(outsider, "outsider")
+        trackOwned(AppUserTable, AppUserTable.id, outsider)
         val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
         assertFailsWith<ForbiddenException> {
-            ReliefAccessService.denyAccess(requestId, otherUser)
+            ReliefAccessService.grantAccess(requestId, outsider)
         }
     }
 
     @Test
-    fun `deny on already denied request rejects non-target user`() {
-        val otherUser = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(otherUser, "other-deny-terminal")
-        trackOwned(AppUserTable, AppUserTable.id, otherUser)
+    fun `grant replay on already granted request is idempotent`() {
         val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.denyAccess(requestId, targetUserId)
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(requestId, memberId)
 
-        assertFailsWith<ForbiddenException> {
-            ReliefAccessService.denyAccess(requestId, otherUser)
-        }
+        val duplicate = ReliefAccessService.grantAccess(requestId, memberId)
+
+        assertEquals(requestId, duplicate.id)
+        assertEquals(ReliefAccessStatus.GRANTED, duplicate.requestStatus)
+        assertEquals(memberId, duplicate.grantedBy)
     }
 
     @Test
-    fun `deny on already granted request fails with 400`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.grantAccess(requestId, targetUserId)
+    fun `two requests from different requesters can both be granted (no supersede)`() {
+        val secondRelief = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(secondRelief, "relief-2")
+        trackOwned(AppUserTable, AppUserTable.id, secondRelief)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, secondRelief)
+        val request1 = TestFixtures.uuid()
+        val request2 = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(request1, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.requestReliefAccess(request2, branchId, TestFixtures.today, secondRelief)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, secondRelief)
 
+        val grant1 = ReliefAccessService.grantAccess(request1, memberId)
+        val grant2 = ReliefAccessService.grantAccess(request2, memberId)
+
+        assertEquals(ReliefAccessStatus.GRANTED, grant1.requestStatus)
+        assertEquals(ReliefAccessStatus.GRANTED, grant2.requestStatus)
+        assertTrue(
+            CapabilityService.hasCapability(
+                userId = reliefUserId,
+                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.BRANCH_DAY,
+                contextId = grant1.branchDayId,
+            ),
+        )
+        assertTrue(
+            CapabilityService.hasCapability(
+                userId = secondRelief,
+                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                contextType = CapabilityContextType.BRANCH_DAY,
+                contextId = grant2.branchDayId,
+            ),
+        )
+    }
+
+    @Test
+    fun `deny by a branch member sets DENIED and writes audit`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+
+        val result = ReliefAccessService.denyAccess(requestId, memberId)
+
+        assertEquals(requestId, result.id)
+        assertEquals(ReliefAccessStatus.DENIED, result.requestStatus)
+        assertEquals(2L, auditReliefEntryCount(requestId))
+    }
+
+    @Test
+    fun `deny replay is idempotent and deny after grant fails with 400`() {
+        val deniedId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(deniedId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.denyAccess(deniedId, memberId)
+        assertEquals(ReliefAccessStatus.DENIED, ReliefAccessService.denyAccess(deniedId, memberId).requestStatus)
+
+        val grantedId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(grantedId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(grantedId, memberId)
         assertFailsWith<ValidationException> {
-            ReliefAccessService.denyAccess(requestId, targetUserId)
+            ReliefAccessService.denyAccess(grantedId, memberId)
         }
     }
 
     @Test
-    fun `deny on non-existent request fails with 404`() {
-        assertFailsWith<NotFoundException> {
-            ReliefAccessService.denyAccess(TestFixtures.uuid(), targetUserId)
-        }
-    }
-
-    @Test
-    fun `concurrent grant and deny never leave denied request with capability`() {
+    fun `deny by a non-member fails with 403`() {
+        val outsider = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(outsider, "other")
+        trackOwned(AppUserTable, AppUserTable.id, outsider)
         val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        val executor = Executors.newFixedThreadPool(CONCURRENT_OPERATIONS)
-
-        try {
-            listOf(
-                executor.submit<Result<ReliefGrantOutcome>> {
-                    runCatching { ReliefAccessService.grantAccess(requestId, targetUserId) }
-                },
-                executor.submit<Result<ReliefAccess>> {
-                    runCatching { ReliefAccessService.denyAccess(requestId, targetUserId) }
-                },
-            ).forEach { it.get(CONCURRENT_TIMEOUT_SECONDS, TimeUnit.SECONDS) }
-
-            val finalRequest = ReliefAccessRepository.findById(requestId)
-            assertNotNull(finalRequest)
-            val hasCapability =
-                CapabilityService.hasCapability(
-                    userId = reliefUserId,
-                    capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                    contextType = CapabilityContextType.BRANCH_DAY,
-                    contextId = branchDayId,
-                )
-
-            assertFalse(finalRequest.requestStatus == ReliefAccessStatus.DENIED && hasCapability)
-            if (finalRequest.requestStatus == ReliefAccessStatus.GRANTED) {
-                assertTrue(hasCapability)
-            }
-        } finally {
-            executor.shutdownNow()
-        }
-    }
-
-    @Test
-    fun `request fails with 403 on REMITTED day`() {
-        val remittedBranchDayId = TestFixtures.uuid()
-        val remittedAttendanceId = TestFixtures.uuid()
-        val yesterday = TestFixtures.today.minusDays(1)
-        insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
-        insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, remittedBranchDayId)
-        insertAttendance(remittedAttendanceId, targetUserId, remittedBranchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, remittedBranchDayId)
-        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
         assertFailsWith<ForbiddenException> {
-            ReliefAccessService.requestReliefAccess(requestId, remittedBranchDayId, targetUserId, reliefUserId)
+            ReliefAccessService.denyAccess(requestId, outsider)
         }
+    }
+
+    @Test
+    fun `grant and deny on non-existent requests fail with 404`() {
+        assertFailsWith<NotFoundException> { ReliefAccessService.grantAccess(TestFixtures.uuid(), memberId) }
+        assertFailsWith<NotFoundException> { ReliefAccessService.denyAccess(TestFixtures.uuid(), memberId) }
     }
 
     @Test
@@ -375,25 +403,22 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
             }
         }
         val requestId = TestFixtures.uuid()
-        val remittedDayId = branchDayId
+        // Distinct-name local: inside insert{}, a bare name colliding with a table column
+        // resolves to the COLUMN via the implicit receiver (the #356 lesson).
+        val seededDayForRemit = branchDayId
         transaction {
             GrantReliefAccessTable.insert {
                 it[GrantReliefAccessTable.id] = requestId
-                it[GrantReliefAccessTable.branchDayId] = remittedDayId
+                it[GrantReliefAccessTable.branchDayId] = seededDayForRemit
                 it[GrantReliefAccessTable.requestedBy] = reliefUserId
-                it[GrantReliefAccessTable.targetUser] = targetUserId
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
-        DatabaseTestHelper.grantEditPastDay(targetUserId, branchId, TestFixtures.uuid())
-        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, targetUserId)
+        DatabaseTestHelper.grantEditPastDay(memberId, branchId, TestFixtures.uuid())
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, memberId)
 
-        val result =
-            when (val outcome = ReliefAccessService.grantAccess(requestId, targetUserId, "Coordinator correction")) {
-                is ReliefGrantOutcome.Granted -> outcome.reliefAccess
-                is ReliefGrantOutcome.Superseded -> error("flagged-day grant must win: $outcome")
-            }
+        val result = ReliefAccessService.grantAccess(requestId, memberId, "Coordinator correction")
 
         assertEquals(ReliefAccessStatus.GRANTED, result.requestStatus)
         val audit =
@@ -410,153 +435,142 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `grant fails with 403 on REMITTED day`() {
-        val yesterday = TestFixtures.today.minusDays(1)
-        val remittedBranchDayId = TestFixtures.uuid()
-        insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
-        insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, remittedBranchDayId)
+    fun `grant fails with 403 on REMITTED day without EDIT_PAST_DAY`() {
+        val remittedDayId = TestFixtures.uuid()
+        insertBranchDay(remittedDayId, branchId, DayStatus.REMITTED, TestFixtures.today.minusDays(1))
+        trackOwned(BranchDayTable, BranchDayTable.id, remittedDayId)
         val requestId = TestFixtures.uuid()
         transaction {
             GrantReliefAccessTable.insert {
                 it[GrantReliefAccessTable.id] = requestId
-                it[GrantReliefAccessTable.branchDayId] = remittedBranchDayId
+                it[GrantReliefAccessTable.branchDayId] = remittedDayId
                 it[GrantReliefAccessTable.requestedBy] = reliefUserId
-                it[GrantReliefAccessTable.targetUser] = targetUserId
                 it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
             }
         }
         trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
 
         assertFailsWith<ForbiddenException> {
-            ReliefAccessService.grantAccess(requestId, targetUserId)
+            ReliefAccessService.grantAccess(requestId, memberId)
         }
     }
 
+    // ──────────────────────────────────────────────
+    // Cancel / withdraw lock matrix (#357 owner rules)
+    // ──────────────────────────────────────────────
+
     @Test
-    fun `deny fails with 403 on REMITTED day`() {
-        val yesterday = TestFixtures.today.minusDays(1)
-        val remittedBranchDayId = TestFixtures.uuid()
-        insertBranchDay(remittedBranchDayId, branchId, DayStatus.REMITTED, yesterday)
-        trackOwned(BranchDayTable, BranchDayTable.id, remittedBranchDayId)
-        insertBranchDayAssignment(reliefUserId, remittedBranchDayId, isRelief = true)
-        trackOwned(BranchDayAssignmentTable, BranchDayAssignmentTable.branchDayId, remittedBranchDayId)
+    fun `requester withdraws own pending ask`() {
         val requestId = TestFixtures.uuid()
-        transaction {
-            GrantReliefAccessTable.insert {
-                it[GrantReliefAccessTable.id] = requestId
-                it[GrantReliefAccessTable.branchDayId] = remittedBranchDayId
-                it[GrantReliefAccessTable.requestedBy] = reliefUserId
-                it[GrantReliefAccessTable.targetUser] = targetUserId
-                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.PENDING
-            }
-        }
-        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+
+        val result = ReliefAccessService.cancelRequest(requestId, reliefUserId)
+
+        assertEquals(ReliefAccessStatus.CANCELLED, result.requestStatus)
+        assertEquals(2L, auditReliefEntryCount(requestId))
+    }
+
+    @Test
+    fun `any branch member cancels someone else's pending ask`() {
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
+
+        val result = ReliefAccessService.cancelRequest(requestId, memberId)
+
+        assertEquals(ReliefAccessStatus.CANCELLED, result.requestStatus)
+    }
+
+    @Test
+    fun `cancel by a non-member non-requester fails with 403`() {
+        val outsider = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(outsider, "cancel-outsider")
+        trackOwned(AppUserTable, AppUserTable.id, outsider)
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
         assertFailsWith<ForbiddenException> {
-            ReliefAccessService.denyAccess(requestId, targetUserId)
+            ReliefAccessService.cancelRequest(requestId, outsider)
         }
     }
 
-    // ──────────────────────────────────────────────
-    // #354 correctness edges
-    // ──────────────────────────────────────────────
-
     @Test
-    fun `request fails with 400 when the target is the caller (#354 edge 1)`() {
+    fun `withdraw locks once the requester clocks in as relief`() {
+        val attendanceId = TestFixtures.uuid()
+        insertAttendance(attendanceId, reliefUserId, branchDayId)
+        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
         val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, TestFixtures.today, reliefUserId)
 
         assertFailsWith<ValidationException> {
-            ReliefAccessService.requestReliefAccess(requestId, branchDayId, reliefUserId, reliefUserId)
+            ReliefAccessService.cancelRequest(requestId, reliefUserId)
         }
-        assertFalse(requestExists(requestId))
-    }
-
-    @Test
-    fun `grant fails with 400 when target lost presence after request (#354 edge 2)`() {
-        val requestId = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(requestId, branchDayId, targetUserId, reliefUserId)
-        transaction {
-            AttendanceTable.update({ AttendanceTable.id eq attendanceId }) {
-                it[AttendanceTable.clockOut] = OffsetDateTime.now(ZoneOffset.UTC)
-            }
-        }
-
         assertFailsWith<ValidationException> {
-            ReliefAccessService.grantAccess(requestId, targetUserId)
+            ReliefAccessService.cancelRequest(requestId, memberId)
         }
         assertEquals(ReliefAccessStatus.PENDING, ReliefAccessRepository.findById(requestId)?.requestStatus)
-        assertFalse(
-            CapabilityService.hasCapability(
-                userId = reliefUserId,
-                capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
-                contextType = CapabilityContextType.BRANCH_DAY,
-                contextId = branchDayId,
-            ),
-        )
     }
 
     @Test
-    fun `concurrent grants leave one winner and one explicit superseded outcome (#354 edge 3)`() {
-        val secondTarget = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(secondTarget, "target-2")
-        trackOwned(AppUserTable, AppUserTable.id, secondTarget)
-        insertAttendance(TestFixtures.uuid(), secondTarget, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
-        val request1 = TestFixtures.uuid()
-        val request2 = TestFixtures.uuid()
-        ReliefAccessService.requestReliefAccess(request1, branchDayId, targetUserId, reliefUserId)
-        ReliefAccessService.requestReliefAccess(request2, branchDayId, secondTarget, reliefUserId)
+    fun `cancel on decided request fails with 409`() {
+        val grantedId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(grantedId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.grantAccess(grantedId, memberId)
 
-        val executor = Executors.newFixedThreadPool(CONCURRENT_OPERATIONS)
-        try {
-            val outcomes =
-                listOf(
-                    executor.submit<Result<ReliefGrantOutcome>> {
-                        runCatching { ReliefAccessService.grantAccess(request1, targetUserId) }
-                    },
-                    executor.submit<Result<ReliefGrantOutcome>> {
-                        runCatching { ReliefAccessService.grantAccess(request2, secondTarget) }
-                    },
-                ).map { it.get(CONCURRENT_TIMEOUT_SECONDS, TimeUnit.SECONDS) }
-
-            outcomes.forEach { result ->
-                assertTrue(result.isSuccess, "neither leg may error: ${result.exceptionOrNull()}")
-            }
-            val decided = outcomes.mapNotNull { it.getOrNull() }
-            val granted = decided.filterIsInstance<ReliefGrantOutcome.Granted>()
-            val superseded = decided.filterIsInstance<ReliefGrantOutcome.Superseded>()
-            assertEquals(1, granted.size)
-            assertEquals(1, superseded.size)
-
-            val winner = granted.single().reliefAccess
-            val loserRow = superseded.single().reliefAccess
-            assertEquals(winner.id, loserRow.id, "the superseded outcome must carry the winning row")
-            assertTrue(winner.id == request1 || winner.id == request2)
-        } finally {
-            executor.shutdownNow()
+        assertFailsWith<ConflictException> {
+            ReliefAccessService.cancelRequest(grantedId, reliefUserId)
         }
     }
 
     @Test
-    fun `request fails with 400 when target user is deactivated (#354 edge 4)`() {
-        val inactiveTarget = TestFixtures.uuid()
-        DatabaseTestHelper.insertTestUser(inactiveTarget, "inactive")
-        trackOwned(AppUserTable, AppUserTable.id, inactiveTarget)
-        transaction {
-            AppUserTable.update({ AppUserTable.id eq inactiveTarget }) {
-                it[AppUserTable.status] = UserStatus.INACTIVE
-            }
+    fun `cancel on non-existent request fails with 404`() {
+        assertFailsWith<NotFoundException> {
+            ReliefAccessService.cancelRequest(TestFixtures.uuid(), memberId)
         }
-        insertAttendance(TestFixtures.uuid(), inactiveTarget, branchDayId)
-        trackOwned(AttendanceTable, AttendanceTable.branchDayId, branchDayId)
-        val requestId = TestFixtures.uuid()
+    }
 
-        assertFailsWith<ValidationException> {
-            ReliefAccessService.requestReliefAccess(requestId, branchDayId, inactiveTarget, reliefUserId)
-        }
-        assertFalse(requestExists(requestId))
+    // ──────────────────────────────────────────────
+    // Discovery reads
+    // ──────────────────────────────────────────────
+
+    @Test
+    fun `members see every request on the day, outsiders only their own`() {
+        val otherOutsider = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(otherOutsider, "relief-3")
+        trackOwned(AppUserTable, AppUserTable.id, otherOutsider)
+        trackOwned(AuditLogTable, AuditLogTable.changedBy, otherOutsider)
+        val mine = TestFixtures.uuid()
+        val theirs = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(mine, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.requestReliefAccess(theirs, branchId, TestFixtures.today, otherOutsider)
+
+        val memberView = ReliefAccessService.listForCaller(memberId, branchDayId)
+        val outsiderView = ReliefAccessService.listForCaller(reliefUserId, branchDayId)
+
+        assertEquals(setOf(mine, theirs), memberView.map { it.id }.toSet())
+        assertEquals(listOf(mine), outsiderView.map { it.id })
+    }
+
+    @Test
+    fun `mine list carries branch context across days`() {
+        val todayId = TestFixtures.uuid()
+        val futureId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(todayId, branchId, TestFixtures.today, reliefUserId)
+        ReliefAccessService.requestReliefAccess(futureId, branchId, TestFixtures.today.plusDays(1), reliefUserId)
+        trackRequest(futureId)
+
+        val mine = ReliefAccessRepository.findMine(reliefUserId)
+
+        assertEquals(setOf(todayId, futureId), mine.map { it.access.id }.toSet())
+        assertTrue(mine.all { it.branchName == branchName && it.date >= TestFixtures.today })
+    }
+
+    private val inactiveRequester = TestFixtures.uuid()
+
+    /** Track a service-created request row and its (possibly fresh) branch day for teardown. */
+    private fun trackRequest(requestId: UUID) {
+        val dayId = ReliefAccessRepository.findById(requestId)?.branchDayId ?: return
+        trackOwned(GrantReliefAccessTable, GrantReliefAccessTable.id, requestId)
+        trackOwned(BranchDayTable, BranchDayTable.id, dayId)
     }
 
     private fun insertBranchDay(
@@ -575,30 +589,15 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         }
     }
 
-    private fun insertBranchDayAssignment(
-        userId: UUID,
-        branchDayId: UUID,
-        isRelief: Boolean,
-    ) {
-        transaction {
-            BranchDayAssignmentTable.insert {
-                it[BranchDayAssignmentTable.id] = TestFixtures.uuid()
-                it[BranchDayAssignmentTable.branchDayId] = branchDayId
-                it[BranchDayAssignmentTable.userId] = userId
-                it[BranchDayAssignmentTable.isRelief] = isRelief
-            }
-        }
-    }
-
     private fun insertAttendance(
         id: UUID,
         userId: UUID,
-        branchDayId: UUID,
+        dayId: UUID,
     ) {
         transaction {
             AttendanceTable.insert {
                 it[AttendanceTable.id] = id
-                it[AttendanceTable.branchDayId] = branchDayId
+                it[AttendanceTable.branchDayId] = dayId
                 it[AttendanceTable.userId] = userId
                 it[AttendanceTable.markedBy] = userId
                 it[AttendanceTable.clockIn] = TestFixtures.now
@@ -624,4 +623,8 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
                         (AuditLogTable.recordId eq requestId)
                 }.count()
         }
+
+    private companion object {
+        const val FUTURE_DAYS = 2L
+    }
 }

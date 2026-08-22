@@ -7,46 +7,39 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.companyb.companyapp.dto.ReliefAccessRequest
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.UiState
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 /**
- * #351 — the relief-access surface on the session dashboard, both BR sides:
+ * #357 — the relief-access surface on the session dashboard, both sides of the broadcast
+ * model (the #352 rules: targeting retired, multiple relief workers allowed):
  *
- * - **Requests targeting me** (any checked-in user): PENDING rows show explicit Grant/Deny;
- *   a resolved row stops rendering as actionable (the invite received-row shape).
- * - **My access requests** (relief users only): outcome chips per BR ~110–114 — PENDING
- *   waits, GRANTED reads "active until 04:00 (Manila)", DENIED informs; each day needs a
- *   fresh request, so the picker stays available after resolution.
+ * - **Incoming** (branch members): every PENDING row shows Grant / Deny, plus Cancel for
+ *   a pending ask no one wants left standing.
+ * - **Outgoing** (the caller's own rows): outcome chips — PENDING waits with Withdraw,
+ *   GRANTED reads "active until 04:00 (Manila)", DENIED/CANCELLED inform. Re-asking is
+ *   possible after any non-granted outcome while no live request stands.
  *
  * Visibility rule: the card renders only for relief users or callers with an incoming
- * pending row — users neither requesting nor targeted see neither control nor surface
- * (server-side row scoping backs this).
+ * pending row (server-side row scoping backs this).
  */
 @Composable
 fun ReliefAccessCard(
@@ -59,8 +52,7 @@ fun ReliefAccessCard(
     val freshest by viewModel.freshestRequests.collectAsState()
     val grantState by viewModel.grantResult.collectAsState()
     val denyState by viewModel.denyResult.collectAsState()
-    val requestResult by viewModel.requestResult.collectAsState()
-    var showPicker by remember { mutableStateOf(false) }
+    val cancelState by viewModel.cancelResult.collectAsState()
 
     val rows = freshest.orEmpty()
     val incomingPending = rows.incomingPending(currentUserId)
@@ -71,28 +63,32 @@ fun ReliefAccessCard(
     // Surface action failures inline (the invite screens' inline-error shape); actions write
     // Unit states, so the keep-last list itself never drops to Error for them.
     val actionError =
-        listOfNotNull(grantState as? UiState.Error, denyState as? UiState.Error, requestResult as? UiState.Error)
-            .firstOrNull()
-            ?.message
+        listOfNotNull(
+            grantState as? UiState.Error,
+            denyState as? UiState.Error,
+            cancelState as? UiState.Error,
+        ).firstOrNull()?.message
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = Spacing.md)) {
         SectionTitle("Relief access")
 
         if (incomingPending.isNotEmpty()) {
-            IncomingSection(viewModel, branchDayId, incomingPending, grantState, denyState)
+            IncomingSection(
+                viewModel,
+                branchDayId,
+                incomingPending,
+                busy =
+                    grantState is UiState.Loading || denyState is UiState.Loading,
+            )
         }
 
         if (isReliefUser) {
-            OutgoingSection(outgoing, onShowPicker = { showPicker = true })
+            OutgoingSection(
+                outgoing,
+                cancelState = cancelState,
+                onCancel = { row -> viewModel.cancel(row.id, branchDayId) },
+            )
         }
-    }
-
-    if (showPicker) {
-        CandidatePickerDialog(
-            viewModel = viewModel,
-            branchDayId = branchDayId,
-            onDismiss = { showPicker = false },
-        )
     }
 
     // Surface action failures once (the invite screens' inline-error shape).
@@ -111,16 +107,16 @@ private fun IncomingSection(
     viewModel: ReliefAccessViewModel,
     branchDayId: String,
     incomingPending: List<ReliefAccessResponse>,
-    grantState: UiState<Unit>,
-    denyState: UiState<Unit>,
+    busy: Boolean,
 ) {
     CardSection {
         incomingPending.forEach { row ->
             IncomingRequestRow(
                 row = row,
-                busy = grantState is UiState.Loading || denyState is UiState.Loading,
+                busy = busy,
                 onGrant = { viewModel.grantAccess(row.id, branchDayId) },
                 onDeny = { viewModel.denyAccess(row.id, branchDayId) },
+                onCancel = { viewModel.cancel(row.id, branchDayId) },
             )
         }
     }
@@ -129,22 +125,19 @@ private fun IncomingSection(
 @Composable
 private fun OutgoingSection(
     outgoing: List<ReliefAccessResponse>,
-    onShowPicker: () -> Unit,
+    cancelState: UiState<Unit>,
+    onCancel: (ReliefAccessResponse) -> Unit,
 ) {
     CardSection {
-        outgoing.forEach { row -> OutgoingRequestRow(row) }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            Button(
-                onClick = onShowPicker,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                    ),
-            ) {
-                Text(if (outgoing.isEmpty()) "Request edit access" else "Request again")
+        outgoing.forEach { row ->
+            OutgoingRequestRow(row)
+            if (row.requestStatus == ReliefAccessStatus.PENDING) {
+                TextButton(
+                    enabled = cancelState !is UiState.Loading,
+                    onClick = { onCancel(row) },
+                ) {
+                    Text("Withdraw request")
+                }
             }
         }
     }
@@ -173,65 +166,3 @@ private fun CardSection(content: @Composable () -> Unit) {
         }
     }
 }
-
-/** Checked-in-user picker (BR: the relief user selects a currently checked-in user). */
-@Composable
-private fun CandidatePickerDialog(
-    viewModel: ReliefAccessViewModel,
-    branchDayId: String,
-    onDismiss: () -> Unit,
-) {
-    val candidates by viewModel.candidates.collectAsState()
-    LaunchedEffect(branchDayId) { viewModel.loadCandidates(branchDayId) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Request edit access from") },
-        text = {
-            when (val state = candidates) {
-                is UiState.Loading -> {
-                    CircularProgressIndicator()
-                }
-
-                is UiState.Error -> {
-                    Text(state.message, color = MaterialTheme.colorScheme.error)
-                }
-
-                is UiState.Idle -> {
-                    Text("Loading…")
-                }
-
-                is UiState.Success -> {
-                    if (state.data.isEmpty()) {
-                        Text("No other user is checked in at this branch today.")
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                            state.data.forEach { candidate ->
-                                TextButton(
-                                    onClick = {
-                                        viewModel.requestAccess(
-                                            ReliefAccessRequest(
-                                                requestId = newRequestId(),
-                                                branchDayId = branchDayId,
-                                                targetUserId = candidate.userId,
-                                            ),
-                                            branchDayId,
-                                        )
-                                        onDismiss()
-                                    },
-                                ) {
-                                    Text(candidate.displayName)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
-@OptIn(ExperimentalUuidApi::class)
-private fun newRequestId(): String = Uuid.random().toString()

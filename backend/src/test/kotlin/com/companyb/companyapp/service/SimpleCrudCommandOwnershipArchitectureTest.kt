@@ -38,7 +38,7 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 // Batch 4 — user/access cluster.
                 "repository/UserRepository.kt" to 7,
                 "repository/UserBranchAssignmentRepository.kt" to 3,
-                "repository/ReliefAccessRepository.kt" to 5, // 4 + #351 findInvolving read wrapper
+                "repository/ReliefAccessRepository.kt" to 6, // read wrappers (#357: per-day + mine lists)
                 "repository/ReliefInviteRepository.kt" to 10,
                 "repository/MedicalMissionDelegateRepository.kt" to 1,
                 // Batch 5 — inventory/product-sale cluster.
@@ -82,7 +82,7 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "service/UserBranchAssignmentService.kt" to
                     listOf("create", "remove", "updateSlot", "swapSlots"),
                 "service/ReliefAccessService.kt" to
-                    listOf("grantAccess", "denyAccess", "requestReliefAccess"),
+                    listOf("grantAccess", "denyAccess", "requestReliefAccess", "cancelRequest"),
                 "service/ReliefInviteService.kt" to
                     listOf("createInvite", "acceptInvite", "declineInvite", "retractInvite"),
                 "service/MedicalMissionDelegateService.kt" to listOf("assignDelegate", "revokeDelegate"),

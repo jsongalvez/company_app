@@ -13,7 +13,6 @@ data class ReliefAccess(
     val branchDayId: UUID,
     val requestedBy: UUID,
     val requestStatus: ReliefAccessStatus,
-    val targetUser: UUID,
     val grantedBy: UUID?,
     val grantedAt: OffsetDateTime?,
 )
@@ -34,7 +33,6 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
                 obj
             },
         ).default(ReliefAccessStatus.PENDING)
-    val targetUser = javaUUID("target_user").references(AppUserTable.id)
     val grantedBy = javaUUID("granted_by").references(AppUserTable.id).nullable()
     val grantedAt = timestampWithTimeZone("granted_at").nullable()
 
@@ -46,7 +44,6 @@ object GrantReliefAccessTable : Table("grant_relief_access") {
             "branchDayId" to entity.branchDayId.toString(),
             "requestedBy" to entity.requestedBy.toString(),
             "requestStatus" to entity.requestStatus.name,
-            "targetUser" to entity.targetUser.toString(),
             "grantedBy" to (entity.grantedBy?.toString() ?: "null"),
             "grantedAt" to (entity.grantedAt?.toString() ?: "null"),
         )

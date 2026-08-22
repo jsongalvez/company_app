@@ -5,24 +5,26 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.UserStatus
-import com.companyb.companyapp.repository.CapabilityRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AttendanceTable
-import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
+import com.companyb.companyapp.repository.model.BranchDayTable
+import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.GrantPriorities
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
 import com.companyb.companyapp.repository.model.UserCapabilityTable
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -33,7 +35,6 @@ data class GrantWithCapabilityParams(
     val branchDayId: UUID,
     val sourceId: UUID,
     val validTo: OffsetDateTime?,
-    val requestedBy: UUID,
 )
 
 /** The shared relief-grant write (#159 Q1): who gets the day, for which day, from which source. */
@@ -44,11 +45,19 @@ data class GrantReliefCapabilityParams(
     val validTo: OffsetDateTime?,
 )
 
-/** Mutation projection for grant/deny (#323): `updated=false` marks a preserved early-return path. */
+/** Mutation projection for grant/deny/cancel (#323): `updated=false` marks a preserved early-return path. */
 data class ReliefAccessMutation(
     val before: ReliefAccess,
     val after: ReliefAccess,
     val updated: Boolean,
+)
+
+/** A request row joined with its branch-day context — the caller's own-list shape (#357). */
+data class ReliefRequestWithBranch(
+    val access: ReliefAccess,
+    val branchId: UUID,
+    val branchName: String,
+    val date: LocalDate,
 )
 
 @Suppress("TooManyFunctions")
@@ -101,21 +110,25 @@ object ReliefAccessRepository {
                 ?.toReliefAccess()
         }
 
-    /** Caller-relative discovery (#351): rows where the caller is target or requester on one branch day. */
-    fun findInvolving(
-        userId: UUID,
-        branchDayId: UUID,
-    ): List<ReliefAccess> =
+    /** Every request on one branch day — the member surface (#357 broadcast model). */
+    fun findByBranchDayId(branchDayId: UUID): List<ReliefAccess> =
         transaction {
             GrantReliefAccessTable
                 .selectAll()
-                .where {
-                    (GrantReliefAccessTable.branchDayId eq branchDayId) and
-                        (
-                            (GrantReliefAccessTable.targetUser eq userId) or
-                                (GrantReliefAccessTable.requestedBy eq userId)
-                        )
-                }.map { it.toReliefAccess() }
+                .where { GrantReliefAccessTable.branchDayId eq branchDayId }
+                .map { it.toReliefAccess() }
+        }
+
+    /** The caller's own requests across all branches/days, newest day first (#357). */
+    fun findMine(userId: UUID): List<ReliefRequestWithBranch> =
+        transaction {
+            GrantReliefAccessTable
+                .innerJoin(BranchDayTable, { GrantReliefAccessTable.branchDayId }, { BranchDayTable.id })
+                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                .selectAll()
+                .where { GrantReliefAccessTable.requestedBy eq userId }
+                .orderBy(BranchDayTable.date to SortOrder.DESC)
+                .map { it.toReliefRequestWithBranch() }
         }
 
     fun findByRequestedByAndBranchDayId(
@@ -136,24 +149,18 @@ object ReliefAccessRepository {
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
-     * transaction. Windowed-grant atomicity (ADR-0024): the day-row lock, PENDING guard,
-     * GRANTED dedup lookup, the conditional status update, and the capability write all
-     * stay inside this one store function.
+     * transaction. The FOR UPDATE row lock + PENDING guard + conditional status update +
+     * capability write stay here so the grant check+write is atomic. #357: the #354
+     * cross-request winner sweep is retired (multiple relief workers per branch-day are
+     * allowed — there is nothing left to supersede); a redundant second grant is an
+     * idempotent replay via the non-PENDING early return.
      */
-    @Suppress("ReturnCount")
     fun grantInTransaction(params: GrantWithCapabilityParams): ReliefAccessMutation? {
-        GrantReliefAccessTable
-            .selectAll()
-            .where {
-                (GrantReliefAccessTable.requestedBy eq params.requestedBy) and
-                    (GrantReliefAccessTable.branchDayId eq params.branchDayId)
-            }.forUpdate(ForUpdateOption.ForUpdate)
-            .toList()
-
         val before =
             GrantReliefAccessTable
                 .selectAll()
                 .where { GrantReliefAccessTable.id eq params.requestId }
+                .forUpdate(ForUpdateOption.ForUpdate)
                 .singleOrNull()
                 ?.toReliefAccess()
 
@@ -162,20 +169,6 @@ object ReliefAccessRepository {
         }
         if (before.requestStatus != ReliefAccessStatus.PENDING) {
             return ReliefAccessMutation(before, before, updated = false)
-        }
-
-        val existingGrant =
-            GrantReliefAccessTable
-                .selectAll()
-                .where {
-                    (GrantReliefAccessTable.requestedBy eq params.requestedBy) and
-                        (GrantReliefAccessTable.branchDayId eq params.branchDayId) and
-                        (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.GRANTED)
-                }.singleOrNull()
-                ?.toReliefAccess()
-
-        if (existingGrant != null) {
-            return ReliefAccessMutation(existingGrant, existingGrant, updated = false)
         }
 
         GrantReliefAccessTable
@@ -241,42 +234,85 @@ object ReliefAccessRepository {
         return ReliefAccessMutation(before, after, updated = true)
     }
 
-    /** In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction. */
+    /**
+     * Withdraw/cancel terminal state (#357): PENDING → CANCELLED, atomic under the same
+     * row lock as deny. In-transaction store operation (#323, ADR-0024).
+     */
+    fun cancelInTransaction(requestId: UUID): ReliefAccessMutation {
+        val before =
+            GrantReliefAccessTable
+                .selectAll()
+                .where { GrantReliefAccessTable.id eq requestId }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .single()
+                .toReliefAccess()
+
+        if (before.requestStatus != ReliefAccessStatus.PENDING) {
+            return ReliefAccessMutation(before, before, updated = false)
+        }
+
+        GrantReliefAccessTable
+            .update({
+                (GrantReliefAccessTable.id eq requestId) and
+                    (GrantReliefAccessTable.requestStatus eq ReliefAccessStatus.PENDING)
+            }) {
+                it[GrantReliefAccessTable.requestStatus] = ReliefAccessStatus.CANCELLED
+            }
+
+        val after =
+            GrantReliefAccessTable
+                .selectAll()
+                .where { GrantReliefAccessTable.id eq requestId }
+                .single()
+                .toReliefAccess()
+
+        return ReliefAccessMutation(before, after, updated = true)
+    }
+
+    /**
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction. Three outcomes under the partial unique index
+     * `idx_one_live_relief_request` (#352 Q4 flood control):
+     * - `(row, true)` — freshly inserted;
+     * - `(row, false)` — the same [id] already existed (an idempotent replay);
+     * - `(null, false)` — a different LIVE request stands for (requester, day): the index
+     *   swallowed the insert and NO row carries [id], so the service raises the conflict.
+     */
     fun insertRequestInTransaction(
         id: UUID,
         branchDayId: UUID,
         requestedBy: UUID,
-        targetUser: UUID,
-    ): Pair<ReliefAccess, Boolean> {
+    ): Pair<ReliefAccess?, Boolean> {
         val insertedCount =
             GrantReliefAccessTable
                 .insertIgnore {
                     it[GrantReliefAccessTable.id] = id
                     it[GrantReliefAccessTable.branchDayId] = branchDayId
                     it[GrantReliefAccessTable.requestedBy] = requestedBy
-                    it[GrantReliefAccessTable.targetUser] = targetUser
                 }.insertedCount
-        val isNew = insertedCount > 0
 
         val row =
             GrantReliefAccessTable
                 .selectAll()
                 .where { GrantReliefAccessTable.id eq id }
-                .single()
-                .toReliefAccess()
+                .singleOrNull()
+                ?.toReliefAccess()
 
-        return row to isNew
+        // insertedCount>0 but no row is impossible; count==0 with no row = the live-sibling
+        // swallow (the caller distinguishes replay from conflict via `first == null`).
+        return row to (insertedCount > 0)
     }
 
-    /** Read wrapper — see [hasActiveClockInInTransaction] (#354 edge 2). */
+    /** Read wrapper — see [hasActiveClockInInTransaction]. */
     fun hasActiveClockIn(
         targetUser: UUID,
         branchDayId: UUID,
     ): Boolean = transaction { hasActiveClockInInTransaction(targetUser, branchDayId) }
 
     /**
-     * In-transaction presence read (#354 edges 2+4) — runs on the caller's command
-     * transaction so eligibility rechecks commit atomically with the write they gate.
+     * In-transaction presence read — runs on the caller's command transaction so the
+     * retraction lock commits atomically with the cancel it gates (#357: all retraction
+     * stops once the requester clocks in at the branch).
      */
     fun hasActiveClockInInTransaction(
         targetUser: UUID,
@@ -291,9 +327,12 @@ object ReliefAccessRepository {
             }.empty()
             .not()
 
+    /** Read wrapper — see [isActiveUserInTransaction]. */
+    fun isActiveUser(userId: UUID): Boolean = transaction { isActiveUserInTransaction(userId) }
+
     /**
-     * In-transaction status read (#354 edge 4) — a deactivated user must not remain a live
-     * request target; runs on the caller's command transaction.
+     * In-transaction status read (#354 edge 4) — a deactivated user must not hold a live
+     * requester identity; runs on the caller's command transaction.
      */
     fun isActiveUserInTransaction(userId: UUID): Boolean =
         AppUserTable
@@ -302,34 +341,21 @@ object ReliefAccessRepository {
             .empty()
             .not()
 
-    /** Read wrapper — see [isReliefUserInTransaction]. */
-    fun isReliefUser(
-        userId: UUID,
-        branchDayId: UUID,
-    ): Boolean = transaction { isReliefUserInTransaction(userId, branchDayId) }
-
-    /** In-transaction relief-eligibility read — runs on the caller's command transaction. */
-    fun isReliefUserInTransaction(
-        userId: UUID,
-        branchDayId: UUID,
-    ): Boolean =
-        BranchDayAssignmentTable
-            .selectAll()
-            .where {
-                (BranchDayAssignmentTable.userId eq userId) and
-                    (BranchDayAssignmentTable.branchDayId eq branchDayId)
-            }.singleOrNull()
-            ?.let { it[BranchDayAssignmentTable.isRelief] }
-            ?: false
-
     private fun org.jetbrains.exposed.v1.core.ResultRow.toReliefAccess(): ReliefAccess =
         ReliefAccess(
             id = this[GrantReliefAccessTable.id],
             branchDayId = this[GrantReliefAccessTable.branchDayId],
             requestedBy = this[GrantReliefAccessTable.requestedBy],
             requestStatus = this[GrantReliefAccessTable.requestStatus],
-            targetUser = this[GrantReliefAccessTable.targetUser],
             grantedBy = this[GrantReliefAccessTable.grantedBy],
             grantedAt = this[GrantReliefAccessTable.grantedAt],
+        )
+
+    private fun org.jetbrains.exposed.v1.core.ResultRow.toReliefRequestWithBranch(): ReliefRequestWithBranch =
+        ReliefRequestWithBranch(
+            access = toReliefAccess(),
+            branchId = this[BranchDayTable.branchId],
+            branchName = this[BranchTable.name],
+            date = this[BranchDayTable.date],
         )
 }

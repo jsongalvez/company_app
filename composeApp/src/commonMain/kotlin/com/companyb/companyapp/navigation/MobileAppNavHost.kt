@@ -192,9 +192,13 @@ internal fun MobileAppNavHost(
                             viewModel { BranchSelectViewModel(apiClient) }
                         val reliefInviteViewModel: ReliefInviteViewModel =
                             viewModel { ReliefInviteViewModel(apiClient) }
+                        // #357 — the pre-clock-in relief-request panel (entry-scoped VM).
+                        val reliefAccessViewModel: ReliefAccessViewModel =
+                            viewModel { ReliefAccessViewModel(apiClient) }
                         BranchSelectScreen(
                             viewModel = branchSelectViewModel,
                             reliefInviteViewModel = reliefInviteViewModel,
+                            reliefAccessViewModel = reliefAccessViewModel,
                             onClockInComplete = {
                                 // Per #91 — popUpTo(Login) inclusive on clock-in; #94 Phase 3:
                                 // navigate Dashboard only after the capability refresh succeeded.

@@ -57,6 +57,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
 import com.companyb.companyapp.viewmodel.RemittanceViewModel
 import com.companyb.companyapp.viewmodel.SessionBootstrapViewModel
@@ -157,9 +158,13 @@ actual fun AppNavHost(
                         viewModel { BranchSelectViewModel(apiClient) }
                     val reliefInviteViewModel: ReliefInviteViewModel =
                         viewModel { ReliefInviteViewModel(apiClient) }
+                    // #357 — the pre-clock-in relief-request panel (entry-scoped VM).
+                    val reliefAccessViewModel: ReliefAccessViewModel =
+                        viewModel { ReliefAccessViewModel(apiClient) }
                     BranchSelectScreen(
                         viewModel = branchSelectViewModel,
                         reliefInviteViewModel = reliefInviteViewModel,
+                        reliefAccessViewModel = reliefAccessViewModel,
                         onClockInComplete = {
                             // Per #91 — popUpTo(Login) inclusive on clock-in; #94 Phase 3:
                             // navigate Dashboard only after the capability refresh succeeded.

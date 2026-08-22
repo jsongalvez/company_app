@@ -40,7 +40,7 @@ enum class UserStatus { ACTIVE, INACTIVE }
 enum class AuditAction { INSERT, UPDATE, DELETE }
 
 @Serializable
-enum class ReliefAccessStatus { PENDING, GRANTED, DENIED }
+enum class ReliefAccessStatus { PENDING, GRANTED, DENIED, CANCELLED }
 
 @Serializable
 enum class CapabilityContextType { GLOBAL, BRANCH, BRANCH_DAY, MEDICAL_MISSION, PROVINCIAL_TOUR }
