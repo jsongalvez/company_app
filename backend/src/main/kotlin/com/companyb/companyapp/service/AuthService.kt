@@ -186,7 +186,7 @@ object AuthService {
                     // Reset-token validity is credential lifecycle (#322): auth owns JVM-clock reads.
                     expiresAt =
                         OffsetDateTime.ofInstant(
-                            Instant.now().plus(RESET_VALID_HOURS.toLong(), ChronoUnit.HOURS),
+                            Instant.now().plus(RESET_VALID_HOURS, ChronoUnit.HOURS),
                             ZoneOffset.UTC,
                         ),
                     createdBy = null,

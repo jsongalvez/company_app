@@ -75,7 +75,7 @@ object UserService {
         // Invite validity is credential lifecycle (#322): the auth cluster owns JVM-clock reads.
         val expiresAt =
             OffsetDateTime.ofInstant(
-                Instant.now().plus(INVITE_VALID_DAYS.toLong(), ChronoUnit.DAYS),
+                Instant.now().plus(INVITE_VALID_DAYS, ChronoUnit.DAYS),
                 ZoneOffset.UTC,
             )
         val minted: MintedInvite = transaction { mintInviteInTransaction(callerId, request, expiresAt) }
