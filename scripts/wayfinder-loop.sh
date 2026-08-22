@@ -91,6 +91,35 @@ worktree_dirty() {
     grep -Ev '^[ MARC?]{2} \.wayfinder-loop\.(env|log|state|tmux\.log)$' || true
 }
 
+# Dirty-tree recovery: when the packet-writing session left the worktree dirty,
+# that session owns the mess — send THE canonical NUDGE (its hygiene paragraph
+# covers commit-or-park) and let it clean up, instead of freezing the spawn gate
+# on a human. Repost only while the owner is stopped-and-still-dirty; a live
+# session is mid-cleanup. A confirmed-gone owner falls back to the manual gate.
+dirty_owner_recovery() {
+  local dirty notified=0
+  while :; do
+    dirty="$(worktree_dirty)"
+    if [ -z "$dirty" ]; then
+      [ "$notified" -eq 0 ] || log "worktree clean — spawn resumes"
+      return 0
+    fi
+    if ! api get "/api/session/$session_id" >/dev/null 2>&1; then
+      log "owner session $session_id is gone with a dirty worktree — falling back to manual gate"
+      return 1
+    fi
+    if [ "$notified" -eq 0 ]; then
+      log "dirty worktree from $session_id — sending recovery prompt to commit or park"
+      notify "wayfinder continuing" "session $session_id left a dirty worktree — hygiene recovery sent"
+      notified=1
+    fi
+    if ! session_alive "$session_id"; then
+      api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1 || true
+    fi
+    sleep 30
+  done
+}
+
 # Spawn gate is a clean worktree only. The daemon never stages or commits —
 # a session's implementation commits belong to that session, and the handoff
 # packet is gitignored runtime state (map #329 ticket #336). A dirty tree
@@ -308,7 +337,12 @@ spawn_session() {
     return 1
   fi
   if [ -z "${WAYFINDER_ALLOW_DIRTY:-}" ]; then
-    wait_for_clean_handoff "$doc"
+    if [ -n "$session_id" ]; then
+      dirty_owner_recovery || wait_for_clean_handoff "$doc"
+    else
+      # Bootstrap first spawn: no owner session to nudge — manual gate.
+      wait_for_clean_handoff "$doc"
+    fi
   fi
   local model_ref="null" pid model_id model_provider
   if [ -n "${WAYFINDER_MODEL:-}" ]; then

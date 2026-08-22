@@ -48,7 +48,8 @@ routes human decisions through tracker issues (`needs-info` /
 
 | Log line | Meaning | Action |
 |---|---|---|
-| `spawn paused … clean worktree` | dirty tree holds the gate | commit or `wayfinder-park.sh`; resumes automatically |
+| `dirty worktree from … — sending recovery prompt` | owner session left the tree dirty | none — daemon NUDGEs the owner to commit or park, unbounded |
+| `spawn paused … clean worktree` | owner session is gone with a dirty tree | commit or `wayfinder-park.sh`; resumes automatically |
 | `waiting for session … to exit` | normal supervision, worker alive | check the session's tokens via `/api/session/<id>` before assuming stall |
 | `stalled … resuming` | zombie detector firing | unbounded — every stall gets the NUDGE forever; a wedged session is the operator's call |
 | `chain paused` | terminal assistant error (auth/quota-class) or config failure | fix cause, then restart (below) |
