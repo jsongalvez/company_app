@@ -285,8 +285,9 @@ stopped_assistant_message() {
     ' 2>/dev/null || true
 }
 
-# Return a completed assistant error without feeding it the continuation prompt.
-# Provider/auth failures cannot be repaired by asking the same session to continue.
+# Return a completed assistant error as "message-id<TAB>type: message", empty when the
+# last message is not an errored assistant turn. The id lets the supervisor dedupe its
+# recovery prompt (one nudge per failed turn, never a loop on the same message).
 assistant_error() {
   api get "/api/session/$1/message?limit=1" 2>/dev/null |
     jq -r '
@@ -294,7 +295,7 @@ assistant_error() {
       if ((.type // .role) == "assistant") and
          (.time.completed != null) and
          ((.finish // "") == "error") then
-        ((.error.type // "assistant.error") + ": " + (.error.message // "unknown error"))
+        ((.id // "") + "\t" + (.error.type // "assistant.error") + ": " + (.error.message // "unknown error"))
       else ""
       end
     ' 2>/dev/null || true
@@ -366,7 +367,7 @@ supervise_session() {
   # produced no ping). Every tick checks completion/forms/perms fresh, so a
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
-  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message=""
+  local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id=""
   while :; do
     sleep "$TICK_SECS"
     # completion first: a finished session writes its handoff doc as its final act
@@ -398,7 +399,7 @@ supervise_session() {
       # keep supervising the freshly spawned session (the old `return 0` left it
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
-       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""
+       notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""
       continue
     fi
 
@@ -459,13 +460,42 @@ supervise_session() {
     fi
     outages=0
 
-    # Terminal assistant errors are not recoverable continuation stops. Pausing here avoids
-    # repeated prompts against provider/auth failures and preserves the exact error in logs.
+    # Assistant errors split by recoverability. provider.invalid-output is the truncated-
+    # stream class (the free model ending a turn mid-stream): a canonical NUDGE resumes it —
+    # manual continuations after every 2026-08-22 truncation worked, while each pause took
+    # the whole chain down. Deduped per message id (one nudge per failed turn), within the
+    # shared retries budget; exhaustion pauses like any other stall. Every other error
+    # class stays terminal: prompting cannot repair auth/quota-style failures.
     assistant_failure="$(assistant_error "$session_id")"
     if [ -n "$assistant_failure" ]; then
-      log "session $session_id ended with assistant error — chain paused: $assistant_failure"
-      notify "wayfinder chain paused" "session $session_id failed: $assistant_failure"
-      exit 0
+      err_id="${assistant_failure%%$'\t'*}"
+      err_text="${assistant_failure#*$'\t'}"
+      case "$err_text" in
+        provider.invalid-output:*)
+          if [ "$err_id" != "$last_err_id" ]; then
+            if [ "${retries:-0}" -ge 2 ]; then
+              log "chain paused: $session_id kept failing after $retries resume attempts: $err_text"
+              notify "wayfinder chain paused" "session $session_id failed repeatedly after resumes: $err_text"
+              exit 0
+            fi
+            retries=$(( ${retries:-0} + 1 ))
+            save_state
+            last_err_id="$err_id"
+            if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
+              log "session $session_id hit a transient provider error — sent recovery prompt ($retries/2): $err_text"
+              notify "wayfinder continuing" "session $session_id hit a truncated provider response — recovery sent"
+            else
+              log "recovery prompt failed for $session_id — retrying next tick ($retries/2 spent)"
+            fi
+          fi
+          continue
+          ;;
+        *)
+          log "session $session_id ended with assistant error — chain paused: $err_text"
+          notify "wayfinder chain paused" "session $session_id failed: $err_text"
+          exit 0
+          ;;
+      esac
     fi
 
     # Immediate stop detector: a final assistant turn without a handoff is not a healthy

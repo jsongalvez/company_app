@@ -51,7 +51,8 @@ routes human decisions through tracker issues (`needs-info` /
 | `spawn paused … clean worktree` | dirty tree holds the gate | commit or `wayfinder-park.sh`; resumes automatically |
 | `waiting for session … to exit` | normal supervision, worker alive | check the session's tokens via `/api/session/<id>` before assuming stall |
 | `stalled … resuming (attempt n/2)` | zombie detector firing | after 2 attempts it pings and exits 0 — inspect the session manually |
-| `chain paused` | retries exhausted or assistant error | fix cause, then restart (below) |
+| `chain paused` | retries exhausted or terminal assistant error (auth/quota-class) | fix cause, then restart (below) |
+| `transient provider error — sent recovery prompt` | truncated model stream (`provider.invalid-output`) | none — daemon nudged the session; only repeated failures (2 resumes) pause |
 | nothing new + empty active set | daemon dead | restart (below) |
 
 **Duplicate sessions on one packet** — quiesce the daemon first

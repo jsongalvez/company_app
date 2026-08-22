@@ -76,5 +76,60 @@ else
 fi
 rm -rf "$stubdir" "$worktree" "$tmp"
 
+echo "5. transient provider.invalid-output nudges instead of pausing"
+contains "$script" 'provider.invalid-output:*' "transient case arm present"
+contains "$script" 'last_err_id' "per-message dedupe variable present"
+
+# Behavioral: a session whose last assistant turn ended finish=error with
+# provider.invalid-output must receive the NUDGE prompt and keep being supervised
+# (no chain-paused exit). Run under timeout — surviving to the kill signal IS the pass.
+stubdir="$(mktemp -d)"
+prompts="$stubdir/prompts"
+cat > "$stubdir/opencode2" <<STUB
+#!/usr/bin/env bash
+cmd="\$*"
+case "\$cmd" in
+  *"get /api/session/ses_errtest"*message*) cat "$stubdir/errmsg.json"; exit 0 ;;
+  *"get /api/session/ses_errtest"*) echo '{"data":{"id":"ses_errtest"}}'; exit 0 ;;
+  *"get /api/session/active"*) echo '{"data":{"ses_errtest":{"type":"assistant"}}}'; exit 0 ;;
+  *"post /api/session/ses_errtest/prompt"*) echo nudged >> "$prompts"; exit 0 ;;
+esac
+exit 1
+STUB
+chmod +x "$stubdir/opencode2"
+
+worktree="$(mktemp -d)"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/scripts"
+cp "$script" "$worktree/scripts/wayfinder-loop.sh"
+touch "$worktree/.wayfinder/handoffs/test-handoff.md"
+fp="$(sha256sum "$worktree/.wayfinder/handoffs/test-handoff.md" | awk '{print $1}')"
+printf 'last_doc=test-handoff.md\nsession_id=ses_errtest\npending_doc=\nretries=0\nseen_docs=test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+printf '{"data":[{"id":"msg_e1","type":"assistant","time":{"completed":1755861480},"finish":"error","error":{"type":"provider.invalid-output","message":"The provider response ended with an unknown finish reason."}}]}' \
+  > "$stubdir/errmsg.json"
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 5 bash "$worktree/scripts/wayfinder-loop.sh" > "$worktree/transient.out" 2>&1
+if [ -s "$prompts" ] && grep -q "transient provider error" "$worktree/transient.out" &&
+   ! grep -q "chain paused" "$worktree/transient.out"; then
+  ok "invalid-output sent recovery prompt and kept supervising (nudges: $(wc -l < "$prompts"))"
+else
+  bad "invalid-output did not nudge cleanly: $(head -3 "$worktree/transient.out")"
+fi
+
+echo "6. other assistant errors stay terminal"
+printf '{"data":[{"id":"msg_e2","type":"assistant","time":{"completed":1755861480},"finish":"error","error":{"type":"auth.invalid-key","message":"bad key"}}]}' \
+  > "$stubdir/errmsg.json"
+rm -f "$prompts"
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 \
+  timeout -s TERM 10 bash "$worktree/scripts/wayfinder-loop.sh" > "$worktree/terminal.out" 2>&1
+rc=$?
+if [ $rc -eq 0 ] && grep -qF "ended with assistant error — chain paused" "$worktree/terminal.out"; then
+  ok "non-transient error paused the chain immediately (exit $rc)"
+else
+  bad "terminal error did not pause (exit $rc): $(head -3 "$worktree/terminal.out")"
+fi
+rm -rf "$stubdir" "$worktree"
+
 echo
 if [ $fail -eq 0 ]; then echo "ALL PASS"; else echo "FAILURES PRESENT"; exit 1; fi
