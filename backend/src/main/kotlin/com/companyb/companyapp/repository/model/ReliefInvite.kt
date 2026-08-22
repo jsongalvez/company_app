@@ -32,6 +32,19 @@ data class ReliefInviteView(
     val inviteeName: String,
 )
 
+/**
+ * #359 — ACCEPTED invite joined with its duty day and branch: the reminder-job scan row.
+ * The duty date is the Branch Day's calendar date; reminders key off it, not respond time.
+ */
+data class AcceptedInviteWithBranch(
+    val inviteId: UUID,
+    val invitee: UUID,
+    val branchDayId: UUID,
+    val branchId: UUID,
+    val branchName: String,
+    val date: java.time.LocalDate,
+)
+
 object ReliefInviteTable : Table("relief_invite") {
     val id = javaUUID("id").autoGenerate()
     val branchDayId = javaUUID("branch_day_id").references(BranchDayTable.id)

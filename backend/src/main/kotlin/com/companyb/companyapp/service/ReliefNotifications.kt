@@ -44,6 +44,12 @@ internal object ReliefNotifications {
     const val INVITE_ACCEPTED = "RELIEF_INVITE_ACCEPTED"
     const val INVITE_DECLINED = "RELIEF_INVITE_DECLINED"
 
+    // #359 — accepted-invite reminders: T-3 days, T-1 day, day-of (Manila calendar days).
+    // sourceId = the invite; one marker row per (event, invite) makes job re-runs idempotent.
+    const val REMINDER_3_DAYS = "RELIEF_REMINDER_3_DAYS"
+    const val REMINDER_1_DAY = "RELIEF_REMINDER_1_DAY"
+    const val REMINDER_DAY_OF = "RELIEF_REMINDER_DAY_OF"
+
     /** A relief request went out to the whole branch ("today" or the named date). */
     fun requestCreated(
         requestId: UUID,
@@ -98,6 +104,27 @@ internal object ReliefNotifications {
             sourceId = inviteId,
             recipients = members(context.branchId),
             message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
+            context = context,
+        )
+    }
+
+    /**
+     * Accepted-invite reminder (#359): goes to the invitee only — the branch stays quiet
+     * until the duty day itself (#352 reminders ruling). The phrase follows the slot, not
+     * a clock read: the day-of sweep says "for today", the earlier sweeps name the date.
+     */
+    fun inviteReminder(
+        eventType: String,
+        inviteId: UUID,
+        inviteeId: UUID,
+        context: ReliefEventContext,
+    ): Int {
+        val phrase = if (eventType == REMINDER_DAY_OF) "for today" else "on ${context.date}"
+        return broadcast(
+            eventType = eventType,
+            sourceId = inviteId,
+            recipients = listOf(inviteeId),
+            message = "You have relief duty at ${context.branchName} $phrase",
             context = context,
         )
     }

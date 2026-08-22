@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.domain.UserStatus
+import com.companyb.companyapp.repository.model.AcceptedInviteWithBranch
 import com.companyb.companyapp.repository.model.ActiveUserCapabilitiesView
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.BranchDayTable
@@ -119,6 +120,33 @@ object ReliefInviteRepository {
                         (ActiveUserCapabilitiesView.contextId eq branchDayId)
                 }.empty()
                 .not()
+        }
+
+    /**
+     * #359 — ACCEPTED invites whose duty day is [dutyDate]: the reminder-job scan set.
+     * Suppression lives in current state, not events — declined/retracted/expired rows
+     * are other statuses and never appear here; a future accepted-invite cancellation
+     * suppresses by leaving ACCEPTED (status flip or grant revoke), no marker cleanup.
+     */
+    fun findAcceptedForDutyDate(dutyDate: java.time.LocalDate): List<AcceptedInviteWithBranch> =
+        transaction {
+            ReliefInviteTable
+                .innerJoin(BranchDayTable, { ReliefInviteTable.branchDayId }, { BranchDayTable.id })
+                .innerJoin(BranchTable, { BranchDayTable.branchId }, { BranchTable.id })
+                .selectAll()
+                .where {
+                    (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED) and
+                        (BranchDayTable.date eq dutyDate)
+                }.map { row ->
+                    AcceptedInviteWithBranch(
+                        inviteId = row[ReliefInviteTable.id],
+                        invitee = row[ReliefInviteTable.invitee],
+                        branchDayId = row[ReliefInviteTable.branchDayId],
+                        branchId = row[BranchDayTable.branchId],
+                        branchName = row[BranchTable.name],
+                        date = row[BranchDayTable.date],
+                    )
+                }
         }
 
     /**

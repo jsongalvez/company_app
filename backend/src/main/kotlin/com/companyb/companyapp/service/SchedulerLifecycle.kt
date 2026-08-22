@@ -16,6 +16,8 @@ class SchedulerLifecycle(
     // #358 — expired relief requests announce themselves just after the 04:00 Manila
     // day boundary; same executor, own schedule.
     private val expiryTask: () -> Unit = { ReliefRequestExpiryJob.run(Clock.system(BranchDayService.manilaZone)) },
+    // #359 — accepted-invite reminders sweep at 07:00 Manila, same slot as appointments.
+    private val reminderTask: () -> Unit = { ReliefInviteReminderJob.run(Clock.system(BranchDayService.manilaZone)) },
 ) {
     private var executor: ScheduledExecutorService? = null
 
@@ -47,6 +49,12 @@ class SchedulerLifecycle(
             candidate.scheduleAtFixedRate(
                 { runTask("Relief-expiry", expiryTask) },
                 ReliefRequestExpiryJob.nextRunDelayMs(now()),
+                PERIOD_HOURS,
+                TimeUnit.HOURS,
+            )
+            candidate.scheduleAtFixedRate(
+                { runTask("Relief-reminder", reminderTask) },
+                ReliefInviteReminderJob.nextRunDelayMs(now()),
                 PERIOD_HOURS,
                 TimeUnit.HOURS,
             )
