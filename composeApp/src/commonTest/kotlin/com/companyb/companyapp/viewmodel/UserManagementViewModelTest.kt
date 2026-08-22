@@ -83,7 +83,7 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.deactivateStatus = HttpStatusCode.InternalServerError
-            vm.deactivateUser("u2")
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
             advanceUntilIdle()
             assertEquals(expected = "Deactivate failed: 500", actual = vm.actionErrors.value["deactivate:u2"])
 
@@ -138,7 +138,7 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.deactivateStatus = HttpStatusCode.InternalServerError
-            vm.deactivateUser("u2")
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
             advanceUntilIdle()
             assertEquals(expected = "Deactivate failed: 500", actual = vm.actionErrors.value["deactivate:u2"])
 
@@ -219,7 +219,7 @@ class UserManagementViewModelTest {
             // Row actions stay live over the mirror-rendered list: the PATCH succeeds and the
             // in-place update restores a Success list (the freshest truth for the row — the
             // NotificationViewModel currentUnreadList precedent).
-            vm.deactivateUser("u1")
+            vm.setUserStatus("u1", UserStatus.INACTIVE)
             advanceUntilIdle()
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
@@ -244,7 +244,7 @@ class UserManagementViewModelTest {
             // reload's pre-mutation snapshot would silently revert the PATCH — the pass-1
             // HARD interleave; the screen gate covers the affordance, this is the same-frame
             // belt).
-            vm.deactivateUser("u1")
+            vm.setUserStatus("u1", UserStatus.INACTIVE)
             advanceUntilIdle()
 
             assertEquals(expected = 0, actual = harness.deactivateCount)
@@ -278,7 +278,7 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.deactivateUser("u2")
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
             advanceUntilIdle()
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
@@ -306,7 +306,7 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.deactivateStatus = HttpStatusCode.InternalServerError
-            vm.deactivateUser("u2")
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
             advanceUntilIdle()
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
@@ -329,8 +329,8 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.deactivateUser("u2")
-            vm.deactivateUser("u2")
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
             advanceUntilIdle()
 
             assertEquals(expected = 1, actual = harness.deactivateCount)
@@ -345,7 +345,7 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.deactivateFailure = true
-            vm.deactivateUser("u2")
+            vm.setUserStatus("u2", UserStatus.INACTIVE)
             advanceUntilIdle()
 
             // ADR-0022 pessimistic contract: a dropped connection keeps the row, surfaces an
@@ -371,7 +371,7 @@ class UserManagementViewModelTest {
 
             vm.loadUsers()
             advanceUntilIdle()
-            vm.reactivateUser("u3")
+            vm.setUserStatus("u3", UserStatus.ACTIVE)
             advanceUntilIdle()
 
             val state = assertIs<UiState.Success<List<UserSummaryResponse>>>(vm.users.value)
@@ -390,7 +390,7 @@ class UserManagementViewModelTest {
             vm.loadUsers()
             advanceUntilIdle()
             harness.reactivateStatus = HttpStatusCode.BadRequest
-            vm.reactivateUser("u3")
+            vm.setUserStatus("u3", UserStatus.ACTIVE)
             advanceUntilIdle()
 
             assertEquals(expected = "Reactivate failed: 400", actual = vm.actionErrors.value["reactivate:u3"])
