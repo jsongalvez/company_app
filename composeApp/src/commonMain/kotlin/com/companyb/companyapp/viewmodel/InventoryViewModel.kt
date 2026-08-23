@@ -25,6 +25,14 @@ class InventoryViewModel(
     private val _inventory = MutableStateFlow<UiState<List<BranchInventoryResponse>>>(UiState.Idle)
     val inventory: StateFlow<UiState<List<BranchInventoryResponse>>> = _inventory.asStateFlow()
 
+    /**
+     * #396 — the auxiliary low-stock read (`GET .../inventory/low-stock`, same branch-scoped
+     * EDIT_BRANCH_DATA gate as the list read). Deliberately a separate UiState so its failure
+     * degrades to an inline strip without discarding the list leg's data.
+     */
+    private val _lowStock = MutableStateFlow<UiState<List<BranchInventoryResponse>>>(UiState.Idle)
+    val lowStock: StateFlow<UiState<List<BranchInventoryResponse>>> = _lowStock.asStateFlow()
+
     private val _cardResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val cardResult: StateFlow<UiState<Unit>> = _cardResult.asStateFlow()
 
@@ -42,6 +50,22 @@ class InventoryViewModel(
             block = { apiClient.httpClient.get(ApiRoutes.branchInventory(branchId)) },
             transform = { it.body() },
         )
+    }
+
+    fun loadLowStock(branchId: String) {
+        handler.launch(
+            state = _lowStock,
+            operation = "loadLowStock",
+            endpoint = "GET /api/branches/$branchId/inventory/low-stock",
+            block = { apiClient.httpClient.get(ApiRoutes.branchInventoryLowStock(branchId)) },
+            transform = { it.body() },
+        )
+    }
+
+    /** #396 — every entry/refresh path reloads both legs so rows + markers stay consistent. */
+    fun refresh(branchId: String) {
+        loadInventory(branchId)
+        loadLowStock(branchId)
     }
 
     /**

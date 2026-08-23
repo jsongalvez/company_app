@@ -74,6 +74,11 @@ internal sealed interface InventoryWriteTarget {
  * [canEnsureCard] mirroring the POST /inventory route filter — no day-state leg) opens the
  * product picker; success refreshes, failure joins the same banner.
  *
+ * #396 — low-stock surfacing: the auxiliary `GET .../inventory/low-stock` read rides every
+ * load (separate UiState — its failure degrades to an inline retry strip); rows whose product
+ * id the backend marks low render a "Low" marker and a count summary line sits under the
+ * header. Membership is backend-authoritative; the client mirrors nothing.
+ *
  * States: load-on-entry + Refresh button (the Remittance D7 axis); Loading spinner;
  * error → shared ErrorCard retry; empty hint; rows sorted by product name (toInventoryRows
  * pins the presentation rules, desktopTest-packeted).
@@ -85,6 +90,7 @@ fun InventoryScreen(
     branchId: String?,
 ) {
     val inventoryState by viewModel.inventory.collectAsState()
+    val lowStockState by viewModel.lowStock.collectAsState()
     val restockResult by viewModel.restockResult.collectAsState()
     val movementResult by viewModel.movementResult.collectAsState()
     val cardResult by viewModel.cardResult.collectAsState()
@@ -115,7 +121,7 @@ fun InventoryScreen(
                     }
                 }
                 TextButton(
-                    onClick = { if (branchId != null) viewModel.loadInventory(branchId) },
+                    onClick = { if (branchId != null) viewModel.refresh(branchId) },
                     enabled = branchId != null && inventoryState !is UiState.Loading,
                 ) {
                     Text("Refresh")
@@ -123,11 +129,18 @@ fun InventoryScreen(
             }
         }
         WriteErrorBanner(restockResult, movementResult, cardResult, viewModel)
+        LowStockStrip(
+            inventoryState = inventoryState,
+            lowStockState = lowStockState,
+            branchId = branchId,
+            onRetryLowStock = { if (branchId != null) viewModel.loadLowStock(branchId) },
+        )
         InventoryBody(
             state = inventoryState,
+            lowStockIds = (lowStockState as? UiState.Success)?.data.orEmpty().mapTo(mutableSetOf()) { it.productId },
             branchId = branchId,
             writesDisabled = restockResult is UiState.Loading || movementResult is UiState.Loading,
-            onRetry = { if (branchId != null) viewModel.loadInventory(branchId) },
+            onRetry = { if (branchId != null) viewModel.refresh(branchId) },
             onAction = { card, kind ->
                 writeTarget =
                     if (kind == InventoryWriteKind.RESTOCK) {
@@ -167,27 +180,80 @@ private fun InventoryLoadEffects(
 ) {
     LaunchedEffect(branchId) {
         logInfo("InventoryScreen", "composable entered (branchId=$branchId)")
-        if (branchId != null) viewModel.loadInventory(branchId)
+        if (branchId != null) viewModel.refresh(branchId)
     }
     LaunchedEffect(restockResult) {
         if (restockResult is UiState.Success) {
             logInfo("InventoryScreen", "restock landed — refreshing inventory")
             viewModel.clearWriteResults()
-            if (branchId != null) viewModel.loadInventory(branchId)
+            if (branchId != null) viewModel.refresh(branchId)
         }
     }
     LaunchedEffect(movementResult) {
         if (movementResult is UiState.Success) {
             logInfo("InventoryScreen", "movement landed — refreshing inventory")
             viewModel.clearWriteResults()
-            if (branchId != null) viewModel.loadInventory(branchId)
+            if (branchId != null) viewModel.refresh(branchId)
         }
     }
     LaunchedEffect(cardResult) {
         if (cardResult is UiState.Success) {
             logInfo("InventoryScreen", "ensure-card landed — refreshing inventory")
             viewModel.clearWriteResults()
-            if (branchId != null) viewModel.loadInventory(branchId)
+            if (branchId != null) viewModel.refresh(branchId)
+        }
+    }
+}
+
+/**
+ * #396 — the low-stock surface between the header and the list: a count summary line when any
+ * displayed card is low, or an inline retry strip when only the auxiliary leg failed (the list
+ * leg's data stays up). Renders nothing while the legs are loading/absent.
+ */
+@Composable
+private fun LowStockStrip(
+    inventoryState: UiState<List<BranchInventoryResponse>>,
+    lowStockState: UiState<List<BranchInventoryResponse>>,
+    branchId: String?,
+    onRetryLowStock: () -> Unit,
+) {
+    val cards = (inventoryState as? UiState.Success)?.data.orEmpty()
+    when (lowStockState) {
+        is UiState.Error -> {
+            if (branchId != null && inventoryState !is UiState.Error) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Low stock unavailable",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onRetryLowStock) { Text("Retry") }
+                }
+            }
+        }
+
+        is UiState.Success -> {
+            val summary =
+                lowStockSummaryLine(
+                    cards,
+                    lowStockState.data.mapTo(mutableSetOf()) { it.productId },
+                )
+            if (summary != null) {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = Spacing.xs),
+                )
+            }
+        }
+
+        else -> {
+            Unit
         }
     }
 }
@@ -230,6 +296,7 @@ private fun WriteErrorBanner(
 @Composable
 private fun InventoryBody(
     state: UiState<List<BranchInventoryResponse>>,
+    lowStockIds: Set<String>,
     branchId: String?,
     writesDisabled: Boolean,
     onRetry: () -> Unit,
@@ -260,6 +327,7 @@ private fun InventoryBody(
             } else {
                 InventorySuccessList(
                     cards = state.data,
+                    lowStockIds = lowStockIds,
                     restockEnabled = branchDayId != null && canRestock(capabilities, branchId) && !writesDisabled,
                     movementEnabled =
                         branchDayId != null &&
@@ -275,6 +343,7 @@ private fun InventoryBody(
 @Composable
 private fun InventorySuccessList(
     cards: List<BranchInventoryResponse>,
+    lowStockIds: Set<String>,
     restockEnabled: Boolean,
     movementEnabled: Boolean,
     onAction: (BranchInventoryResponse, InventoryWriteKind) -> Unit,
@@ -283,7 +352,7 @@ private fun InventorySuccessList(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        items(cards.toInventoryRows(), key = { it.id }) { model ->
+        items(cards.toInventoryRows(lowStockIds), key = { it.id }) { model ->
             val card = cards.first { it.id == model.id }
             InventoryRow(
                 model = model,
@@ -325,6 +394,13 @@ private fun InventoryRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (model.isLow) {
+                    Text(
+                        text = "Low",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(

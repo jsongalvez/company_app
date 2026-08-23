@@ -111,14 +111,22 @@ internal fun movementNotesError(
 internal fun restockUnitsError(unitsText: String): String? =
     if ((unitsText.trim().toIntOrNull() ?: 0) > 0) null else "Restock quantity must be positive"
 
-/** Presentation rule surface for the desktopTest packet: sort + display-line mapping (#391). */
-internal fun List<BranchInventoryResponse>.toInventoryRows(): List<InventoryRowModel> =
+/**
+ * Presentation rule surface for the desktopTest packet: sort + display-line mapping (#391).
+ * #396 — cards whose product id appears in the low-stock read's response render marked;
+ * membership is backend-authoritative (per-product reorderPoint with a server default) and
+ * the client mirrors nothing.
+ */
+internal fun List<BranchInventoryResponse>.toInventoryRows(
+    lowStockIds: Set<String> = emptySet(),
+): List<InventoryRowModel> =
     sortedBy { it.productName.lowercase() }.map { card ->
         InventoryRowModel(
             id = card.id,
             productName = card.productName,
             stockLine = "In stock: ${card.currentStock}",
             priceLine = "₱${card.unitPrice}",
+            isLow = card.productId in lowStockIds,
         )
     }
 
@@ -127,7 +135,22 @@ internal data class InventoryRowModel(
     val productName: String,
     val stockLine: String,
     val priceLine: String,
+    val isLow: Boolean = false,
 )
+
+/**
+ * #396 — the header count line, in display truth: counted against the cards actually shown
+ * (a low-stock row naming a product with no displayed card never inflates the count).
+ * null = nothing to surface (no low card, or no cards at all).
+ */
+internal fun lowStockSummaryLine(
+    cards: List<BranchInventoryResponse>,
+    lowStockIds: Set<String>,
+): String? {
+    if (cards.isEmpty()) return null
+    val count = cards.count { it.productId in lowStockIds }
+    return if (count > 0) "$count of ${cards.size} cards low on stock" else null
+}
 
 private fun normalizeOptional(text: String?): String? = text?.trim()?.takeIf { it.isNotEmpty() }
 

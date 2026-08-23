@@ -179,4 +179,35 @@ class InventoryWriteLogicTest {
         // No cards at all → everything is an option.
         assertEquals(4, productsWithoutCards(products, emptyList()).size)
     }
+
+    /** #396 — the low-stock read's product ids mark rows; the summary counts display truth. */
+    @Test
+    fun toInventoryRows_marksLowStockIds_andSummaryCountsDisplayedCards() {
+        val alcohol = card() // productId "product-1"
+        val pads =
+            alcohol.copy(
+                id = "card-2",
+                productId = "p-2",
+                productName = "Pads",
+                currentStock = 2,
+            )
+
+        // Empty/disjoint id sets mark nothing — the #391 default shape is unchanged.
+        assertTrue(listOf(alcohol, pads).toInventoryRows().none { it.isLow })
+        assertTrue(listOf(alcohol, pads).toInventoryRows(setOf("p-9")).none { it.isLow })
+
+        // A marked product id flips exactly its row (match is by productId, not card id).
+        val rows = listOf(alcohol, pads).toInventoryRows(setOf("p-2"))
+        assertFalse(rows.first { it.id == "card-1" }.isLow)
+        assertTrue(rows.first { it.id == "card-2" }.isLow)
+
+        // All-low marks every row.
+        assertTrue(listOf(alcohol, pads).toInventoryRows(setOf("product-1", "p-2")).all { it.isLow })
+
+        // Summary: nothing surfaced when no displayed card is low or there are no cards;
+        // the count names displayed cards, not raw response rows.
+        assertNull(lowStockSummaryLine(listOf(alcohol), setOf("p-2")))
+        assertNull(lowStockSummaryLine(emptyList(), setOf("product-1")))
+        assertEquals("1 of 2 cards low on stock", lowStockSummaryLine(listOf(alcohol, pads), setOf("product-1", "p-9")))
+    }
 }
