@@ -314,9 +314,9 @@ else
 fi
 _validate_config
 
-TOTAL_STAGES=23
-TOTAL_MINUTES=101
-[[ "$MODE" == "full" ]] && { TOTAL_STAGES=38; TOTAL_MINUTES=166; }
+TOTAL_STAGES=24
+TOTAL_MINUTES=104
+[[ "$MODE" == "full" ]] && { TOTAL_STAGES=39; TOTAL_MINUTES=169; }
 [[ "$SSH_MODE" == "public" ]] && { TOTAL_STAGES=$((TOTAL_STAGES + 1)); TOTAL_MINUTES=$((TOTAL_MINUTES + 3)); }
 
 banner "Oracle Cloud VPS — ${MODE} setup (${SSH_MODE} ssh)"
@@ -678,6 +678,7 @@ else
   vps 'sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow in on tailscale0 && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw allow 41641/udp && sudo ufw --force enable'
 fi
 vps 'sudo ufw status verbose'
+note "container → host ssh (Coolify's localhost server) gets its allow rule right after Coolify installs — its bridge network does not exist yet"
 if [[ "$SSH_MODE" == "public" ]]; then
   note "tailnet ssh = 22 via tailscale0; org admins = 51920/tcp public (key-only, fail2ban); 80/443 public for Coolify + the app; 41641/udp = tailscale direct connections"
 else
@@ -761,6 +762,32 @@ for i in $(seq 1 12); do
   [[ $i -eq 12 ]] && warn "Coolify API not up after ~2 min — check: sudo docker ps | grep coolify"
 done
 
+stage "Coolify ↔ host ssh path" 3
+# Coolify's localhost server connects BACK to the host over ssh
+# (host.docker.internal:22). ufw's default deny incoming drops that
+# container→host traffic — the visible failure is 'Server is not reachable …
+# Operation timed out'. Allow 22 per docker bridge (docker0 may be DOWN;
+# Coolify rides a br-<id> custom bridge, so detect them instead of guessing).
+BRIDGES="$(vps 'for i in /sys/class/net/*; do b=${i##*/}; case $b in docker0|br-*) echo "$b";; esac; done' || true)"
+if [[ -z "$BRIDGES" ]]; then
+  warn "no docker bridges found on the VPS — is docker running?"
+  pause "bridge rule created by hand? (sudo ufw allow in on <bridge> to any port 22 proto tcp)"
+fi
+for b in $BRIDGES; do
+  vps "sudo ufw allow in on $b to any port 22 proto tcp comment 'coolify localhost ssh'"
+  note "✓ ufw: ssh allowed from bridge $b"
+done
+note "probing container → host.docker.internal:22 from INSIDE the coolify container…"
+PROBE_B64="$(printf '%s' '<?php $f=@fsockopen("host.docker.internal",22,$e,$s,5); echo $f?"OPEN":"FAIL $s";' | base64 | tr -d '\n')"
+PROBE_RESULT="$(vps "printf %s $PROBE_B64 | base64 -d | docker exec -i coolify php" || true)"
+if [[ "$PROBE_RESULT" == "OPEN" ]]; then
+  note "✓ the container reaches host sshd — localhost validation will pass"
+else
+  warn "probe says '${PROBE_RESULT:-no output}' — the Localhost server will fail validation"
+  note "fix on the VPS: sudo ufw allow in on <bridge> to any port 22 proto tcp  (bridges listed above; a restart of the box re-applies ufw, so use ufw, not raw iptables)"
+  pause "probe OPEN now?"
+fi
+
 stage "Coolify dashboard first run" 5
 open_url "http://$TS_IP:8000"
 step "Create the admin account (email + password) — the wizard remembers them for re-runs"
@@ -771,6 +798,8 @@ write_env COOLIFY_ADMIN_PASSWORD "$COOLIFY_ADMIN_PASSWORD"
 step "Instance domain: leave as-is (http://$TS_IP:8000)"
 step "Skip/close any onboarding prompts (notifications, etc.)"
 pause "Dashboard visible?"
+step "Servers → Localhost → 'Validate server & install Docker Engine…' — wait for the green Validated state (the ssh-path stage above is what makes this pass)"
+pause "Localhost server validated?"
 
 stage "App Dockerfile" 4
 if [[ "$MODE" == "full" ]]; then
