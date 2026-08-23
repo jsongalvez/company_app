@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.dto.ReliefAccessResponse
+import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.ReliefDayViewModel
@@ -36,6 +37,8 @@ fun ReliefDayScreen(
     modifier: Modifier = Modifier,
 ) {
     val requestsState by viewModel.requests.collectAsState()
+    // #401 — the day's invites, the panel's auxiliary leg (own UiState, own retry).
+    val invitesState by viewModel.invites.collectAsState()
     // #388 — the name travels with the VM (resolved from branch-options), not the nav
     // hosts: the deep link only ever carried the id.
     val branchName by viewModel.branchName.collectAsState()
@@ -87,6 +90,56 @@ fun ReliefDayScreen(
                 Unit
             }
         }
+
+        // #401 — the day's invites under the requests: invite-sourced taps (accepted /
+        // declined / revoked / reminder) render the tapped entity's true state instead of
+        // dying as an empty day. Own leg — a failure here is an inline retry strip and the
+        // request list above stays untouched.
+        DayInvitesSection(
+            invitesState = invitesState,
+            onRetry = viewModel::load,
+        )
+    }
+}
+
+@Composable
+private fun DayInvitesSection(
+    invitesState: UiState<List<ReliefInviteResponse>>,
+    onRetry: () -> Unit,
+) {
+    when (val state = invitesState) {
+        is UiState.Error -> {
+            ErrorCard(
+                message = state.message,
+                onRetry = onRetry,
+            )
+        }
+
+        is UiState.Success -> {
+            if (state.data.isNotEmpty()) {
+                Text("Invites", style = MaterialTheme.typography.titleSmall)
+                val today = currentOperationalDate()
+                toReliefDayInviteRows(state.data, today).forEach { row -> DayInviteRow(row) }
+            }
+        }
+
+        UiState.Loading,
+        UiState.Idle,
+        -> {
+            Unit
+        }
+    }
+}
+
+@Composable
+private fun DayInviteRow(row: ReliefDayInviteRow) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = row.title, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        Text(text = row.statusText, style = MaterialTheme.typography.labelSmall, color = InkSubtle)
     }
 }
 

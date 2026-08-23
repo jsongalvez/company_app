@@ -48,6 +48,14 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
+    path = "/api/branches/{branchId}/relief-invites/by-date",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    queryParams = [OpenApiParam(name = "date", type = String::class, required = true)],
+    operationId = "branch_relief_invites_by_date_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
     path = "/api/branches/{branchId}/relief-invites",
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
@@ -124,6 +132,17 @@ object ReliefInviteRoutes {
 
             context.status(HttpStatus.OK)
             context.json(ReliefInviteService.listBranchAccepted(callerId, branchId).map { it.toResponse() })
+        }
+
+        // #401 — deep-link day read: the notification tap's (branchId, date) pair, every
+        // invite status at that day. Audience scoping lives in the service.
+        config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_BY_DATE_PATH) { context ->
+            val callerId = context.callerUuid()
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+            val date = parseRequiredDate(context.queryParam("date"), "date")
+
+            context.status(HttpStatus.OK)
+            context.json(ReliefInviteService.listForDay(callerId, branchId, date).map { it.toResponse() })
         }
 
         config.routes.get(ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH) { context ->

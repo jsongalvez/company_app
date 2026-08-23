@@ -136,6 +136,26 @@ object ReliefInviteService {
     }
 
     /**
+     * #401 deep-link day read — the notification tap's truth surface: every invite at
+     * [branchId] on [date] with its current status. Bearer-only, no capability gate (the
+     * #358 deep-link precedent — the audiences a relief notification reaches are members,
+     * the requester, and the invitee; none hold capabilities by definition). Audience
+     * scoping mirrors ReliefAccessService.listForCaller: an active branch member sees all
+     * rows (the broadcast told them); anyone else sees only the rows where they are the
+     * invitee. A non-invitee outsider gets an empty list — no row-existence leak.
+     */
+    fun listForDay(
+        callerId: UUID,
+        branchId: UUID,
+        date: LocalDate,
+    ): List<ReliefInviteView> {
+        val rows = ReliefInviteRepository.findByBranchAndDate(branchId, date)
+        if (rows.isEmpty()) return rows
+        val isMember = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) != null
+        return if (isMember) rows else rows.filter { it.invite.invitee == callerId }
+    }
+
+    /**
      * Accepts a PENDING invite: writes the day-scoped grant immediately
      * (grantedBy = inviter, grantedAt = accept time — both live on the invite row:
      * invitedBy + respondedAt; the capability row's sourceId ties it to the invite).

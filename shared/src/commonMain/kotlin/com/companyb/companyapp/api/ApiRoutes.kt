@@ -131,6 +131,12 @@ object ApiRoutes {
     // #377 — branch-wide ACCEPTED duties (any active member may revoke).
     fun branchReliefInvitesAccepted(id: String) = "${branchReliefInvites(id)}/accepted"
 
+    // #401 — notification deep-link day read: invites at the branch for one date.
+    fun branchReliefInvitesByDate(
+        id: String,
+        date: String,
+    ) = "${branchReliefInvites(id)}/by-date?date=$date"
+
     fun branchReliefCandidates(id: String) = "$BRANCHES/$id/relief-candidates"
 
     // #366 — active-member directory (id + display name) for the requested-practitioner picker.
@@ -225,6 +231,9 @@ object ApiRoutes {
     const val BRANCH_SESSION_PREVIEW_PATH = "$BRANCH_PATH/session-preview"
     const val BRANCH_RELIEF_INVITES_PATH = "$BRANCH_PATH/relief-invites"
     const val BRANCH_RELIEF_INVITES_ACCEPTED_PATH = "$BRANCH_PATH/relief-invites/accepted"
+
+    // #401 — deep-link day read (query param: date): every invite at the branch on that day.
+    const val BRANCH_RELIEF_INVITES_BY_DATE_PATH = "$BRANCH_RELIEF_INVITES_PATH/by-date"
     const val BRANCH_RELIEF_CANDIDATES_PATH = "$BRANCH_PATH/relief-candidates"
     const val BRANCH_MEMBERS_PATH = "$BRANCH_PATH/members"
     const val BRANCH_ASSIGNMENTS_PATH = "$BRANCH_PATH/assignments"

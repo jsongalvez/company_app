@@ -298,6 +298,27 @@ object ReliefInviteRepository {
                 .withInviteeNames()
         }
 
+    /**
+     * Every invite at [branchId] on [date], all statuses (#401 deep-link day read — the
+     * tapped notification must render the entity's true state, so resolved rows stay).
+     * Joins through BranchDayTable, so a day that was never materialized yields an empty
+     * list — no day-row creation from a read.
+     */
+    fun findByBranchAndDate(
+        branchId: UUID,
+        date: java.time.LocalDate,
+    ): List<ReliefInviteView> =
+        transaction {
+            joinWithDisplay()
+                .selectAll()
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (BranchDayTable.date eq date)
+                }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
+                .map { it.toView() }
+                .withInviteeNames()
+        }
+
     fun findViewByInviteId(id: UUID): ReliefInviteView? =
         transaction {
             joinWithDisplay()

@@ -70,3 +70,27 @@ fun isRequestExpired(
     val date = parseInviteDate(request.date) ?: return false
     return date < today
 }
+
+/** One rendered row of the deep-link panel's invites section (#401). */
+data class ReliefDayInviteRow(
+    val title: String,
+    val statusText: String,
+)
+
+/**
+ * #401 — the branch+date panel's invite rows: who was invited and the invite's true
+ * current status. PENDING on a past day renders "Expired" (the #399 rule, via
+ * [isInviteExpired]); resolved statuses keep their raw enum text exactly like the panel's
+ * request rows. The panel carries no actions — a revoked/declined tap can never render a
+ * stale actionable row.
+ */
+fun toReliefDayInviteRows(
+    invites: List<ReliefInviteResponse>,
+    today: LocalDate,
+): List<ReliefDayInviteRow> =
+    invites.map { invite ->
+        ReliefDayInviteRow(
+            title = invite.inviteeName.ifBlank { "A user" },
+            statusText = if (isInviteExpired(invite, today)) "Expired" else invite.status.name,
+        )
+    }
