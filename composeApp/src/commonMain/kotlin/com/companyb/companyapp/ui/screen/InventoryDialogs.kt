@@ -1,24 +1,37 @@
 package com.companyb.companyapp.ui.screen
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.viewmodel.ProductViewModel
+import com.companyb.companyapp.viewmodel.UiState
 
 /**
  * #392 — the Inventory write dialogs (the EditSlotDialog shape: client-side validation mirrors
@@ -193,6 +206,94 @@ internal fun MovementDialog(
                 },
             ) {
                 Text("Record")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+}
+
+/**
+ * #395 — pick a catalog product that has no card at this branch and ensure it. The product read
+ * rides the shared [ProductViewModel] (`GET /api/products`); options come from the pure
+ * [productsWithoutCards] mapper over it and the already-loaded cards. Save hands the id to the
+ * caller and closes immediately (the #392 dialog shape) — success refreshes, failure surfaces
+ * in the screen's banner. The 201-no-body ensure is idempotent server-side, so a raced card is
+ * harmless.
+ */
+@Composable
+internal fun EnsureCardDialog(
+    productViewModel: ProductViewModel,
+    cards: List<BranchInventoryResponse>,
+    onDismiss: () -> Unit,
+    onSave: (productId: String) -> Unit,
+) {
+    val products by productViewModel.products.collectAsState()
+    LaunchedEffect(Unit) { productViewModel.loadProducts() }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add inventory card") },
+        text = {
+            when (val state = products) {
+                is UiState.Idle,
+                is UiState.Loading,
+                -> {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                is UiState.Error -> {
+                    Column {
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.size(Spacing.sm))
+                        TextButton(onClick = productViewModel::loadProducts) { Text("Retry") }
+                    }
+                }
+
+                is UiState.Success -> {
+                    val options = productsWithoutCards(state.data, cards)
+                    if (options.isEmpty()) {
+                        Text(
+                            text = "Every catalog product already has a card at this branch",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Column(
+                            modifier =
+                                Modifier
+                                    .heightIn(max = 360.dp)
+                                    .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            options.forEach { product ->
+                                FilterChip(
+                                    selected = selectedId == product.id,
+                                    onClick = { selectedId = product.id },
+                                    label = { Text(product.name) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = selectedId != null,
+                onClick = { selectedId?.let(onSave) },
+            ) {
+                Text("Add")
             }
         },
         dismissButton = {

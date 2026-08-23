@@ -62,6 +62,7 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.ProfileViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefDayViewModel
@@ -271,8 +272,11 @@ actual fun AppNavHost(
                     if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA)) {
                         val inventoryViewModel: InventoryViewModel =
                             viewModel { InventoryViewModel(apiClient) }
+                        val productViewModel: ProductViewModel =
+                            viewModel { ProductViewModel(apiClient) }
                         InventoryScreen(
                             viewModel = inventoryViewModel,
+                            productViewModel = productViewModel,
                             branchId = selectedBranchId,
                         )
                     } else {

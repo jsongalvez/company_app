@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -124,5 +125,58 @@ class InventoryWriteLogicTest {
         assertEquals(12, restock.quantity)
         assertEquals("box arrived", restock.editReason)
         assertEquals("day-1", restock.branchDayId)
+    }
+
+    private fun product(
+        id: String,
+        name: String,
+    ) = ProductResponse(id, name, "category-1", isActive = true, unitPrice = "100.00", commissionAmount = "0")
+
+    @Test
+    fun canEnsureCard_mirrorsThePostInventoryRouteFilter_noDayStateLeg() {
+        // No capabilities and no branch → no affordance.
+        assertFalse(canEnsureCard(emptyList(), branchId))
+        assertFalse(canEnsureCard(emptyList(), null))
+
+        // MANAGE_PRODUCTS at the branch → the affordance shows.
+        val manager =
+            listOf(cap("MANAGE_PRODUCTS", CapabilityContextType.BRANCH, branchId))
+        assertTrue(canEnsureCard(manager, branchId))
+
+        // Exact-scope: another branch or a day grant never matches; a held branch with a null
+        // selection hides it (#156). NOTE — unlike restock/movement there is deliberately NO
+        // clocked-in-day requirement here: the backend command opens no branch day.
+        val elsewhere =
+            listOf(
+                cap("MANAGE_PRODUCTS", CapabilityContextType.BRANCH, "branch-9"),
+                cap("MANAGE_PRODUCTS", CapabilityContextType.BRANCH_DAY, "day-1"),
+            )
+        assertFalse(canEnsureCard(elsewhere, branchId))
+    }
+
+    @Test
+    fun productsWithoutCards_filtersCardedProducts_sortsCaseInsensitive() {
+        val products =
+            listOf(
+                product("p-3", "beta"),
+                product("p-1", "Alcohol"),
+                product("p-2", "alpha"),
+                product("p-4", "Gamma"),
+            )
+        val cards =
+            listOf(
+                card(), // productId "product-1" (not in this catalog slice)
+                card().copy(id = "card-2", productId = "p-1"),
+            )
+
+        // Carded products drop out; duplicate carded ids are harmless; order is case-insensitive.
+        assertEquals(listOf("alpha", "beta", "Gamma"), productsWithoutCards(products, cards).map { it.name })
+
+        // Every product carded → empty picker options.
+        val allCarded = products.map { card().copy(id = it.id, productId = it.id) }
+        assertTrue(productsWithoutCards(products, allCarded).isEmpty())
+
+        // No cards at all → everything is an option.
+        assertEquals(4, productsWithoutCards(products, emptyList()).size)
     }
 }

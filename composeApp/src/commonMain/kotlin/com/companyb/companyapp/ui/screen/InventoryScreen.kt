@@ -28,12 +28,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.viewmodel.InventoryViewModel
+import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.UiState
 
 /** Which write flow a row tap opens (#392). */
@@ -68,6 +70,10 @@ internal sealed interface InventoryWriteTarget {
  * fail-closed without a clocked-in branchDayId. Success closes + refreshes; write failures
  * surface in a dismissable banner above the list.
  *
+ * #395 — ensure-card half: an "Add card" header affordance (MANAGE_PRODUCTS at the branch,
+ * [canEnsureCard] mirroring the POST /inventory route filter — no day-state leg) opens the
+ * product picker; success refreshes, failure joins the same banner.
+ *
  * States: load-on-entry + Refresh button (the Remittance D7 axis); Loading spinner;
  * error → shared ErrorCard retry; empty hint; rows sorted by product name (toInventoryRows
  * pins the presentation rules, desktopTest-packeted).
@@ -75,14 +81,18 @@ internal sealed interface InventoryWriteTarget {
 @Composable
 fun InventoryScreen(
     viewModel: InventoryViewModel,
+    productViewModel: ProductViewModel,
     branchId: String?,
 ) {
     val inventoryState by viewModel.inventory.collectAsState()
     val restockResult by viewModel.restockResult.collectAsState()
     val movementResult by viewModel.movementResult.collectAsState()
+    val cardResult by viewModel.cardResult.collectAsState()
+    val capabilities by SessionState.capabilities.collectAsState()
     var writeTarget by remember { mutableStateOf<InventoryWriteTarget?>(null) }
+    var showEnsureCard by remember { mutableStateOf(false) }
 
-    InventoryLoadEffects(viewModel, branchId, restockResult, movementResult)
+    InventoryLoadEffects(viewModel, branchId, restockResult, movementResult, cardResult)
     Column(
         modifier =
             Modifier
@@ -95,14 +105,24 @@ fun InventoryScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = "Inventory", style = MaterialTheme.typography.titleLarge)
-            TextButton(
-                onClick = { if (branchId != null) viewModel.loadInventory(branchId) },
-                enabled = branchId != null && inventoryState !is UiState.Loading,
-            ) {
-                Text("Refresh")
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                if (branchId != null && canEnsureCard(capabilities, branchId)) {
+                    TextButton(
+                        onClick = { showEnsureCard = true },
+                        enabled = cardResult !is UiState.Loading,
+                    ) {
+                        Text("Add card")
+                    }
+                }
+                TextButton(
+                    onClick = { if (branchId != null) viewModel.loadInventory(branchId) },
+                    enabled = branchId != null && inventoryState !is UiState.Loading,
+                ) {
+                    Text("Refresh")
+                }
             }
         }
-        WriteErrorBanner(restockResult, movementResult, viewModel)
+        WriteErrorBanner(restockResult, movementResult, cardResult, viewModel)
         InventoryBody(
             state = inventoryState,
             branchId = branchId,
@@ -121,15 +141,29 @@ fun InventoryScreen(
     writeTarget?.let { target ->
         InventoryWriteDialogs(target, viewModel, branchId) { writeTarget = null }
     }
+    if (showEnsureCard) {
+        EnsureCardDialog(
+            productViewModel = productViewModel,
+            cards = (inventoryState as? UiState.Success)?.data.orEmpty(),
+            onDismiss = { showEnsureCard = false },
+            onSave = { productId ->
+                showEnsureCard = false
+                if (branchId != null) {
+                    viewModel.ensureCard(branchId, AddInventoryCardRequest(productId))
+                }
+            },
+        )
+    }
 }
 
-/** Entry load plus the #392 write-success legs: clear the result, refresh the authoritative read. */
+/** Entry load plus the #392 write-success legs (+#395 ensure-card): clear + authoritative refresh. */
 @Composable
 private fun InventoryLoadEffects(
     viewModel: InventoryViewModel,
     branchId: String?,
     restockResult: UiState<*>,
     movementResult: UiState<*>,
+    cardResult: UiState<*>,
 ) {
     LaunchedEffect(branchId) {
         logInfo("InventoryScreen", "composable entered (branchId=$branchId)")
@@ -149,6 +183,13 @@ private fun InventoryLoadEffects(
             if (branchId != null) viewModel.loadInventory(branchId)
         }
     }
+    LaunchedEffect(cardResult) {
+        if (cardResult is UiState.Success) {
+            logInfo("InventoryScreen", "ensure-card landed — refreshing inventory")
+            viewModel.clearWriteResults()
+            if (branchId != null) viewModel.loadInventory(branchId)
+        }
+    }
 }
 
 /** Inline surface for write failures (the EditSlotDialog inline-error shape, screen-level). */
@@ -156,9 +197,14 @@ private fun InventoryLoadEffects(
 private fun WriteErrorBanner(
     restockResult: UiState<*>,
     movementResult: UiState<*>,
+    cardResult: UiState<*>,
     viewModel: InventoryViewModel,
 ) {
-    val error = (restockResult as? UiState.Error) ?: (movementResult as? UiState.Error) ?: return
+    val error =
+        (restockResult as? UiState.Error)
+            ?: (movementResult as? UiState.Error)
+            ?: (cardResult as? UiState.Error)
+            ?: return
     Surface(
         shape = RoundedCornerShape(CornerRadius.sm),
         color = MaterialTheme.colorScheme.errorContainer,

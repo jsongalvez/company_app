@@ -108,9 +108,11 @@ class InventoryViewModel(
     /**
      * #392 — the screen's terminal hook for write results: success legs clear so a repeat
      * action re-fires the StateFlow; the banner's Dismiss clears a standing error.
+     * #395 — the ensure-card result rides the same lifecycle.
      */
     fun clearWriteResults() {
         _restockResult.value = UiState.Idle
         _movementResult.value = UiState.Idle
+        _cardResult.value = UiState.Idle
     }
 }

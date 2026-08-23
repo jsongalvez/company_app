@@ -5,6 +5,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
+import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.state.hasCapability
@@ -24,6 +25,26 @@ internal fun canRestock(
     capabilities: List<UserCapabilityResponse>,
     selectedBranchId: String?,
 ): Boolean = capabilities.hasCapability(CapabilityCodes.MANAGE_PRODUCTS, CapabilityContextType.BRANCH, selectedBranchId)
+
+/**
+ * #395 — the ensure-card route filter (`POST /branches/{id}/inventory` → MANAGE_PRODUCTS,
+ * branch-scoped exact-scope) mirrored for the Add-card affordance. Happens to equal
+ * [canRestock] today; kept separate so the two routes can diverge without a silent drift.
+ * Unlike restock/movement there is NO day-state leg: the backend command opens no branch day.
+ */
+internal fun canEnsureCard(
+    capabilities: List<UserCapabilityResponse>,
+    selectedBranchId: String?,
+): Boolean = capabilities.hasCapability(CapabilityCodes.MANAGE_PRODUCTS, CapabilityContextType.BRANCH, selectedBranchId)
+
+/** Catalog products that don't yet have a card at this branch, in picker display order (#395). */
+internal fun productsWithoutCards(
+    products: List<ProductResponse>,
+    cards: List<BranchInventoryResponse>,
+): List<ProductResponse> {
+    val carded = cards.map { it.productId }.toHashSet()
+    return products.filter { it.id !in carded }.sortedBy { it.name.lowercase() }
+}
 
 /** The reasons this caller may record at the branch, in picker display order. */
 internal fun allowedMovementReasons(
