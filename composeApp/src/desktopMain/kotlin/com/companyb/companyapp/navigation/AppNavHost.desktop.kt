@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PermanentNavigationDrawer
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -16,7 +15,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -43,6 +41,7 @@ import com.companyb.companyapp.ui.screen.ClientsScreen
 import com.companyb.companyapp.ui.screen.DashboardSelection
 import com.companyb.companyapp.ui.screen.FinanceReportsScreen
 import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
+import com.companyb.companyapp.ui.screen.InventoryScreen
 import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
@@ -61,6 +60,7 @@ import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
+import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
 import com.companyb.companyapp.viewmodel.ProfileViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
@@ -262,7 +262,23 @@ actual fun AppNavHost(
                         onAnonymized = { navController.popBackStack() },
                     )
                 }
-                composable<Route.Inventory> { PlaceholderRoute("Inventory") }
+                composable<Route.Inventory> {
+                    // #391 — read-only branch inventory; gate mirrors the drawer item
+                    // (#156 any-context EDIT_BRANCH_DATA; backend branch-scoped gate
+                    // authoritative). Branch scope = the clocked-in branch.
+                    val capabilities by SessionState.capabilities.collectAsState()
+                    val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+                    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA)) {
+                        val inventoryViewModel: InventoryViewModel =
+                            viewModel { InventoryViewModel(apiClient) }
+                        InventoryScreen(
+                            viewModel = inventoryViewModel,
+                            branchId = selectedBranchId,
+                        )
+                    } else {
+                        RouteGateCard(label = "Inventory")
+                    }
+                }
                 // #105 D1 — the merged Finance & Reports screen, gate = widest read capability
                 // (VIEW_BRANCH_DATA any-context, #92 Q3; backend gates authoritative).
                 composable<Route.Finance> {
@@ -472,11 +488,4 @@ private fun NotificationsDestination(
             }
         },
     )
-}
-
-@Composable
-private fun PlaceholderRoute(label: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("$label — pending build ticket", style = MaterialTheme.typography.bodyLarge)
-    }
 }
