@@ -50,6 +50,7 @@ object DashboardRoutes {
                 practitionerBySession = practitioners.groupBy { it.sessionId },
                 concernsBySession = concerns.groupBy { it.sessionId },
                 requestedPractitionerNames = requestedPractitionerNames,
+                branchIdBySession = branchIdBySession,
             )
 
         return DashboardResponse(
@@ -72,8 +73,13 @@ internal data class DashboardSessionEnrichment(
     val voidedSessionIds: Set<UUID>,
     val practitionerBySession: Map<UUID, List<SessionPractitionerWithName>>,
     val concernsBySession: Map<UUID, List<ConcernWithSessionId>>,
-    /** Requested-practitioner display names keyed by user id (#366). */
+    /** #366 — requested-practitioner display names keyed by user id (#366). */
     val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
+    /**
+     * #382 — owning branch per session id. The dashboard path knows it from the route; the
+     * single-session detail read resolves it from the session's branch day.
+     */
+    val branchIdBySession: Map<UUID, UUID> = emptyMap(),
 )
 
 /**
@@ -107,6 +113,7 @@ internal fun mapDashboardSession(
         isVoided = session.id in enrichment.voidedSessionIds,
         requestedPractitionerName =
             session.requestedPractitionerId?.let { enrichment.requestedPractitionerNames[it] },
+        branchId = enrichment.branchIdBySession[session.id]?.toString() ?: "",
         practitioners =
             enrichment.practitionerBySession[session.id]
                 .orEmpty()

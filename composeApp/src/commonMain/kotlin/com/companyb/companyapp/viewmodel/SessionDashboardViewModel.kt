@@ -109,6 +109,11 @@ class SessionDashboardViewModel(
     private var consecutiveFailures = 0
     private var pollJob: Job? = null
 
+    // #382 — set synchronously when refresh() is called while a landing is in flight; drained
+    // (once) by that landing's invokeOnCompletion.
+    @Volatile
+    private var pendingRefresh = false
+
     init {
         resume()
     }
@@ -165,58 +170,91 @@ class SessionDashboardViewModel(
             return Job().also { it.cancel() }
         }
         _dashboardState.value = UiState.Loading
-        return handler.launch(
-            state = _dashboardState,
-            operation = "loadDashboard",
-            endpoint = "GET /api/branches/$branchId/dashboard/today",
-            block = { apiClient.httpClient.get(ApiRoutes.branchDashboardToday(branchId)) },
-            transform = {
-                it.body<DashboardResponse>().also { data ->
-                    // Q5a — the failure counter and the timestamp reset only on SUCCESS.
-                    consecutiveFailures = 0
-                    _pollStatus.value = DashboardPollStatus.FRESH
-                    // #149 — monotonic per-row version merge: a poll response that started
-                    // before a successful inline edit landed carries an older version and
-                    // must never regress the committed row (stale-poll-after-commit).
-                    _lastData.value =
-                        data.copy(sessions = mergeDashboardRows(_lastData.value?.sessions, data.sessions))
-                    _lastUpdatedAt.value = Clock.System.now()
-                }
-            },
-            onNonSuccess = { response ->
-                when (response.status.value) {
-                    // 401 — session termination: the global ApiClient.onUnauthorized path
-                    // handles the redirect; never counts as poll degradation (Q5b). The
-                    // handler pre-set Loading, so reset the state or the in-flight guard
-                    // wedges every future poll. Polling stops too — the session is dead.
-                    401 -> {
-                        _dashboardState.value = UiState.Idle
-                        pause()
-                        true
-                    }
-
-                    // 403 — the attendance gate: clock-in ended server-side (e.g. clocked
-                    // out elsewhere). Stop polling; the forbidden card + drawer clock-out.
-                    403 -> {
-                        _isForbidden.value = true
-                        _dashboardState.value = UiState.Idle
-                        pause()
-                        true
-                    }
-
-                    // Generic HTTP failure: counted against the stale/error thresholds.
-                    else -> {
-                        countFailure()
-                        false
-                    }
-                }
-            },
-            // Transport/deserialization failures land here (onNonSuccess only sees HTTP
-            // statuses) — without this hook a dead network would silently freeze the last
-            // data with no stale banner, no escalation, no retry (pass-1 HARD).
-            onError = { countFailure() },
-        )
+        return launchReload(branchId)
     }
+
+    /**
+     * #382 — authoritative reload after a session mutation on the detail pane. Unlike
+     * [refresh], a landing already in flight must not swallow it: the committed change has
+     * to repaint promptly, so exactly one follow-up reload is queued and drained by the
+     * active landing's completion — skipped on terminal legs (Idle = 401/403 paused the
+     * surface; a dead session must not be re-fetched by the queue).
+     */
+    fun refreshAfterMutation(): Job {
+        val branchId = SessionState.selectedBranchId.value ?: return Job().also { it.cancel() }
+        if (_dashboardState.value is UiState.Loading) {
+            pendingRefresh = true
+            return Job().also { it.cancel() }
+        }
+        _dashboardState.value = UiState.Loading
+        return launchReload(branchId)
+    }
+
+    private fun launchReload(branchId: String): Job =
+        handler
+            .launch(
+                state = _dashboardState,
+                operation = "loadDashboard",
+                endpoint = "GET /api/branches/$branchId/dashboard/today",
+                block = { apiClient.httpClient.get(ApiRoutes.branchDashboardToday(branchId)) },
+                transform = {
+                    it.body<DashboardResponse>().also { data ->
+                        // Q5a — the failure counter and the timestamp reset only on SUCCESS.
+                        consecutiveFailures = 0
+                        _pollStatus.value = DashboardPollStatus.FRESH
+                        // #149 — monotonic per-row version merge: a poll response that started
+                        // before a successful inline edit landed carries an older version and
+                        // must never regress the committed row (stale-poll-after-commit).
+                        _lastData.value =
+                            data.copy(
+                                sessions = mergeDashboardRows(_lastData.value?.sessions, data.sessions),
+                            )
+                        _lastUpdatedAt.value = Clock.System.now()
+                    }
+                },
+                onNonSuccess = { response ->
+                    when (response.status.value) {
+                        // 401 — session termination: the global ApiClient.onUnauthorized path
+                        // handles the redirect; never counts as poll degradation (Q5b). The
+                        // handler pre-set Loading, so reset the state or the in-flight guard
+                        // wedges every future poll. Polling stops too — the session is dead.
+                        401 -> {
+                            _dashboardState.value = UiState.Idle
+                            pause()
+                            true
+                        }
+
+                        // 403 — the attendance gate: clock-in ended server-side (e.g. clocked
+                        // out elsewhere). Stop polling; the forbidden card + drawer clock-out.
+                        403 -> {
+                            _isForbidden.value = true
+                            _dashboardState.value = UiState.Idle
+                            pause()
+                            true
+                        }
+
+                        // Generic HTTP failure: counted against the stale/error thresholds.
+                        else -> {
+                            countFailure()
+                            false
+                        }
+                    }
+                },
+                // Transport/deserialization failures land here (onNonSuccess only sees HTTP
+                // statuses) — without this hook a dead network would silently freeze the last
+                // data with no stale banner, no escalation, no retry (pass-1 HARD).
+                onError = { countFailure() },
+            ).also { job ->
+                // #382 — drain exactly one queued post-mutation reload when the active
+                // landing completes; skipped on terminal legs (Idle = 401/403 paused the
+                // surface — a dead session must not be re-polled by the queue).
+                job.invokeOnCompletion {
+                    if (pendingRefresh && _dashboardState.value is UiState.Success) {
+                        pendingRefresh = false
+                        refreshAfterMutation()
+                    }
+                }
+            }
 
     // --- #149 inline editing (desktop only, #97 Q4) ---
 

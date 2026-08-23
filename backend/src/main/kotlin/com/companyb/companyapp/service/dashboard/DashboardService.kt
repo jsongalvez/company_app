@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.SessionRepository
 import com.companyb.companyapp.repository.model.CommissionManualInclusion
 import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.service.finance.commission.CommissionService
 import java.math.BigDecimal
@@ -32,6 +33,8 @@ data class DashboardData(
     val commission: CommissionSummary,
     /** #366 — requested-practitioner display names, keyed by user id. */
     val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
+    /** #382 — owning branch per session id (one branch per dashboard read). */
+    val branchIdBySession: Map<UUID, UUID> = emptyMap(),
 )
 
 /**
@@ -46,6 +49,8 @@ data class SessionDetailData(
     val concerns: List<ConcernWithSessionId>,
     /** #366 — requested-practitioner display names, keyed by user id. */
     val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
+    /** #382 — owning branch of the session's day (single-entry map). */
+    val branchIdBySession: Map<UUID, UUID> = emptyMap(),
 )
 
 /**
@@ -93,6 +98,7 @@ object DashboardService {
                 DashboardRepository.findUserDisplayNames(
                     sessions.mapNotNull { it.requestedPractitionerId },
                 ),
+            branchIdBySession = sessions.associate { it.id to branchId },
         )
     }
 
@@ -136,6 +142,11 @@ object DashboardService {
             requestedPractitionerNames =
                 session.requestedPractitionerId?.let {
                     DashboardRepository.findUserDisplayNames(listOf(it))
+                } ?: emptyMap(),
+            // #382 — the detail read has no route branch context; resolve it from the day.
+            branchIdBySession =
+                BranchDayRepository.findById(session.branchDayId)?.let {
+                    mapOf(session.id to it.branchId)
                 } ?: emptyMap(),
         )
     }

@@ -14,12 +14,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
@@ -40,11 +42,26 @@ private const val VOIDED_PILL_BG_ALPHA = 0.35f
  * Shared detail pane — desktop master-detail inline pane AND the mobile pushed
  * SessionDetail route render the same content (Q1 secondary fields: base price,
  * practitioners, next appointment, remarks, concerns).
+ *
+ * #382 — post-create affordances: when [canEdit] is true (strict BRANCH-context
+ * `EDIT_BRANCH_DATA` or an active day grant — the backend's branch-or-day gate), the
+ * practitioners section grows add/remarks/remove actions and the concerns section grows
+ * remove/promote, wired through the optional callbacks; destructive actions confirm at the
+ * pane layer before invoking. The read-only path (all callbacks null) renders exactly as
+ * before this ticket. [mutating] disables every action while a mutation round-trip is in
+ * flight (ADR-0022 pessimism: no local commit, the authoritative reload repaints).
  */
 @Composable
 fun SessionDetailContent(
     session: DashboardSessionResponse?,
     modifier: Modifier = Modifier,
+    canEdit: Boolean = false,
+    mutating: Boolean = false,
+    onRemoveConcern: ((ConcernResponse) -> Unit)? = null,
+    onPromoteOtherConcern: (() -> Unit)? = null,
+    onAddPractitioner: (() -> Unit)? = null,
+    onUpdatePractitionerRemarks: ((DashboardPractitionerResponse) -> Unit)? = null,
+    onRemovePractitioner: ((DashboardPractitionerResponse) -> Unit)? = null,
 ) {
     if (session == null) {
         EmptySessionPlaceholder(modifier)
@@ -83,10 +100,27 @@ fun SessionDetailContent(
         session.nextAppointmentDate?.let { nextAppointment ->
             DetailRow("Next appointment", nextAppointment)
         }
-        if (session.practitioners.isNotEmpty()) {
-            DetailRow("Practitioners", "")
+        if (session.practitioners.isNotEmpty() || canEdit) {
+            SectionHeader(
+                label = "Practitioners",
+                actionLabel = if (canEdit) "Add" else null,
+                enabled = !mutating,
+                onAction = onAddPractitioner,
+            )
             session.practitioners.forEach { practitioner ->
-                PractitionerRow(practitioner)
+                if (canEdit) {
+                    EditablePractitionerRow(
+                        practitioner = practitioner,
+                        mutating = mutating,
+                        onUpdateRemarks = { onUpdatePractitionerRemarks?.invoke(practitioner) },
+                        onRemove = { onRemovePractitioner?.invoke(practitioner) },
+                    )
+                } else {
+                    PractitionerRow(practitioner)
+                }
+            }
+            if (session.practitioners.isEmpty()) {
+                EmptySectionHint("No practitioners yet")
             }
         }
         // #366 — who the client asked for, when one was recorded; nothing when unset.
@@ -96,8 +130,33 @@ fun SessionDetailContent(
         session.remarks?.takeIf { it.isNotBlank() }?.let { remarks ->
             DetailRow("Remarks", remarks)
         }
-        if (session.concerns.isNotEmpty()) {
-            DetailRow("Concerns", session.concerns.joinToString { it.label })
+        val otherConcerns = session.otherConcerns?.takeIf { it.isNotBlank() }
+        if (!canEdit) {
+            // Legacy read-only rendering — one joined row, unchanged from #152.
+            if (session.concerns.isNotEmpty()) {
+                DetailRow("Concerns", session.concerns.joinToString { it.label })
+            }
+        } else if (session.concerns.isNotEmpty() || otherConcerns != null) {
+            DetailRow("Concerns", "")
+            session.concerns.forEach { concern ->
+                EditableConcernRow(
+                    label = concern.label,
+                    mutating = mutating,
+                    actionLabel = "Remove",
+                    onAction = { onRemoveConcern?.invoke(concern) },
+                )
+            }
+            otherConcerns?.let { other ->
+                EditableConcernRow(
+                    label = "Other: $other",
+                    mutating = mutating,
+                    actionLabel = "Promote",
+                    onAction = onPromoteOtherConcern,
+                )
+            }
+        } else {
+            DetailRow("Concerns", "")
+            EmptySectionHint("No concerns yet")
         }
     }
 }
@@ -140,6 +199,110 @@ private fun PractitionerRow(practitioner: DashboardPractitionerResponse) {
             )
         }
     }
+}
+
+/** #382 — section label row carrying the section's Add action when editable. */
+@Composable
+private fun SectionHeader(
+    label: String,
+    actionLabel: String?,
+    enabled: Boolean,
+    onAction: (() -> Unit)?,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkSubtle,
+            modifier = Modifier.weight(1f),
+        )
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction, enabled = enabled) {
+                Text(actionLabel)
+            }
+        }
+    }
+}
+
+/** #382 — one practitioner with Remarks/Remove affordances while the surface is editable. */
+@Composable
+private fun EditablePractitionerRow(
+    practitioner: DashboardPractitionerResponse,
+    mutating: Boolean,
+    onUpdateRemarks: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = Spacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = practitioner.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            practitioner.remarks?.takeIf { it.isNotBlank() }?.let { remarks ->
+                Text(
+                    text = remarks,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = InkSubtle,
+                )
+            }
+        }
+        TextButton(onClick = onUpdateRemarks, enabled = !mutating) {
+            Text("Remarks")
+        }
+        TextButton(onClick = onRemove, enabled = !mutating) {
+            Text("Remove", color = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+/** #382 — one concern/free-text line with a Remove/Promote affordance. */
+@Composable
+private fun EditableConcernRow(
+    label: String,
+    mutating: Boolean,
+    actionLabel: String,
+    onAction: (() -> Unit)?,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = Spacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        if (onAction != null) {
+            TextButton(onClick = onAction, enabled = !mutating) {
+                val destructive = actionLabel == "Remove"
+                Text(
+                    actionLabel,
+                    color =
+                        if (destructive) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                )
+            }
+        }
+    }
+}
+
+/** #382 — muted empty-state hint shown in editable sections that have no rows. */
+@Composable
+private fun EmptySectionHint(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = InkSubtle,
+        modifier = Modifier.padding(start = Spacing.lg),
+    )
 }
 
 @Composable
@@ -249,7 +412,7 @@ internal fun ClientNameText(session: DashboardSessionResponse) {
 }
 
 @Composable
-private fun EmptySessionPlaceholder(modifier: Modifier) {
+internal fun EmptySessionPlaceholder(modifier: Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = "Select a session",

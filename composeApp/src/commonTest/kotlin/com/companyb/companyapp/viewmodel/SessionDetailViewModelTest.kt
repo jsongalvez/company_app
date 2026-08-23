@@ -250,4 +250,83 @@ class SessionDetailViewModelTest {
             assertEquals(2, requestCount, "one initial load + one guarded retry")
             assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
         }
+
+    @Test
+    fun refresh_refetches_even_when_seeded_from_the_dashboard_path() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val handler: MockRequestHandler = {
+                requestCount++
+                respondOk(SESSION_DETAIL_JSON)
+            }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = testRow(),
+                )
+            vm.loadIfNeeded()
+            runCurrent()
+            assertEquals(0, requestCount, "seeded path never fetches on entry")
+
+            // #382 — the pane's post-mutation authoritative reload works regardless of how
+            // the row arrived; retry() would no-op here by design.
+            vm.refresh()
+            runCurrent()
+
+            assertEquals(1, requestCount)
+            assertIs<UiState.Success<DashboardSessionResponse>>(vm.detail.value)
+        }
+
+    @Test
+    fun back_to_back_refreshes_dispatch_one_guarded_reload() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val handler: MockRequestHandler = {
+                requestCount++
+                respondOk(SESSION_DETAIL_JSON)
+            }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = testRow(),
+                )
+            // The in-flight guard holds from the caller's frame: two rapid reloads (mutation
+            // + conflict landing racing) must not stack concurrent GETs.
+            vm.refresh()
+            vm.refresh()
+            runCurrent()
+
+            assertEquals(1, requestCount)
+        }
+
+    @Test
+    fun refresh_failure_keeps_the_rendered_row_instead_of_error() =
+        runTest(testScheduler) {
+            var requestCount = 0
+            val handler: MockRequestHandler = {
+                requestCount++
+                if (requestCount == 1) {
+                    // The bearer-only read 404s for a seeded dashboard-push row whose caller
+                    // holds no notification (#152 gate) — the rendered detail must survive.
+                    respondError(HttpStatusCode.NotFound)
+                } else {
+                    respondOk(SESSION_DETAIL_JSON)
+                }
+            }
+            val vm =
+                SessionDetailViewModel(
+                    mockApiClient(handler),
+                    SESSION_ID,
+                    initialRow = testRow(),
+                )
+            vm.refresh()
+            runCurrent()
+
+            assertEquals(1, requestCount)
+            val state = vm.detail.value
+            assertIs<UiState.Success<DashboardSessionResponse>>(state)
+            assertEquals(testRow(), state.data)
+        }
 }

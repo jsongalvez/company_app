@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.AddSessionConcernRequest
+import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
 import com.companyb.companyapp.dto.PromoteConcernRequest
@@ -56,6 +57,16 @@ class SessionViewModel(
 
     private val _concernResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val concernResult: StateFlow<UiState<Unit>> = _concernResult.asStateFlow()
+
+    // #382 — post-create practitioner adds need the branch member directory (the same read
+    // SessionCreate uses); loaded lazily when the picker dialog opens.
+    // #382 — generation counters for the superseded-landing guards in the roster/members
+    // loaders (one VM serves the desktop pane across selection switches).
+    private var rosterGeneration = 0L
+    private var membersGeneration = 0L
+
+    private val _branchMembers = MutableStateFlow<UiState<List<BranchMemberResponse>>>(UiState.Idle)
+    val branchMembers: StateFlow<UiState<List<BranchMemberResponse>>> = _branchMembers.asStateFlow()
 
     fun createSession(request: CreateSessionRequest) {
         handler.launch(
@@ -123,12 +134,18 @@ class SessionViewModel(
     }
 
     fun loadSessionPractitioners(sessionId: String) {
+        // #382 — generation guard: the desktop pane reuses one VM across selection switches,
+        // so a superseded roster GET (session switched mid-flight) must not commit over the
+        // newer request — a stale body is never deserialized; the committed value stands.
+        ++rosterGeneration
         handler.launch(
             state = _practitioners,
             operation = "loadSessionPractitioners",
             endpoint = "GET /api/sessions/$sessionId/practitioners",
             block = { apiClient.httpClient.get(ApiRoutes.sessionPractitioners(sessionId)) },
             transform = { it.body() },
+            stamp = { rosterGeneration },
+            fallback = { (_practitioners.value as? UiState.Success)?.data ?: emptyList() },
         )
     }
 
@@ -262,5 +279,32 @@ class SessionViewModel(
                 }
             },
         )
+    }
+
+    /** #382 — member directory for the add-practitioner picker at the session's branch. */
+    fun loadBranchMembers(branchId: String) {
+        if (_branchMembers.value is UiState.Loading) return
+        _branchMembers.value = UiState.Loading
+        // Same generation discipline as the roster: only the newest branch request commits.
+        ++membersGeneration
+        handler.launch(
+            state = _branchMembers,
+            operation = "loadBranchMembers",
+            endpoint = "GET /api/branches/$branchId/members",
+            block = { apiClient.httpClient.get(ApiRoutes.branchMembers(branchId)) },
+            transform = { it.body() },
+            stamp = { membersGeneration },
+            fallback = { (_branchMembers.value as? UiState.Success)?.data ?: emptyList() },
+        )
+    }
+
+    /** #382 — one-shot drain: the pane handles a terminal practitioner landing exactly once. */
+    fun consumePractitionerResult() {
+        _practitionerResult.value = UiState.Idle
+    }
+
+    /** #382 — one-shot drain for concern command landings (add/remove/promote). */
+    fun consumeConcernResult() {
+        _concernResult.value = UiState.Idle
     }
 }

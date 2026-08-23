@@ -13,25 +13,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.companyb.companyapp.domain.SessionStatus
-import com.companyb.companyapp.dto.AddPractitionerRequest
-import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
-import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.network.ApiClient
-import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionDetailViewModel
-import com.companyb.companyapp.viewmodel.SessionViewModel
 import com.companyb.companyapp.viewmodel.UiState
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 /**
  * SessionDetail route on both platforms (#152 — the #151 resolution).
@@ -40,17 +34,14 @@ import kotlin.uuid.Uuid
  * never dispatches (zero extra requests). The Notifications call site navigates with sessionId
  * only (row = null) — the VM fetches once via `GET /api/sessions/{sessionId}` (bearer-only
  * gate; 404 for both non-bearer and missing → the single Error + Retry fallback below).
- * Content is the same [SessionDetailContent] the desktop inline pane renders — byte-identical
- * rendering with the dashboard path.
  *
- * #348 — practitioners refresh + add-self: a side-loaded [SessionViewModel] loads the NEW
- * `GET /api/sessions/{sessionId}/practitioners` on entry and re-loads it after an add lands;
- * its slot-ordered rows override the rendered list (names kept from the enriched row where
- * present — the GET carries ids only). On a PENDING session the current user not yet among
- * the practitioners gets an "Add self" button (BR §203–206); errors — including the 403 gate —
- * surface inline.
+ * #382 — the editable content lives in [SessionDetailPane] (shared byte-identical with the
+ * desktop inline pane); this screen keeps the pushed-route chrome: Back, load/error fallbacks,
+ * and the authoritative detail reload [SessionDetailViewModel.refresh] that the pane calls
+ * after every mutation landing. A refresh failure that lands as Error while a good row was
+ * already rendered keeps that row on screen (the VM's keep-row guard covers status legs; this
+ * covers transport exceptions) — a stale-but-real detail beats a dead-end error pane.
  */
-@OptIn(ExperimentalUuidApi::class)
 @Composable
 fun SessionDetailScreen(
     sessionId: String,
@@ -58,13 +49,20 @@ fun SessionDetailScreen(
     apiClient: ApiClient,
     onBack: () -> Unit,
 ) {
-    val sessionVm: SessionViewModel = viewModel { SessionViewModel(apiClient) }
     val detailState by viewModel.detail.collectAsState()
-    val practitionersState by sessionVm.practitioners.collectAsState()
-    val practitionerResult by sessionVm.practitionerResult.collectAsState()
-    val currentUser by SessionState.currentUser.collectAsState()
+    var lastGoodRow by remember { mutableStateOf<DashboardSessionResponse?>(null) }
 
-    SessionDetailEffects(sessionId, viewModel, sessionVm, detailState, practitionerResult)
+    LaunchedEffect(detailState) {
+        (detailState as? UiState.Success)?.let { lastGoodRow = it.data }
+        (detailState as? UiState.Error)?.let {
+            logWarn("SessionDetailScreen", "detailState=Error: ${it.message}")
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        logInfo("SessionDetailScreen", "composable entered: sessionId=$sessionId")
+        viewModel.loadIfNeeded()
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // #113 content-level Back precedent (pushed-route topbar pattern stays fog).
@@ -81,59 +79,25 @@ fun SessionDetailScreen(
             }
 
             is UiState.Error -> {
-                DetailErrorPane(viewModel, state.message)
+                val fallbackRow = lastGoodRow
+                if (fallbackRow != null) {
+                    SessionDetailPane(
+                        session = fallbackRow,
+                        apiClient = apiClient,
+                        refreshSession = { viewModel.refresh() },
+                    )
+                } else {
+                    DetailErrorPane(viewModel, state.message)
+                }
             }
 
             is UiState.Success -> {
-                val displaySession =
-                    mergeRosterNames(state.data, (practitionersState as? UiState.Success)?.data)
-                SessionDetailContent(session = displaySession)
-                AddSelfSection(
-                    sessionStatus = state.data.sessionStatus,
-                    practitionersState = practitionersState,
-                    practitionerResult = practitionerResult,
-                    currentUserId = currentUser?.id,
-                    onAddSelf = {
-                        sessionVm.addPractitioner(
-                            sessionId,
-                            // Idempotency key minted at submit (BR §390–392); duplicate adds
-                            // are idempotent server-side anyway.
-                            AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = currentUser!!.id),
-                        )
-                    },
+                SessionDetailPane(
+                    session = state.data,
+                    apiClient = apiClient,
+                    refreshSession = { viewModel.refresh() },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SessionDetailEffects(
-    sessionId: String,
-    viewModel: SessionDetailViewModel,
-    sessionVm: SessionViewModel,
-    detailState: UiState<DashboardSessionResponse>,
-    practitionerResult: UiState<SessionPractitionerResponse>,
-) {
-    LaunchedEffect(Unit) {
-        logInfo("SessionDetailScreen", "composable entered: sessionId=$sessionId")
-        viewModel.loadIfNeeded()
-        // #348 — the add-self gate needs the fresh practitioner roster even when the enriched
-        // row arrived via nav args (it may predate an add made moments ago).
-        sessionVm.loadSessionPractitioners(sessionId)
-    }
-
-    LaunchedEffect(detailState) {
-        (detailState as? UiState.Error)?.let {
-            logWarn("SessionDetailScreen", "detailState=Error: ${it.message}")
-        }
-    }
-
-    LaunchedEffect(practitionerResult) {
-        when (val result = practitionerResult) {
-            is UiState.Success -> sessionVm.loadSessionPractitioners(sessionId)
-            is UiState.Error -> logWarn("SessionDetailScreen", "practitionerResult=Error: ${result.message}")
-            else -> Unit
         }
     }
 }
@@ -158,57 +122,3 @@ private fun DetailErrorPane(
         }
     }
 }
-
-/**
- * The GET's rows carry no display names — keep each id's name from the enriched row when it has
- * one, so only genuinely NEW practitioners fall back to [FALLBACK_PRACTITIONER_NAME].
- */
-private fun mergeRosterNames(
-    session: DashboardSessionResponse,
-    freshRows: List<SessionPractitionerResponse>?,
-): DashboardSessionResponse {
-    if (freshRows == null) return session
-    val namesById = session.practitioners.associate { it.practitionerId to it.displayName }
-    return session.copy(
-        practitioners =
-            freshRows.map { row ->
-                DashboardPractitionerResponse(
-                    practitionerId = row.practitionerId,
-                    displayName = namesById[row.practitionerId] ?: FALLBACK_PRACTITIONER_NAME,
-                    remarks = row.remarks,
-                    slotAtTime = row.slotAtTime,
-                )
-            },
-    )
-}
-
-@Composable
-private fun AddSelfSection(
-    sessionStatus: SessionStatus,
-    practitionersState: UiState<List<SessionPractitionerResponse>>,
-    practitionerResult: UiState<SessionPractitionerResponse>,
-    currentUserId: String?,
-    onAddSelf: () -> Unit,
-) {
-    if (sessionStatus != SessionStatus.PENDING || currentUserId == null) return
-    val roster = (practitionersState as? UiState.Success)?.data ?: return
-    // Not while an add/rename/remove round-trip is in flight (the same Loading guard the VM
-    // enforces per call — this hides the affordance too, pass-1 edge).
-    if (practitionerResult is UiState.Loading) return
-    if (roster.any { it.practitionerId == currentUserId }) return
-
-    Column(modifier = Modifier.padding(horizontal = Spacing.md)) {
-        TextButton(onClick = onAddSelf) {
-            Text("Add self as practitioner")
-        }
-        (practitionerResult as? UiState.Error)?.let { error ->
-            Text(
-                text = error.message,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-    }
-}
-
-private const val FALLBACK_PRACTITIONER_NAME = "Practitioner"

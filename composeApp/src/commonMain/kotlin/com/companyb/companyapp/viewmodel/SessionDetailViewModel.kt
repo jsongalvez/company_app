@@ -71,9 +71,26 @@ class SessionDetailViewModel(
         fetch()
     }
 
+    /**
+     * #382 — authoritative reload after a mutation or a conflict: re-fetches regardless of
+     * how the entry was seeded (unlike [retry], which is notifications-path-only). The
+     * pessimistic model (ADR-0022) never commits local edits, so server truth is simply
+     * what this lands with. Concurrent reloads are blocked by [inFlight].
+     */
+    fun refresh() {
+        fetchStarted = true
+        fetch()
+    }
+
     private fun fetch() {
         if (inFlight) return
         inFlight = true
+        // #382 — a refresh failure must not destroy a rendered detail: the bearer-only read
+        // 404s for seeded dashboard-push rows whose caller holds no notification, and a
+        // transport blip mid-reload means "no fresh data", not "the session is gone". Keep
+        // the last good row on those legs (mutation errors already surface inline via the
+        // pane's result flows); only a failed INITIAL load lands in Error.
+        val lastGood = (_detail.value as? UiState.Success)?.data
         handler
             .launch(
                 state = _detail,
@@ -81,6 +98,17 @@ class SessionDetailViewModel(
                 endpoint = "GET /api/sessions/$sessionId",
                 block = { apiClient.httpClient.get(ApiRoutes.session(sessionId)) },
                 transform = { it.body() },
+                // Status-leg failures (the bearer-only 404 for seeded dashboard-push rows
+                // whose caller holds no notification, a revoked capability 403) keep the
+                // rendered row; only a failed INITIAL load lands in Error.
+                onNonSuccess = {
+                    if (lastGood != null) {
+                        _detail.value = UiState.Success(lastGood)
+                        true
+                    } else {
+                        false
+                    }
+                },
             ).invokeOnCompletion { inFlight = false }
     }
 }

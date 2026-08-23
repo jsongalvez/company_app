@@ -377,6 +377,7 @@ object SessionRoutes {
                         practitionerBySession = data.practitioners.groupBy { it.sessionId },
                         concernsBySession = data.concerns.groupBy { it.sessionId },
                         requestedPractitionerNames = data.requestedPractitionerNames,
+                        branchIdBySession = data.branchIdBySession,
                     ),
             ),
         )

@@ -50,7 +50,7 @@ import com.companyb.companyapp.ui.screen.RemittanceListScreen
 import com.companyb.companyapp.ui.screen.RouteGateCard
 import com.companyb.companyapp.ui.screen.SessionCreateScreen
 import com.companyb.companyapp.ui.screen.SessionDashboardScreen
-import com.companyb.companyapp.ui.screen.SessionDetailContent
+import com.companyb.companyapp.ui.screen.SessionDetailPane
 import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.ui.screen.UserManagementScreen
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
@@ -221,8 +221,12 @@ actual fun AppNavHost(
                             )
                         }
                         Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
-                            SessionDetailContent(
+                            // #382 — the editable pane (mutations + authoritative reload via the
+                            // dashboard poll refresh).
+                            SessionDetailPane(
                                 session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
+                                apiClient = apiClient,
+                                refreshSession = { dashboardViewModel.refreshAfterMutation() },
                             )
                         }
                     }
