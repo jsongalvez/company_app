@@ -282,15 +282,21 @@ The `active_user_capabilities` view's time-window filter (`now() <= valid_to`) h
 Flyway SQL files live at `backend/src/main/resources/db/migration/`. Flyway runs automatically on startup via `DatabaseConfig.runMigrations()`.
 
 **Migration rules:**
-- Never edit a committed migration file — always add a new version
+- The non-seed chain is squashed: `V1__full_schema.sql` is the canonical structural
+  baseline; `V2`/`V5` are the only seed migrations. Together they represent the
+  effective current schema — inspect V1 (not a chain) when reasoning about schema.
+- Evolve the schema by adding new versioned migrations on top of the baseline. Never
+  edit committed migration files — the one sanctioned exception was the #370 squash
+  itself, executed under a verified-empty-database recreate (ticket #370 records the
+  safety gate); treat it as precedent for a future squash, not license for casual edits.
 - Destructive changes (DROP, RENAME) get their own migration with a comment explaining why
 - Application startup runs `migrate()` only. Operators must stop the application and run
   `flyway -url=<jdbc-url> -user=<user> -password=<password> repair` explicitly after reviewing
   migration history; repair is never an automatic startup action.
 
-The migration directory is authoritative. Inspect all versioned files in
-`backend/src/main/resources/db/migration/` when reasoning about the current
-schema; do not rely on a cached migration list here.
+The migration directory is authoritative. Reason about current schema from
+`V1__full_schema.sql` plus the seed migrations in
+`backend/src/main/resources/db/migration/`.
 
 ---
 

@@ -1,3 +1,18 @@
+-- =============================================================================
+-- V1__full_schema.sql — canonical structural baseline (squashed #370)
+--
+-- Single source of truth for the effective current schema. The former incremental
+-- chain (V4, V6–V13, V15–V27) is folded into this file at its final shape; only
+-- intentionally separate SEED migrations remain alongside it:
+--   V2__seed_roles_capabilities.sql               — roles/capabilities/role_capability
+--   V5__add_next_appointment_alerts_capability.sql — scheduler capability seed
+--
+-- This squash deliberately supersedes the "never edit a committed migration"
+-- rule (docs/architecture.md §10): every persistent database was verified empty
+-- and recreated from this baseline (ticket #370 safety gate). Do not resurrect
+-- the folded files; evolve the schema by adding new migrations on top again.
+-- =============================================================================
+
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -7,9 +22,11 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE TYPE user_status               AS ENUM ('ACTIVE', 'INACTIVE');
 CREATE TYPE capability_context_type   AS ENUM ('GLOBAL', 'BRANCH', 'BRANCH_DAY', 'MEDICAL_MISSION', 'PROVINCIAL_TOUR');
-CREATE TYPE capability_source_type    AS ENUM ('RELIEF_ACCESS', 'MEDICAL_MISSION_DELEGATE', 'MANUAL_OVERRIDE', 'SYSTEM');
+CREATE TYPE capability_source_type    AS ENUM ('RELIEF_ACCESS', 'MEDICAL_MISSION_DELEGATE', 'MANUAL_OVERRIDE', 'SYSTEM', 'ROLE');
 CREATE TYPE branch_type               AS ENUM ('CLINIC', 'PROVINCIAL_TOUR', 'MEDICAL_MISSION');
-CREATE TYPE relief_status             AS ENUM ('PENDING', 'GRANTED', 'DENIED');
+CREATE TYPE relief_status             AS ENUM ('PENDING', 'GRANTED', 'DENIED', 'CANCELLED');
+CREATE TYPE relief_invite_status      AS ENUM ('PENDING', 'ACCEPTED', 'DECLINED', 'RETRACTED');
+CREATE TYPE credential_purpose        AS ENUM ('INVITE', 'PASSWORD_RESET');
 CREATE TYPE day_status                AS ENUM ('OPEN', 'PAST', 'REMITTED');
 CREATE TYPE session_type              AS ENUM ('REGULAR', 'SECOND_SESSION', 'SUBSEQUENT', 'PROVINCIAL_FIRST', 'MEDICAL_MISSION');
 CREATE TYPE session_status            AS ENUM ('PENDING', 'COMPLETED', 'NO_SHOW', 'CANCELLED');
@@ -29,12 +46,18 @@ CREATE TYPE expense_category          AS ENUM (
 -- ----------------------------
 
 CREATE TABLE app_user (
-    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    username      VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(60)  NOT NULL,
-    status        user_status  NOT NULL DEFAULT 'ACTIVE',
-    email         TEXT         NOT NULL UNIQUE,
-    display_name  TEXT         NOT NULL DEFAULT 'User'
+    id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    username       VARCHAR(255) NOT NULL UNIQUE,
+    password_hash  VARCHAR(60)  NOT NULL,
+    status         user_status  NOT NULL DEFAULT 'ACTIVE',
+    email          TEXT         NOT NULL UNIQUE,
+    display_name   TEXT         NOT NULL DEFAULT 'User',
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    -- Set on deactivate (status flip to INACTIVE), cleared on reactivate (#133).
+    deactivated_at TIMESTAMPTZ,
+    -- JWT revocation independent from reversible deactivation (#132/#350 era):
+    -- persisted boundary so server-restart cache repopulation survives Reactivate.
+    jwt_revoked_at TIMESTAMPTZ
 );
 
 CREATE TABLE role (
@@ -115,8 +138,7 @@ CREATE TABLE branch_day (
 
 -- ----------------------------
 -- ATTENDANCE
--- Note: attendance_history dropped (Issue #7). Historical reads
--- go against the attendance table directly; audit_log covers edits.
+-- Historical reads go against the attendance table directly; audit_log covers edits.
 -- ----------------------------
 
 CREATE TABLE attendance (
@@ -127,7 +149,7 @@ CREATE TABLE attendance (
     clock_in      TIMESTAMPTZ NOT NULL DEFAULT now(),
     clock_out     TIMESTAMPTZ
 );
--- Issue #6: Multiple shifts allowed; only one open window at a time
+-- Multiple shifts allowed; only one open window at a time
 CREATE UNIQUE INDEX idx_one_active_clock_in ON attendance (user_id, branch_day_id) WHERE clock_out IS NULL;
 
 CREATE TABLE branch_day_assignment (
@@ -141,13 +163,15 @@ CREATE TABLE branch_day_assignment (
 -- ----------------------------
 -- RELIEF & MISSION
 -- ----------------------------
+-- Relief-request broadcast model (#357/#352): a request names no target user — the
+-- whole branch hears it. CANCELLED is the withdraw/cancel terminal state, distinct
+-- from DENIED so outcome messaging can tell them apart.
 
 CREATE TABLE grant_relief_access (
     id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
     branch_day_id  UUID          NOT NULL REFERENCES branch_day(id),
     requested_by   UUID          NOT NULL REFERENCES app_user(id),
     request_status relief_status NOT NULL DEFAULT 'PENDING',
-    target_user    UUID          NOT NULL REFERENCES app_user(id),
     granted_by     UUID          REFERENCES app_user(id),
     granted_at     TIMESTAMPTZ,
     CONSTRAINT granted_logic CHECK (
@@ -155,8 +179,27 @@ CREATE TABLE grant_relief_access (
         OR (request_status != 'GRANTED')
     )
 );
--- Issue #4: One granted access per requesting user per branch day
+-- One granted access per requesting user per branch day
 CREATE UNIQUE INDEX idx_one_grant_per_day ON grant_relief_access (requested_by, branch_day_id) WHERE request_status = 'GRANTED';
+-- Flood control (#352 Q4): one live (PENDING) request per requester per branch day
+CREATE UNIQUE INDEX idx_one_live_relief_request ON grant_relief_access (requested_by, branch_day_id) WHERE request_status = 'PENDING';
+
+CREATE TABLE relief_invite (
+    id            uuid                 PRIMARY KEY DEFAULT gen_random_uuid(),
+    branch_day_id uuid                 NOT NULL REFERENCES branch_day(id),
+    invited_by    uuid                 NOT NULL REFERENCES app_user(id),
+    invitee       uuid                 NOT NULL REFERENCES app_user(id),
+    status        relief_invite_status NOT NULL DEFAULT 'PENDING',
+    responded_at  timestamptz,
+    created_at    timestamptz          NOT NULL DEFAULT now()
+);
+
+-- The per-person guard (#159 Q1): one live invite per invitee per day. Multiple
+-- invitees can hold live invites for the SAME day (the one-grant rule is per
+-- person, #159 Q6); DECLINED/RETRACTED rows free the slot (re-invite allowed).
+CREATE UNIQUE INDEX idx_one_pending_accepted_invite
+    ON relief_invite (invitee, branch_day_id)
+    WHERE status IN ('PENDING', 'ACCEPTED');
 
 CREATE TABLE medical_mission_delegate (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,18 +210,36 @@ CREATE TABLE medical_mission_delegate (
     ended_at    TIMESTAMPTZ
 );
 
+-- Credential tokens (#350): single-use expiring secrets for account flows where nobody
+-- but the account holder may know the credential. INVITE backs the admin-minted
+-- account-setup link (#346 decision 2); PASSWORD_RESET backs self-service reset (#353).
+CREATE TABLE credential_token (
+    id          uuid                PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash  varchar(64)         NOT NULL UNIQUE,
+    purpose     credential_purpose  NOT NULL,
+    user_id     uuid                NOT NULL REFERENCES app_user(id),
+    expires_at  timestamptz         NOT NULL,
+    consumed_at timestamptz,
+    created_by  uuid                REFERENCES app_user(id),
+    created_at  timestamptz         NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_credential_token_user ON credential_token (user_id);
+
 -- ----------------------------
 -- CLIENTS
+-- PII columns are nullable for proper anonymization (CR-019): anonymized clients
+-- hold NULL, not empty string.
 -- ----------------------------
 
 CREATE TABLE client (
     id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    first_name         TEXT        NOT NULL,
-    last_name          TEXT        NOT NULL,
+    first_name         TEXT,
+    last_name          TEXT,
     middle_name        TEXT,
     suffix             TEXT,
     phone_number       VARCHAR(20),
-    address            TEXT        NOT NULL DEFAULT 'N/A',
+    address            TEXT        DEFAULT 'N/A',
     gender             CHAR(1)     NOT NULL CHECK (gender IN ('M', 'F')),
     age                INT         NOT NULL CHECK (age BETWEEN 0 AND 120),
     systolic_bp        SMALLINT    CHECK (systolic_bp BETWEEN 40 AND 300),
@@ -190,8 +251,8 @@ CREATE TABLE client (
         OR (systolic_bp IS NOT NULL AND diastolic_bp IS NOT NULL)
     )
 );
-CREATE INDEX IF NOT EXISTS idx_client_first_name_trgm ON client USING gin (first_name gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS idx_client_last_name_trgm ON client USING gin (last_name gin_trgm_ops);
+-- The composite GIN trigram index covers each name-column predicate used by
+-- ClientRepository.search; single-column variants were removed as redundant (#121-era cleanup).
 CREATE INDEX IF NOT EXISTS idx_client_trgm ON client USING gin (first_name gin_trgm_ops, middle_name gin_trgm_ops, last_name gin_trgm_ops);
 
 -- ----------------------------
@@ -218,7 +279,6 @@ CREATE TABLE session (
     CONSTRAINT walk_in_status CHECK (
         NOT (is_walk_in = true AND session_status IN ('NO_SHOW', 'CANCELLED'))
     ),
-    -- Issue #12: next_appointment_date nullable-safe check
     -- If both are set, appointment must not be before the booking date.
     -- Walk-ins (booked_at IS NULL) may freely set a next appointment.
     CONSTRAINT appointment_future CHECK (
@@ -227,7 +287,7 @@ CREATE TABLE session (
         OR next_appointment_date >= booked_at::date
     )
 );
--- Issue #11: Only one PENDING session per client globally
+-- Only one PENDING session per client globally
 CREATE UNIQUE INDEX idx_client_one_pending_session ON session (client_id) WHERE session_status = 'PENDING';
 
 CREATE TABLE session_void (
@@ -253,13 +313,14 @@ CREATE TABLE session_base_rate (
     rate           NUMERIC(10,2) NOT NULL,
     effective_from TIMESTAMPTZ   NOT NULL,
     effective_until TIMESTAMPTZ  NOT NULL,
-    -- Issue #10: Prevent overlapping rates for same branch + session type
+    -- Prevent overlapping rates for same branch + session type. Half-open range [)
+    -- (CR-019): deactivating at T and inserting a new rate at T does not overlap.
     -- NOTE: effective_from and effective_until must be stored in UTC.
     -- Application must convert from Asia/Manila before insert.
     CONSTRAINT no_rate_overlap EXCLUDE USING gist (
         branch_id    WITH =,
         session_type WITH =,
-        tstzrange(effective_from, effective_until, '[]') WITH &&
+        tstzrange(effective_from, effective_until, '[)') WITH &&
     )
 );
 
@@ -272,7 +333,7 @@ CREATE TABLE session_practitioner (
     UNIQUE (session_id, practitioner_id)
 );
 
--- Issue #14: Concern promotion — created_by/at added for provenance
+-- Concern promotion — created_by/at added for provenance
 CREATE TABLE concern (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     label      TEXT        NOT NULL,
@@ -301,7 +362,8 @@ CREATE TABLE product (
     product_category_id UUID          NOT NULL REFERENCES product_category(id),
     is_active           BOOLEAN       NOT NULL DEFAULT true,
     unit_price          NUMERIC(10,2) NOT NULL CHECK (unit_price >= 0),
-    commission_amount   NUMERIC(10,2) NOT NULL CHECK (commission_amount >= 0)
+    commission_amount   NUMERIC(10,2) NOT NULL CHECK (commission_amount >= 0),
+    reorder_point       INT           DEFAULT NULL
 );
 
 CREATE TABLE branch_inventory (
@@ -339,19 +401,19 @@ CREATE TABLE inventory_movement (
     product_id      UUID                      NOT NULL REFERENCES product(id),
     product_sale_id UUID                      REFERENCES product_sale(id),
     branch_id       UUID                      NOT NULL REFERENCES branch(id),
-    branch_day_id   UUID                      NOT NULL REFERENCES branch_day(id), -- Issue #15: Day tie for state machine enforcement
+    branch_day_id   UUID                      NOT NULL REFERENCES branch_day(id), -- Day tie for state machine enforcement
     reason          inventory_movement_reason NOT NULL,
     quantity_change INT                       NOT NULL CHECK (quantity_change != 0),
     moved_by        UUID                      NOT NULL REFERENCES app_user(id),
     moved_at        TIMESTAMPTZ               NOT NULL DEFAULT now(),
     notes           TEXT,
-    -- Issue #16: Enforce sign per movement type. ADJUSTMENT allows both signs.
+    -- Enforce sign per movement type. ADJUSTMENT allows both signs.
     CONSTRAINT quantity_sign CHECK (
         (reason = 'RESTOCK'                                    AND quantity_change > 0) OR
         (reason IN ('SALE', 'TESTER', 'SAMPLE', 'MISSING')    AND quantity_change < 0) OR
         (reason = 'ADJUSTMENT')
     ),
-    -- Issue #17: MISSING movements must have a non-empty note
+    -- MISSING movements must have a non-empty note
     CONSTRAINT missing_notes CHECK (
         reason != 'MISSING' OR (notes IS NOT NULL AND length(notes) > 0)
     ),
@@ -373,9 +435,10 @@ CREATE TABLE compensation (
     amount               NUMERIC(10,2) NOT NULL CHECK (amount >= 0),
     assigned_by          UUID          NOT NULL REFERENCES app_user(id),
     assigned_at          TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    note                 TEXT
+    note                 TEXT,
+    version              INT           NOT NULL DEFAULT 1
 );
--- Issue #18: One payout per user per paying branch per day
+-- One payout per user per paying branch per day
 CREATE UNIQUE INDEX idx_compensation_unique ON compensation (user_id, paying_branch_day_id);
 
 CREATE TABLE commission_split (
@@ -407,15 +470,17 @@ CREATE TABLE allowance (
 );
 
 CREATE TABLE expense (
-    id            UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
-    branch_day_id UUID             NOT NULL REFERENCES branch_day(id),
-    amount        NUMERIC(10,2)    NOT NULL CHECK (amount > 0),
-    category      expense_category NOT NULL,
-    notes         TEXT,
-    created_by    UUID             NOT NULL REFERENCES app_user(id),
-    created_at    TIMESTAMPTZ      NOT NULL DEFAULT now(),
-    deleted_by    UUID             REFERENCES app_user(id),
-    deleted_at    TIMESTAMPTZ,
+    id             UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
+    branch_day_id  UUID             NOT NULL REFERENCES branch_day(id),
+    amount         NUMERIC(10,2)    NOT NULL CHECK (amount > 0),
+    category       expense_category NOT NULL,
+    notes          TEXT,
+    created_by     UUID             NOT NULL REFERENCES app_user(id),
+    created_at     TIMESTAMPTZ      NOT NULL DEFAULT now(),
+    deleted_by     UUID             REFERENCES app_user(id),
+    deleted_at     TIMESTAMPTZ,
+    deleted_reason TEXT,
+    version        INT              NOT NULL DEFAULT 1,
     CONSTRAINT expense_deleted_logic CHECK (
         (deleted_by IS NULL AND deleted_at IS NULL)
         OR (deleted_by IS NOT NULL AND deleted_at IS NOT NULL)
@@ -425,6 +490,10 @@ CREATE TABLE expense (
 -- ----------------------------
 -- REMITTANCE
 -- ----------------------------
+-- Drafts are collaborative working records and may overlap (#119 undo window).
+-- Submitted rows retain one remittance per branch, type, and submission date —
+-- enforced by the partial unique index below, not a table-wide UNIQUE constraint
+-- (which would forbid overlapping DRAFT ranges; relaxed pre-squash).
 
 CREATE TABLE remittance (
     id               UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -433,18 +502,16 @@ CREATE TABLE remittance (
     branch_id        UUID              NOT NULL REFERENCES branch(id),
     method           remittance_method NOT NULL,
     -- submitted_date: the calendar date this remittance was submitted.
-    -- Distinct from date_range_end. Named explicitly to avoid confusion.
+    -- submitted_at: the exact submission instant the 48h undo window counts from.
     submitted_date   DATE              NOT NULL,
+    submitted_at     TIMESTAMPTZ,
     date_range_start DATE              NOT NULL,
     date_range_end   DATE              NOT NULL,
     submitted_by     UUID              NOT NULL REFERENCES app_user(id),
     created_at       TIMESTAMPTZ       NOT NULL DEFAULT now(),
     version          INT               NOT NULL DEFAULT 1,
-    UNIQUE (branch_id, type, submitted_date),
     CONSTRAINT range_valid CHECK (date_range_start <= date_range_end),
-    -- Issue #2 (remittance): Exclusion constraint scoped to SUBMITTED only.
-    -- DRAFTs are excluded so coordinators can create, discard, and recreate
-    -- drafts without hitting the overlap constraint.
+    -- Exclusion constraint scoped to SUBMITTED only.
     -- Requires PostgreSQL 14+ for WHERE predicate on EXCLUDE.
     CONSTRAINT no_remittance_overlap EXCLUDE USING gist (
         branch_id WITH =,
@@ -452,6 +519,10 @@ CREATE TABLE remittance (
         daterange(date_range_start, date_range_end, '[]') WITH &&
     ) WHERE (status = 'SUBMITTED')
 );
+
+CREATE UNIQUE INDEX idx_remittance_submitted_date
+    ON remittance (branch_id, type, submitted_date)
+    WHERE status = 'SUBMITTED';
 
 CREATE TABLE remittance_day_breakdown (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -469,11 +540,21 @@ CREATE TABLE remittance_financial_snapshot (
     snapshotted_at     TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
--- Issue #20: Immutability trigger — snapshot is write-once at submission.
--- The service layer must not insert until status transitions to SUBMITTED.
+-- Immutability trigger: snapshot is write-once at submission.
+-- UPDATE is always blocked; DELETE is allowed only when the parent remittance is
+-- already DRAFT, which happens exclusively via the undo endpoint (the only
+-- SUBMITTED -> DRAFT transition; the undo transaction updates the remittance
+-- before deleting the snapshot, so the trigger sees the DRAFT status).
 CREATE OR REPLACE FUNCTION fn_remittance_snapshot_immutable()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
+    IF TG_OP = 'DELETE' THEN
+        IF EXISTS (
+            SELECT 1 FROM remittance WHERE id = OLD.remittance_id AND status = 'DRAFT'
+        ) THEN
+            RETURN OLD;
+        END IF;
+    END IF;
     RAISE EXCEPTION
         'remittance_financial_snapshot is immutable. Record for remittance_id % cannot be modified or deleted.', OLD.remittance_id;
 END;
@@ -494,8 +575,6 @@ CREATE TABLE remittance_line (
     deleted_by      UUID                 REFERENCES app_user(id),
     deleted_at      TIMESTAMPTZ,
     amount          NUMERIC(10,2)        NOT NULL,
-    -- BUG FIX (#1): was `deleted_at IS NOT NULL AND deleted_at IS NOT NULL`
-    -- Corrected to check deleted_by in the second branch.
     CONSTRAINT line_deleted_logic CHECK (
            (deleted_at IS NULL     AND deleted_by IS NULL)
         OR (deleted_at IS NOT NULL AND deleted_by IS NOT NULL)
@@ -511,6 +590,8 @@ CREATE UNIQUE INDEX idx_remittance_line_product ON remittance_line (product_sale
 
 -- ----------------------------
 -- AUDIT
+-- audit_log.branch_id scopes reads to a caller's branch window (#104 D6);
+-- branchless-table rows stay NULL -> Owner/Accountant-only visibility.
 -- ----------------------------
 
 CREATE TABLE audit_log (
@@ -525,14 +606,46 @@ CREATE TABLE audit_log (
     is_flagged      BOOLEAN      NOT NULL DEFAULT false,
     reason          TEXT,
     acknowledged_by UUID         REFERENCES app_user(id),
-    acknowledged_at TIMESTAMPTZ
+    acknowledged_at TIMESTAMPTZ,
+    branch_id       UUID         REFERENCES branch(id)
 );
 CREATE INDEX idx_audit_lookup  ON audit_log (table_name, record_id);
 CREATE INDEX idx_audit_time    ON audit_log (changed_at);
 CREATE INDEX idx_audit_flagged ON audit_log (is_flagged) WHERE is_flagged = true;
+CREATE INDEX idx_audit_branch  ON audit_log (branch_id) WHERE branch_id IS NOT NULL;
 
 -- ----------------------------
--- VIEWS (Issue #2, #5)
+-- NOTIFICATIONS
+-- Storage widened (#356): one person holds many notifications (repeat events insert
+-- rows; reminder dedup lives in the write path). Routing columns (#358):
+-- event_type/source_id correlate the relief broadcast family (source_id polymorphic
+-- on purpose — grant_relief_access id or relief_invite id, no FK); target_date is
+-- the branch day a non-session notification points at (client deep-links to the
+-- dashboard scoped to branch_id+target_date). Session appointment reminders keep
+-- session_id routing and leave all three columns NULL.
+-- ----------------------------
+
+CREATE TABLE notification (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID        REFERENCES session(id),
+    user_id    UUID        NOT NULL REFERENCES app_user(id),
+    branch_id  UUID        NOT NULL REFERENCES branch(id),
+    is_read    BOOLEAN     NOT NULL DEFAULT false,
+    read_at    TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- New rows always get a message from the application (scheduler provides
+    -- "You have an upcoming appointment on …"); no column default.
+    message    TEXT        NOT NULL,
+    event_type VARCHAR(50),
+    source_id  UUID,
+    target_date DATE
+);
+
+CREATE INDEX idx_notification_unread
+    ON notification (user_id) WHERE is_read = false;
+
+-- ----------------------------
+-- VIEWS
 -- ----------------------------
 
 -- active_session_voids
@@ -543,42 +656,98 @@ SELECT *
 FROM session_void
 WHERE unvoided_at IS NULL;
 
--- active_user_capabilities
--- Issue #2 fix: DISTINCT ON now includes context_type to prevent cross-context collapse.
--- Issue #5 fix: Joins app_user to exclude INACTIVE users from all capability checks.
+-- active_user_capabilities — the single place capability checks resolve (ADR-0023).
+-- DISTINCT ON includes context_type to prevent cross-context collapse; INACTIVE
+-- users excluded everywhere; time-window filter handles expiry.
+--
+-- Three-way UNION:
+--   (a) direct grants — user_capability rows, unchanged semantics.
+--   (b) role-derived GLOBAL grants — context_id is the nil all-zero UUID, priority 5
+--       (GrantPriorities.ROLE_DERIVED: above the raw column default 0, below every
+--       explicit grant — relief 10 / delegate 20 / direct 100 — so an explicit grant
+--       always beats a role-derived row; keep in sync with GrantPriorities.kt).
+--       DERIVATION RULE: role_capability has no context column, so
+--       BRANCH/BRANCH_DAY-scoped codes cannot derive — they flow through direct
+--       inserts only. Derived GLOBAL codes: MANAGE_USERS / ASSIGN_DELEGATE /
+--       ASSIGN_COMPENSATION for SUPERUSER/OWNER/MANAGER (COORDINATOR's
+--       "assigned branches only" ASSIGN_COMPENSATION is deliberately NOT derived —
+--       GLOBAL derivation would over-grant); VIEW_BRANCH_DATA for SUPERUSER/
+--       ACCOUNTANT ("read-only across all branches"). Branch-scoped staff roles keep
+--       BRANCH-scoped VIEW_BRANCH_DATA via direct grants — never all-branches.
+--   (c) role-derived BRANCH grants — RECEIVE_NEXT_APPOINTMENT_ALERTS for ACTIVE
+--       Coordinator assignments only (role-derived GLOBAL grants cannot express
+--       branch ownership).
+-- Business logic must NEVER read user_role/role_capability directly — the V2
+-- rule stands; this view computes the union.
 CREATE VIEW active_user_capabilities AS
-SELECT DISTINCT ON (uc.user_id, uc.capability_id, uc.context_type, uc.context_id)
-    uc.user_id,
-    uc.capability_id,
-    uc.context_type,
-    uc.context_id,
-    uc.priority,
-    uc.source_type
-FROM user_capability uc
-JOIN app_user au ON uc.user_id = au.id
-WHERE au.status = 'ACTIVE'
-  AND now() BETWEEN uc.valid_from AND COALESCE(uc.valid_to, 'infinity'::timestamptz)
-ORDER BY uc.user_id, uc.capability_id, uc.context_type, uc.context_id, uc.priority DESC;
+SELECT DISTINCT ON (granted.user_id, granted.capability_id, granted.context_type, granted.context_id)
+    granted.user_id,
+    granted.capability_id,
+    granted.context_type,
+    granted.context_id,
+    granted.priority,
+    granted.source_type
+FROM (
+    SELECT
+        uc.user_id,
+        uc.capability_id,
+        uc.context_type,
+        uc.context_id,
+        uc.priority,
+        uc.source_type
+    FROM user_capability uc
+    JOIN app_user au ON uc.user_id = au.id
+    WHERE au.status = 'ACTIVE'
+      AND now() BETWEEN uc.valid_from AND COALESCE(uc.valid_to, 'infinity'::timestamptz)
 
--- ----------------------------
--- NOTIFICATIONS
--- ----------------------------
+    UNION ALL
 
-CREATE TABLE IF NOT EXISTS notification (
-    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID        NOT NULL REFERENCES session(id),
-    user_id    UUID        NOT NULL REFERENCES app_user(id),
-    branch_id  UUID        NOT NULL REFERENCES branch(id),
-    is_read    BOOLEAN     NOT NULL DEFAULT false,
-    read_at    TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+    SELECT
+        ur.user_id,
+        rc.capability_id,
+        'GLOBAL'::capability_context_type AS context_type,
+        '00000000-0000-0000-0000-000000000000'::uuid AS context_id,
+        5::smallint AS priority,
+        'ROLE'::capability_source_type AS source_type
+    FROM user_role ur
+    JOIN app_user au ON au.id = ur.user_id
+    JOIN role r ON r.id = ur.role_id
+    JOIN role_capability rc ON rc.role_id = r.id
+    JOIN capability c ON c.id = rc.capability_id
+    WHERE au.status = 'ACTIVE'
+      AND (
+          (
+              c.code IN ('MANAGE_USERS', 'ASSIGN_DELEGATE', 'ASSIGN_COMPENSATION')
+              AND r.name IN ('SUPERUSER', 'OWNER', 'MANAGER')
+          )
+          OR
+          (
+              c.code = 'VIEW_BRANCH_DATA'
+              AND r.name IN ('SUPERUSER', 'ACCOUNTANT')
+          )
+      )
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_unique
-    ON notification (session_id, user_id);
+    UNION ALL
 
-CREATE INDEX IF NOT EXISTS idx_notification_unread
-    ON notification (user_id) WHERE is_read = false;
+    SELECT
+        uba.user_id,
+        rc.capability_id,
+        'BRANCH'::capability_context_type AS context_type,
+        uba.branch_id AS context_id,
+        5::smallint AS priority,
+        'ROLE'::capability_source_type AS source_type
+    FROM user_branch_assignment uba
+    JOIN app_user au ON au.id = uba.user_id
+    JOIN user_role ur ON ur.user_id = uba.user_id
+    JOIN role r ON r.id = ur.role_id
+    JOIN role_capability rc ON rc.role_id = r.id
+    JOIN capability c ON c.id = rc.capability_id
+    WHERE au.status = 'ACTIVE'
+      AND uba.ended_at IS NULL
+      AND r.name = 'COORDINATOR'
+      AND c.code = 'RECEIVE_NEXT_APPOINTMENT_ALERTS'
+) granted
+ORDER BY granted.user_id, granted.capability_id, granted.context_type, granted.context_id, granted.priority DESC;
 
 -- daily_sales_summary
 -- Aggregates daily financial data per branch day using correlated subqueries.
@@ -636,4 +805,3 @@ FROM remittance r
 LEFT JOIN remittance_financial_snapshot rfs ON rfs.remittance_id = r.id
 WHERE r.status = 'SUBMITTED'
 GROUP BY r.branch_id, EXTRACT(YEAR FROM r.submitted_date), EXTRACT(MONTH FROM r.submitted_date);
-

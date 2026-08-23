@@ -16,10 +16,11 @@ Before coding, read the relevant doc(s):
 
 ## Schema
 
-The authoritative current schema is the whole versioned migration chain in
-`backend/src/main/resources/db/migration/` — inspect all of it when reasoning about
-current schema (`docs/architecture.md` §10); `V1__full_schema.sql` alone predates
-later structural migrations.
+`V1__full_schema.sql` (squashed structural baseline, #370) plus the seed migrations
+(`V2__seed_roles_capabilities.sql`, `V5__add_next_appointment_alerts_capability.sql`)
+in `backend/src/main/resources/db/migration/` are the authoritative current schema —
+one structural baseline, no incremental chain to replay mentally. Evolve by adding
+new versioned migrations on top.
 
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.

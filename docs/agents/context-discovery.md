@@ -96,7 +96,7 @@ constraint, unexpected runtime behavior.
 | Material | Open when | How |
 |---|---|---|
 | Tests | they define/validate the behavior being changed | search test names for the symbol under change; open the hit, not the directory |
-| Schema/migrations (`backend/src/main/resources/db/migration/`) | change affects persisted shape, constraints, locking, transactions, defaults, views, DB behavior | search/grep the directory first to identify candidate migrations cheaply; then reason about current schema over **all versioned migrations** (`docs/architecture.md` §10: the migration directory is authoritative) — `V1__full_schema.sql` alone is not the effective schema while later structural migrations exist (e.g. `V24__add_credential_token.sql`). Correctness outranks context minimization here; this rule relaxes only if the migration squash (#370) lands and makes one structural baseline true. |
+| Schema/migrations (`backend/src/main/resources/db/migration/`) | change affects persisted shape, constraints, locking, transactions, defaults, views, DB behavior | `V1__full_schema.sql` is the squashed canonical structural baseline (#370) — the effective current schema, with `V2`/`V5` as seed migrations. Read V1 directly; only add-on migrations beyond it need chain reasoning. |
 | ADRs (`docs/adr/`) | the touched seam/decision has architectural authority | scan ADR titles/status fields; read only decisions in the area |
 | Business rules/specs | behavior or domain semantics at issue | `docs/business-requirements.md`, `docs/specs/`; search terms, don't read whole files |
 

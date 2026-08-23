@@ -177,8 +177,8 @@ Not a semantic module — read only when the ticket touches it directly:
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
 `database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `config/AppConfig.kt`,
 `logging/*` converters, `repository/model/*` Exposed tables/views (schema work only —
-the whole versioned migration chain in `backend/src/main/resources/db/migration/` is
-the current-schema authority; see #370 for a future single-baseline squash).
+`V1__full_schema.sql` (squashed baseline, #370) plus seed migrations in
+`backend/src/main/resources/db/migration/` are the current-schema authority).
 
 ## Adding a module
 
