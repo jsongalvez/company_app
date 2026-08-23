@@ -39,6 +39,10 @@ class AttendanceRosterViewModel(
     private val _markResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val markResult: StateFlow<UiState<Unit>> = _markResult.asStateFlow()
 
+    // Bumped on every successful mark: a roster reload landing with a mismatched stamp
+    // predates the mark and must not commit its pre-action snapshot (the #165 stamp shape).
+    private var actionStamp = 0L
+
     fun load(branchId: String): Job {
         if (keptRoster.stateFlow.value is UiState.Loading) return Job()
         return refreshRoster(branchId)
@@ -55,6 +59,11 @@ class AttendanceRosterViewModel(
             endpoint = "GET /api/branches/{branchId}/attendance/today",
             block = { apiClient.httpClient.get(ApiRoutes.branchAttendanceToday(branchId)) },
             transform = { it.body() },
+            stamp = { actionStamp },
+            fallback = {
+                refreshRoster(branchId)
+                keptRoster.freshestValue() ?: emptyList()
+            },
         )
 
     fun mark(
@@ -80,6 +89,7 @@ class AttendanceRosterViewModel(
                 }
             },
             transform = {
+                actionStamp++
                 refreshRoster(branchId)
                 Unit
             },

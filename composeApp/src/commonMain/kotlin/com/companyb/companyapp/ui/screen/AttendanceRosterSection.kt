@@ -73,7 +73,8 @@ fun AttendanceRosterCard(
         }
     }
 
-    // Surface mark failures once, inline (the relief-access action-error shape).
+    // Surface mark failures once, inline (the relief-access action-error shape; the
+    // ApiCallHandler already logged the failure — no per-recomposition warn here).
     val markError = markState as? UiState.Error
     if (markError != null) {
         Text(

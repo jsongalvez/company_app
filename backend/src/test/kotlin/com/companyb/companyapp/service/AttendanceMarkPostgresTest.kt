@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service
 import com.companyb.companyapp.domain.AuditAction
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.ValidationException
@@ -21,7 +22,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.time.OffsetDateTime
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,19 +102,24 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     fun `marked member gains the same access and eligibility as a self clock-in`() {
         val today = BranchDayService.resolveOrCreate(branchId, BranchDayService.currentOperationalDate())
 
-        AttendanceService.mark(
-            callerId = markerId,
-            branchId = branchId,
-            targetUserId = targetId,
-            present = true,
-            attendanceId = TestFixtures.uuid(),
-        )
+        val result =
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = branchId,
+                targetUserId = targetId,
+                present = true,
+                attendanceId = TestFixtures.uuid(),
+            )
+        val resultClockIn = assertNotNull(result.attendance).clockIn
 
         assertTrue(
             AttendanceService.hasActiveClockIn(targetId, today.id),
             "a marked-present member is clocked in exactly like a self starter",
         )
-        assertTrue(AttendanceService.findUsersClockedInAt(today.id, OffsetDateTime.now()).contains(targetId))
+        assertTrue(
+            AttendanceService.findUsersClockedInAt(today.id, resultClockIn).contains(targetId),
+            "the marked member sits inside their own clock window",
+        )
         assertNotNull(branchDayAssignmentFor(targetId, today.id))
     }
 
@@ -263,6 +269,40 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `deactivated member is neither markable nor rostered`() {
+        deactivate(targetId)
+
+        assertFailsWith<ForbiddenException> {
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = branchId,
+                targetUserId = targetId,
+                present = true,
+                attendanceId = TestFixtures.uuid(),
+            )
+        }
+        assertTrue(
+            AttendanceService.rosterToday(markerId, branchId).none { it.userId == targetId },
+            "INACTIVE members never appear on the attendance roster",
+        )
+    }
+
+    @Test
+    fun `deactivated caller cannot mark`() {
+        deactivate(markerId)
+
+        assertFailsWith<ForbiddenException> {
+            AttendanceService.mark(
+                callerId = markerId,
+                branchId = branchId,
+                targetUserId = targetId,
+                present = true,
+                attendanceId = TestFixtures.uuid(),
+            )
+        }
+    }
+
+    @Test
     fun `mark absent closes the open window and attributes the update to the marker`() {
         val attendanceId = TestFixtures.uuid()
         AttendanceService.clockIn(attendanceId, branchId, targetId)
@@ -376,6 +416,12 @@ class AttendanceMarkPostgresTest : BasePostgresTest() {
     fun `roster read gates non-members`() {
         assertFailsWith<ForbiddenException> {
             AttendanceService.rosterToday(outsiderId, branchId)
+        }
+    }
+
+    private fun deactivate(userId: UUID) {
+        transaction {
+            AppUserTable.update({ AppUserTable.id eq userId }) { it[status] = UserStatus.INACTIVE }
         }
     }
 

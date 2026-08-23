@@ -6,7 +6,6 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -66,22 +65,24 @@ object AttendanceService {
         targetUserId: UUID,
         present: Boolean,
         attendanceId: UUID?,
-    ): AttendanceMarkResult {
-        requireActiveMember(callerId, branchId, "Home-branch membership required to mark attendance")
-        requireActiveMember(
-            targetUserId,
-            branchId,
-            "Only home-branch members can be marked present or absent at this branch",
-        )
+    ): AttendanceMarkResult =
+        transaction {
+            // Gate inside the command transaction, under the assignment row lock (#404
+            // review): a concurrent revocation or deactivation serializes with the mark
+            // instead of racing a pre-transaction check.
+            requireActiveMember(callerId, branchId, "Home-branch membership required to mark attendance")
+            requireActiveMember(
+                targetUserId,
+                branchId,
+                "Only home-branch members can be marked present or absent at this branch",
+            )
 
-        return transaction {
             if (present) {
                 markPresent(callerId, branchId, targetUserId, attendanceId)
             } else {
                 markAbsent(callerId, branchId, targetUserId)
             }
         }
-    }
 
     /**
      * The present leg: mirrors self clock-in — day resolution, #376 branch-day lock,
@@ -193,10 +194,10 @@ object AttendanceService {
     fun rosterToday(
         callerId: UUID,
         branchId: UUID,
-    ): List<AttendanceRosterEntry> {
-        requireActiveMember(callerId, branchId, "Home-branch membership required to view this branch's attendance")
+    ): List<AttendanceRosterEntry> =
+        transaction {
+            requireActiveMember(callerId, branchId, "Home-branch membership required to view this branch's attendance")
 
-        return transaction {
             val presentUserIds =
                 BranchDayService
                     .findToday(branchId)
@@ -211,7 +212,6 @@ object AttendanceService {
                 )
             }
         }
-    }
 
     @Suppress("ThrowsCount")
     fun clockOut(
@@ -358,16 +358,18 @@ data class AttendanceRosterEntry(
 )
 
 /**
- * The mark/roster gate (#404): an active home assignment at the branch — membership, not a
- * capability. File-level helper so AttendanceService stays inside its function-count pin.
+ * The mark/roster gate (#404): an ACTIVE user holding an active home assignment at the
+ * branch — membership + liveness, never a capability check. Runs on the caller's open
+ * transaction (the assignment row is read FOR UPDATE, so a concurrent revocation
+ * serializes with the command). File-level helper so AttendanceService stays inside its
+ * function-count pin.
  */
 private fun requireActiveMember(
     userId: UUID,
     branchId: UUID,
     message: String,
 ) {
-    val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
-    if (assignment == null) {
+    if (!AttendanceRepository.hasActiveMembershipInTransaction(branchId, userId)) {
         throw ForbiddenException(message)
     }
 }

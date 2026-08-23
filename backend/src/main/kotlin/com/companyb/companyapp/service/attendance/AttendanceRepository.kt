@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.attendance
 
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.Attendance
@@ -16,6 +17,7 @@ import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -180,6 +182,32 @@ internal object AttendanceRepository {
                 }.map { it[AttendanceTable.userId] }
         }.toSet()
 
+    /**
+     * #404 — ACTIVE-user home membership at the branch, read under the assignment row lock so a
+     * concurrent revocation serializes with the mark command instead of racing its gate.
+     */
+    fun hasActiveMembershipInTransaction(
+        branchId: UUID,
+        userId: UUID,
+    ): Boolean {
+        val join =
+            UserBranchAssignmentTable.innerJoin(
+                AppUserTable,
+                { UserBranchAssignmentTable.userId },
+                { AppUserTable.id },
+            )
+        return join
+            .selectAll()
+            .where {
+                (UserBranchAssignmentTable.branchId eq branchId) and
+                    (UserBranchAssignmentTable.userId eq userId) and
+                    (UserBranchAssignmentTable.endedAt.isNull()) and
+                    (AppUserTable.status eq UserStatus.ACTIVE)
+            }.forUpdate(ForUpdateOption.ForUpdate)
+            .limit(1)
+            .singleOrNull() != null
+    }
+
     fun clockOutInTransaction(attendanceId: UUID): Pair<Attendance, Boolean> {
         val updated =
             AttendanceTable
@@ -229,8 +257,9 @@ internal object AttendanceRepository {
         }.also { logger.info { "[FIND-BRANCH-DAY-USERS] Found ${it.size} users for branch_day $branchDayId" } }
 
     /**
-     * #404 — the branch's active home members with names and Branch Slots, ordered slot
-     * first (1 = senior) then display name. Presence flags are applied by the caller.
+     * #404 — the branch's ACTIVE home members with names and Branch Slots, ordered slot
+     * first (1 = senior), then display name, then user id (deterministic ties). Presence
+     * flags are applied by the caller.
      */
     fun rosterRows(branchId: UUID): List<RosterMember> =
         transaction {
@@ -250,10 +279,12 @@ internal object AttendanceRepository {
             ).selectAll()
                 .where {
                     (UserBranchAssignmentTable.branchId eq branchId) and
-                        (UserBranchAssignmentTable.endedAt.isNull())
+                        (UserBranchAssignmentTable.endedAt.isNull()) and
+                        (AppUserTable.status eq UserStatus.ACTIVE)
                 }.orderBy(
                     UserBranchAssignmentTable.slot to SortOrder.ASC,
                     AppUserTable.displayName to SortOrder.ASC,
+                    UserBranchAssignmentTable.userId to SortOrder.ASC,
                 ).map { row ->
                     RosterMember(
                         userId = row[UserBranchAssignmentTable.userId],
