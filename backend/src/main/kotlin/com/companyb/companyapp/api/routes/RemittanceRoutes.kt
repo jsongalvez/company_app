@@ -24,13 +24,13 @@ import com.companyb.companyapp.dto.RemittanceSubmitResponse
 import com.companyb.companyapp.dto.SubmitRemittanceRequest
 import com.companyb.companyapp.dto.UndoRemittanceRequest
 import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
-import com.companyb.companyapp.repository.model.BranchDay
-import com.companyb.companyapp.repository.model.Remittance
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
-import com.companyb.companyapp.repository.model.RemittanceLine
+import com.companyb.companyapp.service.finance.remittance.Remittance
+import com.companyb.companyapp.service.finance.remittance.RemittanceDayBreakdown
+import com.companyb.companyapp.service.finance.remittance.RemittanceDayPickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceDetail
 import com.companyb.companyapp.service.finance.remittance.RemittanceDrift
+import com.companyb.companyapp.service.finance.remittance.RemittanceFinancialSnapshot
+import com.companyb.companyapp.service.finance.remittance.RemittanceLine
 import com.companyb.companyapp.service.finance.remittance.RemittanceProductSalePickerEntry
 import com.companyb.companyapp.service.finance.remittance.RemittanceService
 import com.companyb.companyapp.service.finance.remittance.RemittanceSessionPickerEntry
@@ -48,12 +48,6 @@ import io.javalin.openapi.OpenApiParam
 import io.javalin.openapi.OpenApiSecurity
 import java.time.LocalDate
 import java.util.UUID
-import com.companyb.companyapp.domain.DayStatus as WireDayStatus
-import com.companyb.companyapp.domain.RemittanceLineType as WireRemittanceLineType
-import com.companyb.companyapp.domain.RemittanceMethod as WireRemittanceMethod
-import com.companyb.companyapp.domain.RemittanceStatus as WireRemittanceStatus
-import com.companyb.companyapp.domain.RemittanceType as WireRemittanceType
-import com.companyb.companyapp.domain.SessionStatus as WireSessionStatus
 
 @Suppress("TooManyFunctions")
 @OpenApi(
@@ -572,10 +566,10 @@ object RemittanceRoutes {
     private fun Remittance.toResponse(): RemittanceResponse =
         RemittanceResponse(
             id = id.toString(),
-            type = WireRemittanceType.valueOf(type.name),
-            status = WireRemittanceStatus.valueOf(status.name),
+            type = type,
+            status = status,
             branchId = branchId.toString(),
-            method = WireRemittanceMethod.valueOf(method.name),
+            method = method,
             submittedDate = submittedDate.toString(),
             submittedAt = submittedAt?.toString(),
             submittedBy = submittedBy.toString(),
@@ -592,7 +586,7 @@ object RemittanceRoutes {
         RemittanceLineResponse(
             id = id.toString(),
             remittanceId = remittanceId.toString(),
-            type = WireRemittanceLineType.valueOf(type.name),
+            type = type,
             sessionId = sessionId?.toString(),
             productSaleId = productSaleId?.toString(),
             createdBy = createdBy.toString(),
@@ -612,10 +606,10 @@ object RemittanceRoutes {
     private fun RemittanceDetail.toResponse(): RemittanceDetailResponse =
         RemittanceDetailResponse(
             id = remittance.id.toString(),
-            type = WireRemittanceType.valueOf(remittance.type.name),
-            status = WireRemittanceStatus.valueOf(remittance.status.name),
+            type = remittance.type,
+            status = remittance.status,
             branchId = remittance.branchId.toString(),
-            method = WireRemittanceMethod.valueOf(remittance.method.name),
+            method = remittance.method,
             submittedDate = remittance.submittedDate.toString(),
             submittedAt = remittance.submittedAt?.toString(),
             submittedBy = remittance.submittedBy.toString(),
@@ -652,7 +646,7 @@ object RemittanceRoutes {
             id = id.toString(),
             clientName = clientName,
             bookedAt = bookedAt?.toString(),
-            sessionStatus = WireSessionStatus.valueOf(sessionStatus.name),
+            sessionStatus = sessionStatus,
             finalPrice = finalPrice.toPlainString(),
         )
 
@@ -665,20 +659,20 @@ object RemittanceRoutes {
             soldAt = soldAt.toString(),
         )
 
-    private fun BranchDay.toResponse(): RemittanceDayPickerEntryResponse =
+    private fun RemittanceDayPickerEntry.toResponse(): RemittanceDayPickerEntryResponse =
         RemittanceDayPickerEntryResponse(
             id = id.toString(),
             date = date.toString(),
-            status = WireDayStatus.valueOf(status.name),
+            status = status,
         )
 
     private fun RemittanceSubmissionResult.toSubmitResponse(): RemittanceSubmitResponse =
         RemittanceSubmitResponse(
             id = remittance.id.toString(),
-            type = WireRemittanceType.valueOf(remittance.type.name),
-            status = WireRemittanceStatus.valueOf(remittance.status.name),
+            type = remittance.type,
+            status = remittance.status,
             branchId = remittance.branchId.toString(),
-            method = WireRemittanceMethod.valueOf(remittance.method.name),
+            method = remittance.method,
             submittedDate = remittance.submittedDate.toString(),
             submittedAt = remittance.submittedAt?.toString(),
             submittedBy = remittance.submittedBy.toString(),

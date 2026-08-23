@@ -1,5 +1,6 @@
 package com.companyb.companyapp.service.finance.remittance
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.domain.RemittanceLineType
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
@@ -10,12 +11,6 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.ProductSaleRepository
 import com.companyb.companyapp.repository.SessionRepository
-import com.companyb.companyapp.repository.model.BranchDay
-import com.companyb.companyapp.repository.model.Remittance
-import com.companyb.companyapp.repository.model.RemittanceDayBreakdown
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshot
-import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotCreateParams
-import com.companyb.companyapp.repository.model.RemittanceLine
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
@@ -505,13 +500,19 @@ object RemittanceService {
         branchId: UUID,
         from: LocalDate,
         to: LocalDate,
-    ): List<BranchDay> {
+    ): List<RemittanceDayPickerEntry> {
         BranchRepository.findById(branchId)
             ?: throw NotFoundException("Branch not found")
         val today = BranchDayService.currentOperationalDate()
         return RemittanceRepository
             .findBranchDaysInRange(branchId, from, to)
-            .map { day -> day.copy(status = BranchDayService.evaluateStatus(day.status, day.date, today)) }
+            .map { day ->
+                RemittanceDayPickerEntry(
+                    id = day.id,
+                    date = day.date,
+                    status = BranchDayService.evaluateStatus(day.status, day.date, today),
+                )
+            }
     }
 
     @Suppress("ThrowsCount", "ReturnCount")
@@ -553,4 +554,11 @@ data class RemittanceDrift(
     val currentCompensation: BigDecimal,
     val currentExpenses: BigDecimal,
     val currentNet: BigDecimal,
+)
+
+/** One pickable branch day for the remittance day-range picker (#343) — no Branch Day record crosses the seam. */
+data class RemittanceDayPickerEntry(
+    val id: UUID,
+    val date: LocalDate,
+    val status: DayStatus,
 )

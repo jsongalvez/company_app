@@ -3,30 +3,14 @@ package com.companyb.companyapp.repository.model
 import com.companyb.companyapp.domain.RemittanceMethod
 import com.companyb.companyapp.domain.RemittanceStatus
 import com.companyb.companyapp.domain.RemittanceType
+import com.companyb.companyapp.service.finance.remittance.Remittance
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.date
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
-import java.time.LocalDate
-import java.time.OffsetDateTime
 import java.util.UUID
-
-data class Remittance(
-    val id: UUID,
-    val type: RemittanceType,
-    val status: RemittanceStatus,
-    val branchId: UUID,
-    val method: RemittanceMethod,
-    val submittedDate: LocalDate,
-    val submittedAt: OffsetDateTime?,
-    val submittedBy: UUID,
-    val dateRangeStart: LocalDate,
-    val dateRangeEnd: LocalDate,
-    val createdAt: OffsetDateTime,
-    val version: Int,
-)
 
 object RemittanceTable : Table("remittance") {
     val id = javaUUID("id").autoGenerate()

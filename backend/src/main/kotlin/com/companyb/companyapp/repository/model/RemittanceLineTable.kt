@@ -1,27 +1,13 @@
 package com.companyb.companyapp.repository.model
 
 import com.companyb.companyapp.domain.RemittanceLineType
+import com.companyb.companyapp.service.finance.remittance.RemittanceLine
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.java.javaUUID
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.javatime.timestampWithTimeZone
 import org.postgresql.util.PGobject
-import java.math.BigDecimal
-import java.time.OffsetDateTime
 import java.util.UUID
-
-data class RemittanceLine(
-    val id: UUID,
-    val remittanceId: UUID,
-    val type: RemittanceLineType,
-    val sessionId: UUID?,
-    val productSaleId: UUID?,
-    val createdBy: UUID,
-    val createdAt: OffsetDateTime,
-    val deletedBy: UUID?,
-    val deletedAt: OffsetDateTime?,
-    val amount: BigDecimal,
-)
 
 private const val PRECISION = 10
 private const val SCALE = 2

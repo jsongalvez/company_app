@@ -14,7 +14,6 @@ import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.ProductSaleTable
-import com.companyb.companyapp.repository.model.Remittance
 import com.companyb.companyapp.repository.model.RemittanceDayBreakdownTable
 import com.companyb.companyapp.repository.model.RemittanceFinancialSnapshotTable
 import com.companyb.companyapp.repository.model.RemittanceLineTable
@@ -60,13 +59,6 @@ data class CreateDraftParams(
 data class RemittanceCreateResult(
     val remittance: Remittance,
     val created: Boolean,
-)
-
-data class UndoParams(
-    val remittanceId: UUID,
-    val expectedVersion: Int,
-    val reason: String,
-    val now: OffsetDateTime? = null,
 )
 
 data class UpdateHeaderParams(
