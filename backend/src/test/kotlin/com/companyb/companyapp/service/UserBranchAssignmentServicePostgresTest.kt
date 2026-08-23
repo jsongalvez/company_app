@@ -1,4 +1,5 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
@@ -21,6 +22,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -482,6 +484,64 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val assignments = UserBranchAssignmentService.findActiveByBranch(callerId, branchId)
 
         assertTrue(assignments.isEmpty())
+    }
+
+    // --- #366 requested-practitioner directory ---
+
+    @Test
+    fun `listActiveMembers returns active member names in slot order`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, callerId, 3)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userBId, 5)
+
+        val members = UserBranchAssignmentService.listActiveMembers(userAId, branchId)
+
+        assertEquals(
+            listOf("Test usera", "Test caller", "Test userb"),
+            members.map { it.displayName },
+        )
+        assertEquals(3, members.map { it.id }.distinct().size)
+    }
+
+    @Test
+    fun `listActiveMembers without membership is forbidden at service layer`() {
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
+        }
+    }
+
+    @Test
+    fun `listActiveMembers rejects a member of a different branch`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val otherBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(otherBranchId)
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.branchId, otherBranchId)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), otherBranchId, userBId, 1)
+
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.listActiveMembers(userBId, branchId)
+        }
+    }
+
+    @Test
+    fun `listActiveMembers excludes deactivated users`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userBId, 2)
+        transaction {
+            AppUserTable.update({ AppUserTable.id eq userBId }) {
+                it[status] = UserStatus.INACTIVE
+            }
+        }
+
+        val members = UserBranchAssignmentService.listActiveMembers(userAId, branchId)
+
+        assertEquals(listOf(userAId), members.map { it.id })
     }
 
     private fun assignedSlot(assignmentId: UUID): Short =

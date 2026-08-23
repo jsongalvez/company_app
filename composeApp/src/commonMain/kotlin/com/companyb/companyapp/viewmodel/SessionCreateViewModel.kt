@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.dto.AddSessionConcernRequest
+import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateSessionRequest
@@ -178,6 +179,43 @@ class SessionCreateViewModel(
 
     val toggleConcern: (String) -> Unit = concernPoster::toggle
 
+    // --- Requested practitioner (#366): own-branch member picker, optional end-to-end. ---
+
+    private val _members = MutableStateFlow<UiState<List<BranchMemberResponse>>>(UiState.Idle)
+    val members: StateFlow<UiState<List<BranchMemberResponse>>> = _members.asStateFlow()
+
+    /** Idle-only entry load (the concerns retry-loop lesson); Error gets a manual retry. */
+    fun loadMembers() {
+        if (_members.value !is UiState.Idle) return
+        _members.value = UiState.Loading
+        handler.launch(
+            state = _members,
+            operation = "loadMembers",
+            endpoint = "GET /api/branches/$branchId/members",
+            block = { apiClient.httpClient.get(ApiRoutes.branchMembers(branchId)) },
+            transform = { it.body() },
+        )
+    }
+
+    fun retryMembers() {
+        if (_members.value is UiState.Loading) return
+        _members.value = UiState.Loading
+        handler.launch(
+            state = _members,
+            operation = "retryMembers",
+            endpoint = "GET /api/branches/$branchId/members",
+            block = { apiClient.httpClient.get(ApiRoutes.branchMembers(branchId)) },
+            transform = { it.body() },
+        )
+    }
+
+    private val _selectedPractitioner = MutableStateFlow<BranchMemberResponse?>(null)
+    val selectedPractitioner: StateFlow<BranchMemberResponse?> = _selectedPractitioner.asStateFlow()
+
+    fun selectPractitioner(member: BranchMemberResponse?) {
+        _selectedPractitioner.value = member
+    }
+
     // --- Submit ---
 
     private val _createResult = MutableStateFlow<UiState<SessionResponse>>(UiState.Idle)
@@ -212,6 +250,8 @@ class SessionCreateViewModel(
                             // Walk-in vs booked are identical once started (BR §129); no booking
                             // UI exists in this flow, so sessions start as walk-ins.
                             isWalkIn = true,
+                            requestedPractitionerId =
+                                _selectedPractitioner.value?.id,
                             finalPrice = finalPrice,
                             remarks = remarks?.trim()?.ifBlank { null },
                             otherConcerns = otherConcerns?.trim()?.ifBlank { null },

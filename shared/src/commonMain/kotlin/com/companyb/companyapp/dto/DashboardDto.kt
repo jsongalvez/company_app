@@ -28,6 +28,8 @@ data class DashboardSessionResponse(
     val isVoided: Boolean,
     val practitioners: List<DashboardPractitionerResponse> = emptyList(),
     val concerns: List<ConcernResponse> = emptyList(),
+    /** #366 — display name of the practitioner the client requested, when one was recorded. */
+    val requestedPractitionerName: String? = null,
 )
 
 @Serializable

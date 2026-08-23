@@ -15,6 +15,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -31,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.CreateClientRequest
@@ -164,6 +169,7 @@ private fun SessionCreateEffects(
         logInfo("SessionCreateScreen", "composable entered (first composition)")
         // Retry-loop lesson: Idle-only load fires once per entry; Error gets a manual retry.
         viewModel.loadConcerns()
+        viewModel.loadMembers()
     }
 
     // Created-on-the-spot client: select it (drives the preview load) and close the dialog —
@@ -244,6 +250,15 @@ private fun SessionFormSection(
     val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
     ConcernsBlock(viewModel, concernsState, selectedConcernIds)
 
+    val membersState by viewModel.members.collectAsState()
+    val selectedPractitioner by viewModel.selectedPractitioner.collectAsState()
+    RequestedPractitionerPicker(
+        membersState = membersState,
+        selected = selectedPractitioner,
+        onSelect = viewModel::selectPractitioner,
+        onRetry = viewModel::retryMembers,
+    )
+
     OutlinedTextField(
         value = form.otherConcerns,
         onValueChange = { form.otherConcerns = it },
@@ -299,6 +314,73 @@ private fun PreviewCard(
                         color = InkSubtle,
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * #366 — the optional requested-practitioner picker: own-branch ACTIVE members by display
+ * name (no username), "None" default — recording who the client asked for is a preference,
+ * never a requirement (BR §Clients).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RequestedPractitionerPicker(
+    membersState: UiState<List<BranchMemberResponse>>,
+    selected: BranchMemberResponse?,
+    onSelect: (BranchMemberResponse?) -> Unit,
+    onRetry: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = (membersState as? UiState.Success)?.data.orEmpty()
+    val isError = membersState is UiState.Error
+    val isLoading = membersState is UiState.Loading || membersState is UiState.Idle
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            if (isError) {
+                onRetry()
+            } else if (!isLoading) {
+                expanded = !expanded
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value =
+                when {
+                    isError -> "Colleagues unavailable — tap to retry"
+                    isLoading -> "Loading colleagues…"
+                    else -> selected?.displayName ?: "None"
+                },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Requested practitioner (optional)") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            enabled = !isLoading && !isError,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("None") },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+            )
+            options.forEach { member ->
+                DropdownMenuItem(
+                    text = { Text(member.displayName) },
+                    onClick = {
+                        onSelect(member)
+                        expanded = false
+                    },
+                )
             }
         }
     }

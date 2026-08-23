@@ -30,6 +30,8 @@ data class DashboardData(
     val practitioners: List<SessionPractitionerWithName>,
     val concerns: List<ConcernWithSessionId>,
     val commission: CommissionSummary,
+    /** #366 — requested-practitioner display names, keyed by user id. */
+    val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
 )
 
 /**
@@ -42,6 +44,8 @@ data class SessionDetailData(
     val voidedSessionIds: Set<UUID>,
     val practitioners: List<SessionPractitionerWithName>,
     val concerns: List<ConcernWithSessionId>,
+    /** #366 — requested-practitioner display names, keyed by user id. */
+    val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
 )
 
 /**
@@ -85,6 +89,10 @@ object DashboardService {
             practitioners = practitioners,
             concerns = concerns,
             commission = commission,
+            requestedPractitionerNames =
+                DashboardRepository.findUserDisplayNames(
+                    sessions.mapNotNull { it.requestedPractitionerId },
+                ),
         )
     }
 
@@ -125,6 +133,10 @@ object DashboardService {
             voidedSessionIds = voidedSessionIds,
             practitioners = practitioners,
             concerns = concerns,
+            requestedPractitionerNames =
+                session.requestedPractitionerId?.let {
+                    DashboardRepository.findUserDisplayNames(listOf(it))
+                } ?: emptyMap(),
         )
     }
 

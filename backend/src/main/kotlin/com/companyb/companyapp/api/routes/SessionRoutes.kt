@@ -370,10 +370,14 @@ object SessionRoutes {
         context.json(
             mapDashboardSession(
                 session = data.session,
-                clientNames = data.clientNames,
-                voidedSessionIds = data.voidedSessionIds,
-                practitionerBySession = data.practitioners.groupBy { it.sessionId },
-                concernsBySession = data.concerns.groupBy { it.sessionId },
+                enrichment =
+                    DashboardSessionEnrichment(
+                        clientNames = data.clientNames,
+                        voidedSessionIds = data.voidedSessionIds,
+                        practitionerBySession = data.practitioners.groupBy { it.sessionId },
+                        concernsBySession = data.concerns.groupBy { it.sessionId },
+                        requestedPractitionerNames = data.requestedPractitionerNames,
+                    ),
             ),
         )
     }

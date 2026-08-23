@@ -52,3 +52,14 @@ data class RoleResponse(
     val name: String,
     val capabilities: List<String>,
 )
+
+/**
+ * #366 — one active member of a branch, the requested-practitioner picker's row shape.
+ * Deliberately no username: practitioners without MANAGE_USERS must not get a directory
+ * of credential identifiers, only display names.
+ */
+@Serializable
+data class BranchMemberResponse(
+    val id: String,
+    val displayName: String,
+)

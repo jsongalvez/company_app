@@ -3,6 +3,7 @@ import com.companyb.companyapp.domain.AuditAction
 import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.domain.SessionType
+import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
@@ -45,6 +46,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -107,11 +109,49 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertEquals(SessionType.REGULAR, result.session.sessionType)
         assertEquals(SessionStatus.PENDING, result.session.sessionStatus)
         assertFalse(result.session.isWalkIn)
+        assertNull(result.session.requestedPractitionerId)
         assertEquals("2500.00", result.session.basePrice.toPlainString())
         assertEquals("2500.00", result.session.finalPrice.toPlainString())
         assertNotNull(result.session.version)
         assertEquals(1, result.session.version)
         assertEquals(1L, auditEntryCount(SessionTable.tableName, sessionId))
+    }
+
+    // --- #366 requested-practitioner revalidation ---
+
+    @Test
+    fun `create session accepts requested practitioner who is an active branch member`() {
+        val result = createSession(callerId, sessionId, requestedPractitionerId = practitionerId)
+        trackOwned(SessionTable, SessionTable.id, sessionId)
+
+        assertTrue(result.created)
+        assertEquals(practitionerId, result.session.requestedPractitionerId)
+    }
+
+    @Test
+    fun `create session rejects requested practitioner with no active membership`() {
+        assertFailsWith<ValidationException> {
+            createSession(callerId, sessionId, requestedPractitionerId = TestFixtures.uuid())
+        }
+    }
+
+    @Test
+    fun `create session rejects deactivated requested practitioner`() {
+        val inactiveId = TestFixtures.uuid()
+        DatabaseTestHelper.insertUser(
+            id = inactiveId,
+            username = "inactive-${inactiveId.toString().take(8)}",
+            passwordHash = "test-password-hash",
+            email = "${inactiveId.toString().take(8)}@t.st",
+            displayName = "Test inactive",
+            status = UserStatus.INACTIVE,
+        )
+        trackOwned(AppUserTable, AppUserTable.id, inactiveId)
+        insertAssignment(inactiveId)
+
+        assertFailsWith<ValidationException> {
+            createSession(callerId, sessionId, requestedPractitionerId = inactiveId)
+        }
     }
 
     @Test
@@ -875,6 +915,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         clientId: UUID = this.clientId,
         branchId: UUID = this.branchId,
         isWalkIn: Boolean = false,
+        requestedPractitionerId: UUID? = null,
         finalPrice: BigDecimal = BigDecimal("2500.00"),
         gatedBranchDayId: UUID? = null,
     ) = SessionService.create(
@@ -883,7 +924,7 @@ class SessionServicePostgresTest : BasePostgresTest() {
         clientId = clientId,
         branchId = branchId,
         isWalkIn = isWalkIn,
-        requestedPractitionerId = null,
+        requestedPractitionerId = requestedPractitionerId,
         finalPrice = finalPrice,
         remarks = "Test session",
         otherConcerns = null,

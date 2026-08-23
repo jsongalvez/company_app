@@ -3,6 +3,7 @@ import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.api.callerUuid
 import com.companyb.companyapp.api.routes.pathParamAsUuid
 import com.companyb.companyapp.dto.AssignmentResponse
+import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.CreateAssignmentRequest
 import com.companyb.companyapp.dto.SwapSlotsRequest
 import com.companyb.companyapp.dto.UpdateSlotRequest
@@ -66,6 +67,13 @@ import java.util.UUID
     operationId = "branch_slots_swap",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
+@OpenApi(
+    path = "/api/branches/{branchId}/members",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_members_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object UserBranchAssignmentRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val USER_ID_PARAM = "userId"
@@ -76,6 +84,7 @@ object UserBranchAssignmentRoutes {
         config.routes.delete(ApiRoutes.BRANCH_ASSIGNMENT_USER_PATH, ::handleRemoveAssignment)
         config.routes.patch(ApiRoutes.BRANCH_ASSIGNMENT_SLOT_PATH, ::handleUpdateSlot)
         config.routes.post(ApiRoutes.BRANCH_SLOTS_SWAP_PATH, ::handleSwapSlots)
+        config.routes.get(ApiRoutes.BRANCH_MEMBERS_PATH, ::handleGetMembers)
     }
 
     private fun handleCreateAssignment(context: Context) {
@@ -105,6 +114,21 @@ object UserBranchAssignmentRoutes {
 
         context.json(
             UserBranchAssignmentService.findActiveByBranch(callerId, branchId).map { it.toResponse() },
+        )
+    }
+
+    /** #366 — active-member directory for the requested-practitioner picker (membership-gated). */
+    private fun handleGetMembers(context: Context) {
+        val callerId = context.callerUuid()
+        val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+
+        context.json(
+            UserBranchAssignmentService.listActiveMembers(callerId, branchId).map { member ->
+                BranchMemberResponse(
+                    id = member.id.toString(),
+                    displayName = member.displayName,
+                )
+            },
         )
     }
 

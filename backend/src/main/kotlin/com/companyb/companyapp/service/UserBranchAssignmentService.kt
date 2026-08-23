@@ -7,6 +7,8 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchMemberRepository
+import com.companyb.companyapp.repository.BranchMemberRow
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.UserRepository
@@ -207,6 +209,23 @@ object UserBranchAssignmentService {
     ): List<UserBranchAssignment> {
         requireManageUsers(callerId, "MANAGE_USERS capability required to view assignments")
         return UserBranchAssignmentRepository.findActiveByBranch(branchId)
+    }
+
+    /**
+     * #366 — the requested-practitioner picker's directory: ACTIVE members (id + display
+     * name) of [branchId]. Membership-gated at the service layer (the ADR-0007 #134
+     * deviation precedent for this surface) — no capability code involved, so a
+     * practitioner without MANAGE_USERS can still read their own branch's names.
+     */
+    fun listActiveMembers(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<BranchMemberRow> {
+        val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
+        if (assignment == null) {
+            throw ForbiddenException("Active membership required to view this branch's members")
+        }
+        return BranchMemberRepository.findActiveMemberNames(branchId)
     }
 }
 

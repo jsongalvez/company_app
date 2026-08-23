@@ -95,6 +95,10 @@ fun SessionDetailContent(
                 PractitionerRow(practitioner)
             }
         }
+        // #366 — who the client asked for, when one was recorded; nothing when unset.
+        session.requestedPractitionerName?.takeIf { it.isNotBlank() }?.let { requested ->
+            DetailRow("Requested", requested)
+        }
         session.remarks?.takeIf { it.isNotBlank() }?.let { remarks ->
             DetailRow("Remarks", remarks)
         }

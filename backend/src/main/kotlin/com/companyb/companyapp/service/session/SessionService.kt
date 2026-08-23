@@ -9,6 +9,7 @@ import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AddPractitionerResult
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.ClientRepository
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SessionCreateParams
@@ -79,6 +80,14 @@ object SessionService {
         val branchType =
             SessionRepository.getBranchType(branchId)
                 ?: throw NotFoundException("Branch not found")
+
+        // #366 — the requested practitioner must be an ACTIVE member of the session's branch
+        // (today any existing UUID is accepted). Optional field: null passes untouched.
+        if (requestedPractitionerId != null &&
+            !BranchMemberRepository.hasActiveMember(branchId, requestedPractitionerId)
+        ) {
+            throw ValidationException("Requested practitioner is not an active member of this branch")
+        }
 
         val existing = SessionRepository.findById(id)
         if (existing != null) {

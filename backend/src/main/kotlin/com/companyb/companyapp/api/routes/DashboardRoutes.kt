@@ -43,21 +43,19 @@ object DashboardRoutes {
     }
 
     private fun DashboardData.toResponse(): DashboardResponse {
-        val practitionerBySession =
-            practitioners.groupBy { it.sessionId }
-        val concernsBySession =
-            concerns.groupBy { it.sessionId }
+        val enrichment =
+            DashboardSessionEnrichment(
+                clientNames = clientNames,
+                voidedSessionIds = voidedSessionIds,
+                practitionerBySession = practitioners.groupBy { it.sessionId },
+                concernsBySession = concerns.groupBy { it.sessionId },
+                requestedPractitionerNames = requestedPractitionerNames,
+            )
 
         return DashboardResponse(
             sessions =
                 sessions.map { session ->
-                    mapDashboardSession(
-                        session = session,
-                        clientNames = clientNames,
-                        voidedSessionIds = voidedSessionIds,
-                        practitionerBySession = practitionerBySession,
-                        concernsBySession = concernsBySession,
-                    )
+                    mapDashboardSession(session, enrichment)
                 },
             commission =
                 DashboardCommissionResponse(
@@ -68,6 +66,16 @@ object DashboardRoutes {
     }
 }
 
+/** #366 — the per-read enrichment tables [mapDashboardSession] joins the session rows with. */
+internal data class DashboardSessionEnrichment(
+    val clientNames: Map<UUID, ClientNames>,
+    val voidedSessionIds: Set<UUID>,
+    val practitionerBySession: Map<UUID, List<SessionPractitionerWithName>>,
+    val concernsBySession: Map<UUID, List<ConcernWithSessionId>>,
+    /** Requested-practitioner display names keyed by user id (#366). */
+    val requestedPractitionerNames: Map<UUID, String> = emptyMap(),
+)
+
 /**
  * Shared session → [DashboardSessionResponse] mapping — the dashboard list and the #152
  * session-detail read render byte-identical (#151 Q3: reuse the DTO, no new shape).
@@ -76,12 +84,9 @@ object DashboardRoutes {
  */
 internal fun mapDashboardSession(
     session: Session,
-    clientNames: Map<UUID, ClientNames>,
-    voidedSessionIds: Set<UUID>,
-    practitionerBySession: Map<UUID, List<SessionPractitionerWithName>>,
-    concernsBySession: Map<UUID, List<ConcernWithSessionId>>,
+    enrichment: DashboardSessionEnrichment,
 ): DashboardSessionResponse {
-    val client = clientNames[session.clientId]
+    val client = enrichment.clientNames[session.clientId]
     return DashboardSessionResponse(
         id = session.id.toString(),
         clientId = session.clientId.toString(),
@@ -99,9 +104,11 @@ internal fun mapDashboardSession(
         bookedAt = session.bookedAt?.toString(),
         nextAppointmentDate = session.nextAppointmentDate?.toString(),
         version = session.version,
-        isVoided = session.id in voidedSessionIds,
+        isVoided = session.id in enrichment.voidedSessionIds,
+        requestedPractitionerName =
+            session.requestedPractitionerId?.let { enrichment.requestedPractitionerNames[it] },
         practitioners =
-            practitionerBySession[session.id]
+            enrichment.practitionerBySession[session.id]
                 .orEmpty()
                 .map {
                     DashboardPractitionerResponse(
@@ -112,7 +119,7 @@ internal fun mapDashboardSession(
                     )
                 },
         concerns =
-            concernsBySession[session.id]
+            enrichment.concernsBySession[session.id]
                 .orEmpty()
                 .map {
                     ConcernResponse(

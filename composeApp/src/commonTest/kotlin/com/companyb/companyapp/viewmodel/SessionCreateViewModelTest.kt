@@ -1,6 +1,7 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.Gender
+import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.SessionPreviewResponse
 import com.companyb.companyapp.dto.SessionResponse
@@ -246,6 +247,99 @@ class SessionCreateViewModelTest {
                 expected = "This client already has an active session",
                 actual = state.message,
             )
+        }
+
+    @Test
+    fun loadMembers_fetches_directory_and_selection_flows_into_create_body() =
+        runTest(testScheduler) {
+            val bodies = mutableListOf<String>()
+            var membersRequests = 0
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/branches/$BRANCH_ID/members" -> {
+                                membersRequests++
+                                jsonRespond(
+                                    status = HttpStatusCode.OK,
+                                    body = """[{"id":"p1","displayName":"Test usera"}]""",
+                                )
+                            }
+
+                            request.method == HttpMethod.Post && request.url.encodedPath == "/api/sessions" -> {
+                                bodies.add((request.body as io.ktor.http.content.TextContent).text)
+                                jsonRespond(status = HttpStatusCode.OK, body = SESSION_JSON)
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+
+            vm.loadMembers()
+            runCurrent()
+            val state = assertIs<UiState.Success<List<BranchMemberResponse>>>(vm.members.value)
+            assertEquals(expected = "Test usera", actual = state.data.single().displayName)
+
+            // Selection flows into the POST; picking None drops the field back to null.
+            vm.selectClient(client("c1"))
+            runCurrent()
+            vm.selectPractitioner(state.data.single())
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+            assertTrue(bodies.single().contains("\"requestedPractitionerId\":\"p1\""))
+
+            vm.selectPractitioner(null)
+            vm.clearSelectedClient()
+            runCurrent()
+            vm.selectClient(client("c1"))
+            runCurrent()
+            bodies.clear()
+            vm.createSession(finalPrice = "250.00", remarks = null, otherConcerns = null)
+            runCurrent()
+            assertTrue(bodies.single().contains("\"requestedPractitionerId\":null"))
+            assertEquals(expected = 1, actual = membersRequests)
+        }
+
+    @Test
+    fun retryMembers_refetches_after_error() =
+        runTest(testScheduler) {
+            var fail = true
+            val vm =
+                SessionCreateViewModel(
+                    mockApiClient { request ->
+                        when {
+                            request.method == HttpMethod.Get &&
+                                request.url.encodedPath == "/api/branches/$BRANCH_ID/members" -> {
+                                if (fail) {
+                                    jsonRespond(status = HttpStatusCode.InternalServerError, body = "{}")
+                                } else {
+                                    jsonRespond(status = HttpStatusCode.OK, body = "[]")
+                                }
+                            }
+
+                            else -> {
+                                error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                            }
+                        }
+                    },
+                    BRANCH_ID,
+                )
+
+            vm.loadMembers()
+            // 5xx trips the ApiClient's HttpRequestRetry; its backoff runs on virtual time,
+            // so the terminal Error lands only once the retry delays are advanced through.
+            testScheduler.advanceUntilIdle()
+            assertIs<UiState.Error>(vm.members.value)
+
+            fail = false
+            vm.retryMembers()
+            runCurrent()
+            assertIs<UiState.Success<List<BranchMemberResponse>>>(vm.members.value)
         }
 
     // --- handlers ---

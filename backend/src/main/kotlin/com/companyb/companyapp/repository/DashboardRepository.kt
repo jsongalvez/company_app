@@ -71,6 +71,19 @@ object DashboardRepository {
             }
         }
 
+    /** #366 — display names for requested-practitioner ids (dashboard + session detail enrichment). */
+    fun findUserDisplayNames(userIds: List<UUID>): Map<UUID, String> =
+        if (userIds.isEmpty()) {
+            emptyMap()
+        } else {
+            transaction {
+                AppUserTable
+                    .selectAll()
+                    .where { AppUserTable.id inList userIds }
+                    .associate { it[AppUserTable.id] to it[AppUserTable.displayName] }
+            }
+        }
+
     fun findVoidedSessionIds(sessionIds: List<UUID>): Set<UUID> =
         if (sessionIds.isEmpty()) {
             emptySet()
