@@ -7,6 +7,11 @@ resolve the owning module → open its anchors → search for edges → expand o
 evidence. Callers, importers, and tests are derived by code search on demand — never
 listed here.
 
+**Card fields:** `Public seam` lists only symbols another semantic module is intended
+to cross — internal helpers, test hooks, and sibling-consumed repository functions
+belong under `Search` instead. `Anchors` are candidate entrypoints: open only the one
+matching the requested behavior.
+
 ```
 routes (thin: parse → call one service command; capability before-filters)
   └─ service commands (one command = one transaction + its audit row, ADR-0024)
@@ -45,7 +50,7 @@ intentionally shallow.
 **Anchors:** `service/CapabilityService.kt`, `api/middleware/CapabilityFilter.kt`, `repository/CapabilityRepository.kt`.
 **Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds`. GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
 **Depends on:** nothing upstream semantically; consumed by nearly everything.
-**Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`, `active_user_capabilities` view in `V1__full_schema.sql`; role-derived rows ADR-0023); changing which gate a route uses.
+**Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`; `active_user_capabilities` view — created in V1, redefined by V16/V21, another all-migrations example); changing which gate a route uses.
 **Tests/authority:** ADR-0007 (route-level gates), ADR-0023; backend `AGENTS.md` "Authorization".
 **Search:** `requireBranchOrBranchDayCapability`, `hasCapabilityForBranchDay`.
 
@@ -53,17 +58,17 @@ intentionally shallow.
 
 **Owns:** login, JWT issue/verify, immediate revocation (in-memory deny list over persisted `jwt_revoked_at` boundaries), password hashing with timing-shield dummy hash, single-use credential tokens (invite redemption #350, password reset #353), per-IP rate limiting.
 **Anchors:** `auth/JwtService.kt`, `auth/DenyList.kt`, `service/AuthService.kt`.
-**Public seam:** `JwtService.generateToken` / `verifyToken` · `DenyList.deny` / `isDenied` · `Password.create` / `verify` · `CredentialTokens.generate` / `hash` · `RateLimiter.isAllowed` · `AuthService.login` / `acceptInvite` / `requestPasswordReset` / `resetPassword` / `mintResetCode`.
+**Public seam:** `JwtService.generateToken` / `verifyToken` · `DenyList.deny` (crossed by Users deactivation + logout) · `Password.create` / `verify` · `CredentialTokens.generate` / `hash` · `AuthService.login` / `acceptInvite` / `requestPasswordReset` / `resetPassword`.
 **Depends on:** Users (authorization lookup, revocation boundaries), Audit (token consumption rows).
 **Expansion triggers:** JWT claims/expiry (deny-list eviction horizon derives from them); `credential_token` schema; second-precision `iat` ambiguity rules (documented in `DenyList` header).
 **Tests/authority:** `DenyListTest` (clock-injected); token lifecycle comments in `AuthService`/`CredentialTokens`.
-**Search:** `DenyList`, `credential_token`, `consumeIfLive`.
+**Search:** `mintResetCode` (internal test seam for the reset flow), `RateLimiter.isAllowed`, `consumeIfLive`.
 
 ## Users & Roles
 
 **Owns:** user lifecycle (idempotent deactivate/reactivate + persisted JWT revocation boundary), invite minting with re-invite recovery, full-replace role membership (SUPERUSER guarded both directions), user listing with assignments + roles.
 **Anchors:** `service/UserService.kt`, `repository/UserRepository.kt`, `repository/RoleRepository.kt`.
-**Public seam:** `UserService` commands (`deactivate`, `reactivate`, `replaceRoles`, `mintInvite`, `listUsers`, `getRoles`) · `RoleRepository.findAllWithCapabilities` / `findRoleNames*`.
+**Public seam:** `UserService` commands (`deactivate`, `reactivate`, `replaceRoles`, `mintInvite`, `listUsers`, `getRoles`).
 **Depends on:** Auth (tokens, deny list, hashing), Audit. Role→capability derivation lives in SQL (V16 view union), not this module.
 **Expansion triggers:** role-derived capability semantics (ADR-0023, V16 migration); deactivation/revocation interplay with the deny list.
 **Search:** `SUPERUSER_GUARD_MESSAGE`, `deactivateInTransaction`, `user_role`.
@@ -72,11 +77,11 @@ intentionally shallow.
 
 **Owns:** session aggregate — type ladder (`computeSessionType`: REGULAR→SECOND→SUBSEQUENT, mission/provincial variants), base-rate snapshot at create, optimistic-versioned updates, void/unvoid records, practitioner management (slot snapshots + parent version bumps), concerns + promotion, base-rate rotation, create preview.
 **Anchors:** `service/session/SessionService.kt`, `api/routes/SessionRoutes.kt`, `repository/SessionRepository.kt`.
-**Public seam:** `SessionService` commands incl. pass-throughs to internal practitioner/concern/base-rate services · `computeSessionType` (pure) · `previewSession` · `findSessionByIdInTransaction` (top-level helper sibling services use).
+**Public seam:** `SessionService` commands incl. pass-throughs to internal practitioner/concern/base-rate services · `computeSessionType` (pure) · `previewSession`.
 **Depends on:** Branch Day (gates + find-only gated-day handoff #157), Client (row lock + one-PENDING guard), Assignments (member check #366, slot lookup).
 **Expansion triggers:** version-bump mechanics (`incrementSessionVersion` count-0 rule); walk-in status CHECK constraint; `idx_client_one_pending_session` backstop; `active_session_voids` view consumers (commission, remittance pickers, scheduler, dashboard).
 **Tests/authority:** `docs/engines.md`; backend `AGENTS.md` "Sessions".
-**Search:** `computeSessionType`, `VersionMismatchException`, `session_void`.
+**Search:** `computeSessionType`, `findSessionByIdInTransaction` (sibling-service helper, not a boundary), `VersionMismatchException`, `session_void`.
 
 ## Attendance
 
@@ -91,10 +96,10 @@ intentionally shallow.
 
 **Owns:** per-branch stock cards with optimistic versioning, movement ledger with sign/notes rules per movement type, low-stock alerts (per-product reorder points).
 **Anchors:** `service/inventory/InventoryService.kt`, `service/inventory/MovementType.kt`, `repository/BranchInventoryRepository.kt`.
-**Public seam:** `recordMovement` / `ensureCard` / `getStock` / `getLowStockAlerts` / `getMovementHistory` · `MovementType` sealed class · `requireCardForUpdate`.
+**Public seam:** `recordMovement` / `ensureCard` / `getStock` / `getLowStockAlerts` / `getMovementHistory` · `MovementType` sealed class.
 **Depends on:** Branch Day gate (via `StockValidator`, inside the command tx), Products, Branch existence. Not relief-eligible — branch-scoped only (#157 scoping trap documented in routes).
 **Expansion triggers:** card version conflicts; movement reason enum/schema; FOR UPDATE materialization pattern (terminal-op rule).
-**Search:** `recordMovement`, `currentStock`, `insertIgnore`.
+**Search:** `requireCardForUpdate` (consumed by Product Sales' sell transaction), `currentStock`, `insertIgnore`.
 
 ## Product Sales
 
@@ -105,12 +110,12 @@ intentionally shallow.
 **Expansion triggers:** idempotent-retry ownership classification (day mismatch = 404 vs field mismatch = 409); stock guard ordering.
 **Search:** `insertSaleInTransaction`, `commissionAmountAtTime`.
 
-## Finance (Commission · Remittance · Ledger)
+## Finance (Commission · Remittance)
 
-**Owns:** the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping) · shallow day-scoped ledger CRUD (expense soft-delete/restore, allowance, compensation) · summary read models (`daily_sales_summary`, `monthly_remittance_summary` views).
+**Owns:** the commission engine (eligible set = clocked-in-at-sale ∓ manual inclusions; split at scale 4; replace-per-day splits; `recalculateInTransaction` store-side entry for enclosing commands) · the remittance workflow (DRAFT→SUBMITTED under SERIALIZABLE isolation, immutable SESSION financial snapshot, 48h undo window on the DB clock, day transitions via the Branch Day boundary, overlap-exclusion mapping) · the summary read models (`daily_sales_summary`, `monthly_remittance_summary` views).
 **Anchors:** `service/finance/remittance/RemittanceService.kt`, `service/finance/remittance/RemittancePolicy.kt` (pure rules), `service/finance/commission/CommissionService.kt`.
 **Public seam:** remittance `submit` / `undoAt` / `createDraft` / `updateHeader` / `addLine` / `removeLine` / `addDayBreakdown` / `getDrift` / list+picker reads · commission `recalculate(InTransaction)` / `splitCommission` / `createManualInclusion` / `getByBranchDayId`.
-**Depends on:** Branch Day (locks, mark/release days), Session + Product Sales (line-source validation, gross sums), Expenses/Compensations sums.
+**Depends on:** Branch Day (locks, mark/release days), Session + Product Sales (line-source validation, gross sums), ledger services — Expense/Allowance/Compensation rows feed the sums but are shallow modules with their own cards-free path (`ExpenseService`, `AllowanceService`, `CompensationService`); an expense/allowance/compensation ticket does not enter this card.
 **Expansion triggers:** V13 trigger carve-out for snapshot deletion; `no_remittance_overlap` exclusion constraint; BigDecimal no-rounding rule (remittance sums) vs scale-4 splits; drift read semantics.
 **Tests/authority:** `docs/engines.md` (exact pseudocode); `RemittancePolicy` is DB-free unit-tested; k6 `remittance-race-test.js` covers the serializable race.
 **Search:** `recalculateInTransaction`, `assertWithinUndoWindow`, `remittance_financial_snapshot`.
@@ -122,7 +127,7 @@ intentionally shallow.
 **Public seam:** `ReliefAccessService` commands (request/grant/deny/cancel/list) · `ReliefInviteService` commands (create/accept/decline/retract/search) · `MedicalMissionDelegateService.assignDelegate` / `revokeDelegate` · `ReliefNotifications.*` (command-transaction broadcasts).
 **Depends on:** Branch Day (day-open gate, `expirationUtc`), Assignments (membership gates), Capability view, Notifications.
 **Expansion triggers:** partial unique indexes `idx_one_live_relief_request` / `idx_one_pending_accepted_invite`; job idempotency markers (`existsForSource`); accepted-invite revocation follow-up (#363 pending).
-**Tests/authority:** `docs/deep-modules.md` relief-cluster history lives in code comments (#159/#352/#357/#358); backend `AGENTS.md` day-scoped gate section.
+**Tests/authority:** relief-cluster rules live in code comments (#159/#352/#357/#358); backend `AGENTS.md` day-scoped gate section.
 **Search:** `grantReliefCapability`, `hasPendingOrAcceptedInvite`, `ReliefNotifications.`
 
 ## Audit
@@ -172,7 +177,8 @@ Not a semantic module — read only when the ticket touches it directly:
 `exception/ServiceExceptions.kt`, `api/routes/RoutesUtil.kt` (parsing/keyset limits),
 `database/DatabaseConfig.kt` + `DatabaseHealth.kt`, `config/AppConfig.kt`,
 `logging/*` converters, `repository/model/*` Exposed tables/views (schema work only —
-see `V1__full_schema.sql` as authority).
+the whole versioned migration chain in `backend/src/main/resources/db/migration/` is
+the current-schema authority; see #370 for a future single-baseline squash).
 
 ## Adding a module
 

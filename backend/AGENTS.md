@@ -16,7 +16,10 @@ Before coding, read the relevant doc(s):
 
 ## Schema
 
-The authoritative schema is `backend/src/main/resources/db/migration/V1__full_schema.sql`.
+The authoritative current schema is the whole versioned migration chain in
+`backend/src/main/resources/db/migration/` — inspect all of it when reasoning about
+current schema (`docs/architecture.md` §10); `V1__full_schema.sql` alone predates
+later structural migrations.
 
 Package root: `com.companyb.companyapp`. Layers: `api/routes`, `api/middleware`, `service`, `repository`
 (+ `repository/model` for Exposed `Table` objects), `auth`, `database`, `logging`.
@@ -166,7 +169,8 @@ val existing = Table.selectAll().where {
 
 All operational permission checks MUST go through
 `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)`, which queries the
-`active_user_capabilities` SQL view (defined in `V1__full_schema.sql`). **Never check roles directly
+`active_user_capabilities` SQL view (created in `V1__full_schema.sql`, redefined by
+V16/V21 — see the migration-chain rule above). **Never check roles directly
 in business logic** — roles only seed capabilities in the V2 migration. The view already excludes
 INACTIVE users and out-of-window grants.
 

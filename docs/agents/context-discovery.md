@@ -14,9 +14,17 @@ module router), and the Wayfinder lifecycle point at this file rather than resta
 ### 1. Resolve the owning module first
 
 From the issue, changed paths, domain terms (`CONTEXT.md`), named symbols, and specs,
-identify the **smallest semantic module that owns the requested behavior** — use the
-module router, `docs/deep-modules.md`. If several participate, start with the owner;
-treat the others as dependencies. `backend/` as a whole is not a context unit.
+identify the **smallest semantic module that owns the requested behavior**. If several
+participate, start with the owner; treat the others as dependencies. `backend/` as a
+whole is not a context unit.
+
+Most behavior is **shallow**: a single-aggregate CRUD-style command (expenses,
+allowances, compensations, products/categories, users, clients, notifications…).
+For shallow work skip module cards entirely — search the obvious service/entity and
+follow the direct service → repository → route/test path, crossing Branch Day or
+Audit only where actual calls or invariants require it. Deep-module cards exist for
+deep machinery only; never enter one merely because that deep module consumes your
+data.
 
 ### 2. Seed a minimum working set
 
@@ -25,7 +33,9 @@ Only:
 - issue body + authoritative comments (GitHub outranks stale handoff text);
 - required root/module agent instructions;
 - the owning module's card in `docs/deep-modules.md`;
-- the card's anchor implementation(s);
+- the card's anchor(s) that match the requested behavior — anchors are candidate
+  entrypoints, not a preload list; leave the rest unopened until an unresolved
+  question names them;
 - directly relevant behavioral test/contract where already known.
 
 Do not preload neighboring module implementations.
@@ -86,7 +96,7 @@ constraint, unexpected runtime behavior.
 | Material | Open when | How |
 |---|---|---|
 | Tests | they define/validate the behavior being changed | search test names for the symbol under change; open the hit, not the directory |
-| Schema/migrations (`backend/src/main/resources/db/migration/`) | change affects persisted shape, constraints, locking, transactions, defaults, views, DB behavior | search migration files for table/constraint names; load only matching versions — `V1__full_schema.sql` is the authoritative current shape |
+| Schema/migrations (`backend/src/main/resources/db/migration/`) | change affects persisted shape, constraints, locking, transactions, defaults, views, DB behavior | search/grep the directory first to identify candidate migrations cheaply; then reason about current schema over **all versioned migrations** (`docs/architecture.md` §10: the migration directory is authoritative) — `V1__full_schema.sql` alone is not the effective schema while later structural migrations exist (e.g. `V24__add_credential_token.sql`). Correctness outranks context minimization here; this rule relaxes only if the migration squash (#370) lands and makes one structural baseline true. |
 | ADRs (`docs/adr/`) | the touched seam/decision has architectural authority | scan ADR titles/status fields; read only decisions in the area |
 | Business rules/specs | behavior or domain semantics at issue | `docs/business-requirements.md`, `docs/specs/`; search terms, don't read whole files |
 
