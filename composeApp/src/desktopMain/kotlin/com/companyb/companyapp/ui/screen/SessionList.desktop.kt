@@ -77,6 +77,8 @@ internal actual fun SessionList(
                     onEditCommit = args.onEditCommit,
                     onEditDiscard = args.onEditDiscard,
                     onEditReload = args.onEditReload,
+                    requiresReason = args.requiresReason,
+                    onEditReasonChange = args.onEditReasonChange,
                 )
             }
         }
@@ -143,6 +145,8 @@ private fun DashboardTableRow(
     onEditCommit: () -> Unit,
     onEditDiscard: () -> Unit,
     onEditReload: () -> Unit,
+    requiresReason: Boolean,
+    onEditReasonChange: (String) -> Unit,
 ) {
     // Q3 — voided row: Danger 22% alpha over Surface1; selection uses the surface-3 slot.
     val rowBackground =
@@ -200,6 +204,8 @@ private fun DashboardTableRow(
             onEditDiscard = onEditDiscard,
             onEditReload = onEditReload,
             modifier = Modifier.weight(1f),
+            requiresReason = requiresReason,
+            onEditReasonChange = onEditReasonChange,
         )
         DashboardEditableCell(
             session = session,
@@ -213,6 +219,8 @@ private fun DashboardTableRow(
             onEditDiscard = onEditDiscard,
             onEditReload = onEditReload,
             modifier = Modifier.weight(1f),
+            requiresReason = requiresReason,
+            onEditReasonChange = onEditReasonChange,
         )
         // Q3 — VOIDED pill right-aligned in the dedicated 22% slot.
         Box(
@@ -245,34 +253,54 @@ private fun DashboardEditableCell(
     onEditDiscard: () -> Unit,
     onEditReload: () -> Unit,
     modifier: Modifier = Modifier,
+    requiresReason: Boolean = false,
+    onEditReasonChange: (String) -> Unit = {},
 ) {
     val isEditing = edit != null && edit.sessionId == session.id && edit.field == field
     Column(modifier = modifier) {
-        if (isEditing) {
-            EditControl(
-                edit = edit,
-                onDraftChange = onEditDraftChange,
-                onCommit = onEditCommit,
-                onDiscard = onEditDiscard,
-            )
-        } else {
-            CellDisplay(
-                session = session,
-                field = field,
-                canEdit = canEdit,
-                onCellClick = {
-                    // The enabled child clickable consumes the click — the row's own
-                    // clickable never sees it, so the selection follows explicitly. Note:
-                    // when the switch is blocked (a Model-A/conflict error on the other
-                    // cell), the selection still moves while the editor stays put — the
-                    // error line + Esc remain the exit.
-                    onSessionClick(session)
-                    onEditStart(session.id, field)
-                },
-            )
-        }
-        if (isEditing) {
-            EditStatusLine(edit = edit, onReload = onEditReload)
+        when {
+            // #403 — a REMITTED day's editor is a dialog collecting the audit reason;
+            // the inline cell editors stay untouched for every other day state.
+            isEditing && requiresReason -> {
+                RemittedReasonDialog(
+                    edit = edit,
+                    actions =
+                        RemittedEditActions(
+                            onDraftChange = onEditDraftChange,
+                            onReasonChange = onEditReasonChange,
+                            onCommit = onEditCommit,
+                            onDiscard = onEditDiscard,
+                            onReload = onEditReload,
+                        ),
+                )
+            }
+
+            isEditing -> {
+                EditControl(
+                    edit = edit,
+                    onDraftChange = onEditDraftChange,
+                    onCommit = onEditCommit,
+                    onDiscard = onEditDiscard,
+                )
+                EditStatusLine(edit = edit, onReload = onEditReload)
+            }
+
+            else -> {
+                CellDisplay(
+                    session = session,
+                    field = field,
+                    canEdit = canEdit,
+                    onCellClick = {
+                        // The enabled child clickable consumes the click — the row's own
+                        // clickable never sees it, so the selection follows explicitly. Note:
+                        // when the switch is blocked (a Model-A/conflict error on the other
+                        // cell), the selection still moves while the editor stays put — the
+                        // error line + Esc remain the exit.
+                        onSessionClick(session)
+                        onEditStart(session.id, field)
+                    },
+                )
+            }
         }
     }
 }
@@ -349,14 +377,16 @@ private fun EditControl(
  * Q4 per-control commit: the dropdown commits on select (the #142 GenderFieldEditor shape).
  * Selecting the current value again commits an unchanged draft — the VM exits without a request.
  * Esc (menu closed) discards — the Model-A failed editor's sanctioned exit.
+ * #403 — shared with [RemittedReasonDialog], where [autoCommit] is off.
  */
 @Composable
-private fun SelectEditor(
+internal fun SelectEditor(
     values: List<String>,
     edit: DashboardEditState,
     onDraftChange: (String) -> Unit,
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
+    autoCommit: Boolean = true,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Box {
@@ -403,7 +433,9 @@ private fun SelectEditor(
                     onClick = {
                         menuOpen = false
                         onDraftChange(value)
-                        onCommit()
+                        // #403 — inside the REMITTED-day dialog the Confirm button owns the
+                        // commit (the reason must be collected first).
+                        if (autoCommit) onCommit()
                     },
                 )
             }
@@ -413,11 +445,12 @@ private fun SelectEditor(
 
 /** Q4 — price commits on Enter/blur; Esc discards (#142 editor shape + the VM's in-flight guard). */
 @Composable
-private fun PriceEditor(
+internal fun PriceEditor(
     edit: DashboardEditState,
     onDraftChange: (String) -> Unit,
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
+    autoCommit: Boolean = true,
 ) {
     OutlinedTextField(
         value = edit.draft,
@@ -432,7 +465,7 @@ private fun PriceEditor(
             ),
         keyboardActions =
             KeyboardActions(
-                onDone = { onCommit() },
+                onDone = { if (autoCommit) onCommit() },
             ),
         trailingIcon = {
             if (edit.inFlight) {
@@ -448,7 +481,9 @@ private fun PriceEditor(
                 // Blur-commit (Q4); the VM's in-flight guard absorbs the dispose-time blur,
                 // and a conflict-state blur must not re-dispatch a doomed stale-version
                 // PATCH (pass-1 finding: it swallowed the first Reload click).
-                .onFocusChanged { if (!it.isFocused && !edit.conflict) onCommit() }
+                // #403 — the dialog's reason field takes focus, so there autoCommit is off
+                // and the Confirm button owns the commit.
+                .onFocusChanged { if (!it.isFocused && !edit.conflict && autoCommit) onCommit() }
                 .onPreviewKeyEvent {
                     if (it.key == Key.Escape) {
                         onDiscard()
@@ -462,7 +497,7 @@ private fun PriceEditor(
 
 /** Model-A inline error; the 409 conflict adds its Reload action; post-reload marks remote changes. */
 @Composable
-private fun EditStatusLine(
+internal fun EditStatusLine(
     edit: DashboardEditState,
     onReload: () -> Unit,
 ) {
@@ -562,3 +597,15 @@ private fun TableCell(
 private const val DESKTOP_VOIDED_SLOT_WEIGHT = 0.22f
 private val EDIT_SPINNER_SIZE = 12.dp
 private val EDIT_SPINNER_STROKE = 2.dp
+
+/**
+ * #403 — the edit-machine hooks the REMITTED-day dialog forwards (the *CreateParams
+ * parameter-object shape; keeps the composable under the LongParameterList budget).
+ */
+internal data class RemittedEditActions(
+    val onDraftChange: (String) -> Unit,
+    val onReasonChange: (String) -> Unit,
+    val onCommit: () -> Unit,
+    val onDiscard: () -> Unit,
+    val onReload: () -> Unit,
+)

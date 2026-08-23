@@ -1,6 +1,7 @@
 package com.companyb.companyapp.viewmodel
 
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
@@ -12,6 +13,7 @@ import com.companyb.companyapp.ui.screen.centsToMoney
 import com.companyb.companyapp.ui.screen.commissionLabel
 import com.companyb.companyapp.ui.screen.grossIncomeCents
 import com.companyb.companyapp.ui.screen.moneyToCents
+import com.companyb.companyapp.ui.screen.remittedReasonRequired
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.MockRequestHandler
 import io.ktor.client.engine.mock.respond
@@ -85,6 +87,13 @@ private const val DASHBOARD_JSON_V2 =
          "otherConcerns":null,"bookedAt":"2026-08-12T08:00:00+08:00","nextAppointmentDate":null,
          "version":2,"isVoided":false,"practitioners":[],"concerns":[]}],
        "commission":{"amount":"200.0000","productSalesCount":1}}"""
+
+// #403 — the day-status read behind the REMITTED-day reason gate.
+private const val DAY_TODAY_PATH = "/api/branches/b1/today"
+
+private const val TODAY_REMITTED_JSON = """{"branchDayId":"bd1","status":"REMITTED"}"""
+
+private const val TODAY_OPEN_JSON = """{"branchDayId":"bd1","status":"OPEN"}"""
 
 /**
  * Session dashboard poll semantics (#147 / #97 Q5): completion-then-wait 30s cadence, silent +
@@ -545,10 +554,15 @@ class SessionDashboardViewModelTest {
     private fun editDashboardHandler(
         patchResponse: (path: String) -> Pair<HttpStatusCode, String>,
         getJson: () -> String = { DASHBOARD_JSON },
+        todayJson: String? = null,
     ): MockRequestHandler =
         {
             if (it.method == HttpMethod.Get) {
-                respondOk(getJson())
+                if (it.url.encodedPath == DAY_TODAY_PATH && todayJson != null) {
+                    respondOk(todayJson)
+                } else {
+                    respondOk(getJson())
+                }
             } else {
                 val (status, body) = patchResponse(it.url.encodedPath)
                 respond(body = body, status = status)
@@ -1138,6 +1152,118 @@ class SessionDashboardViewModelTest {
                         .single()
                         .sessionStatus.name,
                 )
+            } finally {
+                vm.pause()
+            }
+        }
+
+    // --- #403 — REMITTED-day reason gating ---
+
+    @Test
+    fun reason_required_predicate_keys_off_remitted_only() {
+        assertTrue(remittedReasonRequired(DayStatus.REMITTED))
+        assertFalse(remittedReasonRequired(DayStatus.OPEN))
+        assertFalse(remittedReasonRequired(DayStatus.PAST))
+        assertFalse(remittedReasonRequired(null), "unknown day state degrades to optional — the server 400 guards")
+    }
+
+    @Test
+    fun remitted_day_blocks_blank_reason_before_dispatch() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            var patchHits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = {
+                                patchHits++
+                                HttpStatusCode.OK to PATCH_PRICE_JSON
+                            },
+                            todayJson = TODAY_REMITTED_JSON,
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.FINAL_PRICE)
+                runCurrent()
+                assertEquals(DayStatus.REMITTED, vm.dayStatus.value)
+
+                vm.updateDraft("3000.00")
+                vm.commitEdit()
+
+                assertEquals(0, patchHits, "a blank reason must never reach the wire")
+                val state = vm.editState.value
+                assertNotNull(state)
+                assertFalse(state.inFlight)
+                assertNotNull(state.error)
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun remitted_day_commit_with_reason_dispatches_and_clears() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            var patchHits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = {
+                                patchHits++
+                                HttpStatusCode.OK to PATCH_PRICE_JSON
+                            },
+                            todayJson = TODAY_REMITTED_JSON,
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.FINAL_PRICE)
+                vm.updateDraft("3000.00")
+                vm.updateReason("price correction after remit")
+                vm.commitEdit()
+                runCurrent()
+
+                assertEquals(1, patchHits)
+                assertNull(vm.editState.value, "a successful reasoned commit exits the editor")
+            } finally {
+                vm.pause()
+            }
+        }
+
+    @Test
+    fun open_day_commits_without_reason() =
+        runTest(testScheduler) {
+            SessionState.setCapabilities(editRow())
+            var patchHits = 0
+            val vm =
+                SessionDashboardViewModel(
+                    mockApiClient(
+                        editDashboardHandler(
+                            patchResponse = {
+                                patchHits++
+                                HttpStatusCode.OK to PATCH_STATUS_RESPONSE_JSON
+                            },
+                            todayJson = TODAY_OPEN_JSON,
+                        ),
+                    ),
+                )
+            try {
+                runCurrent()
+                vm.startEdit("s1", DashboardEditField.STATUS)
+                runCurrent()
+                assertEquals(DayStatus.OPEN, vm.dayStatus.value)
+
+                vm.updateDraft("PENDING")
+                vm.commitEdit()
+                runCurrent()
+
+                assertEquals(1, patchHits, "non-remitted days behave exactly as before")
+                assertNull(vm.editState.value)
             } finally {
                 vm.pause()
             }

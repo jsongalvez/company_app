@@ -1,0 +1,84 @@
+package com.companyb.companyapp.ui.screen
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.ui.theme.Spacing
+
+/**
+ * #403 — the REMITTED-day editor. The backend rejects any write on a REMITTED day without a
+ * non-blank audit reason (BranchDayService.assertEditableState), so the desktop cell editor
+ * becomes this dialog whenever today's day status reads REMITTED: the value control (no
+ * auto-commit — the Confirm button owns it) plus a required reason input with inline
+ * validation before submit. Non-REMITTED days keep the plain inline editors.
+ */
+@Composable
+internal fun RemittedReasonDialog(
+    edit: DashboardEditState,
+    actions: RemittedEditActions,
+) {
+    AlertDialog(
+        onDismissRequest = actions.onDiscard,
+        title = { Text("Reason required") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    text =
+                        "This session's day has been remitted. Describe why you are " +
+                            "correcting it — the note goes to the audit log.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                when (edit.field) {
+                    DashboardEditField.STATUS -> {
+                        SelectEditor(
+                            values = SessionStatus.entries.map { it.name },
+                            edit = edit,
+                            onDraftChange = actions.onDraftChange,
+                            onCommit = {},
+                            onDiscard = actions.onDiscard,
+                            autoCommit = false,
+                        )
+                    }
+
+                    DashboardEditField.FINAL_PRICE -> {
+                        PriceEditor(
+                            edit = edit,
+                            onDraftChange = actions.onDraftChange,
+                            onCommit = {},
+                            onDiscard = actions.onDiscard,
+                            autoCommit = false,
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = edit.reason,
+                    onValueChange = actions.onReasonChange,
+                    label = { Text("Reason") },
+                    singleLine = true,
+                    enabled = !edit.inFlight,
+                    isError = edit.error != null,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                )
+                EditStatusLine(edit = edit, onReload = actions.onReload)
+            }
+        },
+        confirmButton = {
+            Button(onClick = actions.onCommit, enabled = !edit.inFlight) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = actions.onDiscard) {
+                Text("Cancel")
+            }
+        },
+    )
+}

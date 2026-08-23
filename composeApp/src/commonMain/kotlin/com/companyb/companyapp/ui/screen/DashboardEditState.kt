@@ -1,5 +1,6 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.domain.DayStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
 
 /**
@@ -29,6 +30,8 @@ data class DashboardEditState(
     val error: String? = null,
     val conflict: Boolean = false,
     val fieldChangedRemotely: Boolean = false,
+    // #403 — the audit reason the backend demands on any write to a REMITTED day.
+    val reason: String = "",
 )
 
 /** The displayed (committed) value of [field] on [row]. */
@@ -100,6 +103,20 @@ fun DashboardEditState.withDraft(value: String): DashboardEditState =
 /** The PATCH is dispatched: the cell dims + spinners; the draft stays (pessimistic). */
 fun DashboardEditState.asInFlight(): DashboardEditState =
     copy(inFlight = true, error = null, conflict = false, fieldChangedRemotely = false)
+
+/**
+ * #403 — the backend demands a non-blank reason for any write on a REMITTED day
+ * (BranchDayService.assertEditableState); unknown (null) day state degrades to
+ * optional — the server 400 still guards.
+ */
+fun remittedReasonRequired(dayStatus: DayStatus?): Boolean = dayStatus == DayStatus.REMITTED
+
+/** Wire form of the reason: trimmed; blank becomes null so non-remitted bodies stay byte-identical. */
+internal fun normalizedReason(raw: String): String = raw.trim()
+
+/** Typing a reason clears the inline error under the same rule as [withDraft]. */
+fun DashboardEditState.withReason(value: String): DashboardEditState =
+    copy(reason = value, error = if (conflict) error else null)
 
 /** ADR-0022 conflict path: keep the draft, surface the conflict inline with Reload. */
 fun DashboardEditState.asConflict(message: String): DashboardEditState =

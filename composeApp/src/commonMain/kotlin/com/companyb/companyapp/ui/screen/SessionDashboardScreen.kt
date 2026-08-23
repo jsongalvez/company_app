@@ -54,6 +54,9 @@ data class SessionListArgs(
     val edit: DashboardEditState? = null,
     val onEditStart: (sessionId: String, field: DashboardEditField) -> Unit = { _, _ -> },
     val onEditDraftChange: (String) -> Unit = {},
+    // #403 — REMITTED-day reason plumbing (desktop only; defaults keep androidMain untouched).
+    val requiresReason: Boolean = false,
+    val onEditReasonChange: (String) -> Unit = {},
     val onEditCommit: () -> Unit = {},
     val onEditDiscard: () -> Unit = {},
     val onEditReload: () -> Unit = {},
@@ -156,6 +159,7 @@ fun SessionDashboardScreen(
     val isForbidden by viewModel.isForbidden.collectAsState()
     val canEdit by viewModel.canEdit.collectAsState()
     val edit by viewModel.editState.collectAsState()
+    val dayStatus by viewModel.dayStatus.collectAsState()
     // Q5 "silent polling": the pull-to-refresh indicator must show ONLY for a user-initiated
     // refresh, never for the 30s poll cycle's Loading frame (pass-1 HARD).
     var isManualRefreshing by remember { mutableStateOf(false) }
@@ -252,6 +256,8 @@ fun SessionDashboardScreen(
                                         edit = edit,
                                         onEditStart = viewModel::startEdit,
                                         onEditDraftChange = viewModel::updateDraft,
+                                        requiresReason = remittedReasonRequired(dayStatus),
+                                        onEditReasonChange = viewModel::updateReason,
                                         onEditCommit = viewModel::commitEdit,
                                         onEditDiscard = viewModel::discardEdit,
                                         onEditReload = viewModel::reloadAfterConflict,

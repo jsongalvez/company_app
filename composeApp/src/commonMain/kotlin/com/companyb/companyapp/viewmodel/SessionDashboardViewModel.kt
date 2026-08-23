@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.companyb.companyapp.api.ApiRoutes
 import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
+import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.dto.BranchDayTodayResponse
 import com.companyb.companyapp.dto.DashboardResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.SessionResponse
@@ -23,7 +25,10 @@ import com.companyb.companyapp.ui.screen.beginEdit
 import com.companyb.companyapp.ui.screen.draftChanged
 import com.companyb.companyapp.ui.screen.finalPriceInputValid
 import com.companyb.companyapp.ui.screen.mergeDashboardRows
+import com.companyb.companyapp.ui.screen.normalizedReason
+import com.companyb.companyapp.ui.screen.remittedReasonRequired
 import com.companyb.companyapp.ui.screen.withDraft
+import com.companyb.companyapp.ui.screen.withReason
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import io.ktor.client.call.body
@@ -105,6 +110,17 @@ class SessionDashboardViewModel(
 
     private val _editState = MutableStateFlow<DashboardEditState?>(null)
     val editState: StateFlow<DashboardEditState?> = _editState.asStateFlow()
+
+    // #403 — today's effective day status at the branch (the same evaluateStatus shape the
+    // backend's write gate applies). Null = unknown: the reason stays optional and the
+    // server 400 remains the guard. A failed read keeps the last-known value — a stale
+    // REMITTED keeps prompting for a reason, which the server accepts.
+    private val _dayStatus = MutableStateFlow<DayStatus?>(null)
+    val dayStatus: StateFlow<DayStatus?> = _dayStatus.asStateFlow()
+
+    // #403 — only the newest day read commits (a superseded OPEN landing must never
+    // overwrite a fresh REMITTED one).
+    private var dayGeneration = 0L
 
     private var consecutiveFailures = 0
     private var pollJob: Job? = null
@@ -283,11 +299,17 @@ class SessionDashboardViewModel(
             _editState.value = null
         }
         val row = _lastData.value?.sessions?.firstOrNull { it.id == sessionId } ?: return
+        loadDayStatus()
         _editState.value = beginEdit(row, field)
     }
 
     fun updateDraft(draft: String) {
         _editState.value = _editState.value?.withDraft(draft)
+    }
+
+    /** #403 — the reason input of the REMITTED-day editor. */
+    fun updateReason(reason: String) {
+        _editState.value = _editState.value?.withReason(reason)
     }
 
     fun discardEdit() {
@@ -328,6 +350,10 @@ class SessionDashboardViewModel(
         }
         if (state.field == DashboardEditField.FINAL_PRICE && !finalPriceInputValid(state.draft)) {
             _editState.value = state.asFailed(INVALID_PRICE_MESSAGE)
+            return
+        }
+        if (remittedReasonRequired(_dayStatus.value) && state.reason.isBlank()) {
+            _editState.value = state.asFailed(REASON_REQUIRED_MESSAGE)
             return
         }
         _editState.value = state.asInFlight()
@@ -443,8 +469,9 @@ class SessionDashboardViewModel(
         val body: Any,
     )
 
-    private fun editRequest(state: DashboardEditState): EditRequest =
-        when (state.field) {
+    private fun editRequest(state: DashboardEditState): EditRequest {
+        val reason = normalizedReason(state.reason).ifEmpty { null }
+        return when (state.field) {
             DashboardEditField.STATUS -> {
                 EditRequest(
                     ApiRoutes.sessionStatus(state.sessionId),
@@ -452,6 +479,7 @@ class SessionDashboardViewModel(
                         com.companyb.companyapp.domain.SessionStatus
                             .valueOf(state.draft),
                         state.baselineVersion,
+                        reason,
                     ),
                 )
             }
@@ -459,10 +487,41 @@ class SessionDashboardViewModel(
             DashboardEditField.FINAL_PRICE -> {
                 EditRequest(
                     ApiRoutes.sessionFinalPrice(state.sessionId),
-                    UpdateSessionFinalPriceRequest(state.draft.trim(), state.baselineVersion),
+                    UpdateSessionFinalPriceRequest(state.draft.trim(), state.baselineVersion, reason),
                 )
             }
         }
+    }
+
+    /**
+     * #403 — the day-status read behind the reason-required gate. Fired when an edit opens;
+     * a failure logs and keeps the last-known status (never blocks the edit — the server
+     * 400 is the authoritative backstop).
+     */
+    private fun loadDayStatus() {
+        val branchId = SessionState.selectedBranchId.value ?: return
+        ++dayGeneration
+        val generation = dayGeneration
+        handler.launchStateless(
+            operation = "loadDayStatus",
+            endpoint = "GET /api/branches/$branchId/today",
+            block = { apiClient.httpClient.get(ApiRoutes.branchToday(branchId)) },
+            transform = { response ->
+                _dayStatus.value = response.body<BranchDayTodayResponse>().status
+            },
+            onNonSuccess = { response ->
+                // 401 is the global auth path (ApiClient.onUnauthorized); 403 = grant revoked —
+                // both leave the last-known value rather than degrading it.
+                if (response.status.value != 401 && response.status.value != 403) {
+                    logWarn("DashboardVM", "day-status read failed (${response.status.value}) — keeping last-known")
+                }
+            },
+            onError = {
+                logWarn("DashboardVM", "day-status read failed — keeping last-known")
+            },
+            stale = { generation != dayGeneration },
+        )
+    }
 
     fun retryAfterForbidden() {
         _isForbidden.value = false
@@ -477,5 +536,6 @@ class SessionDashboardViewModel(
         private const val CONFLICT_MESSAGE =
             "This session was updated by someone else — reload to see the latest changes"
         private const val INVALID_PRICE_MESSAGE = "Enter a valid amount (digits only, e.g. 2500.00)"
+        private const val REASON_REQUIRED_MESSAGE = "A reason is required to write on a REMITTED day"
     }
 }
