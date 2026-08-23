@@ -64,6 +64,14 @@ class SessionCreateViewModel(
     private val _preview = MutableStateFlow<UiState<SessionPreviewResponse>>(UiState.Idle)
     val preview: StateFlow<UiState<SessionPreviewResponse>> = _preview.asStateFlow()
 
+    /**
+     * #405 review fix — the preview load is keep-last via structured cancellation (the
+     * [ClientSearcher] D2 guard, same file): a newer select cancels the in-flight load, so a
+     * superseded body can never land and paint a previous client's type/price onto the newly
+     * selected one.
+     */
+    private var previewJob: Job? = null
+
     /** Selects a picker hit or a just-created client; the preview drives type + price display. */
     fun selectClient(client: ClientResponse) {
         _selectedClient.value = client
@@ -77,23 +85,26 @@ class SessionCreateViewModel(
     /** #348 — the picker's "Change" action: selection dropped, preview back to Idle. */
     fun clearSelectedClient() {
         _selectedClient.value = null
+        previewJob?.cancel()
+        previewJob = null
         _preview.value = UiState.Idle
     }
 
     private fun loadPreview(clientId: String) {
-        if (_preview.value is UiState.Loading) return
+        previewJob?.cancel()
         _preview.value = UiState.Loading
-        handler.launch(
-            state = _preview,
-            operation = "loadPreview",
-            endpoint = "GET /api/branches/$branchId/session-preview",
-            block = {
-                apiClient.httpClient.get(ApiRoutes.branchSessionPreview(branchId)) {
-                    parameter("clientId", clientId)
-                }
-            },
-            transform = { it.body() },
-        )
+        previewJob =
+            handler.launch(
+                state = _preview,
+                operation = "loadPreview",
+                endpoint = "GET /api/branches/$branchId/session-preview",
+                block = {
+                    apiClient.httpClient.get(ApiRoutes.branchSessionPreview(branchId)) {
+                        parameter("clientId", clientId)
+                    }
+                },
+                transform = { it.body() },
+            )
     }
 
     // --- Concern multi-select ---

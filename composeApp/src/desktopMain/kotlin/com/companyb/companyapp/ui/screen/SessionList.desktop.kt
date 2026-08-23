@@ -210,7 +210,9 @@ private fun DashboardTableRow(
         DashboardEditableCell(
             session = session,
             field = DashboardEditField.FINAL_PRICE,
-            canEdit = canEdit,
+            // #405 — a medical-mission session is always ₱0 (BR §Session types): no price
+            // editor; the disabled clickable passes the tap through to row selection.
+            canEdit = canEdit && !missionPriceLocked(session.sessionType),
             edit = edit,
             onSessionClick = onSessionSelect,
             onEditStart = onEditStart,

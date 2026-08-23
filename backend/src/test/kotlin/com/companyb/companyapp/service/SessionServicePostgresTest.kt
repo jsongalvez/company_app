@@ -367,6 +367,67 @@ class SessionServicePostgresTest : BasePostgresTest() {
     }
 
     @Test
+    fun `medical mission create normalizes non-zero price to zero`() {
+        val mmBranchId = TestFixtures.uuid()
+        val mmClientId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        trackOwned(BranchTable, BranchTable.id, mmBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, mmBranchId)
+        DatabaseTestHelper.insertTestClient(mmClientId)
+        trackOwned(ClientTable, ClientTable.id, mmClientId)
+        val mmRateId = TestFixtures.uuid()
+        insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, mmRateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.setBy, callerId)
+        val mmSessionId = TestFixtures.uuid()
+
+        // #405 — the caller sends a full clinic price; the invariant (BR §Session types)
+        // normalizes it to ₱0 on the server.
+        val result =
+            createSession(
+                callerId,
+                mmSessionId,
+                clientId = mmClientId,
+                branchId = mmBranchId,
+                finalPrice = BigDecimal("2500.00"),
+            )
+        trackOwned(SessionTable, SessionTable.id, mmSessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, mmSessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, mmSessionId)
+
+        assertEquals(SessionType.MEDICAL_MISSION, result.session.sessionType)
+        assertEquals("0.00", result.session.finalPrice.toPlainString())
+    }
+
+    @Test
+    fun `medical mission update final price normalizes non-zero price to zero`() {
+        val mmBranchId = TestFixtures.uuid()
+        val mmClientId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(mmBranchId, branchType = BranchType.MEDICAL_MISSION)
+        trackOwned(BranchTable, BranchTable.id, mmBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, mmBranchId)
+        DatabaseTestHelper.insertTestClient(mmClientId)
+        trackOwned(ClientTable, ClientTable.id, mmClientId)
+        val mmRateId = TestFixtures.uuid()
+        insertSessionBaseRate(mmRateId, mmBranchId, SessionType.MEDICAL_MISSION)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.id, mmRateId)
+        trackOwned(SessionBaseRateTable, SessionBaseRateTable.setBy, callerId)
+        val mmSessionId = TestFixtures.uuid()
+
+        createSession(callerId, mmSessionId, clientId = mmClientId, branchId = mmBranchId, finalPrice = BigDecimal.ZERO)
+        trackOwned(SessionTable, SessionTable.id, mmSessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, mmSessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, mmSessionId)
+
+        // #405 — a later price edit cannot give a mission session a price either.
+        val updated =
+            SessionService.updateFinalPrice(callerId, mmSessionId, BigDecimal("2750.00"), expectedVersion = 1)
+
+        assertEquals("0.00", updated.finalPrice.toPlainString())
+        assertEquals(2, updated.version)
+    }
+
+    @Test
     fun `update status from PENDING to COMPLETED succeeds and increments version`() {
         createSession(callerId, sessionId)
         trackOwned(SessionTable, SessionTable.id, sessionId)

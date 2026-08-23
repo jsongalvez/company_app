@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -94,6 +95,48 @@ class SessionCreateViewModelTest {
             val state = assertIs<UiState.Success<SessionPreviewResponse>>(vm.preview.value)
             assertEquals(expected = "REGULAR", actual = state.data.sessionType.name)
             assertEquals(expected = "250.00", actual = state.data.basePrice)
+        }
+
+    @Test
+    fun selectClient_superseded_preview_landing_never_commits_stale_body() =
+        runTest(testScheduler) {
+            // #405 review fix pin — A's preview is still in flight when B is selected: the
+            // newer select cancels the held load (the ClientSearcher structured-cancellation
+            // guard), so A's mission body can never land and paint onto B.
+            var previewCount = 0
+            val sequencedPreview: MockRequestHandler = { request ->
+                if (request.method == HttpMethod.Get &&
+                    request.url.encodedPath == "/api/branches/$BRANCH_ID/session-preview"
+                ) {
+                    previewCount++
+                    if (previewCount == 1) {
+                        // Virtualized hold: A's body would land only after B has committed.
+                        withContext(StandardTestDispatcher(testScheduler)) { delay(PREVIEW_HOLD_MS) }
+                        jsonRespond(status = HttpStatusCode.OK, body = MISSION_PREVIEW_JSON)
+                    } else {
+                        jsonRespond(status = HttpStatusCode.OK, body = PREVIEW_JSON)
+                    }
+                } else {
+                    error("unexpected request: ${request.method} ${request.url.encodedPath}")
+                }
+            }
+            val vm = SessionCreateViewModel(mockApiClient(sequencedPreview), BRANCH_ID)
+
+            vm.selectClient(client("c1"))
+            runCurrent()
+            assertIs<UiState.Loading>(vm.preview.value)
+
+            vm.selectClient(client("c2"))
+            runCurrent()
+            val fresh = assertIs<UiState.Success<SessionPreviewResponse>>(vm.preview.value)
+            assertEquals(expected = "REGULAR", actual = fresh.data.sessionType.name)
+
+            // The held pre-B snapshot never lands — cancellation killed it at its suspension,
+            // and no re-issue GET exists: B's truth simply stands.
+            advanceTimeByAndRun(PREVIEW_HOLD_MS)
+            advanceTimeByAndRun(PREVIEW_HOLD_MS)
+            val converged = assertIs<UiState.Success<SessionPreviewResponse>>(vm.preview.value)
+            assertEquals(expected = "REGULAR", actual = converged.data.sessionType.name)
         }
 
     @Test
@@ -421,12 +464,16 @@ class SessionCreateViewModelTest {
     private companion object {
         const val BRANCH_ID = "11111111-1111-1111-1111-111111111111"
 
+        const val PREVIEW_HOLD_MS = 5_000L
+
         const val SEARCH_JSON =
             """[
                 {"id":"c1","firstName":"John","lastName":"Doe","middleName":null,"suffix":null,"phoneNumber":null,"address":null,"gender":"M","age":30,"systolicBp":null,"diastolicBp":null,"medicalConditions":null}
             ]"""
 
         const val PREVIEW_JSON = """{"sessionType":"REGULAR","basePrice":"250.00"}"""
+
+        const val MISSION_PREVIEW_JSON = """{"sessionType":"MEDICAL_MISSION","basePrice":"0.00"}"""
 
         const val CONCERNS_JSON =
             """[{"id":"con1","label":"Headache","createdBy":null,"createdAt":null}]"""

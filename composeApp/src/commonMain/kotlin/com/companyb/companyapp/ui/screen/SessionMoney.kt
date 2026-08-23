@@ -1,6 +1,7 @@
 package com.companyb.companyapp.ui.screen
 
 import com.companyb.companyapp.domain.SessionStatus
+import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import kotlin.math.abs
 
@@ -39,3 +40,10 @@ internal fun grossIncomeCents(sessions: List<DashboardSessionResponse>): Long =
 
 internal fun commissionLabel(productSalesCount: Int): String =
     "from $productSalesCount product sale${if (productSalesCount == 1) "" else "s"}"
+
+/**
+ * #405 — a MEDICAL_MISSION visit is always free (BR §Session types): the price affordance is
+ * locked client-side wherever this type shows, and the server normalizes any non-zero value
+ * authoritatively.
+ */
+internal fun missionPriceLocked(sessionType: SessionType): Boolean = sessionType == SessionType.MEDICAL_MISSION

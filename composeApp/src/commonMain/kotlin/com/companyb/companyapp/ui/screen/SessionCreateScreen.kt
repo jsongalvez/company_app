@@ -183,11 +183,16 @@ private fun SessionCreateEffects(
     }
 
     // Price defaults from the preview's base rate while the field is blank (untouched);
-    // an explicit user value always wins.
+    // an explicit user value always wins. #405 — a medical-mission visit is always free,
+    // so the locked ₱0 replaces any draft the user managed to type before the preview landed.
     val previewData = (viewModel.preview.collectAsState().value as? UiState.Success)?.data
     LaunchedEffect(previewData) {
         val basePrice = previewData?.basePrice
-        if (basePrice != null && form.price.isBlank()) form.price = basePrice
+        if (previewData != null && missionPriceLocked(previewData.sessionType)) {
+            form.price = "0"
+        } else if (basePrice != null && form.price.isBlank()) {
+            form.price = basePrice
+        }
     }
 
     val createResult by viewModel.createResult.collectAsState()
@@ -238,11 +243,22 @@ private fun SessionFormSection(
     val preview by viewModel.preview.collectAsState()
     PreviewCard(viewModel, preview)
 
+    // #405 — the mission price is not editable input; ₱0 is shown locked (server normalizes
+    // authoritatively regardless).
+    val previewData = (viewModel.preview.collectAsState().value as? UiState.Success)?.data
+    val missionPrice = previewData != null && missionPriceLocked(previewData.sessionType)
     OutlinedTextField(
         value = form.price,
         onValueChange = { form.price = it },
         label = { Text("Final price (₱)") },
+        supportingText =
+            if (missionPrice) {
+                { Text("Medical mission visit — always free") }
+            } else {
+                null
+            },
         singleLine = true,
+        enabled = !missionPrice,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
@@ -310,7 +326,12 @@ private fun PreviewCard(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = "Base rate ₱${preview.data.basePrice} — final price defaults to it",
+                        text =
+                            if (missionPriceLocked(preview.data.sessionType)) {
+                                "Medical mission visit — always free (₱0)"
+                            } else {
+                                "Base rate ₱${preview.data.basePrice} — final price defaults to it"
+                            },
                         style = MaterialTheme.typography.bodySmall,
                         color = InkSubtle,
                     )

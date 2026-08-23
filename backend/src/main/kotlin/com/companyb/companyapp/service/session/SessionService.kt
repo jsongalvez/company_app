@@ -112,6 +112,13 @@ object SessionService {
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)
 
+        // #405 — BR §Session types: a medical-mission visit is always free (₱0). The rule is
+        // an invariant of the domain, not an input constraint, so a non-zero caller-supplied
+        // price is normalized to zero rather than rejected — no client version or direct API
+        // caller can persist one.
+        val effectiveFinalPrice =
+            if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
+
         val basePrice = computeBasePrice(branchId, sessionType)
 
         return transaction {
@@ -125,7 +132,7 @@ object SessionService {
                         sessionType = sessionType,
                         isWalkIn = isWalkIn,
                         basePrice = basePrice,
-                        finalPrice = finalPrice,
+                        finalPrice = effectiveFinalPrice,
                         remarks = remarks,
                         otherConcerns = otherConcerns,
                         bookedAt = bookedAt,
@@ -212,8 +219,14 @@ object SessionService {
 
             val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, session.branchDayId, reason)
 
+            // #405 — same invariant as create (BR §Session types): a medical-mission session
+            // carries MEDICAL_MISSION for life, so its price normalizes to ₱0 no matter what
+            // the caller sent.
+            val effectivePrice =
+                if (session.sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else newFinalPrice
+
             val updated =
-                SessionRepository.updateFinalPriceInTransaction(sessionId, newFinalPrice, expectedVersion)
+                SessionRepository.updateFinalPriceInTransaction(sessionId, effectivePrice, expectedVersion)
 
             SessionAudit.updated(
                 AuditContext(callerId, branchDay.branchId, isRemitted, reason),
@@ -223,7 +236,7 @@ object SessionService {
 
             logger.info {
                 "[UPDATE-SESSION-FINAL-PRICE] Session $sessionId final price changed" +
-                    " from ${session.finalPrice.toPlainString()} to ${newFinalPrice.toPlainString()}"
+                    " from ${session.finalPrice.toPlainString()} to ${effectivePrice.toPlainString()}"
             }
 
             updated
