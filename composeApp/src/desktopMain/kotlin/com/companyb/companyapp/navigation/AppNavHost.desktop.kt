@@ -194,69 +194,7 @@ actual fun AppNavHost(
                 // a pushed `Route.SessionDetail` for the NOTIFICATION entry point only — the
                 // dashboard pane below stays untouched.
                 composable<Route.Dashboard> { entry ->
-                    // #358 — relief deep link: (branchId, date) renders the branch-day panel
-                    // in place of the master-detail live dashboard.
-                    val deepLink = entry.toRoute<Route.Dashboard>()
-                    if (deepLink.branchId != null && deepLink.date != null) {
-                        val reliefDayViewModel: ReliefDayViewModel =
-                            viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
-                        ReliefDayScreen(
-                            viewModel = reliefDayViewModel,
-                            date = deepLink.date,
-                        )
-                        return@composable
-                    }
-                    val dashboardViewModel: SessionDashboardViewModel =
-                        viewModel { SessionDashboardViewModel(apiClient) }
-                    // #400 — parity with the mobile host: the dashboard carries the
-                    // entry-scoped relief-access card (the #112 self-cleaning VM shape).
-                    val reliefAccessViewModel: ReliefAccessViewModel =
-                        viewModel { ReliefAccessViewModel(apiClient) }
-                    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
-                    val branchDayId by SessionState.branchDayId.collectAsState()
-                    val currentUserId by SessionState.currentUser.collectAsState()
-                    val isRelief by SessionState.isRelief.collectAsState()
-                    val lastData by dashboardViewModel.lastData.collectAsState()
-                    var selectedSessionId by remember { mutableStateOf<String?>(null) }
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(DESKTOP_MASTER_WEIGHT).fillMaxSize()) {
-                            SessionDashboardScreen(
-                                viewModel = dashboardViewModel,
-                                selection =
-                                    DashboardSelection(
-                                        branchName = selectedBranchName,
-                                        sessionId = selectedSessionId,
-                                    ),
-                                onSessionClick = { session -> selectedSessionId = session.id },
-                                // #348 — the dashboard's entry into the start-a-session flow.
-                                onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
-                                reliefAccessContent = {
-                                    val dayId = branchDayId
-                                    if (dayId != null) {
-                                        LaunchedEffect(dayId) {
-                                            reliefAccessViewModel.resetActionStates()
-                                            reliefAccessViewModel.loadRequests(dayId)
-                                        }
-                                        ReliefAccessCard(
-                                            viewModel = reliefAccessViewModel,
-                                            branchDayId = dayId,
-                                            currentUserId = currentUserId?.id,
-                                            isReliefUser = isRelief,
-                                        )
-                                    }
-                                },
-                            )
-                        }
-                        Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
-                            // #382 — the editable pane (mutations + authoritative reload via the
-                            // dashboard poll refresh).
-                            SessionDetailPane(
-                                session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
-                                apiClient = apiClient,
-                                refreshSession = { dashboardViewModel.refreshAfterMutation() },
-                            )
-                        }
-                    }
+                    DashboardDestination(entry.toRoute<Route.Dashboard>(), apiClient, navController)
                 }
                 composable<Route.Clients> {
                     // #113 D7 — code-only route gate, now the #156 any-context check
@@ -452,6 +390,81 @@ actual fun AppNavHost(
 
 private const val DESKTOP_MASTER_WEIGHT = 0.6f
 private const val DESKTOP_DETAIL_WEIGHT = 0.4f
+
+/**
+ * #407 — the desktop Dashboard destination, extracted from [AppNavHost] (the #394 mechanical
+ * shape) after the route accumulated past the complexity budget. Behavior identical: the
+ * #358 relief deep-link renders the branch-day panel in place of the master-detail live
+ * dashboard; otherwise the #91 master-detail Row with the inline SessionDetail pane (#382)
+ * and the entry-scoped relief-access card (#400, the #112 self-cleaning VM).
+ */
+@Composable
+private fun DashboardDestination(
+    deepLink: Route.Dashboard,
+    apiClient: ApiClient,
+    navController: NavHostController,
+) {
+    if (deepLink.branchId != null && deepLink.date != null) {
+        val reliefDayViewModel: ReliefDayViewModel =
+            viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
+        ReliefDayScreen(
+            viewModel = reliefDayViewModel,
+            date = deepLink.date,
+        )
+        return
+    }
+    val dashboardViewModel: SessionDashboardViewModel =
+        viewModel { SessionDashboardViewModel(apiClient) }
+    // #400 — parity with the mobile host: the dashboard carries the
+    // entry-scoped relief-access card (the #112 self-cleaning VM shape).
+    val reliefAccessViewModel: ReliefAccessViewModel =
+        viewModel { ReliefAccessViewModel(apiClient) }
+    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+    val branchDayId by SessionState.branchDayId.collectAsState()
+    val currentUserId by SessionState.currentUser.collectAsState()
+    val isRelief by SessionState.isRelief.collectAsState()
+    val lastData by dashboardViewModel.lastData.collectAsState()
+    var selectedSessionId by remember { mutableStateOf<String?>(null) }
+    Row(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(DESKTOP_MASTER_WEIGHT).fillMaxSize()) {
+            SessionDashboardScreen(
+                viewModel = dashboardViewModel,
+                selection =
+                    DashboardSelection(
+                        branchName = selectedBranchName,
+                        sessionId = selectedSessionId,
+                    ),
+                onSessionClick = { session -> selectedSessionId = session.id },
+                // #348 — the dashboard's entry into the start-a-session flow.
+                onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
+                reliefAccessContent = {
+                    val dayId = branchDayId
+                    if (dayId != null) {
+                        LaunchedEffect(dayId) {
+                            reliefAccessViewModel.resetActionStates()
+                            reliefAccessViewModel.loadRequests(dayId)
+                        }
+                        ReliefAccessCard(
+                            viewModel = reliefAccessViewModel,
+                            branchDayId = dayId,
+                            currentUserId = currentUserId?.id,
+                            isReliefUser = isRelief,
+                        )
+                    }
+                },
+            )
+        }
+        Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
+            // #382 — the editable pane (mutations + authoritative reload via the
+            // dashboard poll refresh).
+            SessionDetailPane(
+                session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
+                apiClient = apiClient,
+                refreshSession = { dashboardViewModel.refreshAfterMutation() },
+            )
+        }
+    }
+}
 
 // #348 — code-only route gate (the Clients #156 shape); the backend's branch-day create
 // gate stays authoritative. No clocked-in branch → gate card: sessions belong to a branch day.
