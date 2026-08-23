@@ -427,7 +427,6 @@ private fun DashboardDestination(
             viewModel { ReliefDayViewModel(apiClient, deepLink.branchId, deepLink.date) }
         ReliefDayScreen(
             viewModel = reliefDayViewModel,
-            branchName = null,
             date = deepLink.date,
         )
         return

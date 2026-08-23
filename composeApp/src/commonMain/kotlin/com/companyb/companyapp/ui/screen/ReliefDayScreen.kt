@@ -32,11 +32,13 @@ import com.companyb.companyapp.viewmodel.UiState
 @Composable
 fun ReliefDayScreen(
     viewModel: ReliefDayViewModel,
-    branchName: String?,
     date: String,
     modifier: Modifier = Modifier,
 ) {
     val requestsState by viewModel.requests.collectAsState()
+    // #388 — the name travels with the VM (resolved from branch-options), not the nav
+    // hosts: the deep link only ever carried the id.
+    val branchName by viewModel.branchName.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.load() }
 
@@ -57,10 +59,11 @@ fun ReliefDayScreen(
             }
 
             is UiState.Error -> {
-                Text(
-                    state.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
+                // #388 — shared error+retry card: load() is idempotent, so Retry re-issues
+                // both the request list and the pending name resolution.
+                ErrorCard(
+                    message = state.message,
+                    onRetry = viewModel::load,
                 )
             }
 
