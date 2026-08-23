@@ -23,6 +23,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
@@ -523,7 +524,12 @@ private fun FinanceToolbar(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = branchMenuOpen) },
                         // Pass-4 HARD — the fixed 280dp field crushed the trailing exports/edit
                         // toggle at 360dp; the field shrinks first (weight), caps at 280dp.
-                        modifier = Modifier.menuAnchor().weight(1f, fill = false).width(280.dp),
+                        modifier =
+                            Modifier
+                                .menuAnchor(
+                                    ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                ).weight(1f, fill = false)
+                                .width(280.dp),
                     )
                     ExposedDropdownMenu(
                         expanded = branchMenuOpen,
@@ -1629,7 +1635,7 @@ private fun CategoryDropdown(
             singleLine = true,
             label = { Text("Category") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             categories.forEachIndexed { index, (_, label) ->
@@ -2042,7 +2048,7 @@ private fun UserDropdown(
             singleLine = true,
             label = { Text("User (worked this day)") },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             users.forEach { user ->
