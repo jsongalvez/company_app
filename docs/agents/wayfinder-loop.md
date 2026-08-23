@@ -14,13 +14,18 @@ seen-doc fingerprints, retries), `.wayfinder-loop.log`, `.wayfinder-loop.lock`.
 - **Quiesce the daemon before touching sessions or the worktree.** The stop
   detector re-prompts any session that stops without a handoff — an operator
   killed duplicate looks like a stalled worker and gets resumed against you.
-- **One packet, one filename, forever.** A successor link is a NEW file.
-  Editing a queued or active packet is absorbed (fingerprint updated, no
-  chaining) since #336, but corrections belong in a new file.
-- **End every chain session with a clean worktree.** Commit finished slices
-  to master (`ref #<ticket>`); park unfinished work with
+- **One packet, one filename, forever — but content is the signal.** A handoff
+  endpoint is any content change under `.wayfinder/handoffs/`: a NEW successor
+  file, or an in-place revision of the active packet (revision chains as the
+  successor link on session exit). Editing a queued packet before spawn just
+  re-baselines it (#336). The daemon spawns only after the supervised session
+  exits, so a mid-flight edit can never double-spawn.
+- **End every chain session with a clean worktree and a recorded endpoint.**
+  Commit finished slices to master (`ref #<ticket>`); park unfinished work with
   `scripts/wayfinder-park.sh <note>` and record the stash ref in the packet
-  before exiting. A dirty tree freezes the spawn gate.
+  before exiting. Signal the exit by writing or revising your packet — a stop
+  with no handoff activity reads as a crash and gets nudged, then pauses the
+  chain after 2 fruitless continuations.
 - The daemon never stages, commits, or stashes — worktree hygiene belongs to
   the sessions.
 

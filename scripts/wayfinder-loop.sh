@@ -59,7 +59,7 @@ If no ticket has yet been claimed, resume the normal Wayfinder lifecycle from th
 
 A ticket may legitimately span sessions. A handoff remains allowed when required by the existing lifecycle, including approaching the context limit or reaching a concrete blocker with no safe continuation. Remaining task size, previous recovery messages, or speculation about remaining execution time are not by themselves reasons to hand off. Before any exit, leave the worktree clean: commit completed coherent slices normally; park unfinished changes with scripts/wayfinder-park.sh and record the stash reference for the successor.
 
-The successor handoff is a compact pointer packet, not a second copy of GitHub state: record the active map/ticket, phase, last integrated or verified commit, concise verification state, blockers, parked-work reference if any, and exact next action — linking durable GitHub evidence instead of copying issue bodies, comments, map diaries, documentation, or diffs. Write a new successor packet filename, then stop."
+The successor handoff is a compact pointer packet, not a second copy of GitHub state: record the active map/ticket, phase, last integrated or verified commit, concise verification state, blockers, parked-work reference if any, and exact next action — linking durable GitHub evidence instead of copying issue bodies, comments, map diaries, documentation, or diffs. Write the endpoint as handoff activity — write a new successor packet or revise your active packet in place — then stop."
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG_FILE"; echo "$(date '+%T') $*"; }
 die() { log "FATAL: $*"; notify "wayfinder-loop FAILED" "$*"; exit 1; }
@@ -382,10 +382,9 @@ spawn_session() {
   local prompt
   prompt="/wayfinder .wayfinder/handoffs/$doc"
   api post "/api/session/$sid/prompt" --data "$(jq -nc --arg t "$prompt" '{text: $t}')" >/dev/null || die "prompt failed for session $sid"
-  # Fingerprint the doc AS SPAWNED: a later edit to the same filename must not
-  # re-queue it. The 2026-08-22 double-spawn class: a packet corrected between
-  # detection and spawn re-fired newest_unprocessed, chaining the same ticket
-  # twice. Successor links signal via NEW filenames — never edit a queued one.
+  # Fingerprint the doc AS SPAWNED: this baseline makes only edits AFTER the
+  # spawn count as activity — a later revision of the same filename chains as
+  # the successor link on session exit, while the untouched packet never re-fires.
   mark_seen "$doc"
   save_state
   log "spawned $sid reading $doc"
@@ -404,19 +403,17 @@ supervise_session() {
   local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id="" stop_nudges=0
   while :; do
     sleep "$TICK_SECS"
-    # completion first: a finished session writes its handoff doc as its final act
+    # completion first: a finished session signals via handoff activity — either
+    # a new packet file or an in-place revision of its own packet
     d="$(newest_unprocessed || true)"
     if [ -n "$d" ]; then
       if [ "$d" = "$last_doc" ]; then
-        # In-place revision of the CURRENT link's own packet (operator correction
-        # or self-edit): absorb the new fingerprint, never chain. The 2026-08-22
-        # triple-spawn class: content-hash tracking re-fired the same ticket for
-        # ANY post-spawn edit of the queued filename. Successor links signal via
-        # NEW filenames — same-name changes are revisions, not completions.
-        log "handoff $d revised in place after spawn — absorbed, not chaining"
-        mark_seen "$d"
-        save_state
-        continue
+        # In-place revision of the CURRENT link's own packet = the successor link.
+        # Content change under handoffs/ is the work-item signal; the filename is
+        # not. Spawn waits for session exit below, so the 2026-08-22 double-spawn
+        # class (edit between detection and spawn firing a concurrent chain) cannot
+        # recur — there is exactly one supervised session and one pending slot.
+        log "handoff $d revised in place — revision chains as the successor link"
       fi
       pending_doc="$d"
       retries=0
