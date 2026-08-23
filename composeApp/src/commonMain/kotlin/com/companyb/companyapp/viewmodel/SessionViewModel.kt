@@ -307,4 +307,13 @@ class SessionViewModel(
     fun consumeConcernResult() {
         _concernResult.value = UiState.Idle
     }
+
+    /** #406 — one-shot drains for the void/unvoid command landings. */
+    fun consumeVoidResult() {
+        _voidResult.value = UiState.Idle
+    }
+
+    fun consumeUnvoidResult() {
+        _unvoidResult.value = UiState.Idle
+    }
 }

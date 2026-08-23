@@ -475,11 +475,12 @@ private fun DashboardDestination(
         }
         Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
             // #382 — the editable pane (mutations + authoritative reload via the
-            // dashboard poll refresh).
+            // dashboard poll refresh). #406 — desktop carries the void/unvoid affordance.
             SessionDetailPane(
                 session = lastData?.sessions?.firstOrNull { it.id == selectedSessionId },
                 apiClient = apiClient,
                 refreshSession = { dashboardViewModel.refreshAfterMutation() },
+                allowVoid = true,
             )
         }
     }
