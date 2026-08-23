@@ -14,6 +14,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLParameter
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,18 +37,17 @@ class ReliefInviteViewModel(
 ) : ViewModel() {
     private val handler = ApiCallHandler(viewModelScope, "ReliefInviteVM")
 
-    // keep-last (the #143 shape, VM-side; the #162 KeepLast unifier): the freshest received
-    // list survives Loading/Error so the section keeps rendering across reloads and composition
-    // re-entries.
-    private val keptReceived = KeepLast<List<ReliefInviteResponse>>(viewModelScope)
-    val received: StateFlow<UiState<List<ReliefInviteResponse>>> = keptReceived.state
-    val freshestReceived: StateFlow<List<ReliefInviteResponse>?> = keptReceived.freshest
+    // The received surface (list + accept/decline) lives in [ReceivedInvites]; the flows and
+    // actions surface as properties (the detekt function budget — the #348 ConcernPoster shape).
+    private val receivedInvites = ReceivedInvites(apiClient, viewModelScope)
+    val received: StateFlow<UiState<List<ReliefInviteResponse>>> = receivedInvites.received
+    val freshestReceived: StateFlow<List<ReliefInviteResponse>?> = receivedInvites.freshestReceived
+    val acceptResult: StateFlow<UiState<Unit>> = receivedInvites.acceptResult
+    val declineResult: StateFlow<UiState<Unit>> = receivedInvites.declineResult
 
-    private val _acceptResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val acceptResult: StateFlow<UiState<Unit>> = _acceptResult.asStateFlow()
-
-    private val _declineResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
-    val declineResult: StateFlow<UiState<Unit>> = _declineResult.asStateFlow()
+    val loadReceived: () -> Job = receivedInvites::loadReceived
+    val acceptInvite: (String) -> Job = receivedInvites::acceptInvite
+    val declineInvite: (String) -> Job = receivedInvites::declineInvite
 
     private val _candidates = MutableStateFlow<UiState<List<ReliefCandidateResponse>>>(UiState.Idle)
     val candidates: StateFlow<UiState<List<ReliefCandidateResponse>>> = _candidates.asStateFlow()
@@ -79,94 +79,9 @@ class ReliefInviteViewModel(
     private val _revokeResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val revokeResult: StateFlow<UiState<Unit>> = _revokeResult.asStateFlow()
 
-    // Bumped on every successful action: a load that lands with a mismatched stamp predates
-    // the action and must not resurrect the resolved row (the #141 stamp pattern).
-    private var actionStamp = 0L
-
     // #113 shape: the newest search cancels the in-flight one — a stale response dies at the
     // cancellation instead of committing.
     private var searchJob: Job? = null
-
-    fun loadReceived(): Job {
-        if (keptReceived.state.value is UiState.Loading) return Job()
-        return handler.launch(
-            state = keptReceived.stateFlow,
-            operation = "loadReceived",
-            endpoint = "GET /api/relief-invites",
-            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
-            transform = { it.body<List<ReliefInviteResponse>>() },
-            // #165 stale-substitution guard (concentrated from the former in-transform block): an
-            // accept/decline landing while the load was in flight must not resurrect the resolved
-            // row (the #141 resurrect class). The stamp read at landing disagrees with the
-            // launch-captured read, so the handler substitutes the fallback: currentReceivedList
-            // reads the exact post-action list (removeReceived assigns Success synchronously,
-            // and at fallback time the stale landing's own Loading write is current — the read
-            // resolves to the freshest mirror, exact on Main.immediate); the re-issue converges
-            // server truth — rows the action couldn't know (cross-device accepts, new invites)
-            // land from the fresh GET. Both paths are pinned by tests.
-            stamp = { actionStamp },
-            fallback = {
-                loadReceived()
-                currentReceivedList() ?: emptyList()
-            },
-        )
-    }
-
-    fun acceptInvite(inviteId: String): Job =
-        handler.launch(
-            state = _acceptResult,
-            operation = "acceptInvite",
-            endpoint = "POST /api/relief-invites/$inviteId/accept",
-            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "accept")) },
-            // #113 shape: a 409 means the invite is already resolved (double-tap race or a
-            // cross-device accept) — the row must leave the section, so reload instead of
-            // surfacing an error on a stale row (the markRead absent-row defense precedent).
-            onNonSuccess = onConflictReload(_acceptResult, inviteId),
-            transform = {
-                actionStamp++
-                removeReceived(inviteId)
-                Unit
-            },
-        )
-
-    fun declineInvite(inviteId: String): Job =
-        handler.launch(
-            state = _declineResult,
-            operation = "declineInvite",
-            endpoint = "POST /api/relief-invites/$inviteId/decline",
-            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "decline")) },
-            onNonSuccess = onConflictReload(_declineResult, inviteId),
-            transform = {
-                actionStamp++
-                removeReceived(inviteId)
-                Unit
-            },
-        )
-
-    /**
-     * Shared 409-handling for accept/decline: the 409 is authoritative server confirmation that
-     * the invite is resolved, so the row leaves locally (Idle-reset — the #140 stuck-Loading
-     * class — + removal + reload). The stamp bump BEFORE the reload is load-bearing: a pre-409
-     * in-flight load would otherwise commit its pre-resolution snapshot with a matching stamp
-     * and resurrect the row (the #141 resurrect class, 4-lens review finding). The reload may
-     * be gated by the in-flight guard — the local removal already converged the list, and the
-     * gated load's landing goes down the stamp-mismatch substitution path.
-     */
-    private fun onConflictReload(
-        state: MutableStateFlow<UiState<Unit>>,
-        inviteId: String,
-    ): suspend (io.ktor.client.statement.HttpResponse) -> Boolean =
-        { response ->
-            if (response.status == HttpStatusCode.Conflict) {
-                state.value = UiState.Idle
-                actionStamp++
-                removeReceived(inviteId)
-                loadReceived()
-                true
-            } else {
-                false
-            }
-        }
 
     fun searchCandidates(
         branchId: String,
@@ -322,6 +237,117 @@ class ReliefInviteViewModel(
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
             ?: "Revoke failed (${response.status.value})"
+}
+
+/**
+ * The received-invites surface (#160 Notifications section): the keep-last list (the #143
+ * shape), accept/decline actions, and the #165 stamp/fallback resurrection guard. Extracted
+ * from [ReliefInviteViewModel] for the detekt function budget (the ConcernPoster shape); the
+ * `actionStamp` interplay is internal to this cluster.
+ */
+private class ReceivedInvites(
+    private val apiClient: ApiClient,
+    scope: CoroutineScope,
+) {
+    private val handler = ApiCallHandler(scope, "ReliefInviteVM")
+
+    // keep-last (the #143 shape, VM-side; the #162 KeepLast unifier): the freshest received
+    // list survives Loading/Error so the section keeps rendering across reloads and composition
+    // re-entries.
+    private val keptReceived = KeepLast<List<ReliefInviteResponse>>(scope)
+    val received: StateFlow<UiState<List<ReliefInviteResponse>>> = keptReceived.state
+    val freshestReceived: StateFlow<List<ReliefInviteResponse>?> = keptReceived.freshest
+
+    private val _acceptResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val acceptResult: StateFlow<UiState<Unit>> = _acceptResult.asStateFlow()
+
+    private val _declineResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val declineResult: StateFlow<UiState<Unit>> = _declineResult.asStateFlow()
+
+    // Bumped on every successful action: a load that lands with a mismatched stamp predates
+    // the action and must not resurrect the resolved row (the #141 stamp pattern).
+    private var actionStamp = 0L
+
+    fun loadReceived(): Job {
+        if (keptReceived.state.value is UiState.Loading) return Job()
+        return handler.launch(
+            state = keptReceived.stateFlow,
+            operation = "loadReceived",
+            endpoint = "GET /api/relief-invites",
+            block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
+            transform = { it.body<List<ReliefInviteResponse>>() },
+            // #165 stale-substitution guard (concentrated from the former in-transform block): an
+            // accept/decline landing while the load was in flight must not resurrect the resolved
+            // row (the #141 resurrect class). The stamp read at landing disagrees with the
+            // launch-captured read, so the handler substitutes the fallback: currentReceivedList
+            // reads the exact post-action list (removeReceived assigns Success synchronously,
+            // and at fallback time the stale landing's own Loading write is current — the read
+            // resolves to the freshest mirror, exact on Main.immediate); the re-issue converges
+            // server truth — rows the action couldn't know (cross-device accepts, new invites)
+            // land from the fresh GET. Both paths are pinned by tests.
+            stamp = { actionStamp },
+            fallback = {
+                loadReceived()
+                currentReceivedList() ?: emptyList()
+            },
+        )
+    }
+
+    fun acceptInvite(inviteId: String): Job =
+        handler.launch(
+            state = _acceptResult,
+            operation = "acceptInvite",
+            endpoint = "POST /api/relief-invites/$inviteId/accept",
+            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "accept")) },
+            // #113 shape: a 409 means the invite is already resolved (double-tap race or a
+            // cross-device accept) — the row must leave the section, so reload instead of
+            // surfacing an error on a stale row (the markRead absent-row defense precedent).
+            onNonSuccess = onConflictReload(_acceptResult, inviteId),
+            transform = {
+                actionStamp++
+                removeReceived(inviteId)
+                Unit
+            },
+        )
+
+    fun declineInvite(inviteId: String): Job =
+        handler.launch(
+            state = _declineResult,
+            operation = "declineInvite",
+            endpoint = "POST /api/relief-invites/$inviteId/decline",
+            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "decline")) },
+            onNonSuccess = onConflictReload(_declineResult, inviteId),
+            transform = {
+                actionStamp++
+                removeReceived(inviteId)
+                Unit
+            },
+        )
+
+    /**
+     * Shared 409-handling for accept/decline: the 409 is authoritative server confirmation that
+     * the invite is resolved, so the row leaves locally (Idle-reset — the #140 stuck-Loading
+     * class — + removal + reload). The stamp bump BEFORE the reload is load-bearing: a pre-409
+     * in-flight load would otherwise commit its pre-resolution snapshot with a matching stamp
+     * and resurrect the row (the #141 resurrect class, 4-lens review finding). The reload may
+     * be gated by the in-flight guard — the local removal already converged the list, and the
+     * gated load's landing goes down the stamp-mismatch substitution path.
+     */
+    private fun onConflictReload(
+        state: MutableStateFlow<UiState<Unit>>,
+        inviteId: String,
+    ): suspend (io.ktor.client.statement.HttpResponse) -> Boolean =
+        { response ->
+            if (response.status == HttpStatusCode.Conflict) {
+                state.value = UiState.Idle
+                actionStamp++
+                removeReceived(inviteId)
+                loadReceived()
+                true
+            } else {
+                false
+            }
+        }
 
     private fun currentReceivedList(): List<ReliefInviteResponse>? = keptReceived.freshestValue()
 

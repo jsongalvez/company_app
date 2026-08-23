@@ -683,7 +683,8 @@ private fun RevokeDutyConfirmDialog(
         title = { Text("Revoke relief duty?") },
         text = {
             Text(
-                "${invite.inviteeName}'s duty at ${invite.branchName} on ${invite.date} will be revoked and their access removed.",
+                "${invite.inviteeName}'s duty at ${invite.branchName} on ${invite.date} " +
+                    "will be revoked and their access removed.",
             )
         },
         confirmButton = {

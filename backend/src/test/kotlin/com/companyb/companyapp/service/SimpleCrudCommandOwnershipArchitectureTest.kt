@@ -40,7 +40,8 @@ class SimpleCrudCommandOwnershipArchitectureTest {
                 "repository/UserBranchAssignmentRepository.kt" to 3,
                 // 7 = five request/read blocks + hasActiveClockIn + isActiveUser read wrappers
                 "repository/ReliefAccessRepository.kt" to 7,
-                "repository/ReliefInviteRepository.kt" to 11,
+                // 12 = eleven find/isActive read wrappers + the #374 accepted-duty scan
+                "repository/ReliefInviteRepository.kt" to 12,
                 "repository/MedicalMissionDelegateRepository.kt" to 1,
                 // Batch 5 — inventory/product-sale cluster.
                 "repository/ProductSaleRepository.kt" to 2,

@@ -47,13 +47,7 @@ fun SessionDetailContent(
     modifier: Modifier = Modifier,
 ) {
     if (session == null) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Select a session",
-                style = MaterialTheme.typography.bodyMedium,
-                color = InkSubtle,
-            )
-        }
+        EmptySessionPlaceholder(modifier)
         return
     }
     Column(
@@ -252,6 +246,17 @@ internal fun ClientNameText(session: DashboardSessionResponse) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+@Composable
+private fun EmptySessionPlaceholder(modifier: Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = "Select a session",
+            style = MaterialTheme.typography.bodyMedium,
+            color = InkSubtle,
+        )
+    }
 }
 
 internal fun bookedTimeLabel(bookedAt: String?): String =

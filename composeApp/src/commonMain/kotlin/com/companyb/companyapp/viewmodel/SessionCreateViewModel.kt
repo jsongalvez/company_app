@@ -46,61 +46,15 @@ class SessionCreateViewModel(
     private val handler = ApiCallHandler(viewModelScope, "SessionCreateVM")
 
     // --- Client picker: keep-last debounced search (the D2/#162 port, entry-scoped). ---
-    private val keptResults = KeepLast<List<ClientResponse>>(viewModelScope)
-    val searchResults: StateFlow<UiState<List<ClientResponse>>> = keptResults.state
-    val freshestResults: StateFlow<List<ClientResponse>?> = keptResults.freshest
+    // Search lives in [ClientSearcher]; the flows surface as properties (the detekt function
+    // budget — same shape as ConcernPoster below).
+    private val clientSearcher = ClientSearcher(apiClient, viewModelScope)
+    val searchResults: StateFlow<UiState<List<ClientResponse>>> = clientSearcher.state
+    val freshestResults: StateFlow<List<ClientResponse>?> = clientSearcher.freshest
+    val query: StateFlow<String> = clientSearcher.query
 
-    private val _query = MutableStateFlow("")
-    val query: StateFlow<String> = _query.asStateFlow()
-
-    private var searchJob: Job? = null
-    private var latestQuery: String = ""
-
-    fun onQueryChange(query: String) {
-        _query.value = query
-        latestQuery = query
-        searchJob?.cancel()
-        val trimmed = query.trim()
-        if (trimmed.length < MIN_SEARCH_CHARS) {
-            keptResults.stateFlow.value = UiState.Idle
-            return
-        }
-        searchJob =
-            viewModelScope.launch {
-                delay(SEARCH_DEBOUNCE_MS)
-                launchSearch(trimmed, this, "search called: query=$trimmed")
-            }
-    }
-
-    fun retrySearch() {
-        val trimmed = latestQuery.trim()
-        if (trimmed.length < MIN_SEARCH_CHARS) return
-        searchJob?.cancel()
-        searchJob =
-            viewModelScope.launch {
-                launchSearch(trimmed, this, "search retried: query=$trimmed")
-            }
-    }
-
-    // Structured cancellation (the ClientViewModel D2 guard): each request is a child of the
-    // caller's job, so a newer keystroke cancels the in-flight one and only the latest commits.
-    private fun launchSearch(
-        query: String,
-        scope: CoroutineScope,
-        entryMessage: String,
-    ) {
-        handler.launch(
-            scope = scope,
-            state = keptResults.stateFlow,
-            operation = "search",
-            endpoint = "GET /api/clients",
-            entryMessage = entryMessage,
-            block = {
-                apiClient.httpClient.get(ApiRoutes.CLIENTS) { parameter("q", query) }
-            },
-            transform = { it.body() },
-        )
-    }
+    val onQueryChange: (String) -> Unit = clientSearcher::onQueryChange
+    val retrySearch: () -> Unit = clientSearcher::retrySearch
 
     // --- Selected client + preview ---
 
@@ -272,6 +226,79 @@ class SessionCreateViewModel(
                     UiState.Error(detail ?: "Create session failed: ${response.status.value}")
                 true
             },
+        )
+    }
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 300L
+        const val MIN_SEARCH_CHARS = 2
+    }
+}
+
+/**
+ * The client-picker search (the D2/#162 port, entry-scoped): keep-last debounced query over
+ * `GET /api/clients`. Extracted from [SessionCreateViewModel] for the detekt function budget
+ * (the ConcernPoster precedent).
+ */
+private class ClientSearcher(
+    private val apiClient: ApiClient,
+    private val scope: CoroutineScope,
+) {
+    private val handler = ApiCallHandler(scope, "SessionCreateVM")
+
+    private val keptResults = KeepLast<List<ClientResponse>>(scope)
+    val state: StateFlow<UiState<List<ClientResponse>>> = keptResults.state
+    val freshest: StateFlow<List<ClientResponse>?> = keptResults.freshest
+
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
+
+    private var searchJob: Job? = null
+    private var latestQuery: String = ""
+
+    fun onQueryChange(query: String) {
+        _query.value = query
+        latestQuery = query
+        searchJob?.cancel()
+        val trimmed = query.trim()
+        if (trimmed.length < MIN_SEARCH_CHARS) {
+            keptResults.stateFlow.value = UiState.Idle
+            return
+        }
+        searchJob =
+            scope.launch {
+                delay(SEARCH_DEBOUNCE_MS)
+                launchSearch(trimmed, this, "search called: query=$trimmed")
+            }
+    }
+
+    fun retrySearch() {
+        val trimmed = latestQuery.trim()
+        if (trimmed.length < MIN_SEARCH_CHARS) return
+        searchJob?.cancel()
+        searchJob =
+            scope.launch {
+                launchSearch(trimmed, this, "search retried: query=$trimmed")
+            }
+    }
+
+    // Structured cancellation (the ClientViewModel D2 guard): each request is a child of the
+    // caller's job, so a newer keystroke cancels the in-flight one and only the latest commits.
+    private fun launchSearch(
+        query: String,
+        scope: CoroutineScope,
+        entryMessage: String,
+    ) {
+        handler.launch(
+            scope = scope,
+            state = keptResults.stateFlow,
+            operation = "search",
+            endpoint = "GET /api/clients",
+            entryMessage = entryMessage,
+            block = {
+                apiClient.httpClient.get(ApiRoutes.CLIENTS) { parameter("q", query) }
+            },
+            transform = { it.body() },
         )
     }
 
