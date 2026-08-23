@@ -44,6 +44,11 @@ data class RecordMovementResult(
     val created: Boolean,
 )
 
+data class EnsureCardResult(
+    val card: BranchInventory,
+    val created: Boolean,
+)
+
 @Suppress("TooManyFunctions")
 object BranchInventoryRepository {
     fun requireCardForUpdate(
@@ -75,24 +80,29 @@ object BranchInventoryRepository {
 
     /**
      * In-transaction store operation (#323, ADR-0024) — runs on the caller's command transaction.
-     * Idempotently materializes the inventory card; no audit row is written (matching the
-     * previous ensureCard behavior).
+     * Idempotently materializes the inventory card and reports whether this call created it
+     * (via `insertedCount`, exact under concurrent ensure races); the audit rows stay the
+     * command's job.
      */
     fun ensureCardInTransaction(
         branchId: UUID,
         productId: UUID,
-    ): BranchInventory {
-        findCardInTransaction(branchId, productId)?.let { return it }
+    ): EnsureCardResult {
+        findCardInTransaction(branchId, productId)?.let { return EnsureCardResult(it, created = false) }
 
-        BranchInventoryTable.insertIgnore {
-            it[BranchInventoryTable.branchId] = branchId
-            it[BranchInventoryTable.productId] = productId
-            it[BranchInventoryTable.currentStock] = 0
-            it[BranchInventoryTable.version] = 1
-        }
+        val inserted =
+            BranchInventoryTable.insertIgnore {
+                it[BranchInventoryTable.branchId] = branchId
+                it[BranchInventoryTable.productId] = productId
+                it[BranchInventoryTable.currentStock] = 0
+                it[BranchInventoryTable.version] = 1
+            }
 
-        return findCardInTransaction(branchId, productId)
-            ?: error("inventory card not found after idempotent insert for branch=$branchId product=$productId")
+        return EnsureCardResult(
+            findCardInTransaction(branchId, productId)
+                ?: error("inventory card not found after idempotent insert for branch=$branchId product=$productId"),
+            created = inserted.insertedCount > 0,
+        )
     }
 
     /**

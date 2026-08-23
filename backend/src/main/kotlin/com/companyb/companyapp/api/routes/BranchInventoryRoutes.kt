@@ -174,6 +174,7 @@ object BranchInventoryRoutes {
         val productId = uuidOrThrow(request.productId, "product id")
 
         InventoryService.ensureCard(
+            callerId = callerId,
             branchId = branchId,
             productId = productId,
         )

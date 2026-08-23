@@ -186,7 +186,7 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
         // trips branch_inventory_current_stock_check).
         DatabaseTestHelper.insertTestCategory(categoryId)
         DatabaseTestHelper.insertTestProduct(productId, categoryId = categoryId)
-        InventoryService.ensureCard(branchA, productId)
+        InventoryService.ensureCard(reliefUser, branchA, productId)
         InventoryService.recordMovement(
             callerId = reliefUser,
             movementId = TestFixtures.uuid(),

@@ -1242,7 +1242,7 @@ class RemittanceLineServicePostgresTest : BasePostgresTest() {
     }
 
     private fun ensureBranchInventory() {
-        val card = InventoryService.ensureCard(branchId, productId)
+        val card = InventoryService.ensureCard(callerId, branchId, productId)
         transaction {
             BranchInventoryTable.update({
                 (BranchInventoryTable.branchId eq branchId) and

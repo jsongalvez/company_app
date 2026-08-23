@@ -80,7 +80,7 @@ object InventoryService {
 
                 // The card read that supplies expectedVersion now happens in this same command
                 // transaction, fixing the former cross-boundary stale version read.
-                val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
+                val oldCard = BranchInventoryRepository.ensureCardInTransaction(branchId, productId).card
 
                 val inserted =
                     BranchInventoryRepository.insertMovementInTransaction(
@@ -186,13 +186,22 @@ object InventoryService {
 
     @Suppress("ThrowsCount")
     fun ensureCard(
+        callerId: UUID,
         branchId: UUID,
         productId: UUID,
     ): BranchInventory =
         transaction {
             if (BranchRepository.findById(branchId) == null) throw NotFoundException("Branch not found")
             if (ProductRepository.findById(productId) == null) throw NotFoundException("Product not found")
-            BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
+
+            val result = BranchInventoryRepository.ensureCardInTransaction(branchId, productId)
+            val context = AuditContext(callerId, branchId)
+            if (result.created) {
+                BranchInventoryAudit.inserted(context, result.card)
+            } else {
+                BranchInventoryAudit.updated(context, result.card, result.card)
+            }
+            result.card
         }.also {
             logger.info { "[ENSURE-CARD] Inventory card ensured for branch=$branchId product=$productId" }
         }
@@ -229,6 +238,20 @@ internal object BranchInventoryAudit {
         changedBy = context.changedBy,
         branchId = context.branchId,
         fields = InventoryMovementTable.auditFields(movement),
+        isFlagged = context.isFlagged,
+        reason = context.reason,
+    )
+
+    /** INSERT vocabulary for the inventory card itself (#393 — ensure-card audit gap). */
+    fun inserted(
+        context: AuditContext,
+        card: BranchInventory,
+    ) = AuditLogRepository.recordInsert(
+        tableName = BranchInventoryTable.tableName,
+        recordId = card.id,
+        changedBy = context.changedBy,
+        branchId = context.branchId,
+        fields = BranchInventoryTable.auditFields(card),
         isFlagged = context.isFlagged,
         reason = context.reason,
     )
