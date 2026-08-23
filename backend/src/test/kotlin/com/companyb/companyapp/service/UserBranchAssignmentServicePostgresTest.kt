@@ -1,4 +1,6 @@
 package com.companyb.companyapp.service
+import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.UserStatus
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
@@ -8,6 +10,7 @@ import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
@@ -542,6 +545,96 @@ class UserBranchAssignmentServicePostgresTest : BasePostgresTest() {
         val members = UserBranchAssignmentService.listActiveMembers(userAId, branchId)
 
         assertEquals(listOf(userAId), members.map { it.id })
+    }
+
+    @Test
+    fun `listActiveMembers allows a BRANCH_DAY edit grant for todays branch day`() {
+        // #402 — relief duty: the grant shape the session-create gate accepts must also
+        // load the practitioner directory those flows pick from.
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
+        val todayBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.grantCapability(
+            userId = nonManagerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = todayBranchDayId,
+            sourceId = sourceId,
+        )
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, nonManagerId)
+
+        val members = UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
+
+        assertEquals(listOf("Test usera"), members.map { it.displayName })
+    }
+
+    @Test
+    fun `listActiveMembers allows a BRANCH-scoped edit grant when a day row exists`() {
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
+        DatabaseTestHelper.createBranchDayForToday(branchId)
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        DatabaseTestHelper.grantCapability(
+            userId = nonManagerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, nonManagerId)
+
+        val members = UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
+
+        assertEquals(listOf("Test usera"), members.map { it.displayName })
+    }
+
+    @Test
+    fun `listActiveMembers allows a BRANCH-scoped edit grant with no day row yet`() {
+        // Session-create fallback parity (#402 review): the plain BRANCH leg governs when
+        // findToday resolves nothing — no branch-day existence oracle.
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        UserBranchAssignmentService.create(callerId, TestFixtures.uuid(), branchId, userAId, 1)
+        DatabaseTestHelper.grantCapability(
+            userId = nonManagerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH,
+            contextId = branchId,
+            sourceId = sourceId,
+        )
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, nonManagerId)
+
+        val members = UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
+
+        assertEquals(listOf("Test usera"), members.map { it.displayName })
+    }
+
+    @Test
+    fun `listActiveMembers rejects a day grant scoped to another days row`() {
+        // Today's row exists but the grant references yesterday's — the mismatch path
+        // (not the missing-day fallback) must reject.
+        DatabaseTestHelper.grantManageUsers(callerId, sourceId)
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, callerId)
+        val todayBranchDayId = DatabaseTestHelper.createBranchDayForToday(branchId)
+        val yesterdayBranchDayId =
+            DatabaseTestHelper.createBranchDayForDate(branchId, TestFixtures.today.minusDays(1))
+        trackOwned(BranchDayTable, BranchDayTable.branchId, branchId)
+        check(todayBranchDayId != yesterdayBranchDayId)
+        DatabaseTestHelper.grantCapability(
+            userId = nonManagerId,
+            capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+            contextType = CapabilityContextType.BRANCH_DAY,
+            contextId = yesterdayBranchDayId,
+            sourceId = sourceId,
+        )
+        trackOwned(UserCapabilityTable, UserCapabilityTable.userId, nonManagerId)
+
+        assertFailsWith<ForbiddenException> {
+            UserBranchAssignmentService.listActiveMembers(nonManagerId, branchId)
+        }
     }
 
     private fun assignedSlot(assignmentId: UUID): Short =

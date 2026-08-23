@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.UserBranchAssignment
 import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.UUID
@@ -213,9 +214,17 @@ object UserBranchAssignmentService {
 
     /**
      * #366 — the requested-practitioner picker's directory: ACTIVE members (id + display
-     * name) of [branchId]. Membership-gated at the service layer (the ADR-0007 #134
-     * deviation precedent for this surface) — no capability code involved, so a
-     * practitioner without MANAGE_USERS can still read their own branch's names.
+     * name) of [branchId]. Gated at the service layer (the ADR-0007 #134 deviation
+     * precedent for this surface): a caller passes with either an ACTIVE assignment row
+     * at the branch — no capability code involved, so a practitioner without
+     * MANAGE_USERS can still read their own branch's names (#366 rule) — or, since
+     * #402, an `EDIT_BRANCH_DATA` grant at the branch: BRANCH or BRANCH_DAY-for-today
+     * via [CapabilityService.hasCapabilityForBranchDay] when a day row exists, plain
+     * BRANCH when none does yet (the session-create fallback; GLOBAL deliberately
+     * excluded per the #131 strictness). The relief leg mirrors the
+     * session-create gate exactly (#157 find-only day resolution), so anyone allowed to
+     * create sessions or add practitioners at the branch today can load the names those
+     * flows need; off-duty non-members still 403.
      */
     fun listActiveMembers(
         callerId: UUID,
@@ -223,7 +232,33 @@ object UserBranchAssignmentService {
     ): List<BranchMemberRow> {
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
         if (assignment == null) {
-            throw ForbiddenException("Active membership required to view this branch's members")
+            // Same resolution as the session-create gate (#157): find-only day lookup so
+            // gate and downstream writes never disagree about which day governs. With a
+            // day row, BRANCH and BRANCH_DAY grants pass (GLOBAL excluded — #131); with
+            // no day row yet, the plain BRANCH leg alone governs, matching
+            // SessionRoutes' create fallback.
+            val todayBranchDay = BranchDayService.findToday(branchId)
+            val authorized =
+                if (todayBranchDay != null) {
+                    CapabilityService.hasCapabilityForBranchDay(
+                        userId = callerId,
+                        capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                        branchId = branchId,
+                        branchDayId = todayBranchDay.id,
+                    )
+                } else {
+                    CapabilityService.hasCapability(
+                        userId = callerId,
+                        capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
+                        contextType = CapabilityContextType.BRANCH,
+                        contextId = branchId,
+                    )
+                }
+            if (!authorized) {
+                throw ForbiddenException(
+                    "Active membership or a today-scoped edit grant required to view this branch's members",
+                )
+            }
         }
         return BranchMemberRepository.findActiveMemberNames(branchId)
     }
