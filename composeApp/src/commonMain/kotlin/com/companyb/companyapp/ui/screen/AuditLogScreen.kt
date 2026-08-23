@@ -468,25 +468,21 @@ private fun AuditLogFilterBar(
     onApply: (AuditLogFilters) -> Unit,
 ) {
     fun apply() {
-        val from = draft.dateFrom.trim().takeIf { it.isNotEmpty() }
-        val to = draft.dateTo.trim().takeIf { it.isNotEmpty() }
-        val malformed = listOfNotNull(from, to).any { !DATE_PATTERN.matches(it) }
-        if (malformed) {
-            draft.dateError = "Dates must be yyyy-MM-dd"
+        val (fromError, toError) = auditDateRangeErrors(draft.dateFrom, draft.dateTo)
+        if (fromError != null || toError != null) {
+            draft.dateFromError = fromError
+            draft.dateToError = toError
             return
         }
-        if (from != null && to != null && from > to) {
-            draft.dateError = "From must be before To"
-            return
-        }
-        draft.dateError = null
+        draft.dateFromError = null
+        draft.dateToError = null
         onApply(
             AuditLogFilters(
                 tableName = draft.selectedTableName,
                 action = draft.selectedAction,
                 callerName = draft.callerName.trim().takeIf { it.isNotBlank() },
-                dateFrom = from,
-                dateTo = to,
+                dateFrom = draft.dateFrom.trim().takeIf { it.isNotEmpty() },
+                dateTo = draft.dateTo.trim().takeIf { it.isNotEmpty() },
             ),
         )
     }
@@ -530,10 +526,15 @@ private fun AuditLogFilterBar(
                 value = draft.dateFrom,
                 onValueChange = {
                     draft.dateFrom = it
-                    draft.dateError = null
+                    // Both errors clear: format is per-field, but the ordering violation spans
+                    // the pair — a stale To-side error must not outlive its cause.
+                    draft.dateFromError = null
+                    draft.dateToError = null
                 },
                 label = { Text("From") },
                 placeholder = { Text("yyyy-MM-dd") },
+                isError = draft.dateFromError != null,
+                supportingText = { draft.dateFromError?.let { Text(it) } },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
@@ -541,10 +542,12 @@ private fun AuditLogFilterBar(
                 value = draft.dateTo,
                 onValueChange = {
                     draft.dateTo = it
-                    draft.dateError = null
+                    draft.dateToError = null
                 },
                 label = { Text("To") },
                 placeholder = { Text("yyyy-MM-dd") },
+                isError = draft.dateToError != null,
+                supportingText = { draft.dateToError?.let { Text(it) } },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
             )
@@ -569,9 +572,6 @@ private fun AuditLogFilterBar(
                     Text("Reset")
                 }
             }
-            if (draft.dateError != null) {
-                InlineErrorText(text = draft.dateError.orEmpty())
-            }
         }
     }
 }
@@ -584,7 +584,8 @@ private class AuditLogFilterDraft {
     var callerName by mutableStateOf("")
     var dateFrom by mutableStateOf("")
     var dateTo by mutableStateOf("")
-    var dateError by mutableStateOf<String?>(null)
+    var dateFromError by mutableStateOf<String?>(null)
+    var dateToError by mutableStateOf<String?>(null)
 
     fun reset() {
         selectedTableName = null
@@ -592,7 +593,8 @@ private class AuditLogFilterDraft {
         callerName = ""
         dateFrom = ""
         dateTo = ""
-        dateError = null
+        dateFromError = null
+        dateToError = null
     }
 }
 
@@ -605,8 +607,8 @@ private val AuditLogFilterDraftSaver =
                 draft.callerName,
                 draft.dateFrom,
                 draft.dateTo,
-                // dateError deliberately excluded: a stale validation message must not resurrect
-                // across a save/restore cycle.
+                // Field-level date errors deliberately excluded: a stale validation message
+                // must not resurrect across a save/restore cycle.
             )
         },
         restore = { values ->
@@ -809,6 +811,17 @@ internal fun AuditLogEntryRow(
                 modifier = Modifier.rotate(if (expanded) EXPANDED_CHEVRON_ROTATION else 0f),
             )
         }
+
+        // #383 — branch context is always visible on the collapsed row: the human branch name
+        // when the row has one, an explicit marker otherwise (never a raw UUID or blank).
+        Text(
+            text = auditBranchDisplayName(entry.branchName),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = Spacing.xxs),
+        )
 
         if (expanded) {
             Column(
@@ -1028,6 +1041,37 @@ private fun parseFieldMap(raw: String?): FieldMap {
 }
 
 private fun String.toDisplayValue(): String = if (this == "null") "—" else this
+
+// #383 — rows without branch context (global rows: products, clients, users, credentials)
+// render an explicit marker — never a raw UUID or blank.
+internal const val AUDIT_NO_BRANCH_MARKER = "No branch"
+
+internal fun auditBranchDisplayName(branchName: String?): String =
+    branchName?.takeIf { it.isNotBlank() } ?: AUDIT_NO_BRANCH_MARKER
+
+internal const val AUDIT_DATE_FORMAT_ERROR = "Dates must be yyyy-MM-dd"
+
+internal const val AUDIT_DATE_ORDER_ERROR = "From must be before To"
+
+// #383 — validate-on-apply, surfaced per field on the inputs themselves. Blank = no filter
+// (absent); the backend stays authoritative for real calendar validity (a lexically valid
+// non-existent date 400s into the error card). The ordering violation lands on To — From is
+// where the range starts.
+internal fun auditDateRangeErrors(
+    fromRaw: String,
+    toRaw: String,
+): Pair<String?, String?> {
+    val from = fromRaw.trim().takeIf { it.isNotEmpty() }
+    val to = toRaw.trim().takeIf { it.isNotEmpty() }
+    val fromError = if (from != null && !DATE_PATTERN.matches(from)) AUDIT_DATE_FORMAT_ERROR else null
+    val toError =
+        when {
+            to != null && !DATE_PATTERN.matches(to) -> AUDIT_DATE_FORMAT_ERROR
+            fromError == null && from != null && to != null && from > to -> AUDIT_DATE_ORDER_ERROR
+            else -> null
+        }
+    return fromError to toError
+}
 
 // D11 — the shared row-affordance bundle across the list actuals and all three list call sites
 // (For-review, All-activity, history). A holder keeps the expect/actual signatures under

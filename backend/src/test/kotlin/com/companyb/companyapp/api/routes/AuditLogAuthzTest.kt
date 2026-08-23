@@ -330,13 +330,16 @@ class AuditLogAuthzTest : BasePostgresTest() {
     // ──────────────────────────────────────────────
 
     @Test
-    fun `browse entries carry changedByName and branchId`() {
+    fun `browse entries carry changedByName and branch names`() {
         val (_, body) = browse(editorA)
         val sessionEntry = body.entries.first { it.tableName == "session" }
         assertEquals("Test editor-a", sessionEntry.changedByName)
         assertEquals(branchA.toString(), sessionEntry.branchId)
+        // #383 — the human branch name resolves through the read join.
+        assertEquals("Audit Branch A $branchA", sessionEntry.branchName)
         val clientEntry = body.entries.first { it.tableName == "client" }
         assertNull(clientEntry.branchId)
+        assertNull(clientEntry.branchName)
     }
 
     // ──────────────────────────────────────────────

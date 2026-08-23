@@ -12,6 +12,7 @@ data class AuditLogEntry(
     val changedBy: UUID,
     val changedByName: String?,
     val branchId: UUID?,
+    val branchName: String?,
     val changedAt: OffsetDateTime,
     val oldValue: String?,
     val newValue: String?,

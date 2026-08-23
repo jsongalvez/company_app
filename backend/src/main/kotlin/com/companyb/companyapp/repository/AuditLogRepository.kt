@@ -5,6 +5,7 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogEntry
 import com.companyb.companyapp.repository.model.AuditLogTable
+import com.companyb.companyapp.repository.model.BranchTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -232,6 +233,13 @@ object AuditLogRepository {
         return base and (branchWindowOp or (AuditLogTable.branchId.isNull() and branchlessOp))
     }
 
+    // Both read joins live here so every audit entry carries its resolved display names:
+    // the actor's (changedByName) and the branch's (branchName — #383; NULL for branchless
+    // rows, which the client renders as an explicit marker).
+    private fun AuditLogTable.withDisplayJoins() =
+        leftJoin(AppUserTable, { changedBy }, { AppUserTable.id })
+            .leftJoin(BranchTable, { branchId }, { BranchTable.id })
+
     private fun scopedQuery(
         windowBranchIds: List<UUID>?,
         branchlessTables: Set<String>,
@@ -239,7 +247,7 @@ object AuditLogRepository {
         base: Op<Boolean>,
     ): Query =
         AuditLogTable
-            .leftJoin(AppUserTable, { AuditLogTable.changedBy }, { AppUserTable.id })
+            .withDisplayJoins()
             .selectAll()
             .where { scopedWhere(windowBranchIds, branchlessTables, canReadNullRows, base) }
             .orderBy(AuditLogTable.changedAt to SortOrder.DESC, AuditLogTable.id to SortOrder.DESC)
@@ -332,7 +340,7 @@ object AuditLogRepository {
     fun findById(entryId: UUID): AuditLogEntry? =
         transaction {
             AuditLogTable
-                .leftJoin(AppUserTable, { AuditLogTable.changedBy }, { AppUserTable.id })
+                .withDisplayJoins()
                 .selectAll()
                 .where { AuditLogTable.id eq entryId }
                 .singleOrNull()
@@ -377,6 +385,7 @@ object AuditLogRepository {
             changedBy = this[AuditLogTable.changedBy],
             changedByName = this[AppUserTable.displayName],
             branchId = this[AuditLogTable.branchId],
+            branchName = this[BranchTable.name],
             changedAt = this[AuditLogTable.changedAt],
             oldValue = this[AuditLogTable.oldValue],
             newValue = this[AuditLogTable.newValue],

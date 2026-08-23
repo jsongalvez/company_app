@@ -139,6 +139,7 @@ fun AuditLogEntry.toResponse(): AuditLogEntryResponse =
         changedBy = changedBy.toString(),
         changedByName = changedByName,
         branchId = branchId?.toString(),
+        branchName = branchName,
         changedAt = changedAt.toString(),
         oldValue = oldValue,
         newValue = newValue,
