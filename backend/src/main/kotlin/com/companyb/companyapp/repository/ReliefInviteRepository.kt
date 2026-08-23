@@ -124,9 +124,9 @@ object ReliefInviteRepository {
 
     /**
      * #359 — ACCEPTED invites whose duty day is [dutyDate]: the reminder-job scan set.
-     * Suppression lives in current state, not events — declined/retracted/expired rows
-     * are other statuses and never appear here; a future accepted-invite cancellation
-     * suppresses by leaving ACCEPTED (status flip or grant revoke), no marker cleanup.
+     * Suppression lives in current state, not events — declined/retracted/revoked/expired
+     * rows are other statuses and never appear here; a revocation (#374) suppresses by
+     * moving the row OUT of ACCEPTED (REVOKED), no marker cleanup.
      */
     fun findAcceptedForDutyDate(dutyDate: java.time.LocalDate): List<AcceptedInviteWithBranch> =
         transaction {
@@ -367,6 +367,31 @@ object ReliefInviteRepository {
                 validTo = validTo,
             ),
         )
+        val after = findByIdInTransaction(id) ?: return null
+        return ReliefInviteMutation(before, after)
+    }
+
+    /**
+     * Atomic revocation (#374): only an ACCEPTED row moves to REVOKED (the WHERE carries
+     * the status, so a concurrent decision wins and this update hits 0 rows → null → the
+     * service 409s; DECLINED/RETRACTED/REVOKED rows are already-decided). Grant removal
+     * itself lives in [ReliefAccessRepository.deleteGrantBySourceIdInTransaction] — the
+     * command pairs the two inside its one transaction.
+     *
+     * In-transaction store operation (#323, ADR-0024) — runs on the caller's command
+     * transaction. Returns null when the invite is missing, not ACCEPTED, or lost a race.
+     */
+    fun revokeInTransaction(id: UUID): ReliefInviteMutation? {
+        val before = findByIdInTransaction(id) ?: return null
+        if (before.status != ReliefInviteStatus.ACCEPTED) return null
+        val updated =
+            ReliefInviteTable.update({
+                (ReliefInviteTable.id eq id) and (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED)
+            }) {
+                it[ReliefInviteTable.status] = ReliefInviteStatus.REVOKED
+                it[ReliefInviteTable.respondedAt] = CurrentTimestampWithTimeZone
+            }
+        if (updated == 0) return null
         val after = findByIdInTransaction(id) ?: return null
         return ReliefInviteMutation(before, after)
     }

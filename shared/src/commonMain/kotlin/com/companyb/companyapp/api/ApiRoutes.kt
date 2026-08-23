@@ -262,6 +262,7 @@ object ApiRoutes {
     const val RELIEF_INVITE_ACCEPT_PATH = "$RELIEF_INVITES/{inviteId}/accept"
     const val RELIEF_INVITE_DECLINE_PATH = "$RELIEF_INVITES/{inviteId}/decline"
     const val RELIEF_INVITE_RETRACT_PATH = "$RELIEF_INVITES/{inviteId}/retract"
+    const val RELIEF_INVITE_REVOKE_PATH = "$RELIEF_INVITES/{inviteId}/revoke"
     const val BRANCH_ASSIGNMENT_USER_PATH = "$BRANCH_ASSIGNMENTS_PATH/{userId}"
     const val BRANCH_ASSIGNMENT_SLOT_PATH = "$BRANCH_ASSIGNMENT_USER_PATH/slot"
     const val USER_DEACTIVATE_PATH = "$USERS/{userId}/deactivate"

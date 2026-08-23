@@ -8,6 +8,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.ReliefAccessRepository
 import com.companyb.companyapp.repository.ReliefCandidate
 import com.companyb.companyapp.repository.ReliefInviteRepository
 import com.companyb.companyapp.repository.UserBranchAssignmentRepository
@@ -33,6 +34,7 @@ import java.util.UUID
  * into the same transaction. Accept's day-open gate and expiration live inside its command
  * transaction so the expiry decision commits atomically with the grant it authorizes.
  */
+@Suppress("TooManyFunctions")
 object ReliefInviteService {
     private val logger = KotlinLogging.logger {}
 
@@ -210,6 +212,64 @@ object ReliefInviteService {
                 ReliefInviteAudit.updated(AuditContext(callerId, branchId), mutation.before, mutation.after)
                 mutation.after
             }
+        return result
+    }
+
+    /**
+     * Revokes an ACCEPTED invite (#374, the #363 owner rulings): any active branch member
+     * — clocked in or not — may undo a wrong/stale acceptance. The command owns exactly
+     * one transaction per ADR-0024: the clock-in lock is checked inside it before any
+     * mutation (ruling 3: ALL revocation stops once the invitee clocks in at that branch
+     * day — any open clock-in counts, relief or home), the status flips ACCEPTED→REVOKED
+     * conditionally (0 rows ⇒ already decided → 409), and the day grant is removed by its
+     * capability sourceId in the same transaction.
+     *
+     * Day-state edge (agent-owned per #363): a past/REMITTED duty cannot be revoked — same
+     * effective-status discipline as accept; the grant window has lapsed either way.
+     *
+     * @throws ForbiddenException when the caller lacks an active assignment at the branch.
+     * @throws ValidationException when the invitee has clocked in ("duty already started")
+     *   or the day is no longer OPEN.
+     * @throws ConflictException when the invite was already responded to.
+     */
+    @Suppress("ThrowsCount")
+    fun revokeInvite(
+        callerId: UUID,
+        inviteId: UUID,
+    ): ReliefInvite {
+        val invite =
+            ReliefInviteRepository.findById(inviteId)
+                ?: throw NotFoundException("Relief invite not found")
+        val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
+        requireActiveAssignment(callerId, branchDay.branchId)
+
+        val result =
+            transaction {
+                if (ReliefAccessRepository.hasActiveClockInInTransaction(invite.invitee, invite.branchDayId)) {
+                    throw ValidationException("This relief duty has already started")
+                }
+                if (BranchDayService.getEffectiveStatus(invite.branchDayId) != DayStatus.OPEN) {
+                    throw ValidationException("This relief duty has ended — the day is no longer open")
+                }
+                val mutation =
+                    ReliefInviteRepository.revokeInTransaction(inviteId)
+                        ?: throw ConflictException("This invite was already responded to")
+                ReliefAccessRepository.deleteGrantBySourceIdInTransaction(
+                    userId = mutation.after.invitee,
+                    sourceId = inviteId,
+                )
+                ReliefInviteAudit.updated(AuditContext(callerId, branchDay.branchId), mutation.before, mutation.after)
+                // #363 ruling 4 — the branch hears it; the invitee gets an explicit notice.
+                ReliefNotifications.inviteRevoked(
+                    actorId = callerId,
+                    inviteeId = mutation.after.invitee,
+                    inviteId = inviteId,
+                    context = ReliefEventContext.of(branchDay),
+                )
+                mutation.after
+            }
+
+        logger.info { "[RELIEF-INVITE-REVOKE] Invite $inviteId revoked by $callerId (day grant removed)" }
         return result
     }
 

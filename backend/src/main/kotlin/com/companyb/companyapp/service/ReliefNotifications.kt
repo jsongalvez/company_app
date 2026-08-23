@@ -43,6 +43,7 @@ internal object ReliefNotifications {
     const val EXPIRED = "RELIEF_REQUEST_EXPIRED"
     const val INVITE_ACCEPTED = "RELIEF_INVITE_ACCEPTED"
     const val INVITE_DECLINED = "RELIEF_INVITE_DECLINED"
+    const val INVITE_REVOKED = "RELIEF_INVITE_REVOKED"
 
     // #359 — accepted-invite reminders: T-3 days, T-1 day, day-of (Manila calendar days).
     // sourceId = the invite; one marker row per (event, invite) makes job re-runs idempotent.
@@ -104,6 +105,39 @@ internal object ReliefNotifications {
             sourceId = inviteId,
             recipients = members(context.branchId),
             message = "$inviteeName $verb the relief invite at ${context.branchName} ${dayPhrase(context.date)}",
+            context = context,
+        )
+    }
+
+    /**
+     * Accepted-invite revocation (#374, #363 rulings 4): the whole branch hears it — the
+     * accept was broadcast and created reliance on both sides, so revocation departs from
+     * request-cancellation silence — and the invitee additionally gets an explicit notice
+     * naming branch + date.
+     */
+    fun inviteRevoked(
+        actorId: UUID,
+        inviteeId: UUID,
+        inviteId: UUID,
+        context: ReliefEventContext,
+    ) {
+        val names = findDisplayNamesByIds(listOf(actorId, inviteeId))
+        val actorName = names[actorId] ?: "A member"
+        val inviteeName = names[inviteeId] ?: "a user"
+        broadcast(
+            eventType = INVITE_REVOKED,
+            sourceId = inviteId,
+            recipients = members(context.branchId),
+            message =
+                "$actorName revoked $inviteeName's relief duty at ${context.branchName} " +
+                    dayPhrase(context.date),
+            context = context,
+        )
+        broadcast(
+            eventType = INVITE_REVOKED,
+            sourceId = inviteId,
+            recipients = listOf(inviteeId),
+            message = "Your relief duty at ${context.branchName} ${dayPhrase(context.date)} was revoked",
             context = context,
         )
     }

@@ -21,6 +21,7 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -77,6 +78,25 @@ object ReliefAccessRepository {
      */
     fun grantReliefCapability(params: GrantReliefCapabilityParams): Unit =
         insertReliefCapabilityInTransaction(params.userId, params.branchDayId, params.sourceId, params.validTo)
+
+    /**
+     * Grant removal keyed on the capability's sourceId (#374): deletes every
+     * RELIEF_ACCESS-sourced capability row minted from [sourceId] for [userId] (an
+     * invite id — accept writes exactly one row for the invitee; the user scope keeps a
+     * pathological id collision from ever deleting another holder's grant).
+     * In-transaction store operation (#323, ADR-0024) — runs inside the revoke command's
+     * transaction so the status flip and grant removal commit or roll back together.
+     */
+    fun deleteGrantBySourceIdInTransaction(
+        userId: UUID,
+        sourceId: UUID,
+    ) {
+        UserCapabilityTable.deleteWhere {
+            (UserCapabilityTable.userId eq userId) and
+                (UserCapabilityTable.sourceType eq CapabilitySourceType.RELIEF_ACCESS) and
+                (UserCapabilityTable.sourceId eq sourceId)
+        }
+    }
 
     private fun insertReliefCapabilityInTransaction(
         userId: UUID,

@@ -74,6 +74,13 @@ import java.util.UUID
     operationId = "relief_invite_retract",
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
+@OpenApi(
+    path = "/api/relief-invites/{inviteId}/revoke",
+    methods = [HttpMethod.POST],
+    pathParams = [OpenApiParam(name = "inviteId", type = UUID::class, required = true)],
+    operationId = "relief_invite_revoke",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
 object ReliefInviteRoutes {
     private const val BRANCH_ID_PARAM = "branchId"
     private const val INVITE_ID_PARAM = "inviteId"
@@ -160,6 +167,18 @@ object ReliefInviteRoutes {
             val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
 
             val invite = ReliefInviteService.retractInvite(callerId, inviteId)
+            context.status(HttpStatus.OK)
+            context.json(
+                ReliefInviteService.viewFor(invite)?.toResponse()
+                    ?: throw BadRequestResponse("Invite not found"),
+            )
+        }
+
+        config.routes.post(ApiRoutes.RELIEF_INVITE_REVOKE_PATH) { context ->
+            val callerId = context.callerUuid()
+            val inviteId = context.pathParamAsUuid(INVITE_ID_PARAM)
+
+            val invite = ReliefInviteService.revokeInvite(callerId, inviteId)
             context.status(HttpStatus.OK)
             context.json(
                 ReliefInviteService.viewFor(invite)?.toResponse()

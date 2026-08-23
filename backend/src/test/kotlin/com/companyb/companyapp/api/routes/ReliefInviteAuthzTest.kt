@@ -19,6 +19,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.NotificationTable
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
@@ -131,6 +132,10 @@ class ReliefInviteAuthzTest : BasePostgresTest() {
         trackOwned(ReliefInviteTable, ReliefInviteTable.invitee, otherInvitee)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, invitee)
         trackOwned(UserCapabilityTable, UserCapabilityTable.userId, otherInvitee)
+        // Invite accept/decline broadcast notification rows reference these users (#358
+        // lesson) — untracked they block user teardown and cascade duplicate-key failures.
+        trackOwned(NotificationTable, NotificationTable.branchId, branchA)
+        trackOwned(NotificationTable, NotificationTable.branchId, branchB)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, inviter)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, otherInviter)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, invitee)

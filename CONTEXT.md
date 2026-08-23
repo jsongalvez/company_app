@@ -57,7 +57,7 @@ The outsider-initiated ask for relief access at one branch for one day (today or
 _Avoid_: Access request (legacy targeted form), shift request
 
 **Relief Invite**:
-The branch-initiated offer of relief access for a single future day. Any user assigned to the branch can invite any active user; the invitee accepts or declines. Accepting writes the day's relief grant. Distinct from a relief request, which the relief user initiates.
+The branch-initiated offer of relief access for a single future day. Any user assigned to the branch can invite any active user; the invitee accepts or declines. Accepting writes the day's relief grant. Any active branch member may **revoke** an accepted future duty — removing the day grant atomically and notifying the invitee (branch+date named) plus the whole branch — until the invitee clocks in at that branch day; a revoked invite frees the person to be invited again. Distinct from a relief request, which the relief user initiates.
 _Avoid_: Shift offer, temporary assignment offer
 
 **Branch Day**:

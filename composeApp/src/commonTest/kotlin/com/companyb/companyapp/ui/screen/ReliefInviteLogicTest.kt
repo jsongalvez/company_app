@@ -45,7 +45,14 @@ class ReliefInviteLogicTest {
 
     @Test
     fun `resolved invites are never expired or actionable`() {
-        for (status in listOf(ReliefInviteStatus.ACCEPTED, ReliefInviteStatus.DECLINED, ReliefInviteStatus.RETRACTED)) {
+        val resolved =
+            listOf(
+                ReliefInviteStatus.ACCEPTED,
+                ReliefInviteStatus.DECLINED,
+                ReliefInviteStatus.RETRACTED,
+                ReliefInviteStatus.REVOKED,
+            )
+        for (status in resolved) {
             val past = invite(status, "2026-08-01")
             assertFalse(isInviteExpired(past, today), "$status must not render expired")
             assertFalse(isInviteActionable(past, today), "$status must not be actionable")
