@@ -1,8 +1,8 @@
 package com.companyb.companyapp.service
 
+import com.companyb.companyapp.repository.BranchMemberRepository
 import com.companyb.companyapp.repository.BranchRepository
 import com.companyb.companyapp.repository.NotificationRepository
-import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.findDisplayNamesByIds
 import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.NotificationCreateParams
@@ -187,8 +187,10 @@ internal object ReliefNotifications {
         )
     }
 
-    private fun members(branchId: UUID): List<UUID> =
-        UserBranchAssignmentRepository.findActiveByBranch(branchId).map { it.userId }
+    // #409 — ACTIVE members only: deactivation revokes access but leaves the assignment
+    // open, so the assignment-only read would keep broadcasting to users who can never
+    // sign in again. Same definition as the #366 directory read (BranchMemberRepository).
+    private fun members(branchId: UUID): List<UUID> = BranchMemberRepository.findActiveMemberIds(branchId)
 
     /** Same-day messages say today; future/past ones name the date (owner Q5). */
     private fun dayPhrase(date: LocalDate): String =

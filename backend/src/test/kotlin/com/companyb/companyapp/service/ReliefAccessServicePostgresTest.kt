@@ -45,7 +45,11 @@ import kotlin.test.assertTrue
  * a future date); any ACTIVE outsider may raise it, any active branch member grants,
  * denies, or cancels it; all retraction locks once the requester clocks in. The #354
  * supersede machinery is retired — multiple relief workers per branch-day are allowed.
+ *
+ * Over the 600-line LargeClass threshold since #409's audience test; test-class precedent
+ * (RemittanceServicePostgresTest, BranchInventoryServicePostgresTest).
  */
+@Suppress("LargeClass")
 class ReliefAccessServicePostgresTest : BasePostgresTest() {
     private val reliefUserId = TestFixtures.uuid()
     private val memberId = TestFixtures.uuid()
@@ -592,6 +596,34 @@ class ReliefAccessServicePostgresTest : BasePostgresTest() {
         assertTrue(notice.message.contains("relief"))
         // The requester raised it — no self-ping.
         assertTrue(notificationsFor(reliefUserId).isEmpty())
+    }
+
+    // #409 — deactivation revokes access but leaves the assignment open; the audience
+    // definition joins user status, so an INACTIVE member never receives broadcast rows.
+    @Test
+    fun `broadcast skips deactivated members with open assignments`() {
+        val inactiveMember = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestUser(inactiveMember, "inactive-member")
+        trackOwned(AppUserTable, AppUserTable.id, inactiveMember)
+        DatabaseTestHelper.insertTestAssignment(
+            userId = inactiveMember,
+            branchId = branchId,
+            slot = 3,
+            assignedBy = memberId,
+        )
+        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, inactiveMember)
+        transaction {
+            AppUserTable.update({ AppUserTable.id eq inactiveMember }) {
+                it[AppUserTable.status] = UserStatus.INACTIVE
+            }
+        }
+
+        val requestId = TestFixtures.uuid()
+        ReliefAccessService.requestReliefAccess(requestId, branchId, null, reliefUserId)
+        trackRequest(requestId)
+
+        assertTrue(notificationsFor(memberId).any { it.eventType == ReliefNotifications.REQUESTED })
+        assertTrue(notificationsFor(inactiveMember).isEmpty())
     }
 
     @Test

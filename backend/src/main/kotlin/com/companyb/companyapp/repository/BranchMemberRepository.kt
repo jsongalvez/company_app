@@ -56,6 +56,12 @@ object BranchMemberRepository {
                 .not()
         }
 
+    /** Active member ids only (no display names) — notification audiences (#409). */
+    fun findActiveMemberIds(branchId: UUID): List<UUID> =
+        transaction {
+            activeMembersQuery(branchId).map { row -> row[AppUserTable.id] }
+        }
+
     private fun activeMembersQuery(branchId: UUID) =
         UserBranchAssignmentTable
             .innerJoin(AppUserTable, { UserBranchAssignmentTable.userId }, { AppUserTable.id })
