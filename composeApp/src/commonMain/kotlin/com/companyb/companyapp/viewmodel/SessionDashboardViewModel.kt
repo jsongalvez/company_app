@@ -329,12 +329,11 @@ class SessionDashboardViewModel(
      */
     fun commitEdit() {
         val state = _editState.value ?: return
-        if (state.inFlight) return
         // The 409 conflict is resolved by Reload, not by re-dispatching the same stale
         // version (a retry without reload is a guaranteed 409 — pass-1 finding: the
         // blur-commit on the Reload click re-dispatched the doomed PATCH and swallowed
-        // the first Reload click).
-        if (state.conflict) return
+        // the first Reload click). In-flight commits are likewise single-shot.
+        if (state.inFlight || state.conflict) return
         // A vanished row (no session-deletion path exists, but fail closed rather than
         // park an editor on a row that can no longer be committed).
         val row =
@@ -348,12 +347,10 @@ class SessionDashboardViewModel(
             _editState.value = null
             return
         }
-        if (state.field == DashboardEditField.FINAL_PRICE && !finalPriceInputValid(state.draft)) {
-            _editState.value = state.asFailed(INVALID_PRICE_MESSAGE)
-            return
-        }
-        if (remittedReasonRequired(_dayStatus.value) && state.reason.isBlank()) {
-            _editState.value = state.asFailed(REASON_REQUIRED_MESSAGE)
+        // Client-side mirrors of the backend 400s (#135) — invalid price draft or missing
+        // REMITTED-day reason never reach the wire.
+        draftValidationFailure(state)?.let { failure ->
+            _editState.value = state.asFailed(failure)
             return
         }
         _editState.value = state.asInFlight()
@@ -468,6 +465,17 @@ class SessionDashboardViewModel(
         val path: String,
         val body: Any,
     )
+
+    /**
+     * The client-side mirrors of the backend 400s (#135): an invalid price draft or a
+     * missing REMITTED-day reason fail the edit before any request is sent.
+     */
+    private fun draftValidationFailure(state: DashboardEditState): String? =
+        when {
+            state.field == DashboardEditField.FINAL_PRICE && !finalPriceInputValid(state.draft) -> INVALID_PRICE_MESSAGE
+            remittedReasonRequired(_dayStatus.value) && state.reason.isBlank() -> REASON_REQUIRED_MESSAGE
+            else -> null
+        }
 
     private fun editRequest(state: DashboardEditState): EditRequest {
         val reason = normalizedReason(state.reason).ifEmpty { null }
