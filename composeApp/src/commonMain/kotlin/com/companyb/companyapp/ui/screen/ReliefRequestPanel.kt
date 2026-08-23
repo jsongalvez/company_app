@@ -139,6 +139,9 @@ private fun MyReliefRequests(
     cancelState: UiState<Unit>,
     onCancel: (ReliefAccessResponse) -> Unit,
 ) {
+    // #399 — past-operational-date PENDING rows render Expired with no Withdraw, mirroring
+    // the NotificationsScreen invite pattern; day-state is authoritative, not a new status.
+    val today = currentOperationalDate()
     val live = mine.filter { it.requestStatus == ReliefAccessStatus.PENDING }
     if (live.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -154,8 +157,16 @@ private fun MyReliefRequests(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(enabled = cancelState !is UiState.Loading, onClick = { onCancel(row) }) {
-                    Text("Withdraw")
+                if (isRequestExpired(row, today)) {
+                    Text(
+                        text = "Expired",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    TextButton(enabled = cancelState !is UiState.Loading, onClick = { onCancel(row) }) {
+                        Text("Withdraw")
+                    }
                 }
             }
         }

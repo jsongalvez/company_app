@@ -75,7 +75,11 @@ fun ReliefDayScreen(
                         color = InkSubtle,
                     )
                 } else {
-                    state.data.forEach { row -> DayRequestRow(row) }
+                    // #399 — this panel IS one branch day; past-operational-date PENDING rows
+                    // render Expired (resolved statuses keep their raw enum text).
+                    val today = currentOperationalDate()
+                    val dayPast = parseInviteDate(date)?.let { it < today } == true
+                    state.data.forEach { row -> DayRequestRow(row, dayPast) }
                 }
             }
 
@@ -87,13 +91,21 @@ fun ReliefDayScreen(
 }
 
 @Composable
-private fun DayRequestRow(row: ReliefAccessResponse) {
+private fun DayRequestRow(
+    row: ReliefAccessResponse,
+    dayPast: Boolean,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(text = row.requestedBy, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        Text(text = row.requestStatus.name, style = MaterialTheme.typography.labelSmall, color = InkSubtle)
+        val expired = dayPast && row.requestStatus == ReliefAccessStatus.PENDING
+        Text(
+            text = if (expired) "Expired" else row.requestStatus.name,
+            style = MaterialTheme.typography.labelSmall,
+            color = InkSubtle,
+        )
     }
 }

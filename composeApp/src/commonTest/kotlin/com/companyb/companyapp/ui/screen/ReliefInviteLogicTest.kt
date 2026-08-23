@@ -1,6 +1,8 @@
 package com.companyb.companyapp.ui.screen
 
+import com.companyb.companyapp.domain.ReliefAccessStatus
 import com.companyb.companyapp.domain.ReliefInviteStatus
+import com.companyb.companyapp.dto.ReliefAccessResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
@@ -8,6 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class ReliefInviteLogicTest {
     private fun invite(
@@ -26,6 +29,18 @@ class ReliefInviteLogicTest {
             inviteeName = "Invitee",
             status = status,
             createdAt = "2026-08-01T00:00:00Z",
+        )
+
+    private fun request(
+        status: ReliefAccessStatus,
+        date: String?,
+    ): ReliefAccessResponse =
+        ReliefAccessResponse(
+            id = "req-1",
+            branchDayId = "bd1",
+            requestedBy = "requester",
+            requestStatus = status,
+            date = date,
         )
 
     private val today = LocalDate(2026, 8, 15)
@@ -70,5 +85,44 @@ class ReliefInviteLogicTest {
     fun `parseInviteDate parses ISO dates and rejects garbage`() {
         assertEquals(LocalDate(2026, 8, 15), parseInviteDate("2026-08-15"))
         assertNull(parseInviteDate("15/08/2026"))
+        assertNull(parseInviteDate(null))
+    }
+
+    @Test
+    fun `operational date rolls at 04h00 Manila, not midnight`() {
+        // 03:59 Manila on the 15th is still operational-day the 14th (mirrors BranchDayService).
+        assertEquals(
+            LocalDate(2026, 8, 14),
+            currentOperationalDate(Instant.parse("2026-08-14T19:59:00Z")),
+        )
+        // 04:00 Manila sharp flips to the 15th.
+        assertEquals(
+            LocalDate(2026, 8, 15),
+            currentOperationalDate(Instant.parse("2026-08-14T20:00:00Z")),
+        )
+        // Mid-afternoon stays plain calendar equality.
+        assertEquals(
+            LocalDate(2026, 8, 15),
+            currentOperationalDate(Instant.parse("2026-08-15T09:30:00Z")),
+        )
+    }
+
+    @Test
+    fun `pending request with a past day is expired`() {
+        assertTrue(isRequestExpired(request(ReliefAccessStatus.PENDING, "2026-08-14"), today))
+        assertFalse(isRequestExpired(request(ReliefAccessStatus.PENDING, "2026-08-16"), today))
+    }
+
+    @Test
+    fun `null or unparseable request date means today — never expired`() {
+        assertFalse(isRequestExpired(request(ReliefAccessStatus.PENDING, null), today))
+        assertFalse(isRequestExpired(request(ReliefAccessStatus.PENDING, "not-a-date"), today))
+    }
+
+    @Test
+    fun `resolved requests are never expired`() {
+        for (status in listOf(ReliefAccessStatus.GRANTED, ReliefAccessStatus.DENIED, ReliefAccessStatus.CANCELLED)) {
+            assertFalse(isRequestExpired(request(status, "2026-08-01"), today), "$status must not render expired")
+        }
     }
 }

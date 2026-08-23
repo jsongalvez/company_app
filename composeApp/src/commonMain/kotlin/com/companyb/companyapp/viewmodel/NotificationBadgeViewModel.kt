@@ -6,8 +6,8 @@ import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.NotificationState
+import com.companyb.companyapp.ui.screen.currentOperationalDate
 import com.companyb.companyapp.ui.screen.isInviteActionable
-import com.companyb.companyapp.ui.screen.manilaToday
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.cancel
@@ -95,7 +95,7 @@ class NotificationBadgeViewModel(
             endpoint = "GET /api/relief-invites",
             block = { apiClient.httpClient.get(ApiRoutes.RELIEF_INVITES) },
             transform = { response ->
-                val today = manilaToday()
+                val today = currentOperationalDate()
                 response.body<List<ReliefInviteResponse>>().count { invite ->
                     isInviteActionable(invite, today)
                 }

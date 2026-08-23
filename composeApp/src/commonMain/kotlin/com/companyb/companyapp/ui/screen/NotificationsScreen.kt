@@ -186,7 +186,7 @@ fun NotificationsScreen(
         // error card semantics (the section itself collapses — the unread section shows the
         // card, per the existing keep-last contract).
         val received = freshestReceived.orEmpty()
-        val today = manilaToday()
+        val today = currentOperationalDate()
         val inviteActionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading
         if (received.isNotEmpty()) {
             ReliefInvitesSection(

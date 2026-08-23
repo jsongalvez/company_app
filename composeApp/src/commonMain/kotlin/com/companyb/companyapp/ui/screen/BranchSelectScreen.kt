@@ -36,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.domain.BranchClockInStatus
 import com.companyb.companyapp.domain.BranchType
-import com.companyb.companyapp.domain.ReliefInviteStatus
 import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
@@ -585,6 +584,9 @@ private fun SentInvitesSection(
     // rendering it).
     if (lastSent == null) return
     val sent = lastSent
+    // #399 — past-operational-date PENDING invites render Expired with no Retract (the
+    // NotificationsScreen pattern); resolved statuses keep their raw enum text.
+    val today = currentOperationalDate()
 
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
         Text(
@@ -604,12 +606,12 @@ private fun SentInvitesSection(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
-                        text = invite.status.name,
+                        text = if (isInviteExpired(invite, today)) "Expired" else invite.status.name,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (invite.status == ReliefInviteStatus.PENDING) {
+                if (isInviteActionable(invite, today)) {
                     TextButton(
                         onClick = { onRetract(invite.id) },
                         enabled = !retractBusy,
@@ -705,8 +707,11 @@ private fun RevokeDutyConfirmDialog(
     )
 }
 
-/** Default invite date = tomorrow (Asia/Manila) — future-day planning is the use case. */
-private fun defaultInviteDate(): String = manilaToday().plus(1, kotlinx.datetime.DateTimeUnit.DAY).toString()
+/**
+ * Default invite date = the day after the operational date (Asia/Manila, #399 clock) —
+ * future-day planning is the use case; before 04:00 the still-open calendar day qualifies.
+ */
+private fun defaultInviteDate(): String = currentOperationalDate().plus(1, kotlinx.datetime.DateTimeUnit.DAY).toString()
 
 /**
  * Status label per spec line 185: "Clocked in here" / "Clocked in elsewhere" /
