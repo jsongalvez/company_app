@@ -69,6 +69,9 @@ fun AuditLogScreen(
     currentUserId: String?,
     hasAnyCapability: Boolean,
     onFullHistory: (AuditLogEntryResponse) -> Unit,
+    // #390 — "Open client record" jump; null when the caller lacks GLOBAL EDIT_BRANCH_DATA
+    // (the backend's client-read scope — fail-closed, a day-grant holder would 403).
+    onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)?,
 ) {
     val flaggedEntries by viewModel.flaggedEntries.collectAsState()
     val browseEntries by viewModel.browseEntries.collectAsState()
@@ -218,6 +221,7 @@ fun AuditLogScreen(
                 ackErrors = ackErrors,
                 onAcknowledge = viewModel::acknowledge,
                 onFullHistory = onFullHistory,
+                onOpenClientRecord = onOpenClientRecord,
                 onRetry = viewModel::loadFlaggedEntries,
             )
         } else {
@@ -234,6 +238,7 @@ fun AuditLogScreen(
                 ackErrors = ackErrors,
                 onAcknowledge = viewModel::acknowledge,
                 onFullHistory = onFullHistory,
+                onOpenClientRecord = onOpenClientRecord,
                 filterDraft = filterDraft,
                 filtersApplied = appliedFilters != AuditLogFilters(),
                 onApplyFilters = viewModel::applyFilters,
@@ -261,6 +266,7 @@ private fun ForReviewTab(
     ackErrors: Map<String, String>,
     onAcknowledge: (AuditLogEntryResponse) -> Unit,
     onFullHistory: (AuditLogEntryResponse) -> Unit,
+    onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)?,
     onRetry: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -305,6 +311,7 @@ private fun ForReviewTab(
                                 acknowledgingIds = acknowledgingIds,
                                 ackErrors = ackErrors,
                                 onFullHistory = onFullHistory,
+                                onOpenClientRecord = onOpenClientRecord,
                                 showAcknowledge = true,
                                 showFullHistory = true,
                             ),
@@ -349,6 +356,7 @@ private fun AllActivityTab(
     ackErrors: Map<String, String>,
     onAcknowledge: (AuditLogEntryResponse) -> Unit,
     onFullHistory: (AuditLogEntryResponse) -> Unit,
+    onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)?,
     filterDraft: AuditLogFilterDraft,
     filtersApplied: Boolean,
     onApplyFilters: (AuditLogFilters) -> Unit,
@@ -422,6 +430,7 @@ private fun AllActivityTab(
                                     acknowledgingIds = acknowledgingIds,
                                     ackErrors = ackErrors,
                                     onFullHistory = onFullHistory,
+                                    onOpenClientRecord = onOpenClientRecord,
                                     showAcknowledge = true,
                                     showFullHistory = true,
                                 ),
@@ -765,6 +774,9 @@ internal fun AuditLogEntryRow(
     onFullHistory: () -> Unit,
     showAcknowledge: Boolean = true,
     showFullHistory: Boolean = true,
+    // #390 — "Open client record" jump; non-null only when the caller holds the backend's
+    // client-read scope (GLOBAL EDIT_BRANCH_DATA) AND this row targets a client record.
+    onOpenClientRecord: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val canAcknowledge = canAcknowledgeEntry(showAcknowledge, entry, currentUserId)
@@ -875,6 +887,11 @@ internal fun AuditLogEntryRow(
                             Text("Full history for this record")
                         }
                     }
+                    if (onOpenClientRecord != null && canOpenClientRecord(entry)) {
+                        TextButton(onClick = onOpenClientRecord) {
+                            Text("Open client record")
+                        }
+                    }
                 }
                 if (ackError != null) {
                     InlineErrorText(text = ackError)
@@ -894,6 +911,15 @@ internal fun canAcknowledgeEntry(
     entry: AuditLogEntryResponse,
     currentUserId: String?,
 ): Boolean = showAcknowledge && entry.isFlagged && entry.acknowledgedAt == null && entry.changedBy != currentUserId
+
+// #390 — the client-record jump target: client audit rows carry tableName = "client" (backend
+// ClientTable.tableName) with recordId = client.id (ClientAudit.inserted/updated), so
+// Route.ClientDetail resolves directly. Extracted pure so the rule is test-pinned like
+// [canAcknowledgeEntry]. The caller-side GLOBAL EDIT_BRANCH_DATA gate lives at the NavHost
+// call sites; this predicate only answers "is this row a client record?".
+internal const val AUDIT_TABLE_CLIENT = "client"
+
+internal fun canOpenClientRecord(entry: AuditLogEntryResponse): Boolean = entry.tableName == AUDIT_TABLE_CLIENT
 
 @Composable
 private fun ActionPill(action: AuditAction) {
@@ -1089,6 +1115,10 @@ internal data class AuditLogEntryListArgs(
     val onFullHistory: (AuditLogEntryResponse) -> Unit,
     val showAcknowledge: Boolean,
     val showFullHistory: Boolean,
+    // #390 — non-null only when the caller holds GLOBAL EDIT_BRANCH_DATA; the list actuals
+    // additionally filter per-row via canOpenClientRecord. Default null keeps the D8 history
+    // screen drill-down-free without touching its call site.
+    val onOpenClientRecord: ((AuditLogEntryResponse) -> Unit)? = null,
 )
 
 // D11 — desktop dense rows / mobile cards (#95 smallest-divergent-subtree); the row itself is
@@ -1105,6 +1135,15 @@ internal fun MobileAuditLogEntryList(
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
         items(args.entries, key = { it.id }) { entry ->
+            // #390 — resolve per-row: affordance renders only for client-table rows when the
+            // caller holds the backend's client-read scope.
+            val onOpenRecord = args.onOpenClientRecord
+            val openClientRecord =
+                if (onOpenRecord != null && canOpenClientRecord(entry)) {
+                    { onOpenRecord(entry) }
+                } else {
+                    null
+                }
             Surface(
                 shape = RoundedCornerShape(CornerRadius.md),
                 color = MaterialTheme.colorScheme.surfaceVariant,
@@ -1120,6 +1159,7 @@ internal fun MobileAuditLogEntryList(
                     acknowledging = entry.id in args.acknowledgingIds,
                     ackError = args.ackErrors[entry.id],
                     onFullHistory = { args.onFullHistory(entry) },
+                    onOpenClientRecord = openClientRecord,
                     showAcknowledge = args.showAcknowledge,
                     showFullHistory = args.showFullHistory,
                     modifier = Modifier.padding(horizontal = Spacing.sm),

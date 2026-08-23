@@ -26,6 +26,15 @@ internal actual fun AuditLogEntryList(
                     .verticalScroll(rememberScrollState()),
         ) {
             args.entries.forEach { entry ->
+                // #390 — resolve per-row: affordance renders only for client-table rows when
+                // the caller holds the backend's client-read scope.
+                val onOpenRecord = args.onOpenClientRecord
+                val openClientRecord =
+                    if (onOpenRecord != null && canOpenClientRecord(entry)) {
+                        { onOpenRecord(entry) }
+                    } else {
+                        null
+                    }
                 AuditLogEntryRow(
                     entry = entry,
                     tableLabel = args.tableLabels[entry.tableName] ?: entry.tableName,
@@ -36,6 +45,7 @@ internal actual fun AuditLogEntryList(
                     acknowledging = entry.id in args.acknowledgingIds,
                     ackError = args.ackErrors[entry.id],
                     onFullHistory = { args.onFullHistory(entry) },
+                    onOpenClientRecord = openClientRecord,
                     showAcknowledge = args.showAcknowledge,
                     showFullHistory = args.showFullHistory,
                     modifier = Modifier.padding(horizontal = Spacing.sm),

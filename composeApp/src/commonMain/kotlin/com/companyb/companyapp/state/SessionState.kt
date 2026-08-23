@@ -109,6 +109,9 @@ object SessionState {
     }
 }
 
+/** Backend CapabilityService.GLOBAL_CONTEXT_ID (UUID 0) as a string — the contextId of GLOBAL-scoped capability rows. */
+const val GLOBAL_CAPABILITY_CONTEXT_ID = "00000000-0000-0000-0000-000000000000"
+
 /**
  * #156 — the #92 locked per-element check: true iff [code] is held at exactly
  * [contextType]/[contextId]. The caller resolves the scope — BRANCH rows against

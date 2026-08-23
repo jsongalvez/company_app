@@ -25,9 +25,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.companyb.companyapp.domain.CapabilityCodes
+import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.network.TokenStore
+import com.companyb.companyapp.state.GLOBAL_CAPABILITY_CONTEXT_ID
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.drawer.DrawerContent
@@ -317,6 +320,15 @@ actual fun AppNavHost(
                     val capabilities by SessionState.capabilities.collectAsState()
                     val currentUser by SessionState.currentUser.collectAsState()
                     val auditLogViewModel: AuditLogViewModel = viewModel { AuditLogViewModel(apiClient) }
+                    // #390 — client-table rows jump to Route.ClientDetail; gated to the
+                    // backend's exact client-read scope (GLOBAL EDIT_BRANCH_DATA) so a
+                    // BRANCH_DAY day-grant holder never sees an affordance that would 403.
+                    val canManageClients =
+                        capabilities.hasCapability(
+                            CapabilityCodes.EDIT_BRANCH_DATA,
+                            CapabilityContextType.GLOBAL,
+                            GLOBAL_CAPABILITY_CONTEXT_ID,
+                        )
                     AuditLogScreen(
                         viewModel = auditLogViewModel,
                         currentUserId = currentUser?.id,
@@ -324,6 +336,12 @@ actual fun AppNavHost(
                         onFullHistory = { entry ->
                             navController.navigate(Route.AuditLogHistory(entry.tableName, entry.recordId))
                         },
+                        onOpenClientRecord =
+                            if (canManageClients) {
+                                { entry -> navController.navigate(Route.ClientDetail(entry.recordId)) }
+                            } else {
+                                null
+                            },
                     )
                 }
                 // #123 — D8 per-record history: pushed route, entry-scoped VM (fresh entry
