@@ -5,9 +5,11 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 unset OPENAPI_ROUTE_CONTRACT_PATH OPENAPI_TEST_MODE UPDATE_OPENAPI_ROUTE_CONTRACT
 
-# Compilation owns generation; its finalized task normalizes the artifact before
-# this verifier reads it. Keeping both steps here makes this the one build gate.
-./gradlew :backend:compileKotlin
+# Compilation (kapt) generates the spec; publishOpenApiSpec then normalizes it
+# before this verifier reads it. Normalization is invoked explicitly here — never
+# via a compile finalizer — so JVM-only Docker builders can :backend:installDist
+# without Node.js (#372).
+./gradlew :backend:compileKotlin :backend:publishOpenApiSpec
 
 spec="$repo_root/backend/build/tmp/kapt3/classes/main/openapi-plugin/openapi-default.json"
 verification_output=$(./scripts/verify-openapi-spec.sh "$spec")

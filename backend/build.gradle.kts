@@ -56,13 +56,15 @@ dependencies {
     jmhAnnotationProcessor(libs.jmh.annprocess)
 }
 
+// Normalizes the kapt-generated spec for the contract gate and fingerprint
+// refreshes. Deliberately NOT wired into any compile path: the Docker builder
+// has no Node.js, so :backend:installDist must never reach this task (#372).
 tasks.register<Exec>("publishOpenApiSpec") {
     val generated = layout.buildDirectory.file("tmp/kapt3/classes/main/openapi-plugin/openapi-default.json")
+    inputs.file(generated)
+    outputs.file(generated)
+    dependsOn("compileKotlin")
     commandLine("node", "../scripts/normalize-openapi-spec.mjs", generated.get().asFile, generated.get().asFile)
-}
-
-tasks.named("compileKotlin") {
-    finalizedBy("publishOpenApiSpec")
 }
 
 application {
