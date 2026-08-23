@@ -80,6 +80,35 @@ Modules are packages with a narrow public interface hiding significant implement
 └──────────────────────────────────────────────────────────┘
 ```
 
+Two more clusters sit at the service-module tier, above Branch Day:
+
+```
+┌──────────────────────────────┐ ┌──────────────────────────────┐
+│  RELIEF CLUSTER              │ │  EXPORT MODULE               │
+│  service/ReliefAccessService │ │  service/export/             │
+│  ReliefInviteService         │ │                              │
+│                              │ │ exportDaily()                │
+│ requestReliefAccess()        │ │ exportRange()                │
+│ grantAccess() denyAccess()   │ │ exportMonthly()              │
+│ cancelRequest()              │ │ exportAllTime()              │
+│ createInvite() acceptInvite()│ │ exportByBranchType(          │
+│ declineInvite() retractInvite│ │   …, format)                 │
+│                              │ │                              │
+│ Hides:                       │ │ Hides:                       │
+│ • broadcast flood rule       │ │ • CsvExporter / PdfExporter  │
+│ • grant-time presence/status │ │   adapter selection          │
+│   rechecks inside the        │ │ • on-demand rendering        │
+│   command transaction        │ │   (results never stored)     │
+│ • notifications written in   │ │ • per-window summary         │
+│   the same transaction as    │ │   queries                    │
+│   the change causing them    │ │                              │
+│ • expiry (04:05) and invite  │ │                              │
+│   reminder (07:00) jobs      │ │                              │
+└──────────────────────────────┘ └──────────────────────────────┘
+```
+
+**Relief cluster** covers the two paths to a Relief Duty's edit access: the outsider-initiated **Relief Request** (broadcast to the whole branch, granted/denied/cancelled by any active branch member) and the branch-initiated **Relief Invite** (invitee accepts or declines). Both converge on the day-state semantics owned by Branch Day; link there rather than restating them. Delegate grants for medical missions ride the same seam (`MedicalMissionDelegateService`). Follow-up: accepted-invite revocation (#363, in grilling) may extend this interface once owner rules land.
+
 ### Where depth lives
 
 **BranchDayModule** is the deepest single module. Every financial or operational write calls `resolveOrCreate` and `assertEditable` first. All day-state logic lives here and nowhere else.
@@ -91,3 +120,5 @@ Modules are packages with a narrow public interface hiding significant implement
 **AuditModule** looks trivial from the outside (`log(event)`) but hides old/new value diffing, flagging rules, and JSONB serialization.
 
 **Repository layer** is intentionally shallow. Interface complexity roughly matches implementation complexity. Repos are not candidates for deepening.
+
+The remaining service-layer code is pass-through by design, not deepening candidates: `dashboard/` aggregates read-only views for the dashboard screen; the remaining top-level services (users, clients, products, expenses, allowances, compensation, notifications, appointment scheduling) are single-aggregate CRUD-style services whose interface matches their implementation.
