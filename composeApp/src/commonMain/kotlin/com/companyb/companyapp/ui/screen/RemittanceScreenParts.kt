@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.companyb.companyapp.dto.RemittanceResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 
 // #120 D1 — smallest-divergent-subtree per #95/#99 (AuditLogScreen D11 precedent): shared chrome
 // (tabs, header, create popup, state branches) lives in RemittanceListScreen (commonMain); only
@@ -38,7 +39,13 @@ fun MobileRemittanceRowList(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.clickable { onRemittanceClick(remittance) }.padding(Spacing.md)) {
+                Column(
+                    modifier =
+                        Modifier
+                            .clickable { onRemittanceClick(remittance) }
+                            .rowHover(shape = RoundedCornerShape(CornerRadius.md))
+                            .padding(Spacing.md),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         androidx.compose.material3.Text(
                             text = remittanceTypeLabel(remittance.type.name),

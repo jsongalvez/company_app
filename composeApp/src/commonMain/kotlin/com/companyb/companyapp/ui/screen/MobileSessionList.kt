@@ -26,6 +26,7 @@ import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 
 // #97 spec line 111 (strict) — mobile card: client name + walk-in dot, type badge, status
 // badge, final price; VOIDED pill inline with the price (right-aligned, same row). Q3
@@ -74,7 +75,8 @@ private fun SessionCard(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick),
+                .clickable(onClick = onClick)
+                .rowHover(shape = RoundedCornerShape(CornerRadius.md)),
     ) {
         Column(Modifier.padding(Spacing.md)) {
             Row(

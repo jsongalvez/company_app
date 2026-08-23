@@ -58,6 +58,7 @@ import com.companyb.companyapp.dto.UndoRemittanceRequest
 import com.companyb.companyapp.dto.UpdateRemittanceHeaderRequest
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -1316,7 +1317,8 @@ private fun DayPickerDialog(
                                                     } else {
                                                         selectedIds + entry.id
                                                     }
-                                            }.padding(vertical = Spacing.xs),
+                                            }.rowHover(enabled = selectable)
+                                            .padding(vertical = Spacing.xs),
                                 ) {
                                     Text(
                                         text = if (entry.id in selectedIds) "✓" else "○",
@@ -1416,6 +1418,7 @@ private fun PickerEntryRow(
             Modifier
                 .fillMaxWidth()
                 .clickable(enabled = enabled, onClick = onToggle)
+                .rowHover(enabled = enabled)
                 .padding(vertical = Spacing.xs),
     ) {
         Text(

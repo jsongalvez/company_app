@@ -29,6 +29,7 @@ import com.companyb.companyapp.dto.NotificationResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -438,7 +439,8 @@ private fun NotificationRow(
                     } else {
                         Modifier
                     },
-                ).padding(
+                ).rowHover(enabled = onClick != null, shape = shape)
+                .padding(
                     horizontal = Spacing.sm,
                     vertical = Spacing.xs,
                 ),

@@ -63,6 +63,7 @@ import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.util.saveDownload
@@ -921,7 +922,10 @@ private fun DayRow(
                 .clickable(onClick = onSelect)
                 .background(
                     if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
-                ).padding(horizontal = Spacing.xs, vertical = Spacing.sm),
+                )
+                // after the selection fill — the row's own opaque background must not cover the wash
+                .rowHover()
+                .padding(horizontal = Spacing.xs, vertical = Spacing.sm),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -974,7 +978,12 @@ private fun FinanceDayCard(
     Surface(
         shape = RoundedCornerShape(CornerRadius.md),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxs).clickable(onClick = onSelect),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = Spacing.xxs)
+                .clickable(onClick = onSelect)
+                .rowHover(shape = RoundedCornerShape(CornerRadius.md)),
     ) {
         Column(modifier = Modifier.padding(Spacing.sm)) {
             Text(

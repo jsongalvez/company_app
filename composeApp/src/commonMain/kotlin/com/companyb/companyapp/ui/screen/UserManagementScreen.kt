@@ -51,6 +51,7 @@ import com.companyb.companyapp.dto.UserAssignmentResponse
 import com.companyb.companyapp.dto.UserSummaryResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -402,6 +403,7 @@ fun MobileUserSlotOrderList(
                     Modifier
                         .fillMaxWidth()
                         .clickable(enabled = tappable) { onEditSlot(row) }
+                        .rowHover(enabled = tappable)
                         .alpha(if (row.isDeactivated) DEACTIVATED_ROW_ALPHA else 1f)
                         .padding(vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
@@ -580,7 +582,8 @@ private fun UserRow(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = onToggleExpanded),
+                        .clickable(onClick = onToggleExpanded)
+                        .rowHover(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {

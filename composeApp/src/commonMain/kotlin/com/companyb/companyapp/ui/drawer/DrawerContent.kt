@@ -23,7 +23,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.companyb.companyapp.dto.ClockOutRequest
 import com.companyb.companyapp.navigation.LocalNavHostController
@@ -33,6 +32,7 @@ import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.NotificationState
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.InkSubtle
+import com.companyb.companyapp.ui.theme.PrimaryHover
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.AttendanceViewModel
 import com.companyb.companyapp.viewmodel.DrawerItem
@@ -263,9 +263,9 @@ private fun ClockOutDialog(
  * - `MaterialTheme.colorScheme.surface`          = surface-1 / #0F1011   (default container)
  * - `MaterialTheme.colorScheme.onSurfaceVariant` = ink-muted / #D0D6E0  (hover/focus text/badge)
  * - theme `InkSubtle`                            = ink-subtle / #8A8F98  (default text/badge)
- * - raw `Color(0xFF828FFF)` = primary-hover brighter lavender (selected text/badge) — DESIGN.md:8
- *   names `primary-hover`, but LinearTheme.kt has no slot for it (fog, pending theme hardening;
- *   #107 body explicitly puts PrimaryHover migration out-of-scope for this ticket)
+ * - theme `PrimaryHover`                         = primary-hover / #828FFF (selected text/badge —
+ *   DESIGN.md:8 names the token; LinearTheme exposes it since #398, replacing the raw literal
+ *   that #107 deferred to theme hardening)
  */
 @Composable
 private fun DrawerRow(
@@ -292,12 +292,9 @@ private fun DrawerRow(
         } else {
             MaterialTheme.colorScheme.surface
         }
-    // One raw-literal occurrence per Q2 body ("at the call site"). PrimaryHover token migration
-    // to LinearTheme.kt is fog/out-of-scope for #107; raw Color(0xFF828FFF) named arg.
-    val primaryHover = Color(0xFF828FFF)
-
     // intentionally not primary-container: lavender is reserved as single accent, see DESIGN.md:6
-    // selected text uses #828FFF (primary-hover tier) to clear AA at 14sp — primary undershoots 4.5:1
+    // selected text uses the primary-hover tier (#828FFF, LinearTheme.PrimaryHover) to clear AA
+    // at 14sp — primary undershoots 4.5:1
     NavigationDrawerItem(
         label = { Text(item.label) },
         selected = isSelected,
@@ -306,9 +303,9 @@ private fun DrawerRow(
             NavigationDrawerItemDefaults.colors(
                 selectedContainerColor = MaterialTheme.colorScheme.secondary,
                 unselectedContainerColor = unselectedBg,
-                selectedTextColor = primaryHover,
+                selectedTextColor = PrimaryHover,
                 unselectedTextColor = unselectedFg,
-                selectedBadgeColor = primaryHover,
+                selectedBadgeColor = PrimaryHover,
                 unselectedBadgeColor = unselectedFg,
             ),
         interactionSource = interactionSource,

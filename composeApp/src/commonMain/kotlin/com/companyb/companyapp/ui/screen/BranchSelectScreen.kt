@@ -41,6 +41,7 @@ import com.companyb.companyapp.dto.MeBranchResponse
 import com.companyb.companyapp.dto.ReliefCandidateResponse
 import com.companyb.companyapp.dto.ReliefInviteResponse
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
@@ -530,7 +531,8 @@ private fun CandidateResults(
                                     .fillMaxWidth()
                                     .clickable(enabled = dateValid && !sendBusy) {
                                         onInvite(candidate)
-                                    }.padding(vertical = Spacing.xs),
+                                    }.rowHover(enabled = dateValid && !sendBusy)
+                                    .padding(vertical = Spacing.xs),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {

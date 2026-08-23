@@ -28,6 +28,11 @@ private val OnPrimary = Color(0xFFFFFFFF)
 private val Ink = Color(0xFFF7F8F8)
 private val InkMuted = Color(0xFFD0D6E0)
 val InkSubtle = Color(0xFF8A8F98)
+
+// DESIGN.md:8 — primary-hover tier: the brighter lavender used for selected-row text/badge
+// (clears AA at 14sp where Primary undershoots 4.5:1). Exposed for #398; DrawerContent
+// previously hardcoded this value as a raw literal.
+val PrimaryHover = Color(0xFF828FFF)
 private val Hairline = Color(0xFF23252A)
 private val HairlineStrong = Color(0xFF34343A)
 private val HairlineTertiary = Color(0xFF3E3E44)

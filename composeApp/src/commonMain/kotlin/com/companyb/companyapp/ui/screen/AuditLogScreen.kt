@@ -47,6 +47,7 @@ import com.companyb.companyapp.dto.AuditLogEntryResponse
 import com.companyb.companyapp.dto.AuditLogTableResponse
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.ui.theme.rowHover
 import com.companyb.companyapp.util.formatRelativeTimestamp
 import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
@@ -786,6 +787,7 @@ internal fun AuditLogEntryRow(
             modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggleExpanded)
+                .rowHover()
                 .padding(vertical = Spacing.xs),
     ) {
         Row(
