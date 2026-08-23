@@ -11,6 +11,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.Job
@@ -63,11 +64,20 @@ class ReliefInviteViewModel(
     private val keptSent = KeyedMirror<String, List<ReliefInviteResponse>>()
     val sentByKey: StateFlow<Map<String, List<ReliefInviteResponse>>> = keptSent.lastByKey
 
+    // #377 discovery read — branch-wide ACCEPTED duties (any active member may revoke),
+    // same mirror-only keyed shape as keptSent: null until this branch's first commit hides
+    // the section from non-members (the 403 never commits) and from cross-branch bleed.
+    private val keptAccepted = KeyedMirror<String, List<ReliefInviteResponse>>()
+    val acceptedByKey: StateFlow<Map<String, List<ReliefInviteResponse>>> = keptAccepted.lastByKey
+
     private val _createResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val createResult: StateFlow<UiState<Unit>> = _createResult.asStateFlow()
 
     private val _retractResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val retractResult: StateFlow<UiState<Unit>> = _retractResult.asStateFlow()
+
+    private val _revokeResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val revokeResult: StateFlow<UiState<Unit>> = _revokeResult.asStateFlow()
 
     // Bumped on every successful action: a load that lands with a mismatched stamp predates
     // the action and must not resurrect the resolved row (the #141 stamp pattern).
@@ -253,6 +263,65 @@ class ReliefInviteViewModel(
                 Unit
             },
         )
+
+    // Same per-load ordering stamp as sentStamp, for the accepted mirror.
+    private var acceptedStamp = 0L
+
+    fun loadAccepted(branchId: String): Job {
+        // Mirror-only keyed commit (the loadSent shape): a newer load must always launch;
+        // same-key ordering is closed by the stale gate — only the newest launch commits.
+        val stamp = ++acceptedStamp
+        return handler.launchStateless(
+            operation = "loadAccepted",
+            endpoint = "GET /api/branches/$branchId/relief-invites/accepted",
+            block = { apiClient.httpClient.get(ApiRoutes.branchReliefInvitesAccepted(branchId)) },
+            transform = { response ->
+                keptAccepted.commit(branchId, response.body<List<ReliefInviteResponse>>())
+            },
+            stale = { stamp != acceptedStamp },
+        )
+    }
+
+    /**
+     * #377 — revoke an ACCEPTED future duty (ruling 2: any active branch member). Success and
+     * the authoritative 409 (already decided — another member revoked first, or a double-tap)
+     * both converge via reload; other failures surface the server's `error` message
+     * (400 duty-started reads as the business reason, not a bare status code).
+     */
+    fun revokeInvite(
+        inviteId: String,
+        branchId: String,
+    ): Job =
+        handler.launch(
+            state = _revokeResult,
+            operation = "revokeInvite",
+            endpoint = "POST /api/relief-invites/$inviteId/revoke",
+            block = { apiClient.httpClient.post(ApiRoutes.reliefInviteAction(inviteId, "revoke")) },
+            onNonSuccess = { response ->
+                if (response.status == HttpStatusCode.Conflict) {
+                    _revokeResult.value = UiState.Idle
+                } else {
+                    _revokeResult.value = UiState.Error(revokeErrorMessage(response))
+                }
+                reloadRevocationSurfaces(branchId)
+                true
+            },
+            transform = {
+                reloadRevocationSurfaces(branchId)
+                Unit
+            },
+        )
+
+    private fun reloadRevocationSurfaces(branchId: String) {
+        loadAccepted(branchId)
+        loadSent(branchId)
+    }
+
+    private suspend fun revokeErrorMessage(response: HttpResponse): String =
+        runCatching { response.body<Map<String, String>>()["error"] }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: "Revoke failed (${response.status.value})"
 
     private fun currentReceivedList(): List<ReliefInviteResponse>? = keptReceived.freshestValue()
 

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -339,21 +340,29 @@ private fun InviteStaffPanel(
     // bleed class is structurally unrenderable: the gate below reads THIS panel's key, so
     // another branch's rows can never pass it; the old commit-stamp machinery is gone).
     val sentByKey by viewModel.sentByKey.collectAsState()
+    val acceptedByKey by viewModel.acceptedByKey.collectAsState()
     val createState by viewModel.createResult.collectAsState()
     val retractState by viewModel.retractResult.collectAsState()
+    val revokeState by viewModel.revokeResult.collectAsState()
 
     var dateText by remember { mutableStateOf(defaultInviteDate()) }
     var query by remember { mutableStateOf("") }
+    // #377 — the destructive revoke needs an explicit confirm (removes someone's granted
+    // access); the tapped row parks here until the dialog resolves it.
+    var pendingRevoke by remember { mutableStateOf<ReliefInviteResponse?>(null) }
 
     val createError = (createState as? UiState.Error)?.message
     val retractError = (retractState as? UiState.Error)?.message
+    val revokeError = (revokeState as? UiState.Error)?.message
     val sendBusy = createState is UiState.Loading
     val retractBusy = retractState is UiState.Loading
+    val revokeBusy = revokeState is UiState.Loading
     val validDate = parseInviteDate(dateText)
 
     LaunchedEffect(Unit) {
         logInfo("BranchSelectScreen", "invite panel opened for branch $branchId")
         viewModel.loadSent(branchId)
+        viewModel.loadAccepted(branchId)
     }
     LaunchedEffect(query, dateText, validDate) {
         // A malformed date (mid-typing) must not fire a search the backend 400s — gate the
@@ -372,6 +381,12 @@ private fun InviteStaffPanel(
         val error = retractState as? UiState.Error
         if (error != null) {
             logWarn("BranchSelectScreen", "retractInvite=Error: ${error.message}")
+        }
+    }
+    LaunchedEffect(revokeState) {
+        val error = revokeState as? UiState.Error
+        if (error != null) {
+            logWarn("BranchSelectScreen", "revokeInvite=Error: ${error.message}")
         }
     }
 
@@ -420,6 +435,13 @@ private fun InviteStaffPanel(
                     color = MaterialTheme.colorScheme.error,
                 )
             }
+            revokeError?.let { error ->
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
 
             CandidateResults(
                 state = candidatesState,
@@ -437,7 +459,25 @@ private fun InviteStaffPanel(
                 retractBusy = retractBusy,
                 onRetract = { inviteId -> viewModel.retractInvite(inviteId, branchId) },
             )
+
+            AcceptedDutiesSection(
+                lastAccepted = acceptedByKey[branchId],
+                revokeBusy = revokeBusy,
+                onRevokeRequest = { invite -> pendingRevoke = invite },
+            )
         }
+    }
+
+    pendingRevoke?.let { invite ->
+        RevokeDutyConfirmDialog(
+            invite = invite,
+            busy = revokeBusy,
+            onConfirm = {
+                viewModel.revokeInvite(invite.id, branchId)
+                pendingRevoke = null
+            },
+            onDismiss = { pendingRevoke = null },
+        )
     }
 }
 
@@ -578,6 +618,88 @@ private fun SentInvitesSection(
             }
         }
     }
+}
+
+/**
+ * #377 — branch-wide ACCEPTED duties (colleagues' included): any active member may revoke
+ * until the invitee clocks in. Same keyed-mirror gate as the sent list — null (nothing ever
+ * committed; a non-member's 403 never commits) renders nothing, so non-members never see
+ * the affordance.
+ */
+@Composable
+private fun AcceptedDutiesSection(
+    lastAccepted: List<ReliefInviteResponse>?,
+    revokeBusy: Boolean,
+    onRevokeRequest: (ReliefInviteResponse) -> Unit,
+) {
+    if (lastAccepted == null) return
+    val accepted = lastAccepted
+
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+        Text(
+            text = "Accepted relief duties (${accepted.size})",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (accepted.isEmpty()) {
+            Text(
+                text = "No accepted duties",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        accepted.forEach { invite ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "${invite.inviteeName} · ${invite.date}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = { onRevokeRequest(invite) },
+                    enabled = !revokeBusy,
+                ) {
+                    Text("Revoke")
+                }
+            }
+        }
+    }
+}
+
+/** Destructive-action confirm (#377): revocation removes someone's granted access. */
+@Composable
+private fun RevokeDutyConfirmDialog(
+    invite: ReliefInviteResponse,
+    busy: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Revoke relief duty?") },
+        text = {
+            Text(
+                "${invite.inviteeName}'s duty at ${invite.branchName} on ${invite.date} will be revoked and their access removed.",
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !busy,
+            ) {
+                Text("Revoke")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 /** Default invite date = tomorrow (Asia/Manila) — future-day planning is the use case. */

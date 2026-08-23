@@ -17,6 +17,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.or
@@ -271,6 +272,28 @@ object ReliefInviteRepository {
                     (ReliefInviteTable.invitedBy eq invitedBy) and
                         (BranchDayTable.branchId eq branchId)
                 }.orderBy(ReliefInviteTable.createdAt to SortOrder.DESC)
+                .map { it.toView() }
+                .withInviteeNames()
+        }
+
+    /**
+     * ACCEPTED invites at [branchId] across all inviters whose duty day is on/after
+     * [fromDate] — the revocable window (#377 discovery read: any active member may revoke,
+     * so members must see colleagues' accepted duties). Days before [fromDate] are past
+     * (day state is lazy-PAST) and cannot be revoked, so they are excluded server-side.
+     */
+    fun findAcceptedByBranch(
+        branchId: UUID,
+        fromDate: java.time.LocalDate,
+    ): List<ReliefInviteView> =
+        transaction {
+            joinWithDisplay()
+                .selectAll()
+                .where {
+                    (BranchDayTable.branchId eq branchId) and
+                        (ReliefInviteTable.status eq ReliefInviteStatus.ACCEPTED) and
+                        (BranchDayTable.date greaterEq fromDate)
+                }.orderBy(BranchDayTable.date to SortOrder.ASC)
                 .map { it.toView() }
                 .withInviteeNames()
         }

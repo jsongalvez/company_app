@@ -676,5 +676,169 @@ class ReliefInviteViewModelTest {
             assertEquals(0, vm.freshestReceived.value!!.size)
         }
 
+    @Test
+    fun `loadAccepted_commits_the_branch_keyed_mirror`() =
+        runTest(testScheduler) {
+            var acceptedCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites/accepted" -> {
+                                acceptedCalls++
+                                ok(
+                                    """[${inviteJson(
+                                        "i1",
+                                        "ACCEPTED",
+                                        date = "2026-08-20",
+                                        inviteeName = "Colleague",
+                                    )}]""",
+                                )
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadAccepted("b1")
+            runCurrent()
+            assertEquals(1, acceptedCalls)
+            assertEquals(
+                "i1",
+                vm.acceptedByKey.value["b1"]!!
+                    .single()
+                    .id,
+            )
+        }
+
+    @Test
+    fun `revoke_success_reloads_both_revocation_surfaces`() =
+        runTest(testScheduler) {
+            var acceptedCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites/accepted" -> {
+                                acceptedCalls++
+                                // Call #1 serves the pre-revoke row; later calls are the
+                                // post-revoke reloads — the row left the actionable list.
+                                if (acceptedCalls == 1) {
+                                    ok("""[${inviteJson("i1", "ACCEPTED", inviteeName = "Alice")}]""")
+                                } else {
+                                    ok("[]")
+                                }
+                            }
+
+                            it.url.encodedPath == "/api/branches/b1/relief-invites" && it.method.value == "GET" -> {
+                                ok("""[${inviteJson("i1", "REVOKED", inviteeName = "Alice")}]""")
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/revoke" -> {
+                                ok(inviteJson("i1", "REVOKED", inviteeName = "Alice"))
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+            vm.loadAccepted("b1")
+            runCurrent()
+            assertEquals(1, vm.acceptedByKey.value["b1"]!!.size)
+
+            vm.revokeInvite("i1", "b1")
+            runCurrent()
+            assertIs<UiState.Success<Unit>>(vm.revokeResult.value)
+            assertEquals(2, acceptedCalls, "the accepted list reloads after the revoke")
+            assertEquals(0, vm.acceptedByKey.value["b1"]!!.size)
+            assertEquals(
+                ReliefInviteStatus.REVOKED,
+                vm.sentByKey.value["b1"]!!
+                    .single()
+                    .status,
+                "the sent list re-renders the row as REVOKED status text",
+            )
+        }
+
+    @Test
+    fun `revoke_400_surfaces_the_server_error_message`() =
+        runTest(testScheduler) {
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/relief-invites/i1/revoke" -> {
+                                respond(
+                                    content = ByteReadChannel("""{"error":"This relief duty has already started"}"""),
+                                    status = HttpStatusCode.BadRequest,
+                                    headers =
+                                        headersOf(
+                                            HttpHeaders.ContentType,
+                                            ContentType.Application.Json.toString(),
+                                        ),
+                                )
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+
+            vm.revokeInvite("i1", "b1")
+            runCurrent()
+            val state = vm.revokeResult.value
+            assertIs<UiState.Error>(state)
+            assertEquals("This relief duty has already started", state.message)
+        }
+
+    @Test
+    fun `revoke_conflict_is_authoritative_and_reloads_without_an_error`() =
+        runTest(testScheduler) {
+            var acceptedCalls = 0
+            val apiClient =
+                mockApiClient(
+                    handler {
+                        when {
+                            it.url.encodedPath == "/api/branches/b1/relief-invites/accepted" -> {
+                                acceptedCalls++
+                                ok("[]")
+                            }
+
+                            it.url.encodedPath == "/api/relief-invites/i1/revoke" -> {
+                                respond(
+                                    content = ByteReadChannel("""{"error":"already responded"}"""),
+                                    status = HttpStatusCode.Conflict,
+                                    headers =
+                                        headersOf(
+                                            HttpHeaders.ContentType,
+                                            ContentType.Application.Json.toString(),
+                                        ),
+                                )
+                            }
+
+                            else -> {
+                                ok("[]")
+                            }
+                        }
+                    },
+                )
+            val vm = ReliefInviteViewModel(apiClient)
+
+            vm.revokeInvite("i1", "b1")
+            runCurrent()
+            // Another member revoked first — authoritative, not an error: Idle + reload.
+            assertIs<UiState.Idle>(vm.revokeResult.value)
+            assertEquals(1, acceptedCalls, "the conflict reload converges server truth")
+        }
+
     private fun handler(block: MockRequestHandler): MockRequestHandler = block
 }

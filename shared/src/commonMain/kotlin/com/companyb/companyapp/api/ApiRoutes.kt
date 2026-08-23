@@ -128,6 +128,9 @@ object ApiRoutes {
 
     fun branchReliefInvites(id: String) = "$BRANCHES/$id/relief-invites"
 
+    // #377 — branch-wide ACCEPTED duties (any active member may revoke).
+    fun branchReliefInvitesAccepted(id: String) = "${branchReliefInvites(id)}/accepted"
+
     fun branchReliefCandidates(id: String) = "$BRANCHES/$id/relief-candidates"
 
     // #366 — active-member directory (id + display name) for the requested-practitioner picker.
@@ -221,6 +224,7 @@ object ApiRoutes {
     // #348 — pre-create preview (query param: clientId).
     const val BRANCH_SESSION_PREVIEW_PATH = "$BRANCH_PATH/session-preview"
     const val BRANCH_RELIEF_INVITES_PATH = "$BRANCH_PATH/relief-invites"
+    const val BRANCH_RELIEF_INVITES_ACCEPTED_PATH = "$BRANCH_PATH/relief-invites/accepted"
     const val BRANCH_RELIEF_CANDIDATES_PATH = "$BRANCH_PATH/relief-candidates"
     const val BRANCH_MEMBERS_PATH = "$BRANCH_PATH/members"
     const val BRANCH_ASSIGNMENTS_PATH = "$BRANCH_PATH/assignments"

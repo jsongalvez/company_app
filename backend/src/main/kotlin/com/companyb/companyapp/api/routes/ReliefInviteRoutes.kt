@@ -41,6 +41,13 @@ import java.util.UUID
     security = [OpenApiSecurity(name = "BearerAuth")],
 )
 @OpenApi(
+    path = "/api/branches/{branchId}/relief-invites/accepted",
+    methods = [HttpMethod.GET],
+    pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
+    operationId = "branch_relief_invites_accepted_get",
+    security = [OpenApiSecurity(name = "BearerAuth")],
+)
+@OpenApi(
     path = "/api/branches/{branchId}/relief-invites",
     methods = [HttpMethod.POST],
     pathParams = [OpenApiParam(name = "branchId", type = UUID::class, required = true)],
@@ -109,6 +116,14 @@ object ReliefInviteRoutes {
 
             context.status(HttpStatus.OK)
             context.json(ReliefInviteService.listSent(callerId, branchId).map { it.toResponse() })
+        }
+
+        config.routes.get(ApiRoutes.BRANCH_RELIEF_INVITES_ACCEPTED_PATH) { context ->
+            val callerId = context.callerUuid()
+            val branchId = context.pathParamAsUuid(BRANCH_ID_PARAM)
+
+            context.status(HttpStatus.OK)
+            context.json(ReliefInviteService.listBranchAccepted(callerId, branchId).map { it.toResponse() })
         }
 
         config.routes.get(ApiRoutes.BRANCH_RELIEF_CANDIDATES_PATH) { context ->

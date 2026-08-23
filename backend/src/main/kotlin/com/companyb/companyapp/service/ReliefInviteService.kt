@@ -122,6 +122,20 @@ object ReliefInviteService {
     fun listReceived(callerId: UUID): List<ReliefInviteView> = ReliefInviteRepository.findReceivedByInvitee(callerId)
 
     /**
+     * #377 discovery read — every ACCEPTED duty at [branchId] whose day is still
+     * revocable (on/after the current operational date), across all inviters. Same gate as
+     * create/listSent: an active assignment at the branch. This is what makes ruling 2
+     * ("any active member may revoke") reachable from the client.
+     */
+    fun listBranchAccepted(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<ReliefInviteView> {
+        requireActiveAssignment(callerId, branchId)
+        return ReliefInviteRepository.findAcceptedByBranch(branchId, BranchDayService.currentOperationalDate())
+    }
+
+    /**
      * Accepts a PENDING invite: writes the day-scoped grant immediately
      * (grantedBy = inviter, grantedAt = accept time — both live on the invite row:
      * invitedBy + respondedAt; the capability row's sourceId ties it to the invite).

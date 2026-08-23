@@ -19,6 +19,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentCreateParams
 import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.service.attendance.AttendanceService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
 import com.companyb.companyapp.test.TestFixtures
@@ -199,6 +200,50 @@ class ReliefInviteRevokePostgresTest : BasePostgresTest() {
         } catch (expected: ConflictException) {
             assertTrue(expected.message!!.contains("already responded"))
         }
+    }
+
+    @Test
+    fun `discovery read shows colleagues' accepted duties to any member and gates non-members`() {
+        val duty = TestFixtures.today.plusDays(3)
+        val inviteId = acceptInviteFor(duty)
+
+        // A second member who never invited anyone sees the duty — ruling 2's discovery leg.
+        val seen = ReliefInviteService.listBranchAccepted(revokerId, branchId)
+        assertEquals(listOf(inviteId), seen.map { it.invite.id })
+        assertEquals("Test revoke-invitee", seen.single().inviteeName)
+        assertEquals(duty, seen.single().date)
+
+        try {
+            ReliefInviteService.listBranchAccepted(outsiderId, branchId)
+            fail("non-member discovery must 403")
+        } catch (expected: ForbiddenException) {
+            assertTrue(expected.message!!.contains("active assignment"))
+        }
+    }
+
+    @Test
+    fun `discovery read excludes pending and past-day invites`() {
+        val futureDuty = TestFixtures.today.plusDays(3)
+        acceptInviteFor(futureDuty)
+
+        // A PENDING invite is not an accepted duty.
+        trackOwned(
+            ReliefInviteTable,
+            ReliefInviteTable.id,
+            ReliefInviteService.createInvite(inviterId, branchId, inviteeId, TestFixtures.today.plusDays(5)).id,
+        )
+
+        // An ACCEPTED row whose day already passed cannot be revoked — excluded server-side.
+        val pastDay = BranchDayService.resolveOrCreate(branchId, TestFixtures.today.minusDays(1))
+        val pastInviteId = UUID.randomUUID()
+        transaction {
+            ReliefInviteRepository.insertInTransaction(pastInviteId, pastDay.id, inviterId, inviteeId)
+            trackOwned(ReliefInviteTable, ReliefInviteTable.id, pastInviteId)
+            ReliefInviteRepository.respondInTransaction(pastInviteId, ReliefInviteStatus.ACCEPTED)
+        }
+
+        val seen = ReliefInviteService.listBranchAccepted(revokerId, branchId)
+        assertEquals(listOf(futureDuty), seen.map { it.date })
     }
 
     private fun acceptInviteFor(date: LocalDate): UUID {
