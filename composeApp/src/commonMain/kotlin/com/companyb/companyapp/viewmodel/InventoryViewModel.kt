@@ -25,8 +25,8 @@ class InventoryViewModel(
     private val _inventory = MutableStateFlow<UiState<List<BranchInventoryResponse>>>(UiState.Idle)
     val inventory: StateFlow<UiState<List<BranchInventoryResponse>>> = _inventory.asStateFlow()
 
-    private val _cardResult = MutableStateFlow<UiState<BranchInventoryResponse>>(UiState.Idle)
-    val cardResult: StateFlow<UiState<BranchInventoryResponse>> = _cardResult.asStateFlow()
+    private val _cardResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val cardResult: StateFlow<UiState<Unit>> = _cardResult.asStateFlow()
 
     private val _restockResult = MutableStateFlow<UiState<InventoryMovementResponse>>(UiState.Idle)
     val restockResult: StateFlow<UiState<InventoryMovementResponse>> = _restockResult.asStateFlow()
@@ -44,11 +44,16 @@ class InventoryViewModel(
         )
     }
 
+    /**
+     * #392 — the route answers 201 with NO body (`BranchInventoryRoutes.handleEnsureCard`
+     * calls only `context.status(CREATED)`), so this must not deserialize one: the old
+     * `it.body()` shape threw on the first real success. launchUnit owns status-only calls.
+     */
     fun ensureCard(
         branchId: String,
         request: AddInventoryCardRequest,
     ) {
-        handler.launch(
+        handler.launchUnit(
             state = _cardResult,
             operation = "ensureCard",
             endpoint = "POST /api/branches/$branchId/inventory",
@@ -57,7 +62,6 @@ class InventoryViewModel(
                     setBody(request)
                 }
             },
-            transform = { it.body() },
         )
     }
 
@@ -99,5 +103,14 @@ class InventoryViewModel(
             },
             transform = { it.body() },
         )
+    }
+
+    /**
+     * #392 — the screen's terminal hook for write results: success legs clear so a repeat
+     * action re-fires the StateFlow; the banner's Dismiss clears a standing error.
+     */
+    fun clearWriteResults() {
+        _restockResult.value = UiState.Idle
+        _movementResult.value = UiState.Idle
     }
 }
