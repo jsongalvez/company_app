@@ -132,6 +132,8 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     MeRoutes.getBranches(config)
     AttendanceRoutes.clockIn(config)
     AttendanceRoutes.clockOut(config)
+    AttendanceRoutes.rosterToday(config)
+    AttendanceRoutes.mark(config)
     BranchRoutes.register(config)
     UserBranchAssignmentRoutes.register(config)
     UserRoutes.register(config)

@@ -5,6 +5,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.Attendance
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.repository.model.BranchDayAssignmentTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.Slice
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -40,13 +41,24 @@ data class BranchDayUser(
     val displayName: String,
 )
 
+/** #404 — one active home member projected for the attendance roster. */
+data class RosterMember(
+    val userId: UUID,
+    val displayName: String,
+    val slot: Short,
+)
+
 /**
  * Attendance persistence (#321, ADR-0024). Mutating functions are **in-transaction store
  * operations**: they open no transaction of their own and take no audit callback — they execute
  * on the caller's (command-owned) transaction, which [AttendanceService] also uses to insert
  * the audit row atomically. Read helpers keep their convenient transaction wrappers.
+ *
+ * 13 functions — #404 added the member-marking store reads (active-window lookup, roster
+ * presence set, member rows) beside the self clock-in/out family; splitting the object
+ * would scatter one aggregate's persistence (the ReliefInviteRepository pin precedent).
  */
-@Suppress("UnreachableCode")
+@Suppress("UnreachableCode", "TooManyFunctions")
 internal object AttendanceRepository {
     fun hasActiveClockIn(
         userId: UUID,
@@ -140,6 +152,34 @@ internal object AttendanceRepository {
             .singleOrNull()
             ?.toAttendance()
 
+    /**
+     * #404 — the target's open clock-in at one branch day, or null when absent.
+     * In-transaction store read for the mark-absent command.
+     */
+    fun findActiveByUserAndBranchDayInTransaction(
+        userId: UUID,
+        branchDayId: UUID,
+    ): Attendance? =
+        AttendanceTable
+            .selectAll()
+            .where {
+                (AttendanceTable.userId eq userId) and
+                    (AttendanceTable.branchDayId eq branchDayId) and
+                    (AttendanceTable.clockOut.isNull())
+            }.singleOrNull()
+            ?.toAttendance()
+
+    /** #404 — user ids with an open clock-in at the branch day (roster presence flags). */
+    fun activeClockInUserIds(branchDayId: UUID): Set<UUID> =
+        transaction {
+            AttendanceTable
+                .selectAll()
+                .where {
+                    (AttendanceTable.branchDayId eq branchDayId) and
+                        (AttendanceTable.clockOut.isNull())
+                }.map { it[AttendanceTable.userId] }
+        }.toSet()
+
     fun clockOutInTransaction(attendanceId: UUID): Pair<Attendance, Boolean> {
         val updated =
             AttendanceTable
@@ -187,6 +227,41 @@ internal object AttendanceRepository {
                     )
                 }
         }.also { logger.info { "[FIND-BRANCH-DAY-USERS] Found ${it.size} users for branch_day $branchDayId" } }
+
+    /**
+     * #404 — the branch's active home members with names and Branch Slots, ordered slot
+     * first (1 = senior) then display name. Presence flags are applied by the caller.
+     */
+    fun rosterRows(branchId: UUID): List<RosterMember> =
+        transaction {
+            val join =
+                UserBranchAssignmentTable.innerJoin(
+                    AppUserTable,
+                    { UserBranchAssignmentTable.userId },
+                    { AppUserTable.id },
+                )
+            Slice(
+                join,
+                listOf(
+                    UserBranchAssignmentTable.userId,
+                    AppUserTable.displayName,
+                    UserBranchAssignmentTable.slot,
+                ),
+            ).selectAll()
+                .where {
+                    (UserBranchAssignmentTable.branchId eq branchId) and
+                        (UserBranchAssignmentTable.endedAt.isNull())
+                }.orderBy(
+                    UserBranchAssignmentTable.slot to SortOrder.ASC,
+                    AppUserTable.displayName to SortOrder.ASC,
+                ).map { row ->
+                    RosterMember(
+                        userId = row[UserBranchAssignmentTable.userId],
+                        displayName = row[AppUserTable.displayName],
+                        slot = row[UserBranchAssignmentTable.slot],
+                    )
+                }
+        }
 
     private fun org.jetbrains.exposed.v1.core.ResultRow.toAttendance(): Attendance =
         Attendance(

@@ -138,7 +138,11 @@ data class DashboardSelection(
  * while this screen is composed, paused on leave (mobile detail push; desktop inline pane
  * never leaves). States per Q6: cold spinner / error card with Retry / empty (₱0 cards) /
  * stale banner (Q5b) / ERRORED escalation / forbidden card (attendance gate 403).
+ *
+ * 7 params: the two feature-content slots ride the #351 slot pattern (relief access,
+ * #404 attendance) — grouping them would churn both hosts for no clarity gain.
  */
+@Suppress("LongParameterList")
 @Composable
 fun SessionDashboardScreen(
     viewModel: SessionDashboardViewModel,
@@ -149,6 +153,8 @@ fun SessionDashboardScreen(
     // #351 — the relief-access surface (requester entry + incoming Grant/Deny), slotted so
     // this screen stays agnostic of the feature's VM/state sources.
     reliefAccessContent: @Composable () -> Unit = {},
+    // #404 — member-marked attendance (roster + Present/Absent), same slot pattern.
+    attendanceContent: @Composable () -> Unit = {},
 ) {
     val selectedBranchName = selection.branchName
     val selectedSessionId = selection.sessionId
@@ -218,6 +224,7 @@ fun SessionDashboardScreen(
                             productSalesCount = data.commission.productSalesCount,
                         )
                         reliefAccessContent()
+                        attendanceContent()
                         LastUpdatedRow(
                             lastUpdatedAt,
                             // #348 — "New session" lives beside the timestamp row (trailing).

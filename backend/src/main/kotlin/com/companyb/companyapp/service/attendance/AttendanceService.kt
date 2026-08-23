@@ -3,8 +3,10 @@ package com.companyb.companyapp.service.attendance
 import com.companyb.companyapp.exception.ConflictException
 import com.companyb.companyapp.exception.ForbiddenException
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.AttendanceTable
 import com.companyb.companyapp.service.branchday.BranchDayRepository
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -39,6 +41,176 @@ object AttendanceService {
     fun findUsersByBranchDayId(branchDayId: UUID): List<BranchDayUser> {
         BranchDayService.requireBranchDayExists(branchDayId)
         return AttendanceRepository.findUsersByBranchDayId(branchDayId)
+    }
+
+    /**
+     * #404 — a home member marks another home member present or absent at [branchId] today
+     * (BR: practitioners mark other members of their home branch; coordinators mark
+     * practitioners at their branch). One membership rule covers both sentences: the caller
+     * and the target must each hold an active assignment at the branch — cross-branch
+     * marking 403s, non-member targets 400. Relief users are neither (their attendance is
+     * their own deliberate check-in).
+     *
+     * Present mirrors self clock-in exactly — same day resolution, #376 branch-day lock,
+     * active-clock-in guard, idempotent-retry contract, atomic commission recalculation —
+     * except `userId` is the target and `markedBy` is the caller. Absent closes the target's
+     * open window (a clock-out on behalf): audit attributes the marker via changedBy, the
+     * recalculation joins the transaction, and an already-closed window is an idempotent
+     * no-op. Day state stays ungated, matching self clock-in/out (attendance is the access
+     * primitive; resolveOrCreate bootstraps the day).
+     */
+    @Suppress("ThrowsCount")
+    fun mark(
+        callerId: UUID,
+        branchId: UUID,
+        targetUserId: UUID,
+        present: Boolean,
+        attendanceId: UUID?,
+    ): AttendanceMarkResult {
+        requireActiveMember(callerId, branchId, "Home-branch membership required to mark attendance")
+        requireActiveMember(
+            targetUserId,
+            branchId,
+            "Only home-branch members can be marked present or absent at this branch",
+        )
+
+        return transaction {
+            if (present) {
+                markPresent(callerId, branchId, targetUserId, attendanceId)
+            } else {
+                markAbsent(callerId, branchId, targetUserId)
+            }
+        }
+    }
+
+    /**
+     * The present leg: mirrors self clock-in — day resolution, #376 branch-day lock,
+     * active-clock-in guard, idempotent-retry contract, atomic commission recalculation —
+     * with `userId` = target and `markedBy` = caller.
+     */
+    @Suppress("ThrowsCount")
+    private fun markPresent(
+        callerId: UUID,
+        branchId: UUID,
+        targetUserId: UUID,
+        attendanceId: UUID?,
+    ): AttendanceMarkResult {
+        val id =
+            attendanceId
+                ?: throw ValidationException("attendance id is required to mark a member present")
+        val today = BranchDayService.currentOperationalDate()
+        val branchDay = BranchDayService.resolveOrCreate(branchId, today)
+
+        // #376 — same serialization as self clock-in: the retraction-cutoff commands
+        // hold this lock while deciding, so a duty can never start behind a mark that
+        // then lands; the idempotent readback re-runs under it.
+        BranchDayRepository.acquireLock(branchDay.id)
+        retryOutcomeOrNull(id, branchId, targetUserId, callerId)?.let {
+            return AttendanceMarkResult(it.attendance, it.created, it.isRelief)
+        }
+
+        ShiftGuard.ensureNoActiveClockIn(targetUserId, branchDay.id)
+
+        val (attendance, wasCreated) =
+            AttendanceRepository.clockInInTransaction(
+                ClockInParams(
+                    attendanceId = id,
+                    branchDayId = branchDay.id,
+                    userId = targetUserId,
+                    markedBy = callerId,
+                    branchDayAssignmentId = UUID.randomUUID(),
+                    // The gate proved the target is a home member — never relief.
+                    isRelief = false,
+                    branchId = branchId,
+                ),
+            )
+
+        if (wasCreated) {
+            AttendanceAudit.inserted(
+                AuditContext(changedBy = callerId, branchId = branchId),
+                attendance,
+            )
+        }
+
+        logger.info {
+            "[ATTENDANCE-MARK] User $callerId marked user $targetUserId present at branch $branchId " +
+                "(attendance=$id)"
+        }
+
+        if (wasCreated) {
+            CommissionService.recalculateInTransaction(branchDay.id)
+        }
+
+        return AttendanceMarkResult(attendance, wasCreated, isRelief = false)
+    }
+
+    /**
+     * The absent leg: closes the target's open window (a clock-out on behalf). Find-only
+     * day resolution (#157 discipline) — an absent-mark never creates a branch day; with no
+     * day row or no open window it is an idempotent no-op. The audit attributes the marker
+     * via changedBy and the recalculation joins the same transaction.
+     */
+    private fun markAbsent(
+        callerId: UUID,
+        branchId: UUID,
+        targetUserId: UUID,
+    ): AttendanceMarkResult {
+        val today =
+            BranchDayService.findToday(branchId)
+                ?: return AttendanceMarkResult(null, created = false, isRelief = false)
+
+        val existing =
+            AttendanceRepository.findActiveByUserAndBranchDayInTransaction(targetUserId, today.id)
+                ?: return AttendanceMarkResult(null, created = false, isRelief = false)
+
+        val (after, wasClockedOut) = AttendanceRepository.clockOutInTransaction(existing.id)
+
+        if (wasClockedOut) {
+            AttendanceAudit.updated(
+                AuditContext(changedBy = callerId, branchId = branchId),
+                existing,
+                after,
+            )
+        }
+
+        logger.info {
+            "[ATTENDANCE-MARK] User $callerId marked user $targetUserId absent at branch $branchId " +
+                "(attendance=${existing.id})"
+        }
+
+        if (wasClockedOut) {
+            CommissionService.recalculateInTransaction(today.id)
+        }
+
+        return AttendanceMarkResult(after, created = false, AssignmentResolver.getIsRelief(today.id, targetUserId))
+    }
+
+    /**
+     * #404 — the home-branch roster with live presence flags at [branchId] today. Membership-gated
+     * read (the same authority that marks); day resolution stays find-only — a missing day row means
+     * nobody is present and no day is created by the read. Ordered by Branch Slot then display name.
+     */
+    fun rosterToday(
+        callerId: UUID,
+        branchId: UUID,
+    ): List<AttendanceRosterEntry> {
+        requireActiveMember(callerId, branchId, "Home-branch membership required to view this branch's attendance")
+
+        return transaction {
+            val presentUserIds =
+                BranchDayService
+                    .findToday(branchId)
+                    ?.let { AttendanceRepository.activeClockInUserIds(it.id) }
+                    ?: emptySet()
+            AttendanceRepository.rosterRows(branchId).map { member ->
+                AttendanceRosterEntry(
+                    userId = member.userId,
+                    displayName = member.displayName,
+                    slot = member.slot,
+                    present = member.userId in presentUserIds,
+                )
+            }
+        }
     }
 
     @Suppress("ThrowsCount")
@@ -91,7 +263,7 @@ object AttendanceService {
         callerId: UUID,
     ): AttendanceServiceResult =
         transaction {
-            retryOutcomeOrNull(attendanceId, branchId, callerId)?.let { return@transaction it }
+            retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
             val today = BranchDayService.currentOperationalDate()
             val branchDay = BranchDayService.resolveOrCreate(branchId, today)
@@ -103,7 +275,7 @@ object AttendanceService {
 
             // A concurrent same-id retry may have committed while this transaction waited
             // on the lock — the idempotent readback must run again under it (#376 review).
-            retryOutcomeOrNull(attendanceId, branchId, callerId)?.let { return@transaction it }
+            retryOutcomeOrNull(attendanceId, branchId, callerId, callerId)?.let { return@transaction it }
 
             ShiftGuard.ensureNoActiveClockIn(callerId, branchDay.id)
 
@@ -144,25 +316,59 @@ object AttendanceService {
 
     /**
      * The idempotent-retry outcome for an attendance id that already exists, or null when
-     * the id is free. An ownership mismatch (another caller/branch/day) still 409s — the
+     * the id is free. A mismatch (another target, marker, branch, or day) still 409s — the
      * retry contract covers replaying your own request only.
      */
     @Suppress("ThrowsCount")
     private fun retryOutcomeOrNull(
         attendanceId: UUID,
         branchId: UUID,
-        callerId: UUID,
+        targetUserId: UUID,
+        markerId: UUID,
     ): AttendanceServiceResult? {
         val existing = AttendanceRepository.findByIdInTransaction(attendanceId) ?: return null
-        val sameCaller = existing.userId == callerId && existing.markedBy == callerId
+        val sameMark = existing.userId == targetUserId && existing.markedBy == markerId
         val sameBranch =
             BranchDayService.requireBranchDayExists(existing.branchDayId).branchId == branchId
         val sameDay = BranchDayService.findToday(branchId)?.id == existing.branchDayId
-        if (!sameCaller || !sameBranch || !sameDay) {
+        if (!sameMark || !sameBranch || !sameDay) {
             throw ConflictException("Attendance id already belongs to another clock-in request")
         }
         val isRelief = AssignmentResolver.getIsRelief(existing.branchDayId, existing.userId)
         return AttendanceServiceResult(existing, false, isRelief)
+    }
+}
+
+/**
+ * #404 — the mark command's outcome. [attendance] is null only for an absent-mark that found
+ * no open window (the idempotent no-op — nothing was written, no audit row exists).
+ */
+data class AttendanceMarkResult(
+    val attendance: Attendance?,
+    val created: Boolean,
+    val isRelief: Boolean,
+)
+
+/** #404 — one roster row for the membership-gated attendance read. */
+data class AttendanceRosterEntry(
+    val userId: UUID,
+    val displayName: String,
+    val slot: Short,
+    val present: Boolean,
+)
+
+/**
+ * The mark/roster gate (#404): an active home assignment at the branch — membership, not a
+ * capability. File-level helper so AttendanceService stays inside its function-count pin.
+ */
+private fun requireActiveMember(
+    userId: UUID,
+    branchId: UUID,
+    message: String,
+) {
+    val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, userId)
+    if (assignment == null) {
+        throw ForbiddenException(message)
     }
 }
 

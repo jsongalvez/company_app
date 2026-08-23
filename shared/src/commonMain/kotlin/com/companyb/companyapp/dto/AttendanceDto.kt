@@ -37,6 +37,34 @@ data class ClockOutResponse(
     val isRelief: Boolean,
 )
 
+/**
+ * #404 — mark another home-branch member present or absent at one branch today.
+ * `attendanceId` is the client-generated idempotency key and is required when
+ * [present] is true; absent-marks close the target's open window and need no id.
+ */
+@Serializable
+data class MarkAttendanceRequest(
+    val userId: String,
+    val present: Boolean,
+    val attendanceId: String? = null,
+)
+
+@Serializable
+data class AttendanceMarkResponse(
+    /** The affected attendance row; null when an absent-mark found no open window (idempotent no-op). */
+    val attendance: ClockInResponse?,
+)
+
+/** #404 — one home-branch member's live attendance state at the branch today. */
+@Serializable
+data class MemberAttendanceResponse(
+    val userId: String,
+    val displayName: String,
+    /** Branch Slot ordering (1 = senior); cosmetic, mirrored from the assignment. */
+    val slot: Short,
+    val present: Boolean,
+)
+
 @Serializable
 data class ReliefAccessRequest(
     val requestId: String,

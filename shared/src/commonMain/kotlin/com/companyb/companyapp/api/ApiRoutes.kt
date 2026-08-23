@@ -202,6 +202,11 @@ object ApiRoutes {
 
     fun branchSessionBaseRates(id: String) = "$BRANCHES/$id/rates"
 
+    // #404 — member-marked attendance (roster read + present/absent mark).
+    fun branchAttendanceToday(id: String) = "$BRANCHES/$id/attendance/today"
+
+    fun branchAttendanceMarks(id: String) = "$BRANCHES/$id/attendance/marks"
+
     fun branchExportDaily(id: String) = "$BRANCHES/$id/export/daily"
 
     fun branchExportRange(id: String) = "$BRANCHES/$id/export/range"
@@ -236,6 +241,8 @@ object ApiRoutes {
     const val BRANCH_RELIEF_INVITES_BY_DATE_PATH = "$BRANCH_RELIEF_INVITES_PATH/by-date"
     const val BRANCH_RELIEF_CANDIDATES_PATH = "$BRANCH_PATH/relief-candidates"
     const val BRANCH_MEMBERS_PATH = "$BRANCH_PATH/members"
+    const val BRANCH_ATTENDANCE_TODAY_PATH = "$BRANCH_PATH/attendance/today"
+    const val BRANCH_ATTENDANCE_MARKS_PATH = "$BRANCH_PATH/attendance/marks"
     const val BRANCH_ASSIGNMENTS_PATH = "$BRANCH_PATH/assignments"
     const val BRANCH_SLOTS_SWAP_PATH = "$BRANCH_PATH/slots/swap"
     const val BRANCH_INVENTORY_PATH = "$BRANCH_PATH/inventory"

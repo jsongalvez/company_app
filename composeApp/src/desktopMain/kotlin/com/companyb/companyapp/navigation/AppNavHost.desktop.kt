@@ -34,6 +34,7 @@ import com.companyb.companyapp.state.hasCapabilityAnyContext
 import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.drawer.DrawerContent
 import com.companyb.companyapp.ui.screen.AcceptInviteScreen
+import com.companyb.companyapp.ui.screen.AttendanceRosterCard
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
 import com.companyb.companyapp.ui.screen.BranchSelectScreen
@@ -57,6 +58,7 @@ import com.companyb.companyapp.ui.screen.SessionDashboardScreen
 import com.companyb.companyapp.ui.screen.SessionDetailPane
 import com.companyb.companyapp.ui.screen.SessionDetailScreen
 import com.companyb.companyapp.ui.screen.UserManagementScreen
+import com.companyb.companyapp.viewmodel.AttendanceRosterViewModel
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
@@ -419,7 +421,11 @@ private fun DashboardDestination(
     // entry-scoped relief-access card (the #112 self-cleaning VM shape).
     val reliefAccessViewModel: ReliefAccessViewModel =
         viewModel { ReliefAccessViewModel(apiClient) }
+    // #404 — entry-scoped member-attendance roster (same self-cleaning shape).
+    val attendanceViewModel: AttendanceRosterViewModel =
+        viewModel { AttendanceRosterViewModel(apiClient) }
     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+    val selectedBranchId by SessionState.selectedBranchId.collectAsState()
     val branchDayId by SessionState.branchDayId.collectAsState()
     val currentUserId by SessionState.currentUser.collectAsState()
     val isRelief by SessionState.isRelief.collectAsState()
@@ -447,6 +453,19 @@ private fun DashboardDestination(
                         ReliefAccessCard(
                             viewModel = reliefAccessViewModel,
                             branchDayId = dayId,
+                            currentUserId = currentUserId?.id,
+                            isReliefUser = isRelief,
+                        )
+                    }
+                },
+                attendanceContent = {
+                    // #404 — member-marked attendance; the card self-hides for relief users
+                    // (the server's membership gate 403s the read and the section renders nil).
+                    val clockedBranchId = selectedBranchId
+                    if (!isRelief && clockedBranchId != null) {
+                        AttendanceRosterCard(
+                            viewModel = attendanceViewModel,
+                            branchId = clockedBranchId,
                             currentUserId = currentUserId?.id,
                             isReliefUser = isRelief,
                         )
