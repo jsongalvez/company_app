@@ -72,9 +72,12 @@ for (const file of fs.readdirSync(routeDir).filter((name) => name.endsWith(".kt"
   for (const match of scanSource.matchAll(/const val ([A-Z0-9_]+)\s*=\s*"([^"]+)"/g)) constants[match[1]] = match[2];
   for (const match of sourceAnnotations(source, file)) {
     const annotation = match.annotation;
-    const pathParams = [...annotation.matchAll(/pathParams\s*=\s*\[[\s\S]*?\]/g)].flatMap((params) => [...params[0].matchAll(/name\s*=\s*"([^"]+)"/g)].map((param) => param[1]));
+    const pathParamBlocks = [...annotation.matchAll(/pathParams\s*=\s*\[[\s\S]*?\]/g)].map((params) => params[0]);
+    const pathParams = pathParamBlocks.flatMap((params) => [...params.matchAll(/name\s*=\s*"([^"]+)"/g)].map((param) => param[1]));
     if (pathParams.length > 0 && (!/type\s*=\s*UUID::class/.test(annotation) || !/required\s*=\s*true/.test(annotation))) throw new Error(`Source OpenAPI path parameter type/required metadata invalid: ${file} ${match.path}`);
-    const pathParamEntries = openApiParams(annotation);
+    // Scan only the pathParams arrays: the same annotation can declare queryParams
+    // whose entries legitimately omit type=UUID/required=true (#367).
+    const pathParamEntries = pathParamBlocks.flatMap((block) => openApiParams(block));
     if (pathParamEntries.some((param) => !/name\s*=\s*"[^"]+"/.test(param) || !/type\s*=\s*UUID::class/.test(param) || !/required\s*=\s*true/.test(param))) throw new Error(`Source OpenAPI path parameter entry invalid: ${file} ${match.path}`);
     const sourceParams = [...match.path.matchAll(/\{([^}]+)\}/g)].map((param) => param[1]);
     if (JSON.stringify(pathParams.sort()) !== JSON.stringify(sourceParams.sort())) throw new Error(`Source OpenAPI path params differ: ${file} ${match.path}`);
