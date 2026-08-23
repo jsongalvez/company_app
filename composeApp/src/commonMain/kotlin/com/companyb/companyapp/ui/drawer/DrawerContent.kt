@@ -69,6 +69,9 @@ import com.companyb.companyapp.viewmodel.UiState
 fun DrawerContent(
     apiClient: ApiClient,
     modifier: Modifier = Modifier,
+    // #389 — host hook fired after every drawer-initiated navigation (item tap, clock-out
+    // landing). Mobile closes its modal drawer; the desktop permanent drawer no-ops.
+    onItemNavigated: () -> Unit = {},
 ) {
     val navController = LocalNavHostController.current
     val currentUser by SessionState.currentUser.collectAsState()
@@ -94,6 +97,7 @@ fun DrawerContent(
             navController.navigate(Route.BranchSelect) {
                 popUpTo(0) { inclusive = true }
             }
+            onItemNavigated()
         }
     }
 
@@ -133,7 +137,18 @@ fun DrawerContent(
                 DrawerRow(
                     item = item,
                     isSelected = isSelected,
-                    onItemClicked = { route -> navController.navigate(route) },
+                    onItemClicked = { route ->
+                        // #389 — section-switch semantics: collapse to the Dashboard root
+                        // before pushing, so back from a section returns straight home and
+                        // repeated taps never stack duplicates. The Dashboard item itself
+                        // pops its existing instance (a relief deep-link panel included)
+                        // and pushes a fresh home — popUpTo matches the destination pattern,
+                        // not the entry args (SessionCreate landing precedent).
+                        navController.navigate(route) {
+                            popUpTo(Route.Dashboard()) { inclusive = route is Route.Dashboard }
+                        }
+                        onItemNavigated()
+                    },
                     badge = notificationBadge,
                 )
             }

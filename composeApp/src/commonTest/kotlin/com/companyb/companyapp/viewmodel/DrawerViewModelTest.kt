@@ -56,19 +56,21 @@ class DrawerViewModelTest {
 
         // #105 D1 — Finance & Reports collapsed into one item (8 total, was 8 with separate Reports);
         // #381 — Profile added as the always-visible self surface.
-        assertEquals(expected = 8, actual = items.size)
-        assertTrue(items.all { it.visible }, "All 8 items should be visible when all capabilities are set")
+        // #389 — Dashboard added as the always-visible home surface (9 total).
+        assertEquals(expected = 9, actual = items.size)
+        assertTrue(items.all { it.visible }, "All 9 items should be visible when all capabilities are set")
     }
 
     @Test
     fun emptyCapabilities_onlyAlwaysVisibleItemsShow() {
-        // Empty capabilities — only Notifications + AuditLog + Profile (capabilityCode == null)
+        // Empty capabilities — only Dashboard + Notifications + AuditLog + Profile (capabilityCode == null)
         val vm = DrawerViewModel()
         val visibleItems =
             vm.uiState.value.drawerItems
                 .filter { it.visible }
 
-        assertEquals(expected = 3, actual = visibleItems.size)
+        assertEquals(expected = 4, actual = visibleItems.size)
+        assertTrue(visibleItems.any { it.route is Route.Dashboard })
         assertTrue(visibleItems.any { it.route is Route.Notifications })
         assertTrue(visibleItems.any { it.route is Route.AuditLog })
         // #381 — the own profile is reachable by every authenticated user.
@@ -89,6 +91,7 @@ class DrawerViewModelTest {
                 .map { it.label }
 
         assertTrue("Remittance" in visibleLabels)
+        assertTrue("Dashboard" in visibleLabels)
         assertFalse("Clients" in visibleLabels)
         assertFalse("Inventory" in visibleLabels)
         assertFalse("Finance & Reports" in visibleLabels)
@@ -101,9 +104,9 @@ class DrawerViewModelTest {
     fun capabilityChangesAfterConstruction_uiStateUpdates() {
         val vm = DrawerViewModel()
 
-        // Initially no caps — only 3 visible (Notifications + AuditLog + Profile)
+        // Initially no caps — only 4 visible (Dashboard + Notifications + AuditLog + Profile)
         assertEquals(
-            expected = 3,
+            expected = 4,
             actual =
                 vm.uiState.value.drawerItems
                     .count { it.visible },
@@ -117,7 +120,27 @@ class DrawerViewModelTest {
                 .filter { it.visible }
                 .map { it.label }
         assertTrue("Finance & Reports" in after)
-        assertEquals(expected = 4, actual = after.size)
+        assertEquals(expected = 5, actual = after.size)
+    }
+
+    @Test
+    fun dashboardItem_isAlwaysVisibleAndFirst() {
+        // #389 — the clocked-in home is reachable from every post-clock-in screen; it leads
+        // the drawer and gates on nothing (capabilityCode == null → visible at zero caps).
+        val vm = DrawerViewModel()
+        val items = vm.uiState.value.drawerItems
+
+        assertEquals(expected = "Dashboard", actual = items.first().label)
+        assertEquals(expected = Route.Dashboard(), actual = items.first().route)
+        assertTrue(items.first().visible)
+
+        SessionState.setCapabilities(emptyList())
+        assertTrue(
+            vm.uiState.value.drawerItems
+                .first()
+                .visible,
+            "Dashboard stays visible with zero capabilities",
+        )
     }
 
     @Test

@@ -30,6 +30,9 @@ data class DrawerUiState(
 class DrawerViewModel : ViewModel() {
     private val allItems: List<DrawerItem> =
         listOf(
+            // #389 — the clocked-in home is a drawer item like any other section: without it,
+            // top-level screens (no back affordance) strand desktop users away from Dashboard.
+            DrawerItem(Route.Dashboard(), "Dashboard", null, visible = true),
             DrawerItem(Route.Clients, "Clients", CapabilityCodes.EDIT_BRANCH_DATA, visible = false),
             DrawerItem(Route.Inventory, "Inventory", CapabilityCodes.EDIT_BRANCH_DATA, visible = false),
             // #105 D1 — Finance and Reports merge into one item, gate widened to the widest

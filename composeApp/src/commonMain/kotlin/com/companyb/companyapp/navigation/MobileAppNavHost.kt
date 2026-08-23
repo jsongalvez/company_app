@@ -116,7 +116,12 @@ internal fun MobileAppNavHost(
                     // `gesturesEnabled=false`. Closed drawer + gesturesEnabled=false registers NO
                     // back interceptor at the drawer, so pushed-route back-pop wins cleanly.
                     ModalDrawerSheet(drawerState = drawerState) {
-                        DrawerContent(apiClient = apiClient)
+                        // #389 — selection navigates underneath; close the sheet so the
+                        // chosen section is actually visible.
+                        DrawerContent(
+                            apiClient = apiClient,
+                            onItemNavigated = { scope.launch { drawerState.close() } },
+                        )
                     }
                 }
             },
