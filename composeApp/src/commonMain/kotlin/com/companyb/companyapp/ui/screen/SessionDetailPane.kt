@@ -1,16 +1,9 @@
 package com.companyb.companyapp.ui.screen
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,17 +20,17 @@ import com.companyb.companyapp.domain.CapabilityCodes
 import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.dto.AddPractitionerRequest
+import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
-import com.companyb.companyapp.dto.PromoteConcernRequest
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasDayGrant
-import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.SessionViewModel
@@ -64,7 +57,6 @@ import kotlin.uuid.Uuid
  * day id, so that leg is context-type-wide; a wrong-context attempt gets the authoritative
  * 403 and vanishes on the next capability refresh).
  */
-@OptIn(ExperimentalUuidApi::class)
 @Composable
 internal fun SessionDetailPane(
     session: DashboardSessionResponse?,
@@ -87,182 +79,219 @@ internal fun SessionDetailPane(
     // Per-selection dialog/dialog-input state — keyed so switching sessions on the desktop
     // pane never leaks a stale target into a fresh selection.
     key(session.id) {
-        var confirmRemoveConcern by remember { mutableStateOf<ConcernResponse?>(null) }
-        var confirmRemovePractitioner by remember { mutableStateOf<DashboardPractitionerResponse?>(null) }
-        var remarksTarget by remember { mutableStateOf<DashboardPractitionerResponse?>(null) }
-        var showAddPractitioner by remember { mutableStateOf(false) }
-        var showPromoteOther by remember { mutableStateOf(false) }
-
-        val canEdit =
-            capabilities.hasCapability(
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                CapabilityContextType.BRANCH,
-                session.branchId,
-            ) || capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
-        val mutating = practitionerResult is UiState.Loading || concernResult is UiState.Loading
-        val displaySession = mergeRosterNames(session, (roster as? UiState.Success)?.data)
-
-        LaunchedEffect(session.id) {
-            // Fresh roster for the affordance set even when the enriched row arrived seeded.
-            sessionVm.loadSessionPractitioners(session.id)
-        }
-        LaunchedEffect(practitionerResult) {
-            when (val result = practitionerResult) {
-                is UiState.Success -> {
-                    sessionVm.loadSessionPractitioners(session.id)
-                    refreshSession()
-                }
-
-                is UiState.Error -> {
-                    logWarn("SessionDetailVM", "practitioner mutation failed: ${result.message}")
-                    refreshSession()
-                }
-
-                else -> {
-                    return@LaunchedEffect
-                }
-            }
-            // One-shot drain (#382): a terminal landing is handled exactly once — the sticky
-            // flow must not replay into a re-entered pane or a switched selection.
-            sessionVm.consumePractitionerResult()
-        }
-        LaunchedEffect(concernResult) {
-            when (val result = concernResult) {
-                is UiState.Success -> {
-                    refreshSession()
-                }
-
-                is UiState.Error -> {
-                    logWarn("SessionDetailVM", "concern mutation failed: ${result.message}")
-                    refreshSession()
-                }
-
-                else -> {
-                    return@LaunchedEffect
-                }
-            }
-            sessionVm.consumeConcernResult()
-        }
-
-        Column(modifier = modifier) {
-            // weight(1f): the detail content owns the flexible space — AddSelf and inline
-            // mutation errors stay visible below it instead of past the viewport.
-            Box(modifier = Modifier.weight(1f)) {
-                SessionDetailContent(
-                    session = displaySession,
-                    canEdit = canEdit,
-                    mutating = mutating,
-                    onRemoveConcern = { confirmRemoveConcern = it },
-                    onPromoteOtherConcern = { showPromoteOther = true },
-                    onAddPractitioner = { showAddPractitioner = true },
-                    onUpdatePractitionerRemarks = { remarksTarget = it },
-                    onRemovePractitioner = { confirmRemovePractitioner = it },
-                )
-            }
-            AddSelfSection(
-                sessionStatus = session.sessionStatus,
-                roster = (roster as? UiState.Success)?.data,
-                currentUserId = currentUser?.id,
-                canEdit = canEdit,
-                mutating = mutating,
-                onAddSelf = {
-                    sessionVm.addPractitioner(
-                        session.id,
-                        // Idempotency key minted at submit (BR §390–392); duplicate adds are
-                        // idempotent server-side anyway.
-                        AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = currentUser!!.id),
-                    )
-                },
-            )
-            val inlineErrors =
-                listOfNotNull(
-                    (practitionerResult as? UiState.Error)?.message,
-                    (concernResult as? UiState.Error)?.message,
-                ).distinct()
-            inlineErrors.forEach { message ->
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xxs),
-                )
-            }
-        }
-
-        confirmRemoveConcern?.let { concern ->
-            ConfirmRemoveDialog(
-                title = "Remove concern?",
-                body = "\"${concern.label}\" will be detached from this session.",
-                inFlight = mutating,
-                onConfirm = {
-                    confirmRemoveConcern = null
-                    sessionVm.removeSessionConcern(session.id, concern.id)
-                },
-                onDismiss = { confirmRemoveConcern = null },
-            )
-        }
-        confirmRemovePractitioner?.let { practitioner ->
-            ConfirmRemoveDialog(
-                title = "Remove practitioner?",
-                body = "${practitioner.displayName} will be removed from this session.",
-                inFlight = mutating,
-                onConfirm = {
-                    confirmRemovePractitioner = null
-                    sessionVm.removePractitioner(session.id, practitioner.practitionerId)
-                },
-                onDismiss = { confirmRemovePractitioner = null },
-            )
-        }
-        remarksTarget?.let { practitioner ->
-            PractitionerRemarksDialog(
-                practitioner = practitioner,
-                inFlight = mutating,
-                onConfirm = { remarks ->
-                    remarksTarget = null
-                    sessionVm.updatePractitionerRemarks(
-                        session.id,
-                        practitioner.practitionerId,
-                        UpdatePractitionerRemarksRequest(remarks = remarks.trim().ifBlank { null }),
-                    )
-                },
-                onDismiss = { remarksTarget = null },
-            )
-        }
-        if (showAddPractitioner) {
-            LaunchedEffect(session.branchId) { sessionVm.loadBranchMembers(session.branchId) }
-            val rosterIds = displaySession.practitioners.map { it.practitionerId }.toSet()
-            PickerDialog(
-                title = "Add practitioner",
-                items = (members as? UiState.Success)?.data?.filterNot { it.id in rosterIds }.orEmpty(),
-                loading = members is UiState.Loading,
-                error = (members as? UiState.Error)?.message,
-                label = { it.displayName },
-                onSelect = { member ->
-                    showAddPractitioner = false
-                    sessionVm.addPractitioner(
-                        session.id,
-                        AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = member.id),
-                    )
-                },
-                onRetry = { sessionVm.loadBranchMembers(session.branchId) },
-                onDismiss = { showAddPractitioner = false },
-            )
-        }
-        if (showPromoteOther) {
-            PromoteConcernDialog(
-                initialLabel = session.otherConcerns.orEmpty(),
-                inFlight = mutating,
-                onConfirm = { label ->
-                    showPromoteOther = false
-                    sessionVm.promoteConcern(
-                        session.id,
-                        PromoteConcernRequest(id = Uuid.random().toString(), label = label.trim()),
-                    )
-                },
-                onDismiss = { showPromoteOther = false },
-            )
-        }
+        EditableSessionPane(
+            state =
+                PaneState(
+                    capabilities = capabilities,
+                    currentUserId = currentUser?.id,
+                    rosterRows = (roster as? UiState.Success)?.data,
+                    practitionerResult = practitionerResult,
+                    concernResult = concernResult,
+                    members = members,
+                ),
+            sessionVm = sessionVm,
+            session = session,
+            refreshSession = refreshSession,
+            modifier = modifier,
+        )
     }
+}
+
+/** Snapshot of the pane's observed flows, bundled to keep the editable surface's arity low. */
+private class PaneState(
+    val capabilities: List<UserCapabilityResponse>,
+    val currentUserId: String?,
+    val rosterRows: List<SessionPractitionerResponse>?,
+    val practitionerResult: UiState<SessionPractitionerResponse>,
+    val concernResult: UiState<Unit>,
+    val members: UiState<List<BranchMemberResponse>>,
+)
+
+/** Per-selection dialog targets; see the `key(session.id)` note on [SessionDetailPane]. */
+private class PaneDialogTargets {
+    var removeConcern by mutableStateOf<ConcernResponse?>(null)
+    var removePractitioner by mutableStateOf<DashboardPractitionerResponse?>(null)
+    var remarksTarget by mutableStateOf<DashboardPractitionerResponse?>(null)
+    var showAddPractitioner by mutableStateOf(false)
+    var showPromoteOther by mutableStateOf(false)
+}
+
+@OptIn(ExperimentalUuidApi::class)
+@Composable
+private fun EditableSessionPane(
+    state: PaneState,
+    sessionVm: SessionViewModel,
+    session: DashboardSessionResponse,
+    refreshSession: () -> Unit,
+    modifier: Modifier,
+) {
+    val targets = remember(session.id) { PaneDialogTargets() }
+    val canEdit =
+        state.capabilities.hasCapability(
+            CapabilityCodes.EDIT_BRANCH_DATA,
+            CapabilityContextType.BRANCH,
+            session.branchId,
+        ) || state.capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
+    val mutating = state.practitionerResult is UiState.Loading || state.concernResult is UiState.Loading
+    val gate = SessionEditGate(canEdit = canEdit, mutating = mutating)
+    val displaySession = mergeRosterNames(session, state.rosterRows)
+
+    PaneEffects(sessionVm, session.id, state.practitionerResult, state.concernResult, refreshSession)
+
+    Column(modifier = modifier) {
+        // weight(1f): the detail content owns the flexible space — AddSelf and inline
+        // mutation errors stay visible below it instead of past the viewport.
+        Box(modifier = Modifier.weight(1f)) {
+            SessionDetailContent(
+                session = displaySession,
+                gate = gate,
+                actions = paneActions(targets),
+            )
+        }
+        AddSelfSection(
+            sessionStatus = session.sessionStatus,
+            roster = state.rosterRows,
+            currentUserId = state.currentUserId,
+            gate = gate,
+            onAddSelf = {
+                sessionVm.addPractitioner(
+                    session.id,
+                    // Idempotency key minted at submit (BR §390–392); duplicate adds are
+                    // idempotent server-side anyway.
+                    AddPractitionerRequest(id = Uuid.random().toString(), practitionerId = state.currentUserId!!),
+                )
+            },
+        )
+        InlineMutationErrors(
+            listOfNotNull(
+                (state.practitionerResult as? UiState.Error)?.message,
+                (state.concernResult as? UiState.Error)?.message,
+            ).distinct(),
+        )
+    }
+
+    PaneDialogs(sessionVm, displaySession, gate.mutating, targets, state.members)
+}
+
+/** Roster load + the one-shot mutation-result drains (#382): any terminal landing refreshes. */
+@Composable
+private fun PaneEffects(
+    sessionVm: SessionViewModel,
+    sessionId: String,
+    practitionerResult: UiState<SessionPractitionerResponse>,
+    concernResult: UiState<Unit>,
+    refreshSession: () -> Unit,
+) {
+    LaunchedEffect(sessionId) {
+        // Fresh roster for the affordance set even when the enriched row arrived seeded.
+        sessionVm.loadSessionPractitioners(sessionId)
+    }
+    LaunchedEffect(practitionerResult) {
+        when (val result = practitionerResult) {
+            is UiState.Success -> {
+                sessionVm.loadSessionPractitioners(sessionId)
+                refreshSession()
+            }
+
+            is UiState.Error -> {
+                logWarn("SessionDetailVM", "practitioner mutation failed: ${result.message}")
+                refreshSession()
+            }
+
+            else -> {
+                return@LaunchedEffect
+            }
+        }
+        // One-shot drain (#382): a terminal landing is handled exactly once — the sticky
+        // flow must not replay into a re-entered pane or a switched selection.
+        sessionVm.consumePractitionerResult()
+    }
+    LaunchedEffect(concernResult) {
+        when (val result = concernResult) {
+            is UiState.Success -> {
+                refreshSession()
+            }
+
+            is UiState.Error -> {
+                logWarn("SessionDetailVM", "concern mutation failed: ${result.message}")
+                refreshSession()
+            }
+
+            else -> {
+                return@LaunchedEffect
+            }
+        }
+        sessionVm.consumeConcernResult()
+    }
+}
+
+private fun paneActions(targets: PaneDialogTargets): SessionDetailActions =
+    SessionDetailActions(
+        onRemoveConcern = { targets.removeConcern = it },
+        onPromoteOtherConcern = { targets.showPromoteOther = true },
+        onAddPractitioner = { targets.showAddPractitioner = true },
+        onUpdatePractitionerRemarks = { targets.remarksTarget = it },
+        onRemovePractitioner = { targets.removePractitioner = it },
+    )
+
+@Composable
+private fun InlineMutationErrors(errors: List<String>) {
+    errors.forEach { message ->
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xxs),
+        )
+    }
+}
+
+@Composable
+private fun PaneDialogs(
+    sessionVm: SessionViewModel,
+    session: DashboardSessionResponse,
+    mutating: Boolean,
+    targets: PaneDialogTargets,
+    members: UiState<List<BranchMemberResponse>>,
+) {
+    RemoveConcernDialogHost(
+        target = targets.removeConcern,
+        mutating = mutating,
+        onConfirmed = { sessionVm.removeSessionConcern(session.id, it) },
+        onCleared = { targets.removeConcern = null },
+    )
+    RemovePractitionerDialogHost(
+        target = targets.removePractitioner,
+        mutating = mutating,
+        onConfirmed = { sessionVm.removePractitioner(session.id, it) },
+        onCleared = { targets.removePractitioner = null },
+    )
+    RemarksDialogHost(
+        target = targets.remarksTarget,
+        mutating = mutating,
+        onConfirmed = { practitionerId, remarks ->
+            sessionVm.updatePractitionerRemarks(
+                session.id,
+                practitionerId,
+                UpdatePractitionerRemarksRequest(remarks = remarks),
+            )
+        },
+        onCleared = { targets.remarksTarget = null },
+    )
+    AddPractitionerDialogHost(
+        visible = targets.showAddPractitioner,
+        session = session,
+        sessionVm = sessionVm,
+        members = members,
+        onClose = { targets.showAddPractitioner = false },
+    )
+    PromoteOtherDialogHost(
+        visible = targets.showPromoteOther,
+        session = session,
+        sessionVm = sessionVm,
+        mutating = mutating,
+        onClose = { targets.showPromoteOther = false },
+    )
 }
 
 /**
@@ -274,13 +303,12 @@ private fun AddSelfSection(
     sessionStatus: SessionStatus,
     roster: List<SessionPractitionerResponse>?,
     currentUserId: String?,
-    canEdit: Boolean,
-    mutating: Boolean,
+    gate: SessionEditGate,
     onAddSelf: () -> Unit,
 ) {
-    if (!canEdit || sessionStatus != SessionStatus.PENDING || currentUserId == null) return
+    if (!gate.canEdit || sessionStatus != SessionStatus.PENDING || currentUserId == null) return
     val rosterIds = roster?.map { it.practitionerId } ?: return
-    if (mutating) return
+    if (gate.mutating) return
     if (currentUserId in rosterIds) return
 
     Column(modifier = Modifier.padding(horizontal = Spacing.md)) {
@@ -307,149 +335,6 @@ private fun mergeRosterNames(
                     slotAtTime = row.slotAtTime,
                 )
             },
-    )
-}
-
-@Composable
-private fun ConfirmRemoveDialog(
-    title: String,
-    body: String,
-    inFlight: Boolean,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(body, style = MaterialTheme.typography.bodyMedium) },
-        confirmButton = {
-            TextButton(onClick = onConfirm, enabled = !inFlight) {
-                Text("Remove", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
-@Composable
-private fun PractitionerRemarksDialog(
-    practitioner: DashboardPractitionerResponse,
-    inFlight: Boolean,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var draft by remember { mutableStateOf(practitioner.remarks.orEmpty()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Remarks for ${practitioner.displayName}") },
-        text = {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                singleLine = true,
-                enabled = !inFlight,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(draft) },
-                enabled =
-                    !inFlight && draft.trim() != practitioner.remarks?.trim().orEmpty(),
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
-/**
- * #382 — promote the session's free-text "other concerns" note into a tracked catalog
- * concern; the backend clears the note atomically with the new link.
- */
-@Composable
-private fun PromoteConcernDialog(
-    initialLabel: String,
-    inFlight: Boolean,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var draft by remember { mutableStateOf(initialLabel) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Promote to tracked concern") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(
-                    text = "Creates a structured concern and clears the free-text note.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = InkSubtle,
-                )
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(draft) }, enabled = !inFlight && draft.isNotBlank()) {
-                Text("Promote")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
-/** Simple list picker over directory reads (branch members / concern catalog). */
-@Composable
-private fun <T> PickerDialog(
-    title: String,
-    items: List<T>,
-    loading: Boolean,
-    error: String?,
-    label: (T) -> String,
-    onSelect: (T) -> Unit,
-    onRetry: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column {
-                if (loading) {
-                    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                        CircularProgressIndicator(modifier = Modifier.size(Spacing.lg))
-                    }
-                }
-                error?.let { message ->
-                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = onRetry) { Text("Retry") }
-                }
-                items.forEach { item ->
-                    TextButton(onClick = { onSelect(item) }) {
-                        Text(label(item), color = MaterialTheme.colorScheme.onSurface)
-                    }
-                }
-                if (!loading && error == null && items.isEmpty()) {
-                    Text("Nothing available", style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
-        },
     )
 }
 

@@ -49,13 +49,9 @@ fun ProfileScreen(
     val slotUpdate by viewModel.slotUpdate.collectAsState()
     var slotEditTarget by remember { mutableStateOf<SlotEditTarget?>(null) }
 
-    LaunchedEffect(Unit) {
-        // Load once per VM lifetime; re-fire wholesale from an error state (the
-        // AuditLogHistory entry policy — retry re-fetches all three sections).
-        if (me is UiState.Idle || me is UiState.Error) {
-            viewModel.loadAll()
-        }
-    }
+    // Load once per VM lifetime; re-fire wholesale from an error state (the
+    // AuditLogHistory entry policy — retry re-fetches all three sections).
+    LaunchedEffect(Unit) { if (me is UiState.Idle || me is UiState.Error) viewModel.loadAll() }
 
     Column(
         modifier =

@@ -394,32 +394,7 @@ internal fun MobileAppNavHost(
                         )
                     }
                     composable<Route.SessionCreate> {
-                        // #348 — code-only route gate (the Clients #156 shape); the backend's
-                        // branch-day create gate stays authoritative. No clocked-in branch →
-                        // gate card: sessions belong to a branch day.
-                        val capabilities by SessionState.capabilities.collectAsState()
-                        val selectedBranchId by SessionState.selectedBranchId.collectAsState()
-                        val selectedBranchName by SessionState.selectedBranchName.collectAsState()
-                        if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA) &&
-                            selectedBranchId != null
-                        ) {
-                            val sessionCreateViewModel: SessionCreateViewModel =
-                                viewModel { SessionCreateViewModel(apiClient, selectedBranchId!!) }
-                            val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
-                            SessionCreateScreen(
-                                viewModel = sessionCreateViewModel,
-                                clientViewModel = clientViewModel,
-                                branchName = selectedBranchName,
-                                onBack = { navController.popBackStack() },
-                                onSessionCreated = { id ->
-                                    navController.navigate(Route.SessionDetail(id)) {
-                                        popUpTo(Route.Dashboard())
-                                    }
-                                },
-                            )
-                        } else {
-                            RouteGateCard(label = "New session")
-                        }
+                        SessionCreateDestination(apiClient, navController)
                     }
                     composable<Route.SessionDetail> { entry ->
                         val route = entry.toRoute<Route.SessionDetail>()
@@ -439,6 +414,39 @@ internal fun MobileAppNavHost(
                 }
             }
         }
+    }
+}
+
+// #348 — code-only route gate (the Clients #156 shape); the backend's branch-day create
+// gate stays authoritative. No clocked-in branch → gate card: sessions belong to a branch day.
+@Composable
+private fun SessionCreateDestination(
+    apiClient: ApiClient,
+    navController: NavHostController,
+) {
+    val capabilities by SessionState.capabilities.collectAsState()
+    val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+    val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+    val clockedBranchId = selectedBranchId
+    if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA) &&
+        clockedBranchId != null
+    ) {
+        val sessionCreateViewModel: SessionCreateViewModel =
+            viewModel { SessionCreateViewModel(apiClient, clockedBranchId) }
+        val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
+        SessionCreateScreen(
+            viewModel = sessionCreateViewModel,
+            clientViewModel = clientViewModel,
+            branchName = selectedBranchName,
+            onBack = { navController.popBackStack() },
+            onSessionCreated = { id ->
+                navController.navigate(Route.SessionDetail(id)) {
+                    popUpTo(Route.Dashboard())
+                }
+            },
+        )
+    } else {
+        RouteGateCard(label = "New session")
     }
 }
 
