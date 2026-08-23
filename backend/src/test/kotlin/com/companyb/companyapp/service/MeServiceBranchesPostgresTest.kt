@@ -75,6 +75,8 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         assertEquals(listOf("Branch A", "Branch B"), branches.map { it.branchName })
         assertTrue(branches.all { it.clockInStatus == BranchClockInStatus.NOT_CLOCKED_IN })
         assertTrue(branches.all { !it.isRelief })
+        // #381 — the assignment slot rides on the row (both fixtures assign at slot 1).
+        assertTrue(branches.all { it.slot == 1.toShort() })
         assertTrue(branches.all { it.branchType == BranchType.CLINIC })
         assertTrue(branches.all { it.branchId.isNotBlank() })
     }
@@ -103,6 +105,8 @@ class MeServiceBranchesPostgresTest : BasePostgresTest() {
         assertEquals(reliefBranch.toString(), branches.single().branchId)
         assertEquals(BranchClockInStatus.CLOCKED_IN_HERE, branches.single().clockInStatus)
         assertTrue(branches.single().isRelief)
+        // #381 — relief rows have no assignment, hence no slot.
+        assertEquals(null, branches.single().slot)
     }
 
     @Test

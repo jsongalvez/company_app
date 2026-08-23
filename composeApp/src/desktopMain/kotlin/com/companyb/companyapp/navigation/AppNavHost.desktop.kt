@@ -43,6 +43,7 @@ import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
 import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.ProfileScreen
 import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
@@ -58,6 +59,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ProfileViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefDayViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
@@ -124,7 +126,8 @@ actual fun AppNavHost(
                         actions =
                             LoginNavActions(
                                 onLoginSuccess = {
-                                    // Per #91 — popUpTo(Login) inclusive on clock-in (foundation best-guess; #94-grad refines)
+                                    // Per #91 — popUpTo(Login) inclusive on clock-in
+                                    // (foundation best-guess; #94-grad refines)
                                     navController.navigate(Route.BranchSelect) {
                                         popUpTo(Route.Login) { inclusive = true }
                                     }
@@ -303,38 +306,7 @@ actual fun AppNavHost(
                     )
                 }
                 composable<Route.Notifications> {
-                    val notificationsViewModel: NotificationViewModel = viewModel { NotificationViewModel(apiClient) }
-                    val reliefInviteViewModel: ReliefInviteViewModel =
-                        viewModel { ReliefInviteViewModel(apiClient) }
-                    NotificationsScreen(
-                        viewModel = notificationsViewModel,
-                        reliefInviteViewModel = reliefInviteViewModel,
-                        onNotificationClick = { notification ->
-                            // #152 — scoped #91-lock revision (#151 Q6): desktop notification taps
-                            // now mark-read + push the SessionDetail route (desktop is the main
-                            // platform). The pushed route exists ONLY for this entry point — the
-                            // dashboard keeps its inline master-detail pane. The markRead PATCH is
-                            // fire-and-forget; the detail GET's bearer check accepts read or unread
-                            // rows, so there is no markRead/GET race (#151 Q7). #358: relief rows
-                            // deep-link to the branch+date panel.
-                            notificationsViewModel.markRead(notification.id)
-                            val sessionId = notification.sessionId
-                            when {
-                                sessionId != null -> {
-                                    navController.navigate(Route.SessionDetail(sessionId))
-                                }
-
-                                notification.targetDate != null -> {
-                                    navController.navigate(
-                                        Route.Dashboard(
-                                            branchId = notification.branchId,
-                                            date = notification.targetDate,
-                                        ),
-                                    )
-                                }
-                            }
-                        },
-                    )
+                    NotificationsDestination(apiClient, navController)
                 }
                 // #123 — D9: no route gate (always-visible per #108; backend-authoritative read
                 // scoping). hasAnyCapability = zero-grant "No branch access" empty state.
@@ -380,6 +352,16 @@ actual fun AppNavHost(
                         RouteGateCard(label = "User Management")
                     }
                 }
+                // #381 — own profile: no route gate (every authenticated user), pushed
+                // route, entry-scoped VM (#112).
+                composable<Route.Profile> {
+                    val profileViewModel: ProfileViewModel =
+                        viewModel { ProfileViewModel(apiClient) }
+                    ProfileScreen(
+                        viewModel = profileViewModel,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
                 // #152 — scoped #91-lock revision (#151 Q6): desktop SessionDetail exists as a
                 // pushed route for the NOTIFICATION entry point only (desktop is the main
                 // platform); the dashboard's inline pane is untouched. Entry-scoped VM (#112):
@@ -391,11 +373,12 @@ actual fun AppNavHost(
                     val capabilities by SessionState.capabilities.collectAsState()
                     val selectedBranchId by SessionState.selectedBranchId.collectAsState()
                     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+                    val clockedBranchId = selectedBranchId
                     if (capabilities.hasCapabilityAnyContext(CapabilityCodes.EDIT_BRANCH_DATA) &&
-                        selectedBranchId != null
+                        clockedBranchId != null
                     ) {
                         val sessionCreateViewModel: SessionCreateViewModel =
-                            viewModel { SessionCreateViewModel(apiClient, selectedBranchId!!) }
+                            viewModel { SessionCreateViewModel(apiClient, clockedBranchId) }
                         val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
                         SessionCreateScreen(
                             viewModel = sessionCreateViewModel,
@@ -430,6 +413,45 @@ actual fun AppNavHost(
 
 private const val DESKTOP_MASTER_WEIGHT = 0.6f
 private const val DESKTOP_DETAIL_WEIGHT = 0.4f
+
+@Composable
+private fun NotificationsDestination(
+    apiClient: ApiClient,
+    navController: NavHostController,
+) {
+    val notificationsViewModel: NotificationViewModel = viewModel { NotificationViewModel(apiClient) }
+    val reliefInviteViewModel: ReliefInviteViewModel =
+        viewModel { ReliefInviteViewModel(apiClient) }
+    NotificationsScreen(
+        viewModel = notificationsViewModel,
+        reliefInviteViewModel = reliefInviteViewModel,
+        onNotificationClick = { notification ->
+            // #152 — scoped #91-lock revision (#151 Q6): desktop notification taps
+            // now mark-read + push the SessionDetail route (desktop is the main
+            // platform). The pushed route exists ONLY for this entry point — the
+            // dashboard keeps its inline master-detail pane. The markRead PATCH is
+            // fire-and-forget; the detail GET's bearer check accepts read or unread
+            // rows, so there is no markRead/GET race (#151 Q7). #358: relief rows
+            // deep-link to the branch+date panel.
+            notificationsViewModel.markRead(notification.id)
+            val sessionId = notification.sessionId
+            when {
+                sessionId != null -> {
+                    navController.navigate(Route.SessionDetail(sessionId))
+                }
+
+                notification.targetDate != null -> {
+                    navController.navigate(
+                        Route.Dashboard(
+                            branchId = notification.branchId,
+                            date = notification.targetDate,
+                        ),
+                    )
+                }
+            }
+        },
+    )
+}
 
 @Composable
 private fun PlaceholderRoute(label: String) {

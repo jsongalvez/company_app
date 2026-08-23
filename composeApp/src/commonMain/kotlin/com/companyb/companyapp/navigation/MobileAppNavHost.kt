@@ -48,6 +48,7 @@ import com.companyb.companyapp.ui.screen.ForgotPasswordScreen
 import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
+import com.companyb.companyapp.ui.screen.ProfileScreen
 import com.companyb.companyapp.ui.screen.ReliefAccessCard
 import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
@@ -63,6 +64,7 @@ import com.companyb.companyapp.viewmodel.BranchSelectViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ProfileViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
 import com.companyb.companyapp.viewmodel.ReliefDayViewModel
 import com.companyb.companyapp.viewmodel.ReliefInviteViewModel
@@ -344,6 +346,16 @@ internal fun MobileAppNavHost(
                         } else {
                             RouteGateCard(label = "User Management")
                         }
+                    }
+                    // #381 — own profile: no route gate (every authenticated user), pushed
+                    // route, entry-scoped VM (#112).
+                    composable<Route.Profile> {
+                        val profileViewModel: ProfileViewModel =
+                            viewModel { ProfileViewModel(apiClient) }
+                        ProfileScreen(
+                            viewModel = profileViewModel,
+                            onBack = { navController.popBackStack() },
+                        )
                     }
                     composable<Route.SessionCreate> {
                         // #348 — code-only route gate (the Clients #156 shape); the backend's

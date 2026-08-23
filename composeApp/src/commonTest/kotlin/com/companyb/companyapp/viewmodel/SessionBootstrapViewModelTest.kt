@@ -57,7 +57,7 @@ class SessionBootstrapViewModelTest {
     }
 
     private val meJson =
-        """{"id":"u1","username":"dev","status":"ACTIVE","createdAt":"2026-08-10T00:00:00+08:00"}"""
+        """{"id":"u1","username":"dev","displayName":"Dev","status":"ACTIVE","createdAt":"2026-08-10T00:00:00+08:00"}"""
 
     private val capabilitiesJson =
         """
@@ -174,6 +174,7 @@ class SessionBootstrapViewModelTest {
                 MeResponse(
                     id = "stale",
                     username = "stale",
+                    displayName = "Stale",
                     status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
                     createdAt = "2026-08-10T00:00:00+08:00",
                 ),

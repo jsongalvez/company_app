@@ -27,6 +27,7 @@ internal object MeRepository {
     data class MeUser(
         val id: UUID,
         val username: String,
+        val displayName: String,
         val status: UserStatus,
         val createdAt: OffsetDateTime,
     )
@@ -39,6 +40,8 @@ internal object MeRepository {
         val assigned: Boolean,
         /** The user has an active clock-in at this branch today (operational day). */
         val clockedInHereToday: Boolean,
+        /** #381 — the active assignment's slot; null for relief rows (no assignment). */
+        val slot: Short?,
     )
 
     fun findUser(userId: UUID): MeUser? =
@@ -50,6 +53,7 @@ internal object MeRepository {
                 MeUser(
                     id = row[AppUserTable.id],
                     username = row[AppUserTable.username],
+                    displayName = row[AppUserTable.displayName],
                     status = row[AppUserTable.status],
                     createdAt = row[AppUserTable.createdAt],
                 )
@@ -59,14 +63,15 @@ internal object MeRepository {
         userId: UUID,
         operationalDay: LocalDate,
     ): List<MeBranchRow> {
-        val assignedBranchIds =
+        // #381 — the active assignments carry the Branch Slot per branch.
+        val slotsByBranchId =
             UserBranchAssignmentTable
                 .selectAll()
                 .where {
                     (UserBranchAssignmentTable.userId eq userId) and
                         (UserBranchAssignmentTable.endedAt.isNull())
-                }.map { it[UserBranchAssignmentTable.branchId] }
-                .toSet()
+                }.associate { it[UserBranchAssignmentTable.branchId] to it[UserBranchAssignmentTable.slot] }
+        val assignedBranchIds = slotsByBranchId.keys
         val clockedInTodayBranchIds =
             AttendanceTable
                 .innerJoin(BranchDayTable, { AttendanceTable.branchDayId }, { BranchDayTable.id })
@@ -93,6 +98,7 @@ internal object MeRepository {
                     branchType = row[BranchTable.branchType],
                     assigned = branchId in assignedBranchIds,
                     clockedInHereToday = branchId in clockedInTodayBranchIds,
+                    slot = slotsByBranchId[branchId],
                 )
             }
     }

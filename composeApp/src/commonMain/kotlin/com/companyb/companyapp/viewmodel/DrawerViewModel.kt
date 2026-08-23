@@ -47,6 +47,8 @@ class DrawerViewModel : ViewModel() {
             DrawerItem(Route.Notifications, "Notifications", null, visible = true),
             DrawerItem(Route.AuditLog, "Audit Log", null, visible = true),
             DrawerItem(Route.UserManagement, "User Management", CapabilityCodes.MANAGE_USERS, visible = false),
+            // #381 — own profile: reachable by every authenticated user, no capability gate.
+            DrawerItem(Route.Profile, "Profile", null, visible = true),
         )
 
     private val _uiState: MutableStateFlow<DrawerUiState> =

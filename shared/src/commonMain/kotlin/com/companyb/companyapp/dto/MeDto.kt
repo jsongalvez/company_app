@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 data class MeResponse(
     val id: String,
     val username: String,
+    val displayName: String,
     val status: UserStatus,
     val createdAt: String,
 )
@@ -30,4 +31,7 @@ data class MeBranchResponse(
     val branchType: BranchType,
     val clockInStatus: BranchClockInStatus,
     val isRelief: Boolean,
+    // #381 — own-assignment slot (Branch Slot, 1 = senior); null for relief rows, which
+    // have no branch assignment to order.
+    val slot: Short? = null,
 )

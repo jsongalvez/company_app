@@ -54,22 +54,25 @@ class DrawerViewModelTest {
         val vm = DrawerViewModel()
         val items = vm.uiState.value.drawerItems
 
-        // #105 D1 — Finance & Reports collapsed into one item (7 total, was 8 with separate Reports).
-        assertEquals(expected = 7, actual = items.size)
-        assertTrue(items.all { it.visible }, "All 7 items should be visible when all capabilities are set")
+        // #105 D1 — Finance & Reports collapsed into one item (8 total, was 8 with separate Reports);
+        // #381 — Profile added as the always-visible self surface.
+        assertEquals(expected = 8, actual = items.size)
+        assertTrue(items.all { it.visible }, "All 8 items should be visible when all capabilities are set")
     }
 
     @Test
     fun emptyCapabilities_onlyAlwaysVisibleItemsShow() {
-        // Empty capabilities — only Notifications + AuditLog (capabilityCode == null) visible per ticket 11
+        // Empty capabilities — only Notifications + AuditLog + Profile (capabilityCode == null)
         val vm = DrawerViewModel()
         val visibleItems =
             vm.uiState.value.drawerItems
                 .filter { it.visible }
 
-        assertEquals(expected = 2, actual = visibleItems.size)
+        assertEquals(expected = 3, actual = visibleItems.size)
         assertTrue(visibleItems.any { it.route is Route.Notifications })
         assertTrue(visibleItems.any { it.route is Route.AuditLog })
+        // #381 — the own profile is reachable by every authenticated user.
+        assertTrue(visibleItems.any { it.route is Route.Profile })
         assertFalse(visibleItems.any { it.route is Route.Clients })
         assertFalse(visibleItems.any { it.route is Route.UserManagement })
     }
@@ -98,9 +101,9 @@ class DrawerViewModelTest {
     fun capabilityChangesAfterConstruction_uiStateUpdates() {
         val vm = DrawerViewModel()
 
-        // Initially no caps — only 2 visible (Notifications + AuditLog)
+        // Initially no caps — only 3 visible (Notifications + AuditLog + Profile)
         assertEquals(
-            expected = 2,
+            expected = 3,
             actual =
                 vm.uiState.value.drawerItems
                     .count { it.visible },
@@ -114,7 +117,7 @@ class DrawerViewModelTest {
                 .filter { it.visible }
                 .map { it.label }
         assertTrue("Finance & Reports" in after)
-        assertEquals(expected = 3, actual = after.size)
+        assertEquals(expected = 4, actual = after.size)
     }
 
     @Test

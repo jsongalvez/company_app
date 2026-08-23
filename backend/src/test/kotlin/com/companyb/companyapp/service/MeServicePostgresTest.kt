@@ -45,6 +45,8 @@ class MeServicePostgresTest : BasePostgresTest() {
 
         assertEquals(userId.toString(), response.id)
         assertEquals("me-caller-$userId", response.username)
+        // #381 — the display name rides on the identity read.
+        assertEquals("Me Caller", response.displayName)
         assertEquals(com.companyb.companyapp.domain.UserStatus.ACTIVE, response.status)
         assertTrue(response.createdAt.isNotBlank())
     }

@@ -70,6 +70,11 @@ sealed class Route {
     @Serializable
     data object UserManagement : Route()
 
+    // #381 — the signed-in user's own profile (identity, assignments, capabilities, self slot
+    // edit). No route gate: any authenticated user reaches their own surface.
+    @Serializable
+    data object Profile : Route()
+
     // #348 — start-a-session flow: pushed from the dashboard's "New session" button; the
     // branch context comes from SessionState (entry-scoped VMs bake it in at construction).
     @Serializable

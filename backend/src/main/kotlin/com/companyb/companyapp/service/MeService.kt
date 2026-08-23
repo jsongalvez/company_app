@@ -27,6 +27,7 @@ object MeService {
             MeResponse(
                 id = user.id.toString(),
                 username = user.username,
+                displayName = user.displayName,
                 status = user.status,
                 createdAt = user.createdAt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
             )
@@ -50,6 +51,7 @@ object MeService {
                             else -> BranchClockInStatus.NOT_CLOCKED_IN
                         },
                     isRelief = !row.assigned,
+                    slot = row.slot,
                 )
             }
         }.also { logger.info { "[GET-ME-BRANCHES] Fetched ${it.size} branch(es) for user $userId" } }

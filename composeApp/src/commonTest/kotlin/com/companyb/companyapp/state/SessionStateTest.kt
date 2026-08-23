@@ -18,6 +18,7 @@ class SessionStateTest {
         MeResponse(
             id = "u1",
             username = "dev",
+            displayName = "Dev",
             status = com.companyb.companyapp.domain.UserStatus.ACTIVE,
             createdAt = "2026-08-10T00:00:00+08:00",
         )
