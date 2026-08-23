@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,7 @@ import com.companyb.companyapp.ui.screen.LoginNavActions
 import com.companyb.companyapp.ui.screen.LoginScreen
 import com.companyb.companyapp.ui.screen.NotificationsScreen
 import com.companyb.companyapp.ui.screen.ProfileScreen
+import com.companyb.companyapp.ui.screen.ReliefAccessCard
 import com.companyb.companyapp.ui.screen.ReliefDayScreen
 import com.companyb.companyapp.ui.screen.RemittanceDetailScreen
 import com.companyb.companyapp.ui.screen.RemittanceListScreen
@@ -206,7 +208,14 @@ actual fun AppNavHost(
                     }
                     val dashboardViewModel: SessionDashboardViewModel =
                         viewModel { SessionDashboardViewModel(apiClient) }
+                    // #400 — parity with the mobile host: the dashboard carries the
+                    // entry-scoped relief-access card (the #112 self-cleaning VM shape).
+                    val reliefAccessViewModel: ReliefAccessViewModel =
+                        viewModel { ReliefAccessViewModel(apiClient) }
                     val selectedBranchName by SessionState.selectedBranchName.collectAsState()
+                    val branchDayId by SessionState.branchDayId.collectAsState()
+                    val currentUserId by SessionState.currentUser.collectAsState()
+                    val isRelief by SessionState.isRelief.collectAsState()
                     val lastData by dashboardViewModel.lastData.collectAsState()
                     var selectedSessionId by remember { mutableStateOf<String?>(null) }
                     Row(modifier = Modifier.fillMaxSize()) {
@@ -221,6 +230,21 @@ actual fun AppNavHost(
                                 onSessionClick = { session -> selectedSessionId = session.id },
                                 // #348 — the dashboard's entry into the start-a-session flow.
                                 onSessionCreateClick = { navController.navigate(Route.SessionCreate) },
+                                reliefAccessContent = {
+                                    val dayId = branchDayId
+                                    if (dayId != null) {
+                                        LaunchedEffect(dayId) {
+                                            reliefAccessViewModel.resetActionStates()
+                                            reliefAccessViewModel.loadRequests(dayId)
+                                        }
+                                        ReliefAccessCard(
+                                            viewModel = reliefAccessViewModel,
+                                            branchDayId = dayId,
+                                            currentUserId = currentUserId?.id,
+                                            isReliefUser = isRelief,
+                                        )
+                                    }
+                                },
                             )
                         }
                         Box(modifier = Modifier.weight(DESKTOP_DETAIL_WEIGHT).fillMaxSize()) {
