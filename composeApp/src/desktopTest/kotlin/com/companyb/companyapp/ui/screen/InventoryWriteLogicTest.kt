@@ -4,6 +4,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.CapabilitySourceType
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import kotlin.test.Test
@@ -209,5 +210,52 @@ class InventoryWriteLogicTest {
         assertNull(lowStockSummaryLine(listOf(alcohol), setOf("p-2")))
         assertNull(lowStockSummaryLine(emptyList(), setOf("product-1")))
         assertEquals("1 of 2 cards low on stock", lowStockSummaryLine(listOf(alcohol, pads), setOf("product-1", "p-9")))
+    }
+
+    /** #397 — the movements-history presentation: names, signed quantities, normalized notes. */
+    @Test
+    fun toMovementRows_resolvesNames_signedQuantities_andNormalizesNotes() {
+        fun movement(
+            productId: String,
+            quantityChange: Int,
+            notes: String? = null,
+        ) = InventoryMovementResponse(
+            id = "movement-$productId-$quantityChange",
+            productId = productId,
+            branchId = "branch-1",
+            branchDayId = "day-1",
+            reason = if (quantityChange < 0) InventoryMovementReason.TESTER else InventoryMovementReason.RESTOCK,
+            quantityChange = quantityChange,
+            movedBy = "user-1",
+            movedAt = "2026-08-24T01:00:00Z",
+            notes = notes,
+        )
+
+        // Empty history → no rows.
+        assertTrue(emptyList<InventoryMovementResponse>().toMovementRows(emptyList()).isEmpty())
+
+        // Names resolve from the displayed cards by productId; an unknown card falls back to
+        // the raw id; backend order (movedAt DESC) is preserved untouched.
+        val cards = listOf(card()) // productId "product-1" → "Alcohol"
+        val rows =
+            listOf(
+                movement("product-1", 5),
+                movement("ghost-product", -2, " demo draw "),
+                movement("product-1", 0),
+            ).toMovementRows(cards)
+        assertEquals(listOf("+5", "-2", "0"), rows.map { it.reasonLine.substringAfterLast("· ") })
+        assertEquals("Alcohol", rows[0].productName)
+        assertEquals("ghost-product", rows[1].productName)
+        assertTrue(rows[0].reasonLine.startsWith("Restock"))
+        assertTrue(rows[1].reasonLine.startsWith("Tester"))
+        assertTrue(rows[2].reasonLine.startsWith("Restock"))
+
+        // Notes normalize: blank collapses to null, real text trims through.
+        assertNull(rows[0].notes)
+        assertEquals("demo draw", rows[1].notes)
+
+        // Signed display form directly.
+        assertEquals("+3", signedQuantityLine(3))
+        assertEquals("-3", signedQuantityLine(-3))
     }
 }

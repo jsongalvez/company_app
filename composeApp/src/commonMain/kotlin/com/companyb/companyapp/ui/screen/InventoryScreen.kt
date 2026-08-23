@@ -79,6 +79,10 @@ internal sealed interface InventoryWriteTarget {
  * id the backend marks low render a "Low" marker and a count summary line sits under the
  * header. Membership is backend-authoritative; the client mirrors nothing.
  *
+ * #397 — movements-history browsing: a "History" header affordance opens the branch's past
+ * stock movements in a dialog, loaded on demand through its own VM leg (failure degrades to
+ * inline retry there, never touching the list legs).
+ *
  * States: load-on-entry + Refresh button (the Remittance D7 axis); Loading spinner;
  * error → shared ErrorCard retry; empty hint; rows sorted by product name (toInventoryRows
  * pins the presentation rules, desktopTest-packeted).
@@ -97,6 +101,7 @@ fun InventoryScreen(
     val capabilities by SessionState.capabilities.collectAsState()
     var writeTarget by remember { mutableStateOf<InventoryWriteTarget?>(null) }
     var showEnsureCard by remember { mutableStateOf(false) }
+    var showMovements by remember { mutableStateOf(false) }
 
     InventoryLoadEffects(viewModel, branchId, restockResult, movementResult, cardResult)
     Column(
@@ -112,6 +117,11 @@ fun InventoryScreen(
         ) {
             Text(text = "Inventory", style = MaterialTheme.typography.titleLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                if (branchId != null) {
+                    TextButton(onClick = { showMovements = true }) {
+                        Text("History")
+                    }
+                }
                 if (branchId != null && canEnsureCard(capabilities, branchId)) {
                     TextButton(
                         onClick = { showEnsureCard = true },
@@ -165,6 +175,15 @@ fun InventoryScreen(
                     viewModel.ensureCard(branchId, AddInventoryCardRequest(productId))
                 }
             },
+        )
+    }
+    val currentBranchId = branchId
+    if (showMovements && currentBranchId != null) {
+        MovementsHistoryDialog(
+            viewModel = viewModel,
+            branchId = currentBranchId,
+            cards = (inventoryState as? UiState.Success)?.data.orEmpty(),
+            onDismiss = { showMovements = false },
         )
     }
 }

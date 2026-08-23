@@ -33,6 +33,14 @@ class InventoryViewModel(
     private val _lowStock = MutableStateFlow<UiState<List<BranchInventoryResponse>>>(UiState.Idle)
     val lowStock: StateFlow<UiState<List<BranchInventoryResponse>>> = _lowStock.asStateFlow()
 
+    /**
+     * #397 — the on-demand movements-history read (`GET .../inventory/movements`). Separate
+     * UiState per the #396 gotcha: its failure must never touch the list/low-stock legs.
+     * Loaded when the history dialog opens — browsing is on demand, not part of every load.
+     */
+    private val _movements = MutableStateFlow<UiState<List<InventoryMovementResponse>>>(UiState.Idle)
+    val movements: StateFlow<UiState<List<InventoryMovementResponse>>> = _movements.asStateFlow()
+
     private val _cardResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val cardResult: StateFlow<UiState<Unit>> = _cardResult.asStateFlow()
 
@@ -58,6 +66,17 @@ class InventoryViewModel(
             operation = "loadLowStock",
             endpoint = "GET /api/branches/$branchId/inventory/low-stock",
             block = { apiClient.httpClient.get(ApiRoutes.branchInventoryLowStock(branchId)) },
+            transform = { it.body() },
+        )
+    }
+
+    /** #397 — the movements-history leg, fired when the history dialog opens (or on retry). */
+    fun loadMovements(branchId: String) {
+        handler.launch(
+            state = _movements,
+            operation = "loadMovements",
+            endpoint = "GET /api/branches/$branchId/inventory/movements",
+            block = { apiClient.httpClient.get(ApiRoutes.branchInventoryMovements(branchId)) },
             transform = { it.body() },
         )
     }

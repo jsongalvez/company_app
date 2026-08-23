@@ -5,6 +5,7 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
+import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
@@ -151,6 +152,38 @@ internal fun lowStockSummaryLine(
     val count = cards.count { it.productId in lowStockIds }
     return if (count > 0) "$count of ${cards.size} cards low on stock" else null
 }
+
+/** Signed display form: restocks/adjustments gain a "+", draws keep the backend's negative. */
+internal fun signedQuantityLine(quantityChange: Int): String =
+    if (quantityChange > 0) "+$quantityChange" else quantityChange.toString()
+
+/**
+ * #397 — movements-history presentation rows. Order is preserved (the backend answers
+ * `movedAt DESC`); product names resolve from the loaded inventory cards keyed by productId,
+ * falling back to the raw id when no displayed card carries it.
+ */
+internal fun List<InventoryMovementResponse>.toMovementRows(
+    cards: List<BranchInventoryResponse>,
+): List<MovementRowModel> {
+    val names = cards.associate { it.productId to it.productName }
+    return map { movement ->
+        MovementRowModel(
+            id = movement.id,
+            productName = names[movement.productId] ?: movement.productId,
+            reasonLine = "${reasonLabel(movement.reason)} · ${signedQuantityLine(movement.quantityChange)}",
+            movedAt = movement.movedAt,
+            notes = normalizeOptional(movement.notes),
+        )
+    }
+}
+
+internal data class MovementRowModel(
+    val id: String,
+    val productName: String,
+    val reasonLine: String,
+    val movedAt: String,
+    val notes: String? = null,
+)
 
 private fun normalizeOptional(text: String?): String? = text?.trim()?.takeIf { it.isNotEmpty() }
 
