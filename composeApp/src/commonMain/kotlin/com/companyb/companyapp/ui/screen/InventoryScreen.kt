@@ -59,6 +59,28 @@ internal sealed interface InventoryWriteTarget {
 }
 
 /**
+ * The screen's single open overlay (#392 write dialogs, #395 ensure-card, #397 movements
+ * history); null = none. Mutually exclusive by construction — one state replaces the three
+ * independent booleans the sections used to pass around.
+ */
+internal sealed interface InventoryOverlay {
+    data class Write(
+        val target: InventoryWriteTarget,
+    ) : InventoryOverlay
+
+    data object EnsureCard : InventoryOverlay
+
+    data object MovementsHistory : InventoryOverlay
+}
+
+/** Handles the extracted sections share (the header and overlay hosts). */
+private class InventorySectionContext(
+    val viewModel: InventoryViewModel,
+    val productViewModel: ProductViewModel,
+    val branchId: String?,
+)
+
+/**
  * #391 — branch Inventory list (replacing the dead "pending build ticket" stub).
  * Branch-scoped to the clocked-in branch (`selectedBranchId`, the Remittance shape); the route
  * gate lives at the NavHost call sites (any-context EDIT_BRANCH_DATA — mirrors the #108 drawer
@@ -99,9 +121,10 @@ fun InventoryScreen(
     val movementResult by viewModel.movementResult.collectAsState()
     val cardResult by viewModel.cardResult.collectAsState()
     val capabilities by SessionState.capabilities.collectAsState()
-    var writeTarget by remember { mutableStateOf<InventoryWriteTarget?>(null) }
-    var showEnsureCard by remember { mutableStateOf(false) }
-    var showMovements by remember { mutableStateOf(false) }
+    val branchDayId by SessionState.branchDayId.collectAsState()
+    var overlay by remember { mutableStateOf<InventoryOverlay?>(null) }
+    val context = InventorySectionContext(viewModel, productViewModel, branchId)
+    val writesDisabled = restockResult is UiState.Loading || movementResult is UiState.Loading
 
     InventoryLoadEffects(viewModel, branchId, restockResult, movementResult, cardResult)
     Column(
@@ -110,34 +133,7 @@ fun InventoryScreen(
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = "Inventory", style = MaterialTheme.typography.titleLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                if (branchId != null) {
-                    TextButton(onClick = { showMovements = true }) {
-                        Text("History")
-                    }
-                }
-                if (branchId != null && canEnsureCard(capabilities, branchId)) {
-                    TextButton(
-                        onClick = { showEnsureCard = true },
-                        enabled = cardResult !is UiState.Loading,
-                    ) {
-                        Text("Add card")
-                    }
-                }
-                TextButton(
-                    onClick = { if (branchId != null) viewModel.refresh(branchId) },
-                    enabled = branchId != null && inventoryState !is UiState.Loading,
-                ) {
-                    Text("Refresh")
-                }
-            }
-        }
+        InventoryHeader(context, inventoryState, cardResult, onOverlay = { overlay = it })
         WriteErrorBanner(restockResult, movementResult, cardResult, viewModel)
         LowStockStrip(
             inventoryState = inventoryState,
@@ -148,166 +144,118 @@ fun InventoryScreen(
         InventoryBody(
             state = inventoryState,
             lowStockIds = (lowStockState as? UiState.Success)?.data.orEmpty().mapTo(mutableSetOf()) { it.productId },
-            branchId = branchId,
-            writesDisabled = restockResult is UiState.Loading || movementResult is UiState.Loading,
+            rowActions =
+                InventoryRowActions(
+                    restockEnabled = branchDayId != null && canRestock(capabilities, branchId) && !writesDisabled,
+                    movementEnabled =
+                        branchDayId != null &&
+                            allowedMovementReasons(capabilities, branchId).isNotEmpty() &&
+                            !writesDisabled,
+                ),
             onRetry = { if (branchId != null) viewModel.refresh(branchId) },
             onAction = { card, kind ->
-                writeTarget =
+                overlay =
                     if (kind == InventoryWriteKind.RESTOCK) {
-                        InventoryWriteTarget.Restock(card)
+                        InventoryOverlay.Write(InventoryWriteTarget.Restock(card))
                     } else {
-                        InventoryWriteTarget.Movement(card)
+                        InventoryOverlay.Write(InventoryWriteTarget.Movement(card))
                     }
             },
         )
     }
-    writeTarget?.let { target ->
-        InventoryWriteDialogs(target, viewModel, branchId) { writeTarget = null }
-    }
-    if (showEnsureCard) {
-        EnsureCardDialog(
-            productViewModel = productViewModel,
-            cards = (inventoryState as? UiState.Success)?.data.orEmpty(),
-            onDismiss = { showEnsureCard = false },
-            onSave = { productId ->
-                showEnsureCard = false
-                if (branchId != null) {
-                    viewModel.ensureCard(branchId, AddInventoryCardRequest(productId))
-                }
-            },
-        )
-    }
-    val currentBranchId = branchId
-    if (showMovements && currentBranchId != null) {
-        MovementsHistoryDialog(
-            viewModel = viewModel,
-            branchId = currentBranchId,
-            cards = (inventoryState as? UiState.Success)?.data.orEmpty(),
-            onDismiss = { showMovements = false },
-        )
-    }
-}
-
-/** Entry load plus the #392 write-success legs (+#395 ensure-card): clear + authoritative refresh. */
-@Composable
-private fun InventoryLoadEffects(
-    viewModel: InventoryViewModel,
-    branchId: String?,
-    restockResult: UiState<*>,
-    movementResult: UiState<*>,
-    cardResult: UiState<*>,
-) {
-    LaunchedEffect(branchId) {
-        logInfo("InventoryScreen", "composable entered (branchId=$branchId)")
-        if (branchId != null) viewModel.refresh(branchId)
-    }
-    LaunchedEffect(restockResult) {
-        if (restockResult is UiState.Success) {
-            logInfo("InventoryScreen", "restock landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
-    }
-    LaunchedEffect(movementResult) {
-        if (movementResult is UiState.Success) {
-            logInfo("InventoryScreen", "movement landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
-    }
-    LaunchedEffect(cardResult) {
-        if (cardResult is UiState.Success) {
-            logInfo("InventoryScreen", "ensure-card landed — refreshing inventory")
-            viewModel.clearWriteResults()
-            if (branchId != null) viewModel.refresh(branchId)
-        }
-    }
+    InventoryOverlayHosts(
+        overlay = overlay,
+        context = context,
+        cards = (inventoryState as? UiState.Success)?.data.orEmpty(),
+        onClose = { overlay = null },
+    )
 }
 
 /**
- * #396 — the low-stock surface between the header and the list: a count summary line when any
- * displayed card is low, or an inline retry strip when only the auxiliary leg failed (the list
- * leg's data stays up). Renders nothing while the legs are loading/absent.
+ * The screen header: title plus the History (#397), Add card (#395), and Refresh affordances,
+ * each gated exactly where it was before the extraction.
  */
 @Composable
-private fun LowStockStrip(
+private fun InventoryHeader(
+    context: InventorySectionContext,
     inventoryState: UiState<List<BranchInventoryResponse>>,
-    lowStockState: UiState<List<BranchInventoryResponse>>,
-    branchId: String?,
-    onRetryLowStock: () -> Unit,
+    cardResult: UiState<*>,
+    onOverlay: (InventoryOverlay) -> Unit,
 ) {
-    val cards = (inventoryState as? UiState.Success)?.data.orEmpty()
-    when (lowStockState) {
-        is UiState.Error -> {
-            if (branchId != null && inventoryState !is UiState.Error) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xs),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Low stock unavailable",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = onRetryLowStock) { Text("Retry") }
+    val capabilities by SessionState.capabilities.collectAsState()
+    val branchId = context.branchId
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = "Inventory", style = MaterialTheme.typography.titleLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            if (branchId != null) {
+                TextButton(onClick = { onOverlay(InventoryOverlay.MovementsHistory) }) {
+                    Text("History")
                 }
             }
-        }
-
-        is UiState.Success -> {
-            val summary =
-                lowStockSummaryLine(
-                    cards,
-                    lowStockState.data.mapTo(mutableSetOf()) { it.productId },
-                )
-            if (summary != null) {
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.xs),
-                )
+            if (branchId != null && canEnsureCard(capabilities, branchId)) {
+                TextButton(
+                    onClick = { onOverlay(InventoryOverlay.EnsureCard) },
+                    enabled = cardResult !is UiState.Loading,
+                ) {
+                    Text("Add card")
+                }
             }
-        }
-
-        else -> {
-            Unit
+            TextButton(
+                onClick = { if (branchId != null) context.viewModel.refresh(branchId) },
+                enabled = branchId != null && inventoryState !is UiState.Loading,
+            ) {
+                Text("Refresh")
+            }
         }
     }
 }
 
-/** Inline surface for write failures (the EditSlotDialog inline-error shape, screen-level). */
+/** Renders whichever overlay is open (the #394 dialog-hosts shape). */
 @Composable
-private fun WriteErrorBanner(
-    restockResult: UiState<*>,
-    movementResult: UiState<*>,
-    cardResult: UiState<*>,
-    viewModel: InventoryViewModel,
+private fun InventoryOverlayHosts(
+    overlay: InventoryOverlay?,
+    context: InventorySectionContext,
+    cards: List<BranchInventoryResponse>,
+    onClose: () -> Unit,
 ) {
-    val error =
-        (restockResult as? UiState.Error)
-            ?: (movementResult as? UiState.Error)
-            ?: (cardResult as? UiState.Error)
-            ?: return
-    Surface(
-        shape = RoundedCornerShape(CornerRadius.sm),
-        color = MaterialTheme.colorScheme.errorContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm),
-    ) {
-        Row(
-            modifier = Modifier.padding(Spacing.sm).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = error.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f),
+    when (overlay) {
+        is InventoryOverlay.Write -> {
+            InventoryWriteDialogs(overlay.target, context.viewModel, context.branchId, onClose)
+        }
+
+        InventoryOverlay.EnsureCard -> {
+            EnsureCardDialog(
+                productViewModel = context.productViewModel,
+                cards = cards,
+                onDismiss = onClose,
+                onSave = { productId ->
+                    onClose()
+                    val branchId = context.branchId
+                    if (branchId != null) {
+                        context.viewModel.ensureCard(branchId, AddInventoryCardRequest(productId))
+                    }
+                },
             )
-            TextButton(onClick = viewModel::clearWriteResults) { Text("Dismiss") }
+        }
+
+        InventoryOverlay.MovementsHistory -> {
+            val branchId = context.branchId
+            if (branchId != null) {
+                MovementsHistoryDialog(
+                    viewModel = context.viewModel,
+                    branchId = branchId,
+                    cards = cards,
+                    onDismiss = onClose,
+                )
+            }
+        }
+
+        null -> {
+            Unit
         }
     }
 }
@@ -316,13 +264,10 @@ private fun WriteErrorBanner(
 private fun InventoryBody(
     state: UiState<List<BranchInventoryResponse>>,
     lowStockIds: Set<String>,
-    branchId: String?,
-    writesDisabled: Boolean,
+    rowActions: InventoryRowActions,
     onRetry: () -> Unit,
     onAction: (BranchInventoryResponse, InventoryWriteKind) -> Unit,
 ) {
-    val capabilities by SessionState.capabilities.collectAsState()
-    val branchDayId by SessionState.branchDayId.collectAsState()
     when (state) {
         // Defensive: the drawer is only composed post-clock-in, so a null branch here means a
         // direct nav without a clocked-in branch — never issue a request.
@@ -347,11 +292,7 @@ private fun InventoryBody(
                 InventorySuccessList(
                     cards = state.data,
                     lowStockIds = lowStockIds,
-                    restockEnabled = branchDayId != null && canRestock(capabilities, branchId) && !writesDisabled,
-                    movementEnabled =
-                        branchDayId != null &&
-                            allowedMovementReasons(capabilities, branchId).isNotEmpty() &&
-                            !writesDisabled,
+                    rowActions = rowActions,
                     onAction = onAction,
                 )
             }
@@ -363,8 +304,7 @@ private fun InventoryBody(
 private fun InventorySuccessList(
     cards: List<BranchInventoryResponse>,
     lowStockIds: Set<String>,
-    restockEnabled: Boolean,
-    movementEnabled: Boolean,
+    rowActions: InventoryRowActions,
     onAction: (BranchInventoryResponse, InventoryWriteKind) -> Unit,
 ) {
     LazyColumn(
@@ -375,7 +315,7 @@ private fun InventorySuccessList(
             val card = cards.first { it.id == model.id }
             InventoryRow(
                 model = model,
-                actions = InventoryRowActions(restockEnabled, movementEnabled),
+                actions = rowActions,
                 onAction = { kind -> onAction(card, kind) },
             )
         }

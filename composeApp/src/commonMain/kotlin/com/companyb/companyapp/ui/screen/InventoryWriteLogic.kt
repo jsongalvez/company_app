@@ -5,7 +5,6 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.InventoryMovementReason
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.InventoryMovementRequest
-import com.companyb.companyapp.dto.InventoryMovementResponse
 import com.companyb.companyapp.dto.ProductResponse
 import com.companyb.companyapp.dto.RestockRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
@@ -14,10 +13,11 @@ import java.util.UUID
 
 /**
  * #392 — the inventory write flows' pure decision surface, pinned for desktopTest like the
- * #391 presentation mapper. Mirrors the backend's exact gates (#157 branch-scoped only):
- * restock requires MANAGE_PRODUCTS at the branch; Tester/Sample/Missing movements require
- * EDIT_BRANCH_DATA; Adjustment requires MANAGE_PRODUCTS (`BranchInventoryRoutes` route
- * filters are the authority — these predicates must never widen them).
+ * #391 presentation mapper (now in [InventoryRowPresentation]). Mirrors the backend's exact
+ * gates (#157 branch-scoped only): restock requires MANAGE_PRODUCTS at the branch;
+ * Tester/Sample/Missing movements require EDIT_BRANCH_DATA; Adjustment requires
+ * MANAGE_PRODUCTS (`BranchInventoryRoutes` route filters are the authority — these
+ * predicates must never widen them).
  */
 internal val NEGATIVE_MOVEMENT_REASONS: Set<InventoryMovementReason> =
     setOf(InventoryMovementReason.TESTER, InventoryMovementReason.SAMPLE, InventoryMovementReason.MISSING)
@@ -112,80 +112,8 @@ internal fun movementNotesError(
 internal fun restockUnitsError(unitsText: String): String? =
     if ((unitsText.trim().toIntOrNull() ?: 0) > 0) null else "Restock quantity must be positive"
 
-/**
- * Presentation rule surface for the desktopTest packet: sort + display-line mapping (#391).
- * #396 — cards whose product id appears in the low-stock read's response render marked;
- * membership is backend-authoritative (per-product reorderPoint with a server default) and
- * the client mirrors nothing.
- */
-internal fun List<BranchInventoryResponse>.toInventoryRows(
-    lowStockIds: Set<String> = emptySet(),
-): List<InventoryRowModel> =
-    sortedBy { it.productName.lowercase() }.map { card ->
-        InventoryRowModel(
-            id = card.id,
-            productName = card.productName,
-            stockLine = "In stock: ${card.currentStock}",
-            priceLine = "₱${card.unitPrice}",
-            isLow = card.productId in lowStockIds,
-        )
-    }
-
-internal data class InventoryRowModel(
-    val id: String,
-    val productName: String,
-    val stockLine: String,
-    val priceLine: String,
-    val isLow: Boolean = false,
-)
-
-/**
- * #396 — the header count line, in display truth: counted against the cards actually shown
- * (a low-stock row naming a product with no displayed card never inflates the count).
- * null = nothing to surface (no low card, or no cards at all).
- */
-internal fun lowStockSummaryLine(
-    cards: List<BranchInventoryResponse>,
-    lowStockIds: Set<String>,
-): String? {
-    if (cards.isEmpty()) return null
-    val count = cards.count { it.productId in lowStockIds }
-    return if (count > 0) "$count of ${cards.size} cards low on stock" else null
-}
-
-/** Signed display form: restocks/adjustments gain a "+", draws keep the backend's negative. */
-internal fun signedQuantityLine(quantityChange: Int): String =
-    if (quantityChange > 0) "+$quantityChange" else quantityChange.toString()
-
-/**
- * #397 — movements-history presentation rows. Order is preserved (the backend answers
- * `movedAt DESC`); product names resolve from the loaded inventory cards keyed by productId,
- * falling back to the raw id when no displayed card carries it.
- */
-internal fun List<InventoryMovementResponse>.toMovementRows(
-    cards: List<BranchInventoryResponse>,
-): List<MovementRowModel> {
-    val names = cards.associate { it.productId to it.productName }
-    return map { movement ->
-        MovementRowModel(
-            id = movement.id,
-            productName = names[movement.productId] ?: movement.productId,
-            reasonLine = "${reasonLabel(movement.reason)} · ${signedQuantityLine(movement.quantityChange)}",
-            movedAt = movement.movedAt,
-            notes = normalizeOptional(movement.notes),
-        )
-    }
-}
-
-internal data class MovementRowModel(
-    val id: String,
-    val productName: String,
-    val reasonLine: String,
-    val movedAt: String,
-    val notes: String? = null,
-)
-
-private fun normalizeOptional(text: String?): String? = text?.trim()?.takeIf { it.isNotEmpty() }
+/** Blank/whitespace-only text collapses to null (shared by the builders and history rows). */
+internal fun normalizeOptional(text: String?): String? = text?.trim()?.takeIf { it.isNotEmpty() }
 
 /** Everything [buildRestockRequest] needs; ids are generated fresh inside the builder. */
 internal data class RestockDraft(
