@@ -101,7 +101,10 @@ and must not be documented as one.
 Packets stay compact pointer packets (#336): active map/ticket, phase, last
 integrated/verified commit, concise verification state, blockers, parked-work
 reference, exact next action, durable GitHub pointers. Never copy issue
-bodies, comments, map diaries, docs, or diffs into a packet.
+bodies, comments, map diaries, docs, or diffs into a packet. A successor
+rebuilds its working set from the ticket, the owning module card
+(`docs/deep-modules.md`), and code search — per
+`docs/agents/context-discovery.md`; never from inherited source context.
 
 Before any exit the worktree is clean: commit coherent slices normally
 (`ref #<n>`, direct to master); park genuinely unfinished work with
