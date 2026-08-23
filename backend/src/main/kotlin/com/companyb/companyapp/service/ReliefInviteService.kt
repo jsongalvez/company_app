@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.ReliefInvite
 import com.companyb.companyapp.repository.model.ReliefInviteTable
 import com.companyb.companyapp.repository.model.ReliefInviteView
+import com.companyb.companyapp.service.attendance.ShiftGuard
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -241,13 +242,17 @@ object ReliefInviteService {
             ReliefInviteRepository.findById(inviteId)
                 ?: throw NotFoundException("Relief invite not found")
         val branchDay = BranchDayService.requireBranchDayExists(invite.branchDayId)
-        requireActiveAssignment(callerId, branchDay.branchId)
 
         val result =
             transaction {
-                if (ReliefAccessRepository.hasActiveClockInInTransaction(invite.invitee, invite.branchDayId)) {
-                    throw ValidationException("This relief duty has already started")
-                }
+                // #376 — membership at commit: the FOR UPDATE re-read orders against any
+                // concurrently committing assignment removal; the pre-transaction check alone raced.
+                requireActiveMemberInTransaction(callerId, branchDay.branchId)
+                ShiftGuard.ensureRetractionAllowed(
+                    invite.invitee,
+                    invite.branchDayId,
+                    "This relief duty has already started",
+                )
                 if (BranchDayService.getEffectiveStatus(invite.branchDayId) != DayStatus.OPEN) {
                     throw ValidationException("This relief duty has ended — the day is no longer open")
                 }
@@ -318,6 +323,22 @@ object ReliefInviteService {
         branchId: UUID,
     ) {
         val assignment = UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId)
+        if (assignment == null) {
+            throw ForbiddenException("An active assignment at this branch is required")
+        }
+    }
+
+    /**
+     * #376 — in-transaction membership gate with a FOR UPDATE read of the assignment row:
+     * an assignment ending concurrently blocks here or is already visible, so the caller's
+     * membership holds at command commit, not just at entry.
+     */
+    private fun requireActiveMemberInTransaction(
+        callerId: UUID,
+        branchId: UUID,
+    ) {
+        val assignment =
+            UserBranchAssignmentRepository.findActiveByBranchAndUserInTransaction(branchId, callerId, forUpdate = true)
         if (assignment == null) {
             throw ForbiddenException("An active assignment at this branch is required")
         }

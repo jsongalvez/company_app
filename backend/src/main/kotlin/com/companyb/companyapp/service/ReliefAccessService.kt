@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.UserBranchAssignmentRepository
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.GrantReliefAccessTable
 import com.companyb.companyapp.repository.model.ReliefAccess
+import com.companyb.companyapp.service.attendance.ShiftGuard
 import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -200,12 +201,23 @@ object ReliefAccessService {
                 ?: throw NotFoundException("Relief access request not found")
 
         val isRequester = request.requestedBy == callerId
-        if (!isRequester) {
-            requireBranchMembership(callerId, request.branchDayId)
-        }
 
         val result =
             transaction {
+                // #376 — membership at commit for the member-cancel leg: the FOR UPDATE
+                // re-read orders against a concurrently committing assignment removal.
+                if (!isRequester) {
+                    requireActiveMemberInTransaction(callerId, request.branchDayId)
+                }
+                // Owner rule: ALL retraction stops once the requester clocks in as relief
+                // (#376 — the check serializes on the branch_day row, so a concurrent
+                // clock-in cannot slip between the read and this command's commit).
+                ShiftGuard.ensureRetractionAllowed(
+                    request.requestedBy,
+                    request.branchDayId,
+                    "Relief duty has already started — this request can no longer be cancelled",
+                )
+
                 val (branchDay, isRemitted) =
                     // The day gate only arbitrates edit authority for members; a withdrawing
                     // requester acts on their own row regardless of day state (a scheduled
@@ -217,13 +229,6 @@ object ReliefAccessService {
                     } else {
                         BranchDayService.checkBranchDayEditable(callerId, request.branchDayId, reason)
                     }
-
-                // Owner rule: ALL retraction stops once the requester clocks in as relief.
-                if (ReliefAccessRepository.hasActiveClockInInTransaction(request.requestedBy, request.branchDayId)) {
-                    throw ValidationException(
-                        "Relief duty has already started — this request can no longer be cancelled",
-                    )
-                }
 
                 val mutation = ReliefAccessRepository.cancelInTransaction(requestId)
                 if (!mutation.updated && mutation.after.requestStatus != ReliefAccessStatus.CANCELLED) {
@@ -324,6 +329,24 @@ object ReliefAccessService {
     ) {
         val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
         if (UserBranchAssignmentRepository.findActiveByBranchAndUser(branchId, callerId) == null) {
+            throw ForbiddenException("An active assignment at this branch is required")
+        }
+    }
+
+    /**
+     * #376 — in-transaction membership gate with a FOR UPDATE read of the assignment row:
+     * an assignment ending concurrently blocks here or is already visible, so membership
+     * holds at command commit, not just at entry. Resolves the day's branch inside the
+     * caller's transaction.
+     */
+    private fun requireActiveMemberInTransaction(
+        callerId: UUID,
+        branchDayId: UUID,
+    ) {
+        val branchId = BranchDayService.requireBranchDayExists(branchDayId).branchId
+        val assignment =
+            UserBranchAssignmentRepository.findActiveByBranchAndUserInTransaction(branchId, callerId, forUpdate = true)
+        if (assignment == null) {
             throw ForbiddenException("An active assignment at this branch is required")
         }
     }

@@ -353,7 +353,10 @@ class AttendanceServicePostgresTest : BasePostgresTest() {
             assertTrue(ready.await(EXECUTOR_TERMINATION_SECONDS, TimeUnit.SECONDS))
             start.countDown()
             val outcomes = futures.map { it.get() }
-            assertTrue(outcomes.any { it.isSuccess }, "at least the first retry succeeds")
+            assertTrue(
+                outcomes.all { it.isSuccess },
+                "every same-owner retry succeeds idempotently, even when serialized behind the winner",
+            )
             assertEquals(
                 1,
                 outcomes.count { it.getOrNull()?.created == true },
