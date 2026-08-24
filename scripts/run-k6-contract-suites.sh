@@ -9,9 +9,11 @@
 # The backend boots against the TEST database (never the application database)
 # with deterministic seed data: DevSeeder creates the owner user and the
 # "K6 Fixture Branch" fixtures on startup when TEST_USERNAME/TEST_PASSWORD are
-# set, and a branch-scoped principal when SCOPED_USERNAME/SCOPED_PASSWORD are
+# set, a branch-scoped principal when SCOPED_USERNAME/SCOPED_PASSWORD are
 # set (#411) — that principal drives the authz suite's insufficient-capability
-# (403) contract and full-suite's scoped leg group.
+# (403) contract and full-suite's scoped leg group — and the relief requester
+# principal when RELIEF_USERNAME/RELIEF_PASSWORD are set (#413), which drives
+# full-suite's relief flow leg group.
 #
 # Suite order matters: remittance-race-test requires a fresh clock-in (strict
 # HTTP 201) while every other suite tolerates 409 (already clocked in), and
@@ -39,6 +41,8 @@ TEST_USERNAME="${TEST_USERNAME:-owner}"
 TEST_PASSWORD="${TEST_PASSWORD:-pass}"
 SCOPED_USERNAME="${SCOPED_USERNAME:-scoped}"
 SCOPED_PASSWORD="${SCOPED_PASSWORD:-scopepass}"
+RELIEF_USERNAME="${RELIEF_USERNAME:-relief}"
+RELIEF_PASSWORD="${RELIEF_PASSWORD:-reliefpass}"
 JWT_SECRET="${JWT_SECRET:-ci-secret-must-be-at-least-64-characters-long-for-tests-0123456789}"
 JWT_ISSUER="${JWT_ISSUER:-company-app-ci}"
 JWT_AUDIENCE="${JWT_AUDIENCE:-company-app-ci}"
@@ -49,6 +53,7 @@ API_BASE_URL="http://localhost:${APP_PORT}"
 export DB_HOST DB_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB \
     TEST_DB_NAME TEST_USERNAME TEST_PASSWORD \
     SCOPED_USERNAME SCOPED_PASSWORD \
+    RELIEF_USERNAME RELIEF_PASSWORD \
     JWT_SECRET JWT_ISSUER JWT_AUDIENCE AUTH_DUMMY_PASSWORD \
     APP_PORT API_BASE_URL
 

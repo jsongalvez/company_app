@@ -18,6 +18,8 @@ data class AppConfig(
     val testPassword: String?,
     val scopedTestUsername: String?,
     val scopedTestPassword: String?,
+    val reliefTestUsername: String?,
+    val reliefTestPassword: String?,
 ) {
     companion object {
         fun parse(): AppConfig {
@@ -45,6 +47,8 @@ data class AppConfig(
                 testPassword = env["TEST_PASSWORD"]?.takeIf { it.isNotBlank() },
                 scopedTestUsername = env["SCOPED_USERNAME"]?.takeIf { it.isNotBlank() },
                 scopedTestPassword = env["SCOPED_PASSWORD"]?.takeIf { it.isNotBlank() },
+                reliefTestUsername = env["RELIEF_USERNAME"]?.takeIf { it.isNotBlank() },
+                reliefTestPassword = env["RELIEF_PASSWORD"]?.takeIf { it.isNotBlank() },
             )
         }
     }

@@ -60,6 +60,12 @@ private val DEV_FIXTURE_BRANCH_CAPABILITIES =
         "MANAGE_PRODUCTS",
     )
 
+// #413 — the relief requester seat: exactly EDIT_BRANCH_DATA at the fixture branch.
+private val RELIEF_USER_CAPABILITIES =
+    listOf(
+        "EDIT_BRANCH_DATA",
+    )
+
 private data class Credentials(
     val username: String,
     val password: String,
@@ -75,6 +81,9 @@ object DevSeeder {
         }
         credentials(config.scopedTestUsername, config.scopedTestPassword)?.let { scoped ->
             runInTransaction { seedScopedUser(scoped) }
+        }
+        credentials(config.reliefTestUsername, config.reliefTestPassword)?.let { relief ->
+            runInTransaction { seedReliefUser(relief) }
         }
     }
 
@@ -137,6 +146,29 @@ object DevSeeder {
         logger.info {
             "[DEV-SEED] Created branch-scoped dev user '${credentials.username}' with" +
                 " ${DEV_FIXTURE_BRANCH_CAPABILITIES.size} capabilities at the fixture branch"
+        }
+    }
+
+    /**
+     * #413 — the relief requester seat: holds BRANCH-scoped EDIT_BRANCH_DATA at the
+     * fixture branch but deliberately NO home assignment. requestReliefAccess excludes
+     * assigned users ("relief duty does not apply") while grant/deny/invite authority
+     * requires an active assignment, so no two-principal cast can reach the relief
+     * flows — this user requests relief and accepts invites; the scoped principal
+     * grants and revokes.
+     */
+    private fun seedReliefUser(credentials: Credentials) {
+        if (UserRepository.findByUsername(credentials.username) != null) return
+
+        val userId = createUser(credentials)
+        ensureFixtureBranch()
+        for (code in RELIEF_USER_CAPABILITIES) {
+            insertCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
+        }
+
+        logger.info {
+            "[DEV-SEED] Created branch-scoped relief dev user '${credentials.username}' with" +
+                " ${RELIEF_USER_CAPABILITIES.size} capability and no home assignment"
         }
     }
 

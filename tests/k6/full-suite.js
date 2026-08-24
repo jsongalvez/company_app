@@ -8,6 +8,10 @@ const PASSWORD = __ENV.TEST_PASSWORD || "";
 // suite runs exactly as before with the GLOBAL owner principal only.
 const SCOPED_USERNAME = __ENV.SCOPED_USERNAME || "";
 const SCOPED_PASSWORD = __ENV.SCOPED_PASSWORD || "";
+// Relief requester principal seeded by DevSeeder (#413) — capability without an
+// assignment, the only seat that can request relief duty. Optional like the scoped one.
+const RELIEF_USERNAME = __ENV.RELIEF_USERNAME || "";
+const RELIEF_PASSWORD = __ENV.RELIEF_PASSWORD || "";
 const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 export const options = { thresholds: thresholdProfiles.full, stages: [
@@ -44,7 +48,7 @@ export function setup() {
     if (!observe(today, null, {}, "setup fixture day", (r) => r.status === 200)) throw new Error("Load-test day lookup failed");
     branchDayId = today.json("branchDayId");
   }
-  return { token, userId, branchId: branch.id, branchDayId, scoped: setupScopedPrincipal() };
+  return { token, userId, branchId: branch.id, branchDayId, scoped: setupScopedPrincipal(), relief: setupReliefPrincipal(branch.id) };
 }
 
 function setupScopedPrincipal() {
@@ -63,6 +67,28 @@ function setupScopedPrincipal() {
     throw new Error("Scoped principal passed a MANAGE_USERS gate — seeding is over-scoped");
   }
   return { token: scopedToken, userId: meRes.json("id") };
+}
+
+// Relief requester principal (#413): login + identity, then a fail-closed negative
+// spot-check — this seat holds NO assignment, so the assignment-gated invite list
+// (createInvite authority surface) must deny it. Fails the suite loudly if seeding
+// ever hands the relief user an assignment.
+function setupReliefPrincipal(branchId) {
+  if (!RELIEF_USERNAME || !RELIEF_PASSWORD) return null;
+  const loginRes = http.post(`${BASE_URL}/auth/login`, JSON.stringify({
+    username: RELIEF_USERNAME, password: RELIEF_PASSWORD,
+  }), { headers: { "Content-Type": "application/json" } });
+  if (!observe(loginRes, null, {}, "setup relief login", (r) => r.status === 200)) throw new Error("Relief-principal login failed");
+  const reliefToken = loginRes.json("token");
+  const meRes = http.get(`${BASE_URL}/api/me`, { headers: authHeaders(reliefToken) });
+  if (!observe(meRes, null, {}, "setup relief current user", (r) => r.status === 200)) throw new Error("Relief-principal lookup failed");
+  // Negative spot-check: this seat holds NO home assignment, so the
+  // assignment-gated invite-authority read must deny it.
+  const deniedRes = http.get(`${BASE_URL}/api/branches/${branchId}/relief-invites`, { headers: authHeaders(reliefToken) });
+  if (!observe(deniedRes, null, {}, "setup relief assignment denial", (r) => r.status === 403)) {
+    throw new Error("Relief principal passed an assignment-gated gate — seeding is over-scoped");
+  }
+  return { token: reliefToken, userId: meRes.json("id") };
 }
 
 export default function (data) {
@@ -92,6 +118,13 @@ export default function (data) {
   }
   createExpense(headers, tid, branch.dayId);
   createAllowance(headers, tid, branch.dayId, data.userId);
+  // Relief flow legs (#413) run BEFORE the remittance-submit cluster below: grant,
+  // invite-accept, and deny all require an OPEN day, and the owner's remittance
+  // submission is the one leg that can close it mid-run. Single execution — the
+  // flood rule (#357) allows only one live request per requester+branch-day.
+  if (data.relief && data.scoped && uniqueWrites) {
+    runReliefLegs(data.scoped, data.relief, branch);
+  }
   if (uniqueWrites) {
     createAndSubmitRemittance(headers, tid, branch.id, branch.dayId, session.id);
   }
@@ -172,6 +205,76 @@ function runScopedLegs(scoped, branch, prodId, clientId) {
 
   const dailyRes = http.get(`${BASE_URL}/api/branches/${branch.id}/daily-summary?date=${manilaDate()}`, { headers });
   observe(dailyRes, metrics.scopedLatency, tags, "scoped daily report", (r) => r.status === 200);
+}
+
+// Relief flow legs (#413): the staffing-critical state machines under load — invite
+// mint→accept→revoke and request→grant plus request→deny — with both principals'
+// notification reads pinning the transactional broadcast fan-out. Scoped principal
+// holds grant/revoke authority (assignment); relief principal requests and accepts
+// (capability without assignment). Runs before the remittance-submit cluster so the
+// day is still OPEN for every gate.
+function runReliefLegs(scoped, relief, branch) {
+  const scopedHeaders = authHeaders(scoped.token);
+  const reliefHeaders = authHeaders(relief.token);
+  const tags = { group: "relief" };
+  const today = manilaDate();
+
+  // Invite cycle first: accept writes an active day grant for the invitee, and
+  // createInvite rejects an invitee already holding one (#357 per-person guard).
+  const mintRes = http.post(`${BASE_URL}/api/branches/${branch.id}/relief-invites`, JSON.stringify({
+    inviteeUserId: relief.userId, date: today,
+  }), { headers: scopedHeaders });
+  const invited = observe(mintRes, metrics.reliefLatency, tags, "relief mint invite", (r) => r.status === 201 || r.status === 200);
+  if (invited) {
+    const inviteId = mintRes.json("id");
+    if (inviteId) {
+      const acceptRes = http.post(`${BASE_URL}/api/relief-invites/${inviteId}/accept`, null, { headers: reliefHeaders });
+      const accepted = observe(acceptRes, metrics.reliefLatency, tags, "relief accept invite", (r) => r.status === 200);
+      if (accepted) {
+        const revokeRes = http.post(`${BASE_URL}/api/relief-invites/${inviteId}/revoke`, null, { headers: scopedHeaders });
+        observe(revokeRes, metrics.reliefLatency, tags, "relief revoke invite", (r) => r.status === 200);
+      }
+    }
+  }
+
+  // Request → grant, then a second request → deny. The #357 flood rule allows one
+  // live request at a time, so each must resolve before the next is created.
+  const grantedRequest = createReliefRequest(reliefHeaders, branch.id, tags, "grant");
+  if (grantedRequest) {
+    const grantRes = http.patch(`${BASE_URL}/api/relief-access/${grantedRequest}/grant`, JSON.stringify({
+      reason: "K6 relief fixture",
+    }), { headers: scopedHeaders });
+    observe(grantRes, metrics.reliefLatency, tags, "relief grant request", (r) => r.status === 200);
+  }
+
+  const deniedRequest = createReliefRequest(reliefHeaders, branch.id, tags, "deny");
+  if (deniedRequest) {
+    const denyRes = http.patch(`${BASE_URL}/api/relief-access/${deniedRequest}/deny`, JSON.stringify({
+      reason: "K6 relief fixture",
+    }), { headers: scopedHeaders });
+    observe(denyRes, metrics.reliefLatency, tags, "relief deny request", (r) => r.status === 200);
+  }
+
+  // Caller-relative discovery reads: the mine list and the deep-link day read.
+  const mineRes = http.get(`${BASE_URL}/api/relief-access/mine`, { headers: reliefHeaders });
+  observe(mineRes, metrics.reliefLatency, tags, "relief mine list", (r) => r.status === 200);
+  const dayReadRes = http.get(`${BASE_URL}/api/relief-access?branchId=${branch.id}&date=${today}`, { headers: reliefHeaders });
+  observe(dayReadRes, metrics.reliefLatency, tags, "relief deep-link read", (r) => r.status === 200);
+
+  // Broadcast fan-out observation: every event above committed notification rows
+  // inside its command transaction; both principals now read their mailboxes.
+  const reliefNotificationsRes = http.get(`${BASE_URL}/api/notifications`, { headers: reliefHeaders });
+  observe(reliefNotificationsRes, metrics.reliefLatency, tags, "relief list notifications", (r) => r.status === 200);
+  const scopedNotificationsRes = http.get(`${BASE_URL}/api/notifications`, { headers: scopedHeaders });
+  observe(scopedNotificationsRes, metrics.reliefLatency, tags, "scoped relief notifications", (r) => r.status === 200);
+}
+
+function createReliefRequest(reliefHeaders, branchId, tags, label) {
+  const res = http.post(`${BASE_URL}/api/relief-access/request`, JSON.stringify({
+    requestId: uuid(), branchId, reason: `K6 relief fixture (${label})`,
+  }), { headers: reliefHeaders });
+  const created = observe(res, metrics.reliefLatency, tags, `relief create ${label} request`, (r) => r.status === 201 || r.status === 200);
+  return created ? res.json("id") : null;
 }
 
 function createClient(headers, tid) {

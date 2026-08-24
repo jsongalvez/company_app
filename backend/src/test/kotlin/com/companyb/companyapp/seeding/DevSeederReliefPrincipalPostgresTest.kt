@@ -25,12 +25,15 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * Pins the branch-scoped k6 principal's seeded shape (#411): no role, no GLOBAL rows,
- * exactly the fixture-branch capability set, and an active home assignment.
+ * Pins the relief k6 principal's seeded shape (#413): no role, no GLOBAL rows, exactly
+ * one BRANCH-scoped EDIT_BRANCH_DATA grant at the fixture branch, and deliberately NO
+ * home assignment — the requestReliefAccess gate excludes assigned users while
+ * grant/deny authority requires one, so this seat is what makes the relief flows
+ * reachable end-to-end.
  */
-class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
+class DevSeederReliefPrincipalPostgresTest : BasePostgresTest() {
     // Suffix kept short: the seeded email (username + @example.com) fits varchar(50).
-    private val scopedUsername = "k6scoped-${UUID.randomUUID().toString().substring(0, 8)}"
+    private val reliefUsername = "k6relief-${UUID.randomUUID().toString().substring(0, 8)}"
 
     override fun initTestData() {
         transaction {
@@ -46,24 +49,24 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
     }
 
     @Test
-    fun `seeded scoped principal is branch-bound without global capabilities`() {
+    fun `seeded relief principal holds capability without an assignment`() {
         DevSeeder.seed(
-            config(scopedTestUsername = scopedUsername, scopedTestPassword = "scope-pass"),
+            config(reliefTestUsername = reliefUsername, reliefTestPassword = "relief-pass"),
         )
 
         transaction {
             val user =
                 AppUserTable
                     .selectAll()
-                    .where { AppUserTable.username eq scopedUsername }
+                    .where { AppUserTable.username eq reliefUsername }
                     .single()
             val userId = user[AppUserTable.id]
             trackOwned(AppUserTable, AppUserTable.id, userId)
 
             assertNoRole(userId)
             assertBranchCapabilityShape(userId)
-            assertSingleActiveAssignment(userId)
-            assertNotNull(UserRepository.findByUsername(scopedUsername))
+            assertNoAssignment(userId)
+            assertNotNull(UserRepository.findByUsername(reliefUsername))
         }
     }
 
@@ -71,7 +74,7 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
         assertEquals(
             0,
             UserRoleTable.selectAll().where { UserRoleTable.userId eq userId }.count(),
-            "Scoped principal must hold no role (roles derive GLOBAL capability bundles)",
+            "Relief principal must hold no role (roles derive GLOBAL capability bundles)",
         )
     }
 
@@ -92,20 +95,12 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
         assertEquals(
             setOf(CapabilityContextType.BRANCH),
             grants.groupBy { it[UserCapabilityTable.contextType] }.keys,
-            "Every scoped grant must be BRANCH-scoped — no GLOBAL rows",
+            "Every relief grant must be BRANCH-scoped — no GLOBAL rows",
         )
         assertEquals(
-            listOf(
-                "ASSIGN_COMPENSATION",
-                "EDIT_BRANCH_DATA",
-                "EDIT_PAST_DAY",
-                "MANAGE_PRODUCTS",
-                "SUBMIT_REMITTANCE",
-                "VIEW_BRANCH_DATA",
-                "VOID_SESSION",
-            ),
-            grants.map { codeById.getValue(it[UserCapabilityTable.capabilityId]) }.sorted(),
-            "Scoped principal holds exactly the fixture-branch coordinator set",
+            listOf("EDIT_BRANCH_DATA"),
+            grants.map { codeById.getValue(it[UserCapabilityTable.capabilityId]) },
+            "Relief principal holds exactly the requester capability (the #157 day-gate code)",
         )
         assertTrue(
             grants.all { it[UserCapabilityTable.contextId] == DEV_FIXTURE_BRANCH_ID },
@@ -113,25 +108,22 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
         )
     }
 
-    private fun assertSingleActiveAssignment(userId: UUID) {
-        val assignments =
+    private fun assertNoAssignment(userId: UUID) {
+        assertEquals(
+            0,
             UserBranchAssignmentTable
                 .selectAll()
                 .where {
                     (UserBranchAssignmentTable.userId eq userId) and
                         UserBranchAssignmentTable.endedAt.isNull()
-                }
-        trackOwned(UserBranchAssignmentTable, UserBranchAssignmentTable.userId, userId)
-        assertEquals(1, assignments.count(), "Exactly one active home assignment")
-        assertEquals(
-            DEV_FIXTURE_BRANCH_ID,
-            assignments.single()[UserBranchAssignmentTable.branchId],
+                }.count(),
+            "Relief principal must hold NO home assignment — assigned users cannot request relief duty",
         )
     }
 
     private fun config(
-        scopedTestUsername: String,
-        scopedTestPassword: String,
+        reliefTestUsername: String,
+        reliefTestPassword: String,
     ) = AppConfig(
         appHost = "localhost",
         appPort = 8080,
@@ -146,9 +138,9 @@ class DevSeederScopedPrincipalPostgresTest : BasePostgresTest() {
         authDummyPassword = "test-dummy-password-at-least-32-characters",
         testUsername = null,
         testPassword = null,
-        scopedTestUsername = scopedTestUsername,
-        scopedTestPassword = scopedTestPassword,
-        reliefTestUsername = null,
-        reliefTestPassword = null,
+        scopedTestUsername = null,
+        scopedTestPassword = null,
+        reliefTestUsername = reliefTestUsername,
+        reliefTestPassword = reliefTestPassword,
     )
 }

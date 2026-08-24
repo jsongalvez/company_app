@@ -84,6 +84,8 @@ class JwtServiceTest {
                 testPassword = null,
                 scopedTestUsername = null,
                 scopedTestPassword = null,
+                reliefTestUsername = null,
+                reliefTestPassword = null,
             )
     }
 }

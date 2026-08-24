@@ -41,6 +41,17 @@ endpoint. Do NOT update if a threshold failed due to an unintentional regression
 
 ## Notes
 
+- `relief_latency` introduced 2026-08-24 (#413 — DevSeeder now provisions the relief
+  requester principal via `RELIEF_USERNAME`/`RELIEF_PASSWORD` (capability, no home
+  assignment), and `full-suite.js` runs a single-shot relief leg group when both
+  SCOPED_* and RELIEF_* are set): first run on a clean test DB measured p95 264.6 ms
+  across the invite mint/accept/revoke cycle, request→grant and request→deny, mine +
+  deep-link discovery reads, and both principals' notification reads. Threshold set
+  at p95 < 1000 ms (~3.8× headroom), mirroring the sibling write-leg budgets. The
+  leg runs once per suite invocation (the #357 flood rule allows one live request
+  per requester+branch-day), so its sample count is small by design — re-baseline if
+  the cast or cycle shape changes.
+
 - `scoped_latency` introduced 2026-08-24 (#411 — DevSeeder now provisions a
   BRANCH-scoped principal via `SCOPED_USERNAME`/`SCOPED_PASSWORD`, and
   `full-suite.js` runs a branch-scoped leg group when set): first scoped run on a
