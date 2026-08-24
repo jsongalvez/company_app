@@ -50,7 +50,7 @@ intentionally shallow.
 **Anchors:** `service/CapabilityService.kt`, `api/middleware/CapabilityFilter.kt`, `repository/CapabilityRepository.kt`.
 **Public seam:** `hasCapability` / `requireCapability` (+ `ForBranchDay` / `AnyContext` variants) · `GLOBAL_CONTEXT_ID` (nil UUID) · `CapabilityFilter.require*` family · `BranchReadScope.windowBranchIds`. GLOBAL grants never satisfy day-scoped gates (#131 strictness); inventory is not relief-eligible (#157).
 **Depends on:** nothing upstream semantically; consumed by nearly everything.
-**Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`; `active_user_capabilities` view — created in V1, redefined by V16/V21, another all-migrations example); changing which gate a route uses.
+**Expansion triggers:** new context type or source type (schema + view + filter changes); window/priority semantics (`GrantPriorities`; `active_user_capabilities` view — baseline in V1, branch-derived leg widened by V21, another all-migrations example); changing which gate a route uses.
 **Tests/authority:** ADR-0007 (route-level gates), ADR-0023; backend `AGENTS.md` "Authorization".
 **Search:** `requireBranchOrBranchDayCapability`, `hasCapabilityForBranchDay`.
 
@@ -69,8 +69,8 @@ intentionally shallow.
 **Owns:** user lifecycle (idempotent deactivate/reactivate + persisted JWT revocation boundary), invite minting with re-invite recovery, full-replace role membership (SUPERUSER guarded both directions), user listing with assignments + roles.
 **Anchors:** `service/UserService.kt`, `repository/UserRepository.kt`, `repository/RoleRepository.kt`.
 **Public seam:** `UserService` commands (`deactivate`, `reactivate`, `replaceRoles`, `mintInvite`, `listUsers`, `getRoles`).
-**Depends on:** Auth (tokens, deny list, hashing), Audit. Role→capability derivation lives in SQL (V16 view union), not this module.
-**Expansion triggers:** role-derived capability semantics (ADR-0023, V16 migration); deactivation/revocation interplay with the deny list.
+**Depends on:** Auth (tokens, deny list, hashing), Audit. Role→capability derivation lives in SQL (view union: V16-era GLOBAL leg, V21 branch-scoped leg), not this module.
+**Expansion triggers:** role-derived capability semantics (ADR-0023 + its #417 amendment); deactivation/revocation interplay with the deny list.
 **Search:** `SUPERUSER_GUARD_MESSAGE`, `deactivateInTransaction`, `user_role`.
 
 ## Session

@@ -180,7 +180,7 @@ Moved to [`docs/deep-modules.md`](deep-modules.md) — the authoritative map of 
 
 **Rule:** Never check a role name in service logic. Always check a capability code.
 
-Roles are predefined bundles of capabilities — useful for seeding and UI display only. At runtime, the only query that matters is:
+Roles are predefined bundles of capabilities — seeded in V2, then resolved at runtime exclusively through the view (GLOBAL management codes derive from the role; all other codes derive BRANCH-scoped from ACTIVE assignments, V21/#417). The only query that matters is:
 
 ```sql
 SELECT 1 FROM active_user_capabilities
@@ -207,8 +207,8 @@ Called at the top of every mutating service method — not in routes, not in rep
 Capability codes are fixed contract values, not runtime-created values. V2 seeds the initial
 capability catalog in `backend/src/main/resources/db/migration/V2__seed_roles_capabilities.sql`.
 Later feature migrations may add codes: V5 adds
-`RECEIVE_NEXT_APPOINTMENT_ALERTS`, and V21 derives its active branch grants for Coordinators
-with active branch assignments. The application references codes through
+`RECEIVE_NEXT_APPOINTMENT_ALERTS`, and V21 widens the view's branch-derived leg so every
+assigned role's non-management bundle derives BRANCH-scoped from ACTIVE assignments. The application references codes through
 `shared/src/commonMain/kotlin/com/companyb/companyapp/domain/CapabilityCodes.kt`; migration SQL
 keeps its database-owned string literals.
 

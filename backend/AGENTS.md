@@ -170,8 +170,8 @@ val existing = Table.selectAll().where {
 
 All operational permission checks MUST go through
 `CapabilityService.hasCapability(userId, capabilityCode, contextType, contextId)`, which queries the
-`active_user_capabilities` SQL view (created in `V1__full_schema.sql`, redefined by
-V16/V21 — see the migration-chain rule above). **Never check roles directly
+`active_user_capabilities` SQL view (baseline definition in `V1__full_schema.sql`; V21 widens its
+branch-derived leg — see the migration-chain rule above). **Never check roles directly
 in business logic** — roles only seed capabilities in the V2 migration. The view already excludes
 INACTIVE users and out-of-window grants.
 

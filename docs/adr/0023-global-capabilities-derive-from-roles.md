@@ -1,6 +1,6 @@
 # ADR-0023: GLOBAL capabilities derive from roles via the capability view
 
-**Status:** Accepted
+**Status:** Accepted (amended 2026-08-25, #417 — branch-scoped role derivation added; see the amendment section at the end)  
 **Date:** 2026-08-09
 
 ## Context
@@ -28,3 +28,14 @@ Chosen over:
 - Any future user-create flow must assign a role at creation (#106 fog, tracked).
 - `role_capability`'s lack of a context column is now an explicit boundary: roles express *scope class* (GLOBAL), never branch membership.
 - Derived GLOBAL `ASSIGN_COMPENSATION` is consumed only by GLOBAL-scoped endpoints (e.g. `/api/commission-inclusions`); the BRANCH-scoped compensation surfaces (CompensationRoutes/AllowanceRoutes) check `ASSIGN_COMPENSATION` on BRANCH, where role-derived GLOBAL rows are inert by the same boundary — a role cannot express which branch. Known limitation, deliberately not bridged.
+
+## Amendment (2026-08-25, #417) — branch-scoped role derivation
+
+The Context paragraph above ("no production path assigns roles or capabilities", "the `user_role` table has no production rows at all") is historical: #344 shipped the production create-user + role-replace path and #344-era home-branch assignments write `user_branch_assignment`. With roles assignable but BRANCH-scoped bundles still flowing "through direct inserts only", every ops/finance surface gated on a BRANCH-context code 403'd for freshly created staff — the relief/delegate grant paths were the only production `user_capability` writers.
+
+**What changed:** union leg (c) widens from the single Coordinator alerts code to **each assigned role's non-management bundle, at every branch holding an ACTIVE assignment** (`ended_at IS NULL` window unchanged). A role still cannot express *which* branch — the assignment now does. Data-driven from `role_capability`: no per-role whitelist, ONBOARDING's empty bundle derives nothing, only-Coordinators-hold `RECEIVE_NEXT_APPOINTMENT_ALERTS` falls out of V2/V5 data.
+
+- **Management codes never derive BRANCH-scoped:** `MANAGE_USERS` (map #384 ruling — company-wide authority) and `ASSIGN_DELEGATE` (GLOBAL-enforced everywhere) stay out of leg (c). COORDINATOR's `ASSIGN_COMPENSATION` lands BRANCH-scoped exactly as V2 documented; OWNER/MANAGER keep the GLOBAL derivation for GLOBAL-gated surfaces.
+- **The leg-(b) whitelist and every priority stand:** explicit grants outrank derived rows (5 < 10/20/100); INACTIVE exclusion, the time-window filter, and the #131 strictness are untouched.
+- **Consequence update:** the "known limitation, deliberately not bridged" note above is bridged for assignment holders — BRANCH-checking surfaces now see role-derived rows keyed to their ACTIVE assignments (zero writes; materialization stays rejected).
+- Shipped in `V21__derive_branch_scoped_role_capabilities.sql`; derivation matrix pinned by `StaffRoleBranchDerivationPostgresTest`, route-level reachability by `StaffRoleReachabilityAuthzTest`.

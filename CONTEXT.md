@@ -33,11 +33,11 @@ A read-only user who can view sales and data for all branches. No edit capabilit
 _Avoid_: Auditor, bookkeeper
 
 **ONBOARDING**:
-A freshly registered user with zero capabilities. Functionally locked out until `MANAGE_USERS` assigns them to a branch, at which point they gain practitioner access.
+A freshly registered user with zero capabilities. Functionally locked out even after a branch assignment — the role bundle is empty, so nothing derives — until `MANAGE_USERS` grants a real role.
 _Avoid_: New user, unassigned, pending
 
 **Role**:
-A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped capabilities derive from the user's role through the capability view; BRANCH-scoped grants come from direct grants (relief, delegate).
+A predefined bundle of capabilities (seeded in V2). GLOBAL-scoped management codes derive from the role through the capability view; every other code derives BRANCH-scoped at each branch holding an ACTIVE assignment (V21). Relief and delegate remain direct grants.
 _Avoid_: Position, title
 
 **Deactivate**:
