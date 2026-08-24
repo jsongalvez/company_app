@@ -96,6 +96,7 @@ This repo follows the single-context layout: `CONTEXT.md` (domain glossary) + `d
 | Architecture decisions | `docs/adr/` (authoritative directory; inspect each relevant ADR's status, supersedes, and amends fields) |
 | Feature specs | `docs/specs/` |
 | Backend conventions (Exposed, routes, auth, testing, Javalin) | `backend/AGENTS.md` |
+| What an existing script does before writing a new one (validation, k6, OpenAPI gate, hooks, wayfinder ops) | `docs/agents/scripts.md` |
 | Frontend conventions (logging, ViewModels, design tokens) | `composeApp/AGENTS.md` |
 | Shared module conventions (domain types, DTOs, serialization) | `shared/AGENTS.md` |
 | Issue tracking | `docs/agents/issue-tracker.md` |
