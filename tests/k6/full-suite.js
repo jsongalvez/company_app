@@ -4,6 +4,10 @@ import { BASE_URL, uuid, authHeaders, metrics, thresholdProfiles } from "./helpe
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
+// Branch-scoped principal seeded by DevSeeder (#411). Optional: when unset the
+// suite runs exactly as before with the GLOBAL owner principal only.
+const SCOPED_USERNAME = __ENV.SCOPED_USERNAME || "";
+const SCOPED_PASSWORD = __ENV.SCOPED_PASSWORD || "";
 const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 export const options = { thresholds: thresholdProfiles.full, stages: [
@@ -40,7 +44,25 @@ export function setup() {
     if (!observe(today, null, {}, "setup fixture day", (r) => r.status === 200)) throw new Error("Load-test day lookup failed");
     branchDayId = today.json("branchDayId");
   }
-  return { token, userId, branchId: branch.id, branchDayId };
+  return { token, userId, branchId: branch.id, branchDayId, scoped: setupScopedPrincipal() };
+}
+
+function setupScopedPrincipal() {
+  if (!SCOPED_USERNAME || !SCOPED_PASSWORD) return null;
+  const loginRes = http.post(`${BASE_URL}/auth/login`, JSON.stringify({
+    username: SCOPED_USERNAME, password: SCOPED_PASSWORD,
+  }), { headers: { "Content-Type": "application/json" } });
+  if (!observe(loginRes, null, {}, "setup scoped login", (r) => r.status === 200)) throw new Error("Scoped-principal login failed");
+  const scopedToken = loginRes.json("token");
+  const meRes = http.get(`${BASE_URL}/api/me`, { headers: authHeaders(scopedToken) });
+  if (!observe(meRes, null, {}, "setup scoped current user", (r) => r.status === 200)) throw new Error("Scoped-principal lookup failed");
+  // Negative spot-check: a BRANCH-scoped principal must fail the GLOBAL
+  // MANAGE_USERS gate. Fail the suite loudly if seeding ever over-scopes.
+  const deniedRes = http.get(`${BASE_URL}/api/users`, { headers: authHeaders(scopedToken) });
+  if (!observe(deniedRes, null, {}, "setup scoped MANAGE_USERS denial", (r) => r.status === 403)) {
+    throw new Error("Scoped principal passed a MANAGE_USERS gate — seeding is over-scoped");
+  }
+  return { token: scopedToken, userId: meRes.json("id") };
 }
 
 export default function (data) {
@@ -75,8 +97,81 @@ export default function (data) {
   }
   fetchNotifications(headers, tid);
   fetchReports(headers, tid, branch.id);
+  // Clients are GLOBAL-gated (requireGlobalCapability), so the scoped
+  // principal cannot create its own — it reuses the one this iteration's
+  // GLOBAL leg created, exactly like branch-scoped staff work off the
+  // shared directory.
+  if (data.scoped) {
+    runScopedLegs(data.scoped, branch, prodId, clientId);
+  }
 
   sleep(0.5);
+}
+
+// Branch-scoped principal (#411): exercises the exact-scope gate paths real
+// staff hit (plain-BRANCH grants) that the GLOBAL owner principal can never
+// reach. Failures count toward the shared error budget — fail-closed.
+function runScopedLegs(scoped, branch, prodId, clientId) {
+  const headers = authHeaders(scoped.token);
+  const tags = { group: "scoped" };
+
+  const sessionId = uuid();
+  const sessionRes = http.post(`${BASE_URL}/api/sessions`, JSON.stringify({
+    id: sessionId, clientId, branchId: branch.id, isWalkIn: true, finalPrice: "2500.00",
+  }), { headers });
+  const sessionCreated = observe(sessionRes, metrics.scopedLatency, tags, "scoped create session", (r) => r.status === 201 || r.status === 200);
+
+  if (sessionCreated) {
+    const statusRes = http.patch(`${BASE_URL}/api/sessions/${sessionId}/status`, JSON.stringify({
+      status: "COMPLETED", version: 1, reason: "K6 scoped-principal fixture",
+    }), { headers });
+    observe(statusRes, metrics.scopedLatency, tags, "scoped complete session", (r) => r.status === 200);
+
+    const voidRes = http.post(`${BASE_URL}/api/sessions/${sessionId}/void`, JSON.stringify({
+      id: uuid(), voidReason: "K6 scoped-principal void",
+    }), { headers });
+    observe(voidRes, metrics.scopedLatency, tags, "scoped void session", (r) => r.status === 200 || r.status === 201);
+
+    const unvoidRes = http.post(`${BASE_URL}/api/sessions/${sessionId}/unvoid`, JSON.stringify({
+      unvoidedReason: "K6 scoped-principal unvoid",
+    }), { headers });
+    observe(unvoidRes, metrics.scopedLatency, tags, "scoped unvoid session", (r) => r.status === 200);
+
+    const addPractitionerRes = http.post(`${BASE_URL}/api/sessions/${sessionId}/practitioners`, JSON.stringify({
+      id: uuid(), practitionerId: scoped.userId, reason: "K6 scoped-principal fixture",
+    }), { headers });
+    const added = observe(addPractitionerRes, metrics.scopedLatency, tags, "scoped add practitioner", (r) => r.status === 201 || r.status === 200);
+    if (added) {
+      const delRes = http.del(`${BASE_URL}/api/sessions/${sessionId}/practitioners/${scoped.userId}`, JSON.stringify({
+        reason: "K6 scoped-principal fixture",
+      }), { headers });
+      observe(delRes, metrics.scopedLatency, tags, "scoped remove practitioner", (r) => r.status === 200 || r.status === 204);
+    }
+  }
+
+  const expenseId = uuid();
+  const expenseRes = http.post(`${BASE_URL}/api/expenses`, JSON.stringify({
+    id: expenseId, branchDayId: branch.dayId, amount: "100.00", category: "MISCELLANEOUS",
+    reason: "K6 scoped-principal fixture",
+  }), { headers });
+  observe(expenseRes, metrics.scopedLatency, tags, "scoped create expense", (r) => r.status === 201 || r.status === 200);
+
+  const expenseListRes = http.get(`${BASE_URL}/api/expenses?branchDayId=${branch.dayId}`, { headers });
+  observe(expenseListRes, metrics.scopedLatency, tags, "scoped list expenses", (r) => r.status === 200);
+
+  if (prodId) {
+    const restockRes = http.post(`${BASE_URL}/api/branches/${branch.id}/inventory/${prodId}/restock`, JSON.stringify({
+      id: uuid(), quantity: 5, branchDayId: branch.dayId,
+      editReason: "K6 scoped-principal fixture",
+    }), { headers });
+    observe(restockRes, metrics.scopedLatency, tags, "scoped restock inventory", (r) => r.status === 201 || r.status === 200);
+  }
+
+  const notificationsRes = http.get(`${BASE_URL}/api/notifications`, { headers });
+  observe(notificationsRes, metrics.scopedLatency, tags, "scoped list notifications", (r) => r.status === 200);
+
+  const dailyRes = http.get(`${BASE_URL}/api/branches/${branch.id}/daily-summary?date=${manilaDate()}`, { headers });
+  observe(dailyRes, metrics.scopedLatency, tags, "scoped daily report", (r) => r.status === 200);
 }
 
 function createClient(headers, tid) {

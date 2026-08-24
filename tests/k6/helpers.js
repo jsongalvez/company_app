@@ -38,6 +38,7 @@ export const metrics = {
   concurrencyLatency: new Trend("concurrency_latency"),
   authzLatency: new Trend("authz_latency"),
   remittanceRaceLatency: new Trend("remittance_race_latency"),
+  scopedLatency: new Trend("scoped_latency"),
   errorRate: new Rate("errors"),
 };
 
@@ -63,6 +64,8 @@ const fullThresholds = {
   concurrency_latency: ["p(95)<1000"],
   authz_latency: ["p(95)<1000"],
   remittance_race_latency: ["p(95)<3000"],
+  // Branch-scoped principal legs (#411) — only full-suite emits samples.
+  scoped_latency: ["p(95)<1000"],
   errors: ["rate<0.05"],
 };
 

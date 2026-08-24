@@ -4,8 +4,10 @@ import { BASE_URL, uuid, authHeaders, metrics, thresholdProfiles } from "./helpe
 
 const USERNAME = __ENV.TEST_USERNAME || "";
 const PASSWORD = __ENV.TEST_PASSWORD || "";
-const LIMITED_USERNAME = __ENV.LIMITED_USERNAME || "";
-const LIMITED_PASSWORD = __ENV.LIMITED_PASSWORD || "";
+// The insufficient-capability principal is seeded by DevSeeder as a
+// BRANCH-scoped user (#411). LIMITED_* names are the pre-seeder legacy path.
+const LIMITED_USERNAME = __ENV.SCOPED_USERNAME || __ENV.LIMITED_USERNAME || "";
+const LIMITED_PASSWORD = __ENV.SCOPED_PASSWORD || __ENV.LIMITED_PASSWORD || "";
 
 export const options = {
   thresholds: thresholdProfiles.authz,

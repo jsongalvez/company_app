@@ -532,8 +532,10 @@ TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/full-suite.js
 # Concurrency edge cases (pending guard, version mismatch, idempotency)
 TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/concurrency-test.js
 
-# Authz edge cases (invalid token, expired token, insufficient capability)
-LIMITED_USERNAME=limited LIMITED_PASSWORD=pass k6 run tests/k6/authz-test.js
+# Authz edge cases (invalid token, expired token, insufficient capability —
+# the 403 principal is the DevSeeder branch-scoped user, #411; full-suite also
+# runs branch-scoped leg group when SCOPED_USERNAME/SCOPED_PASSWORD are set)
+SCOPED_USERNAME=scoped SCOPED_PASSWORD=scopepass k6 run tests/k6/authz-test.js
 
 # Concurrent remittance submission (serializable isolation race)
 TEST_USERNAME=owner TEST_PASSWORD=pass k6 run tests/k6/remittance-race-test.js

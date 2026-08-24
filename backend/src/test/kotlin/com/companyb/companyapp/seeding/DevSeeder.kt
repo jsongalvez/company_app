@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.UserRepository
 import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
+import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
@@ -19,6 +20,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -30,7 +32,9 @@ private val logger = KotlinLogging.logger {}
 
 private const val DEV_USER_ROLE_NAME = "OWNER"
 private const val DEV_USER_EMAIL_DOMAIN = "@example.com"
-private val DEV_FIXTURE_BRANCH_ID = UUID.fromString("00000000-0000-4000-8000-000000000001")
+private const val SCOPED_USER_SLOT: Short = 1
+
+internal val DEV_FIXTURE_BRANCH_ID = UUID.fromString("00000000-0000-4000-8000-000000000001")
 
 private val DEV_CAPABILITIES =
     listOf(
@@ -45,99 +49,151 @@ private val DEV_CAPABILITIES =
         "ASSIGN_DELEGATE",
     )
 
+private val DEV_FIXTURE_BRANCH_CAPABILITIES =
+    listOf(
+        "VIEW_BRANCH_DATA",
+        "EDIT_BRANCH_DATA",
+        "EDIT_PAST_DAY",
+        "VOID_SESSION",
+        "SUBMIT_REMITTANCE",
+        "ASSIGN_COMPENSATION",
+        "MANAGE_PRODUCTS",
+    )
+
+private data class Credentials(
+    val username: String,
+    val password: String,
+)
+
 object DevSeeder {
-    @Suppress("LongMethod", "ReturnCount")
     fun seed(
         config: AppConfig,
         runInTransaction: (() -> Unit) -> Unit = { block -> transaction { block() } },
     ) {
-        val username = config.testUsername?.takeIf { it.isNotBlank() } ?: return
-        val password = config.testPassword?.takeIf { it.isNotBlank() } ?: return
+        credentials(config.testUsername, config.testPassword)?.let { global ->
+            runInTransaction { seedGlobalUser(global) }
+        }
+        credentials(config.scopedTestUsername, config.scopedTestPassword)?.let { scoped ->
+            runInTransaction { seedScopedUser(scoped) }
+        }
+    }
 
-        runInTransaction {
-            if (UserRepository.findByUsername(username) != null) return@runInTransaction
+    private fun credentials(
+        username: String?,
+        password: String?,
+    ): Credentials? {
+        val name = username?.takeIf { it.isNotBlank() } ?: return null
+        val pass = password?.takeIf { it.isNotBlank() } ?: return null
+        return Credentials(name, pass)
+    }
 
-            val passwordHash = Password.create(password)
-            val userId =
-                UserRepository.createUserInTransaction(
-                    UserCreateParams(
-                        username = username,
-                        passwordHash = passwordHash,
-                        email = "$username$DEV_USER_EMAIL_DOMAIN",
-                        displayName = "Dev $username",
-                    ),
-                )
+    private fun seedGlobalUser(credentials: Credentials) {
+        if (UserRepository.findByUsername(credentials.username) != null) return
 
-            val ownerRoleId =
-                RoleTable
-                    .selectAll()
-                    .where { RoleTable.name eq DEV_USER_ROLE_NAME }
-                    .single()[RoleTable.id]
-            UserRoleTable.insert {
-                it[UserRoleTable.userId] = userId
-                it[UserRoleTable.roleId] = ownerRoleId
-            }
+        val userId = createUser(credentials)
 
-            for (code in DEV_CAPABILITIES) {
-                val capabilityId =
-                    CapabilityRepository.findIdByCode(code)
-                        ?: error("Capability '$code' not found in database")
-                UserCapabilityTable.insert {
-                    it[UserCapabilityTable.userId] = userId
-                    it[UserCapabilityTable.capabilityId] = capabilityId
-                    it[UserCapabilityTable.contextType] = CapabilityContextType.GLOBAL
-                    it[UserCapabilityTable.contextId] = CapabilityService.GLOBAL_CONTEXT_ID
-                    it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                    it[UserCapabilityTable.sourceId] = CapabilityService.GLOBAL_CONTEXT_ID
-                }
-            }
+        val ownerRoleId =
+            RoleTable
+                .selectAll()
+                .where { RoleTable.name eq DEV_USER_ROLE_NAME }
+                .single()[RoleTable.id]
+        UserRoleTable.insert {
+            it[UserRoleTable.userId] = userId
+            it[UserRoleTable.roleId] = ownerRoleId
+        }
 
-            BranchTable.insert {
-                it[id] = DEV_FIXTURE_BRANCH_ID
-                it[name] = "K6 Fixture Branch"
-                it[branchType] = BranchType.CLINIC
-            }
-            for (code in listOf(
-                "VIEW_BRANCH_DATA",
-                "EDIT_BRANCH_DATA",
-                "EDIT_PAST_DAY",
-                "VOID_SESSION",
-                "SUBMIT_REMITTANCE",
-                "ASSIGN_COMPENSATION",
-                "MANAGE_PRODUCTS",
-            )) {
-                val capabilityId = CapabilityRepository.findIdByCode(code) ?: error("Capability '$code' not found")
-                UserCapabilityTable.insert {
-                    it[UserCapabilityTable.userId] = userId
-                    it[UserCapabilityTable.capabilityId] = capabilityId
-                    it[UserCapabilityTable.contextType] = CapabilityContextType.BRANCH
-                    it[UserCapabilityTable.contextId] = DEV_FIXTURE_BRANCH_ID
-                    it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
-                    it[UserCapabilityTable.sourceId] = DEV_FIXTURE_BRANCH_ID
-                }
-            }
-            val effectiveFrom: OffsetDateTime =
-                RoleTable.select(CurrentTimestampWithTimeZone).first()[CurrentTimestampWithTimeZone]
-            val effectiveUntil = effectiveFrom.plusYears(10)
-            for ((sessionType, rate) in listOf(
-                SessionType.REGULAR to "2500.00",
-                SessionType.PROVINCIAL_FIRST to "3500.00",
-                SessionType.SECOND_SESSION to "2000.00",
-                SessionType.SUBSEQUENT to "1500.00",
-            )) {
-                SessionBaseRateTable.insert {
-                    it[SessionBaseRateTable.setBy] = userId
-                    it[SessionBaseRateTable.branchId] = DEV_FIXTURE_BRANCH_ID
-                    it[SessionBaseRateTable.sessionType] = sessionType
-                    it[SessionBaseRateTable.rate] = BigDecimal(rate)
-                    it[SessionBaseRateTable.effectiveFrom] = effectiveFrom
-                    it[SessionBaseRateTable.effectiveUntil] = effectiveUntil
-                }
-            }
+        for (code in DEV_CAPABILITIES) {
+            insertCapability(userId, code, CapabilityContextType.GLOBAL, CapabilityService.GLOBAL_CONTEXT_ID)
+        }
 
-            logger.info {
-                "[DEV-SEED] Created dev user '$username' with" +
-                    " $DEV_USER_ROLE_NAME role and ${DEV_CAPABILITIES.size} capabilities"
+        ensureFixtureBranch()
+        for (code in DEV_FIXTURE_BRANCH_CAPABILITIES) {
+            insertCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
+        }
+        seedSessionBaseRates(userId)
+
+        logger.info {
+            "[DEV-SEED] Created dev user '${credentials.username}' with" +
+                " $DEV_USER_ROLE_NAME role and ${DEV_CAPABILITIES.size} capabilities"
+        }
+    }
+
+    private fun seedScopedUser(credentials: Credentials) {
+        if (UserRepository.findByUsername(credentials.username) != null) return
+
+        val userId = createUser(credentials)
+        ensureFixtureBranch()
+        for (code in DEV_FIXTURE_BRANCH_CAPABILITIES) {
+            insertCapability(userId, code, CapabilityContextType.BRANCH, DEV_FIXTURE_BRANCH_ID)
+        }
+        UserBranchAssignmentTable.insert {
+            it[id] = UUID.randomUUID()
+            it[UserBranchAssignmentTable.userId] = userId
+            it[branchId] = DEV_FIXTURE_BRANCH_ID
+            it[slot] = SCOPED_USER_SLOT
+            it[assignedBy] = userId
+        }
+
+        logger.info {
+            "[DEV-SEED] Created branch-scoped dev user '${credentials.username}' with" +
+                " ${DEV_FIXTURE_BRANCH_CAPABILITIES.size} capabilities at the fixture branch"
+        }
+    }
+
+    private fun ensureFixtureBranch() {
+        BranchTable.insertIgnore {
+            it[id] = DEV_FIXTURE_BRANCH_ID
+            it[name] = "K6 Fixture Branch"
+            it[branchType] = BranchType.CLINIC
+        }
+    }
+
+    private fun createUser(credentials: Credentials): UUID =
+        UserRepository.createUserInTransaction(
+            UserCreateParams(
+                username = credentials.username,
+                passwordHash = Password.create(credentials.password),
+                email = "${credentials.username}$DEV_USER_EMAIL_DOMAIN",
+                displayName = "Dev ${credentials.username}",
+            ),
+        )
+
+    private fun insertCapability(
+        userId: UUID,
+        code: String,
+        contextType: CapabilityContextType,
+        contextId: UUID,
+    ) {
+        val capabilityId =
+            CapabilityRepository.findIdByCode(code)
+                ?: error("Capability '$code' not found in database")
+        UserCapabilityTable.insert {
+            it[UserCapabilityTable.userId] = userId
+            it[UserCapabilityTable.capabilityId] = capabilityId
+            it[UserCapabilityTable.contextType] = contextType
+            it[UserCapabilityTable.contextId] = contextId
+            it[UserCapabilityTable.sourceType] = CapabilitySourceType.SYSTEM
+            it[UserCapabilityTable.sourceId] = contextId
+        }
+    }
+
+    private fun seedSessionBaseRates(userId: UUID) {
+        val effectiveFrom: OffsetDateTime =
+            RoleTable.select(CurrentTimestampWithTimeZone).first()[CurrentTimestampWithTimeZone]
+        val effectiveUntil = effectiveFrom.plusYears(10)
+        for ((sessionType, rate) in listOf(
+            SessionType.REGULAR to "2500.00",
+            SessionType.PROVINCIAL_FIRST to "3500.00",
+            SessionType.SECOND_SESSION to "2000.00",
+            SessionType.SUBSEQUENT to "1500.00",
+        )) {
+            SessionBaseRateTable.insert {
+                it[SessionBaseRateTable.setBy] = userId
+                it[SessionBaseRateTable.branchId] = DEV_FIXTURE_BRANCH_ID
+                it[SessionBaseRateTable.sessionType] = sessionType
+                it[SessionBaseRateTable.rate] = BigDecimal(rate)
+                it[SessionBaseRateTable.effectiveFrom] = effectiveFrom
+                it[SessionBaseRateTable.effectiveUntil] = effectiveUntil
             }
         }
     }

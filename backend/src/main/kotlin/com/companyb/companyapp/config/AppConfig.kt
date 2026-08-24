@@ -16,6 +16,8 @@ data class AppConfig(
     val authDummyPassword: String,
     val testUsername: String?,
     val testPassword: String?,
+    val scopedTestUsername: String?,
+    val scopedTestPassword: String?,
 ) {
     companion object {
         fun parse(): AppConfig {
@@ -41,6 +43,8 @@ data class AppConfig(
                         ?: error("AUTH_DUMMY_PASSWORD must be set"),
                 testUsername = env["TEST_USERNAME"]?.takeIf { it.isNotBlank() },
                 testPassword = env["TEST_PASSWORD"]?.takeIf { it.isNotBlank() },
+                scopedTestUsername = env["SCOPED_USERNAME"]?.takeIf { it.isNotBlank() },
+                scopedTestPassword = env["SCOPED_PASSWORD"]?.takeIf { it.isNotBlank() },
             )
         }
     }

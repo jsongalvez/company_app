@@ -1,6 +1,6 @@
 # k6 Baseline Results
 
-Last updated: 2026-08-12
+Last updated: 2026-08-24
 
 **How to use:** Run k6 against the test database and paste the summary output here. This file
 is the human-readable record of what "normal" looks like for each endpoint.
@@ -40,6 +40,14 @@ endpoint. Do NOT update if a threshold failed due to an unintentional regression
 | `errors` | rate < 5% |
 
 ## Notes
+
+- `scoped_latency` introduced 2026-08-24 (#411 — DevSeeder now provisions a
+  BRANCH-scoped principal via `SCOPED_USERNAME`/`SCOPED_PASSWORD`, and
+  `full-suite.js` runs a branch-scoped leg group when set): first scoped run on a
+  clean test DB measured p95 147.7 ms across the session/status/void/practitioner/
+  expense/restock/notification/report legs (setup also pins the MANAGE_USERS 403
+  denial). Threshold set at p95 < 1000 ms, mirroring the sibling write-leg budgets
+  (~7× headroom). Re-baseline when scoped-principal traffic patterns change.
 
 - `my_branches_latency` baselined 2026-08-10 (#140 — BranchSelect landed its first consumer):
   3 runs on a clean test DB (owner user, no branch assignments — the empty-branch path of the

@@ -9,8 +9,9 @@
 # The backend boots against the TEST database (never the application database)
 # with deterministic seed data: DevSeeder creates the owner user and the
 # "K6 Fixture Branch" fixtures on startup when TEST_USERNAME/TEST_PASSWORD are
-# set. An ephemeral capability-less user is registered through the public API
-# for the authz suite's insufficient-capability (403) contract.
+# set, and a branch-scoped principal when SCOPED_USERNAME/SCOPED_PASSWORD are
+# set (#411) — that principal drives the authz suite's insufficient-capability
+# (403) contract and full-suite's scoped leg group.
 #
 # Suite order matters: remittance-race-test requires a fresh clock-in (strict
 # HTTP 201) while every other suite tolerates 409 (already clocked in), and
@@ -36,8 +37,8 @@ TEST_DB_NAME="${TEST_DB_NAME:-company_app_test}"
 POSTGRES_DB="$TEST_DB_NAME"
 TEST_USERNAME="${TEST_USERNAME:-owner}"
 TEST_PASSWORD="${TEST_PASSWORD:-pass}"
-LIMITED_USERNAME="${LIMITED_USERNAME:-limited}"
-LIMITED_PASSWORD="${LIMITED_PASSWORD:-password}"
+SCOPED_USERNAME="${SCOPED_USERNAME:-scoped}"
+SCOPED_PASSWORD="${SCOPED_PASSWORD:-scopepass}"
 JWT_SECRET="${JWT_SECRET:-ci-secret-must-be-at-least-64-characters-long-for-tests-0123456789}"
 JWT_ISSUER="${JWT_ISSUER:-company-app-ci}"
 JWT_AUDIENCE="${JWT_AUDIENCE:-company-app-ci}"
@@ -47,12 +48,12 @@ API_BASE_URL="http://localhost:${APP_PORT}"
 
 export DB_HOST DB_PORT POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB \
     TEST_DB_NAME TEST_USERNAME TEST_PASSWORD \
+    SCOPED_USERNAME SCOPED_PASSWORD \
     JWT_SECRET JWT_ISSUER JWT_AUDIENCE AUTH_DUMMY_PASSWORD \
     APP_PORT API_BASE_URL
 
 BOOT_LOG=/tmp/company-app-k6-boot.log
 K6_LOG=/tmp/company-app-k6.log
-REGISTER_LOG=/tmp/company-app-k6-register.json
 APP_PID=""
 
 # Refuse to run when something already listens on the app port — the health
@@ -103,21 +104,6 @@ curl --fail --silent "${API_BASE_URL}/health" >/dev/null || {
     exit 1
 }
 echo "Backend is healthy."
-
-# Ephemeral capability-less user for the authz 403 contract. 201 = created,
-# 409 = leftover from an earlier run against the same database — both fine.
-register_status=$(curl -s -o "$REGISTER_LOG" -w "%{http_code}" \
-    -X POST "${API_BASE_URL}/auth/register" \
-    -H "Content-Type: application/json" \
-    -d "{\"username\":\"${LIMITED_USERNAME}\",\"password\":\"${LIMITED_PASSWORD}\",\"email\":\"${LIMITED_USERNAME}@k6.invalid\",\"displayName\":\"K6 Limited\"}")
-case "$register_status" in
-    201 | 409) echo "Limited user ready (HTTP $register_status)." ;;
-    *)
-        echo "ERROR: limited-user registration failed (HTTP $register_status)."
-        cat "$REGISTER_LOG"
-        exit 1
-        ;;
-esac
 
 : > "$K6_LOG"
 # Run every suite even when one fails; report the first failure's exit code.

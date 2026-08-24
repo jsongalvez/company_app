@@ -82,6 +82,8 @@ class JwtServiceTest {
                 authDummyPassword = "dummy",
                 testUsername = null,
                 testPassword = null,
+                scopedTestUsername = null,
+                scopedTestPassword = null,
             )
     }
 }

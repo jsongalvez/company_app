@@ -2,12 +2,15 @@ package com.companyb.companyapp.seeding
 
 import com.companyb.companyapp.config.AppConfig
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class DevSeederTest {
     private fun config(
         testUsername: String? = null,
         testPassword: String? = null,
+        scopedTestUsername: String? = null,
+        scopedTestPassword: String? = null,
     ) = AppConfig(
         appHost = "localhost",
         appPort = 8080,
@@ -22,6 +25,8 @@ class DevSeederTest {
         authDummyPassword = "test-dummy-password-at-least-32-characters",
         testUsername = testUsername,
         testPassword = testPassword,
+        scopedTestUsername = scopedTestUsername,
+        scopedTestPassword = scopedTestPassword,
     )
 
     @Test
@@ -47,5 +52,31 @@ class DevSeederTest {
             runInTransaction = { called = true },
         )
         assertTrue(called, "Transaction block should be invoked when seed conditions are met")
+    }
+
+    @Test
+    fun `seed invokes transaction block once per provisioned principal`() {
+        var calls = 0
+        DevSeeder.seed(
+            config(
+                testUsername = "user",
+                testPassword = "pass",
+                scopedTestUsername = "scoped",
+                scopedTestPassword = "pass",
+            ),
+            runInTransaction = { calls += 1 },
+        )
+        assertEquals(2, calls, "Global and scoped principals each open one seeding transaction")
+
+        calls = 0
+        DevSeeder.seed(
+            config(scopedTestUsername = "scoped", scopedTestPassword = "pass"),
+            runInTransaction = { calls += 1 },
+        )
+        assertEquals(1, calls, "Scoped-only credentials seed exactly the scoped principal")
+
+        calls = 0
+        DevSeeder.seed(config(), runInTransaction = { calls += 1 })
+        assertEquals(0, calls, "No credentials means no seeding transactions")
     }
 }
