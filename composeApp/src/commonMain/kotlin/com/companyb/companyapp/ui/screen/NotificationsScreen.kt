@@ -88,6 +88,7 @@ fun NotificationsScreen(
     val acceptError = (acceptState as? UiState.Error)?.message
     val declineError = (declineState as? UiState.Error)?.message
     val historyError = (historyState as? UiState.Error)?.message
+    val receivedError = receivedInvitesErrorLine(receivedState)
     LaunchedEffect(markReadError) {
         markReadError?.let { logWarn("NotificationsScreen", "markRead=Error: $it") }
     }
@@ -102,6 +103,9 @@ fun NotificationsScreen(
     }
     LaunchedEffect(historyError) {
         historyError?.let { logWarn("NotificationsScreen", "history=Error: $it") }
+    }
+    LaunchedEffect(receivedError) {
+        receivedError?.let { logWarn("NotificationsScreen", "receivedInvites=Error: $it") }
     }
 
     // D5 + #97 Q5 silent-refresh: cold-start spinner only while there's nothing to show; once a
@@ -181,13 +185,28 @@ fun NotificationsScreen(
         // #160 — the invites section renders above the unread list: invites are time-bound
         // actions (Accept/Decline), the unread queue is reading material. Keep-last (VM-side,
         // the #143 shape): the section survives reloads; resolved rows leave it (the row
-        // renders until resolved, not until read). A cold-start spinner covers the section
-        // while the list has never loaded; an Error with nothing to show keeps the in-place
-        // error card semantics (the section itself collapses — the unread section shows the
-        // card, per the existing keep-last contract).
+        // renders until resolved, not until read).
+        //
+        // #410 — a failed received-invites load is always visible with its own Retry (the
+        // historyError row shape): with no cached rows the strip is the section's only trace
+        // (the old code collapsed it silently — Accept/Decline vanished without signal); with
+        // cached rows it sits above them so keep-last never masquerades as fresh. The next
+        // load's Loading pre-set clears the strip automatically.
         val received = freshestReceived.orEmpty()
         val today = currentOperationalDate()
         val inviteActionsBusy = acceptState is UiState.Loading || declineState is UiState.Loading
+        if (receivedError != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ActionErrorLine(receivedError)
+                TextButton(onClick = { reliefInviteViewModel.loadReceived() }) {
+                    Text("Retry")
+                }
+            }
+        }
         if (received.isNotEmpty()) {
             ReliefInvitesSection(
                 invites = received,
@@ -221,7 +240,21 @@ fun NotificationsScreen(
             }
 
             is UiState.Error -> {
-                if (hasContent) {
+                // #410 — with keep-last content on screen the failure degrades to an inline
+                // retry strip above the list (the stale rows stay; they must not masquerade
+                // as fresh); a failure with nothing to show keeps the in-place error card.
+                val refreshError = unreadRefreshErrorLine(state, hasContent)
+                if (refreshError != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ActionErrorLine(refreshError)
+                        TextButton(onClick = { viewModel.loadUnreadNotifications() }) {
+                            Text("Retry")
+                        }
+                    }
                     NotificationList(
                         unread = unread,
                         readThisSession = readThisSession,
@@ -411,6 +444,24 @@ private fun ActionErrorLine(message: String) {
         color = MaterialTheme.colorScheme.error,
     )
 }
+
+/**
+ * #410 — the received-invites leg's error line: the failure message when the invites read
+ * failed, else null. Rendered with an inline Retry on every cache state — keep-last rows stay
+ * up, and an empty cache must not hide the time-bound Accept/Decline actions silently.
+ */
+internal fun receivedInvitesErrorLine(state: UiState<List<ReliefInviteResponse>>): String? =
+    (state as? UiState.Error)?.message
+
+/**
+ * #410 — the unread leg's refresh-failure strip message, only when content is on screen
+ * ([hasContent]): keep-last shows the stale list, so the strip above it keeps the failure
+ * truthful. A failure with nothing to show returns null — the in-place ErrorCard path owns it.
+ */
+internal fun unreadRefreshErrorLine(
+    state: UiState<List<NotificationResponse>>,
+    hasContent: Boolean,
+): String? = (state as? UiState.Error)?.takeIf { hasContent }?.message
 
 // D2: message (primary) + timestamp (secondary); whole row is the tap target. Unread rows at
 // full emphasis; Read rows dimmed (ink-muted text + surface-1 row bg) and non-interactive
