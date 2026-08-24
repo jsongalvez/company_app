@@ -29,6 +29,7 @@ object AuditLogTableRegistry {
             AuditedTable("commission_manual_inclusion", "Commission Inclusion"),
             AuditedTable("compensation", "Compensation"),
             AuditedTable("concern", "Concern"),
+            AuditedTable("credential_token", "Credential Token"),
             AuditedTable("expense", "Expense"),
             AuditedTable("grant_relief_access", "Relief Access"),
             AuditedTable("inventory_movement", "Inventory Movement"),
@@ -47,5 +48,6 @@ object AuditLogTableRegistry {
             AuditedTable("session_practitioner", "Practitioner"),
             AuditedTable("session_void", "Session Void"),
             AuditedTable("user_branch_assignment", "Branch Assignment"),
+            AuditedTable("user_role", "User Roles"),
         )
 }

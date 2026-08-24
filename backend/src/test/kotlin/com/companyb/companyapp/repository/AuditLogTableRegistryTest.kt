@@ -40,6 +40,7 @@ class AuditLogTableRegistryTest {
                 "commission_manual_inclusion",
                 "compensation",
                 "concern",
+                "credential_token",
                 "expense",
                 "grant_relief_access",
                 "inventory_movement",
@@ -58,6 +59,7 @@ class AuditLogTableRegistryTest {
                 "session_practitioner",
                 "session_void",
                 "user_branch_assignment",
+                "user_role",
             )
         assertEquals(knownAudited, tableNames)
     }
