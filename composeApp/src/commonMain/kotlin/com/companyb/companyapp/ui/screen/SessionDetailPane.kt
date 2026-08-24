@@ -11,7 +11,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -21,7 +20,6 @@ import com.companyb.companyapp.domain.CapabilityContextType
 import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.BranchMemberResponse
-import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.SessionPractitionerResponse
@@ -93,75 +91,52 @@ internal fun SessionDetailPane(
                     capabilities = capabilities,
                     currentUserId = currentUser?.id,
                     rosterRows = (roster as? UiState.Success)?.data,
-                    practitionerResult = practitionerResult,
-                    concernResult = concernResult,
-                    voidResult = voidResult,
-                    unvoidResult = unvoidResult,
+                    results =
+                        PaneResults(
+                            practitionerResult = practitionerResult,
+                            concernResult = concernResult,
+                            voidResult = voidResult,
+                            unvoidResult = unvoidResult,
+                        ),
                     members = members,
+                    allowVoid = allowVoid,
                 ),
             sessionVm = sessionVm,
             session = session,
             refreshSession = refreshSession,
-            allowVoid = allowVoid,
             modifier = modifier,
         )
     }
 }
 
-/** Snapshot of the pane's observed flows, bundled to keep the editable surface's arity low. */
-private class PaneState(
-    val capabilities: List<UserCapabilityResponse>,
-    val currentUserId: String?,
-    val rosterRows: List<SessionPractitionerResponse>?,
+/** The pane's four mutation-flow terminals, bundled so every consumer takes one value (#412). */
+internal class PaneResults(
     val practitionerResult: UiState<SessionPractitionerResponse>,
     val concernResult: UiState<Unit>,
     val voidResult: UiState<SessionVoidResponse>,
     val unvoidResult: UiState<SessionVoidResponse>,
-    val members: UiState<List<BranchMemberResponse>>,
-)
-
-/** Per-selection dialog targets; see the `key(session.id)` note on [SessionDetailPane]. */
-private class PaneDialogTargets {
-    var removeConcern by mutableStateOf<ConcernResponse?>(null)
-    var removePractitioner by mutableStateOf<DashboardPractitionerResponse?>(null)
-    var remarksTarget by mutableStateOf<DashboardPractitionerResponse?>(null)
-    var showAddPractitioner by mutableStateOf(false)
-    var showPromoteOther by mutableStateOf(false)
-    var showVoid by mutableStateOf(false)
-    var showUnvoid by mutableStateOf(false)
-
-    // #406 — the sticky void/unvoid flows are shared across selection switches (one VM
-    // serves the whole desktop pane), so each submit arms the issuing session id and the
-    // effects act only on an armed landing; a late landing from a switched-away selection
-    // drains silently instead of repainting the wrong pane.
-    var voidArmedFor by mutableStateOf<String?>(null)
-    var unvoidArmedFor by mutableStateOf<String?>(null)
+) {
+    /** Every terminal error message across the four flows, deduplicated for display. */
+    internal fun errorMessages(): List<String> =
+        listOfNotNull(
+            (practitionerResult as? UiState.Error)?.message,
+            (concernResult as? UiState.Error)?.message,
+            (voidResult as? UiState.Error)?.message,
+            (unvoidResult as? UiState.Error)?.message,
+        ).distinct()
 }
 
-/** #406 — which void affordance an editable row offers, or none when the gate is closed. */
-internal enum class SessionVoidAffordance { VOID, UNVOID }
-
-internal fun sessionVoidAffordance(
-    canVoid: Boolean,
-    isVoided: Boolean,
-): SessionVoidAffordance? =
-    when {
-        !canVoid -> null
-        isVoided -> SessionVoidAffordance.UNVOID
-        else -> SessionVoidAffordance.VOID
-    }
-
-/**
- * #406 — the void/unvoid client gate, mirroring the backend's
- * `requireBranchCapabilityForSession(VOID_SESSION)` exactly: a BRANCH-scoped
- * `VOID_SESSION` grant at the session's branch. Deliberately NOT the edit gate — the
- * server has no branch-day leg on these routes (a relief day grant of EDIT_BRANCH_DATA
- * does not authorize voiding), so the mirror has none either.
- */
-internal fun canVoidSession(
-    capabilities: List<UserCapabilityResponse>,
-    branchId: String?,
-): Boolean = capabilities.hasCapability(CapabilityCodes.VOID_SESSION, CapabilityContextType.BRANCH, branchId)
+/** Snapshot of the pane's observed flows (plus static host config), bundled for low arity. */
+private class PaneState(
+    val capabilities: List<UserCapabilityResponse>,
+    val currentUserId: String?,
+    val rosterRows: List<SessionPractitionerResponse>?,
+    val results: PaneResults,
+    val members: UiState<List<BranchMemberResponse>>,
+    // #406 — void/unvoid is a desktop-only mutation surface (ADR-0020): the desktop inline
+    // pane opts in; the mobile pushed route keeps the default read-only detail.
+    val allowVoid: Boolean,
+)
 
 @OptIn(ExperimentalUuidApi::class)
 @Composable
@@ -170,7 +145,6 @@ private fun EditableSessionPane(
     sessionVm: SessionViewModel,
     session: DashboardSessionResponse,
     refreshSession: () -> Unit,
-    allowVoid: Boolean,
     modifier: Modifier,
 ) {
     val targets = remember(session.id) { PaneDialogTargets() }
@@ -182,22 +156,19 @@ private fun EditableSessionPane(
         ) || state.capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
     // #406 — the void gate mirrors the backend's `requireBranchCapabilityForSession`:
     // branch-scoped VOID_SESSION only — no day-grant leg (see [canVoidSession]).
-    val canVoid = allowVoid && canVoidSession(state.capabilities, session.branchId)
+    val canVoid = state.allowVoid && canVoidSession(state.capabilities, session.branchId)
     val mutating =
-        state.practitionerResult is UiState.Loading ||
-            state.concernResult is UiState.Loading ||
-            state.voidResult is UiState.Loading ||
-            state.unvoidResult is UiState.Loading
+        state.results.practitionerResult is UiState.Loading ||
+            state.results.concernResult is UiState.Loading ||
+            state.results.voidResult is UiState.Loading ||
+            state.results.unvoidResult is UiState.Loading
     val gate = SessionEditGate(canEdit = canEdit, mutating = mutating)
     val displaySession = mergeRosterNames(session, state.rosterRows)
 
     PaneEffects(
         sessionVm,
         session.id,
-        state.practitionerResult,
-        state.concernResult,
-        state.voidResult,
-        state.unvoidResult,
+        state.results,
         targets,
         refreshSession,
     )
@@ -232,40 +203,10 @@ private fun EditableSessionPane(
                 )
             },
         )
-        InlineMutationErrors(
-            listOfNotNull(
-                (state.practitionerResult as? UiState.Error)?.message,
-                (state.concernResult as? UiState.Error)?.message,
-                (state.voidResult as? UiState.Error)?.message,
-                (state.unvoidResult as? UiState.Error)?.message,
-            ).distinct(),
-        )
+        InlineMutationErrors(state.results.errorMessages().distinct())
     }
 
     PaneDialogs(sessionVm, displaySession, gate.mutating, targets, state.members)
-}
-
-/** #406 — the desktop-only Void/Unvoid affordance under the detail content. */
-@Composable
-private fun VoidActionSection(
-    affordance: SessionVoidAffordance?,
-    mutating: Boolean,
-    onVoid: () -> Unit,
-    onUnvoid: () -> Unit,
-) {
-    if (affordance == null) return
-    TextButton(onClick = if (affordance == SessionVoidAffordance.VOID) onVoid else onUnvoid, enabled = !mutating) {
-        val voiding = affordance == SessionVoidAffordance.VOID
-        Text(
-            if (voiding) "Void session…" else "Unvoid session…",
-            color =
-                if (voiding) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-        )
-    }
 }
 
 /** Roster load + the one-shot mutation-result drains (#382): any terminal landing refreshes. */
@@ -273,10 +214,7 @@ private fun VoidActionSection(
 private fun PaneEffects(
     sessionVm: SessionViewModel,
     sessionId: String,
-    practitionerResult: UiState<SessionPractitionerResponse>,
-    concernResult: UiState<Unit>,
-    voidResult: UiState<SessionVoidResponse>,
-    unvoidResult: UiState<SessionVoidResponse>,
+    results: PaneResults,
     targets: PaneDialogTargets,
     refreshSession: () -> Unit,
 ) {
@@ -284,8 +222,8 @@ private fun PaneEffects(
         // Fresh roster for the affordance set even when the enriched row arrived seeded.
         sessionVm.loadSessionPractitioners(sessionId)
     }
-    LaunchedEffect(practitionerResult) {
-        when (val result = practitionerResult) {
+    LaunchedEffect(results.practitionerResult) {
+        when (val result = results.practitionerResult) {
             is UiState.Success -> {
                 sessionVm.loadSessionPractitioners(sessionId)
                 refreshSession()
@@ -304,8 +242,8 @@ private fun PaneEffects(
         // flow must not replay into a re-entered pane or a switched selection.
         sessionVm.consumePractitionerResult()
     }
-    LaunchedEffect(concernResult) {
-        when (val result = concernResult) {
+    LaunchedEffect(results.concernResult) {
+        when (val result = results.concernResult) {
             is UiState.Success -> {
                 refreshSession()
             }
@@ -321,44 +259,8 @@ private fun PaneEffects(
         }
         sessionVm.consumeConcernResult()
     }
-    // #406 — void/unvoid landings: any terminal result drains exactly once, but only an
-    // armed landing (submitted by THIS selection — see PaneDialogTargets) acts. Success
-    // reloads the authoritative row (VoidedPill + dimming repaint); a 409/403/4xx failure
-    // unwedges via the same authoritative reload instead of wedging.
-    LaunchedEffect(voidResult) {
-        when (val result = voidResult) {
-            is UiState.Success -> {
-                if (targets.voidArmedFor == sessionId) refreshSession()
-            }
-
-            is UiState.Error -> {
-                logWarn("SessionDetailVM", "void failed: ${result.message}")
-                if (targets.voidArmedFor == sessionId) refreshSession()
-            }
-
-            else -> {
-                return@LaunchedEffect
-            }
-        }
-        sessionVm.consumeVoidResult()
-    }
-    LaunchedEffect(unvoidResult) {
-        when (val result = unvoidResult) {
-            is UiState.Success -> {
-                if (targets.unvoidArmedFor == sessionId) refreshSession()
-            }
-
-            is UiState.Error -> {
-                logWarn("SessionDetailVM", "unvoid failed: ${result.message}")
-                if (targets.unvoidArmedFor == sessionId) refreshSession()
-            }
-
-            else -> {
-                return@LaunchedEffect
-            }
-        }
-        sessionVm.consumeUnvoidResult()
-    }
+    // #406 — the armed void/unvoid drains live with their dialogs in SessionDetailVoidFlow.kt.
+    VoidUnvoidEffects(sessionVm, sessionId, results, targets, refreshSession)
 }
 
 private fun paneActions(targets: PaneDialogTargets): SessionDetailActions =
@@ -428,24 +330,7 @@ private fun PaneDialogs(
         mutating = mutating,
         onClose = { targets.showPromoteOther = false },
     )
-    VoidSessionDialogHost(
-        visible = targets.showVoid,
-        mutating = mutating,
-        onConfirmed = { request ->
-            targets.voidArmedFor = session.id
-            sessionVm.voidSession(session.id, request)
-        },
-        onDismissed = { targets.showVoid = false },
-    )
-    UnvoidSessionDialogHost(
-        visible = targets.showUnvoid,
-        mutating = mutating,
-        onConfirmed = { request ->
-            targets.unvoidArmedFor = session.id
-            sessionVm.unvoidSession(session.id, request)
-        },
-        onDismissed = { targets.showUnvoid = false },
-    )
+    PaneVoidDialogs(sessionVm, session, mutating, targets)
 }
 
 /**

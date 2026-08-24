@@ -24,8 +24,6 @@ import com.companyb.companyapp.dto.ConcernResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
 import com.companyb.companyapp.dto.PromoteConcernRequest
-import com.companyb.companyapp.dto.UnvoidSessionRequest
-import com.companyb.companyapp.dto.VoidSessionRequest
 import com.companyb.companyapp.ui.theme.InkSubtle
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.viewmodel.SessionViewModel
@@ -181,96 +179,6 @@ internal fun PromoteOtherDialogHost(
             )
         },
         onDismiss = onClose,
-    )
-}
-
-/**
- * #406 — void the session: the required reason is recorded server-side (blank is rejected)
- * and the idempotency key is minted at submit (the #382 add-practitioner shape).
- */
-@OptIn(ExperimentalUuidApi::class)
-@Composable
-internal fun VoidSessionDialogHost(
-    visible: Boolean,
-    mutating: Boolean,
-    onConfirmed: (VoidSessionRequest) -> Unit,
-    onDismissed: () -> Unit,
-) {
-    if (!visible) return
-    ReasonConfirmDialog(
-        title = "Void session?",
-        caption = "The session stays on record but leaves commissions and reporting totals.",
-        confirmLabel = "Void",
-        destructive = true,
-        inFlight = mutating,
-        onConfirm = { reason ->
-            onDismissed()
-            onConfirmed(VoidSessionRequest(id = Uuid.random().toString(), voidReason = reason.trim()))
-        },
-        onDismiss = onDismissed,
-    )
-}
-
-/** #406 — reverse a void; the reversal reason is likewise required. */
-@Composable
-internal fun UnvoidSessionDialogHost(
-    visible: Boolean,
-    mutating: Boolean,
-    onConfirmed: (UnvoidSessionRequest) -> Unit,
-    onDismissed: () -> Unit,
-) {
-    if (!visible) return
-    ReasonConfirmDialog(
-        title = "Unvoid session?",
-        caption = "The session returns to commissions and reporting totals.",
-        confirmLabel = "Unvoid",
-        destructive = false,
-        inFlight = mutating,
-        onConfirm = { reason ->
-            onDismissed()
-            onConfirmed(UnvoidSessionRequest(unvoidedReason = reason.trim()))
-        },
-        onDismiss = onDismissed,
-    )
-}
-
-/** #406 — shared confirm-with-required-reason dialog (server rejects blank reasons). */
-@Composable
-private fun ReasonConfirmDialog(
-    title: String,
-    caption: String,
-    confirmLabel: String,
-    destructive: Boolean,
-    inFlight: Boolean,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var draft by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                Text(caption, style = MaterialTheme.typography.bodySmall, color = InkSubtle)
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    label = { Text("Reason") },
-                    singleLine = true,
-                    enabled = !inFlight,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(draft) }, enabled = !inFlight && draft.isNotBlank()) {
-                val color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                Text(confirmLabel, color = color)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
     )
 }
 
