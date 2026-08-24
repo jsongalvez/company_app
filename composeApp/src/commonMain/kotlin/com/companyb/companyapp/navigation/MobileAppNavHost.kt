@@ -445,9 +445,13 @@ private fun SessionCreateDestination(
             clientViewModel = clientViewModel,
             branchName = selectedBranchName,
             onBack = { navController.popBackStack() },
-            onSessionCreated = { id ->
-                navController.navigate(Route.SessionDetail(id)) {
-                    popUpTo(Route.Dashboard())
+            // #386 — created sessions carry the creator no notification row, so a
+            // bearer-only SessionDetail push dead-ends in 404; land on a fresh Dashboard
+            // instead (inclusive popUpTo rebuilds the entry-scoped VM so the new session
+            // is in the day's list immediately).
+            onSessionCreated = { _ ->
+                navController.navigate(Route.Dashboard()) {
+                    popUpTo(Route.Dashboard()) { inclusive = true }
                 }
             },
         )
