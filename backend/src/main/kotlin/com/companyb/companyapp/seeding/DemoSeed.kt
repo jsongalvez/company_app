@@ -30,6 +30,7 @@ import com.companyb.companyapp.repository.model.UserBranchAssignmentTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.repository.model.UserRoleTable
 import com.companyb.companyapp.service.CapabilityService
+import com.companyb.companyapp.service.branchday.BranchDayService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -42,12 +43,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
-import java.time.ZoneId
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
-
-private val MANILA: ZoneId = ZoneId.of("Asia/Manila")
 
 private const val DEMO_PASSWORD = "demo-password-1"
 private const val EMAIL_DOMAIN = "@example.com"
@@ -565,7 +563,9 @@ object DemoSeed {
         ids: DemoIds,
         clientIds: Map<String, UUID>,
     ) {
-        val today = LocalDate.now(MANILA)
+        val today = BranchDayService.currentOperationalDate()
+        val bookedNow =
+            RoleTable.select(CurrentTimestampWithTimeZone).first()[CurrentTimestampWithTimeZone]
 
         fun day(daysAgo: Long): LocalDate = today.minusDays(daysAgo)
 
@@ -605,7 +605,7 @@ object DemoSeed {
                 it[sessionStatus] = spec.status
                 it[basePrice] = BigDecimal(spec.price)
                 it[finalPrice] = BigDecimal(spec.price)
-                it[bookedAt] = if (spec.status == SessionStatus.COMPLETED) null else OffsetDateTime.now(MANILA)
+                it[bookedAt] = if (spec.status == SessionStatus.COMPLETED) null else bookedNow
             }
             if (spec.staffKey != null && spec.slot != null) {
                 SessionPractitionerTable.insert {
@@ -663,7 +663,7 @@ object DemoSeed {
     }
 
     private fun seedInventory(ownerId: UUID) {
-        val clinicToday = ensureDemoDay(CLINIC_ID, LocalDate.now(MANILA))
+        val clinicToday = ensureDemoDay(CLINIC_ID, BranchDayService.currentOperationalDate())
 
         fun cardProduct(
             productId: UUID,
@@ -725,7 +725,7 @@ object DemoSeed {
     }
 
     private fun seedTodayAttendance(ids: DemoIds) {
-        val today = LocalDate.now(MANILA)
+        val today = BranchDayService.currentOperationalDate()
 
         fun clockedIn(
             userId: UUID,

@@ -289,6 +289,7 @@ private fun trackUserRows(track: (Table, Column<UUID>, UUID) -> Unit) {
 
 private fun trackWorldRows(track: (Table, Column<UUID>, UUID) -> Unit) {
     val demoBranchIds = listOf(CLINIC_ID, TOUR_ID)
+    demoBranchIds.forEach { track(BranchTable, BranchTable.id, it) }
     val dayIds =
         BranchDayTable
             .selectAll()
