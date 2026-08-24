@@ -42,6 +42,7 @@ import com.companyb.companyapp.exception.NotFoundException
 import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.DeltaTimeConverter
 import com.companyb.companyapp.logging.RequestElapsedConverter
+import com.companyb.companyapp.seeding.DemoSeed
 import com.companyb.companyapp.service.SchedulerLifecycle
 import com.companyb.companyapp.utils.RandomIdGenerator
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -210,6 +211,7 @@ fun main(config: AppConfig) {
     DatabaseConfig.initialize(config)
     runCatching {
         initializeDenyList()
+        DemoSeed.seed(config)
         initializeScheduler()
         initializeJavalin(config)
     }.onFailure {

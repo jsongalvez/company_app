@@ -32,6 +32,7 @@ private val logger = KotlinLogging.logger {}
 
 private const val DEV_USER_ROLE_NAME = "OWNER"
 private const val DEV_USER_EMAIL_DOMAIN = "@example.com"
+private const val RATE_HORIZON_YEARS = 10L
 private const val SCOPED_USER_SLOT: Short = 1
 
 internal val DEV_FIXTURE_BRANCH_ID = UUID.fromString("00000000-0000-4000-8000-000000000001")
@@ -212,7 +213,7 @@ object DevSeeder {
     private fun seedSessionBaseRates(userId: UUID) {
         val effectiveFrom: OffsetDateTime =
             RoleTable.select(CurrentTimestampWithTimeZone).first()[CurrentTimestampWithTimeZone]
-        val effectiveUntil = effectiveFrom.plusYears(10)
+        val effectiveUntil = effectiveFrom.plusYears(RATE_HORIZON_YEARS)
         for ((sessionType, rate) in listOf(
             SessionType.REGULAR to "2500.00",
             SessionType.PROVINCIAL_FIRST to "3500.00",
