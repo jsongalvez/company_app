@@ -228,18 +228,20 @@ class ReliefDayGateAuthzTest : BasePostgresTest() {
             contextId = otherDaySameBranch,
             sourceId = sourceId,
         )
-        // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Seeded
-        // from the JVM clock against the view's DB now() — the −12h/−10h margins absorb any
-        // realistic same-host clock skew (the grant must stay expired regardless).
-        val now = TestFixtures.now
+        // expiredUser: BRANCH_DAY grant for the granted day whose window has closed. Windows
+        // derive from the REAL clock, never the frozen operational-day noon (#318): the view
+        // compares against the DB's live now(), so a frozen base flips "expired" back active
+        // whenever the suite runs inside the seeded window (#412 — daily red span). The wide
+        // margins absorb realistic same-host clock skew (the grant must stay expired regardless).
+        val seededAt = OffsetDateTime.ofInstant(TestFixtures.realNow(), ZoneOffset.UTC)
         DatabaseTestHelper.grantCapability(
             userId = expiredUser,
             capabilityCode = CapabilityCodes.EDIT_BRANCH_DATA,
             contextType = CapabilityContextType.BRANCH_DAY,
             contextId = grantedDay,
             sourceId = sourceId,
-            validFrom = now.minusHours(12),
-            validTo = now.minusHours(10),
+            validFrom = seededAt.minusHours(12),
+            validTo = seededAt.minusHours(10),
         )
         // branchUser: ordinary BRANCH grant (the branch leg regression).
         DatabaseTestHelper.grantCapability(
