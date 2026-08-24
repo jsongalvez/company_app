@@ -525,6 +525,7 @@ private fun DashboardDestination(
                 AttendanceRosterCard(
                     viewModel = attendanceViewModel,
                     branchId = clockedBranchId,
+                    branchName = selectedBranchName,
                     currentUserId = currentUserId?.id,
                     isReliefUser = isRelief,
                 )

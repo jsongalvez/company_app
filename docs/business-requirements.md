@@ -64,7 +64,7 @@ Each user has a **slot number per assigned branch** (e.g. Practitioner 1, Practi
 
 - Slot is per branch assignment — a user can be Practitioner 1 at Branch A and Practitioner 3 at Branch B simultaneously
 - Slot is cosmetic and user-managed — it exists purely to control display order in reports
-- A user in their home branch can set their own slot number; conflicts are resolved manually via user-to-user coordination (swapping slots)
+- A user can set their own slot number on any active assignment (edit where you show up); conflicts are resolved manually via user-to-user coordination (swapping slots)
 - Slot ordering determines the display order of practitioners in reports (monthly summary, daily sales)
 - Within a session, practitioners are ordered by slot number
 - Relief practitioners (checked into a non-home branch) appear after all home branch slots in reports for that branch
