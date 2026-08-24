@@ -22,10 +22,11 @@ class AttendanceCommandOwnershipArchitectureTest {
     fun `attendance store has no nested write transactions or audit callbacks`() {
         // (file, allowed read-wrapper transaction blocks)
         val file = "service/attendance/AttendanceRepository.kt"
-        val expectedBlocks = 5
+        val expectedBlocks = 7
         val source = mainSource(file)
 
         assertFalse(source.contains("auditFn"), "$file: auditFn coordination must not return (#321 deletion test)")
+        // Raw count is safe here: repository KDoc never mentions `transaction (` (#412 verified).
         val blocks = Regex("""\btransaction\s*[(\{]""").findAll(source).count()
         assertEquals(expectedBlocks, blocks, "$file: read-only wrappers only")
         assertTrue(source.contains("InTransaction("), "$file: must expose in-transaction store operations")
@@ -43,7 +44,7 @@ class AttendanceCommandOwnershipArchitectureTest {
             val body =
                 commandBody(source, command)
                     ?: error("command $command not found in AttendanceService")
-            val blocks = Regex("""\btransaction\s*[(\{]""").findAll(body).count()
+            val blocks = Regex("""\btransaction\s*[(\{]""").findAll(codeOnly(body)).count()
             assertEquals(1, blocks, "command $command must open exactly one transaction, found $blocks")
         }
     }
@@ -105,7 +106,94 @@ class AttendanceCommandOwnershipArchitectureTest {
     ): String? {
         val marker = "fun $command("
         val start = source.indexOf(marker).takeIf { it >= 0 } ?: return null
-        val nextFun = source.indexOf("\n    fun ", start + marker.length).takeIf { it >= 0 } ?: source.length
+        // Stop at any member fun declaration — bare, visibility-modified, or suspend (#412:
+        // `\n    fun ` alone swallowed the private helpers declared below clockIn).
+        val nextFun =
+            Regex("""\n    ((?:private|internal|protected|public)\s+)?(?:suspend\s+)?fun\s""")
+                .find(source, start + marker.length)
+                ?.range
+                ?.first ?: source.length
         return source.substring(start, nextFun)
+    }
+
+    /**
+     * Strips line/block comments (Kotlin block comments nest) and string/char/triple-quoted
+     * literals, replacing each skipped span with one space so doc prose can no longer satisfy
+     * code-count assertions (#412: a KDoc sentence containing "transaction (" counted as a block).
+     */
+    private fun codeOnly(source: String): String {
+        val out = StringBuilder(source.length)
+        var i = 0
+        while (i < source.length) {
+            when {
+                source.startsWith("//", i) -> {
+                    out.append(' ')
+                    i = source.indexOf('\n', i).takeIf { it >= 0 } ?: source.length
+                }
+
+                source.startsWith("/*", i) -> {
+                    i = skipBlockComment(source, i, out)
+                }
+
+                source.startsWith("\"\"\"", i) -> {
+                    out.append(' ')
+                    i = source.indexOf("\"\"\"", i + 3).takeIf { it >= 0 }?.plus(3) ?: source.length
+                }
+
+                source[i] == '"' || source[i] == '\'' -> {
+                    i = skipQuoted(source, i, out)
+                }
+
+                else -> {
+                    out.append(source[i])
+                    i++
+                }
+            }
+        }
+        return out.toString()
+    }
+
+    /** Skips a (possibly nested) block comment starting at [start]; appends one space to [out]. */
+    private fun skipBlockComment(
+        source: String,
+        start: Int,
+        out: StringBuilder,
+    ): Int {
+        var depth = 1
+        var i = start + 2
+        while (i < source.length && depth > 0) {
+            when {
+                source.startsWith("*/", i) -> {
+                    depth--
+                    i += 2
+                }
+
+                source.startsWith("/*", i) -> {
+                    depth++
+                    i += 2
+                }
+
+                else -> {
+                    i++
+                }
+            }
+        }
+        out.append(' ')
+        return i
+    }
+
+    /** Skips a quoted literal ('...' or "...") opening at [start]; appends one space to [out]. */
+    private fun skipQuoted(
+        source: String,
+        start: Int,
+        out: StringBuilder,
+    ): Int {
+        var i = start + 1
+        while (i < source.length && source[i] != source[start]) {
+            if (source[i] == '\\') i++
+            i++
+        }
+        out.append(' ')
+        return (i + 1).coerceAtMost(source.length)
     }
 }
