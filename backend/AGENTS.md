@@ -399,6 +399,12 @@ via the root `.env` configuration). Run all tests with `./gradlew :backend:test`
 unit tests for pure-logic helpers; inject time through internal `*At(now: Instant)` helpers (see
 `DenyListTest`).
 
+Fixture clocks and validity windows must agree: a fixture that seeds a
+`validFrom`/`validTo` window (or any time-gated state) derives it from an injectable real clock
+(`TestFixtures.realNow()`), never from frozen `TestFixtures.now` — a frozen clock plus a wall-clock
+window makes "expired" fixtures genuinely active for part of the UTC day (#412: a daily
+00:00–02:00 red window in `ReliefDayGateAuthzTest`).
+
 Gradle backend tests run from the repo root (`tasks.test.workingDir = rootProject.projectDir`) so
 dotenv-kotlin can load the root `.env`.
 

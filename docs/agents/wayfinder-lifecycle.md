@@ -41,6 +41,12 @@ agent never polls asynchronous CI, and "the daemon resumed me" is not a new
 session for CI purposes. Perform only freshness checks required by the
 current phase's normal continuation.
 
+Any conclusion other than success — failure, cancelled, skipped — marks an
+unverified head: nothing has checked it, so treat it as a repair-first
+signal and lean on local verification before trusting master. An
+owner-cancelled leg is deliberate known-red state, not an infrastructure
+anomaly (#412): the head still owes verification from somewhere.
+
 ## Recovery
 
 Interruption is not user pressure. The daemon's recovery prompt is automatic
