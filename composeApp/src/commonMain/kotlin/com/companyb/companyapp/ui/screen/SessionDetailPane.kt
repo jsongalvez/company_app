@@ -22,16 +22,21 @@ import com.companyb.companyapp.dto.AddPractitionerRequest
 import com.companyb.companyapp.dto.BranchMemberResponse
 import com.companyb.companyapp.dto.DashboardPractitionerResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.dto.SessionPractitionerResponse
 import com.companyb.companyapp.dto.SessionVoidResponse
 import com.companyb.companyapp.dto.UpdatePractitionerRemarksRequest
 import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.network.ApiClient
 import com.companyb.companyapp.state.SessionState
+import com.companyb.companyapp.state.hasBranchOrDayCapability
 import com.companyb.companyapp.state.hasCapability
 import com.companyb.companyapp.state.hasDayGrant
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.logInfo
 import com.companyb.companyapp.util.logWarn
+import com.companyb.companyapp.viewmodel.InventoryViewModel
+import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import com.companyb.companyapp.viewmodel.SessionViewModel
 import com.companyb.companyapp.viewmodel.UiState
 import kotlin.uuid.ExperimentalUuidApi
@@ -57,6 +62,11 @@ import kotlin.uuid.Uuid
  * 403 and vanishes on the next capability refresh). #406 — void/unvoid instead mirrors the
  * stricter `requireBranchCapabilityForSession(VOID_SESSION)`: BRANCH-scoped VOID_SESSION
  * only, no day-grant leg, desktop-only via [allowVoid] (ADR-0020).
+ *
+ * #419 — the session-linked product-sale entry ("Record sale"): side-loaded
+ * [ProductSaleViewModel]/[InventoryViewModel] pair, gated by the exact branch-or-day
+ * EDIT_BRANCH_DATA mirror of `POST /api/product-sales` (fail-closed without the caller's
+ * clocked-in branchDayId); any terminal sale outcome refreshes authoritatively.
  */
 @Composable
 internal fun SessionDetailPane(
@@ -73,13 +83,17 @@ internal fun SessionDetailPane(
         return
     }
     val sessionVm: SessionViewModel = viewModel { SessionViewModel(apiClient) }
+    val productSaleVm: ProductSaleViewModel = viewModel { ProductSaleViewModel(apiClient) }
+    val inventoryVm: InventoryViewModel = viewModel { InventoryViewModel(apiClient) }
     val capabilities by SessionState.capabilities.collectAsState()
     val currentUser by SessionState.currentUser.collectAsState()
+    val branchDayId by SessionState.branchDayId.collectAsState()
     val roster by sessionVm.practitioners.collectAsState()
     val practitionerResult by sessionVm.practitionerResult.collectAsState()
     val concernResult by sessionVm.concernResult.collectAsState()
     val voidResult by sessionVm.voidResult.collectAsState()
     val unvoidResult by sessionVm.unvoidResult.collectAsState()
+    val saleResult by productSaleVm.saleResult.collectAsState()
     val members by sessionVm.branchMembers.collectAsState()
 
     // Per-selection dialog/dialog-input state — keyed so switching sessions on the desktop
@@ -97,11 +111,15 @@ internal fun SessionDetailPane(
                             concernResult = concernResult,
                             voidResult = voidResult,
                             unvoidResult = unvoidResult,
+                            saleResult = saleResult,
                         ),
                     members = members,
                     allowVoid = allowVoid,
+                    branchDayId = branchDayId,
                 ),
             sessionVm = sessionVm,
+            productSaleVm = productSaleVm,
+            inventoryVm = inventoryVm,
             session = session,
             refreshSession = refreshSession,
             modifier = modifier,
@@ -109,20 +127,23 @@ internal fun SessionDetailPane(
     }
 }
 
-/** The pane's four mutation-flow terminals, bundled so every consumer takes one value (#412). */
+/** The pane's mutation-flow terminals, bundled so every consumer takes one value (#412). */
 internal class PaneResults(
     val practitionerResult: UiState<SessionPractitionerResponse>,
     val concernResult: UiState<Unit>,
     val voidResult: UiState<SessionVoidResponse>,
     val unvoidResult: UiState<SessionVoidResponse>,
+    // #419 — the session-linked product-sale flow rides its own VM but drains with the rest.
+    val saleResult: UiState<ProductSaleResponse>,
 ) {
-    /** Every terminal error message across the four flows, deduplicated for display. */
+    /** Every terminal error message across the flows, deduplicated for display. */
     internal fun errorMessages(): List<String> =
         listOfNotNull(
             (practitionerResult as? UiState.Error)?.message,
             (concernResult as? UiState.Error)?.message,
             (voidResult as? UiState.Error)?.message,
             (unvoidResult as? UiState.Error)?.message,
+            (saleResult as? UiState.Error)?.message,
         ).distinct()
 }
 
@@ -136,6 +157,8 @@ private class PaneState(
     // #406 — void/unvoid is a desktop-only mutation surface (ADR-0020): the desktop inline
     // pane opts in; the mobile pushed route keeps the default read-only detail.
     val allowVoid: Boolean,
+    // #419 — the caller's clocked-in branch day; the sale request's branchDayId.
+    val branchDayId: String?,
 )
 
 @OptIn(ExperimentalUuidApi::class)
@@ -143,6 +166,8 @@ private class PaneState(
 private fun EditableSessionPane(
     state: PaneState,
     sessionVm: SessionViewModel,
+    productSaleVm: ProductSaleViewModel,
+    inventoryVm: InventoryViewModel,
     session: DashboardSessionResponse,
     refreshSession: () -> Unit,
     modifier: Modifier,
@@ -157,11 +182,22 @@ private fun EditableSessionPane(
     // #406 — the void gate mirrors the backend's `requireBranchCapabilityForSession`:
     // branch-scoped VOID_SESSION only — no day-grant leg (see [canVoidSession]).
     val canVoid = state.allowVoid && canVoidSession(state.capabilities, session.branchId)
+    // #419 — the sale gate mirrors `requireBranchOrBranchDayCapability(EDIT_BRANCH_DATA)`
+    // on POST /api/product-sales; fail-closed without the clocked-in day (the request's
+    // branchDayId).
+    val canSell =
+        state.branchDayId != null &&
+            state.capabilities.hasBranchOrDayCapability(
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                session.branchId,
+                state.branchDayId,
+            )
     val mutating =
         state.results.practitionerResult is UiState.Loading ||
             state.results.concernResult is UiState.Loading ||
             state.results.voidResult is UiState.Loading ||
-            state.results.unvoidResult is UiState.Loading
+            state.results.unvoidResult is UiState.Loading ||
+            state.results.saleResult is UiState.Loading
     val gate = SessionEditGate(canEdit = canEdit, mutating = mutating)
     val displaySession = mergeRosterNames(session, state.rosterRows)
 
@@ -172,6 +208,7 @@ private fun EditableSessionPane(
         targets,
         refreshSession,
     )
+    SaleEffects(productSaleVm, state.results.saleResult, refreshSession)
 
     Column(modifier = modifier) {
         // weight(1f): the detail content owns the flexible space — AddSelf and inline
@@ -188,6 +225,10 @@ private fun EditableSessionPane(
             mutating = mutating,
             onVoid = { targets.showVoid = true },
             onUnvoid = { targets.showUnvoid = true },
+        )
+        SellSection(
+            affordance = canSell && !mutating && !displaySession.isVoided,
+            onSell = { targets.showSell = true },
         )
         AddSelfSection(
             sessionStatus = session.sessionStatus,
@@ -207,6 +248,59 @@ private fun EditableSessionPane(
     }
 
     PaneDialogs(sessionVm, displaySession, gate.mutating, targets, state.members)
+    PaneSaleDialogHost(
+        visible = targets.showSell,
+        session = displaySession,
+        branchDayId = state.branchDayId,
+        inventoryViewModel = inventoryVm,
+        productSaleViewModel = productSaleVm,
+        onClose = { targets.showSell = false },
+    )
+}
+
+/** #419 — the one-shot product-sale drain: any terminal outcome reloads authoritatively. */
+@Composable
+private fun SaleEffects(
+    productSaleVm: ProductSaleViewModel,
+    saleResult: UiState<ProductSaleResponse>,
+    refreshSession: () -> Unit,
+) {
+    LaunchedEffect(saleResult) {
+        when (val result = saleResult) {
+            is UiState.Success -> {
+                logInfo("SessionDetailVM", "product sale landed — refreshing session")
+                refreshSession()
+            }
+
+            is UiState.Error -> {
+                logWarn("SessionDetailVM", "product sale failed: ${result.message}")
+                refreshSession()
+            }
+
+            else -> {
+                return@LaunchedEffect
+            }
+        }
+        // One-shot drain (#382): the sticky flow must not replay into a re-entered pane.
+        productSaleVm.clearSaleResult()
+    }
+}
+
+/**
+ * #419 — the in-session sale entry point, rendered like the other pane action sections;
+ * hidden entirely for read-only callers (the backend's gate stays authoritative).
+ */
+@Composable
+private fun SellSection(
+    affordance: Boolean,
+    onSell: () -> Unit,
+) {
+    if (!affordance) return
+    Column(modifier = Modifier.padding(horizontal = Spacing.md)) {
+        TextButton(onClick = onSell) {
+            Text("Record sale")
+        }
+    }
 }
 
 /** Roster load + the one-shot mutation-result drains (#382): any terminal landing refreshes. */

@@ -56,7 +56,7 @@ internal fun reasonLabel(reason: InventoryMovementReason): String =
     }
 
 @Composable
-private fun OptionalReasonField(
+internal fun OptionalReasonField(
     editReason: String,
     onEditReasonChange: (String) -> Unit,
 ) {
@@ -70,7 +70,7 @@ private fun OptionalReasonField(
 }
 
 @Composable
-private fun UnitsField(
+internal fun UnitsField(
     label: String,
     unitsText: String,
     error: String?,

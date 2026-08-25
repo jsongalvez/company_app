@@ -20,7 +20,9 @@ class ProductSaleViewModel(
     private val _saleResult = MutableStateFlow<UiState<ProductSaleResponse>>(UiState.Idle)
     val saleResult: StateFlow<UiState<ProductSaleResponse>> = _saleResult.asStateFlow()
 
+    /** #419 — single-flight: a second submit while the first is in flight is dropped. */
     fun sell(request: CreateProductSaleRequest) {
+        if (_saleResult.value is UiState.Loading) return
         handler.launch(
             state = _saleResult,
             operation = "sell",
@@ -32,5 +34,13 @@ class ProductSaleViewModel(
             },
             transform = { it.body() },
         )
+    }
+
+    /**
+     * #419 — the screens' terminal hook (the InventoryViewModel.clearWriteResults shape):
+     * success clears so a repeat sale re-fires the StateFlow; Dismiss clears a standing error.
+     */
+    fun clearSaleResult() {
+        _saleResult.value = UiState.Idle
     }
 }

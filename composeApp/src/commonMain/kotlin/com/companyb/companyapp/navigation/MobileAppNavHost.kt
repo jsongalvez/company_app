@@ -68,6 +68,7 @@ import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.NotificationViewModel
+import com.companyb.companyapp.viewmodel.ProductSaleViewModel
 import com.companyb.companyapp.viewmodel.ProductViewModel
 import com.companyb.companyapp.viewmodel.ProfileViewModel
 import com.companyb.companyapp.viewmodel.ReliefAccessViewModel
@@ -269,9 +270,15 @@ internal fun MobileAppNavHost(
                                 viewModel { InventoryViewModel(apiClient) }
                             val productViewModel: ProductViewModel =
                                 viewModel { ProductViewModel(apiClient) }
+                            // #419 — walk-in product-sale entry rides this screen.
+                            val productSaleViewModel: ProductSaleViewModel =
+                                viewModel { ProductSaleViewModel(apiClient) }
+                            val clientViewModel: ClientViewModel = viewModel { ClientViewModel(apiClient) }
                             InventoryScreen(
                                 viewModel = inventoryViewModel,
                                 productViewModel = productViewModel,
+                                productSaleViewModel = productSaleViewModel,
+                                clientViewModel = clientViewModel,
                                 branchId = selectedBranchId,
                             )
                         } else {

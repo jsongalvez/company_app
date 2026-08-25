@@ -34,6 +34,7 @@ internal fun InventoryLoadEffects(
     restockResult: UiState<*>,
     movementResult: UiState<*>,
     cardResult: UiState<*>,
+    saleResult: UiState<*>,
 ) {
     LaunchedEffect(branchId) {
         logInfo("InventoryScreen", "composable entered (branchId=$branchId)")
@@ -56,6 +57,15 @@ internal fun InventoryLoadEffects(
     LaunchedEffect(cardResult) {
         if (cardResult is UiState.Success) {
             logInfo("InventoryScreen", "ensure-card landed — refreshing inventory")
+            viewModel.clearWriteResults()
+            if (branchId != null) viewModel.refresh(branchId)
+        }
+    }
+    // #419 — a landed sale refreshes the same legs: the decrement and any new low-stock row
+    // repaint without a manual Refresh.
+    LaunchedEffect(saleResult) {
+        if (saleResult is UiState.Success) {
+            logInfo("InventoryScreen", "product sale landed — refreshing inventory")
             viewModel.clearWriteResults()
             if (branchId != null) viewModel.refresh(branchId)
         }
@@ -121,13 +131,18 @@ internal fun WriteErrorBanner(
     restockResult: UiState<*>,
     movementResult: UiState<*>,
     cardResult: UiState<*>,
+    saleResult: UiState<*>,
     viewModel: InventoryViewModel,
+    onDismissSale: () -> Unit,
 ) {
     val error =
         (restockResult as? UiState.Error)
             ?: (movementResult as? UiState.Error)
             ?: (cardResult as? UiState.Error)
+            ?: (saleResult as? UiState.Error)
             ?: return
+    // The sale leg lives in its own VM (#419) — its Dismiss clears there, the rest here.
+    val fromSale = error === (saleResult as? UiState.Error)
     Surface(
         shape = RoundedCornerShape(CornerRadius.sm),
         color = MaterialTheme.colorScheme.errorContainer,
@@ -145,7 +160,9 @@ internal fun WriteErrorBanner(
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = viewModel::clearWriteResults) { Text("Dismiss") }
+            TextButton(onClick = { if (fromSale) onDismissSale() else viewModel.clearWriteResults() }) {
+                Text("Dismiss")
+            }
         }
     }
 }
