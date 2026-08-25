@@ -37,6 +37,7 @@ import com.companyb.companyapp.ui.screen.AcceptInviteScreen
 import com.companyb.companyapp.ui.screen.AttendanceRosterCard
 import com.companyb.companyapp.ui.screen.AuditLogHistoryScreen
 import com.companyb.companyapp.ui.screen.AuditLogScreen
+import com.companyb.companyapp.ui.screen.BaseRatesScreen
 import com.companyb.companyapp.ui.screen.BranchSelectScreen
 import com.companyb.companyapp.ui.screen.ClientDetailScreen
 import com.companyb.companyapp.ui.screen.ClientsScreen
@@ -62,6 +63,7 @@ import com.companyb.companyapp.viewmodel.AttendanceRosterViewModel
 import com.companyb.companyapp.viewmodel.AuditLogViewModel
 import com.companyb.companyapp.viewmodel.AuthViewModel
 import com.companyb.companyapp.viewmodel.BranchSelectViewModel
+import com.companyb.companyapp.viewmodel.BranchViewModel
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.FinanceReportsViewModel
 import com.companyb.companyapp.viewmodel.InventoryViewModel
@@ -245,6 +247,25 @@ actual fun AppNavHost(
                         )
                     } else {
                         RouteGateCard(label = "Inventory")
+                    }
+                }
+                composable<Route.BaseRates> {
+                    // #418 — coordinator base-rate admin; gate mirrors
+                    // `SessionBaseRateRoutes` exactly (MANAGE_PRODUCTS at BRANCH context for
+                    // the clocked-in branch — no GLOBAL leg, no day leg, #131 strictness).
+                    val capabilities by SessionState.capabilities.collectAsState()
+                    val selectedBranchId by SessionState.selectedBranchId.collectAsState()
+                    if (capabilities.hasCapability(
+                            CapabilityCodes.MANAGE_PRODUCTS,
+                            CapabilityContextType.BRANCH,
+                            selectedBranchId,
+                        )
+                    ) {
+                        val branchViewModel: BranchViewModel =
+                            viewModel { BranchViewModel(apiClient) }
+                        BaseRatesScreen(viewModel = branchViewModel, branchId = selectedBranchId)
+                    } else {
+                        RouteGateCard(label = "Base Rates")
                     }
                 }
                 // #105 D1 — the merged Finance & Reports screen, gate = widest read capability

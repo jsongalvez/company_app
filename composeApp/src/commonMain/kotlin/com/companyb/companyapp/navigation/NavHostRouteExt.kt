@@ -47,6 +47,7 @@ internal val ROUTES_BY_SERIAL_NAME: Map<String, KClass<out Route>> =
         Route.Clients to Route.Clients::class,
         Route.ClientDetail to Route.ClientDetail::class,
         Route.Inventory to Route.Inventory::class,
+        Route.BaseRates to Route.BaseRates::class,
         Route.Finance to Route.Finance::class,
         Route.RemittanceList to Route.RemittanceList::class,
         Route.RemittanceDetail to Route.RemittanceDetail::class,

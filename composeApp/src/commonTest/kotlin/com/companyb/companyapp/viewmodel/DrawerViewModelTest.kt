@@ -48,6 +48,8 @@ class DrawerViewModelTest {
                 row(CapabilityCodes.SUBMIT_REMITTANCE),
                 row(CapabilityCodes.VIEW_BRANCH_DATA),
                 row(CapabilityCodes.MANAGE_USERS),
+                // #418 — the Base Rates item's gate.
+                row(CapabilityCodes.MANAGE_PRODUCTS),
             ),
         )
 
@@ -57,8 +59,9 @@ class DrawerViewModelTest {
         // #105 D1 — Finance & Reports collapsed into one item (8 total, was 8 with separate Reports);
         // #381 — Profile added as the always-visible self surface.
         // #389 — Dashboard added as the always-visible home surface (9 total).
-        assertEquals(expected = 9, actual = items.size)
-        assertTrue(items.all { it.visible }, "All 9 items should be visible when all capabilities are set")
+        // #418 — Base Rates added as a MANAGE_PRODUCTS-gated item (10 total).
+        assertEquals(expected = 10, actual = items.size)
+        assertTrue(items.all { it.visible }, "All 10 items should be visible when all capabilities are set")
     }
 
     @Test

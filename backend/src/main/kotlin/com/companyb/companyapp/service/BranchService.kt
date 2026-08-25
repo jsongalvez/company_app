@@ -6,6 +6,7 @@ import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.BranchCreateResult
 import com.companyb.companyapp.repository.BranchRepository
+import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.model.Branch
 import com.companyb.companyapp.repository.model.BranchCreateParams
 import com.companyb.companyapp.repository.model.BranchTable
@@ -34,6 +35,11 @@ object BranchService {
                 )
             if (result.created) {
                 BranchAudit.inserted(callerId, result.branch)
+                // #418 — provision the five BR-documented default base rates in the same
+                // command transaction so a fresh branch never fails session create with
+                // "No base rate configured". Mechanism write riding the audited branch-create
+                // event (#414 deflation precedent): no per-rate audit rows.
+                SessionBaseRateRepository.insertDefaultsInTransaction(result.branch.id, callerId)
             }
             result
         }.also {

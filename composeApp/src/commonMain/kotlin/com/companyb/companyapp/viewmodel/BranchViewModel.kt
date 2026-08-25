@@ -174,6 +174,9 @@ class BranchViewModel(
         branchId: String,
         request: SetRateRequest,
     ) {
+        // Single-flight: one in-flight save at a time, so a double-tap before recomposition
+        // cannot mint two rotation ids (the second would close the first's row immediately).
+        if (_setRateState.value is UiState.Loading) return
         handler.launch(
             state = _setRateState,
             operation = "setRate",

@@ -3,6 +3,7 @@ package com.companyb.companyapp.service.session
 import com.companyb.companyapp.domain.SessionType
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
+import com.companyb.companyapp.repository.FAR_FUTURE
 import com.companyb.companyapp.repository.SessionBaseRateRepository
 import com.companyb.companyapp.repository.SetRateResult
 import com.companyb.companyapp.repository.model.SessionBaseRate
@@ -11,8 +12,6 @@ import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -22,24 +21,6 @@ import java.util.UUID
  */
 internal object SessionBaseRateService {
     private val logger = KotlinLogging.logger {}
-    private const val FAR_FUTURE_YEAR = 9999
-    private const val FAR_FUTURE_MONTH = 12
-    private const val FAR_FUTURE_DAY = 31
-    private const val FAR_FUTURE_HOUR = 23
-    private const val FAR_FUTURE_MINUTE = 59
-    private const val FAR_FUTURE_SECOND = 59
-
-    private val FAR_FUTURE: OffsetDateTime =
-        OffsetDateTime.of(
-            FAR_FUTURE_YEAR,
-            FAR_FUTURE_MONTH,
-            FAR_FUTURE_DAY,
-            FAR_FUTURE_HOUR,
-            FAR_FUTURE_MINUTE,
-            FAR_FUTURE_SECOND,
-            0,
-            ZoneOffset.UTC,
-        )
 
     fun setRate(
         callerId: UUID,
@@ -49,6 +30,9 @@ internal object SessionBaseRateService {
         rate: BigDecimal,
     ): SetRateResult =
         transaction {
+            // MEDICAL_MISSION is always ₱0 (BR invariant) — normalize instead of constraining,
+            // mirroring #405's session-price decision (#418).
+            val effectiveRate = if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else rate
             val result =
                 SessionBaseRateRepository.setRateInTransaction(
                     SessionBaseRateCreateParams(
@@ -56,7 +40,7 @@ internal object SessionBaseRateService {
                         setBy = callerId,
                         branchId = branchId,
                         sessionType = sessionType,
-                        rate = rate,
+                        rate = effectiveRate,
                         effectiveUntil = FAR_FUTURE,
                     ),
                 )

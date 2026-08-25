@@ -390,6 +390,8 @@ Only one PENDING session per client globally. Enforced by a partial unique index
 
 The `no_rate_overlap` EXCLUDE constraint on `branch_id, session_type, tstzrange(effective_from, effective_until)` prevents overlapping rate periods.
 
+Every branch is provisioned with the five documented default rates at creation (`BranchService.create` seeds them in the command transaction; V22 backfilled existing branches), so session create never fails for want of a rate row (#418). MEDICAL_MISSION is normalized to ₱0 on write — the invariant-not-constraint shape of #405.
+
 When a Coordinator updates a rate:
 1. Set `effective_until` on the current active rate to `now()` (Manila time → UTC)
 2. Insert a new rate row with `effective_from = now()`

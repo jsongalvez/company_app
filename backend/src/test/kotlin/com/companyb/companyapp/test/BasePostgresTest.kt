@@ -57,7 +57,17 @@ abstract class BasePostgresTest {
         val id: UUID,
     )
 
+    // #418 — child rows created as a side effect of a tracked parent's command (e.g. the
+    // default base rates seeded inside BranchService.create) can't be tracked by id at the
+    // call site; track them by FK match instead so cleanup removes them before the parent.
+    private data class TrackedChildRow(
+        val table: Table,
+        val fkColumn: Column<UUID>,
+        val parentId: UUID,
+    )
+
     private val tracked = mutableListOf<TrackedRow>()
+    private val trackedChildren = mutableListOf<TrackedChildRow>()
 
     protected fun trackOwned(
         table: Table,
@@ -65,6 +75,20 @@ abstract class BasePostgresTest {
         id: UUID,
     ) {
         tracked.add(TrackedRow(table, column, id))
+    }
+
+    /**
+     * #418 — deletes every row of [table] whose [fkColumn] equals [parentId] during cleanup,
+     * before the tracked parent rows. Use for rows a command writes as a side effect of a
+     * tracked parent (branch-create default rate seeding) when their ids are generated inside
+     * the command.
+     */
+    protected fun trackChildRowsOfParent(
+        table: Table,
+        fkColumn: Column<UUID>,
+        parentId: UUID,
+    ) {
+        trackedChildren.add(TrackedChildRow(table, fkColumn, parentId))
     }
 
     protected abstract fun initTestData()
@@ -79,6 +103,7 @@ abstract class BasePostgresTest {
             cleanTrackedRows()
         }
         tracked.clear()
+        trackedChildren.clear()
         initTestData()
     }
 
@@ -94,7 +119,20 @@ abstract class BasePostgresTest {
     @Suppress("UnreachableCode")
     protected fun cleanTrackedRows() {
         val grouped = tracked.groupBy({ it.table to it.column }) { it.id }
+        val childGroups = trackedChildren.groupBy({ it.table to it.fkColumn }) { it.parentId }
         transaction {
+            // Children first: their parent rows are deleted below by the DELETION_ORDER pass.
+            for (entry in childGroups) {
+                val (table, fkColumn) = entry.key
+                val uniqueParentIds = entry.value.distinct()
+                table.deleteWhere {
+                    if (uniqueParentIds.size == 1) {
+                        fkColumn eq uniqueParentIds.single()
+                    } else {
+                        fkColumn inList uniqueParentIds
+                    }
+                }
+            }
             for (table in DELETION_ORDER) {
                 val entries = grouped.filterKeys { (t, _) -> t === table }
                 for ((_, column) in entries.keys) {
@@ -134,7 +172,7 @@ abstract class BasePostgresTest {
                 RemittanceFinancialSnapshotTable to setOf(RemittanceTable),
                 RemittanceLineTable to setOf(RemittanceTable, SessionTable, ProductTable),
                 RemittanceTable to setOf(BranchTable),
-                SessionBaseRateTable to setOf(SessionTable, BranchDayTable),
+                SessionBaseRateTable to setOf(BranchTable, AppUserTable),
                 SessionConcernTable to setOf(SessionTable, ConcernTable),
                 SessionPractitionerTable to setOf(SessionTable, AppUserTable),
                 SessionVoidTable to setOf(SessionTable, AppUserTable),

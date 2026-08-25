@@ -41,6 +41,10 @@ sealed class Route {
     @Serializable
     data object Inventory : Route()
 
+    // #418 — coordinator base-rate admin; pushed as a top-level section on both hosts.
+    @Serializable
+    data object BaseRates : Route()
+
     @Serializable
     data object Finance : Route()
 

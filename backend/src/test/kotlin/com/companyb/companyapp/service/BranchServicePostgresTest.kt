@@ -3,6 +3,7 @@ import com.companyb.companyapp.domain.BranchType
 import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.UserCapabilityTable
 import com.companyb.companyapp.test.BasePostgresTest
 import com.companyb.companyapp.test.DatabaseTestHelper
@@ -42,7 +43,11 @@ class BranchServicePostgresTest : BasePostgresTest() {
         val mission = BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        branchIds.forEach { trackOwned(BranchTable, BranchTable.id, it) }
+        branchIds.forEach { id ->
+            trackOwned(BranchTable, BranchTable.id, id)
+            // #418 — branch creation seeds five default base rates as a side effect.
+            trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, id)
+        }
 
         assertTrue(clinic.created)
         assertTrue(tour.created)
@@ -62,6 +67,8 @@ class BranchServicePostgresTest : BasePostgresTest() {
 
         val first = BranchService.create(callerId, clinicId, "Main Clinic", BranchType.CLINIC)
         trackOwned(BranchTable, BranchTable.id, clinicId)
+        // #418 — branch creation seeds five default base rates as a side effect.
+        trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, clinicId)
 
         val duplicate = BranchService.create(callerId, clinicId, "Changed Name", BranchType.MEDICAL_MISSION)
 
@@ -83,7 +90,11 @@ class BranchServicePostgresTest : BasePostgresTest() {
         BranchService.create(callerId, medicalMissionId, "Free Mission", BranchType.MEDICAL_MISSION)
 
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
-        branchIds.forEach { trackOwned(BranchTable, BranchTable.id, it) }
+        branchIds.forEach { id ->
+            trackOwned(BranchTable, BranchTable.id, id)
+            // #418 — branch creation seeds five default base rates as a side effect.
+            trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, id)
+        }
 
         val found = BranchService.findById(medicalMissionId)
         val allBranchIds = BranchService.findAll().map { it.id }.toSet()
@@ -98,6 +109,8 @@ class BranchServicePostgresTest : BasePostgresTest() {
         val newBranchId = TestFixtures.uuid()
         val result = BranchService.create(callerId, newBranchId, "New Branch", BranchType.CLINIC)
         trackOwned(BranchTable, BranchTable.id, newBranchId)
+        // #418 — branch creation seeds five default base rates as a side effect.
+        trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, newBranchId)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
 
         assertTrue(result.created)
@@ -118,6 +131,8 @@ class BranchServicePostgresTest : BasePostgresTest() {
         BranchService.create(callerId, newBranchId, "Find Branch", BranchType.CLINIC)
         trackOwned(AuditLogTable, AuditLogTable.changedBy, callerId)
         trackOwned(BranchTable, BranchTable.id, newBranchId)
+        // #418 — branch creation seeds five default base rates as a side effect.
+        trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, newBranchId)
 
         val otherCaller = TestFixtures.uuid()
         DatabaseTestHelper.insertTestUser(otherCaller, "other")

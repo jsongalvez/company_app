@@ -16,6 +16,7 @@ import com.companyb.companyapp.repository.model.BranchTable
 import com.companyb.companyapp.repository.model.ClientTable
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ConcernTable
+import com.companyb.companyapp.repository.model.SessionBaseRateTable
 import com.companyb.companyapp.repository.model.SessionConcernTable
 import com.companyb.companyapp.repository.model.SessionTable
 import com.companyb.companyapp.service.session.SessionService
@@ -65,6 +66,8 @@ class SimpleCrudCommandAtomicityPostgresTest : BasePostgresTest() {
             )
 
         assertTrue(result.created)
+        // #418 — branch creation seeds five default base rates as a side effect.
+        trackChildRowsOfParent(SessionBaseRateTable, SessionBaseRateTable.branchId, branchId)
         val (branchRows, insertAudits) =
             transaction {
                 val branches = BranchTable.selectAll().where { BranchTable.id eq branchId }.count()

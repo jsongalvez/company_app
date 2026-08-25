@@ -16,16 +16,52 @@ import org.jetbrains.exposed.v1.core.greater
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.javatime.CurrentTimestampWithTimeZone
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.math.BigDecimal
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 private const val RATE_OVERLAP_SQL_STATE = "23P01"
+
+// Far-future open-ended window shared by every rate writer (set rotation + #418 default
+// provisioning); matches the V22 backfill literal.
+private const val FAR_FUTURE_YEAR = 9999
+private const val FAR_FUTURE_MONTH = 12
+private const val FAR_FUTURE_DAY = 31
+private const val FAR_FUTURE_HOUR = 23
+private const val FAR_FUTURE_MINUTE = 59
+private const val FAR_FUTURE_SECOND = 59
+
+internal val FAR_FUTURE: OffsetDateTime =
+    OffsetDateTime.of(
+        FAR_FUTURE_YEAR,
+        FAR_FUTURE_MONTH,
+        FAR_FUTURE_DAY,
+        FAR_FUTURE_HOUR,
+        FAR_FUTURE_MINUTE,
+        FAR_FUTURE_SECOND,
+        0,
+        ZoneOffset.UTC,
+    )
+
+/**
+ * The BR "Base Rates" documented defaults, one per session type — provisioned at branch
+ * creation (#418) so a fresh branch never fails session create with "No base rate configured".
+ */
+internal val DEFAULT_BASE_RATES: Map<SessionType, BigDecimal> =
+    mapOf(
+        SessionType.REGULAR to BigDecimal("2500.00"),
+        SessionType.SECOND_SESSION to BigDecimal("2000.00"),
+        SessionType.SUBSEQUENT to BigDecimal("1500.00"),
+        SessionType.PROVINCIAL_FIRST to BigDecimal("3500.00"),
+        SessionType.MEDICAL_MISSION to BigDecimal("0.00"),
+    )
 
 data class SetRateResult(
     val rate: SessionBaseRate,
@@ -37,6 +73,32 @@ data class SetRateResult(
 
 @Suppress("UnreachableCode")
 object SessionBaseRateRepository {
+    /**
+     * In-transaction store operation (#323, ADR-0024) — seeds the BR-documented default base
+     * rates for a freshly created branch (#418). Runs on the caller's command transaction
+     * (branch creation); no per-rate audit rows — mechanism write riding the audited
+     * branch-create domain event (#414 deflation precedent).
+     */
+    fun insertDefaultsInTransaction(
+        branchId: UUID,
+        setBy: UUID,
+    ) {
+        DEFAULT_BASE_RATES.forEach { (sessionType, rate) ->
+            SessionBaseRateTable.insert {
+                it[SessionBaseRateTable.id] = UUID.randomUUID()
+                it[SessionBaseRateTable.setBy] = setBy
+                it[SessionBaseRateTable.branchId] = branchId
+                it[SessionBaseRateTable.sessionType] = sessionType
+                it[SessionBaseRateTable.rate] = rate
+                it[SessionBaseRateTable.effectiveUntil] = FAR_FUTURE
+            }
+        }
+        val maskedBranch = branchId.toString().maskUUID()
+        logger.info {
+            "[SEED-DEFAULT-RATES] ${DEFAULT_BASE_RATES.size} default rate(s) provisioned for branch $maskedBranch"
+        }
+    }
+
     /**
      * In-transaction store operation (#323, ADR-0024) — branch lock, retry-ownership check,
      * rate rotation, and insert run on the caller's command transaction; the SQLSTATE 23P01
