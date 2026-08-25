@@ -16,10 +16,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
 import com.companyb.companyapp.util.logInfo
@@ -31,31 +34,28 @@ import com.companyb.companyapp.viewmodel.UiState
 internal fun InventoryLoadEffects(
     viewModel: InventoryViewModel,
     branchId: String?,
-    restockResult: UiState<*>,
-    movementResult: UiState<*>,
-    cardResult: UiState<*>,
-    saleResult: UiState<*>,
+    results: InventoryWriteResults,
 ) {
     LaunchedEffect(branchId) {
         logInfo("InventoryScreen", "composable entered (branchId=$branchId)")
         if (branchId != null) viewModel.refresh(branchId)
     }
-    LaunchedEffect(restockResult) {
-        if (restockResult is UiState.Success) {
+    LaunchedEffect(results.restockResult) {
+        if (results.restockResult is UiState.Success) {
             logInfo("InventoryScreen", "restock landed — refreshing inventory")
             viewModel.clearWriteResults()
             if (branchId != null) viewModel.refresh(branchId)
         }
     }
-    LaunchedEffect(movementResult) {
-        if (movementResult is UiState.Success) {
+    LaunchedEffect(results.movementResult) {
+        if (results.movementResult is UiState.Success) {
             logInfo("InventoryScreen", "movement landed — refreshing inventory")
             viewModel.clearWriteResults()
             if (branchId != null) viewModel.refresh(branchId)
         }
     }
-    LaunchedEffect(cardResult) {
-        if (cardResult is UiState.Success) {
+    LaunchedEffect(results.cardResult) {
+        if (results.cardResult is UiState.Success) {
             logInfo("InventoryScreen", "ensure-card landed — refreshing inventory")
             viewModel.clearWriteResults()
             if (branchId != null) viewModel.refresh(branchId)
@@ -63,8 +63,8 @@ internal fun InventoryLoadEffects(
     }
     // #419 — a landed sale refreshes the same legs: the decrement and any new low-stock row
     // repaint without a manual Refresh.
-    LaunchedEffect(saleResult) {
-        if (saleResult is UiState.Success) {
+    LaunchedEffect(results.saleResult) {
+        if (results.saleResult is UiState.Success) {
             logInfo("InventoryScreen", "product sale landed — refreshing inventory")
             viewModel.clearWriteResults()
             if (branchId != null) viewModel.refresh(branchId)
@@ -125,24 +125,120 @@ internal fun LowStockStrip(
     }
 }
 
+/** The restock arm (#392), extracted verbatim from [InventoryWriteDialogs]. */
+@Composable
+internal fun RestockWriteDialog(
+    card: BranchInventoryResponse,
+    context: InventorySectionContext,
+    branchDayId: String?,
+    onDone: () -> Unit,
+) {
+    RestockDialog(
+        card = card,
+        onDismiss = onDone,
+        onSave = { units, editReason ->
+            // Save closes immediately (the ProfileScreen precedent); ids are fresh
+            // client-generated UUIDs and branchDayId is the clocked-in day.
+            onDone()
+            val dayId = branchDayId
+            val branchId = context.branchId
+            if (branchId != null && dayId != null) {
+                context.viewModel.restock(
+                    branchId = branchId,
+                    productId = card.productId,
+                    request =
+                        buildRestockRequest(
+                            RestockDraft(card, units, editReason, dayId),
+                        ),
+                )
+            }
+        },
+    )
+}
+
+/** The movement arm (#392), extracted verbatim from [InventoryWriteDialogs]. */
+@Composable
+internal fun MovementWriteDialog(
+    card: BranchInventoryResponse,
+    context: InventorySectionContext,
+    branchDayId: String?,
+    onDone: () -> Unit,
+) {
+    val capabilities by SessionState.capabilities.collectAsState()
+    MovementDialog(
+        card = card,
+        allowedReasons = allowedMovementReasons(capabilities, context.branchId),
+        onDismiss = onDone,
+        onSave = { reason, units, notes, editReason ->
+            onDone()
+            val dayId = branchDayId
+            val branchId = context.branchId
+            if (branchId != null && dayId != null) {
+                context.viewModel.recordMovement(
+                    branchId = branchId,
+                    productId = card.productId,
+                    request =
+                        buildMovementRequest(
+                            MovementDraft(card, reason, units, notes, editReason, dayId),
+                        ),
+                )
+            }
+        },
+    )
+}
+
+/** The walk-in sale arm (#419), extracted verbatim from [InventoryWriteDialogs]. */
+@Composable
+internal fun WalkInWriteDialog(
+    card: BranchInventoryResponse,
+    context: InventorySectionContext,
+    branchDayId: String?,
+    onDone: () -> Unit,
+) {
+    WalkInSaleDialog(
+        card = card,
+        clientViewModel = context.clientViewModel,
+        onDismiss = onDone,
+        onSave = { quantity, clientId, editReason ->
+            // Save closes immediately (the #392 shape); ids are fresh client-generated
+            // UUIDs and branchDayId is the clocked-in day.
+            onDone()
+            val dayId = branchDayId
+            val branchId = context.branchId
+            if (branchId != null && dayId != null) {
+                context.productSaleViewModel.sell(
+                    buildSaleRequest(
+                        SaleDraft(
+                            card = card,
+                            quantity = quantity,
+                            clientId = clientId,
+                            sessionId = null,
+                            isWalkIn = true,
+                            reason = editReason,
+                            branchDayId = dayId,
+                        ),
+                    ),
+                )
+            }
+        },
+    )
+}
+
 /** Inline surface for write failures (the EditSlotDialog inline-error shape, screen-level). */
 @Composable
 internal fun WriteErrorBanner(
-    restockResult: UiState<*>,
-    movementResult: UiState<*>,
-    cardResult: UiState<*>,
-    saleResult: UiState<*>,
+    results: InventoryWriteResults,
     viewModel: InventoryViewModel,
     onDismissSale: () -> Unit,
 ) {
     val error =
-        (restockResult as? UiState.Error)
-            ?: (movementResult as? UiState.Error)
-            ?: (cardResult as? UiState.Error)
-            ?: (saleResult as? UiState.Error)
+        (results.restockResult as? UiState.Error)
+            ?: (results.movementResult as? UiState.Error)
+            ?: (results.cardResult as? UiState.Error)
+            ?: (results.saleResult as? UiState.Error)
             ?: return
     // The sale leg lives in its own VM (#419) — its Dismiss clears there, the rest here.
-    val fromSale = error === (saleResult as? UiState.Error)
+    val fromSale = error === (results.saleResult as? UiState.Error)
     Surface(
         shape = RoundedCornerShape(CornerRadius.sm),
         color = MaterialTheme.colorScheme.errorContainer,

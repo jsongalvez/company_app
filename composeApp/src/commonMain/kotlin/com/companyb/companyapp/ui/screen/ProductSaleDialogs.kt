@@ -31,7 +31,10 @@ import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.BranchInventoryResponse
 import com.companyb.companyapp.dto.ClientResponse
 import com.companyb.companyapp.dto.DashboardSessionResponse
+import com.companyb.companyapp.dto.ProductSaleResponse
 import com.companyb.companyapp.ui.theme.Spacing
+import com.companyb.companyapp.util.logInfo
+import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.InventoryViewModel
 import com.companyb.companyapp.viewmodel.ProductSaleViewModel
@@ -234,48 +237,12 @@ internal fun SessionSaleDialog(
         onDismissRequest = onDismiss,
         title = { Text("Record product sale") },
         text = {
-            Column {
-                when (val state = inventoryState) {
-                    is UiState.Idle,
-                    is UiState.Loading,
-                    -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            CircularProgressIndicator(Modifier.heightIn(max = 24.dp))
-                        }
-                    }
-
-                    is UiState.Error -> {
-                        Text(
-                            state.message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                        TextButton(onClick = { inventoryViewModel.loadInventory(branchId) }) { Text("Retry") }
-                    }
-
-                    is UiState.Success -> {
-                        if (state.data.isEmpty()) {
-                            Text(
-                                text = "No inventory cards at this branch",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else {
-                            SaleCardPicker(
-                                cards = state.data,
-                                selectedCard = selectedCard,
-                                onSelect = { selectedCard = it },
-                            )
-                        }
-                    }
-                }
-                if (selectedCard != null) {
-                    Spacer(Modifier.size(Spacing.sm))
-                    SaleQuantityReasonFields(form, selectedCard?.currentStock)
-                }
+            SessionSaleDialogContent(inventoryState, branchId, inventoryViewModel, selectedCard) {
+                selectedCard = it
+            }
+            if (selectedCard != null) {
+                Spacer(Modifier.size(Spacing.sm))
+                SaleQuantityReasonFields(form, selectedCard?.currentStock)
             }
         },
         confirmButton = {
@@ -303,6 +270,86 @@ internal fun SessionSaleDialog(
     )
 }
 
+/** The dialog body: the branch's inventory state with the product picker (extracted verbatim). */
+@Composable
+private fun SessionSaleDialogContent(
+    inventoryState: UiState<List<BranchInventoryResponse>>,
+    branchId: String,
+    inventoryViewModel: InventoryViewModel,
+    selectedCard: BranchInventoryResponse?,
+    onSelectCard: (BranchInventoryResponse) -> Unit,
+) {
+    Column {
+        when (val state = inventoryState) {
+            is UiState.Idle,
+            is UiState.Loading,
+            -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    CircularProgressIndicator(Modifier.heightIn(max = 24.dp))
+                }
+            }
+
+            is UiState.Error -> {
+                Text(
+                    state.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                TextButton(onClick = { inventoryViewModel.loadInventory(branchId) }) { Text("Retry") }
+            }
+
+            is UiState.Success -> {
+                if (state.data.isEmpty()) {
+                    Text(
+                        text = "No inventory cards at this branch",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    SaleCardPicker(
+                        cards = state.data,
+                        selectedCard = selectedCard,
+                        onSelect = onSelectCard,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * #419 — the one-shot product-sale drain (the #382 shape): any terminal outcome reloads
+ * authoritatively, then clears the sticky flow so it cannot replay into a re-entered pane.
+ */
+@Composable
+internal fun SaleEffects(
+    productSaleVm: ProductSaleViewModel,
+    saleResult: UiState<ProductSaleResponse>,
+    refreshSession: () -> Unit,
+) {
+    LaunchedEffect(saleResult) {
+        when (val result = saleResult) {
+            is UiState.Success -> {
+                logInfo("SessionDetailVM", "product sale landed — refreshing session")
+                refreshSession()
+            }
+
+            is UiState.Error -> {
+                logWarn("SessionDetailVM", "product sale failed: ${result.message}")
+                refreshSession()
+            }
+
+            else -> {
+                return@LaunchedEffect
+            }
+        }
+        productSaleVm.clearSaleResult()
+    }
+}
+
 /** The product picker: one chip per carded product, newest stock line in the label. */
 @Composable
 private fun SaleCardPicker(
@@ -325,6 +372,16 @@ private fun SaleCardPicker(
 }
 
 /**
+ * The pane sale flow's wiring (#419): the request's clocked-in day plus the side-loaded
+ * inventory/product-sale pair, bundled so the host stays low-arity (the #412 bundling shape).
+ */
+internal class PaneSaleContext(
+    val branchDayId: String?,
+    val inventoryViewModel: InventoryViewModel,
+    val productSaleViewModel: ProductSaleViewModel,
+)
+
+/**
  * The pane-side host (#419): renders [SessionSaleDialog] while the pane's target slot is open,
  * loading nothing until then (the movements-history on-demand shape), and submits the
  * session-linked request through the shared VM before clearing the slot.
@@ -333,22 +390,20 @@ private fun SaleCardPicker(
 internal fun PaneSaleDialogHost(
     visible: Boolean,
     session: DashboardSessionResponse,
-    branchDayId: String?,
-    inventoryViewModel: InventoryViewModel,
-    productSaleViewModel: ProductSaleViewModel,
+    sale: PaneSaleContext,
     onClose: () -> Unit,
 ) {
     if (!visible) return
-    val inventory by inventoryViewModel.inventory.collectAsState()
+    val inventory by sale.inventoryViewModel.inventory.collectAsState()
     SessionSaleDialog(
         inventoryState = inventory,
         branchId = session.branchId,
-        inventoryViewModel = inventoryViewModel,
+        inventoryViewModel = sale.inventoryViewModel,
         onDismiss = onClose,
         onSave = { card, quantity, editReason ->
             onClose()
-            if (branchDayId != null) {
-                productSaleViewModel.sell(
+            if (sale.branchDayId != null) {
+                sale.productSaleViewModel.sell(
                     buildSaleRequest(
                         SaleDraft(
                             card = card,
@@ -357,7 +412,7 @@ internal fun PaneSaleDialogHost(
                             sessionId = session.id,
                             isWalkIn = false,
                             reason = editReason,
-                            branchDayId = branchDayId,
+                            branchDayId = sale.branchDayId,
                         ),
                     ),
                 )

@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.companyb.companyapp.dto.AddInventoryCardRequest
 import com.companyb.companyapp.dto.BranchInventoryResponse
+import com.companyb.companyapp.dto.UserCapabilityResponse
 import com.companyb.companyapp.state.SessionState
 import com.companyb.companyapp.ui.theme.CornerRadius
 import com.companyb.companyapp.ui.theme.Spacing
@@ -67,6 +68,17 @@ internal sealed interface InventoryWriteTarget {
 }
 
 /**
+ * The four inventory write terminals (#392 restock/movement, #395 ensure-card, #419 sale),
+ * bundled so every consumer takes one value (the #412 [PaneResults] shape).
+ */
+internal data class InventoryWriteResults(
+    val restockResult: UiState<*>,
+    val movementResult: UiState<*>,
+    val cardResult: UiState<*>,
+    val saleResult: UiState<*>,
+)
+
+/**
  * The screen's single open overlay (#392 write dialogs, #395 ensure-card, #397 movements
  * history); null = none. Mutually exclusive by construction — one state replaces the three
  * independent booleans the sections used to pass around.
@@ -81,10 +93,14 @@ internal sealed interface InventoryOverlay {
     data object MovementsHistory : InventoryOverlay
 }
 
-/** Handles the extracted sections share (the header and overlay hosts). */
-private class InventorySectionContext(
+/** Handles the extracted sections share (the header, overlay hosts, and write dialogs). */
+internal class InventorySectionContext(
     val viewModel: InventoryViewModel,
     val productViewModel: ProductViewModel,
+    // #419 — the sale pair and the client search ride the shared section context so the
+    // overlay/dialog hosts stay low-arity.
+    val productSaleViewModel: ProductSaleViewModel,
+    val clientViewModel: ClientViewModel,
     val branchId: String?,
 )
 
@@ -138,20 +154,23 @@ fun InventoryScreen(
     val capabilities by SessionState.capabilities.collectAsState()
     val branchDayId by SessionState.branchDayId.collectAsState()
     var overlay by remember { mutableStateOf<InventoryOverlay?>(null) }
-    val context = InventorySectionContext(viewModel, productViewModel, branchId)
+    val context =
+        InventorySectionContext(viewModel, productViewModel, productSaleViewModel, clientViewModel, branchId)
+    val writeResults = InventoryWriteResults(restockResult, movementResult, cardResult, saleResult)
     val writesDisabled =
-        restockResult is UiState.Loading || movementResult is UiState.Loading ||
-            saleResult is UiState.Loading
+        writeResults.restockResult is UiState.Loading ||
+            writeResults.movementResult is UiState.Loading ||
+            writeResults.saleResult is UiState.Loading
 
-    InventoryLoadEffects(viewModel, branchId, restockResult, movementResult, cardResult, saleResult)
+    InventoryLoadEffects(viewModel, branchId, writeResults)
     Column(
         modifier =
             Modifier
                 .fillMaxSize()
                 .padding(Spacing.md),
     ) {
-        InventoryHeader(context, inventoryState, cardResult, onOverlay = { overlay = it })
-        WriteErrorBanner(restockResult, movementResult, cardResult, saleResult, viewModel) {
+        InventoryHeader(context, inventoryState, writeResults.cardResult, onOverlay = { overlay = it })
+        WriteErrorBanner(writeResults, viewModel) {
             productSaleViewModel.clearSaleResult()
         }
         LowStockStrip(
@@ -163,39 +182,52 @@ fun InventoryScreen(
         InventoryBody(
             state = inventoryState,
             lowStockIds = (lowStockState as? UiState.Success)?.data.orEmpty().mapTo(mutableSetOf()) { it.productId },
-            rowActions =
-                InventoryRowActions(
-                    restockEnabled = branchDayId != null && canRestock(capabilities, branchId) && !writesDisabled,
-                    movementEnabled =
-                        branchDayId != null &&
-                            allowedMovementReasons(capabilities, branchId).isNotEmpty() &&
-                            !writesDisabled,
-                    sellEnabled =
-                        branchId != null &&
-                            branchDayId != null &&
-                            canSellProducts(capabilities, branchId, branchDayId) &&
-                            !writesDisabled,
-                ),
+            rowActions = inventoryRowActions(capabilities, branchId, branchDayId, writesDisabled),
             onRetry = { if (branchId != null) viewModel.refresh(branchId) },
-            onAction = { card, kind ->
-                overlay =
-                    when (kind) {
-                        InventoryWriteKind.RESTOCK -> InventoryOverlay.Write(InventoryWriteTarget.Restock(card))
-                        InventoryWriteKind.MOVEMENT -> InventoryOverlay.Write(InventoryWriteTarget.Movement(card))
-                        InventoryWriteKind.SELL -> InventoryOverlay.Write(InventoryWriteTarget.Sell(card))
-                    }
-            },
+            onAction = { card, kind -> overlay = writeOverlayFor(card, kind) },
         )
     }
     InventoryOverlayHosts(
         overlay = overlay,
         context = context,
         cards = (inventoryState as? UiState.Success)?.data.orEmpty(),
-        productSaleViewModel = productSaleViewModel,
-        clientViewModel = clientViewModel,
         onClose = { overlay = null },
     )
 }
+
+/**
+ * Per-row affordance enablement (#392/#419): the exact branch-or-day gate mirrors fail-closed
+ * without a clocked-in branchDayId, and any in-flight write disables the row's actions.
+ */
+private fun inventoryRowActions(
+    capabilities: List<UserCapabilityResponse>,
+    branchId: String?,
+    branchDayId: String?,
+    writesDisabled: Boolean,
+): InventoryRowActions =
+    InventoryRowActions(
+        restockEnabled = branchDayId != null && canRestock(capabilities, branchId) && !writesDisabled,
+        movementEnabled =
+            branchDayId != null &&
+                allowedMovementReasons(capabilities, branchId).isNotEmpty() &&
+                !writesDisabled,
+        sellEnabled =
+            branchId != null &&
+                branchDayId != null &&
+                canSellProducts(capabilities, branchId, branchDayId) &&
+                !writesDisabled,
+    )
+
+/** The row tap → open-overlay mapping (the #392 write kinds plus the #419 sale). */
+private fun writeOverlayFor(
+    card: BranchInventoryResponse,
+    kind: InventoryWriteKind,
+): InventoryOverlay =
+    when (kind) {
+        InventoryWriteKind.RESTOCK -> InventoryOverlay.Write(InventoryWriteTarget.Restock(card))
+        InventoryWriteKind.MOVEMENT -> InventoryOverlay.Write(InventoryWriteTarget.Movement(card))
+        InventoryWriteKind.SELL -> InventoryOverlay.Write(InventoryWriteTarget.Sell(card))
+    }
 
 /**
  * The screen header: title plus the History (#397), Add card (#395), and Refresh affordances,
@@ -246,18 +278,13 @@ private fun InventoryOverlayHosts(
     overlay: InventoryOverlay?,
     context: InventorySectionContext,
     cards: List<BranchInventoryResponse>,
-    productSaleViewModel: ProductSaleViewModel,
-    clientViewModel: ClientViewModel,
     onClose: () -> Unit,
 ) {
     when (overlay) {
         is InventoryOverlay.Write -> {
             InventoryWriteDialogs(
                 overlay.target,
-                context.viewModel,
-                context.branchId,
-                productSaleViewModel,
-                clientViewModel,
+                context,
                 onClose,
             )
         }
@@ -426,87 +453,21 @@ private fun InventoryRow(
 @Composable
 private fun InventoryWriteDialogs(
     target: InventoryWriteTarget,
-    viewModel: InventoryViewModel,
-    branchId: String?,
-    productSaleViewModel: ProductSaleViewModel,
-    clientViewModel: ClientViewModel,
+    context: InventorySectionContext,
     onDone: () -> Unit,
 ) {
-    val capabilities by SessionState.capabilities.collectAsState()
     val branchDayId by SessionState.branchDayId.collectAsState()
     when (target) {
         is InventoryWriteTarget.Restock -> {
-            RestockDialog(
-                card = target.card,
-                onDismiss = onDone,
-                onSave = { units, editReason ->
-                    // Save closes immediately (the ProfileScreen precedent); ids are fresh
-                    // client-generated UUIDs and branchDayId is the clocked-in day.
-                    onDone()
-                    val dayId = branchDayId
-                    if (branchId != null && dayId != null) {
-                        viewModel.restock(
-                            branchId = branchId,
-                            productId = target.card.productId,
-                            request =
-                                buildRestockRequest(
-                                    RestockDraft(target.card, units, editReason, dayId),
-                                ),
-                        )
-                    }
-                },
-            )
+            RestockWriteDialog(target.card, context, branchDayId, onDone)
         }
 
         is InventoryWriteTarget.Movement -> {
-            MovementDialog(
-                card = target.card,
-                allowedReasons = allowedMovementReasons(capabilities, branchId),
-                onDismiss = onDone,
-                onSave = { reason, units, notes, editReason ->
-                    onDone()
-                    val dayId = branchDayId
-                    if (branchId != null && dayId != null) {
-                        viewModel.recordMovement(
-                            branchId = branchId,
-                            productId = target.card.productId,
-                            request =
-                                buildMovementRequest(
-                                    MovementDraft(target.card, reason, units, notes, editReason, dayId),
-                                ),
-                        )
-                    }
-                },
-            )
+            MovementWriteDialog(target.card, context, branchDayId, onDone)
         }
 
         is InventoryWriteTarget.Sell -> {
-            WalkInSaleDialog(
-                card = target.card,
-                clientViewModel = clientViewModel,
-                onDismiss = onDone,
-                onSave = { quantity, clientId, editReason ->
-                    // Save closes immediately (the #392 shape); ids are fresh client-generated
-                    // UUIDs and branchDayId is the clocked-in day.
-                    onDone()
-                    val dayId = branchDayId
-                    if (branchId != null && dayId != null) {
-                        productSaleViewModel.sell(
-                            buildSaleRequest(
-                                SaleDraft(
-                                    card = target.card,
-                                    quantity = quantity,
-                                    clientId = clientId,
-                                    sessionId = null,
-                                    isWalkIn = true,
-                                    reason = editReason,
-                                    branchDayId = dayId,
-                                ),
-                            ),
-                        )
-                    }
-                },
-            )
+            WalkInWriteDialog(target.card, context, branchDayId, onDone)
         }
     }
 }

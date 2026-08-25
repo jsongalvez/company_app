@@ -85,9 +85,7 @@ internal fun SessionDetailPane(
     val sessionVm: SessionViewModel = viewModel { SessionViewModel(apiClient) }
     val productSaleVm: ProductSaleViewModel = viewModel { ProductSaleViewModel(apiClient) }
     val inventoryVm: InventoryViewModel = viewModel { InventoryViewModel(apiClient) }
-    val capabilities by SessionState.capabilities.collectAsState()
     val currentUser by SessionState.currentUser.collectAsState()
-    val branchDayId by SessionState.branchDayId.collectAsState()
     val roster by sessionVm.practitioners.collectAsState()
     val practitionerResult by sessionVm.practitionerResult.collectAsState()
     val concernResult by sessionVm.concernResult.collectAsState()
@@ -102,7 +100,6 @@ internal fun SessionDetailPane(
         EditableSessionPane(
             state =
                 PaneState(
-                    capabilities = capabilities,
                     currentUserId = currentUser?.id,
                     rosterRows = (roster as? UiState.Success)?.data,
                     results =
@@ -115,11 +112,8 @@ internal fun SessionDetailPane(
                         ),
                     members = members,
                     allowVoid = allowVoid,
-                    branchDayId = branchDayId,
                 ),
-            sessionVm = sessionVm,
-            productSaleVm = productSaleVm,
-            inventoryVm = inventoryVm,
+            vms = PaneViewModels(sessionVm, productSaleVm, inventoryVm),
             session = session,
             refreshSession = refreshSession,
             modifier = modifier,
@@ -147,9 +141,12 @@ internal class PaneResults(
         ).distinct()
 }
 
-/** Snapshot of the pane's observed flows (plus static host config), bundled for low arity. */
+/**
+ * Snapshot of the pane's observed flows (plus static host config), bundled for low arity.
+ * The capability snapshot and clocked-in day are collected inside [EditableSessionPane]
+ * (the [com.companyb.companyapp.ui.screen.InventoryScreen] header idiom).
+ */
 private class PaneState(
-    val capabilities: List<UserCapabilityResponse>,
     val currentUserId: String?,
     val rosterRows: List<SessionPractitionerResponse>?,
     val results: PaneResults,
@@ -157,58 +154,79 @@ private class PaneState(
     // #406 — void/unvoid is a desktop-only mutation surface (ADR-0020): the desktop inline
     // pane opts in; the mobile pushed route keeps the default read-only detail.
     val allowVoid: Boolean,
-    // #419 — the caller's clocked-in branch day; the sale request's branchDayId.
-    val branchDayId: String?,
 )
+
+/** The pane's side-loaded VM trio (#419 added the sale pair); one value, low arity (#412). */
+private class PaneViewModels(
+    val session: SessionViewModel,
+    val productSale: ProductSaleViewModel,
+    val inventory: InventoryViewModel,
+)
+
+/** The pane's client-side gate mirrors (#382 edit, #406 void, #419 sale) from one snapshot. */
+private class PaneGates(
+    val canEdit: Boolean,
+    val canVoid: Boolean,
+    val canSell: Boolean,
+)
+
+/**
+ * The exact backend-mirror predicates (#382/#406/#419), computed from one capability snapshot:
+ * edit is branch-or-day `EDIT_BRANCH_DATA`, void is BRANCH-scoped `VOID_SESSION` only, sale is
+ * branch-or-day `EDIT_BRANCH_DATA` fail-closed without the clocked-in day.
+ */
+private fun paneGates(
+    capabilities: List<UserCapabilityResponse>,
+    session: DashboardSessionResponse,
+    branchDayId: String?,
+    allowVoid: Boolean,
+): PaneGates =
+    PaneGates(
+        canEdit =
+            capabilities.hasCapability(
+                CapabilityCodes.EDIT_BRANCH_DATA,
+                CapabilityContextType.BRANCH,
+                session.branchId,
+            ) || capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA),
+        // #406 — the void gate mirrors the backend's `requireBranchCapabilityForSession`:
+        // branch-scoped VOID_SESSION only — no day-grant leg (see [canVoidSession]).
+        canVoid = allowVoid && canVoidSession(capabilities, session.branchId),
+        // #419 — the sale gate mirrors `requireBranchOrBranchDayCapability(EDIT_BRANCH_DATA)`
+        // on POST /api/product-sales; fail-closed without the clocked-in day (the request's
+        // branchDayId).
+        canSell =
+            branchDayId != null &&
+                capabilities.hasBranchOrDayCapability(
+                    CapabilityCodes.EDIT_BRANCH_DATA,
+                    session.branchId,
+                    branchDayId,
+                ),
+    )
 
 @OptIn(ExperimentalUuidApi::class)
 @Composable
 private fun EditableSessionPane(
     state: PaneState,
-    sessionVm: SessionViewModel,
-    productSaleVm: ProductSaleViewModel,
-    inventoryVm: InventoryViewModel,
+    vms: PaneViewModels,
     session: DashboardSessionResponse,
     refreshSession: () -> Unit,
     modifier: Modifier,
 ) {
     val targets = remember(session.id) { PaneDialogTargets() }
-    val canEdit =
-        state.capabilities.hasCapability(
-            CapabilityCodes.EDIT_BRANCH_DATA,
-            CapabilityContextType.BRANCH,
-            session.branchId,
-        ) || state.capabilities.hasDayGrant(CapabilityCodes.EDIT_BRANCH_DATA)
-    // #406 — the void gate mirrors the backend's `requireBranchCapabilityForSession`:
-    // branch-scoped VOID_SESSION only — no day-grant leg (see [canVoidSession]).
-    val canVoid = state.allowVoid && canVoidSession(state.capabilities, session.branchId)
-    // #419 — the sale gate mirrors `requireBranchOrBranchDayCapability(EDIT_BRANCH_DATA)`
-    // on POST /api/product-sales; fail-closed without the clocked-in day (the request's
-    // branchDayId).
-    val canSell =
-        state.branchDayId != null &&
-            state.capabilities.hasBranchOrDayCapability(
-                CapabilityCodes.EDIT_BRANCH_DATA,
-                session.branchId,
-                state.branchDayId,
-            )
+    val capabilities by SessionState.capabilities.collectAsState()
+    val branchDayId by SessionState.branchDayId.collectAsState()
+    val gates = paneGates(capabilities, session, branchDayId, state.allowVoid)
     val mutating =
         state.results.practitionerResult is UiState.Loading ||
             state.results.concernResult is UiState.Loading ||
             state.results.voidResult is UiState.Loading ||
             state.results.unvoidResult is UiState.Loading ||
             state.results.saleResult is UiState.Loading
-    val gate = SessionEditGate(canEdit = canEdit, mutating = mutating)
+    val gate = SessionEditGate(canEdit = gates.canEdit, mutating = mutating)
     val displaySession = mergeRosterNames(session, state.rosterRows)
 
-    PaneEffects(
-        sessionVm,
-        session.id,
-        state.results,
-        targets,
-        refreshSession,
-    )
-    SaleEffects(productSaleVm, state.results.saleResult, refreshSession)
+    PaneEffects(vms.session, session.id, state.results, targets, refreshSession)
+    SaleEffects(vms.productSale, state.results.saleResult, refreshSession)
 
     Column(modifier = modifier) {
         // weight(1f): the detail content owns the flexible space — AddSelf and inline
@@ -221,13 +239,13 @@ private fun EditableSessionPane(
             )
         }
         VoidActionSection(
-            affordance = sessionVoidAffordance(canVoid, displaySession.isVoided),
+            affordance = sessionVoidAffordance(gates.canVoid, displaySession.isVoided),
             mutating = mutating,
             onVoid = { targets.showVoid = true },
             onUnvoid = { targets.showUnvoid = true },
         )
         SellSection(
-            affordance = canSell && !mutating && !displaySession.isVoided,
+            affordance = gates.canSell && !mutating && !displaySession.isVoided,
             onSell = { targets.showSell = true },
         )
         AddSelfSection(
@@ -236,7 +254,7 @@ private fun EditableSessionPane(
             currentUserId = state.currentUserId,
             gate = gate,
             onAddSelf = {
-                sessionVm.addPractitioner(
+                vms.session.addPractitioner(
                     session.id,
                     // Idempotency key minted at submit (BR §390–392); duplicate adds are
                     // idempotent server-side anyway.
@@ -247,43 +265,13 @@ private fun EditableSessionPane(
         InlineMutationErrors(state.results.errorMessages().distinct())
     }
 
-    PaneDialogs(sessionVm, displaySession, gate.mutating, targets, state.members)
+    PaneDialogs(vms.session, displaySession, gate.mutating, targets, state.members)
     PaneSaleDialogHost(
         visible = targets.showSell,
         session = displaySession,
-        branchDayId = state.branchDayId,
-        inventoryViewModel = inventoryVm,
-        productSaleViewModel = productSaleVm,
+        sale = PaneSaleContext(branchDayId, vms.inventory, vms.productSale),
         onClose = { targets.showSell = false },
     )
-}
-
-/** #419 — the one-shot product-sale drain: any terminal outcome reloads authoritatively. */
-@Composable
-private fun SaleEffects(
-    productSaleVm: ProductSaleViewModel,
-    saleResult: UiState<ProductSaleResponse>,
-    refreshSession: () -> Unit,
-) {
-    LaunchedEffect(saleResult) {
-        when (val result = saleResult) {
-            is UiState.Success -> {
-                logInfo("SessionDetailVM", "product sale landed — refreshing session")
-                refreshSession()
-            }
-
-            is UiState.Error -> {
-                logWarn("SessionDetailVM", "product sale failed: ${result.message}")
-                refreshSession()
-            }
-
-            else -> {
-                return@LaunchedEffect
-            }
-        }
-        // One-shot drain (#382): the sticky flow must not replay into a re-entered pane.
-        productSaleVm.clearSaleResult()
-    }
 }
 
 /**
