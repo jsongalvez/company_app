@@ -1,6 +1,7 @@
 package com.companyb.companyapp.ui.screen
 
 import com.companyb.companyapp.domain.DayStatus
+import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.dto.DashboardSessionResponse
 
 /**
@@ -40,6 +41,17 @@ fun DashboardSessionResponse.fieldValue(field: DashboardEditField): String =
         DashboardEditField.STATUS -> sessionStatus.name
         DashboardEditField.FINAL_PRICE -> finalPrice
     }
+
+/**
+ * #423 — client mirror of the backend walk-in status prohibition (the DB
+ * `walk_in_status` constraint, service 400): NO_SHOW/CANCELLED are offered as status options
+ * for booked sessions only. A walk-in row's dropdown simply never shows them instead of
+ * letting the server reject the commit.
+ */
+internal fun statusOptionsFor(isWalkIn: Boolean): List<String> =
+    SessionStatus.entries.map { it.name }.filter { !isWalkIn || it !in WALK_IN_FORBIDDEN_STATUS_OPTIONS }
+
+private val WALK_IN_FORBIDDEN_STATUS_OPTIONS = setOf(SessionStatus.NO_SHOW.name, SessionStatus.CANCELLED.name)
 
 /**
  * Semantic price equality: "2750" == "2750.00" == "2750.0" (the backend normalizes to

@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
+import kotlin.time.Instant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -197,6 +199,8 @@ class SessionCreateViewModel(
         finalPrice: String,
         remarks: String?,
         otherConcerns: String?,
+        // Default: today's shipped walk-in shape — pre-#423 callers keep byte-identical requests.
+        booking: BookingFields = BookingFields(isWalkIn = true, bookedAt = null, nextAppointmentDate = null),
     ) {
         val client = _selectedClient.value ?: return
         if (_createResult.value is UiState.Loading) return
@@ -212,14 +216,14 @@ class SessionCreateViewModel(
                             id = Uuid.random().toString(),
                             clientId = client.id,
                             branchId = branchId,
-                            // Walk-in vs booked are identical once started (BR §129); no booking
-                            // UI exists in this flow, so sessions start as walk-ins.
-                            isWalkIn = true,
+                            isWalkIn = booking.isWalkIn,
                             requestedPractitionerId =
                                 _selectedPractitioner.value?.id,
                             finalPrice = finalPrice,
                             remarks = remarks?.trim()?.ifBlank { null },
                             otherConcerns = otherConcerns?.trim()?.ifBlank { null },
+                            bookedAt = booking.bookedAt,
+                            nextAppointmentDate = booking.nextAppointmentDate,
                         ),
                     )
                 }
@@ -245,6 +249,35 @@ class SessionCreateViewModel(
         const val MIN_SEARCH_CHARS = 2
     }
 }
+
+/**
+ * #423 — the booking half of the create request, shaped once and shaped pure so desktopTest
+ * can pin the gating: a walk-in sends no booking fields (BR §Clients "treated identically
+ * once started"); a booked session stamps `bookedAt` = now (client clock; the server re-parses
+ * it authoritatively) and carries the optional ISO `yyyy-MM-dd` next-appointment date.
+ * `null` return = booked with an unparseable date draft — submit stays disabled and the
+ * screen surfaces the inline error.
+ */
+internal fun bookingFields(
+    isBooked: Boolean,
+    nextAppointmentDraft: String,
+    now: Instant,
+): BookingFields? {
+    if (!isBooked) return BookingFields(isWalkIn = true, bookedAt = null, nextAppointmentDate = null)
+    val trimmed = nextAppointmentDraft.trim()
+    val date =
+        trimmed.takeIf { it.isNotEmpty() }?.let {
+            runCatching { LocalDate.parse(it) }.getOrNull()?.toString() ?: return null
+        }
+    return BookingFields(isWalkIn = false, bookedAt = now.toString(), nextAppointmentDate = date)
+}
+
+/** The booking half of a create-session request (#423); see [bookingFields]. */
+data class BookingFields(
+    val isWalkIn: Boolean,
+    val bookedAt: String?,
+    val nextAppointmentDate: String?,
+)
 
 /**
  * The client-picker search (the D2/#162 port, entry-scoped): keep-last debounced query over

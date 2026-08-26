@@ -50,6 +50,8 @@ import com.companyb.companyapp.util.logWarn
 import com.companyb.companyapp.viewmodel.ClientViewModel
 import com.companyb.companyapp.viewmodel.SessionCreateViewModel
 import com.companyb.companyapp.viewmodel.UiState
+import com.companyb.companyapp.viewmodel.bookingFields
+import kotlin.time.Clock
 
 /**
  * #348 — start a client's session end-to-end. No client chosen: the debounced picker (the
@@ -152,6 +154,11 @@ private class SessionFormState {
     var price by mutableStateOf("")
     var otherConcerns by mutableStateOf("")
     var remarks by mutableStateOf("")
+
+    // #423 — booked vs walk-in (default walk-in, today's shipped shape) and the optional
+    // ISO next-appointment date, surfaced only when Booked is selected.
+    var isBooked by mutableStateOf(false)
+    var nextAppointmentDate by mutableStateOf("")
 }
 
 /**
@@ -262,6 +269,8 @@ private fun SessionFormSection(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(),
     )
+
+    BookingSection(form)
 
     val concernsState by viewModel.concerns.collectAsState()
     val selectedConcernIds by viewModel.selectedConcernIds.collectAsState()
@@ -475,11 +484,20 @@ private fun SubmitArea(
     val createResult by viewModel.createResult.collectAsState()
 
     val priceValue = form.price.trim().toDoubleOrNull()
+    // #423 — a booked draft with an unparseable date shapes to null: submit disabled.
+    val booking = bookingFields(form.isBooked, form.nextAppointmentDate, Clock.System.now())
     val canSubmit =
         preview is UiState.Success && priceValue != null && priceValue >= 0 &&
-            createResult !is UiState.Loading
+            booking != null && createResult !is UiState.Loading
     Button(
-        onClick = { viewModel.createSession(form.price.trim(), form.remarks, form.otherConcerns) },
+        onClick = {
+            viewModel.createSession(
+                form.price.trim(),
+                form.remarks,
+                form.otherConcerns,
+                requireNotNull(booking),
+            )
+        },
         enabled = canSubmit,
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -491,5 +509,86 @@ private fun SubmitArea(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
         )
+    }
+}
+
+/**
+ * #423 — booked vs walk-in selection plus the booked-only next-appointment date field.
+ * Switching back to Walk-in clears the date draft so a stale draft can't leak into a later
+ * Booked submit.
+ */
+@Composable
+private fun BookingSection(form: SessionFormState) {
+    BookingTypePicker(
+        isBooked = form.isBooked,
+        onSelect = { booked ->
+            form.isBooked = booked
+            if (!booked) form.nextAppointmentDate = ""
+        },
+    )
+    if (!form.isBooked) return
+    val dateInvalid =
+        form.nextAppointmentDate.isNotBlank() &&
+            bookingFields(true, form.nextAppointmentDate, Clock.System.now()) == null
+    OutlinedTextField(
+        value = form.nextAppointmentDate,
+        onValueChange = { form.nextAppointmentDate = it },
+        label = { Text("Next appointment date (optional)") },
+        placeholder = { Text("yyyy-MM-dd") },
+        supportingText =
+            if (dateInvalid) {
+                { Text("Use the yyyy-MM-dd format") }
+            } else {
+                null
+            },
+        isError = dateInvalid,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/**
+ * #423 — booked vs walk-in selector (the readOnly-dropdown pattern, the
+ * RequestedPractitionerPicker shape). Walk-in stays the default — today's shipped behavior.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BookingTypePicker(
+    isBooked: Boolean,
+    onSelect: (Boolean) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        OutlinedTextField(
+            value = if (isBooked) "Booked" else "Walk-in",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Session start") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Walk-in") },
+                onClick = {
+                    onSelect(false)
+                    expanded = false
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("Booked") },
+                onClick = {
+                    onSelect(true)
+                    expanded = false
+                },
+            )
+        }
     }
 }

@@ -10,7 +10,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.companyb.companyapp.domain.SessionStatus
 import com.companyb.companyapp.ui.theme.Spacing
 
 /**
@@ -23,6 +22,7 @@ import com.companyb.companyapp.ui.theme.Spacing
 @Composable
 internal fun RemittedReasonDialog(
     edit: DashboardEditState,
+    statusValues: List<String>,
     actions: RemittedEditActions,
 ) {
     AlertDialog(
@@ -39,7 +39,7 @@ internal fun RemittedReasonDialog(
                 when (edit.field) {
                     DashboardEditField.STATUS -> {
                         SelectEditor(
-                            values = SessionStatus.entries.map { it.name },
+                            values = statusValues,
                             edit = edit,
                             onDraftChange = actions.onDraftChange,
                             onCommit = {},

@@ -266,6 +266,7 @@ private fun DashboardEditableCell(
             isEditing && requiresReason -> {
                 RemittedReasonDialog(
                     edit = edit,
+                    statusValues = statusOptionsFor(session.isWalkIn),
                     actions =
                         RemittedEditActions(
                             onDraftChange = onEditDraftChange,
@@ -280,6 +281,7 @@ private fun DashboardEditableCell(
             isEditing -> {
                 EditControl(
                     edit = edit,
+                    statusValues = statusOptionsFor(session.isWalkIn),
                     onDraftChange = onEditDraftChange,
                     onCommit = onEditCommit,
                     onDiscard = onEditDiscard,
@@ -354,6 +356,7 @@ private fun CellDisplay(
 @Composable
 private fun EditControl(
     edit: DashboardEditState,
+    statusValues: List<String>,
     onDraftChange: (String) -> Unit,
     onCommit: () -> Unit,
     onDiscard: () -> Unit,
@@ -361,7 +364,7 @@ private fun EditControl(
     when (edit.field) {
         DashboardEditField.STATUS -> {
             SelectEditor(
-                values = SessionStatus.entries.map { it.name },
+                values = statusValues,
                 edit = edit,
                 onDraftChange = onDraftChange,
                 onCommit = onCommit,

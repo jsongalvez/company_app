@@ -40,6 +40,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -499,6 +500,37 @@ class SessionServicePostgresTest : BasePostgresTest() {
         assertFailsWith<ValidationException> {
             SessionService.updateStatus(callerId, walkInSessionId, SessionStatus.CANCELLED, 1)
         }
+    }
+
+    // #423 — the booking flow pin: a booked create round-trips its fields and the
+    // NO_SHOW/CANCELLED statuses are reachable for booked sessions (the flip side of the
+    // walk-in prohibition above — BR §Session Status "Booked sessions can be marked as
+    // no-show or cancelled").
+    @Test
+    fun `booked session create persists booking fields and reaches NO_SHOW`() {
+        val bookedSessionId = TestFixtures.uuid()
+        // Micros: timestamptz stores microseconds — compare at stored precision.
+        val bookedAt = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS)
+        val nextAppointmentDate = TestFixtures.today.plusDays(2)
+
+        val result =
+            createSession(
+                callerId,
+                bookedSessionId,
+                isWalkIn = false,
+                bookedAt = bookedAt,
+                nextAppointmentDate = nextAppointmentDate,
+            )
+        trackOwned(SessionTable, SessionTable.id, bookedSessionId)
+        trackOwned(SessionVoidTable, SessionVoidTable.sessionId, bookedSessionId)
+        trackOwned(SessionPractitionerTable, SessionPractitionerTable.sessionId, bookedSessionId)
+
+        assertFalse(result.session.isWalkIn)
+        assertEquals(bookedAt, result.session.bookedAt)
+        assertEquals(nextAppointmentDate, result.session.nextAppointmentDate)
+
+        val updated = SessionService.updateStatus(callerId, bookedSessionId, SessionStatus.NO_SHOW, 1)
+        assertEquals(SessionStatus.NO_SHOW, updated.sessionStatus)
     }
 
     @Test
@@ -979,6 +1011,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         requestedPractitionerId: UUID? = null,
         finalPrice: BigDecimal = BigDecimal("2500.00"),
         gatedBranchDayId: UUID? = null,
+        bookedAt: OffsetDateTime? = null,
+        nextAppointmentDate: LocalDate? = null,
     ) = SessionService.create(
         callerId = callerId,
         id = id,
@@ -989,8 +1023,8 @@ class SessionServicePostgresTest : BasePostgresTest() {
         finalPrice = finalPrice,
         remarks = "Test session",
         otherConcerns = null,
-        bookedAt = null,
-        nextAppointmentDate = null,
+        bookedAt = bookedAt,
+        nextAppointmentDate = nextAppointmentDate,
         gatedBranchDayId = gatedBranchDayId,
     )
 
