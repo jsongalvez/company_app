@@ -309,6 +309,7 @@ Clients may return to purchase products outside of a booked session. These sales
 - Compensation is typically non-zero. The database permits zero for edge cases.
 - Compensation varies per practitioner and is decided by Owner or Coordinator
 - Relief duty compensation is deducted from the branch where duty was performed, not the home branch
+- The paying branch day is always at the same branch as the work branch day — cross-branch paying is not a legitimate flow and is rejected as an invalid request
 
 ### Allowances
 

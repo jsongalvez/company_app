@@ -16,6 +16,7 @@ import com.companyb.companyapp.test.TestFixtures
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.math.BigDecimal
@@ -334,6 +335,80 @@ class CompensationServicePostgresTest : BasePostgresTest() {
                 amount = BigDecimal("2000.00"),
                 note = null,
                 expectedVersion = 999,
+            )
+        }
+    }
+
+    @Test
+    fun `create with paying day at another branch returns validation error`() {
+        val otherBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Cross Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val otherBranchDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, otherBranchDayId)
+
+        assertFailsWith<ValidationException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                workBranchDayId = workBranchDayId,
+                payingBranchDayId = otherBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
+        }
+    }
+
+    @Test
+    fun `create with work day at another branch returns validation error`() {
+        val otherBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Cross Work Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val otherWorkDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, otherWorkDayId)
+
+        assertFailsWith<ValidationException> {
+            CompensationService.create(
+                callerId = callerId,
+                id = TestFixtures.uuid(),
+                workBranchDayId = otherWorkDayId,
+                payingBranchDayId = payingBranchDayId,
+                userId = targetUserId,
+                amount = BigDecimal("1500.00"),
+                note = null,
+            )
+        }
+    }
+
+    @Test
+    fun `update rejects stored record whose days span branches`() {
+        val otherBranchId = TestFixtures.uuid()
+        DatabaseTestHelper.insertTestBranch(otherBranchId, "Legacy Comp Branch")
+        trackOwned(BranchTable, BranchTable.id, otherBranchId)
+        val legacyPayingDayId = DatabaseTestHelper.createBranchDayForToday(otherBranchId)
+        trackOwned(BranchDayTable, BranchDayTable.id, legacyPayingDayId)
+
+        val compId = TestFixtures.uuid()
+        transaction {
+            CompensationTable.insert {
+                it[CompensationTable.id] = compId
+                it[CompensationTable.workBranchDayId] = this@CompensationServicePostgresTest.workBranchDayId
+                it[CompensationTable.payingBranchDayId] = legacyPayingDayId
+                it[userId] = targetUserId
+                it[amount] = BigDecimal("500.00")
+                it[assignedBy] = callerId
+            }
+        }
+        trackOwned(CompensationTable, CompensationTable.userId, targetUserId)
+
+        assertFailsWith<ValidationException> {
+            CompensationService.update(
+                callerId = callerId,
+                compensationId = compId,
+                amount = BigDecimal("900.00"),
+                note = null,
+                expectedVersion = 1,
             )
         }
     }

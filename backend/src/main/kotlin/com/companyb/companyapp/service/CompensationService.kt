@@ -1,12 +1,14 @@
 package com.companyb.companyapp.service
 
 import com.companyb.companyapp.exception.NotFoundException
+import com.companyb.companyapp.exception.ValidationException
 import com.companyb.companyapp.logging.maskUUID
 import com.companyb.companyapp.repository.AuditContext
 import com.companyb.companyapp.repository.AuditLogRepository
 import com.companyb.companyapp.repository.CompensationCreateParams
 import com.companyb.companyapp.repository.CompensationRepository
 import com.companyb.companyapp.repository.CompensationWithUser
+import com.companyb.companyapp.repository.model.BranchDay
 import com.companyb.companyapp.repository.model.Compensation
 import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.service.branchday.BranchDayService
@@ -30,6 +32,22 @@ object CompensationService {
         return CompensationRepository.findByPayingBranchDayId(branchDayId)
     }
 
+    /**
+     * #421: the paying branch day carries the financial effect (remittance snapshot and
+     * daily-summary aggregation read the pay side), and business rules pin it to the duty
+     * branch — "compensation is deducted from the branch where duty was performed". A day
+     * pair spanning branches would let a caller authorized only at the work branch charge
+     * another branch's OPEN day, so the shape itself is invalid.
+     */
+    private fun assertPayingMatchesWork(
+        workDay: BranchDay,
+        payingDay: BranchDay,
+    ) {
+        if (payingDay.branchId != workDay.branchId) {
+            throw ValidationException("Paying branch day must belong to the same branch as the work branch day")
+        }
+    }
+
     @Suppress("ThrowsCount", "ReturnCount", "LongParameterList")
     fun create(
         callerId: UUID,
@@ -41,9 +59,10 @@ object CompensationService {
         note: String?,
         reason: String? = null,
     ): Compensation {
-        BranchDayService.requireBranchDayExists(workBranchDayId)
+        val workDay = BranchDayService.requireBranchDayExists(workBranchDayId)
 
-        val (branchDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId, reason)
+        val (payingDay, isRemitted) = BranchDayService.checkBranchDayEditable(callerId, payingBranchDayId, reason)
+        assertPayingMatchesWork(workDay, payingDay)
 
         return transaction {
             val result =
@@ -60,7 +79,7 @@ object CompensationService {
                 )
             if (result.created) {
                 CompensationAudit.inserted(
-                    AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                    AuditContext(callerId, payingDay.branchId, isRemitted, reason),
                     result.compensation,
                 )
             }
@@ -87,18 +106,24 @@ object CompensationService {
                 CompensationRepository.findByIdInTransaction(compensationId)
                     ?: throw NotFoundException("Compensation not found")
 
-            val (branchDay, isRemitted) =
+            val (payingDay, isRemitted) =
                 BranchDayService.checkBranchDayEditable(
                     callerId,
                     before.payingBranchDayId,
                     reason,
                 )
+            // Same-branch invariant on the stored record too (#421): a legacy row whose days
+            // span branches must not stay updatable through the work day's gate alone.
+            assertPayingMatchesWork(
+                BranchDayService.requireBranchDayExists(before.workBranchDayId),
+                payingDay,
+            )
 
             val after =
                 CompensationRepository.updateInTransaction(compensationId, amount, note, expectedVersion)
 
             CompensationAudit.updated(
-                AuditContext(callerId, branchDay.branchId, isRemitted, reason),
+                AuditContext(callerId, payingDay.branchId, isRemitted, reason),
                 before,
                 after,
             )

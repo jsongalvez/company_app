@@ -12,6 +12,7 @@ import com.companyb.companyapp.repository.model.AppUserTable
 import com.companyb.companyapp.repository.model.AuditLogTable
 import com.companyb.companyapp.repository.model.BranchDayTable
 import com.companyb.companyapp.repository.model.BranchTable
+import com.companyb.companyapp.repository.model.CompensationTable
 import com.companyb.companyapp.repository.model.ExpenseTable
 import com.companyb.companyapp.repository.model.RoleTable
 import com.companyb.companyapp.repository.model.SessionBaseRateTable
@@ -47,6 +48,9 @@ import kotlin.test.assertEquals
  * dashboard read is deliberately absent: it is clock-in-gated, not
  * capability-gated.
  *
+ * The #421 cross-branch compensation denial rides this server too: the
+ * work-branch gate passes while the service rejects the spanning day pair.
+ *
  * The derivation matrix itself is pinned by StaffRoleBranchDerivationPostgresTest.
  */
 class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
@@ -59,6 +63,7 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
     private val unrelatedBranch = TestFixtures.uuid()
 
     private lateinit var todayAtBranchA: UUID
+    private lateinit var todayAtUnrelatedBranch: UUID
 
     override fun initTestData() {
         listOf(
@@ -88,6 +93,10 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
 
         todayAtBranchA = DatabaseTestHelper.createBranchDayForToday(branchA)
         trackOwned(BranchDayTable, BranchDayTable.id, todayAtBranchA)
+        todayAtUnrelatedBranch = DatabaseTestHelper.createBranchDayForToday(unrelatedBranch)
+        trackOwned(BranchDayTable, BranchDayTable.id, todayAtUnrelatedBranch)
+        // Compensations created below are torn down with their owning user (#421 probes).
+        trackOwned(CompensationTable, CompensationTable.userId, practitionerUser)
         // Expenses created below are torn down with their owning day.
         trackOwned(ExpenseTable, ExpenseTable.branchDayId, todayAtBranchA)
         trackOwned(SessionBaseRateTable, SessionBaseRateTable.branchId, branchA)
@@ -215,6 +224,44 @@ class StaffRoleReachabilityAuthzTest : BasePostgresTest() {
         testServer.client.let { client ->
             val response = client.post("/api/branches/$branchA/rates", rateBody(), asUser(coordinatorUser))
             assertEquals(201, response.code)
+        }
+    }
+
+    // --- #421: the paying branch carries the charge, so its day must match the work branch ---
+
+    private fun compensationBody(
+        workDayId: UUID,
+        payingDayId: UUID,
+    ): Map<String, String> =
+        mapOf(
+            "id" to TestFixtures.uuid().toString(),
+            "workBranchDayId" to workDayId.toString(),
+            "payingBranchDayId" to payingDayId.toString(),
+            "userId" to practitionerUser.toString(),
+            "amount" to "500.00",
+        )
+
+    @Test
+    fun `compensation charging another branch's day is rejected as an invalid shape`() {
+        testServer.client.let { client ->
+            assertEquals(
+                400,
+                client
+                    .post(
+                        "/api/compensation",
+                        compensationBody(todayAtBranchA, todayAtUnrelatedBranch),
+                        asUser(coordinatorUser),
+                    ).code,
+                "work-branch authority alone must not charge a foreign branch's OPEN day",
+            )
+        }
+    }
+
+    @Test
+    fun `coordinator creates a same-branch compensation end to end`() {
+        testServer.client.let { client ->
+            val body = compensationBody(todayAtBranchA, todayAtBranchA)
+            assertEquals(201, client.post("/api/compensation", body, asUser(coordinatorUser)).code)
         }
     }
 
