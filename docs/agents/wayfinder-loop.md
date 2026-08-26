@@ -44,6 +44,16 @@ routes human decisions through tracker issues (`needs-info` /
 - **Confirmed-gone session → fresh respawn** (`--retry`). It refuses to run
   while the recorded session (or its sub-agents) is still in the active set,
   so a stalled worker can never be silently duplicated.
+- **Recovery budgets are consecutive-fruitless, not cumulative** (#422 loop
+  hardening). Each recovery class keeps a small cap on *back-to-back fruitless*
+  attempts, but the counter resets the moment the session shows real work — a
+  completed tool-call turn newer than the nudge that preceded it. A session a
+  nudge genuinely unstuck can be recovered again indefinitely; only a session
+  that stays wedged with zero progress reaches its cap and pages the operator.
+  The truncated-provider class (`provider.invalid-output`) is exempt from caps
+  entirely. A tool call still in flight also suspends the stall detector: a
+  long compile/test run freezes model-token output for its whole duration and
+  is work, never a stall.
 - Session-side duties on receiving a recovery prompt are specified in
   `docs/agents/wayfinder-lifecycle.md`.
 

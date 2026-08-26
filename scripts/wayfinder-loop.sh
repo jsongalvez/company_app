@@ -295,6 +295,33 @@ active_children() {
   return 1
 }
 
+# True when the session's latest turn still has a tool call in flight. A long
+# compile/test/load run produces no model tokens while it executes — that is
+# work in progress, never a stall.
+has_running_tool() {
+  api get "/api/session/$1/message?limit=1" 2>/dev/null |
+    jq -e '([.data[-1].content[]? | select(.type == "tool" and
+        ((.state.status // "") == "running" or (.state.status // "") == "pending"))] | length) > 0' >/dev/null 2>&1
+}
+
+# Id of the session's newest message ("" when unknown).
+latest_message_id() {
+  api get "/api/session/$1/message?limit=1" 2>/dev/null | jq -r '.data[-1].id // ""' 2>/dev/null || true
+}
+
+# True when any assistant turn completed AFTER base message id $2 ended with
+# tool calls — the recovery prompt bought execution work rather than another
+# parked prose stop. Token growth alone cannot decide this: every futile
+# stop-cycle also grows the transcript.
+tool_work_since() {
+  api get "/api/session/$1/message?limit=15" 2>/dev/null | jq -e --arg base "$2" '
+    ([.data[]]) as $all
+    | ($all | to_entries | map(select(.value.id == $base)) | first | .key // -1) as $cut
+    | [$all[($cut + 1):][]?
+       | select((.type // .role) == "assistant" and .time.completed != null and .finish == "tool-calls")]
+      | length > 0' >/dev/null 2>&1
+}
+
 # Return completed assistant message id only when its turn stopped without a tool call.
 # A completed `tool-calls` turn is normal — the next model turn follows it. A completed
 # `stop`/`length`/`error` turn with no handoff is the unattended-chain failure: prompt it
@@ -401,6 +428,10 @@ supervise_session() {
   # pending question pings within TICK_SECS even if answered moments later.
   local notified=0 notified_perm=0 outages=0 idle_secs=0 last_prog=0 last_updated=0
   local upd prog d f p sess stop_message not_alive_ticks=0 disk_notified=0 free_gb="" last_stop_message="" last_err_id="" stop_nudges=0
+  # work_msg_id = newest-message id recorded when the latest recovery prompt
+  # fired. Any completed tool-call turn after it proves the nudge bought real
+  # work and clears the fruitless-attempt budget — see the reset block below.
+  local work_msg_id=""
   while :; do
     sleep "$TICK_SECS"
     # completion first: a finished session signals via handoff activity — either
@@ -434,6 +465,7 @@ supervise_session() {
       # to wait_for_doc, which only picks sessions up after their handoff lands —
       # session-176 ran ~5h unsupervised until a manual daemon restart)
        notified=0; notified_perm=0; outages=0; idle_secs=0; last_prog=0; last_updated=0; not_alive_ticks=0; disk_notified=0; last_stop_message=""; last_err_id=""; stop_nudges=0
+      work_msg_id=""
       continue
     fi
 
@@ -494,6 +526,19 @@ supervise_session() {
     fi
     outages=0
 
+    # Progress clears the fruitless-attempt budget: a recovery prompt that
+    # bought real work must not count toward the pause caps. The signal is a
+    # completed tool-call turn newer than the nudge-time message — the futile
+    # cycle (nudge -> prose stop -> nudge) never produces one and stays capped.
+    if [ -n "${work_msg_id:-}" ] && tool_work_since "$session_id" "$work_msg_id"; then
+      log "session $session_id worked since last recovery prompt — fruitless-attempt budget cleared"
+      work_msg_id=""
+      stop_nudges=0
+      last_stop_message=""
+      retries=0
+      save_state
+    fi
+
     # Assistant errors split by recoverability. provider.invalid-output is the truncated-
     # stream class (the free model ending a turn mid-stream): a canonical NUDGE resumes it —
     # manual continuations after every 2026-08-22 truncation worked, while each pause took
@@ -510,6 +555,7 @@ supervise_session() {
           if [ "$err_id" != "$last_err_id" ]; then
             if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
               last_err_id="$err_id"
+              work_msg_id="$(latest_message_id "$session_id")"
               log "session $session_id hit a transient provider error — sent recovery prompt: $err_text"
               notify "wayfinder continuing" "session $session_id hit a truncated provider response — recovery sent"
             else
@@ -531,15 +577,18 @@ supervise_session() {
     # as the completed message appears; the stop_nudges cap bounds the cycle.
     stop_message="$(stopped_assistant_message "$session_id")"
     if [ -n "$stop_message" ] && [ "$stop_message" != "$last_stop_message" ]; then
-      # Bounded: each nudge mints a NEW stopped message (new id), so message-id dedupe
-      # alone cannot stop a parked-state cycle — the 2026-08-23 loop ran 570 nudges.
-      # After 2 fruitless continuations, pause the chain and page the operator.
+      # Bounded per fruitless streak: each nudge mints a NEW stopped message (new id), so
+      # message-id dedupe alone cannot stop a parked-state cycle — the 2026-08-23 loop ran
+      # 570 nudges. The count resets whenever the session shows real tool work since its
+      # last nudge (the progress block above), so only BACK-TO-BACK fruitless continuations
+      # reach this cap; then pause the chain and page the operator.
       if [ "$stop_nudges" -ge 2 ]; then
         log "chain paused: $session_id stopped without handoff after $stop_nudges continuation prompts"
         notify "wayfinder chain paused" "session $session_id keeps stopping without a handoff — attach TUI to check, then run: ./scripts/wayfinder-loop.sh --retry"
         exit 0
       fi
       stop_nudges=$((stop_nudges + 1))
+      work_msg_id="$(latest_message_id "$session_id")"
       if api post "/api/session/$session_id/prompt" --data "$(jq -nc --arg t "$NUDGE" '{text: $t}')" >/dev/null 2>&1; then
         last_stop_message="$stop_message"
         log "session $session_id stopped without handoff at $stop_message — sent immediate continuation prompt"
@@ -559,6 +608,7 @@ supervise_session() {
       not_alive_ticks=$((not_alive_ticks + 1))
       if [ "$not_alive_ticks" -ge 12 ] && ! active_children "$session_id"; then
         not_alive_ticks=0
+        work_msg_id="$(latest_message_id "$session_id")"
         session_dead resume
       fi
       continue
@@ -571,7 +621,7 @@ supervise_session() {
     # working session shows a frozen time.updated). STALL_SECS without ANY
     # progress = stalled, resume it in place.
     prog="$(printf '%s' "$sess" | jq -r '(.data.tokens.input // 0) + (.data.tokens.output // 0) + (.data.tokens.reasoning // 0)' 2>/dev/null || echo -1)"
-    upd="$(printf '%s' "$sess" | jq -r '.data.time.updated' 2>/dev/null || echo -1)"
+    upd="$(printf '%s' "$sess" | jq -r '.data.time.updated // -1' 2>/dev/null || echo -1)"
     # stalled only when BOTH the token fingerprint and time.updated are unchanged
     if [ "$prog" -ge 0 ] && [ "$last_prog" -gt 0 ] && [ "$prog" -eq "$last_prog" ] &&
        [ "$upd" -ge 0 ] && [ "$last_updated" -gt 0 ] && [ "$upd" -eq "$last_updated" ]; then
@@ -589,8 +639,16 @@ supervise_session() {
         idle_secs=0
         continue
       fi
+      # A long build/test/load run inside one tool call also freezes both counters
+      # for its whole duration — work in progress, never a stall (the detector
+      # above only sees model tokens, which nothing emits mid-execution).
+      if has_running_tool "$session_id"; then
+        idle_secs=0
+        continue
+      fi
       log "session $session_id stalled (no activity across $STALL_SECS seconds) — resuming in place"
       idle_secs=0
+      work_msg_id="$(latest_message_id "$session_id")"
       session_dead resume
       continue
     fi
@@ -600,9 +658,12 @@ supervise_session() {
 session_dead() {
   # resume: the session still exists but stalled/interrupted — ask it to continue in place
   # fresh: session gone (404) — spawn a new one from the handoff doc
-  # Bounded at 2 attempts each: a session that keeps stalling or dying is wedged or the
-  # packet is poison — pause the chain and page the operator instead of nudging forever
-  # (the 2026-08-23 parked-ticket nudge loop ran 570 cycles before a human noticed).
+  # Bounded at 2 CONSECUTIVE attempts each: the supervise loop clears the counter
+  # whenever the session shows real work since its last recovery prompt, so only a
+  # session that stays wedged or dies repeatedly with zero progress reaches the cap —
+  # that is a wedge or a poison packet: pause the chain and page the operator instead
+  # of nudging forever (the 2026-08-23 parked-ticket nudge loop ran 570 cycles before
+  # a human noticed).
   local mode="${1:-fresh}"
   if [ "$mode" = "resume" ]; then
     if [ "${retries:-0}" -ge 2 ]; then

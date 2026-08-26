@@ -131,5 +131,60 @@ else
 fi
 rm -rf "$stubdir" "$worktree"
 
+echo "7. real work after a nudge clears the fruitless-attempt budget"
+contains "$script" 'tool_work_since' "progress predicate wired"
+contains "$script" 'has_running_tool' "running-tool stall exemption present"
+
+# Behavioral: stop-without-handoff gets nudged; when the session then completes a
+# tool-call turn (real work), the budget clears (retries back to 0) instead of
+# accumulating toward the pause cap.
+stubdir="$(mktemp -d)"
+prompts="$stubdir/prompts"
+cat > "$stubdir/opencode2" <<STUB
+#!/usr/bin/env bash
+cmd="\$*"
+case "\$cmd" in
+  *"get /api/session/ses_worktest"*message*) cat "$stubdir/msg.json"; exit 0 ;;
+  *"get /api/session/ses_worktest"*) echo '{"data":{"id":"ses_worktest","tokens":{"input":10}}}'; exit 0 ;;
+  *"get /api/session/active"*) echo '{"data":{"ses_worktest":{"type":"assistant"}}}'; exit 0 ;;
+  *"post /api/session/ses_worktest/prompt"*) echo nudged >> "$prompts"; exit 0 ;;
+esac
+exit 1
+STUB
+chmod +x "$stubdir/opencode2"
+
+worktree="$(mktemp -d)"
+mkdir -p "$worktree/.wayfinder/handoffs" "$worktree/scripts"
+cp "$script" "$worktree/scripts/wayfinder-loop.sh"
+touch "$worktree/.wayfinder/handoffs/test-handoff.md"
+fp="$(sha256sum "$worktree/.wayfinder/handoffs/test-handoff.md" | awk '{print $1}')"
+printf 'last_doc=test-handoff.md\nsession_id=ses_worktest\npending_doc=\nretries=1\nseen_docs=test-handoff.md@%s\n' "$fp" \
+  > "$worktree/.wayfinder-loop.state"
+printf '{"data":[{"id":"msg_a","type":"assistant","time":{"completed":1755861480},"finish":"stop"}]}' \
+  > "$stubdir/msg.json"
+printf '{"data":[{"id":"msg_a","type":"assistant","time":{"completed":1755861480},"finish":"stop"},{"id":"msg_b","type":"assistant","time":{"completed":1755861490},"finish":"tool-calls"}]}' \
+  > "$stubdir/msg-work.json"
+( sleep 3; cp "$stubdir/msg-work.json" "$stubdir/msg.json" ) &
+
+PATH="$stubdir:$PATH" OPENCODE_BIN="$stubdir/opencode2" WAYFINDER_TICK_SECS=1 WAYFINDER_STALL_SECS=9999 \
+  timeout -s TERM 7 bash "$worktree/scripts/wayfinder-loop.sh" > "$worktree/budget.out" 2>&1
+if grep -q "worked since last recovery prompt" "$worktree/budget.out"; then
+  ok "tool-call work after nudge cleared the budget"
+else
+  bad "progress reset never fired: $(head -5 "$worktree/budget.out")"
+fi
+if grep -q '^retries=0$' "$worktree/.wayfinder-loop.state"; then
+  ok "retries reset to 0 after observed work"
+else
+  bad "state retries not cleared: $(grep retries "$worktree/.wayfinder-loop.state")"
+fi
+if [ "$(wc -l < "$prompts")" -ge 1 ] && ! grep -q "chain paused" "$worktree/budget.out"; then
+  ok "session kept supervised across recovery ($(wc -l < "$prompts") nudges)"
+else
+  bad "chain paused or never nudged: $(head -3 "$worktree/budget.out")"
+fi
+wait || true
+rm -rf "$stubdir" "$worktree"
+
 echo
 if [ $fail -eq 0 ]; then echo "ALL PASS"; else echo "FAILURES PRESENT"; exit 1; fi
