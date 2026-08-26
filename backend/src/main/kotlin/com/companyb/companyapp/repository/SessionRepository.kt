@@ -15,6 +15,7 @@ import com.companyb.companyapp.repository.model.Session
 import com.companyb.companyapp.repository.model.SessionTable
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
@@ -69,6 +70,29 @@ object SessionRepository {
                         (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
                         (ActiveSessionVoidsView.sessionId.isNull())
                 }.count()
+        }
+
+    /**
+     * #424 — final price of the client's most recent non-MEDICAL_MISSION, non-voided session.
+     * Same history definition as [countPriorNonMedicalMissionSessions] (mission sessions never
+     * count; voids via `active_session_voids` don't count); null when no such session exists.
+     */
+    fun findMostRecentPriorSessionFinalPrice(clientId: UUID): BigDecimal? =
+        transaction {
+            SessionTable
+                .leftJoin(
+                    ActiveSessionVoidsView,
+                    { SessionTable.id },
+                    { ActiveSessionVoidsView.sessionId },
+                ).selectAll()
+                .where {
+                    (SessionTable.clientId eq clientId) and
+                        (SessionTable.sessionType neq SessionType.MEDICAL_MISSION) and
+                        (ActiveSessionVoidsView.sessionId.isNull())
+                }.orderBy(SessionTable.createdAt to SortOrder.DESC)
+                .limit(1)
+                .singleOrNull()
+                ?.get(SessionTable.finalPrice)
         }
 
     fun getBranchType(branchId: UUID): BranchType? =

@@ -119,7 +119,7 @@ object SessionService {
         val effectiveFinalPrice =
             if (sessionType == SessionType.MEDICAL_MISSION) BigDecimal.ZERO else finalPrice
 
-        val basePrice = computeBasePrice(branchId, sessionType)
+        val basePrice = resolveDefaultBasePrice(branchId, clientId, sessionType)
 
         return transaction {
             val result =
@@ -162,6 +162,29 @@ object SessionService {
             ?.rate
             ?: throw ValidationException("No base rate configured for session type $sessionType at this branch")
     }
+
+    /**
+     * #424 — BR §Clients: after a free session the next visit's DEFAULT offered price is the
+     * branch's SUBSEQUENT base rate instead of the derived type's rate. The trigger keys on
+     * price alone (owner ruling 2026-08-26): the client's most recent non-MEDICAL_MISSION,
+     * non-voided session has final price ₱0 — mission sessions are ₱0 by definition and never
+     * count toward history, and voids don't count as "most recent". Session TYPE stays
+     * count-derived via [computeSessionType]; only the default price changes. The
+     * practitioner's explicit finalPrice at create always wins. Mission-branch creates keep
+     * their ₱0 invariant (#405): no SUBSEQUENT default is offered there.
+     */
+    private fun resolveDefaultBasePrice(
+        branchId: UUID,
+        clientId: UUID,
+        sessionType: SessionType,
+    ): BigDecimal =
+        if (sessionType != SessionType.MEDICAL_MISSION &&
+            SessionRepository.findMostRecentPriorSessionFinalPrice(clientId)?.signum() == 0
+        ) {
+            computeBasePrice(branchId, SessionType.SUBSEQUENT)
+        } else {
+            computeBasePrice(branchId, sessionType)
+        }
 
     @Suppress("ReturnCount", "ThrowsCount")
     fun updateStatus(
@@ -386,10 +409,11 @@ object SessionService {
     /**
      * #348 — pre-create preview for the SessionCreate screen: the session type create WILL
      * assign and the base rate that defaults the final price. Reads the exact same inputs as
-     * [create] (branch type, global non-medical-mission history, active branch rate) so the
-     * preview can never diverge from the created row. No transaction needed — three independent
-     * reads; a concurrent client session landing between them only makes the preview stale by
-     * one visit, and the server recomputes authoritatively at create.
+     * [create] (branch type, global non-medical-mission history, free-session SUBSEQUENT
+     * default (#424), active branch rate) so the preview can never diverge from the created
+     * row. No transaction needed — independent reads; a concurrent client session landing
+     * between them only makes the preview stale by one visit, and the server recomputes
+     * authoritatively at create.
      */
     fun previewSession(
         branchId: UUID,
@@ -401,7 +425,7 @@ object SessionService {
         ClientRepository.findById(clientId) ?: throw NotFoundException("Client not found")
         val priorCount = SessionRepository.countPriorNonMedicalMissionSessions(clientId)
         val sessionType = computeSessionType(branchType, priorCount)
-        return SessionPreview(sessionType, computeBasePrice(branchId, sessionType))
+        return SessionPreview(sessionType, resolveDefaultBasePrice(branchId, clientId, sessionType))
     }
 
     // --- Base rate pass-throughs ---
