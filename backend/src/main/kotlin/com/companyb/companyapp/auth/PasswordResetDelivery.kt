@@ -11,6 +11,11 @@ import jakarta.mail.internet.InternetAddress
 import jakarta.mail.internet.MimeMessage
 import java.nio.charset.StandardCharsets
 import java.util.Properties
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 internal fun interface PasswordResetSender {
     fun send(
@@ -22,13 +27,17 @@ internal fun interface PasswordResetSender {
 
 internal object PasswordResetDelivery {
     private val logger = KotlinLogging.logger {}
+    private var senderExecutor: ThreadPoolExecutor? = null
 
     @Volatile
     private var configuredSender: PasswordResetSender? = null
 
     /** Selects SMTP delivery once during application startup. Null keeps the log relay active. */
+    @Synchronized
     fun configure(config: SmtpConfig?) {
+        senderExecutor?.shutdownNow()
         configuredSender = config?.let(::SmtpPasswordResetSender)
+        senderExecutor = config?.let { createSenderExecutor() }
         if (config == null) {
             logger.warn {
                 "[PASSWORD-RESET] SMTP delivery is not configured; using server-log relay. " +
@@ -37,8 +46,15 @@ internal object PasswordResetDelivery {
         }
     }
 
+    /** Stops queued delivery during application shutdown; reset tokens remain redeemable. */
+    @Synchronized
+    fun shutdown() {
+        senderExecutor?.shutdownNow()
+        senderExecutor = null
+        configuredSender = null
+    }
+
     /** Delivery happens after token transaction commits; failures never invalidate the token. */
-    @Suppress("TooGenericExceptionCaught")
     fun deliver(
         identifier: String,
         recipient: String,
@@ -51,6 +67,31 @@ internal object PasswordResetDelivery {
             logRelay(identifier, rawCode, validityHours)
             return
         }
+        if (senderOverride != null) {
+            sendSafely(sender, recipient, rawCode, validityHours)
+            return
+        }
+        val executor = synchronized(this) { senderExecutor }
+        if (executor == null) {
+            logger.error { "[PASSWORD-RESET] SMTP delivery is not active; reset code remains valid for retry" }
+            return
+        }
+        try {
+            executor.execute {
+                sendSafely(sender, recipient, rawCode, validityHours)
+            }
+        } catch (failure: RejectedExecutionException) {
+            logger.error(failure) { "[PASSWORD-RESET] SMTP delivery was rejected; reset code remains valid for retry" }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun sendSafely(
+        sender: PasswordResetSender,
+        recipient: String,
+        rawCode: String,
+        validityHours: Long,
+    ) {
         try {
             sender.send(recipient, rawCode, validityHours)
         } catch (failure: Exception) {
@@ -67,6 +108,23 @@ internal object PasswordResetDelivery {
     ) {
         logger.warn { "[PASSWORD-RESET] Reset code for '$identifier': $rawCode (valid ${validityHours}h)" }
     }
+
+    private fun createSenderExecutor() =
+        ThreadPoolExecutor(
+            DELIVERY_THREADS,
+            DELIVERY_THREADS,
+            DELIVERY_KEEP_ALIVE_MS,
+            TimeUnit.MILLISECONDS,
+            ArrayBlockingQueue(DELIVERY_QUEUE_CAPACITY),
+            ThreadFactory { runnable ->
+                Thread(runnable, DELIVERY_THREAD_NAME).apply { isDaemon = true }
+            },
+        )
+
+    private const val DELIVERY_THREADS = 1
+    private const val DELIVERY_KEEP_ALIVE_MS = 0L
+    private const val DELIVERY_QUEUE_CAPACITY = 100
+    private const val DELIVERY_THREAD_NAME = "password-reset-smtp"
 }
 
 internal object PasswordResetEmail {

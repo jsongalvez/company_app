@@ -105,15 +105,19 @@ private fun configureJavalin(config: io.javalin.config.JavalinConfig) {
     }
     config.events.serverStartFailed {
         shutdownScheduler()
+        PasswordResetDelivery.shutdown()
         DatabaseConfig.close()
     }
     config.events.serverStopping {
         shutdownScheduler()
+        PasswordResetDelivery.shutdown()
     }
     config.events.serverStopped {
+        PasswordResetDelivery.shutdown()
         DatabaseConfig.close()
     }
     config.events.serverStopFailed {
+        PasswordResetDelivery.shutdown()
         DatabaseConfig.close()
     }
     config.routes.before("${ApiRoutes.API_PREFIX}*") { context ->
@@ -216,6 +220,7 @@ fun main(config: AppConfig) {
         initializeJavalin(config)
     }.onFailure {
         shutdownScheduler()
+        PasswordResetDelivery.shutdown()
         DatabaseConfig.close()
     }.getOrThrow()
 
